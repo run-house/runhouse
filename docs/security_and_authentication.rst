@@ -26,7 +26,8 @@ the `Runhouse team <https://www.run.house/about>`_ (first name at run.house)
 
 Disabling Data Collection
 -----------------------------------
-To disable data collection and error tracking collection, set :code:`disable_data_collection` to :code:`true` in your
+To disable data collection and error tracking collection, set the environment variable :code:`DISABLE_DATA_COLLECTION`
+to :code:`True`. Alternatively, set :code:`disable_data_collection` to :code:`true` in your
 local Runhouse config (:code:`~/.rh/config.yaml`), or in Python:
 
 .. code-block:: python

@@ -13,8 +13,8 @@ logging.config.dictConfig(LOGGING_CONFIG)
 logging.getLogger("numexpr").setLevel(logging.WARNING)
 
 
-disable_data_collection = configs.get("disable_data_collection", False)
-if not disable_data_collection:
+collect_data: bool = configs.data_collection_enabled()
+if collect_data:
     import sentry_sdk
 
     sentry_sdk.init(

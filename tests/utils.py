@@ -5,6 +5,9 @@ from pathlib import Path
 
 import pytest
 
+import runhouse as rh
+import yaml
+
 from runhouse.globals import rns_client
 from runhouse.servers.obj_store import ObjStore, RaySetupOption
 
@@ -13,7 +16,7 @@ def get_ray_servlet_and_obj_store(env_name):
     """Helper method for getting auth servlet and base env servlet"""
 
     test_obj_store = ObjStore()
-    test_obj_store.initialize(env_name, setup_ray=RaySetupOption.TEST_PROCESS)
+    test_obj_store.initialize(env_name, setup_ray=RaySetupOption.GET_OR_FAIL)
 
     servlet = ObjStore.get_env_servlet(
         env_name=env_name,
@@ -57,26 +60,15 @@ def friend_account():
         rns_client.load_account_from_file()
 
 
-@contextlib.contextmanager
-def logged_out():
-    """Used for the purposes of testing methods as if we're logged out.
-    When inside the context manager, token, username, and configs will all be None, as if logged out."""
-
-    rns_client._current_folder = None
-    rns_client._configs._simulate_logged_out = True
-
-    yield account
-
-    rns_client._configs._simulate_logged_out = False
-
-
-@contextlib.contextmanager
-def invalid_friend_account():
-    """Used for the purposes of testing methods as if we have invalid token.
-    When inside the context manager, the friend account role will be assumed, but the token will be set to junk."""
-
-    with friend_account() as friend_account_dict:
-        friend_account_dict["token"] = "junk"
-        rns_client._configs.token = "junk"
-
-        yield friend_account_dict
+def test_env(logged_in=False):
+    return rh.env(
+        reqs=["pytest", "httpx", "pytest_asyncio"],
+        working_dir=None,
+        setup_cmds=[
+            f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
+            f"echo '{yaml.safe_dump(rh.configs.defaults_cache)}' > ~/.rh/config.yaml"
+        ]
+        if logged_in
+        else False,
+        name="base_env",
+    )

@@ -1,5 +1,3 @@
-import pytest
-
 import runhouse as rh
 
 
@@ -21,8 +19,6 @@ def sd_generate(
     ).images
 
 
-@pytest.mark.gputest
-@pytest.mark.tutorialtest
 def test_sd_generate(a10g_gpu_cluster):
     generate_gpu = rh.function(fn=sd_generate).to(
         a10g_gpu_cluster, reqs=["pytest", "diffusers", "torch", "transformers"]

@@ -1,6 +1,7 @@
 import importlib
 import logging
 import shlex
+import subprocess
 import time
 from pathlib import Path
 
@@ -14,7 +15,7 @@ import yaml
 from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
 
 from tests.conftest import init_args
-from tests.utils import friend_account
+from tests.utils import friend_account, test_env
 
 SSH_USER = "rh-docker-user"
 BASE_LOCAL_SSH_PORT = 32320
@@ -39,6 +40,30 @@ def named_cluster():
     c = rh.cluster(**args)
     init_args[id(c)] = args
     return c
+
+
+@pytest.fixture(scope="session")
+def local_daemon(request):
+    if not request.config.getoption("--detached") or rh.here == "file":
+        logging.info("Starting local_daemon.")
+        local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
+        subprocess.run(
+            "runhouse restart",
+            shell=True,  # Needed because we need to be in the right conda env
+            cwd=local_rh_package_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+    try:
+        # Make sure the object store is set up correctly
+        assert rh.here.on_this_cluster()
+        yield rh.here
+
+    finally:
+        if not request.config.getoption("--detached"):
+            subprocess.run("runhouse stop", capture_output=True, text=True, shell=True)
 
 
 @pytest.fixture(scope="session")
@@ -89,7 +114,7 @@ def static_cpu_cluster():
     c.restart_server(resync_rh=True)  # needed to override the cluster's config file
     init_args[id(c)] = args
 
-    c.install_packages(["pytest"])
+    test_env().to(c)
     c.sync_secrets(["ssh"])
 
     return c
@@ -115,7 +140,7 @@ def byo_cpu():
     c = rh.cluster(**args).save()
     init_args[id(c)] = args
 
-    c.install_packages(["pytest"])
+    test_env().to(c)
     c.sync_secrets(["ssh"])
 
     return c
@@ -467,7 +492,7 @@ def docker_cluster_pk_ssh(request):
 def docker_cluster_pk_tls_den_auth(docker_cluster_pk_tls_exposed, logged_in_account):
     """This is one of our key use cases -- TLS + Den Auth set up.
 
-    We use the base fixture, which already has nginx set up to port forward
+    We use the base fixture, which already has caddy set up to port forward
     from 443 to 32300, and we set the cluster parameters to use the correct ports to communicate
     with the server, in case they had been changed.
     """
@@ -478,7 +503,7 @@ def docker_cluster_pk_tls_den_auth(docker_cluster_pk_tls_exposed, logged_in_acco
 def docker_cluster_pk_ssh_den_auth(docker_cluster_pk_ssh, logged_in_account):
     """This is our other key use case -- SSH with any Den Auth.
 
-    We use the base fixture, and ignore the nginx/https setup, instead just communicating with
+    We use the base fixture, and ignore the caddy/https setup, instead just communicating with
     the cluster using the base SSH credentials already present on the machine. We send a request
     to enable den auth server side.
     """
@@ -492,7 +517,7 @@ def docker_cluster_pk_ssh_no_auth(
 ):
     """This is our other key use case -- SSH without any Den Auth.
 
-    We use the base fixture, and ignore the nginx/https setup, instead just communicating with
+    We use the base fixture, and ignore the caddy/https setup, instead just communicating with
     the cluster using the base SSH credentials already present on the machine. We send a request
     to disable den auth server side.
     """
@@ -505,7 +530,7 @@ def docker_cluster_pk_http_exposed(request):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - Den auth enabled
-    - Nginx set up on startup to forward Runhouse HTTP Server to port 80
+    - Caddy set up on startup to forward Runhouse HTTP Server to port 80
     """
 
     # From pytest config
@@ -533,7 +558,7 @@ def docker_cluster_pk_http_exposed(request):
         ],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": "docker_cluster_with_nginx",
+            "name": "docker_cluster_with_caddy",
             "server_connection_type": "none",
             "server_port": DEFAULT_HTTP_PORT,
             "client_port": local_client_port,
@@ -553,7 +578,7 @@ def docker_cluster_pwd_ssh_no_auth(request):
     """This basic cluster fixture is set up with:
     - Password authentication
     - No Den Auth
-    - No nginx/port forwarding set up
+    - No caddy/port forwarding set up
     """
 
     # From pytest config
@@ -595,7 +620,7 @@ def docker_cluster_pk_ssh_telemetry(request, detached=True):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - No Den Auth
-    - No nginx/port forwarding set up
+    - No caddy/port forwarding set up
     - Telemetry enabled
     """
 

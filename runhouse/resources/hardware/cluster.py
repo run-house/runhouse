@@ -61,6 +61,7 @@ class Cluster(Resource):
         server_connection_type: str = None,
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
+        domain: str = None,
         den_auth: bool = False,
         use_local_telemetry: bool = False,
         dryrun=False,
@@ -84,17 +85,16 @@ class Cluster(Resource):
 
         self.client = None
         self.den_auth = den_auth
-        self.cert_config = TLSCertConfig(
-            cert_path=ssl_certfile, key_path=ssl_keyfile, dir_name=self.name
-        )
+        self.cert_config = TLSCertConfig(cert_path=ssl_certfile, key_path=ssl_keyfile)
 
         self.ssl_certfile = ssl_certfile
         self.ssl_keyfile = ssl_keyfile
         self.server_connection_type = server_connection_type
-        self.server_port = server_port or DEFAULT_SERVER_PORT
+        self.server_port = server_port
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
         self.server_host = server_host
+        self.domain = domain
         self.use_local_telemetry = use_local_telemetry
 
     @property
@@ -153,6 +153,7 @@ class Cluster(Resource):
                 "server_port",
                 "server_host",
                 "server_connection_type",
+                "domain",
                 "den_auth",
                 "use_local_telemetry",
                 "ssh_port",
@@ -162,10 +163,8 @@ class Cluster(Resource):
         if self.is_up():
             config["creds"] = self.creds
 
-        if self._use_custom_cert:
+        if self._use_custom_certs:
             config["ssl_certfile"] = self.cert_config.cert_path
-
-        if self._use_custom_key:
             config["ssl_keyfile"] = self.cert_config.key_path
 
         return config
@@ -203,8 +202,8 @@ class Cluster(Resource):
 
     def _client(self, restart_server=True):
         if self.on_this_cluster():
-            return None
-            # return obj_store  # TODO next PR
+            # Previously (before calling within the same cluster worked) returned None
+            return obj_store
         if not self.client:
             self.check_server(restart_server=restart_server)
         return self.client
@@ -252,6 +251,9 @@ class Cluster(Resource):
         return self
 
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
+        if self.on_this_cluster():
+            return
+
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
 
@@ -326,13 +328,12 @@ class Cluster(Resource):
         use `cluster.get(key, default=KeyError)`."""
         self.check_server()
         if self.on_this_cluster():
-            return obj_store.get(key, default=default)
+            return obj_store.get(key, default=default, remote=remote)
         try:
-            res = self.client.call_module_method(
+            res = self.client.get(
                 key,
-                None,
+                default=default,
                 remote=remote,
-                stream_logs=stream_logs,
                 system=self,
             )
         except KeyError as e:
@@ -574,19 +575,16 @@ class Cluster(Resource):
         )
 
     @property
-    def _use_nginx(self) -> bool:
-        """Use Nginx if the server port is set to the default HTTP (80) or HTTPS (443) port.
-        Note: Nginx will serve as a reverse proxy, forwarding traffic from the server port to the Runhouse API
+    def _use_caddy(self) -> bool:
+        """Use Caddy if the server port is set to the default HTTP (80) or HTTPS (443) port.
+        Note: Caddy will serve as a reverse proxy, forwarding traffic from the server port to the Runhouse API
         server running on port 32300."""
         return self.server_port in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]
 
     @property
-    def _use_custom_cert(self):
-        return Path(self.cert_config.cert_path).exists()
-
-    @property
-    def _use_custom_key(self):
-        return Path(self.cert_config.key_path).exists()
+    def _use_custom_certs(self):
+        """Generate custom certs if HTTPS is enabled and no domain is specified"""
+        return self._use_https and self.domain is None
 
     def _start_ray_workers(self, ray_port):
         for host in self.ips:
@@ -617,7 +615,7 @@ class Cluster(Resource):
             resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
             env (str or Env, optional): Specified environment to restart the server on. (Default: ``None``)
-            restart_proxy (bool): Whether to restart nginx on the cluster, if configured. (Default: ``False``)
+            restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
 
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
@@ -628,50 +626,56 @@ class Cluster(Resource):
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
             logger.info("Finished syncing Runhouse to cluster.")
 
+        https_flag = self._use_https
+        caddy_flag = self._use_caddy
+        domain = self.domain
+        use_local_telemetry = self.use_local_telemetry
+
+        cluster_key_path = None
+        cluster_cert_path = None
+
+        if https_flag:
+            # Make sure certs are copied to the cluster (where relevant)
+            base_cluster_dir = self.cert_config.DEFAULT_CLUSTER_DIR
+            cluster_key_path = f"{base_cluster_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
+            cluster_cert_path = f"{base_cluster_dir}/{self.cert_config.CERT_NAME}"
+
+            if domain and caddy_flag:
+                logger.info(
+                    "Skipping issuing certs locally. Caddy will automate generating certs on the "
+                    f"cluster using domain: {domain}."
+                )
+            else:
+                # If no cert and keyfile already exist, generate them client side and copy them onto the cluster
+                if (
+                    not Path(self.cert_config.cert_path).exists()
+                    or not Path(self.cert_config.key_path).exists()
+                ):
+                    self.cert_config.generate_certs(address=self.address)
+
+                self._copy_certs_to_cluster()
+
+            if caddy_flag:
+                # Update pointers to the cert and key files as stored on the cluster
+                # (to be passed in to the runhouse restart command)
+                base_caddy_dir = self.cert_config.CADDY_CLUSTER_DIR
+                cluster_key_path = (
+                    f"{base_caddy_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
+                )
+                cluster_cert_path = f"{base_caddy_dir}/{self.cert_config.CERT_NAME}"
+
         # Update the cluster config on the cluster
         self.save_config_to_cluster()
-
-        use_custom_cert = self._use_custom_cert
-        if use_custom_cert:
-            # Copy the provided cert onto the cluster
-            from runhouse import folder
-
-            cert_dir = self.cert_config.DEFAULT_CERT_DIR
-            folder(path=self.cert_config.cert_dir).to(self, path=cert_dir)
-
-            # Path to cert file stored on the cluster
-            cluster_cert_path = f"{cert_dir}/{self.cert_config.CERT_NAME}"
-            logger.info(
-                f"Copied TLS cert onto the cluster in path: {cluster_cert_path}"
-            )
-
-        use_custom_key = self._use_custom_key
-        if use_custom_key:
-            # Copy the provided key onto the cluster
-            from runhouse import folder
-
-            keyfile_dir = self.cert_config.DEFAULT_PRIVATE_KEY_DIR
-            folder(path=self.cert_config.key_dir).to(self, path=keyfile_dir)
-
-            # Path to key file stored on the cluster
-            cluster_key_path = f"{keyfile_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
-
-            logger.info(
-                f"Copied TLS keyfile onto the cluster in path: {cluster_key_path}"
-            )
-
-        https_flag = self._use_https
-        nginx_flag = self._use_nginx
-        use_local_telemetry = self.use_local_telemetry
 
         cmd = (
             CLI_RESTART_CMD
             + (" --restart-ray" if restart_ray else "")
             + (" --use-https" if https_flag else "")
-            + (" --use-nginx" if nginx_flag else "")
-            + (" --restart-proxy" if restart_proxy and nginx_flag else "")
-            + (f" --ssl-certfile {cluster_cert_path}" if use_custom_cert else "")
-            + (f" --ssl-keyfile {cluster_key_path}" if use_custom_key else "")
+            + (" --use-caddy" if caddy_flag else "")
+            + (" --restart-proxy" if restart_proxy and caddy_flag else "")
+            + (f" --ssl-certfile {cluster_cert_path}" if self._use_custom_certs else "")
+            + (f" --ssl-keyfile {cluster_key_path}" if self._use_custom_certs else "")
+            + (f" --domain {domain}" if domain else "")
             + (" --use-local-telemetry" if use_local_telemetry else "")
             + f" --port {self.server_port}"
         )
@@ -751,18 +755,18 @@ class Cluster(Resource):
         self.check_server()
         # Note: might be single value, might be a generator!
         if self.on_this_cluster():
-            # TODO
-            pass
+            return obj_store.call(
+                module_name, method_name, data=(args, kwargs), serialization=None
+            )
         return self.client.call_module_method(
             module_name,
             method_name,
             stream_logs=stream_logs,
+            data=(args, kwargs),
             run_name=run_name,
             remote=remote,
             run_async=run_async,
             save=save,
-            args=args,
-            kwargs=kwargs,
             system=self,
         )
 
@@ -840,7 +844,35 @@ class Cluster(Resource):
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
 
-        ssh_credentials = copy.copy(self.creds) or {}
+        # If we're already on this cluster (and node, if multinode), this is just a local rsync
+        if self.on_this_cluster() and node == self.address:
+            if Path(source).expanduser().resolve() == Path(dest).expanduser().resolve():
+                return
+
+            if not up:
+                # If we're not uploading, we're downloading
+                source, dest = dest, source
+
+            dest = Path(dest).expanduser()
+            if not dest.exists():
+                dest.mkdir(parents=True, exist_ok=True)
+            if not dest.is_dir():
+                raise ValueError(f"Destination {dest} is not a directory.")
+            dest = str(dest) + "/" if contents else str(dest)
+
+            cmd = [
+                "rsync",
+                "-avz",
+                source,
+                dest,
+            ]  # -a is archive mode, -v is verbose, -z is compress
+            if filter_options:
+                cmd += [filter_options]
+
+            subprocess.run(cmd, check=True, capture_output=stream_logs, text=True)
+            return
+
+        ssh_credentials = copy.copy(self.ssh_creds) or {}
         ssh_credentials.pop("ssh_host", node)
         pwd = ssh_credentials.pop("password", None)
 
@@ -926,6 +958,30 @@ class Cluster(Resource):
             raise TimeoutError("SSH call timed out")
         return True
 
+    def _copy_certs_to_cluster(self):
+        """Copy local certs to the cluster. Destination on the cluster depends on whether Caddy is enabled. This is
+        to ensure that the Caddy service has the necessary access to load the certs when the service is started."""
+        from runhouse import folder
+
+        # Copy to the home directory by default
+        local_certs_path = self.cert_config.key_path
+        dest = self.cert_config.DEFAULT_CLUSTER_DIR
+        folder(path=Path(local_certs_path).parent).to(self, path=dest)
+
+        if self._use_caddy:
+            # Move to the Caddy directory to ensure the daemon has access to the certs
+            src = self.cert_config.DEFAULT_CLUSTER_DIR
+            dest = self.cert_config.CADDY_CLUSTER_DIR
+            self.run(
+                [
+                    f"sudo mkdir -p {dest}",
+                    f"sudo mv {src}/* {dest}/",
+                    f"sudo rm -r {src}",
+                ]
+            )
+
+        logger.info(f"Copied local certs onto the cluster in path: {dest}")
+
     def run(
         self,
         commands: List[str],
@@ -955,6 +1011,22 @@ class Cluster(Resource):
 
                 env = Env.from_name(env)
             cmd_prefix = env._run_cmd
+
+        if self.on_this_cluster():
+            return_codes = []
+            location_str = "locally" if not self.name else f"on {self.name}"
+            for command in commands:
+                command = f"{cmd_prefix} {command}" if cmd_prefix else command
+                logger.info(f"Running command {location_str}: {command}")
+                ret_code = subprocess.run(
+                    command,
+                    shell=True,
+                    capture_output=stream_logs,
+                    text=True,
+                    check=not require_outputs,
+                ).returncode
+                return_codes.append(ret_code)
+            return return_codes
 
         if not run_name:
             # If not creating a Run then just run the commands via SSH and return

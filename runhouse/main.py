@@ -270,7 +270,8 @@ def _start_server(
     ssl_keyfile=None,
     ssl_certfile=None,
     restart_proxy=False,
-    use_nginx=False,
+    use_caddy=False,
+    domain=None,
     certs_address=None,
     use_local_telemetry=False,
 ):
@@ -297,13 +298,13 @@ def _start_server(
 
     restart_proxy_flag = " --restart-proxy" if restart_proxy else ""
     if restart_proxy_flag:
-        logger.info("Reinstalling Nginx and server configs.")
+        logger.info("Reinstalling server configs.")
         flags.append(restart_proxy_flag)
 
-    use_nginx_flag = " --use-nginx" if use_nginx else ""
-    if use_nginx_flag:
-        logger.info("Configuring Nginx on the cluster.")
-        flags.append(use_nginx_flag)
+    use_caddy_flag = " --use-caddy" if use_caddy else ""
+    if use_caddy_flag:
+        logger.info("Configuring Caddy on the cluster.")
+        flags.append(use_caddy_flag)
 
     ssl_keyfile_flag = f" --ssl-keyfile {ssl_keyfile}" if ssl_keyfile else ""
     if ssl_keyfile_flag:
@@ -314,6 +315,11 @@ def _start_server(
     if ssl_certfile_flag:
         logger.info(f"Using SSL certfile in path: {ssl_certfile}")
         flags.append(ssl_certfile_flag)
+
+    domain = f" --domain {domain}" if domain else ""
+    if domain:
+        logger.info(f"Using domain: {domain}")
+        flags.append(domain)
 
     # Use HTTPS if explicitly specified or if SSL cert or keyfile path are provided
     https_flag = " --use-https" if use_https or (ssl_keyfile or ssl_certfile) else ""
@@ -382,7 +388,7 @@ def _start_server(
                 time.sleep(1)
             f = f or open(SERVER_LOGFILE, "r")
             start_time = time.time()
-            # Wait for input for 60 seconds max (for nginx to download and set up)
+            # Wait for input for 60 seconds max (for Caddy to download and set up)
             while time.time() - start_time < 60:
                 for line in f:
                     if server_started_str in line:
@@ -420,10 +426,13 @@ def start(
     use_den_auth: bool = typer.Option(
         False, help="Whether to authenticate requests with a Runhouse token"
     ),
-    use_nginx: bool = typer.Option(
+    use_caddy: bool = typer.Option(
         False,
-        help="Whether to configure Nginx on the cluster as a reverse proxy. By default will not install "
-        "and configure Nginx.",
+        help="Whether to configure Caddy on the cluster as a reverse proxy.",
+    ),
+    domain: str = typer.Option(
+        None,
+        help="Server domain. Relevant if using Caddy to automate generating CA verified certs.",
     ),
     certs_address: Optional[str] = typer.Option(
         None,
@@ -444,7 +453,8 @@ def start(
         port=port,
         use_https=use_https,
         den_auth=use_den_auth,
-        use_nginx=use_nginx,
+        use_caddy=use_caddy,
+        domain=domain,
         certs_address=certs_address,
         use_local_telemetry=use_local_telemetry,
     )
@@ -485,12 +495,15 @@ def restart(
         None, help="Path to custom SSL cert file to use for enabling HTTPS"
     ),
     restart_proxy: bool = typer.Option(
-        False, help="Whether to reinstall Nginx and other server configs on the cluster"
+        False, help="Whether to reinstall server configs on the cluster"
     ),
-    use_nginx: bool = typer.Option(
+    use_caddy: bool = typer.Option(
         False,
-        help="Whether to configure Nginx on the cluster as a reverse proxy. By default will not install "
-        "and configure Nginx.",
+        help="Whether to configure Caddy on the cluster as a reverse proxy.",
+    ),
+    domain: str = typer.Option(
+        None,
+        help="Server domain. Relevant if using Caddy to automate generating CA verified certs.",
     ),
     certs_address: Optional[str] = typer.Option(
         None,
@@ -520,7 +533,8 @@ def restart(
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
         restart_proxy=restart_proxy,
-        use_nginx=use_nginx,
+        use_caddy=use_caddy,
+        domain=domain,
         certs_address=certs_address,
         use_local_telemetry=use_local_telemetry,
     )

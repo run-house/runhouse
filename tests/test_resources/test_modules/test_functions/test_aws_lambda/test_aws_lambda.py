@@ -373,7 +373,3 @@ def test_delete_lambda():
 
     if rns_client.exists(lambda_to_delete.rns_address):
         rns_client.delete_configs(lambda_to_delete)
-
-
-if __name__ == "__main__":
-    pytest.main()

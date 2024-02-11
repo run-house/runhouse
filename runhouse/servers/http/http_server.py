@@ -1,9 +1,10 @@
 import argparse
+import asyncio
 import inspect
 import json
 import logging
-import time
 import traceback
+import uuid
 from functools import wraps
 from pathlib import Path
 from typing import Optional
@@ -16,7 +17,6 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from runhouse.constants import (
-    CLUSTER_CONFIG_PATH,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_HOST,
@@ -27,13 +27,15 @@ from runhouse.constants import (
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
+from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import hash_token, verify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
+    CallParams,
     DeleteObjectParams,
     get_token_from_request,
+    GetObjectParams,
     handle_exception_response,
-    load_current_cluster_rns_address,
     Message,
     OutputType,
     pickle_b64,
@@ -41,9 +43,9 @@ from runhouse.servers.http.http_utils import (
     PutResourceParams,
     RenameObjectParams,
     Response,
+    serialize_data,
     ServerSettings,
 )
-from runhouse.servers.nginx.config import NginxConfig
 from runhouse.servers.obj_store import (
     ClusterServletSetupOption,
     ObjStore,
@@ -66,52 +68,47 @@ def validate_cluster_access(func):
         den_auth_enabled: bool = HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
 
-        func_call: bool = func.__name__ in ["call_module_method", "call", "get_call"]
+        func_call: bool = func.__name__ in ["post_call", "get_call"]
         token = get_token_from_request(request)
 
-        if func_call and token:
-            obj_store.add_user_to_auth_cache(token, refresh_cache=False)
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        token_hash = hash_token(token) if den_auth_enabled and token else None
+        ctx_token = obj_store.set_ctx(request_id=request_id, token_hash=token_hash)
 
-        # The logged-in user always has full access to the cluster. This is especially important if they flip on
-        # Den Auth without saving the cluster.
-        # If this is a func call, we'll handle the auth in the object store.
-        if not den_auth_enabled or func_call or (token and configs.token == token):
+        try:
+            if func_call and token:
+                obj_store.add_user_to_auth_cache(token, refresh_cache=False)
+
+            if den_auth_enabled and not func_call:
+                if token is None:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="No Runhouse token provided. Try running `$ runhouse login` or visiting "
+                        "https://run.house/login to retrieve a token. If calling via HTTP, please "
+                        "provide a valid token in the Authorization header.",
+                    )
+
+                cluster_uri = obj_store.get_cluster_config().get("name")
+                cluster_access = verify_cluster_access(cluster_uri, token)
+                if not cluster_access:
+                    # Must have cluster access for all the non func calls
+                    # Note: for func calls we handle the auth in the object store
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Cluster access is required for this operation.",
+                    )
+
             if is_coro:
-                return await func(*args, **kwargs)
+                res = await func(*args, **kwargs)
+            else:
+                res = func(*args, **kwargs)
+        except Exception as e:
+            if ctx_token:
+                obj_store.unset_ctx(ctx_token)
+            raise e
 
-            return func(*args, **kwargs)
-
-        if token is None:
-            raise HTTPException(
-                status_code=404,
-                detail="No token found in request auth headers. Expected in "
-                f"format: {json.dumps({'Authorization': 'Bearer <token>'})}",
-            )
-
-        cluster_uri = load_current_cluster_rns_address()
-        if cluster_uri is None:
-            logger.error(
-                f"Failed to load cluster RNS address. Make sure cluster config YAML has been saved "
-                f"on the cluster in path: {CLUSTER_CONFIG_PATH}"
-            )
-            raise HTTPException(
-                status_code=403,
-                detail="Failed to load current cluster. Make sure cluster config YAML exists on the cluster.",
-            )
-
-        cluster_access = verify_cluster_access(cluster_uri, token)
-        if not cluster_access:
-            # Must have cluster access for all the non func calls
-            # Note: for func calls will be handling the auth in the object store
-            raise HTTPException(
-                status_code=403,
-                detail="Cluster access is required for API",
-            )
-
-        if is_coro:
-            return await func(*args, **kwargs)
-
-        return func(*args, **kwargs)
+        obj_store.unset_ctx(ctx_token)
+        return res
 
     return wrapper
 
@@ -320,94 +317,51 @@ class HTTPServer:
 
         return Response(output_type=OutputType.SUCCESS)
 
+    # TODO refactor into a call method and separate post_call, get_call, put_call, delete_call, etc.
+    # TODO match "/{key}/{method_name}/{path:more_path}" for asgi / proxy requests
     @staticmethod
-    @app.post("/resource")
+    @app.post("/{key}/{method_name}")
     @validate_cluster_access
-    def put_resource(request: Request, params: PutResourceParams):
-        try:
-            env_name = params.env_name or "base"
-            return obj_store.put_resource(
-                serialized_data=params.serialized_data,
-                serialization=params.serialization,
-                env_name=env_name,
-            )
-        except Exception as e:
-            return handle_exception_response(e, traceback.format_exc())
-
-    @staticmethod
-    @app.post("/{module}/{method}")
-    @validate_cluster_access
-    def call_module_method(
-        request: Request, module, method=None, message: dict = Body(default=None)
+    async def post_call(
+        request: Request, key, method_name=None, params: CallParams = Body(default=None)
     ):
-        token = get_token_from_request(request)
-        den_auth_enabled = HTTPServer.get_den_auth()
-        token_hash = hash_token(token) if den_auth_enabled and token else None
-        # Stream the logs and result (e.g. if it's a generator)
         HTTPServer.register_activity()
         try:
-            # This translates the json dict into an object that we can access with dot notation, e.g. message.key
-            message = argparse.Namespace(**message) if message else None
-            method = None if method == "None" else method
-            # If this is a "get" request to just return the module, do not stream logs or save by default
-            message = message or (
-                Message(stream_logs=False, key=module) if not method else Message()
+            params.run_name = params.run_name or _generate_default_name(
+                prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+                precision="ms",  # Higher precision because we see collisions within the same second
+                sep="@",
             )
-            env = message.env or obj_store.get_env_servlet_name_for_key(module)
-            persist = message.run_async or message.remote or message.save or not method
-            if method:
-                # TODO fix the way we generate runkeys, it's ugly
-                message.key = message.key or _generate_default_name(
-                    prefix=module if method == "__call__" else f"{module}_{method}",
-                    precision="ms",  # Higher precision because we see collisions within the same second
-                )
-                # If certain conditions are met, we can return a response immediately
-                fast_resp = not persist and not message.stream_logs
+            # Call async so we can loop to collect logs until the result is ready
 
-                # Unless we're returning a fast response, we discard this obj_ref
-                obj_ref = HTTPServer.call_in_env_servlet(
-                    "call_module_method",
-                    [module, method, message, token_hash, den_auth_enabled],
-                    env=env,
-                    create=True,
-                    block=False,
+            async def call_async():
+                return obj_store.call(
+                    key=key,
+                    method_name=method_name,
+                    data=params.data,
+                    serialization=params.serialization,
+                    run_name=params.run_name,
                 )
 
-                if fast_resp:
-                    res = ray.get(obj_ref)
-                    logger.info(f"Returning fast response for {message.key}")
-                    return res
-
-            else:
-                message.key = module
-
-                # If this is a "get" call, don't wait for the result, it's either there or not.
-                if not obj_store.contains(message.key):
-                    return Response(output_type=OutputType.NOT_FOUND, data=message.key)
-
-            if message.run_async:
-                return Response(
-                    data=pickle_b64(message.key),
-                    output_type=OutputType.RESULT,
-                )
+            fut = asyncio.create_task(call_async())
+            # If stream_logs is False, we'll wait for the result and return it
+            if not params.stream_logs:
+                return await fut
 
             return StreamingResponse(
                 HTTPServer._get_results_and_logs_generator(
-                    message.key,
-                    env=env,
-                    stream_logs=message.stream_logs,
-                    remote=message.remote,
-                    pop=not persist,
+                    key,
+                    fut=fut,
+                    run_name=params.run_name,
                 ),
                 media_type="application/json",
             )
         except Exception as e:
-            logger.exception(e)
-            HTTPServer.register_activity()
-            return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
-                output_type=OutputType.EXCEPTION,
+            return handle_exception_response(
+                e,
+                traceback.format_exc(),
+                serialization=params.serialization,
+                from_http_server=True,
             )
 
     @staticmethod
@@ -439,52 +393,22 @@ class HTTPServer:
         return open_files
 
     @staticmethod
-    def _get_results_and_logs_generator(
-        key, env, stream_logs, remote=False, pop=False, serialization=None
-    ):
+    async def _get_results_and_logs_generator(key, fut, run_name, serialization=None):
+        logger.debug(f"Streaming logs for key {run_name}")
         open_logfiles = []
         waiting_for_results = True
 
         try:
-            obj_ref = None
             while waiting_for_results:
-
-                while not obj_store.contains(key):
-                    time.sleep(0.1)
-
-                if not obj_ref:
-                    obj_ref = HTTPServer.call_in_env_servlet(
-                        "get",
-                        [key, remote, True, None, serialization],
-                        env=env,
-                        block=False,
-                    )
-                try:
-                    ret_val = ray.get(obj_ref, timeout=LOGGING_WAIT_TIME)
-                    # Last result in a stream will have type RESULT to indicate the end
-                    if ret_val is None:
-                        # Still waiting for results in queue
-                        obj_ref = None
-                        # time.sleep(LOGGING_WAIT_TIME)
-                        raise ray.exceptions.GetTimeoutError
-                    if not ret_val.output_type == OutputType.RESULT_STREAM:
-                        waiting_for_results = False
-                    ret_val = ret_val.data if serialization == "json" else ret_val
-                    ret_resp = json.dumps(jsonable_encoder(ret_val))
-                    yield ret_resp + "\n"
-                except ray.exceptions.GetTimeoutError:
-                    pass
-
-                # Reset the obj_ref so we make a fresh request for the result next time around
-                obj_ref = None
-
+                if fut.done():
+                    waiting_for_results = False
+                    ret_val = fut.result()
+                    yield json.dumps(jsonable_encoder(ret_val)) + "\n"
+                else:
+                    await asyncio.sleep(LOGGING_WAIT_TIME)
                 # Grab all the lines written to all the log files since the last time we checked, including
                 # any new log files that have been created
-                open_logfiles = (
-                    HTTPServer.open_new_logfiles(key, open_logfiles)
-                    if stream_logs
-                    else []
-                )
+                open_logfiles = HTTPServer.open_new_logfiles(run_name, open_logfiles)
                 ret_lines = []
                 for i, f in enumerate(open_logfiles):
                     file_lines = f.readlines()
@@ -494,39 +418,56 @@ class HTTPServer:
                         #     ret_lines.append(f"Process {i}:")
                         ret_lines += file_lines
                 if ret_lines:
-                    lines_resp = (
-                        Response(
-                            data=ret_lines,
-                            output_type=OutputType.STDOUT,
+                    logger.debug(f"Yielding logs for key {run_name}")
+                    yield json.dumps(
+                        jsonable_encoder(
+                            Response(
+                                data=ret_lines,
+                                output_type=OutputType.STDOUT,
+                            )
                         )
-                        if not serialization == "json"
-                        else ret_lines
-                    )
-                    logger.debug(f"Yielding logs for key {key}")
-                    yield json.dumps(jsonable_encoder(lines_resp)) + "\n"
+                    ) + "\n"
 
         except Exception as e:
             logger.exception(e)
+            # NOTE: We do not convert the exception to an HTTPException here, because once we're inside this
+            # generator starlette has already returned the StreamingResponse and there is no way to halt the stream
+            # to return a 403 instead. Users shouldn't notice much of a difference, because if working through the
+            # client the exception will be serialized and returned to appear as a native python exception, and if
+            # working through an HTTP call stream_logs is False by default, so a normal HTTPException will be raised
+            # above before entering this generator.
             yield json.dumps(
                 jsonable_encoder(
                     Response(
-                        error=pickle_b64(e) if not serialization == "json" else str(e),
-                        traceback=pickle_b64(traceback.format_exc())
-                        if not serialization == "json"
-                        else str(traceback.format_exc()),
                         output_type=OutputType.EXCEPTION,
+                        error=serialize_data(e, serialization=serialization),
+                        traceback=serialize_data(
+                            traceback.format_exc(), serialization=serialization
+                        ),
                     )
                 )
             )
         finally:
-            if stream_logs and not open_logfiles:
+            if not open_logfiles:
                 logger.warning(f"No logfiles found for call {key}")
             for f in open_logfiles:
                 f.close()
 
-            logger.debug(f"Deleting {key}")
-            if pop:
-                obj_store.delete(key)
+    @staticmethod
+    @app.post("/resource")
+    @validate_cluster_access
+    def put_resource(request: Request, params: PutResourceParams):
+        try:
+            env_name = params.env_name or "base"
+            return obj_store.put_resource(
+                serialized_data=params.serialized_data,
+                serialization=params.serialization,
+                env_name=env_name,
+            )
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
     @staticmethod
     @app.post("/object")
@@ -542,7 +483,30 @@ class HTTPServer:
             )
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
-            return handle_exception_response(e, traceback.format_exc())
+            return handle_exception_response(
+                e,
+                traceback.format_exc(),
+                serialization=params.serialization,
+                from_http_server=True,
+            )
+
+    @staticmethod
+    @app.get("/object")
+    @validate_cluster_access
+    def get_object(request: Request, params: GetObjectParams):
+        try:
+            return obj_store.get(
+                key=params.key,
+                serialization=params.serialization,
+                remote=params.remote,
+            )
+        except Exception as e:
+            return handle_exception_response(
+                e,
+                traceback.format_exc(),
+                serialization=params.serialization,
+                from_http_server=True,
+            )
 
     @staticmethod
     @app.post("/rename")
@@ -555,7 +519,9 @@ class HTTPServer:
             )
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
-            return handle_exception_response(e, traceback.format_exc())
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
     @staticmethod
     @app.post("/delete_object")
@@ -578,7 +544,9 @@ class HTTPServer:
                 serialization=None,
             )
         except Exception as e:
-            return handle_exception_response(e, traceback.format_exc())
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
     @staticmethod
     @app.get("/keys")
@@ -597,7 +565,9 @@ class HTTPServer:
                 serialization=None,
             )
         except Exception as e:
-            return handle_exception_response(e, traceback.format_exc())
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
     @staticmethod
     @app.get("/{module}/{method}")
@@ -721,7 +691,7 @@ class HTTPServer:
     @staticmethod
     def _collect_cluster_stats():
         """Collect cluster metadata and send to Grafana Loki"""
-        if configs.get("disable_data_collection") is True:
+        if not configs.data_collection_enabled():
             return
 
         cluster_data = HTTPServer._cluster_status_report()
@@ -879,7 +849,7 @@ if __name__ == "__main__":
         "--port",
         type=int,
         default=None,
-        help="Port to run daemon on on. If provided and nginx is not enabled, "
+        help="Port to run daemon on on. If provided and Caddy is not enabled, "
         f"will attempt to run the daemon on this port, defaults to {DEFAULT_SERVER_PORT}",
     )
     parser.add_argument(
@@ -888,17 +858,26 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use-local-telemetry",
         action="store_true",  # if providing --use-local-telemetry will be set to True
+        default=argparse.SUPPRESS,  # If user didn't specify, attribute will not be present (not False)
         help="Enable local telemetry",
     )
     parser.add_argument(
         "--use-https",
         action="store_true",  # if providing --use-https will be set to True
+        default=argparse.SUPPRESS,  # If user didn't specify, attribute will not be present (not False)
         help="Start an HTTPS server with new TLS certs",
     )
     parser.add_argument(
         "--use-den-auth",
         action="store_true",  # if providing --use-den-auth will be set to True
+        default=argparse.SUPPRESS,  # If user didn't specify, attribute will not be present (not False)
         help="Whether to authenticate requests with a Runhouse token",
+    )
+    parser.add_argument(
+        "--domain",
+        type=str,
+        default=None,
+        help="Server domain name",
     )
     parser.add_argument(
         "--ssl-keyfile",
@@ -915,12 +894,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--restart-proxy",
         action="store_true",  # if providing --restart-proxy will be set to True
-        help="Reconfigure Nginx",
+        help="Reconfigure Caddy",
     )
     parser.add_argument(
-        "--use-nginx",
-        action="store_true",  # if providing --use-nginx will be set to True
-        help="Configure Nginx as a reverse proxy",
+        "--use-caddy",
+        action="store_true",  # if providing --use-caddy will be set to True
+        default=argparse.SUPPRESS,  # If user didn't specify, attribute will not be present (not False)
+        help="Configure Caddy as a reverse proxy",
     )
     parser.add_argument(
         "--certs-address",
@@ -932,12 +912,10 @@ if __name__ == "__main__":
     parse_args = parser.parse_args()
 
     conda_name = parse_args.conda_env
-    use_https = parse_args.use_https
     restart_proxy = parse_args.restart_proxy
-    use_nginx = parse_args.use_nginx
 
     # The object store and the cluster servlet within it need to be
-    # initiailzed in order to call `obj_store.get_cluster_config()`, which
+    # initialized in order to call `obj_store.get_cluster_config()`, which
     # uses the object store to load the cluster config from Ray.
     # When setting up the server, we always want to create a new ClusterServlet.
     # We only want to forcibly start a Ray cluster if asked.
@@ -962,29 +940,39 @@ if __name__ == "__main__":
     ########################################
 
     # Server port
-    if parse_args.port != cluster_config.get("server_port"):
+    if parse_args.port is not None and parse_args.port != cluster_config.get(
+        "server_port"
+    ):
         logger.warning(
             f"CLI provided server port: {parse_args.port} is different from the server port specified in "
             f"cluster_config.json: {cluster_config.get('server_port')}. Prioritizing CLI provided port."
         )
 
-    port_arg = parse_args.port or cluster_config.get("server_port")
+    port_arg = (
+        parse_args.port or cluster_config.get("server_port") or DEFAULT_SERVER_PORT
+    )
 
     if port_arg is not None:
         cluster_config["server_port"] = port_arg
 
     # Den auth enabled
-    if parse_args.use_den_auth != cluster_config.get("den_auth", False):
+    if hasattr(
+        parse_args, "use_den_auth"
+    ) and parse_args.use_den_auth != cluster_config.get("den_auth", False):
         logger.warning(
             f"CLI provided den_auth: {parse_args.use_den_auth} is different from the den_auth specified in "
             f"cluster_config.json: {cluster_config.get('den_auth')}. Prioritizing CLI provided den_auth."
         )
 
-    den_auth = parse_args.use_den_auth or cluster_config.get("den_auth", False)
+    den_auth = getattr(parse_args, "use_den_auth", False) or cluster_config.get(
+        "den_auth", False
+    )
     cluster_config["den_auth"] = den_auth
 
     # Telemetry enabled
-    if parse_args.use_local_telemetry != cluster_config.get(
+    if hasattr(
+        parse_args, "use_local_telemetry"
+    ) and parse_args.use_local_telemetry != cluster_config.get(
         "use_local_telemetry", False
     ):
         logger.warning(
@@ -993,13 +981,19 @@ if __name__ == "__main__":
             f"{cluster_config.get('use_local_telemetry')}. Prioritizing CLI provided use_local_telemetry."
         )
 
-    use_local_telemetry = parse_args.use_local_telemetry or cluster_config.get(
-        "use_local_telemetry", False
-    )
+    use_local_telemetry = getattr(
+        parse_args, "use_local_telemetry", False
+    ) or cluster_config.get("use_local_telemetry", False)
     cluster_config["use_local_telemetry"] = use_local_telemetry
 
+    domain = parse_args.domain or cluster_config.get("domain", None)
+    cluster_config["domain"] = domain
+
     # Keyfile
-    if parse_args.ssl_keyfile != cluster_config.get("ssl_keyfile"):
+    if (
+        parse_args.ssl_keyfile is not None
+        and parse_args.ssl_keyfile != cluster_config.get("ssl_keyfile")
+    ):
         logger.warning(
             f"CLI provided ssl_keyfile: {parse_args.ssl_keyfile} is different from the ssl_keyfile specified in "
             f"cluster_config.json: {cluster_config.get('ssl_keyfile')}. Prioritizing CLI provided ssl_keyfile."
@@ -1013,7 +1007,10 @@ if __name__ == "__main__":
     )
 
     # Certfile
-    if parse_args.ssl_certfile != cluster_config.get("ssl_certfile"):
+    if (
+        parse_args.ssl_certfile is not None
+        and parse_args.ssl_certfile != cluster_config.get("ssl_certfile")
+    ):
         logger.warning(
             f"CLI provided ssl_certfile: {parse_args.ssl_certfile} is different from the ssl_certfile specified in "
             f"cluster_config.json: {cluster_config.get('ssl_certfile')}. Prioritizing CLI provided ssl_certfile."
@@ -1029,7 +1026,9 @@ if __name__ == "__main__":
     )
 
     # Host
-    if parse_args.host != cluster_config.get("server_host"):
+    if parse_args.host is not None and parse_args.host != cluster_config.get(
+        "server_host"
+    ):
         logger.warning(
             f"CLI provided server_host: {parse_args.host} is different from the server_host specified in "
             f"cluster_config.json: {cluster_config.get('server_host')}. Prioritizing CLI provided server_host."
@@ -1039,17 +1038,48 @@ if __name__ == "__main__":
     cluster_config["server_host"] = host
 
     # Address in the case we're a TLS server
-    if parse_args.certs_address != cluster_config.get("ips", [None])[0]:
+    if (
+        parse_args.certs_address is not None
+        and parse_args.certs_address != cluster_config.get("ips", [None])[0]
+    ):
         logger.warning(
             f"CLI provided certs_address: {parse_args.certs_address} is different from the certs_address specified in "
             f"cluster_config.json: {cluster_config.get('ips', [None])[0]}. Prioritizing CLI provided certs_address."
         )
 
-    address = parse_args.certs_address or cluster_config.get("ips", [None])[0]
-    if address is not None:
-        cluster_config["ips"] = [address]
+    certs_address = parse_args.certs_address or cluster_config.get("ips", [None])[0]
+    if certs_address is not None:
+        cluster_config["ips"] = [certs_address]
     else:
         cluster_config["ips"] = ["0.0.0.0"]
+
+    config_conn = cluster_config.get("server_connection_type")
+
+    # Use caddy as reverse proxy
+    if hasattr(parse_args, "use_caddy") and parse_args.use_caddy != (
+        config_conn in ["tls", "none"]
+    ):
+        logger.warning(
+            f"CLI provided use_caddy: {parse_args.use_caddy} is different from the server_connection_type specified in "
+            f"cluster_config.json: {config_conn}. Prioritizing CLI provided use_caddy."
+        )
+
+    # Use HTTPS
+    if hasattr(parse_args, "use_https") and parse_args.use_https != (
+        config_conn == "tls"
+    ):
+        logger.warning(
+            f"CLI provided use_https: {parse_args.use_https} is different from the server_connection_type specified in "
+            f"cluster_config.json: {config_conn}. Prioritizing CLI provided use_https."
+        )
+
+    use_caddy = getattr(parse_args, "use_caddy", False) or (
+        config_conn in ["tls", "none"]
+    )
+    use_https = getattr(parse_args, "use_https", False) or (config_conn == "tls")
+    cluster_config["server_connection_type"] = (
+        "tls" if use_https else "none" if use_caddy else config_conn
+    )
 
     # If there was no `cluster_config.json`, then server was created
     # simply with `runhouse start`.
@@ -1076,41 +1106,20 @@ if __name__ == "__main__":
         # Update den auth if enabled - keep as a class attribute to be referenced by the validator decorator
         HTTPServer.enable_den_auth()
 
-    # Custom certs should already be on the cluster if their file paths are provided
-    if parsed_ssl_keyfile and not Path(parsed_ssl_keyfile).exists():
-        raise FileNotFoundError(
-            f"No SSL key file found on cluster in path: {parsed_ssl_keyfile}"
-        )
-
-    if parsed_ssl_certfile and not Path(parsed_ssl_certfile).exists():
-        raise FileNotFoundError(
-            f"No SSL cert file found on cluster in path: {parsed_ssl_certfile}"
-        )
-
-    if use_https:
-        # If not using nginx and no port is specified use the default RH port
-        cert_config = TLSCertConfig()
-        ssl_keyfile = resolve_absolute_path(parsed_ssl_keyfile or cert_config.key_path)
-        ssl_certfile = resolve_absolute_path(
-            parsed_ssl_certfile or cert_config.cert_path
-        )
-
-        if not Path(ssl_keyfile).exists() and not Path(ssl_certfile).exists():
-            # If the user has specified a server port and we're not using nginx, then they
-            # want to run a TLS server on an arbitrary port. In order to do this,
-            # they need to pass their own certs.
-            if port_arg is not None and not use_nginx:
-                # if using a custom HTTPS port must provide private key file and certs explicitly
-                raise FileNotFoundError(
-                    f"Could not find SSL private key and cert files on the cluster, which are required when specifying "
-                    f"a custom port ({port_arg}). Please specify the paths using the --ssl-certfile and "
-                    f"--ssl-keyfile flags."
-                )
-
-            cert_config.generate_certs(address=address)
-            logger.info(
-                f"Generated new self-signed cert and private key files on the cluster in "
-                f"paths: {cert_config.cert_path} and {cert_config.key_path}"
+    if use_https and not domain:
+        # If using https (whether or not Caddy is being used) and no domain is specified, need to provide both
+        # key and cert files - they should both already exist on the cluster
+        if (
+            not parsed_ssl_keyfile
+            or not Path(parsed_ssl_keyfile).exists()
+            or not parsed_ssl_certfile
+            or not Path(parsed_ssl_certfile).exists()
+        ):
+            # Custom certs should already be on the cluster if their file paths are provided
+            raise FileNotFoundError(
+                f"Could not find SSL private key and cert files on the cluster, which are required when specifying "
+                f"a port ({port_arg}) or enabling HTTPS. Please specify the paths using the --ssl-certfile and "
+                f"--ssl-keyfile flags."
             )
 
     # If the daemon port was not specified, it should be the default RH port
@@ -1119,36 +1128,33 @@ if __name__ == "__main__":
         DEFAULT_HTTP_PORT,
         DEFAULT_HTTPS_PORT,
     ]:
-        # Since one of HTTP_PORT or HTTPS_PORT was specified, nginx is set up to forward requests
+        # Since one of HTTP_PORT or HTTPS_PORT was specified, Caddy is set up to forward requests
         # from the daemon to that port
         daemon_port = DEFAULT_SERVER_PORT
 
-    # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Nginx as a reverse
+    # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Caddy as a reverse
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
-    if use_nginx:
-        logger.info("Configuring Nginx")
-        if address is None:
+    if use_caddy:
+        logger.info("Using Caddy as a reverse proxy")
+        if certs_address is None and domain is None:
             raise ValueError(
-                "Must provide the server address to configure Nginx. No address found in the server "
-                "start command (--certs-address) or in the cluster config YAML saved on the cluster."
+                "Must provide the server address or domain to configure Caddy. No address or domain found in the "
+                "server start command (--certs-address or --domain) or in the cluster config YAML saved on the cluster."
             )
 
-        nc = NginxConfig(
-            address=address,
+        cc = CaddyConfig(
+            address=certs_address,
+            domain=domain,
             rh_server_port=daemon_port,
-            ssl_key_path=ssl_keyfile,
-            ssl_cert_path=ssl_certfile,
+            ssl_key_path=parsed_ssl_keyfile,
+            ssl_cert_path=parsed_ssl_certfile,
             use_https=use_https,
             force_reinstall=restart_proxy,
         )
-        nc.configure()
+        cc.configure()
 
-        if use_https and (parsed_ssl_keyfile or parsed_ssl_certfile):
-            # reload nginx in case updated certs were provided
-            nc.reload()
-
-        nginx_port = DEFAULT_HTTPS_PORT if use_https else DEFAULT_HTTP_PORT
-        logger.info(f"Nginx is proxying requests from {nginx_port} to {daemon_port}.")
+        caddy_port = DEFAULT_HTTPS_PORT if use_https else DEFAULT_HTTP_PORT
+        logger.info(f"Caddy is proxying requests from {caddy_port} to {daemon_port}.")
 
     logger.info(
         f"Launching Runhouse API server with den_auth={den_auth} and "
@@ -1156,9 +1162,9 @@ if __name__ == "__main__":
         + f"on host={host} and use_https={use_https} and port_arg={daemon_port}"
     )
 
-    # Only launch uvicorn with certs if HTTPS is enabled and not using Nginx
-    uvicorn_cert = ssl_certfile if not use_nginx and use_https else None
-    uvicorn_key = ssl_keyfile if not use_nginx and use_https else None
+    # Only launch uvicorn with certs if HTTPS is enabled and not using Caddy
+    uvicorn_cert = ssl_certfile if not use_caddy and use_https else None
+    uvicorn_key = ssl_keyfile if not use_caddy and use_https else None
 
     uvicorn.run(
         app,

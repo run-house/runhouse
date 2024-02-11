@@ -34,7 +34,6 @@ def test_from_string():
         assert p.install_target == "~/runhouse"
 
 
-@pytest.mark.rnstest
 def test_share_package(ondemand_cpu_cluster, local_package):
     local_package.to(system=ondemand_cpu_cluster)
     local_package.save("package_to_share")  # shareable resource requires a name
@@ -51,7 +50,6 @@ def test_share_package(ondemand_cpu_cluster, local_package):
     assert "sample_file_0.txt" in status_codes[0][1]
 
 
-@pytest.mark.rnstest
 def test_share_git_package():
     git_package = rh.GitPackage(
         name="shared_git_package",
@@ -68,7 +66,6 @@ def test_share_git_package():
     assert rh.exists(name="shared_git_package")
 
 
-@pytest.mark.rnstest
 def test_load_shared_git_package():
     git_package = rh.package(name="@/shared_git_package")
     assert git_package.config_for_rns
@@ -99,7 +96,6 @@ def test_mount_local_package_to_cluster(cluster):
     assert mount_path in cluster.run(["ls"])[0][1]
 
 
-@pytest.mark.awstest
 def test_package_file_system_to_cluster(cluster, s3_package):
     assert s3_package.install_target.system == "s3"
     assert s3_package.install_target.exists_in_system()
@@ -259,7 +255,6 @@ def test_torch_install_command_generator():
         ), f"Unexpected result for {(torch_version, cuda_version)} "
 
 
-@pytest.mark.gputest
 def test_getting_cuda_version_on_clusters(request, ondemand_cluster):
     """Gets the cuda version on the cluster and asserts it is the expected version"""
     return_codes: list = ondemand_cluster.run_python(
@@ -281,7 +276,6 @@ def test_getting_cuda_version_on_clusters(request, ondemand_cluster):
         assert cuda_version_or_cpu == "11.7"
 
 
-@pytest.mark.gputest
 def test_install_cmd_for_torch_on_cluster(request, ondemand_cluster):
     """Checks that the install command for torch runs properly on the cluster.
     Confirms that we can properly install the package (and send a torch tensor to cuda to validate it"""

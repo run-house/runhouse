@@ -257,3 +257,13 @@ class Defaults:
 
     def disable_data_collection(self):
         self.set("disable_data_collection", True)
+        os.environ["DISABLE_DATA_COLLECTION"] = "True"
+
+    def data_collection_enabled(self) -> bool:
+        """Checks whether to enable data collection, based on values set in the local ~/.rh config or as an env var."""
+        if self.get("disable_data_collection") is True:
+            return False
+        if os.getenv("DISABLE_DATA_COLLECTION", "False").lower() in ("true", "1"):
+            return False
+
+        return True

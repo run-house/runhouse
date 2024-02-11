@@ -28,6 +28,7 @@ def cluster(
     server_connection_type: Union[ServerConnectionType, str] = None,
     ssl_keyfile: str = None,
     ssl_certfile: str = None,
+    domain: str = None,
     den_auth: bool = False,
     dryrun: bool = False,
     **kwargs,
@@ -53,6 +54,7 @@ def cluster(
             ``paramiko``will use paramiko to create an SSH tunnel to the cluster.
         ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
         ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
+        domain(str, optional): Domain name for the cluster. Relevant if enabling HTTPs on the cluster.
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
@@ -92,6 +94,7 @@ def cluster(
             server_connection_type=server_connection_type,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
+            domain=domain,
             den_auth=den_auth,
             kwargs=kwargs,
         )
@@ -114,6 +117,7 @@ def cluster(
             server_connection_type=server_connection_type,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
+            domain=domain,
             den_auth=den_auth,
             dryrun=dryrun,
             **kwargs,
@@ -141,6 +145,7 @@ def cluster(
             server_connection_type=server_connection_type,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
+            domain=domain,
             den_auth=den_auth,
             dryrun=dryrun,
             **kwargs,
@@ -163,6 +168,7 @@ def cluster(
         server_connection_type=server_connection_type,
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
+        domain=domain,
         den_auth=den_auth,
         dryrun=dryrun,
         **kwargs,
@@ -294,6 +300,7 @@ def ondemand_cluster(
     server_connection_type: Union[ServerConnectionType, str] = None,
     ssl_keyfile: str = None,
     ssl_certfile: str = None,
+    domain: str = None,
     den_auth: bool = None,
     dryrun: bool = False,
     **kwargs,
@@ -330,6 +337,7 @@ def ondemand_cluster(
             ``paramiko``will use paramiko to create an SSH tunnel to the cluster.
         ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
         ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
+        domain(str, optional): Domain name for the cluster. Relevant if enabling HTTPs on the cluster.
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
@@ -391,6 +399,7 @@ def ondemand_cluster(
             server_connection_type=server_connection_type,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
+            domain=domain,
             den_auth=den_auth,
         )
         # Filter out None/default values
@@ -419,6 +428,7 @@ def ondemand_cluster(
         server_connection_type=server_connection_type,
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
+        domain=domain,
         den_auth=den_auth,
         name=name,
         dryrun=dryrun,
@@ -450,6 +460,7 @@ def sagemaker_cluster(
     server_connection_type: Union[ServerConnectionType, str] = None,
     ssl_keyfile: str = None,
     ssl_certfile: str = None,
+    domain: str = None,
     den_auth: bool = False,
     dryrun: bool = False,
     **kwargs,
@@ -502,6 +513,7 @@ def sagemaker_cluster(
             API server. *Note: For SageMaker, only ``aws_ssm`` is currently valid as the server connection type.*
         ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
         ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
+        domain(str, optional): Domain name for the cluster. Relevant if enabling HTTPs on the cluster.
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
@@ -574,6 +586,7 @@ def sagemaker_cluster(
             server_connection_type=server_connection_type,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
+            domain=domain,
             den_auth=den_auth,
         )
         # Filter out None/default values
@@ -611,6 +624,7 @@ def sagemaker_cluster(
         den_auth=den_auth,
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
+        domain=domain,
         dryrun=dryrun,
         **kwargs,
     )

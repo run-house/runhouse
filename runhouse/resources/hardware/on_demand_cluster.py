@@ -55,6 +55,7 @@ class OnDemandCluster(Cluster):
         server_connection_type: str = None,
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
+        domain: str = None,
         den_auth: bool = False,
         region=None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
@@ -72,6 +73,7 @@ class OnDemandCluster(Cluster):
             server_connection_type=server_connection_type,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
+            domain=domain,
             den_auth=den_auth,
             dryrun=dryrun,
             **kwargs,

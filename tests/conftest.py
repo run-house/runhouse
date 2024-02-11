@@ -1,8 +1,10 @@
 import enum
+import subprocess
 
 import pytest
 
 import runhouse as rh
+from runhouse.constants import RAY_KILL_CMD, RAY_START_CMD
 
 """
 HOW TO USE FIXTURES IN RUNHOUSE TESTS
@@ -138,6 +140,11 @@ def pytest_collection_modifyitems(config, items):
 
 def pytest_configure():
     pytest.init_args = {}
+    subprocess.run(RAY_START_CMD, shell=True)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    subprocess.run(RAY_KILL_CMD, shell=True)
 
 
 init_args = {}
@@ -178,6 +185,7 @@ from tests.fixtures.docker_cluster_fixtures import (
     docker_cluster_pk_tls_exposed,  # noqa: F401
     docker_cluster_pwd_ssh_no_auth,  # noqa: F401
     friend_account_logged_in_docker_cluster_pk_ssh,  # noqa: F401
+    local_daemon,  # noqa: F401
     named_cluster,  # noqa: F401
     password_cluster,  # noqa: F401
     shared_cluster,  # noqa: F401

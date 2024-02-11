@@ -45,10 +45,22 @@ def kill_actors(
     namespace: Optional[str] = None,
     gracefully: bool = True,
 ):
+    cluster_servlet_actor = None
     for actor in list_actor_states(actor_name, actor_class_name, namespace):
-        logger.info(f"Killing actor {actor['name']}")
         actor_handle_to_kill = ray.get_actor(actor["name"])
+        if actor["name"] == "cluster_servlet":
+            cluster_servlet_actor = actor_handle_to_kill
+            continue
+        logger.info(f"Killing actor {actor['name']}")
         if gracefully:
             actor_handle_to_kill.__ray_terminate__.remote()
         else:
             ray.kill(actor_handle_to_kill)
+
+    # Make sure to kill cluster_servlet last
+    if cluster_servlet_actor:
+        logger.info("Killing actor cluster_servlet")
+        if gracefully:
+            cluster_servlet_actor.__ray_terminate__.remote()
+        else:
+            ray.kill(cluster_servlet_actor)

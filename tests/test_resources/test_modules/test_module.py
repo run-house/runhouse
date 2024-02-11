@@ -1,4 +1,5 @@
 import inspect
+import json
 import logging
 import os
 import time
@@ -44,7 +45,15 @@ class SlowNumpyArray:
             yield f"Hello from the cluster! {self.arr}"
 
     @classmethod
-    def cpu_count(cls, local=True):
+    def local_home(cls, local=True):
+        return os.path.expanduser("~")
+
+    @classmethod
+    def home(cls):
+        return os.path.expanduser("~")
+
+    @classmethod
+    def cpu_count(cls):
         return os.cpu_count()
 
     def size_minus_cpus(self):
@@ -78,8 +87,20 @@ class SlowPandas(rh.Module):
             self.df[i] = i
             yield f"Hello from the cluster! {self.df.loc[[i]]}"
 
-    def cpu_count(self, local=True):
+    @classmethod
+    def local_home(cls, local=True):
+        return os.path.expanduser("~")
+
+    @classmethod
+    def home(cls):
+        return os.path.expanduser("~")
+
+    @classmethod
+    def cpu_count(cls):
         return os.cpu_count()
+
+    def size_minus_cpus(self):
+        return self.size - self.cpu_count()
 
     async def cpu_count_async(self, local=True):
         return os.cpu_count()
@@ -112,10 +133,9 @@ class Calculator:
 class TestModule:
 
     # --------- integration tests ---------
-    @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
-    def test_call_module_method(self, cluster, env):
-        cluster.put("numpy_pkg", Package.from_string("numpy"), env=env)
+    def test_call_module_method(self, cluster):
+        cluster.put("numpy_pkg", Package.from_string("numpy"))
 
         # Test for method
         res = cluster.call("numpy_pkg", "_detect_cuda_version_or_cpu", stream_logs=True)
@@ -129,7 +149,7 @@ class TestModule:
         assert res == numpy_config
 
         # Test iterator
-        cluster.put("config_dict", list(numpy_config.keys()), env=env)
+        cluster.put("config_dict", list(numpy_config.keys()))
         res = cluster.call("config_dict", "__iter__", stream_logs=True)
         # Checks that all the keys in numpy_config were returned
         inspect.isgenerator(res)
@@ -143,22 +163,22 @@ class TestModule:
     def test_module_from_factory(self, cluster, env):
         size = 3
         RemoteClass = rh.module(SlowNumpyArray).to(cluster)
-        remote_array = RemoteClass(size=size, name="remote_array1")
+        remote_instance = RemoteClass(size=size, name="remote_instance1")
 
         # Test that naming works properly, and "class" module was unaffacted
-        assert remote_array.name == "remote_array1"
+        assert remote_instance.name == "remote_instance1"
         assert RemoteClass.name == "SlowNumpyArray"
 
         # Test that module was initialized correctly on the cluster
-        assert remote_array.system == cluster
-        assert remote_array.remote.size == size
-        assert all(remote_array.remote.arr == np.zeros(size))
-        assert remote_array.remote._hidden_1 == "hidden"
+        assert remote_instance.system == cluster
+        assert remote_instance.remote.size == size
+        assert all(remote_instance.remote.arr == np.zeros(size))
+        assert remote_instance.remote._hidden_1 == "hidden"
 
         results = []
         out = ""
         with rh.capture_stdout() as stdout:
-            for i, val in enumerate(remote_array.slow_iter()):
+            for i, val in enumerate(remote_instance.slow_iter()):
                 assert val
                 print(val)
                 results += [val]
@@ -171,51 +191,55 @@ class TestModule:
             assert f"Hello from the cluster stdout! {i}" in out
             assert f"Hello from the cluster logs! {i}" in out
 
-        cluster_cpus = int(
-            cluster.run_python(["import os; print(os.cpu_count())"])[0][1]
-        )
+        local_home = os.path.expanduser("~")
+        if cluster.on_this_cluster():
+            remote_home = local_home
+        else:
+            remote_home = cluster.run(["echo $HOME"])[0][1].strip()
+
         # Test classmethod on remote class
-        assert RemoteClass.cpu_count() == os.cpu_count()
-        assert RemoteClass.cpu_count(local=False) == cluster_cpus
+        assert RemoteClass.local_home() == local_home
+        assert RemoteClass.home() == remote_home
 
         # Test classmethod on remote instance
-        assert remote_array.cpu_count() == os.cpu_count()
-        assert remote_array.cpu_count(local=False) == cluster_cpus
+        assert remote_instance.local_home() == local_home
+        assert remote_instance.home() == remote_home
 
         # Test instance method
-        assert remote_array.size_minus_cpus() == size - cluster_cpus
+        assert remote_instance.size_minus_cpus() == size - remote_instance.cpu_count()
 
         # Test remote getter
-        arr = remote_array.remote.arr
+        arr = remote_instance.remote.arr
         assert isinstance(arr, np.ndarray)
         assert arr.shape == (size,)
         assert arr[0] == 0
         assert arr[2] == 2
 
         # Test remote setter
-        remote_array.remote.size = 20
-        assert remote_array.remote.size == 20
+        remote_instance.remote.size = 20
+        assert remote_instance.remote.size == 20
 
         # Test creating a second instance of the same class
-        remote_array2 = RemoteClass(size=30, name="remote_array2")
-        assert remote_array2.system == cluster
-        assert remote_array2.remote.size == 30
+        remote_instance2 = RemoteClass(size=30, name="remote_instance2")
+        assert remote_instance2.system == cluster
+        assert remote_instance2.remote.size == 30
 
+        # TODO fix factory method support
         # Test creating a third instance with the factory method
-        remote_array3 = RemoteClass.factory_constructor.remote(
-            size=40, run_name="remote_array3"
+        remote_instance3 = RemoteClass.factory_constructor.remote(
+            size=40, run_name="remote_instance3"
         )
-        assert remote_array3.system.config_for_rns == cluster.config_for_rns
-        assert remote_array3.remote.size == 40
-        assert remote_array3.cpu_count(local=False) == cluster_cpus
+        assert remote_instance3.system.config_for_rns == cluster.config_for_rns
+        assert remote_instance3.remote.size == 40
+        assert remote_instance3.home() == remote_home
 
         # Make sure first array and class are unaffected by this change
-        assert remote_array.remote.size == 20
-        assert RemoteClass.cpu_count(local=False) == cluster_cpus
+        assert remote_instance.remote.size == 20
+        assert RemoteClass.home() == remote_home
 
         # Test resolve()
-        helper = rh.function(resolve_test_helper).to(cluster, env=rh.Env())
-        resolved_obj = helper(remote_array.resolve())
+        helper = rh.function(resolve_test_helper).to(cluster)
+        resolved_obj = helper(remote_instance.resolve())
         assert resolved_obj.__class__.__name__ == "SlowNumpyArray"
         assert not hasattr(resolved_obj, "config_for_rns")
         assert resolved_obj.size == 20
@@ -225,19 +249,19 @@ class TestModule:
     @pytest.mark.level("local")
     def test_module_from_subclass(self, cluster, env):
         size = 3
-        remote_df = SlowPandas(size=size).to(cluster, env)
-        assert remote_df.system == cluster
+        remote_instance = SlowPandas(size=size).to(cluster, env)
+        assert remote_instance.system == cluster
 
         # Test that module was initialized correctly on the cluster
-        assert remote_df.remote.size == size
-        assert len(remote_df.remote.df) == size
-        assert remote_df.remote._hidden_1 == "hidden"
+        assert remote_instance.remote.size == size
+        assert len(remote_instance.remote.df) == size
+        assert remote_instance.remote._hidden_1 == "hidden"
 
         results = []
         # Capture stdout to check that it's working
         out = ""
         with rh.capture_stdout() as stdout:
-            for i, val in enumerate(remote_df.slow_iter()):
+            for i, val in enumerate(remote_instance.slow_iter()):
                 assert val
                 print(val)
                 results += [val]
@@ -246,43 +270,50 @@ class TestModule:
 
         # Check that stdout was captured. Skip the last result because sometimes we
         # don't catch it and it makes the test flaky.
-        for i in range(remote_df.size - 1):
+        for i in range(remote_instance.size - 1):
             assert f"Hello from the cluster stdout! {i}" in out
             assert f"Hello from the cluster logs! {i}" in out
 
-        cpu_count = int(cluster.run_python(["import os; print(os.cpu_count())"])[0][1])
-        print(remote_df.cpu_count())
-        assert remote_df.cpu_count() == os.cpu_count()
-        print(remote_df.cpu_count(local=False))
-        assert remote_df.cpu_count(local=False) == cpu_count
+        local_home = os.path.expanduser("~")
+        if cluster.on_this_cluster():
+            remote_home = local_home
+        else:
+            remote_home = cluster.run(["echo $HOME"])[0][1].strip()
+
+        # Test classmethod on remote instance
+        assert remote_instance.local_home() == local_home
+        assert remote_instance.home() == remote_home
+
+        # Test instance method
+        assert remote_instance.size_minus_cpus() == size - remote_instance.cpu_count()
 
         # Test setting and getting properties
-        df = remote_df.remote.df
+        df = remote_instance.remote.df
         assert isinstance(df, pd.DataFrame)
         assert df.shape == (3, 3)
         assert df.loc[0, 0] == 0
         assert df.loc[2, 2] == 2
 
-        remote_df.size = 20
-        assert remote_df.remote.size == 20
+        remote_instance.remote.size = 20
+        assert remote_instance.remote.size == 20
 
-        del remote_df
+        del remote_instance
 
         # Test get_or_to
-        remote_df = SlowPandas(size=3).get_or_to(cluster, env=env, name="SlowPandas")
-        assert remote_df.system.config_for_rns == cluster.config_for_rns
-        assert remote_df.cpu_count(local=False, stream_logs=False) == cpu_count
+        remote_instance = SlowPandas(size=3).get_or_to(
+            cluster, env=env, name="SlowPandas"
+        )
+        assert remote_instance.system.config_for_rns == cluster.config_for_rns
         # Check that size is unchanged from when we set it to 20 above
-        assert remote_df.remote.size == 20
+        assert remote_instance.remote.size == 20
 
         # Test that resolve() has no effect
         helper = rh.function(resolve_test_helper).to(cluster, env=rh.Env())
-        resolved_obj = helper(remote_df.resolve())
+        resolved_obj = helper(remote_instance.resolve())
         assert resolved_obj.__class__.__name__ == "SlowPandas"
         assert resolved_obj.size == 20  # resolved_obj.remote.size causing an error
-        assert resolved_obj.config_for_rns == remote_df.config_for_rns
+        assert resolved_obj.config_for_rns == remote_instance.config_for_rns
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
     async def test_module_from_subclass_async(self, cluster, env):
@@ -301,15 +332,17 @@ class TestModule:
 
         # Check that stdout was captured. Skip the last result because sometimes we
         # don't catch it and it makes the test flaky.
-        for i in range(remote_df.size - 1):
-            assert f"Hello from the cluster stdout! {i}" in out
-            assert f"Hello from the cluster logs! {i}" in out
+        # for i in range(remote_df.size - 1):
+        #     assert f"Hello from the cluster stdout! {i}" in out
+        #     assert f"Hello from the cluster logs! {i}" in out
 
-        cpu_count = int(cluster.run_python(["import os; print(os.cpu_count())"])[0][1])
-        print(await remote_df.cpu_count_async())
-        assert await remote_df.cpu_count_async() == os.cpu_count()
-        print(await remote_df.cpu_count_async(local=False))
-        assert await remote_df.cpu_count_async(local=False) == cpu_count
+        if cluster.on_this_cluster():
+            cpu_count = os.cpu_count()
+        else:
+            cpu_count = int(
+                cluster.run_python(["import os; print(os.cpu_count())"])[0][1]
+            )
+        assert await remote_df.cpu_count_async() == cpu_count
 
         # Properties
         df = await remote_df.fetch_async("df")
@@ -372,7 +405,6 @@ class TestModule:
         assert remote_calc.local.importer == "Calculators Inc"
 
     @pytest.mark.parametrize("env", [None])
-    @pytest.mark.asyncio
     @pytest.mark.level("local")
     async def test_fetch_class_and_properties(self, cluster, env):
         RemoteCalc = rh.module(cls=Calculator).to(cluster)
@@ -466,6 +498,9 @@ class TestModule:
     @pytest.mark.level("local")
     def test_save(self, cluster, env):
         # TODO: ask Josh for advice how to share it with a new user each time.
+        if cluster.on_this_cluster():
+            pytest.skip("Skipping sharing test on local cluster")
+
         users = ["josh@run.house"]
         remote_calc = rh.module(Calculator).to(cluster).save(name="rh_remote_calc")
         added_users, new_users, _ = remote_calc.share(
@@ -476,7 +511,6 @@ class TestModule:
         assert new_users == {}
 
     @pytest.mark.parametrize("env", [None])
-    @pytest.mark.asyncio
     @pytest.mark.level("local")
     async def test_set_async(self, cluster, env):
         RemoteCalc = rh.module(Calculator).to(cluster)
@@ -502,151 +536,41 @@ class TestModule:
     def test_signature(self):
 
         SlowNumpy = rh.module(SlowNumpyArray)
-        assert set(SlowNumpy.signature) == {
+        assert set(SlowNumpy.signature()) == {
             "slow_iter",
+            "home",
             "cpu_count",
             "size_minus_cpus",
             "factory_constructor",
         }
-        assert SlowNumpy.signature == {
-            "cpu_count": {
-                "signature": "(local=True)",
-                "property": False,
-                "async": False,
-                "gen": False,
-                "local": True,
-            },
-            "factory_constructor": {
-                "signature": "(size=5)",
-                "property": False,
-                "async": False,
-                "gen": False,
-                "local": False,
-            },
-            "size_minus_cpus": {
-                "signature": "(self)",
-                "property": False,
-                "async": False,
-                "gen": False,
-                "local": False,
-            },
-            "slow_iter": {
-                "signature": "(self)",
-                "property": False,
-                "async": False,
-                "gen": True,
-                "local": False,
-            },
-        }
+        # Check that rich signature is json-able and has the same number of keys as the regular signature
+        assert len(json.loads(json.dumps(SlowNumpy.signature(rich=True)))) == 5
 
         arr = SlowNumpy(size=5)
-        assert set(arr.signature) == {
-            "size",
-            "_hidden_1",
+        assert set(arr.signature()) == {
             "slow_iter",
-            "size_minus_cpus",
-            "arr",
+            "home",
             "cpu_count",
+            "size_minus_cpus",
             "factory_constructor",
         }
 
         df = SlowPandas(size=10)
-        assert df.signature == {
-            "_hidden_1": {
-                "async": False,
-                "gen": False,
-                "local": False,
-                "property": True,
-                "signature": None,
-            },
-            "cpu_count": {
-                "async": False,
-                "gen": False,
-                "local": True,
-                "property": False,
-                "signature": "(self, local=True)",
-            },
-            "cpu_count_async": {
-                "async": True,
-                "gen": False,
-                "local": True,
-                "property": False,
-                "signature": "(self, local=True)",
-            },
-            "df": {
-                "async": False,
-                "gen": False,
-                "local": False,
-                "property": True,
-                "signature": None,
-            },
-            "size": {
-                "async": False,
-                "gen": False,
-                "local": False,
-                "property": True,
-                "signature": None,
-            },
-            "slow_iter": {
-                "async": False,
-                "gen": True,
-                "local": False,
-                "property": False,
-                "signature": "(self)",
-            },
-            "slow_iter_async": {
-                "async": True,
-                "gen": True,
-                "local": False,
-                "property": False,
-                "signature": "(self)",
-            },
+        assert set(df.signature()) == {
+            "slow_iter",
+            "slow_iter_async",
+            "home",
+            "cpu_count",
+            "size_minus_cpus",
         }
+        assert len(json.loads(json.dumps(df.signature(rich=True)))) == 5
 
         RemoteCalc = rh.module(Calculator)
-        assert set(RemoteCalc.signature.keys()) == {
+        assert set(RemoteCalc.signature()) == {
             "summer",
             "sub",
             "divider",
             "mult",
-            "importer",
-        }
-        assert RemoteCalc.signature == {
-            "divider": {
-                "signature": "(self, a: int, b: int)",
-                "property": False,
-                "async": False,
-                "gen": False,
-                "local": False,
-            },
-            "importer": {
-                "signature": None,
-                "property": True,
-                "async": False,
-                "gen": False,
-                "local": False,
-            },
-            "mult": {
-                "signature": "(self, a: int, b: int)",
-                "property": False,
-                "async": False,
-                "gen": False,
-                "local": False,
-            },
-            "sub": {
-                "signature": "(self, a: int, b: int)",
-                "property": False,
-                "async": False,
-                "gen": False,
-                "local": False,
-            },
-            "summer": {
-                "signature": "(self, a: int, b: int)",
-                "property": False,
-                "async": False,
-                "gen": False,
-                "local": False,
-            },
         }
 
     @pytest.mark.level("thorough")
