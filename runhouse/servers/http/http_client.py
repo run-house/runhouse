@@ -2,7 +2,9 @@ import json
 import logging
 import time
 import warnings
+from functools import wraps
 from pathlib import Path
+from random import randrange
 from typing import Any, Dict, Optional, Union
 
 import requests
@@ -26,6 +28,24 @@ from runhouse.servers.http.http_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def retry_with_exponential_backoff(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        MAX_RETRIES = 3
+        retries = 0
+        while True:
+            try:
+                return func(*args, **kwargs)
+            except ConnectionError as e:
+                retries += 1
+                if retries == MAX_RETRIES:
+                    raise e
+                sleep_time = randrange(1, 2 ** (retries + 1) + 1)
+                time.sleep(sleep_time)
+
+    return wrapper
 
 
 class HTTPClient:
@@ -149,7 +169,7 @@ class HTTPClient:
         ):
             endpoint += "/"
 
-        response = req_fn(
+        response = retry_with_exponential_backoff(req_fn)(
             self._formatted_url(endpoint),
             json=json_dict,
             headers=headers,
@@ -246,7 +266,7 @@ class HTTPClient:
             + (f".{method_name}" if method_name else "")
         )
         serialization = serialization or "pickle"
-        res = self.client.post(
+        res = retry_with_exponential_backoff(self.client.post)(
             self._formatted_url(f"{key}/{method_name}"),
             json=CallParams(
                 data=serialize_data(data, serialization),
@@ -419,7 +439,7 @@ class HTTPClient:
         )
 
     def set_settings(self, new_settings: Dict[str, Any]):
-        res = self.client.post(
+        res = retry_with_exponential_backoff(self.client.post)(
             self._formatted_url("settings"),
             json=new_settings,
             headers=rns_client.request_headers(),
