@@ -1226,11 +1226,11 @@ class ObjStore:
                 )
                 if isinstance(v, runhouse.Resource):
                     resources_in_env_modified.append(
-                        {"name": v.name, "resource_type": cls_name}
+                        {"name": k, "resource_type": cls_name}
                     )
                 else:
                     resources_in_env_modified.append(
-                        {"name": v, "resource_type": cls_name}
+                        {"name": k, "resource_type": cls_name}
                     )
             return resources_in_env_modified
         else:
