@@ -775,7 +775,7 @@ class Cluster(Resource):
             stream_logs (bool): Whether to stream logs from the method call.
             run_name (str): Name for the run.
             remote (bool): Return a remote object from the function, rather than the result proper.
-            run_async (bool): Run the method asynchronously and return a run_key to retreive results and logs later.
+            run_async (bool): Run the method asynchronously and return an awaitable.
             *args: Positional arguments to pass to the method.
             **kwargs: Keyword arguments to pass to the method.
 
@@ -786,7 +786,11 @@ class Cluster(Resource):
         # Note: might be single value, might be a generator!
         if self.on_this_cluster():
             return obj_store.call(
-                module_name, method_name, data=(args, kwargs), serialization=None
+                module_name,
+                method_name,
+                data=(args, kwargs),
+                run_async=run_async,
+                serialization=None,
             )
         return self.client.call_module_method(
             module_name,

@@ -170,8 +170,10 @@ class Run(Resource):
             # sys.stderr.flush()
 
             # Restore stdout and stderr
-            sys.stdout = sys.stdout.instream
-            sys.stderr = sys.stderr.instream
+            if hasattr(sys.stdout, "instream"):
+                sys.stdout = sys.stdout.instream
+            if hasattr(sys.stderr, "instream"):
+                sys.stderr = sys.stderr.instream
 
             # Save Run config to its folder on the system - this will already happen on the cluster
             # for function based Runs
@@ -575,9 +577,11 @@ class capture_stdout:
         return self.stream.getvalue()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if hasattr(self, "instream"):
+        if hasattr(sys.stdout, "instream"):
             sys.stdout = sys.stdout.instream
+        if hasattr(sys.stderr, "instream"):
             sys.stderr = sys.stderr.instream
+        self._stream.close()
         return False
 
 

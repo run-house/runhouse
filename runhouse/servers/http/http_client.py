@@ -330,6 +330,8 @@ class HTTPClient:
                 continue
             except StopIteration:
                 break
+            except StopAsyncIteration:
+                break
 
             resp = json.loads(responses_json)
             output_type = resp["output_type"]

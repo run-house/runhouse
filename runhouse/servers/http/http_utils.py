@@ -147,7 +147,9 @@ def handle_exception_response(
     exception: Exception, traceback, serialization="pickle", from_http_server=False
 ):
     if not (
-        isinstance(exception, StopIteration) or isinstance(exception, GeneratorExit)
+        isinstance(exception, StopIteration)
+        or isinstance(exception, GeneratorExit)
+        or isinstance(exception, StopAsyncIteration)
     ):
         logger.exception(exception)
 
@@ -218,6 +220,7 @@ def handle_response(response_data, output_type, err_str):
         if not (
             isinstance(fn_exception, StopIteration)
             or isinstance(fn_exception, GeneratorExit)
+            or isinstance(fn_exception, StopAsyncIteration)
         ):
             logger.error(f"{err_str}: {fn_exception}")
             logger.error(f"Traceback: {fn_traceback}")
