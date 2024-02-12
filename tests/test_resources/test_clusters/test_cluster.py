@@ -198,7 +198,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert res.get("resource_type") == cluster.RESOURCE_TYPE
         assert res.get("ips") == cluster.ips
         assert "numpy_env" in res.get("envs")
-        assert {"name": "status_value1", "resource_type": "str"} in res.get("envs")[
+        assert {"name": "status_key1", "resource_type": "str"} in res.get("envs")[
             "numpy_env"
         ]
 
@@ -214,7 +214,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert f"ips: {str(cluster.ips)}" in res
         assert "Serving 🍦 :" in res
         assert "base_env (runhouse.resources.envs.env.Env):" in res
-        assert "status_value2 (str)" in res
+        assert "status_key2 (str)" in res
 
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")
