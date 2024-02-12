@@ -872,11 +872,14 @@ class Cluster(Resource):
         ssh_credentials = copy.copy(self.ssh_creds) or {}
         ssh_credentials.pop("ssh_host", node)
         pwd = ssh_credentials.pop("password", None)
+        ssh_control_name = ssh_credentials.pop(
+            "ssh_control_name", f"{node}:{self.ssh_port}"
+        )
 
         runner = SkySSHRunner(
             node,
             **ssh_credentials,
-            ssh_control_name=f"{node}:{self.ssh_port}",
+            ssh_control_name=ssh_control_name,
             port=self.ssh_port,
         )
         if not pwd:
@@ -1073,11 +1076,14 @@ class Cluster(Resource):
         ssh_credentials = copy.copy(self.ssh_creds)
         host = ssh_credentials.pop("ssh_host", node or self.address)
         pwd = ssh_credentials.pop("password", None)
+        ssh_control_name = ssh_credentials.pop(
+            "ssh_control_name", f"{node}:{self.ssh_port}"
+        )
 
         runner = SkySSHRunner(
             host,
             **ssh_credentials,
-            ssh_control_name=f"{host}:{self.ssh_port}",
+            ssh_control_name=ssh_control_name,
             port=self.ssh_port,
         )
 
