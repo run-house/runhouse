@@ -1211,35 +1211,38 @@ class ObjStore:
     ##############################################
     # Cluster info methods
     ##############################################
-
-    def get_status(self):
-        config_cluster = self.get_cluster_config()
-        envs_in_cluster = self.get_all_initialized_env_servlet_names()
-        cluster_servlets = {}
-        for env in envs_in_cluster:
-            env_keys = self.keys_for_env_servlet_name(env)
-            resources_in_env = self.get_list(env_keys)
+    def status_local(self):
+        # The objects in env can be of any type, and not only runhouse resources,
+        # therefore we need to distinguish them when creating the list of the resources in each env.
+        if self.has_local_storage:
             resources_in_env_modified = []
-
-            # The objects in env can be of any type, and not only runhouse resources,
-            # therefore we need to distinguish them when creating the list of the resources in each env.
-            for r in resources_in_env:
-                cls = type(r)
+            for k, v in self._kv_store.items():
+                cls = type(v)
                 py_module = cls.__module__
                 cls_name = (
                     cls.__qualname__
                     if py_module == "builtins"
                     else (py_module + "." + cls.__qualname__)
                 )
-                if isinstance(r, runhouse.Resource):
+                if isinstance(v, runhouse.Resource):
                     resources_in_env_modified.append(
-                        {"name": r.name, "resource_type": cls_name}
+                        {"name": v.name, "resource_type": cls_name}
                     )
                 else:
                     resources_in_env_modified.append(
-                        {"name": r, "resource_type": cls_name}
+                        {"name": v, "resource_type": cls_name}
                     )
+            return resources_in_env_modified
+        else:
+            return []
 
+    def status(self):
+        config_cluster = self.get_cluster_config()
+        cluster_servlets = {}
+        for env in self.get_all_initialized_env_servlet_names():
+            resources_in_env_modified = self.call_actor_method(
+                self.get_env_servlet(env), "status_local"
+            )
             cluster_servlets[env] = resources_in_env_modified
         config_cluster["envs"] = cluster_servlets
         return config_cluster
