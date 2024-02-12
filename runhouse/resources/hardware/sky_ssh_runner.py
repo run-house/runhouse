@@ -422,7 +422,12 @@ def ssh_tunnel(
                 # Host could be a proxy specified in credentials or is the provided address
                 host = ssh_credentials.pop("ssh_host", address)
 
-                runner = SkySSHRunner(host, **ssh_credentials, port=ssh_port)
+                runner = SkySSHRunner(
+                    host,
+                    **ssh_credentials,
+                    ssh_control_name=f"{address}:{ssh_port}",
+                    port=ssh_port,
+                )
                 runner.tunnel(local_port, remote_port)
                 ssh_tunnel = runner  # Just to keep the object in memory
             else:

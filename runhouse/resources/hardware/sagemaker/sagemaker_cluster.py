@@ -668,6 +668,7 @@ class SageMakerCluster(Cluster):
                     port=self.ssh_port,
                     ssh_user=self.DEFAULT_USER,
                     ssh_private_key=self._abs_ssh_key_path,
+                    ssh_control_name=f"{self.name}:{self.ssh_port}",
                 )
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
                 logger.info(f"Running command on {self.name}: {command}")
