@@ -66,6 +66,7 @@ class OnDemandCluster(Cluster):
         .. note::
             To build a cluster, please use the factory method :func:`cluster`.
         """
+
         super().__init__(
             name=name,
             server_host=server_host,
@@ -138,36 +139,6 @@ class OnDemandCluster(Cluster):
 
         return config
 
-    # def _get_sky_state(self):
-    #     config = sky.global_user_state.get_cluster_from_name(self.name)
-    #     if not config:
-    #         return None
-    #     config["status"] = config[
-    #         "status"
-    #     ].name  # ClusterStatus enum is not json serializable
-    #     if config["handle"]:
-    #         config["public_key"] = self.creds["ssh_private_key"] + ".pub"
-    #         config["handle"] = {
-    #             "cluster_name": config["handle"].cluster_name,
-    #             "cluster_name_on_cloud": config["handle"].cluster_name_on_cloud,
-    #             # This is saved as an absolute path - convert it to relative
-    #             "cluster_yaml": self.relative_yaml_path(
-    #                 yaml_path=config["handle"]._cluster_yaml
-    #             ),
-    #             "head_ip": config["handle"].head_ip or self.address,
-    #             "stable_internal_external_ips": config[
-    #                 "handle"
-    #             ].stable_internal_external_ips,
-    #             "launched_nodes": config["handle"].launched_nodes,
-    #             "launched_resources": config[
-    #                 "handle"
-    #             ].launched_resources.to_yaml_config(),
-    #         }
-    #         config["handle"]["launched_resources"].pop("spot_recovery", None)
-    #
-    #         config["ssh_creds"] = self.creds
-    #     return config
-
     def _copy_sky_yaml_from_cluster(self, abs_yaml_path: str):
         if not Path(abs_yaml_path).exists():
             Path(abs_yaml_path).parent.mkdir(parents=True, exist_ok=True)
@@ -178,75 +149,6 @@ class OnDemandCluster(Cluster):
             backend_utils.SSHConfigHelper.add_cluster(
                 self.name, [self.address], ray_yaml["auth"]
             )
-
-    # def _save_sky_state(self):
-    #     if not self.live_state:
-    #         raise ValueError("No sky state to save")
-    #
-    #     # if we're on this cluster, no need to save sky state
-    #     if self.on_this_cluster():
-    #         return
-    #
-    #     handle_info = self.live_state.get("handle", {})
-    #
-    #     # If we already have the cluster in local sky db,
-    #     # we don't need to save the state, just populate the connection info from the status
-    #     if not sky.global_user_state.get_cluster_from_name(self.name):
-    #         # Try running a command on the cluster before saving down the state into sky db
-    #         self.address = handle_info.get("head_ip")
-    #         self._creds.values = self.live_state["ssh_creds"]
-    #
-    #         try:
-    #             self._ping(timeout=self.RECONNECT_TIMEOUT)
-    #         except TimeoutError:
-    #             self.address = None
-    #             self._creds = None
-    #             print(
-    #                 f"Timeout when trying to connect to cluster {self.name}, treating cluster as down."
-    #             )
-    #             return
-    #
-    #         resources = sky.Resources.from_yaml_config(
-    #             handle_info["launched_resources"]
-    #         )
-    #         # Need to convert to relative to find the yaml file in a new environment
-    #         yaml_path = self.relative_yaml_path(handle_info.get("cluster_yaml"))
-    #         handle = CloudVmRayBackend.ResourceHandle(
-    #             cluster_name=self.name,
-    #             cluster_name_on_cloud=handle_info.get(
-    #                 "cluster_name_on_cloud", self.name
-    #             ),
-    #             cluster_yaml=str(Path(yaml_path).expanduser()),
-    #             launched_nodes=handle_info["launched_nodes"],
-    #             launched_resources=resources,
-    #             stable_internal_external_ips=handle_info.get(
-    #                 "stable_internal_external_ips"
-    #             )
-    #             or [(handle_info["head_ip"], handle_info["head_ip"])],
-    #         )
-    #         sky.global_user_state.add_or_update_cluster(
-    #             cluster_name=self.name,
-    #             cluster_handle=handle,
-    #             requested_resources=[resources],
-    #             is_launch=True,
-    #             ready=False,
-    #         )
-    #
-    #     # Now try loading in the status from the sky DB
-    #     status = self.status(refresh=False)
-    #
-    #     abs_yaml_path = status["handle"].cluster_yaml
-    #     try:
-    #         if not Path(abs_yaml_path).exists():
-    #             # This is also a good way to check if the cluster is still up
-    #             self._copy_sky_yaml_from_cluster(abs_yaml_path)
-    #         else:
-    #             # We still should check if the cluster is up, since the status/yaml file could be stale
-    #             self._ping(timeout=self.RECONNECT_TIMEOUT)
-    #     except Exception:
-    #        # Refresh the cluster status before saving the ssh info so SkyPilot has a chance to wipe the .ssh/config if
-    #         # the cluster went down
-    #         self._update_from_sky_status(dryrun=self.dryrun)
 
     def __getstate__(self):
         """Make sure live_state is loaded in before pickling."""
