@@ -722,6 +722,7 @@ class HTTPServer:
             OTLPSpanExporter,
         )
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.instrumentation.logging import LoggingInstrumentor
         from opentelemetry.instrumentation.requests import RequestsInstrumentor
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
@@ -765,6 +766,9 @@ class HTTPServer:
         logger.info(
             f"Successfully added telemetry exporter {telemetry_collector_address}"
         )
+
+        # Instrument trace logging
+        LoggingInstrumentor().instrument(set_logging_format=True)
 
         # Instrument the app object
         FastAPIInstrumentor.instrument_app(app)

@@ -69,6 +69,7 @@ install_requires = [
     "opentelemetry-exporter-otlp-proto-http",
     "opentelemetry-instrumentation",
     "opentelemetry-instrumentation-fastapi",
+    "opentelemetry-instrumentation-logging",
     "opentelemetry-instrumentation-requests",
     "opentelemetry-sdk",
     "pexpect",
