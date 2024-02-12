@@ -4,12 +4,13 @@ import requests
 
 @pytest.mark.level("local")
 def test_public_key_cluster_has_telemetry(docker_cluster_pk_ssh_telemetry):
-    cluster = docker_cluster_pk_ssh_telemetry
-    cluster.check_server()
-    assert cluster.is_up()  # Should be true for a Cluster object
+    docker_cluster_pk_ssh_telemetry.check_server()
+    assert (
+        docker_cluster_pk_ssh_telemetry.is_up()
+    )  # Should be true for a Cluster object
 
     # Make a GET request to the /spans endpoint
-    response = requests.get(f"http://{cluster.address}:{cluster.server_port}/spans")
+    response = requests.get(f"{docker_cluster_pk_ssh_telemetry.endpoint()}/spans")
 
     # Check the status code
     assert response.status_code == 200
