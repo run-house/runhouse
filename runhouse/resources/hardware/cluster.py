@@ -324,9 +324,7 @@ class Cluster(Resource):
         env.reqs = env._reqs + reqs
         env.to(self)
 
-    def get(
-        self, key: str, default: Any = None, remote=False, stream_logs: bool = False
-    ):
+    def get(self, key: str, default: Any = None, remote=False):
         """Get the result for a given key from the cluster's object store. To raise an error if the key is not found,
         use `cluster.get(key, default=KeyError)`."""
         self.check_server()
