@@ -663,7 +663,7 @@ class Module(Resource):
 
         def call_wrapper():
             if not key:
-                return client.get(name, remote=remote, stream_logs=stream_logs)
+                return client.get(name, remote=remote)
 
             if isinstance(system, Cluster) and name and system.on_this_cluster():
                 obj_store_obj = obj_store.get(name, default=None)
