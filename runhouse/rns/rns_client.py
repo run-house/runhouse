@@ -317,8 +317,9 @@ class RNSClient:
             request_headers = self.request_headers()
             if not request_headers:
                 raise PermissionError(
-                    "No Runhouse token found. Please log in using `rh.login()` or `runhouse login`. "
-                    "If you do not have an account, you can create one at https://run.house/login."
+                    "No Runhouse token provided. Try running `$ runhouse login` or visiting "
+                    "https://run.house/login to retrieve a token. If calling via HTTP, please "
+                    "provide a valid token in the Authorization header."
                 )
 
             resource_uri = self.resource_uri(name)
