@@ -188,7 +188,10 @@ class Cluster(Resource):
                 if self.server_connection_type == ServerConnectionType.TLS
                 else "http"
             )
-            return f"{url_base}://{self.address}:{self.server_port}"
+            if self.server_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
+                return f"{url_base}://{self.address}:{self.server_port}"
+            else:
+                return f"{url_base}://{self.address}"
 
         if external:
             return None
