@@ -82,11 +82,10 @@ def cluster(
         raise ValueError(
             "Cluster factory method can only accept one of `host` or `ips` as an argument."
         )
-    ssh_creds_secret = rh.secret(provider="ssh", values=ssh_creds)
     if name:
         alt_options = dict(
             host=host,
-            creds=ssh_creds_secret,
+            creds=ssh_creds,
             server_port=server_port,
             server_host=server_host,
             server_connection_type=server_connection_type,
@@ -97,7 +96,13 @@ def cluster(
             kwargs=kwargs,
         )
         # Filter out None/default values
-        alt_options = {k: v for k, v in alt_options.items() if v is not None}
+        alt_options = {
+            k: v
+            for k, v in alt_options.items()
+            if v is not None and (isinstance(v, bool) or len(v) > 0)
+        }
+        if alt_options["den_auth"] is False:
+            alt_options.pop("den_auth")
         try:
             c = Cluster.from_name(name, dryrun, alt_options=alt_options)
             if c:
@@ -105,6 +110,8 @@ def cluster(
                 return c
         except ValueError:
             pass
+
+    ssh_creds_secret = rh.secret(provider="ssh", values=ssh_creds)
 
     if "instance_type" in kwargs.keys():
         return ondemand_cluster(
