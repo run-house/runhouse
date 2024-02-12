@@ -119,6 +119,7 @@ class RNSClient:
         for search_target in [
             ".git",
             "setup.py",
+            "setup.cfg",
             "pyproject.toml",
             "rh",
             "requirements.txt",
