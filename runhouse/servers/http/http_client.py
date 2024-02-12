@@ -28,6 +28,11 @@ from runhouse.servers.http.http_utils import (
 logger = logging.getLogger(__name__)
 
 
+# Make this global so connections are pooled across instances of HTTPClient
+session = requests.Session()
+session.timeout = None
+
+
 class HTTPClient:
     """
     Client for cluster RPCs
@@ -49,12 +54,8 @@ class HTTPClient:
         self.auth = auth
         self.cert_path = cert_path
         self.use_https = use_https
-        self.verify = self._use_cert_verification()
+        self.verify = self.cert_path if self._use_cert_verification() else False
         self.system = system
-        self.client = requests.Session()
-        self.client.auth = self.auth
-        self.client.verify = self.cert_path if self.verify else False
-        self.client.timeout = None
 
     def _use_cert_verification(self):
         if not self.use_https:
@@ -133,13 +134,13 @@ class HTTPClient:
         # Support use case where we explicitly do not want to provide headers (e.g. requesting a cert)
         headers = rns_client.request_headers() if headers != {} else headers
         req_fn = (
-            self.client.get
+            session.get
             if req_type == "get"
-            else self.client.put
+            else session.put
             if req_type == "put"
-            else self.client.delete
+            else session.delete
             if req_type == "delete"
-            else self.client.post
+            else session.post
         )
         # Note: For localhost (e.g. docker) do not add trailing slash (will lead to connection errors)
         endpoint = endpoint.strip("/")
@@ -153,6 +154,8 @@ class HTTPClient:
             self._formatted_url(endpoint),
             json=json_dict,
             headers=headers,
+            auth=self.auth,
+            verify=self.verify,
         )
         if response.status_code != 200:
             raise ValueError(
@@ -164,9 +167,10 @@ class HTTPClient:
         return resp_json
 
     def check_server(self):
-        resp = self.client.get(
+        resp = session.get(
             self._formatted_url("check"),
             timeout=self.CHECK_TIMEOUT_SEC,
+            verify=self.verify,
         )
 
         if resp.status_code != 200:
@@ -246,7 +250,7 @@ class HTTPClient:
             + (f".{method_name}" if method_name else "")
         )
         serialization = serialization or "pickle"
-        res = self.client.post(
+        res = session.post(
             self._formatted_url(f"{key}/{method_name}"),
             json=CallParams(
                 data=serialize_data(data, serialization),
@@ -259,6 +263,8 @@ class HTTPClient:
             ).dict(),
             stream=not run_async,
             headers=rns_client.request_headers(),
+            auth=self.auth,
+            verify=self.verify,
         )
         if res.status_code != 200:
             raise ValueError(
@@ -419,10 +425,12 @@ class HTTPClient:
         )
 
     def set_settings(self, new_settings: Dict[str, Any]):
-        res = self.client.post(
+        res = session.post(
             self._formatted_url("settings"),
             json=new_settings,
             headers=rns_client.request_headers(),
+            auth=self.auth,
+            verify=self.verify,
         )
         if res.status_code != 200:
             raise ValueError(

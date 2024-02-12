@@ -37,6 +37,7 @@ class TestHTTPClient:
         mocked_get.assert_called_once_with(
             f"http://localhost:{DEFAULT_SERVER_PORT}/check",
             timeout=HTTPClient.CHECK_TIMEOUT_SEC,
+            verify=False,
         )
 
     @pytest.mark.level("unit")
@@ -170,6 +171,8 @@ class TestHTTPClient:
             json=expected_json_data,
             stream=True,
             headers=expected_headers,
+            auth=None,
+            verify=False,
         )
 
     @pytest.mark.level("unit")
@@ -209,6 +212,8 @@ class TestHTTPClient:
             json=expected_json_data,
             stream=True,
             headers=expected_headers,
+            auth=None,
+            verify=False,
         )
 
     @pytest.mark.level("unit")
