@@ -65,7 +65,7 @@ def test_cluster_sharing(shared_cluster, shared_function):
 
     # Call function with current token via CURL
     res = call_func_with_curl(
-        shared_cluster.address, shared_function.name, current_token, 1, 2
+        shared_cluster.server_address, shared_function.name, current_token, 1, 2
     )
     assert "3" in res.stdout
 
@@ -115,7 +115,7 @@ def test_use_shared_function_apis(shared_cluster, shared_function):
     # Reset back to valid token and confirm we can call function again
     rh.configs.token = current_token
     res = call_func_with_curl(
-        shared_cluster.address, shared_function.name, current_token, 1, 2
+        shared_cluster.server_address, shared_function.name, current_token, 1, 2
     )
     assert "3" in res.stdout
 
@@ -141,7 +141,7 @@ def test_running_func_with_cluster_read_access(shared_cluster, shared_function):
 
     # Confirm user can no longer call the function since only has read access to the cluster
     res = call_func_with_curl(
-        shared_cluster.address, shared_function.name, current_token, 1, 2
+        shared_cluster.server_address, shared_function.name, current_token, 1, 2
     )
     assert "Internal Server Error" in res.stdout
 
@@ -189,7 +189,7 @@ def test_running_func_with_cluster_write_access(shared_cluster, shared_function)
 
     # Confirm user can still call the function with write access to the cluster
     res = call_func_with_curl(
-        shared_cluster.address, shared_function.name, current_token, 1, 2
+        shared_cluster.server_address, shared_function.name, current_token, 1, 2
     )
     assert res.stdout == "3"
 
@@ -216,7 +216,7 @@ def test_running_func_with_no_cluster_access(shared_cluster, shared_function):
 
     # Confirm current user can still call the function
     res = call_func_with_curl(
-        shared_cluster.address, shared_function.name, current_token, 1, 2
+        shared_cluster.server_address, shared_function.name, current_token, 1, 2
     )
     assert res.stdout == "3"
 

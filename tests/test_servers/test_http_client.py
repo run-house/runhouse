@@ -33,11 +33,12 @@ class TestHTTPClient:
         mocked_get = mocker.patch("requests.Session.get", return_value=mock_response)
 
         self.client.check_server()
+        expected_verify = self.client.verify
 
         mocked_get.assert_called_once_with(
             f"http://localhost:{DEFAULT_SERVER_PORT}/check",
             timeout=HTTPClient.CHECK_TIMEOUT_SEC,
-            verify=False,
+            verify=expected_verify,
         )
 
     @pytest.mark.level("unit")
@@ -94,7 +95,7 @@ class TestHTTPClient:
             use_https=True,
             cert_path="/valid/path",
         )
-        assert client.verify == "/valid/path"
+        assert client.verify is True
 
         # Mock a self-signed cert where the issuer is the same as the subject
         mock_cert.issuer = "self-signed"
@@ -112,15 +113,13 @@ class TestHTTPClient:
 
         # Test with HTTPS enabled and an invalid cert path
         mock_exists.return_value = False
-        client = HTTPClient(
-            "localhost",
-            DEFAULT_SERVER_PORT,
-            use_https=True,
-            cert_path="/invalid/path",
-        )
-
-        # Will not use cert verification with invalid cert path
-        assert client.verify is False
+        with pytest.raises(FileNotFoundError):
+            HTTPClient(
+                "localhost",
+                DEFAULT_SERVER_PORT,
+                use_https=True,
+                cert_path="/invalid/path",
+            )
 
     @pytest.mark.level("unit")
     def test_call_module_method(self, mocker):
@@ -167,6 +166,7 @@ class TestHTTPClient:
             "run_async": False,
         }
         expected_headers = rns_client.request_headers()
+        expected_verify = self.client.verify
 
         mock_post.assert_called_once_with(
             expected_url,
@@ -174,7 +174,7 @@ class TestHTTPClient:
             stream=True,
             headers=expected_headers,
             auth=None,
-            verify=False,
+            verify=expected_verify,
         )
 
     @pytest.mark.level("unit")
@@ -208,6 +208,7 @@ class TestHTTPClient:
         }
         expected_url = f"http://localhost:32300/{module_name}/{method_name}"
         expected_headers = rns_client.request_headers()
+        expected_verify = self.client.verify
 
         mock_post.assert_called_with(
             expected_url,
@@ -215,7 +216,7 @@ class TestHTTPClient:
             stream=True,
             headers=expected_headers,
             auth=None,
-            verify=False,
+            verify=expected_verify,
         )
 
     @pytest.mark.level("unit")

@@ -122,9 +122,7 @@ class CaddyConfig:
                 try:
                     subprocess.run(reload_cmd, shell=True, check=True, text=True)
                 except subprocess.CalledProcessError as e:
-                    raise RuntimeError(
-                        f"Failed to reload Caddy as a background process: {e}"
-                    )
+                    raise e
             else:
                 raise RuntimeError(f"Failed to reload Caddy service: {result.stderr}")
 
@@ -162,7 +160,7 @@ class CaddyConfig:
                         stderr=subprocess.DEVNULL,
                     )
                 except subprocess.CalledProcessError as e:
-                    raise RuntimeError(f"Failed to run Caddy install command: {e}")
+                    raise e
 
         logger.info("Successfully installed Caddy.")
 
@@ -182,34 +180,39 @@ class CaddyConfig:
     def _https_template(self):
         if self.ssl_key_path and self.ssl_cert_path:
             # If custom certs provided use them instead of having Caddy generate them
+            # https://caddyserver.com/docs/caddyfile/directives/tls
             logger.info("Using custom certs to enable HTTPs")
             tls_directive = f"tls {self.ssl_cert_path} {self.ssl_key_path}"
             # If domain also provided use it
             address_or_domain = self.domain or self.address
+            return textwrap.dedent(
+                f"""
+                {{
+                    default_sni {address_or_domain}
+                }}
+
+                https://{address_or_domain} {{
+                    {tls_directive}
+                    reverse_proxy 127.0.0.1:{self.rh_server_port}
+                }}
+                """
+            ).strip()
         elif self.domain:
             # https://caddyserver.com/docs/automatic-https#hostname-requirements
             logger.info(
                 f"Generating certs with Caddy to enable HTTPs using domain: {self.domain}"
             )
-            tls_directive = "tls on_demand"
-            address_or_domain = self.domain
+            return textwrap.dedent(
+                f"""
+                https://{self.domain} {{
+                    reverse_proxy 127.0.0.1:{self.rh_server_port}
+                }}
+                """
+            ).strip()
         else:
             # Do not support issuing self-signed certs on the cluster
             # Unverified certs should be generated client side and passed to Caddy as custom certs
             raise RuntimeError("No certs or domain provided. Cannot enable HTTPS.")
-
-        return textwrap.dedent(
-            f"""
-            {{
-                default_sni {address_or_domain}
-            }}
-
-            https://{address_or_domain} {{
-                {tls_directive}
-                reverse_proxy 127.0.0.1:{self.rh_server_port}
-            }}
-            """
-        ).strip()
 
     def _build_template(self):
         if self.use_https:
@@ -270,8 +273,7 @@ class CaddyConfig:
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                     )
-                except subprocess.CalledProcessError as e:
-                    logger.warning(e)
+                except subprocess.CalledProcessError:
                     return False
                 return True
 
@@ -323,9 +325,7 @@ class CaddyConfig:
                         stderr=subprocess.DEVNULL,
                     )
                 except subprocess.CalledProcessError as e:
-                    raise RuntimeError(
-                        f"Failed to start Caddy as a background process: {e}"
-                    )
+                    raise e
             else:
                 raise RuntimeError(f"Failed to run Caddy service: {result.stderr}")
 

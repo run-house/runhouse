@@ -123,7 +123,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert endpoint == f"http://{LOCALHOST}:{cluster.client_port}"
         else:
             url_base = "https" if cluster.server_connection_type == "tls" else "http"
-            assert endpoint == f"{url_base}://{cluster.address}:{cluster.server_port}"
+            assert (
+                endpoint
+                == f"{url_base}://{cluster.server_address}:{cluster.server_port}"
+            )
 
         # Try to curl docs
         verify = cluster.client.verify
