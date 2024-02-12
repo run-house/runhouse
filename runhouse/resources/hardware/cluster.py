@@ -546,7 +546,7 @@ class Cluster(Resource):
     def status(self):
         self.check_server()
         if self.on_this_cluster():
-            return obj_store.get_status()
+            return obj_store.status()
         return self.client.status()
 
     def ssh_tunnel(
