@@ -624,7 +624,7 @@ def sagemaker_cluster(
         dryrun=dryrun,
         **kwargs,
     )
-    c.set_connection_defaults()
+    sm.set_connection_defaults()
 
     if den_auth:
         sm.save()
