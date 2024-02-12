@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def check_for_existing_ray_instance():
     ray_status_check = subprocess.run(
-        ["ray", "status"],  # stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        ["ray", "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
     return ray_status_check.returncode == 0
 
