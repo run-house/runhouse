@@ -196,6 +196,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_rh_status_pythonic(self, cluster):
         cluster.put(key="status_key1", obj="status_value1", env="numpy_env")
         res = cluster.status()
+        assert res.get("ssh_certs") is None
         assert res.get("server_port") == (cluster.server_port or DEFAULT_SERVER_PORT)
         assert res.get("server_connection_type") == cluster.server_connection_type
         assert res.get("den_auth") == cluster.den_auth
@@ -219,6 +220,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert "Serving 🍦 :" in res
         assert "base_env (runhouse.resources.envs.env.Env):" in res
         assert "status_key2 (str)" in res
+        assert "ssh_certs" not in res
 
     def test_sasha(self):
         my_c = rh.cluster(name="/sashab/sasha-ondemand-cluster-1")
