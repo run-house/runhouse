@@ -288,7 +288,7 @@ write access to the cluster):
 
 .. code-block:: cli
 
-    curl --cacert '/home/.rh/certs/rh_server.crt' -X POST "https://<IP ADDRESS>/call/np_array/call?serialization=pickle" -d '{"args": [[1, 2]]}'
+    curl --cacert '/home/.rh/certs/rh_server.crt' -X POST "https://<IP ADDRESS>/np_array/call?serialization=pickle" -d '{"args": [[1, 2]]}'
     -H "Content-Type: application/json" -H "Authorization: Bearer <TOKEN>"
 
 Here we use :code:`--cacert` and the full path to the local cert for verification (assuming we are using
