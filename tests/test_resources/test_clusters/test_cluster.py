@@ -218,13 +218,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert "status_key2 (str)" in res
         assert "ssh_certs" not in res
 
-    def test_rh_status_cli_2(self):
-        cluster_name = "/sashab/sasha-ondemand-cluster-1"
-        my_cluster = rh.cluster(name=cluster_name)
-        print(my_cluster.rns_address)
-        res = subprocess.check_output(["runhouse", "status", cluster_name])
-        print(res)
-
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")
     def test_rh_status_stopped(self, cluster):
