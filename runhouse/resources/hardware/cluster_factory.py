@@ -91,12 +91,10 @@ def cluster(
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
             domain=domain,
-            kwargs=kwargs,
+            kwargs=kwargs if len(kwargs) > 0 else None,
         )
         # Filter out None/default values
-        alt_options = {
-            k: v for k, v in alt_options.items() if v is not None and len(v) > 0
-        }
+        alt_options = {k: v for k, v in alt_options.items() if v is not None}
         try:
             c = Cluster.from_name(name, dryrun, alt_options=alt_options)
             if c:
