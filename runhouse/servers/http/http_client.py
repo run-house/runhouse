@@ -475,6 +475,9 @@ class HTTPClient:
             )
         return res
 
+    def set_cluster_name(self, name: str):
+        return self.set_settings({"cluster_name": name})
+
     def delete(self, keys=None, env=None):
         return self.request_json(
             "delete_object",
