@@ -131,7 +131,7 @@ class Cluster(Resource):
         resource_subtype = config.get("resource_subtype")
         ssh_cred_values = config.get("creds")
         if ssh_cred_values:
-            config["creds"] = rh.Secret.from_config(ssh_cred_values)
+            config["creds"] = rh.Secret.from_name(ssh_cred_values)
 
         if resource_subtype == "Cluster":
             return Cluster(**config, dryrun=dryrun)
@@ -164,7 +164,7 @@ class Cluster(Resource):
             ],
         )
         if self.is_up():
-            config["creds"] = self._creds.config_for_rns
+            config["creds"] = self._creds.rns_address
 
         if self._use_custom_certs:
             config["ssl_certfile"] = self.cert_config.cert_path

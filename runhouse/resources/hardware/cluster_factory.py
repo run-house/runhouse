@@ -40,7 +40,7 @@ def cluster(
         name (str): Name for the cluster, to re-use later on.
         host (str or List[str], optional): Hostname (e.g. domain or name in .ssh/config), IP address, or list of IP
             addresses for the cluster (the first of which is the head node).
-        ssh_creds (dict, optional): SSH credentials, passed as SSHSecret. Example:
+        ssh_creds (dict, optional): SSH credentials, passed as dictionary. Example:
             ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
@@ -111,7 +111,9 @@ def cluster(
         except ValueError:
             pass
 
-    ssh_creds_secret = rh.secret(provider="ssh", values=ssh_creds)
+    ssh_creds_secret = rh.secret(
+        name=f"{name}-ssh-secret", provider="ssh", values=ssh_creds
+    ).save()
 
     if "instance_type" in kwargs.keys():
         return ondemand_cluster(
