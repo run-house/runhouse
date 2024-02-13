@@ -376,6 +376,10 @@ def set_up_local_cluster(
     config["token"] = rh.configs.token
     config["username"] = rh.configs.username
 
+    if rh_cluster._use_https:
+        # If re-using fixtures make sure the crt file gets copied on to the cluster
+        rh_cluster.restart_server()
+
     rh.env(
         reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
         working_dir=None,
@@ -400,7 +404,7 @@ def set_up_local_cluster(
 def docker_cluster_pk_tls_exposed(request):
     """This basic cluster fixture is set up with:
     - Public key authentication
-    - Nginx set up on startup to forward Runhouse HTTP server to port 443
+    - Caddy set up on startup to forward Runhouse HTTP server to port 443
     - Telemetry enabled
     """
 

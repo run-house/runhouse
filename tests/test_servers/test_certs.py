@@ -175,23 +175,6 @@ class TestHTTPSCertValidity:
         with open(cert_file, "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))
 
-    def verify_cert(self, cert_path):
-        if not cert_path:
-            return False
-
-        cert_path = Path(cert_path)
-        if not cert_path.exists():
-            return False
-
-        # Check whether the cert is self-signed, if so we cannot use verification
-        with open(cert_path, "rb") as cert_file:
-            cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
-
-        if cert.issuer == cert.subject:
-            return False
-
-        return True
-
     @pytest.mark.level("unit")
     def test_https_request_with_cert_verification(self):
         response = requests.get(f"https://localhost:{self.port}", verify=self.cert_file)
@@ -213,15 +196,11 @@ class TestHTTPSCertValidity:
 
         os.remove(dummy_cert_path)
 
+    @pytest.mark.level("unit")
     def test_https_request_with_self_signed_cert(self):
-        should_verify = self.verify_cert(self.cert_file)
-
-        # If the certificate is self-signed, verification should be False
-        assert not should_verify
-
         response = requests.get(
             f"https://localhost:{self.port}",
-            verify=should_verify,
+            verify=self.cert_file,
         )
 
         assert response.status_code == 200
