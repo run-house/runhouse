@@ -91,8 +91,7 @@ def cluster(
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
             domain=domain,
-            den_auth=den_auth,
-            kwargs=kwargs,
+            kwargs=kwargs if len(kwargs) > 0 else None,
         )
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
