@@ -515,7 +515,7 @@ class Cluster(Resource):
         if not self.client:
             try:
                 self.connect_server_client()
-                logger.info(f"Checking server {self.name}")
+                logger.debug(f"Checking server {self.name}")
                 self.client.check_server()
                 logger.info(f"Server {self.name} is up.")
             except (
@@ -630,7 +630,7 @@ class Cluster(Resource):
 
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
-            logger.info("Finished syncing Runhouse to cluster.")
+            logger.debug("Finished syncing Runhouse to cluster.")
 
         https_flag = self._use_https
         caddy_flag = self._use_caddy
@@ -992,7 +992,7 @@ class Cluster(Resource):
                 ]
             )
 
-        logger.info(f"Copied local certs onto the cluster in path: {dest}")
+        logger.debug(f"Copied local certs onto the cluster in path: {dest}")
 
     def run(
         self,
@@ -1064,7 +1064,7 @@ class Cluster(Resource):
 
         # Register the completed Run
         r._register_cmd_run_completion(return_codes)
-        logger.info(f"Saved Run to path: {r.folder.path}")
+        logger.debug(f"Saved Run to path: {r.folder.path}")
         return return_codes
 
     def _run_commands_with_ssh(
@@ -1097,7 +1097,7 @@ class Cluster(Resource):
         if not pwd:
             for command in commands:
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
-                logger.info(f"Running command on {self.name}: {command}")
+                logger.debug(f"Running command on {self.name}: {command}")
                 ret_code = runner.run(
                     command,
                     require_outputs=require_outputs,
@@ -1110,7 +1110,7 @@ class Cluster(Resource):
 
             for command in commands:
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
-                logger.info(f"Running command on {self.name}: {command}")
+                logger.debug(f"Running command on {self.name}: {command}")
                 # We need to quiet the SSH output here or it will print
                 # "Shared connection to ____ closed." at the end, which messes with the output.
                 ssh_command = runner.run(

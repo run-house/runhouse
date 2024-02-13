@@ -89,13 +89,13 @@ class CaddyConfig:
     def configure(self):
         """Configure Caddy to proxy requests to the Fast API HTTP server"""
         if not self._is_configured() or self.force_reinstall:
-            logger.info(f"Configuring Caddy for address: {self.address}")
+            logger.debug(f"Configuring Caddy for address: {self.address}")
             self._install()
             self._build_template()
             self._start_caddy()
 
         # Reload Caddy with the updated config
-        logger.info("Reloading Caddy")
+        logger.debug("Reloading Caddy")
         self.reload()
 
         if not self._is_configured():
@@ -136,11 +136,11 @@ class CaddyConfig:
             text=True,
         )
         if result.returncode == 0:
-            logger.info("Caddy is already installed, skipping install.")
+            logger.debug("Caddy is already installed, skipping install.")
         else:
             # Install caddy as a service (or background process if we can't use systemctl)
             # https://caddyserver.com/docs/running#using-the-service
-            logger.info("Installing Caddy.")
+            logger.info("Installing Caddy...")
 
             commands = [
                 "sudo apt update && sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https",
@@ -254,7 +254,7 @@ class CaddyConfig:
         logger.info("Successfully built and formatted Caddy template.")
 
     def _is_configured(self) -> bool:
-        logger.info("Checking Caddy configuration.")
+        logger.debug("Checking Caddy configuration.")
         result = subprocess.run(
             ["sudo", "systemctl", "status", "caddy"],
             capture_output=True,
@@ -290,7 +290,7 @@ class CaddyConfig:
         # Will receive an error that looks like:
         # caddy : user NOT in sudoers ; TTY=unknown ; PWD=/ ; USER=root
         # https://github.com/caddyserver/caddy/issues/4248
-        logger.info("Adding Caddy as trusted app.")
+        logger.debug("Adding Caddy as trusted app.")
         try:
             subprocess.run(
                 "sudo mkdir -p /var/lib/caddy/.local && "
@@ -303,7 +303,7 @@ class CaddyConfig:
         except subprocess.CalledProcessError as e:
             raise e
 
-        logger.info("Starting Caddy.")
+        logger.debug("Starting Caddy.")
         run_cmd = ["sudo", "systemctl", "start", "caddy"]
         result = subprocess.run(
             run_cmd,

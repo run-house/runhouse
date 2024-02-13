@@ -223,7 +223,7 @@ def kubernetes_cluster(
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            logger.info(process.stdout)
+            logger.debug(process.stdout)
             logger.info(f"Kubernetes namespace set to {namespace}")
 
         except subprocess.CalledProcessError as e:

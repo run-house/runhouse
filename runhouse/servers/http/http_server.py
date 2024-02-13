@@ -1135,7 +1135,7 @@ if __name__ == "__main__":
     # Note: running the FastAPI app on a higher, non-privileged port (8000) and using Caddy as a reverse
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
     if use_caddy:
-        logger.info("Using Caddy as a reverse proxy")
+        logger.debug("Using Caddy as a reverse proxy")
         if certs_address is None and domain is None:
             raise ValueError(
                 "Must provide the server address or domain to configure Caddy. No address or domain found in the "

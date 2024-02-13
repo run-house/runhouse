@@ -88,7 +88,7 @@ class TestHTTPClient:
 
         mock_load_cert.return_value = mock_cert
 
-        # Test with HTTPS enabled and a valid cert path
+        # Test with HTTPS enabled and a valid cert path which is not self-signed
         client = HTTPClient(
             "localhost",
             DEFAULT_SERVER_PORT,
