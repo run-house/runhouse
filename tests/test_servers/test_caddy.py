@@ -349,12 +349,7 @@ class TestCaddyServerLocally:
 
     @pytest.mark.level("local")
     def test_using_caddy_on_local_cluster(self, cluster):
-        if cluster._use_https:
-            protocol = "https"
-            # Ensure cluster has certs copied over
-            cluster.restart_server()
-        else:
-            protocol = "http"
+        protocol = "https" if cluster._use_https else "http"
 
         cluster.check_server()
 
@@ -362,20 +357,21 @@ class TestCaddyServerLocally:
 
         key = "key1"
         test_list = list(range(5, 50, 2)) + ["a string"]
+        verify = cluster.client.verify
         response = requests.post(
             f"{protocol}://{cluster.address}:{cluster.client_port}/object",
             json=PutObjectParams(
                 serialized_data=pickle_b64(test_list), key=key, serialization="pickle"
             ).dict(),
             headers=rns_client.request_headers(),
-            verify=False,
+            verify=verify,
         )
         assert response.status_code == 200
 
         response = requests.get(
             f"{protocol}://{cluster.address}:{cluster.client_port}/keys",
             headers=rns_client.request_headers(),
-            verify=False,
+            verify=verify,
         )
 
         assert response.status_code == 200

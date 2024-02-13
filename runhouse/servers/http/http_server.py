@@ -1163,8 +1163,8 @@ if __name__ == "__main__":
     )
 
     # Only launch uvicorn with certs if HTTPS is enabled and not using Caddy
-    uvicorn_cert = ssl_certfile if not use_caddy and use_https else None
-    uvicorn_key = ssl_keyfile if not use_caddy and use_https else None
+    uvicorn_cert = parsed_ssl_certfile if not use_caddy and use_https else None
+    uvicorn_key = parsed_ssl_keyfile if not use_caddy and use_https else None
 
     uvicorn.run(
         app,

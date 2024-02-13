@@ -72,6 +72,8 @@ def ondemand_https_cluster_with_auth():
         "instance_type": "CPU:2+",
         "den_auth": True,
         "server_connection_type": "tls",
+        # Use Caddy for SSL & reverse proxying (if port not specified here will launch certs with uvicorn)
+        "server_port": DEFAULT_HTTPS_PORT,
         "open_ports": [DEFAULT_HTTPS_PORT],
     }
     c = rh.ondemand_cluster(**args)

@@ -341,12 +341,13 @@ class TestFunction:
             if ssh_creds.get("password")
             else None
         )
+        verify = cluster.client.verify
         sum1 = requests.post(
             url=f"{addr}/call",
             json={"data": ([1, 2], {})},
             headers=rh.configs.request_headers if cluster.den_auth else None,
             auth=auth,
-            verify=False,
+            verify=verify,
         ).json()
         assert sum1 == 3
         sum2 = requests.post(
@@ -354,7 +355,7 @@ class TestFunction:
             json={"data": ([], {"a": 1, "b": 2})},
             headers=rh.configs.request_headers if cluster.den_auth else None,
             auth=auth,
-            verify=False,
+            verify=verify,
         ).json()
         assert sum2 == 3
 

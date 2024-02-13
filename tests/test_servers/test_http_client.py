@@ -94,7 +94,7 @@ class TestHTTPClient:
             use_https=True,
             cert_path="/valid/path",
         )
-        assert client.verify
+        assert client.verify == "/valid/path"
 
         # Mock a self-signed cert where the issuer is the same as the subject
         mock_cert.issuer = "self-signed"
@@ -108,7 +108,7 @@ class TestHTTPClient:
             use_https=True,
             cert_path="/self-signed/path",
         )
-        assert client.verify
+        assert client.verify == "/self-signed/path"
 
         # Test with HTTPS enabled and an invalid cert path
         mock_exists.return_value = False
@@ -118,7 +118,9 @@ class TestHTTPClient:
             use_https=True,
             cert_path="/invalid/path",
         )
-        assert not client.verify
+
+        # Will not use cert verification with invalid cert path
+        assert client.verify is False
 
     @pytest.mark.level("unit")
     def test_call_module_method(self, mocker):
