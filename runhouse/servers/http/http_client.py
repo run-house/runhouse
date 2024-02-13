@@ -74,21 +74,37 @@ class HTTPClient:
         self.auth = auth
         self.cert_path = cert_path
         self.use_https = use_https
-        self.verify = self.cert_path if self._use_cert_verification() else False
         self.system = system
 
-    def _use_cert_verification(self):
-        if not self.use_https:
-            return False
+        self.client = requests.Session()
+        self.client.auth = self.auth
 
+        self.verify = False
+
+        if self.use_https:
+            # https://requests.readthedocs.io/en/latest/user/advanced/#ssl-cert-verification
+            # Only verify with the specific cert path if the cert itself is self-signed, otherwise we use the default
+            # setting of "True", which will verify the cluster's SSL certs
+            self.verify = self.cert_path if self._certs_are_self_signed() else True
+
+        self.client.verify = self.verify
+        self.client.timeout = None
+
+    def _certs_are_self_signed(self) -> bool:
+        """Checks whether the cert provided is self-signed. If it is, all client requests will include the path
+        to the cert to be used for verification."""
         from cryptography import x509
         from cryptography.hazmat.backends import default_backend
 
-        cert_path = Path(self.cert_path)
-        if not cert_path.exists():
+        if not self.cert_path:
+            # No cert path is specified, assume certs will be configured on the server (ex: via Caddy)
             return False
 
-        # Check whether the cert is self-signed, if so we cannot use verification
+        cert_path = Path(self.cert_path)
+        if not cert_path.exists():
+            raise FileNotFoundError(f"No cert found in path: {cert_path}")
+
+        # Check whether the cert is self-signed
         with open(cert_path, "rb") as cert_file:
             cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
 
@@ -96,8 +112,9 @@ class HTTPClient:
             warnings.warn(
                 f"Cert in use ({cert_path}) is self-signed, cannot independently verify it."
             )
+            return True
 
-        return True
+        return False
 
     @staticmethod
     def from_endpoint(endpoint: str, auth=None, cert_path=None):

@@ -311,7 +311,7 @@ class TestCaddyConfiguration:
     def test_use_domain_with_no_certs(self):
         cc = CaddyConfig(address="127.0.0.1", use_https=True, domain="run.house")
         assert cc.ssl_cert_path is None and cc.ssl_key_path is None
-        assert "tls on_demand" in cc._https_template()
+        assert "https://run.house" in cc._https_template()
 
 
 @pytest.mark.servertest
@@ -359,7 +359,7 @@ class TestCaddyServerLocally:
         test_list = list(range(5, 50, 2)) + ["a string"]
         verify = cluster.client.verify
         response = requests.post(
-            f"{protocol}://{cluster.address}:{cluster.client_port}/object",
+            f"{protocol}://{cluster.server_address}:{cluster.client_port}/object",
             json=PutObjectParams(
                 serialized_data=pickle_b64(test_list), key=key, serialization="pickle"
             ).dict(),
@@ -369,7 +369,7 @@ class TestCaddyServerLocally:
         assert response.status_code == 200
 
         response = requests.get(
-            f"{protocol}://{cluster.address}:{cluster.client_port}/keys",
+            f"{protocol}://{cluster.server_address}:{cluster.client_port}/keys",
             headers=rns_client.request_headers(),
             verify=verify,
         )

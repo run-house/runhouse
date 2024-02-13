@@ -404,7 +404,7 @@ def set_up_local_cluster(
 def docker_cluster_pk_tls_exposed(request):
     """This basic cluster fixture is set up with:
     - Public key authentication
-    - Nginx set up on startup to forward Runhouse HTTP server to port 443
+    - Caddy set up on startup to forward Runhouse HTTP server to port 443
     - Telemetry enabled
     """
 
