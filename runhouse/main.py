@@ -200,8 +200,6 @@ def status(
             try:
                 current_cluster = rh.cluster(name=cluster_name)
                 config = current_cluster.status()
-                print(f"config of {current_cluster.name} is:\n")
-                print(config)
             except ValueError:
                 console.print(
                     f"Cluster {cluster_name} is not found in Den. Please save it, in order to get its"

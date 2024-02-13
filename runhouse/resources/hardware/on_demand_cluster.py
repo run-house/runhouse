@@ -22,7 +22,7 @@ from runhouse.constants import (
     LOCAL_HOSTS,
 )
 
-from runhouse.globals import configs, rns_client
+from runhouse.globals import configs, obj_store, rns_client
 from runhouse.resources.hardware.utils import ServerConnectionType
 
 from .cluster import Cluster
@@ -398,7 +398,11 @@ class OnDemandCluster(Cluster):
         # We still need to check if the cluster present in case the cluster went down and was removed from the DB
         if len(state) == 0:
             return None
-        return state[0]
+
+        envs = obj_store.status()["envs"]
+        status_val = state[0]
+        status_val["envs"] = envs
+        return status_val
 
     def _start_ray_workers(self, ray_port):
         # Find the internal IP corresponding to the public_head_ip and the rest are workers
