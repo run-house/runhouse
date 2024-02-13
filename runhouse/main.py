@@ -199,7 +199,15 @@ def status(
         else:
             try:
                 current_cluster = rh.cluster(name=cluster_name)
-                config = current_cluster.status()
+                if (
+                    current_cluster.config_for_rns["resource_subtype"]
+                    == "OnDemandCluster"
+                ):
+                    from runhouse.resources.hardware.cluster import Cluster
+
+                    config = Cluster.status(current_cluster)
+                else:
+                    config = current_cluster.status()
             except ValueError:
                 console.print(
                     f"Cluster {cluster_name} is not found in Den. Please save it, in order to get its"
