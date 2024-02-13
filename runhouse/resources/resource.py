@@ -443,7 +443,7 @@ class Resource:
             # Update the resource in Den with this global visibility value
             self.visibility = visibility
 
-            logger.info(f"Updating resource with visibility: {self.visibility}")
+            logger.debug(f"Updating resource with visibility: {self.visibility}")
 
         self.save()
 
