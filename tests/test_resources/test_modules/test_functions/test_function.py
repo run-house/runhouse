@@ -81,6 +81,7 @@ def slow_getpid(a=0):
     return os.getpid() + a
 
 
+@pytest.mark.functiontest
 class TestFunction:
 
     # ---------- Minimal / Local Level Tests (aka not unittests) ----------

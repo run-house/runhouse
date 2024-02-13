@@ -129,6 +129,7 @@ class Calculator:
         return a * b
 
 
+@pytest.mark.moduletest
 @pytest.mark.usefixtures("cluster")
 class TestModule:
 
