@@ -191,9 +191,7 @@ def status(
     )
 ):
     """Get the config info about your runhouse cluster(s), as well as the environments setup of the cluster(s)"""
-
     cluster_or_local = rh.here
-
     if cluster_or_local == "file":
         if cluster_name is None:
             console.print("Missing argument CLUSTER_NAME.")
@@ -202,6 +200,8 @@ def status(
             try:
                 current_cluster = rh.cluster(name=cluster_name)
                 config = current_cluster.status()
+                print(f"config of {current_cluster.name} is:\n")
+                print(config)
             except ValueError:
                 console.print(
                     f"Cluster {cluster_name} is not found in Den. Please save it, in order to get its"
