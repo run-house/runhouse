@@ -10,6 +10,8 @@ from pydantic import BaseModel
 from ray import cloudpickle as pickle
 from ray.exceptions import RayTaskError
 
+from runhouse.logger import ClusterLogsFormatter
+
 logger = logging.getLogger(__name__)
 
 
@@ -182,8 +184,13 @@ def load_current_cluster_rns_address():
 
 
 def handle_response(
-    response_data: Dict[Any, Any], output_type: OutputType, err_str: str
+    response_data: Dict[Any, Any],
+    output_type: OutputType,
+    err_str: str,
+    log_formatter: ClusterLogsFormatter,
 ):
+    system_color, reset_color = log_formatter.format(output_type)
+
     if output_type == OutputType.RESULT_SERIALIZED:
         return deserialize_data(response_data["data"], response_data["serialization"])
     elif output_type == OutputType.CONFIG:
@@ -201,8 +208,8 @@ def handle_response(
             or isinstance(fn_exception, GeneratorExit)
             or isinstance(fn_exception, StopAsyncIteration)
         ):
-            logger.error(f"{err_str}: {fn_exception}")
-            logger.error(f"Traceback: {fn_traceback}")
+            logger.error(f"{system_color}{err_str}: {fn_exception}{reset_color}")
+            logger.error(f"{system_color}Traceback: {fn_traceback}{reset_color}")
         raise fn_exception
     elif output_type == OutputType.STDOUT:
         res = response_data["data"]
@@ -212,9 +219,11 @@ def handle_response(
             if tqdm_regex.match(line):
                 # tqdm lines are always preceded by a \n, so we can use \x1b[1A to move the cursor up one line
                 # For some reason, doesn't work in PyCharm's console, but works in the terminal
-                print("\x1b[1A\r" + line, end="", flush=True)
+                print(
+                    f"{system_color}\x1b[1A\r" + line + reset_color, end="", flush=True
+                )
             else:
-                print(line, end="", flush=True)
+                print(system_color + line + reset_color, end="", flush=True)
     elif output_type == OutputType.STDERR:
         res = response_data["data"]
-        print(res, file=sys.stderr)
+        print(system_color + res + reset_color, file=sys.stderr)

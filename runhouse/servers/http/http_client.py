@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional, Union
 import requests
 
 from runhouse.globals import rns_client
+from runhouse.logger import ClusterLogsFormatter
 
 from runhouse.resources.envs.utils import _get_env_from
 
@@ -89,6 +90,8 @@ class HTTPClient:
 
         self.client.verify = self.verify
         self.client.timeout = None
+
+        self.log_formatter = ClusterLogsFormatter(self.system)
 
     def _certs_are_self_signed(self) -> bool:
         """Checks whether the cert provided is self-signed. If it is, all client requests will include the path
@@ -217,7 +220,12 @@ class HTTPClient:
             )
         resp_json = response.json()
         if isinstance(resp_json, dict) and "output_type" in resp_json:
-            return handle_response(resp_json, resp_json["output_type"], err_str)
+            return handle_response(
+                resp_json,
+                resp_json["output_type"],
+                err_str,
+                log_formatter=self.log_formatter,
+            )
         return resp_json
 
     def check_server(self):
@@ -344,7 +352,9 @@ class HTTPClient:
 
             resp = json.loads(responses_json)
             output_type = resp["output_type"]
-            result = handle_response(resp, output_type, error_str)
+            result = handle_response(
+                resp, output_type, error_str, log_formatter=self.log_formatter
+            )
             if output_type == OutputType.CONFIG:
                 # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
                 # slow, we can just set it explicitly.
