@@ -1,4 +1,3 @@
-import copy
 import logging
 
 import pprint
@@ -244,36 +243,14 @@ class Resource:
             else:
                 return val
 
-        if not config:
-            return None
-
-        # make kwargs of tje alt_options as a part of the alt_option dict / config, so it will be easier to compere
-        # them to the rns_config values
-        if "kwargs" in alt_options.keys():
-            kwargs_values = alt_options.pop("kwargs")
-            alt_options.update(kwargs_values)
-
-        # if the resource have creds configured, adjusting the config creds values so they could be compared to the
-        # alt_option values (if such exists)
-        is_creds = "creds" in config.keys()
-        if is_creds:
-            config_creds = copy.copy(config["creds"])
-            config["creds"] = config["creds"]["values"]
-
         for key, value in alt_options.items():
             if key in config:
                 if str_dict_or_resource_to_str(value) != str_dict_or_resource_to_str(
                     config[key]
                 ):
                     return None
-            elif key == "host" and value in config["ips"]:
-                continue
             else:
                 return None
-
-        if is_creds:
-            config["creds"] = config_creds
-
         return config
 
     @classmethod

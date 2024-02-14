@@ -85,7 +85,7 @@ def cluster(
     if name:
         alt_options = dict(
             host=host,
-            creds=ssh_creds,
+            ssh_creds=ssh_creds,
             server_port=server_port,
             server_host=server_host,
             server_connection_type=server_connection_type,
@@ -95,11 +95,7 @@ def cluster(
             kwargs=kwargs if len(kwargs) > 0 else None,
         )
         # Filter out None/default values
-        alt_options = {
-            k: v
-            for k, v in alt_options.items()
-            if v is not None and (isinstance(v, bool) or len(v) > 0)
-        }
+        alt_options = {k: v for k, v in alt_options.items() if v is not None}
         try:
             c = Cluster.from_name(name, dryrun, alt_options=alt_options)
             if c:
