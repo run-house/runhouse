@@ -100,8 +100,6 @@ def cluster(
             for k, v in alt_options.items()
             if v is not None and (isinstance(v, bool) or len(v) > 0)
         }
-        if alt_options["den_auth"] is False:
-            alt_options.pop("den_auth")
         try:
             c = Cluster.from_name(name, dryrun, alt_options=alt_options)
             if c:
@@ -110,9 +108,10 @@ def cluster(
         except ValueError:
             pass
 
-    ssh_creds_secret = rh.secret(
-        name=f"{name}-ssh-secret", provider="ssh", values=ssh_creds
-    ).save()
+    # TODO: if using default ssh creds - make a copy of them and rename them to the secret name
+    # ssh_creds_secret = rh.secret(name=f"{name}-ssh-secret", provider="ssh", values=ssh_creds).save()
+
+    ssh_creds_secret = rh.secret(provider="ssh", values=ssh_creds).save()
 
     if "instance_type" in kwargs.keys():
         return ondemand_cluster(
