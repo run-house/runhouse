@@ -322,7 +322,11 @@ class HTTPServer:
         return Response(output_type=OutputType.SUCCESS)
 
     @staticmethod
-    async def _call(key, method_name=None, params: CallParams = Body(default=None)):
+    async def _call(
+        key: str,
+        method_name: Optional[str] = None,
+        params: CallParams = Body(default=None),
+    ):
         try:
             params.run_name = params.run_name or _generate_default_name(
                 prefix=key if method_name == "__call__" else f"{key}_{method_name}",
@@ -380,16 +384,54 @@ class HTTPServer:
     @validate_cluster_access
     async def get_call(
         request: Request,
-        key,
-        method_name=None,
-        serialization="json",
+        key: str,
+        method_name: Optional[str] = None,
+        serialization: Optional[str] = None,
+        run_name: Optional[str] = None,
+        stream_logs: Optional[bool] = False,
+        save: Optional[bool] = False,
+        remote: Optional[bool] = False,
+        run_async: Optional[bool] = False,
     ):
-        # Serialization should be defaulted to `json`, but still overridable
-        params = CallParams(**dict(request.query_params))
-        params.serialization = serialization
+        try:
+            HTTPServer.register_activity()
 
-        HTTPServer.register_activity()
-        return await HTTPServer._call(key, method_name, params)
+            # Default argument to json doesn't allow a user to pass in a serialization string if they want
+            # But, if they didn't pass anything, we want it to be `json` by default.
+            serialization = serialization or "json"
+
+            # The types need to be explicitly specified as parameters first so that
+            # we can cast Query params to the right type.
+            params = CallParams(
+                serialization=serialization,
+                run_name=run_name,
+                stream_logs=stream_logs,
+                save=save,
+                remote=remote,
+                run_async=run_async,
+            )
+
+            query_params_remaining = dict(request.query_params)
+            call_params_dict = params.dict()
+            for k, v in dict(request.query_params).items():
+                # If one of the query_params matches an arg in CallParams, set it
+                # And also remove it from the query_params dict, so the rest
+                # of the args will be passed as kwargs
+                if k in call_params_dict:
+                    del query_params_remaining[k]
+
+            params.data = serialize_data([[], query_params_remaining], serialization)
+
+            logger.info(f"GET call with params: {dict(params)}")
+            return await HTTPServer._call(key, method_name, params)
+        except Exception as e:
+            logger.exception(e)
+            HTTPServer.register_activity()
+            return Response(
+                error=serialize_data(e, "pickle"),
+                traceback=serialize_data(traceback.format_exc(), "pickle"),
+                output_type=OutputType.EXCEPTION,
+            )
 
     @staticmethod
     def _get_logfiles(log_key, log_type=None):
