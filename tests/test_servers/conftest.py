@@ -1,4 +1,6 @@
 import json
+import logging
+import time
 from pathlib import Path
 
 import httpx
@@ -8,14 +10,12 @@ import pytest_asyncio
 import runhouse as rh
 
 from runhouse.globals import rns_client
+from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_server import app, HTTPServer
 
 from tests.utils import friend_account, get_ray_servlet_and_obj_store
 
-# Note: API Server will run on local docker container
-BASE_URL = "http://localhost:32300"
-
-BASE_ENV_ACTOR_NAME = "base"
+logger = logging.getLogger(__name__)
 
 
 # -------- HELPERS ----------- #
@@ -23,22 +23,57 @@ def summer(a, b):
     return a + b
 
 
+def do_printing_and_logging(steps=3):
+    for i in range(steps):
+        # Wait to make sure we're actually streaming
+        time.sleep(1)
+        print(f"Hello from the cluster stdout! {i}")
+        logger.info(f"Hello from the cluster logs! {i}")
+    return steps
+
+
 # -------- FIXTURES ----------- #
+@pytest.fixture(scope="session")
+def cert_config():
+    cert_config = TLSCertConfig()
+    address = "127.0.0.1"
+    cert_config.generate_certs(address=address)
+
+    yield cert_config
+
+    # Clean up the generated files
+    Path(cert_config.cert_path).unlink(missing_ok=True)
+    Path(cert_config.key_path).unlink(missing_ok=True)
+
+
 @pytest.fixture(scope="function")
-def http_client(cluster):
-    with httpx.Client(base_url=cluster.endpoint(), timeout=None) as client:
+def http_client(cluster, cert_config):
+    if cluster.server_connection_type in ["tls", "none"]:
+        addr = f"{cluster.endpoint()}:{cluster.client_port}"
+    else:
+        addr = cluster.endpoint()
+    with httpx.Client(base_url=addr, timeout=None, verify=False) as client:
         yield client
 
 
 @pytest_asyncio.fixture(scope="function")
-async def async_http_client(cluster):
-    async with httpx.AsyncClient(base_url=cluster.endpoint(), timeout=None) as client:
+async def async_http_client(cluster, cert_config):
+    if cluster.server_connection_type in ["tls", "none"]:
+        addr = f"{cluster.endpoint()}:{cluster.client_port}"
+    else:
+        addr = cluster.endpoint()
+    async with httpx.AsyncClient(base_url=addr, timeout=None, verify=False) as client:
         yield client
 
 
 @pytest_asyncio.fixture(scope="function")
 def remote_func(cluster):
     return rh.function(summer).to(cluster)
+
+
+@pytest_asyncio.fixture(scope="function")
+def remote_log_streaming_func(cluster):
+    return rh.function(do_printing_and_logging).to(cluster)
 
 
 @pytest.fixture(scope="session")

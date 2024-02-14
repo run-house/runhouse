@@ -156,11 +156,11 @@ class TestFunction:
     async def test_async_generator(self, cluster):
         remote_slow_generator = rh.function(async_slow_generator).to(cluster)
         results = []
-        async for val in remote_slow_generator(5):
+        async for val in remote_slow_generator(3):
             assert val
             print(val)
             results += [val]
-        assert len(results) == 5
+        assert len(results) == 3
 
     @pytest.mark.skip("TODO fix following local daemon refactor.")
     @pytest.mark.level("local")

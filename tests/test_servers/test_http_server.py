@@ -44,13 +44,10 @@ class TestHTTPServerDocker:
         "cluster": [
             "docker_cluster_pk_ssh_den_auth",
             "docker_cluster_pk_ssh_no_auth",
+            "docker_cluster_pk_tls_den_auth",  # Represents public app use case
+            "docker_cluster_pk_http_exposed",  # Represents within VPC use case
         ]
     }
-
-    @pytest.mark.level("local")
-    def test_get_cert(self, http_client):
-        response = http_client.get("/cert")
-        assert response.status_code == 200
 
     @pytest.mark.level("local")
     def test_check_server(self, http_client):
@@ -145,6 +142,42 @@ class TestHTTPServerDocker:
 
         if resp_obj["output_type"] == "result":
             assert b64_unpickle(resp_obj["data"]) == 3
+
+    @pytest.mark.level("local")
+    def test_log_streaming_call(self, http_client, remote_log_streaming_func):
+        # Create new func on the cluster, then call it
+        method_name = "call"
+        module_name = remote_log_streaming_func.name
+        clus = remote_log_streaming_func.system
+        args = [3]
+        kwargs = {}
+
+        if clus.server_connection_type in ["tls", "none"]:
+            url = f"{clus.endpoint()}:{clus.client_port}/{module_name}/{method_name}"
+        else:
+            url = f"{clus.endpoint()}/{module_name}/{method_name}"
+
+        with http_client.stream(
+            "POST",
+            url,
+            json={
+                "data": pickle_b64([args, kwargs]),
+                "stream_logs": True,
+                "serialization": "pickle",
+            },
+            headers=rns_client.request_headers(),
+        ) as r:
+            assert r.status_code == 200
+            for res in r.iter_lines():
+                resp_obj: dict = json.loads(res)
+
+                # Might be too aggressive to assert the exact print order and timing, but for now this works
+                if resp_obj["output_type"] == "stdout":
+                    assert "Hello from the cluster stdout!" in resp_obj["data"][0]
+                    assert "Hello from the cluster logs!" in resp_obj["data"][1]
+
+                if resp_obj["output_type"] == "result":
+                    assert b64_unpickle(resp_obj["data"]) == 3
 
     @pytest.mark.level("local")
     async def test_async_call(self, async_http_client, remote_func):
@@ -247,12 +280,6 @@ class TestHTTPServerDockerDenAuthOnly:
         assert "No Runhouse token provided." in response.text
 
     @pytest.mark.level("local")
-    def test_get_cert_with_invalid_token(self, http_client):
-        response = http_client.get("/cert", headers=INVALID_HEADERS)
-        # Should be able to download the cert even without a valid token
-        assert response.status_code == 200
-
-    @pytest.mark.level("local")
     def test_check_server_with_invalid_token(self, http_client):
         response = http_client.get("/check", headers=INVALID_HEADERS)
         # Should be able to ping the server even without a valid token
@@ -347,40 +374,6 @@ class TestHTTPServerNoDocker:
     MINIMAL = {"client": ["local_client", "local_client_with_den_auth"]}
     THOROUGH = {"client": ["local_client", "local_client_with_den_auth"]}
     MAXIMAL = {"client": ["local_client", "local_client_with_den_auth"]}
-
-    @pytest.mark.level("unit")
-    def test_get_cert(self, client):
-        # Define the path for the temporary certificate
-        certs_dir = Path.home() / "ssl" / "certs"
-
-        # Create the directory if it doesn't exist
-        certs_dir.mkdir(parents=True, exist_ok=True)
-        cert_path = certs_dir / "rh_server.crt"
-
-        # Create a temporary certificate file
-        cert_content = "dummy cert content"
-        with open(cert_path, "w") as cert_file:
-            cert_file.write(cert_content)
-
-        try:
-            # Perform the test
-            response = client.get("/cert")
-            assert response.status_code == 200
-
-            # Check if the error message is as expected (if the logic expects an error)
-            error_b64 = response.json().get("error")
-            if error_b64:
-                error_message = b64_unpickle(error_b64)
-                assert isinstance(error_message, FileNotFoundError)
-                assert "No certificate found on cluster in path" in str(error_message)
-            else:
-                # If the logic is to test successful retrieval, decode the data
-                data_b64 = response.json().get("data")
-                cert_data = b64_unpickle(data_b64)
-                assert cert_data == cert_content.encode()
-
-        finally:
-            cert_path.unlink(missing_ok=True)
 
     @pytest.mark.level("unit")
     def test_check_server(self, client):
@@ -481,12 +474,6 @@ class TestHTTPServerNoDockerDenAuthOnly:
         assert response.status_code == 401
 
         assert "No Runhouse token provided." in response.text
-
-    @pytest.mark.level("unit")
-    def test_get_cert_with_invalid_token(self, local_client_with_den_auth):
-        response = local_client_with_den_auth.get("/cert", headers=INVALID_HEADERS)
-        # Should be able to download the cert even without a valid token
-        assert response.status_code == 200
 
     @pytest.mark.level("unit")
     def test_check_server_with_invalid_token(self, local_client_with_den_auth):

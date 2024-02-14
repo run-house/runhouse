@@ -329,16 +329,16 @@ class HTTPServer:
             )
             # Call async so we can loop to collect logs until the result is ready
 
-            async def call_async():
-                return obj_store.call(
+            fut = asyncio.create_task(
+                obj_store.call(
                     key=key,
                     method_name=method_name,
                     data=params.data,
                     serialization=params.serialization,
                     run_name=params.run_name,
+                    run_async=True,
                 )
-
-            fut = asyncio.create_task(call_async())
+            )
             # If stream_logs is False, we'll wait for the result and return it
             if not params.stream_logs:
                 return await fut
@@ -348,6 +348,7 @@ class HTTPServer:
                     key,
                     fut=fut,
                     run_name=params.run_name,
+                    serialization=params.serialization,
                 ),
                 media_type="application/json",
             )
