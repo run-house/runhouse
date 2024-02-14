@@ -1047,7 +1047,7 @@ class ObjStore:
     def call(
         self,
         key: str,
-        method_name: str,
+        method_name: Optional[str] = None,
         data: Any = None,
         serialization: Optional[str] = None,
         run_name: Optional[str] = None,
