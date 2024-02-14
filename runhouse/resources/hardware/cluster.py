@@ -583,8 +583,7 @@ class Cluster(Resource):
                 return obj_store.status()
             return self.client.status()
         except ValueError as e:
-            print(str(e))
-            return
+            raise e
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
