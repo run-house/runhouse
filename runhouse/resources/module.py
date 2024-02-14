@@ -474,7 +474,8 @@ class Module(Resource):
                     run_name=kwargs.pop("run_name", None),
                     stream_logs=kwargs.pop("stream_logs", True),
                     remote=kwargs.pop("remote", False),
-                    data=[args, kwargs],
+                    args=args,
+                    kwargs=kwargs,
                 )
 
             def remote(self, *args, stream_logs=True, run_name=None, **kwargs):
@@ -586,7 +587,7 @@ class Module(Resource):
                 return client.call(
                     key=name,
                     method_name=key,
-                    data=([value], {}),
+                    args=[value],
                 )
 
             @classmethod
@@ -648,7 +649,7 @@ class Module(Resource):
         else:
             if not client or not name:
                 return self.resolved_state(**kwargs)
-            return client.call(name, "resolved_state", data=((), kwargs))
+            return client.call(name, "resolved_state", kwargs=kwargs)
 
     async def fetch_async(self, key: str, remote: bool = False):
         """Async version of fetch. Can't be a property like `fetch` because __getattr__ can't be awaited.

@@ -95,7 +95,7 @@ class EnvServlet:
         data: Any,  # This first comes in a serialized format which the decorator re-populates after deserializing
         serialization: Optional[str] = None,
     ):
-        resource_config, state, dryrun = data
+        resource_config, state, dryrun = tuple(data)
         return obj_store.put_resource_local(resource_config, state, dryrun)
 
     @error_handling_decorator
@@ -114,7 +114,7 @@ class EnvServlet:
         remote: bool = False,
         ctx: Optional[dict] = None,
     ):
-        args, kwargs = data or ([], {})
+        args, kwargs = tuple(data) if data else ([], {})
         return obj_store.call_local(
             key,
             method_name,

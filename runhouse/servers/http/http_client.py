@@ -5,7 +5,7 @@ import warnings
 from functools import wraps
 from pathlib import Path
 from random import randrange
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import requests
 
@@ -259,7 +259,8 @@ class HTTPClient:
         self,
         key: str,
         method_name: str,
-        data: Any = None,
+        args: Optional[List[Any]] = None,
+        kwargs: Optional[Dict[str, Any]] = None,
         serialization: Optional[str] = None,
         run_name: Optional[str] = None,
         stream_logs: bool = True,
@@ -271,7 +272,8 @@ class HTTPClient:
         return self.call_module_method(
             key,
             method_name,
-            data=data,
+            args,
+            kwargs,
             serialization=serialization,
             run_name=run_name,
             stream_logs=stream_logs,
@@ -285,7 +287,8 @@ class HTTPClient:
         self,
         key: str,
         method_name: str,
-        data: Any = None,
+        args: Optional[List[Any]] = None,
+        kwargs: Optional[Dict[str, Any]] = None,
         serialization: Optional[str] = None,
         run_name: Optional[str] = None,
         stream_logs: bool = True,
@@ -304,6 +307,7 @@ class HTTPClient:
             + (f".{method_name}" if method_name else "")
         )
         serialization = serialization or "pickle"
+        data = [args or [], kwargs or {}]
         res = retry_with_exponential_backoff(session.post)(
             self._formatted_url(f"{key}/{method_name}"),
             json=CallParams(
@@ -396,7 +400,7 @@ class HTTPClient:
             req_type="post",
             # TODO wire up dryrun properly
             json_dict=PutResourceParams(
-                serialized_data=pickle_b64((config, state, dryrun)),
+                serialized_data=pickle_b64([config, state, dryrun]),
                 env_name=env_name,
                 serialization="pickle",
             ).dict(),

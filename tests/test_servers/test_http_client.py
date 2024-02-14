@@ -187,7 +187,7 @@ class TestHTTPClient:
         module_name = "module"
         method_name = "install"
 
-        self.client.call(module_name, method_name, data=(args, kwargs))
+        self.client.call(module_name, method_name, args=args, kwargs=kwargs)
 
         # Assert that the post request was called with the correct data
         expected_json_data = {
