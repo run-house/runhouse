@@ -7,11 +7,13 @@ import subprocess
 import time
 from typing import Dict, List, Optional, Tuple, Union
 
-from sky.skylet import log_lib
-from sky.utils import subprocess_utils
+from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
 
-from sky.utils.command_runner import (
-    common_utils,
+from runhouse.constants import LOCALHOST
+
+from runhouse.resources.hardware.sky import common_utils, log_lib, subprocess_utils
+
+from runhouse.resources.hardware.sky.command_runner import (
     GIT_EXCLUDE,
     RSYNC_DISPLAY_OPTION,
     RSYNC_EXCLUDE_OPTION,
@@ -20,10 +22,6 @@ from sky.utils.command_runner import (
     SSHCommandRunner,
     SshMode,
 )
-
-from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
-
-from runhouse.constants import LOCALHOST
 from .utils import cache_open_tunnel, get_open_tunnel
 
 
@@ -210,7 +208,7 @@ class SkySSHRunner(SSHCommandRunner):
             executable = "/bin/bash"
 
         # RH MODIFIED: Return command instead of running it
-        logging.info(f"Running command: {' '.join(command)}")
+        logging.debug(f"Running command: {' '.join(command)}")
         if return_cmd:
             return " ".join(command)
 
@@ -230,7 +228,7 @@ class SkySSHRunner(SSHCommandRunner):
             ssh_mode=SshMode.NON_INTERACTIVE, port_forward=[(local_port, remote_port)]
         )
         command = " ".join(base_cmd + ["tail"])
-        logger.info(f"Running command: {command}")
+        logger.debug(f"Running command: {command}")
         proc = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE)
 
         time.sleep(3)
@@ -421,12 +419,20 @@ def ssh_tunnel(
 
                 # Host could be a proxy specified in credentials or is the provided address
                 host = ssh_credentials.pop("ssh_host", address)
+                ssh_control_name = ssh_credentials.pop(
+                    "ssh_control_name", f"{address}:{ssh_port}"
+                )
 
-                runner = SkySSHRunner(host, **ssh_credentials, port=ssh_port)
+                runner = SkySSHRunner(
+                    host,
+                    **ssh_credentials,
+                    ssh_control_name=ssh_control_name,
+                    port=ssh_port,
+                )
                 runner.tunnel(local_port, remote_port)
                 ssh_tunnel = runner  # Just to keep the object in memory
             else:
-                logger.info(
+                logger.debug(
                     f"Attempting to bind "
                     f"{LOCALHOST}:{remote_port} via ssh port {ssh_port} "
                     f"on remote server {address} "
@@ -449,7 +455,7 @@ def ssh_tunnel(
                 )
                 ssh_tunnel.start()
             connected = True
-            logger.info(
+            logger.debug(
                 f"Successfully bound "
                 f"{LOCALHOST}:{remote_port} via ssh port {ssh_port} "
                 f"on remote server {address} "

@@ -124,6 +124,29 @@ class Cluster(Resource):
             node=node or self.address,
         )
 
+    def save(
+        self,
+        name: str = None,
+        overwrite: bool = True,
+    ):
+        # return super().save(name=name, overwrite=overwrite)
+        """Overrides the default resource save() method in order to also update
+        the cluster config on the cluster itself.
+        """
+        on_this_cluster = self.on_this_cluster()
+        super().save(name=name, overwrite=overwrite)
+
+        # Running save will have updated the cluster's
+        # RNS address. We need to update the name
+        # used in the config on the cluster so that
+        # self.on_this_cluster() will still work as expected.
+        if on_this_cluster:
+            obj_store.set_cluster_config_value("name", self.rns_address)
+        elif self.client:
+            self.client.set_cluster_name(self.rns_address)
+
+        return self
+
     @staticmethod
     def from_config(config: dict, dryrun=False):
         import runhouse as rh
@@ -191,7 +214,10 @@ class Cluster(Resource):
                 if self.server_connection_type == ServerConnectionType.TLS
                 else "http"
             )
-            return f"{url_base}://{self.address}:{self.server_port}"
+            if self.server_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
+                return f"{url_base}://{self.address}:{self.server_port}"
+            else:
+                return f"{url_base}://{self.address}"
 
         if external:
             return None
@@ -214,9 +240,14 @@ class Cluster(Resource):
     @property
     def server_address(self):
         """Address to use in the requests made to the cluster. If creating an SSH tunnel with the cluster,
-        ths will be set to localhost, otherwise will use the cluster's public IP address."""
+        ths will be set to localhost, otherwise will use the cluster's domain (if provided), or its
+        public IP address."""
+        if self.domain:
+            return self.domain
+
         if self.server_host in [LOCALHOST, "localhost"]:
             return LOCALHOST
+
         return self.address
 
     def is_up(self) -> bool:
@@ -324,9 +355,7 @@ class Cluster(Resource):
         env.reqs = env._reqs + reqs
         env.to(self)
 
-    def get(
-        self, key: str, default: Any = None, remote=False, stream_logs: bool = False
-    ):
+    def get(self, key: str, default: Any = None, remote=False):
         """Get the result for a given key from the cluster's object store. To raise an error if the key is not found,
         use `cluster.get(key, default=KeyError)`."""
         self.check_server()
@@ -482,7 +511,11 @@ class Cluster(Resource):
                     f"Unknown server connection type {self.server_connection_type}."
                 )
 
-            cert_path = self.cert_config.cert_path if self._use_https else None
+            cert_path = None
+            if self._use_https and not (self.domain and self._use_caddy):
+                # Only use the cert path if HTTPS is enabled and not providing a domain with Caddy
+                cert_path = self.cert_config.cert_path
+
             self.client_port = self.client_port or self.server_port
 
             self.client = HTTPClient(
@@ -492,6 +525,9 @@ class Cluster(Resource):
                 use_https=self._use_https,
                 system=self,
             )
+
+        if self.rns_address:
+            self.client.set_cluster_name(self.rns_address)
 
     def check_server(self, restart_server=True):
         if self.on_this_cluster():
@@ -512,7 +548,7 @@ class Cluster(Resource):
         if not self.client:
             try:
                 self.connect_server_client()
-                logger.info(f"Checking server {self.name}")
+                logger.debug(f"Checking server {self.name}")
                 self.client.check_server()
                 logger.info(f"Server {self.name} is up.")
             except (
@@ -550,7 +586,7 @@ class Cluster(Resource):
     def status(self):
         self.check_server()
         if self.on_this_cluster():
-            return obj_store.get_status()
+            return obj_store.status()
         return self.client.status()
 
     def ssh_tunnel(
@@ -627,7 +663,7 @@ class Cluster(Resource):
 
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
-            logger.info("Finished syncing Runhouse to cluster.")
+            logger.debug("Finished syncing Runhouse to cluster.")
 
         https_flag = self._use_https
         caddy_flag = self._use_caddy
@@ -644,23 +680,22 @@ class Cluster(Resource):
             cluster_cert_path = f"{base_cluster_dir}/{self.cert_config.CERT_NAME}"
 
             if domain and caddy_flag:
-                logger.info(
-                    "Skipping issuing certs locally. Caddy will automate generating certs on the "
-                    f"cluster using domain: {domain}."
-                )
-            else:
-                # If no cert and keyfile already exist, generate them client side and copy them onto the cluster
-                if (
-                    not Path(self.cert_config.cert_path).exists()
-                    or not Path(self.cert_config.key_path).exists()
-                ):
-                    self.cert_config.generate_certs(address=self.address)
+                # Certs generated by Caddy are stored in the data directory path on the cluster
+                # https://caddyserver.com/docs/conventions#data-directory
 
+                # Reset to None - Caddy will automatically generate certs on the cluster
+                cluster_key_path = None
+                cluster_cert_path = None
+            else:
+                # Rebuild on restart to ensure the correct subject name is included in the cert SAN
+                # Cert subject name needs to match the target (IP address or domain)
+                self.cert_config.generate_certs(
+                    address=self.address, domain=self.domain
+                )
                 self._copy_certs_to_cluster()
 
-            if caddy_flag:
-                # Update pointers to the cert and key files as stored on the cluster
-                # (to be passed in to the runhouse restart command)
+            if caddy_flag and not self.domain:
+                # Update pointers to the cert and key files as stored on the cluster for Caddy to use
                 base_caddy_dir = self.cert_config.CADDY_CLUSTER_DIR
                 cluster_key_path = (
                     f"{base_caddy_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
@@ -696,12 +731,11 @@ class Cluster(Resource):
                 raise ValueError("Cluster must have a name in order to enable HTTPS.")
 
             if not self.client:
-                logger.info("Reconnecting server client. Server restarted with HTTPS.")
+                logger.debug("Reconnecting server client. Server restarted with HTTPS.")
                 self.connect_server_client()
 
             # Refresh the client params to use HTTPS
             self.client.use_https = https_flag
-            self.client.cert_path = self.cert_config.cert_path
 
         if restart_ray and len(self.ips) > 1:
             self._start_ray_workers(DEFAULT_RAY_PORT)
@@ -748,7 +782,7 @@ class Cluster(Resource):
             stream_logs (bool): Whether to stream logs from the method call.
             run_name (str): Name for the run.
             remote (bool): Return a remote object from the function, rather than the result proper.
-            run_async (bool): Run the method asynchronously and return a run_key to retreive results and logs later.
+            run_async (bool): Run the method asynchronously and return an awaitable.
             *args: Positional arguments to pass to the method.
             **kwargs: Keyword arguments to pass to the method.
 
@@ -759,7 +793,11 @@ class Cluster(Resource):
         # Note: might be single value, might be a generator!
         if self.on_this_cluster():
             return obj_store.call(
-                module_name, method_name, data=(args, kwargs), serialization=None
+                module_name,
+                method_name,
+                data=(args, kwargs),
+                run_async=run_async,
+                serialization=None,
             )
         return self.client.call_module_method(
             module_name,
@@ -878,8 +916,16 @@ class Cluster(Resource):
         ssh_credentials = copy.copy(self.creds) or {}
         ssh_credentials.pop("ssh_host", node)
         pwd = ssh_credentials.pop("password", None)
+        ssh_control_name = ssh_credentials.pop(
+            "ssh_control_name", f"{node}:{self.ssh_port}"
+        )
 
-        runner = SkySSHRunner(node, **ssh_credentials, port=self.ssh_port)
+        runner = SkySSHRunner(
+            node,
+            **ssh_credentials,
+            ssh_control_name=ssh_control_name,
+            port=self.ssh_port,
+        )
         if not pwd:
             if up:
                 runner.run(["mkdir", "-p", dest], stream_logs=False)
@@ -983,7 +1029,7 @@ class Cluster(Resource):
                 ]
             )
 
-        logger.info(f"Copied local certs onto the cluster in path: {dest}")
+        logger.debug(f"Copied local certs onto the cluster in path: {dest}")
 
     def run(
         self,
@@ -1055,7 +1101,7 @@ class Cluster(Resource):
 
         # Register the completed Run
         r._register_cmd_run_completion(return_codes)
-        logger.info(f"Saved Run to path: {r.folder.path}")
+        logger.debug(f"Saved Run to path: {r.folder.path}")
         return return_codes
 
     def _run_commands_with_ssh(
@@ -1074,13 +1120,21 @@ class Cluster(Resource):
         ssh_credentials = copy.copy(self.creds)
         host = ssh_credentials.pop("ssh_host", node or self.address)
         pwd = ssh_credentials.pop("password", None)
+        ssh_control_name = ssh_credentials.pop(
+            "ssh_control_name", f"{node}:{self.ssh_port}"
+        )
 
-        runner = SkySSHRunner(host, **ssh_credentials, port=self.ssh_port)
+        runner = SkySSHRunner(
+            host,
+            **ssh_credentials,
+            ssh_control_name=ssh_control_name,
+            port=self.ssh_port,
+        )
 
         if not pwd:
             for command in commands:
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
-                logger.info(f"Running command on {self.name}: {command}")
+                logger.debug(f"Running command on {self.name}: {command}")
                 ret_code = runner.run(
                     command,
                     require_outputs=require_outputs,
@@ -1093,7 +1147,7 @@ class Cluster(Resource):
 
             for command in commands:
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
-                logger.info(f"Running command on {self.name}: {command}")
+                logger.debug(f"Running command on {self.name}: {command}")
                 # We need to quiet the SSH output here or it will print
                 # "Shared connection to ____ closed." at the end, which messes with the output.
                 ssh_command = runner.run(

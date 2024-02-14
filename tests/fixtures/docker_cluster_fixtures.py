@@ -369,12 +369,15 @@ def set_up_local_cluster(
     # the "owner's" token) to the container in many cases, so we're relying on authenticating the caller
     # to the server through Den. If the cluster isn't saved before coming up, the config in the cluster servlet
     # doesn't have the rns address, and the auth verification to Den fails.
-    rh_cluster.save()
 
     # Can't use the defaults_cache alone because we may need the token or username from the env variables
     config = rh.configs.defaults_cache
     config["token"] = rh.configs.token
     config["username"] = rh.configs.username
+
+    if rh_cluster._use_https:
+        # If re-using fixtures make sure the crt file gets copied on to the cluster
+        rh_cluster.restart_server()
 
     rh.env(
         reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
@@ -388,6 +391,8 @@ def set_up_local_cluster(
         name="base_env",
     ).to(rh_cluster)
 
+    rh_cluster.save()
+
     def cleanup():
         docker_client.containers.get(container_name).stop()
         docker_client.containers.prune()
@@ -400,7 +405,8 @@ def set_up_local_cluster(
 def docker_cluster_pk_tls_exposed(request):
     """This basic cluster fixture is set up with:
     - Public key authentication
-    - Nginx set up on startup to forward Runhouse HTTP server to port 443
+    - Caddy set up on startup to forward Runhouse HTTP server to port 443
+    - Telemetry enabled
     """
 
     # From pytest config
@@ -433,6 +439,7 @@ def docker_cluster_pk_tls_exposed(request):
             "server_port": DEFAULT_HTTPS_PORT,
             "client_port": local_client_port,
             "den_auth": False,
+            "use_local_telemetry": True,
         },
     )
 
@@ -449,6 +456,7 @@ def docker_cluster_pk_ssh(request):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - Nginx set up on startup to forward Runhouse HTTP server to port 443
+    - Telemetry enabled
     """
 
     # From pytest config
@@ -474,6 +482,7 @@ def docker_cluster_pk_ssh(request):
         additional_cluster_init_args={
             "name": "docker_cluster_pk_ssh",
             "server_connection_type": "ssh",
+            "use_local_telemetry": True,
         },
     )
 
@@ -531,6 +540,7 @@ def docker_cluster_pk_http_exposed(request):
     - Public key authentication
     - Den auth enabled
     - Caddy set up on startup to forward Runhouse HTTP Server to port 80
+    - Telemetry enabled
     """
 
     # From pytest config
@@ -563,6 +573,7 @@ def docker_cluster_pk_http_exposed(request):
             "server_port": DEFAULT_HTTP_PORT,
             "client_port": local_client_port,
             "den_auth": True,
+            "use_local_telemetry": True,
         },
     )
     # Yield the cluster
@@ -616,49 +627,6 @@ def docker_cluster_pwd_ssh_no_auth(request):
 
 
 @pytest.fixture(scope="session")
-def docker_cluster_pk_ssh_telemetry(request, detached=True):
-    """This basic cluster fixture is set up with:
-    - Public key authentication
-    - No Den Auth
-    - No caddy/port forwarding set up
-    - Telemetry enabled
-    """
-
-    # From pytest config
-    detached = request.config.getoption("--detached")
-    force_rebuild = request.config.getoption("--force-rebuild")
-
-    # Ports to use on the Docker VM such that they don't conflict
-    local_ssh_port = BASE_LOCAL_SSH_PORT + 5
-
-    local_cluster, cleanup = set_up_local_cluster(
-        image_name="keypair-telemetry",
-        container_name="rh-pk-telemetry",
-        dir_name="public-key-auth",
-        keypath=str(
-            Path(
-                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
-            ).expanduser()
-        ),
-        reuse_existing_container=detached,
-        force_rebuild=force_rebuild,
-        port_fwds=[f"{local_ssh_port}:{DEFAULT_SSH_PORT}"],
-        local_ssh_port=local_ssh_port,
-        additional_cluster_init_args={
-            "name": "docker_cluster_pk_ssh_telemetry",
-            "server_connection_type": "ssh",
-            "use_local_telemetry": True,
-        },
-    )
-    # Yield the cluster
-    yield local_cluster
-
-    # If we are running in detached mode, leave the container running, else clean it up
-    if not detached:
-        cleanup()
-
-
-@pytest.fixture(scope="session")
 def friend_account_logged_in_docker_cluster_pk_ssh(request):
     """
     This fixture is not parameterized for every test; it is a separate cluster started with a test account
@@ -670,7 +638,7 @@ def friend_account_logged_in_docker_cluster_pk_ssh(request):
     force_rebuild = request.config.getoption("--force-rebuild")
     with friend_account():
         # Ports to use on the Docker VM such that they don't conflict
-        local_ssh_port = BASE_LOCAL_SSH_PORT + 6
+        local_ssh_port = BASE_LOCAL_SSH_PORT + 5
         local_cluster, cleanup = set_up_local_cluster(
             image_name="keypair",
             container_name="rh-pk-test-acct",

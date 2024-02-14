@@ -21,7 +21,6 @@ from cryptography.x509.oid import NameOID
 from requests.exceptions import SSLError
 
 from runhouse.rns.utils.api import resolve_absolute_path
-from runhouse.servers.http.certs import TLSCertConfig
 
 
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
@@ -47,27 +46,13 @@ def create_test_https_server(
 
 @pytest.mark.servertest
 class TestTLSCertConfig:
-    @pytest.fixture(autouse=True)
-    def init_fixtures(self):
-        self.cert_config = TLSCertConfig()
-
-        yield
-
-        # Clean up the generated files
-        Path(self.cert_config.cert_path).unlink(missing_ok=True)
-        Path(self.cert_config.key_path).unlink(missing_ok=True)
-
     @pytest.mark.level("unit")
-    def test_generate_certs(self):
-        # Generate certificates for a given address
-        address = "127.0.0.1"
-        self.cert_config.generate_certs(address=address)
-
-        assert Path(self.cert_config.cert_path).exists()
-        assert Path(self.cert_config.key_path).exists()
+    def test_generate_certs(self, cert_config):
+        assert Path(cert_config.cert_path).exists()
+        assert Path(cert_config.key_path).exists()
 
         # Load the certificate and check properties
-        with open(self.cert_config.cert_path, "rb") as cert_file:
+        with open(cert_config.cert_path, "rb") as cert_file:
             cert_data = cert_file.read()
             certificate = load_pem_x509_certificate(cert_data, default_backend())
             assert (
@@ -76,7 +61,7 @@ class TestTLSCertConfig:
             )
 
             assert ipaddress.IPv4Address(
-                address
+                "127.0.0.1"
             ) in certificate.extensions.get_extension_for_class(
                 x509.SubjectAlternativeName
             ).value.get_values_for_type(
@@ -84,7 +69,7 @@ class TestTLSCertConfig:
             )
 
         # Load the private key and check type
-        with open(self.cert_config.key_path, "rb") as key_file:
+        with open(cert_config.key_path, "rb") as key_file:
             key_data = key_file.read()
             private_key = load_pem_private_key(
                 key_data, password=None, backend=default_backend()
@@ -94,7 +79,7 @@ class TestTLSCertConfig:
             ), "Private key is not an RSA key."
 
     @pytest.mark.level("unit")
-    def test_resolve_absolute_path(self, mocker):
+    def test_resolve_absolute_path(self, mocker, cert_config):
 
         # set up mocks
         mock_expanduser = mocker.patch("os.path.expanduser")
@@ -104,9 +89,9 @@ class TestTLSCertConfig:
         mock_expanduser.return_value = "/mocked/home/user/ssl/certs/rh_server.crt"
         mock_abspath.return_value = "/mocked/absolute/path/to/ssl/certs/rh_server.crt"
 
-        resolved_path = resolve_absolute_path(self.cert_config.cert_path)
+        resolved_path = resolve_absolute_path(cert_config.cert_path)
 
-        mock_expanduser.assert_any_call(self.cert_config.cert_path)
+        mock_expanduser.assert_any_call(cert_config.cert_path)
         mock_abspath.assert_any_call(mock_expanduser.return_value)
 
         assert resolved_path == mock_abspath.return_value
@@ -175,23 +160,6 @@ class TestHTTPSCertValidity:
         with open(cert_file, "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))
 
-    def verify_cert(self, cert_path):
-        if not cert_path:
-            return False
-
-        cert_path = Path(cert_path)
-        if not cert_path.exists():
-            return False
-
-        # Check whether the cert is self-signed, if so we cannot use verification
-        with open(cert_path, "rb") as cert_file:
-            cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
-
-        if cert.issuer == cert.subject:
-            return False
-
-        return True
-
     @pytest.mark.level("unit")
     def test_https_request_with_cert_verification(self):
         response = requests.get(f"https://localhost:{self.port}", verify=self.cert_file)
@@ -213,15 +181,11 @@ class TestHTTPSCertValidity:
 
         os.remove(dummy_cert_path)
 
+    @pytest.mark.level("unit")
     def test_https_request_with_self_signed_cert(self):
-        should_verify = self.verify_cert(self.cert_file)
-
-        # If the certificate is self-signed, verification should be False
-        assert not should_verify
-
         response = requests.get(
             f"https://localhost:{self.port}",
-            verify=should_verify,
+            verify=self.cert_file,
         )
 
         assert response.status_code == 200

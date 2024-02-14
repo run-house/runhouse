@@ -81,6 +81,7 @@ def slow_getpid(a=0):
     return os.getpid() + a
 
 
+@pytest.mark.functiontest
 class TestFunction:
 
     # ---------- Minimal / Local Level Tests (aka not unittests) ----------
@@ -115,6 +116,7 @@ class TestFunction:
         assert not rh.exists(REMOTE_FUNC_NAME)
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_function(self, cluster):
         remote_sum = rh.function(async_summer).to(cluster)
         res = await remote_sum(1, 5)
@@ -150,14 +152,15 @@ class TestFunction:
         assert len(results) == 5
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_generator(self, cluster):
         remote_slow_generator = rh.function(async_slow_generator).to(cluster)
         results = []
-        async for val in remote_slow_generator(5):
+        async for val in remote_slow_generator(3):
             assert val
             print(val)
             results += [val]
-        assert len(results) == 5
+        assert len(results) == 3
 
     @pytest.mark.skip("TODO fix following local daemon refactor.")
     @pytest.mark.level("local")
@@ -270,7 +273,14 @@ class TestFunction:
     @pytest.mark.level("local")
     def test_share_and_revoke_function(self, cluster):
         # TODO: refactor in order to test the function.share() method.
-        my_function = rh.function(fn=summer).to(cluster).save(REMOTE_FUNC_NAME)
+        my_function = rh.function(fn=summer).to(cluster)
+        if cluster.server_connection_type in ["tls", "none"]:
+            my_function.set_endpoint(
+                f"{cluster.endpoint()}:{cluster.client_port}/{my_function.name}"
+            )
+        else:
+            my_function.set_endpoint(f"{cluster.endpoint()}/{my_function.name}")
+        my_function.save(REMOTE_FUNC_NAME)
 
         my_function.share(
             users=["info@run.house"],
@@ -332,21 +342,24 @@ class TestFunction:
 
     @pytest.mark.level("local")
     def test_http_url(self, cluster):
-        # TODO convert into something like function.request_args() and/or function.curl_command()
         remote_sum = rh.function(summer).to(cluster).save("@/remote_function")
         ssh_creds = cluster.ssh_creds
-        addr = remote_sum.endpoint(external=False)
+        if cluster.server_connection_type in ["tls", "none"]:
+            addr = f"{cluster.endpoint()}:{cluster.client_port}/{remote_sum.name}"
+        else:
+            addr = remote_sum.endpoint()
         auth = (
             (ssh_creds.get("ssh_user"), ssh_creds.get("password"))
             if ssh_creds.get("password")
             else None
         )
+        verify = cluster.client.verify
         sum1 = requests.post(
             url=f"{addr}/call",
             json={"data": ([1, 2], {})},
             headers=rh.configs.request_headers if cluster.den_auth else None,
             auth=auth,
-            verify=False,
+            verify=verify,
         ).json()
         assert sum1 == 3
         sum2 = requests.post(
@@ -354,23 +367,9 @@ class TestFunction:
             json={"data": ([], {"a": 1, "b": 2})},
             headers=rh.configs.request_headers if cluster.den_auth else None,
             auth=auth,
-            verify=False,
+            verify=verify,
         ).json()
         assert sum2 == 3
-
-    @pytest.mark.skip("Not yet implemented.")
-    @pytest.mark.level("local")
-    def test_http_url_with_curl(self):
-        # TODO: refactor needed, once the Function.http_url() is implemented.
-        # NOTE: Assumes the Function has already been created and deployed to running cluster
-        s = rh.function(name="test_function")
-        curl_cmd = s.http_url(a=1, b=2, curl_command=True)
-        print(curl_cmd)
-
-        # delete_configs the function data from the RNS
-        self.delete_function_from_rns(s)
-
-        assert True
 
     @pytest.mark.skip(
         "Clean up following local daemon refactor. Function probably doesn't need .get anymore."

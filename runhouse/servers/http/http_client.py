@@ -2,7 +2,9 @@ import json
 import logging
 import time
 import warnings
+from functools import wraps
 from pathlib import Path
+from random import randrange
 from typing import Any, Dict, Optional, Union
 
 import requests
@@ -28,6 +30,29 @@ from runhouse.servers.http.http_utils import (
 logger = logging.getLogger(__name__)
 
 
+# Make this global so connections are pooled across instances of HTTPClient
+session = requests.Session()
+session.timeout = None
+
+
+def retry_with_exponential_backoff(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        MAX_RETRIES = 5
+        retries = 0
+        while True:
+            try:
+                return func(*args, **kwargs)
+            except ConnectionError as e:
+                retries += 1
+                if retries == MAX_RETRIES:
+                    raise e
+                sleep_time = randrange(1, 2 ** (retries + 1) + 1)
+                time.sleep(sleep_time)
+
+    return wrapper
+
+
 class HTTPClient:
     """
     Client for cluster RPCs
@@ -49,25 +74,37 @@ class HTTPClient:
         self.auth = auth
         self.cert_path = cert_path
         self.use_https = use_https
-        self.verify = self._use_cert_verification()
         self.system = system
+
         self.client = requests.Session()
         self.client.auth = self.auth
-        self.client.verify = self.cert_path if self.verify else False
+
+        self.verify = False
+
+        if self.use_https:
+            # https://requests.readthedocs.io/en/latest/user/advanced/#ssl-cert-verification
+            # Only verify with the specific cert path if the cert itself is self-signed, otherwise we use the default
+            # setting of "True", which will verify the cluster's SSL certs
+            self.verify = self.cert_path if self._certs_are_self_signed() else True
+
+        self.client.verify = self.verify
         self.client.timeout = None
 
-    def _use_cert_verification(self):
-        if not self.use_https:
-            return False
-
+    def _certs_are_self_signed(self) -> bool:
+        """Checks whether the cert provided is self-signed. If it is, all client requests will include the path
+        to the cert to be used for verification."""
         from cryptography import x509
         from cryptography.hazmat.backends import default_backend
 
-        cert_path = Path(self.cert_path)
-        if not cert_path.exists():
+        if not self.cert_path:
+            # No cert path is specified, assume certs will be configured on the server (ex: via Caddy)
             return False
 
-        # Check whether the cert is self-signed, if so we cannot use verification
+        cert_path = Path(self.cert_path)
+        if not cert_path.exists():
+            raise FileNotFoundError(f"No cert found in path: {cert_path}")
+
+        # Check whether the cert is self-signed
         with open(cert_path, "rb") as cert_file:
             cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
 
@@ -75,16 +112,25 @@ class HTTPClient:
             warnings.warn(
                 f"Cert in use ({cert_path}) is self-signed, cannot independently verify it."
             )
+            return True
 
-        return True
+        return False
 
     @staticmethod
     def from_endpoint(endpoint: str, auth=None, cert_path=None):
         protocol, uri = endpoint.split("://")
-        host, port_and_route = uri.split(":", 1)
-        port, _ = port_and_route.split("/", 1)
+        if protocol not in ["http", "https"]:
+            raise ValueError(f"Invalid protocol: {protocol}")
+        port = None
+        if ":" in uri:
+            host, port_and_route = uri.split(":", 1)
+            port, _ = port_and_route.split("/", 1)
+        else:
+            host, _ = uri.split("/", 1)
         use_https = protocol == "https"
-        client = HTTPClient(host, int(port), auth, cert_path, use_https=False)
+        client = HTTPClient(
+            host, int(port) if port else None, auth, cert_path, use_https=False
+        )
         client.use_https = use_https
         return client
 
@@ -133,13 +179,13 @@ class HTTPClient:
         # Support use case where we explicitly do not want to provide headers (e.g. requesting a cert)
         headers = rns_client.request_headers() if headers != {} else headers
         req_fn = (
-            self.client.get
+            session.get
             if req_type == "get"
-            else self.client.put
+            else session.put
             if req_type == "put"
-            else self.client.delete
+            else session.delete
             if req_type == "delete"
-            else self.client.post
+            else session.post
         )
         # Note: For localhost (e.g. docker) do not add trailing slash (will lead to connection errors)
         endpoint = endpoint.strip("/")
@@ -149,10 +195,12 @@ class HTTPClient:
         ):
             endpoint += "/"
 
-        response = req_fn(
+        response = retry_with_exponential_backoff(req_fn)(
             self._formatted_url(endpoint),
             json=json_dict,
             headers=headers,
+            auth=self.auth,
+            verify=self.verify,
         )
         if response.status_code != 200:
             raise ValueError(
@@ -164,9 +212,10 @@ class HTTPClient:
         return resp_json
 
     def check_server(self):
-        resp = self.client.get(
+        resp = session.get(
             self._formatted_url("check"),
             timeout=self.CHECK_TIMEOUT_SEC,
+            verify=self.verify,
         )
 
         if resp.status_code != 200:
@@ -246,7 +295,7 @@ class HTTPClient:
             + (f".{method_name}" if method_name else "")
         )
         serialization = serialization or "pickle"
-        res = self.client.post(
+        res = retry_with_exponential_backoff(session.post)(
             self._formatted_url(f"{key}/{method_name}"),
             json=CallParams(
                 data=serialize_data(data, serialization),
@@ -259,6 +308,8 @@ class HTTPClient:
             ).dict(),
             stream=not run_async,
             headers=rns_client.request_headers(),
+            auth=self.auth,
+            verify=self.verify,
         )
         if res.status_code != 200:
             raise ValueError(
@@ -278,6 +329,8 @@ class HTTPClient:
                 # Some silly bug in urllib3, see https://github.com/psf/requests/issues/4248
                 continue
             except StopIteration:
+                break
+            except StopAsyncIteration:
                 break
 
             resp = json.loads(responses_json)
@@ -419,16 +472,21 @@ class HTTPClient:
         )
 
     def set_settings(self, new_settings: Dict[str, Any]):
-        res = self.client.post(
+        res = retry_with_exponential_backoff(session.post)(
             self._formatted_url("settings"),
             json=new_settings,
             headers=rns_client.request_headers(),
+            auth=self.auth,
+            verify=self.verify,
         )
         if res.status_code != 200:
             raise ValueError(
                 f"Error switching to new settings: {new_settings} on server: {res.content.decode()}"
             )
         return res
+
+    def set_cluster_name(self, name: str):
+        return self.set_settings({"cluster_name": name})
 
     def delete(self, keys=None, env=None):
         return self.request_json(

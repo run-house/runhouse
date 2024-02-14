@@ -92,8 +92,7 @@ def cluster(
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
             domain=domain,
-            den_auth=den_auth,
-            kwargs=kwargs,
+            kwargs=kwargs if len(kwargs) > 0 else None,
         )
         # Filter out None/default values
         alt_options = {
@@ -234,7 +233,7 @@ def kubernetes_cluster(
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            logger.info(process.stdout)
+            logger.debug(process.stdout)
             logger.info(f"Kubernetes namespace set to {namespace}")
 
         except subprocess.CalledProcessError as e:
@@ -635,7 +634,7 @@ def sagemaker_cluster(
         dryrun=dryrun,
         **kwargs,
     )
-    c.set_connection_defaults()
+    sm.set_connection_defaults()
 
     if den_auth:
         sm.save()

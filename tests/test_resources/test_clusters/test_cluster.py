@@ -55,7 +55,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pk_ssh_den_auth",
             "docker_cluster_pwd_ssh_no_auth",
-            "docker_cluster_pk_ssh_telemetry",
             "static_cpu_cluster",
             "password_cluster",
             "multinode_cpu_cluster",
@@ -124,12 +123,16 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert endpoint == f"http://{LOCALHOST}:{cluster.client_port}"
         else:
             url_base = "https" if cluster.server_connection_type == "tls" else "http"
-            assert endpoint == f"{url_base}://{cluster.address}:{cluster.server_port}"
+            assert (
+                endpoint
+                == f"{url_base}://{cluster.server_address}:{cluster.server_port}"
+            )
 
         # Try to curl docs
+        verify = cluster.client.verify
         r = requests.get(
             f"{endpoint}/docs",
-            verify=False,
+            verify=verify,
             headers=rh.globals.rns_client.request_headers(),
         )
         assert r.status_code == 200
@@ -193,13 +196,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_rh_status_pythonic(self, cluster):
         cluster.put(key="status_key1", obj="status_value1", env="numpy_env")
         res = cluster.status()
+        assert res.get("ssh_certs") is None
         assert res.get("server_port") == (cluster.server_port or DEFAULT_SERVER_PORT)
         assert res.get("server_connection_type") == cluster.server_connection_type
         assert res.get("den_auth") == cluster.den_auth
         assert res.get("resource_type") == cluster.RESOURCE_TYPE
         assert res.get("ips") == cluster.ips
         assert "numpy_env" in res.get("envs")
-        assert {"name": "status_value1", "resource_type": "str"} in res.get("envs")[
+        assert {"name": "status_key1", "resource_type": "str"} in res.get("envs")[
             "numpy_env"
         ]
 
@@ -215,7 +219,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert f"ips: {str(cluster.ips)}" in res
         assert "Serving 🍦 :" in res
         assert "base_env (runhouse.resources.envs.env.Env):" in res
-        assert "status_value2 (str)" in res
+        assert "status_key2 (str)" in res
+        assert "ssh_certs" not in res
 
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")

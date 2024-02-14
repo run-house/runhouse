@@ -34,7 +34,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         "cluster": [
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pk_ssh_den_auth",
-            "docker_cluster_pk_ssh_telemetry",
             "docker_cluster_pwd_ssh_no_auth",
         ]
     }
@@ -180,7 +179,6 @@ from tests.fixtures.docker_cluster_fixtures import (
     docker_cluster_pk_ssh,  # noqa: F401
     docker_cluster_pk_ssh_den_auth,  # noqa: F401
     docker_cluster_pk_ssh_no_auth,  # noqa: F401
-    docker_cluster_pk_ssh_telemetry,  # noqa: F401
     docker_cluster_pk_tls_den_auth,  # noqa: F401
     docker_cluster_pk_tls_exposed,  # noqa: F401
     docker_cluster_pwd_ssh_no_auth,  # noqa: F401
@@ -308,8 +306,10 @@ default_fixtures[TestLevels.UNIT] = {
 }
 default_fixtures[TestLevels.LOCAL] = {
     "cluster": [
-        "docker_cluster_pk_ssh_no_auth",
-        "docker_cluster_pk_ssh_den_auth",
+        "docker_cluster_pk_ssh_no_auth",  # Represents private dev use case
+        # "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
+        "docker_cluster_pk_tls_den_auth",  # Represents public app use case
+        "docker_cluster_pk_http_exposed",  # Represents within VPC use case
     ]
 }
 default_fixtures[TestLevels.MINIMAL] = {
@@ -332,7 +332,6 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "docker_cluster_pk_ssh_no_auth",
         "docker_cluster_pk_ssh_den_auth",
         "docker_cluster_pwd_ssh_no_auth",
-        "docker_cluster_pk_ssh_telemetry",
         "ondemand_cpu_cluster",
         "ondemand_https_cluster_with_auth",
         "password_cluster",

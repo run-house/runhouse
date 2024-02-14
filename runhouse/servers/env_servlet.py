@@ -164,6 +164,10 @@ class EnvServlet:
         self.register_activity()
         return obj_store.clear_local()
 
+    def status_local(self):
+        self.register_activity()
+        return obj_store.status_local()
+
     def call(
         self,
         module_name: str,

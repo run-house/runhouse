@@ -663,7 +663,7 @@ class Module(Resource):
 
         def call_wrapper():
             if not key:
-                return client.get(name, remote=remote, stream_logs=stream_logs)
+                return client.get(name, remote=remote)
 
             if isinstance(system, Cluster) and name and system.on_this_cluster():
                 obj_store_obj = obj_store.get(name, default=None)
@@ -884,9 +884,9 @@ class Module(Resource):
                 ]
 
                 if len(base_dirs) != 1:
-                    logger.info(f"Module files: {module_path}")
-                    logger.info(f"Package paths: {package_paths}")
-                    logger.info(f"Base dirs: {base_dirs}")
+                    logger.debug(f"Module files: {module_path}")
+                    logger.debug(f"Package paths: {package_paths}")
+                    logger.debug(f"Base dirs: {base_dirs}")
                     raise Exception("Wasn't able to find the package directory!")
                 root_path = os.path.dirname(base_dirs[0])
                 module_name = py_module.__spec__.name

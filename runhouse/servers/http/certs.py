@@ -66,9 +66,10 @@ class TLSCertConfig:
     def key_dir(self):
         return Path(self.key_path).parent
 
-    def generate_certs(self, address: str = None):
+    def generate_certs(self, address: str = None, domain: str = None):
         """Create a self-signed SSL certificate. This won't be verified by a CA, but the connection will
-        still be encrypted."""
+        still be encrypted. If domain is provided, prioritize using it to allow the same cert to be re-used
+        across multiple servers. If not, use the provided address (IP or DNS name)"""
         # Generate the private key
         private_key = rsa.generate_private_key(
             public_exponent=65537, key_size=2048, backend=default_backend()
@@ -84,14 +85,22 @@ class TLSCertConfig:
             x509.IPAddress(ipaddress.IPv4Address("127.0.0.1")),
         ]
 
-        if address is not None:
+        if domain:
+            # Add the provided domain name to the SAN
+            subject_names.append(x509.DNSName(domain))
+
+        elif address:
             try:
-                # Check if the address is a valid IP address
+                # Check if the address is a valid IP address and add it to the SAN
                 ip_addr = ipaddress.IPv4Address(address)
                 subject_names.append(x509.IPAddress(ip_addr))
             except ipaddress.AddressValueError:
-                # If not a valid IP address (e.g. "localhost"), treat it as a DNS name
+                # If not a valid IP address, treat it as an additional DNS name
                 subject_names.append(x509.DNSName(address))
+        else:
+            raise ValueError(
+                "At least one of `address` or `domain` must be provided to generate certs."
+            )
 
         # Add Subject Alternative Name extension
         san = x509.SubjectAlternativeName(subject_names)

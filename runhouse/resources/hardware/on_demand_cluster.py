@@ -309,7 +309,7 @@ class OnDemandCluster(Cluster):
                 # NOTE: Using external worker address here because we're running from local
                 worker_ips.append(external)
 
-        logger.info(f"Internal head IP: {internal_head_ip}")
+        logger.debug(f"Internal head IP: {internal_head_ip}")
 
         for host in worker_ips:
             logger.info(

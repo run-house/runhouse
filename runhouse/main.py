@@ -216,7 +216,7 @@ def status(
     else:
         from runhouse.globals import obj_store
 
-        config = obj_store.get_status()
+        config = obj_store.status()
 
     config = _print_status(config)
 
