@@ -30,6 +30,7 @@ def np_summer(a, b):
     return int(np.sum([a, b]))
 
 
+@pytest.mark.envtest
 class TestEnv(tests.test_resources.test_resource.TestResource):
     MAP_FIXTURES = {"resource": "env"}
 
