@@ -327,9 +327,12 @@ class OnDemandCluster(Cluster):
             yaml_path = handle.cluster_yaml
             if Path(yaml_path).exists():
                 ssh_values = backend_utils.ssh_credential_from_yaml(yaml_path)
-                self._creds = rh.secret(
-                    name=f"{self.name}_ssh_secret", provider="ssh", values=ssh_values
-                ).save()
+                if self._creds and self._creds.values != ssh_values:
+                    self._creds = rh.secret(
+                        name=f"{self.name}_ssh_secret",
+                        provider="ssh",
+                        values=ssh_values,
+                    )
 
             # Add worker IPs if multi-node cluster - keep the head node as the first IP
             for ip in handle.cached_external_ips:

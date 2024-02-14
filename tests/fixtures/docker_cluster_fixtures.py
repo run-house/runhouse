@@ -370,6 +370,8 @@ def set_up_local_cluster(
     # to the server through Den. If the cluster isn't saved before coming up, the config in the cluster servlet
     # doesn't have the rns address, and the auth verification to Den fails.
 
+    rh_cluster.save()
+
     # Can't use the defaults_cache alone because we may need the token or username from the env variables
     config = rh.configs.defaults_cache
     config["token"] = rh.configs.token
