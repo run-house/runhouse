@@ -586,7 +586,7 @@ class Module(Resource):
                 return client.call(
                     key=name,
                     method_name=key,
-                    data=([value], {}),
+                    data=[[value], {}],
                 )
 
             @classmethod
@@ -648,7 +648,7 @@ class Module(Resource):
         else:
             if not client or not name:
                 return self.resolved_state(**kwargs)
-            return client.call(name, "resolved_state", data=((), kwargs))
+            return client.call(name, "resolved_state", data=[(), kwargs])
 
     async def fetch_async(self, key: str, remote: bool = False):
         """Async version of fetch. Can't be a property like `fetch` because __getattr__ can't be awaited.

@@ -799,7 +799,7 @@ class Cluster(Resource):
             module_name,
             method_name,
             stream_logs=stream_logs,
-            data=(args, kwargs),
+            data=[args, kwargs],
             run_name=run_name,
             remote=remote,
             run_async=run_async,

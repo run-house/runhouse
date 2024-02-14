@@ -187,11 +187,11 @@ class TestHTTPClient:
         module_name = "module"
         method_name = "install"
 
-        self.client.call(module_name, method_name, data=(args, kwargs))
+        self.client.call(module_name, method_name, data=[args, kwargs])
 
         # Assert that the post request was called with the correct data
         expected_json_data = {
-            "data": pickle_b64((args, kwargs)),
+            "data": pickle_b64([args, kwargs]),
             "serialization": "pickle",
             "run_name": None,
             "stream_logs": True,
