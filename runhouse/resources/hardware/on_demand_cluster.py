@@ -103,7 +103,7 @@ class OnDemandCluster(Cluster):
         self.live_state = sky_state or live_state
 
         # Checks if state info is in local sky db, populates if so.
-        status_dict = self.status(refresh=False)
+        status_dict = self._sky_status(refresh=False)
         if status_dict:
             self._populate_connection_from_status_dict(status_dict)
         elif self.live_state:
@@ -239,7 +239,7 @@ class OnDemandCluster(Cluster):
             )
 
         # Now try loading in the status from the sky DB
-        status = self.status(refresh=False)
+        status = self._sky_status(refresh=False)
 
         abs_yaml_path = status["handle"].cluster_yaml
         try:
@@ -351,7 +351,7 @@ class OnDemandCluster(Cluster):
         self._update_from_sky_status(dryrun=False)
         return self.address is not None
 
-    def status(self, refresh: bool = True, retry: bool = True):
+    def _sky_status(self, refresh: bool = True, retry: bool = True):
         """
         Get status of Sky cluster.
 
@@ -374,14 +374,10 @@ class OnDemandCluster(Cluster):
              'metadata': {}}
 
         .. note::
-            For more information see SkyPilot's :code:`ResourceHandle` `class <https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457>`_.
+            For more information see SkyPilot's :code:`ResourceHandle` `class
+             <https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457>`_.
 
-        Example:
-            >>> status = rh.ondemand_cluster("rh-cpu").status()
-        """  # noqa
-        # return backend_utils._refresh_cluster_record(
-        #     self.name, force_refresh=refresh, acquire_per_cluster_status_lock=False
-        # )
+        """
         if not sky.global_user_state.get_cluster_from_name(self.name):
             return None
 
@@ -392,8 +388,7 @@ class OnDemandCluster(Cluster):
             # time we call status), we can retry without refreshing
             if not retry:
                 raise e
-
-            return self.status(refresh=False, retry=False)
+            return self._sky_status(refresh=False, retry=False)
 
         # We still need to check if the cluster present in case the cluster went down and was removed from the DB
         if len(state) == 0:
@@ -444,7 +439,7 @@ class OnDemandCluster(Cluster):
 
     def _update_from_sky_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
-        cluster_dict = self.status(refresh=not dryrun)
+        cluster_dict = self._sky_status(refresh=not dryrun)
         self._populate_connection_from_status_dict(cluster_dict)
 
     def get_instance_type(self):
@@ -599,7 +594,7 @@ class OnDemandCluster(Cluster):
         if self._ssh_creds:
             return self._ssh_creds
 
-        if not self.status(refresh=False) and self.live_state:
+        if not self._sky_status(refresh=False) and self.live_state:
             # If this cluster was serialized and sent over the wire, it will have live_state (we make sure of that
             # in __getstate__) but no yaml, and we need to save down the sky data to the sky db and local yaml
             self._save_sky_state()
