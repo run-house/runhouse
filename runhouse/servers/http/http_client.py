@@ -20,7 +20,6 @@ from runhouse.servers.http.http_utils import (
     GetObjectParams,
     handle_response,
     OutputType,
-    pickle_b64,
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
@@ -308,7 +307,7 @@ class HTTPClient:
             self._formatted_url(f"{key}/{method_name}"),
             json=CallParams(
                 data=serialize_data(data, serialization),
-                serialization="pickle",
+                serialization=serialization,
                 run_name=run_name,
                 stream_logs=stream_logs,
                 save=save,
@@ -380,7 +379,7 @@ class HTTPClient:
             req_type="post",
             json_dict=PutObjectParams(
                 key=key,
-                serialized_data=pickle_b64(value),
+                serialized_data=serialize_data(value, "pickle"),
                 env_name=env,
                 serialization="pickle",
             ).dict(),
@@ -396,7 +395,7 @@ class HTTPClient:
             req_type="post",
             # TODO wire up dryrun properly
             json_dict=PutResourceParams(
-                serialized_data=pickle_b64([config, state, dryrun]),
+                serialized_data=serialize_data([config, state, dryrun], "pickle"),
                 env_name=env_name,
                 serialization="pickle",
             ).dict(),

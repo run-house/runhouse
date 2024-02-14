@@ -8,12 +8,12 @@ import runhouse as rh
 
 from runhouse.globals import rns_client
 from runhouse.servers.http.http_utils import (
-    b64_unpickle,
     DeleteObjectParams,
-    pickle_b64,
+    deserialize_data,
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
+    serialize_data,
 )
 
 from tests.utils import friend_account
@@ -58,7 +58,9 @@ class TestHTTPServerDocker:
     def test_put_resource(self, http_client, blob_data, cluster):
         state = None
         resource = rh.blob(data=blob_data, system=cluster)
-        data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
+        data = serialize_data(
+            (resource.config_for_rns, state, resource.dryrun), "pickle"
+        )
         response = http_client.post(
             "/resource",
             json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
@@ -74,7 +76,7 @@ class TestHTTPServerDocker:
             "/object",
             json=PutObjectParams(
                 key=key,
-                serialized_data=pickle_b64(test_list),
+                serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
             ).dict(),
             headers=rns_client.request_headers(),
@@ -125,7 +127,7 @@ class TestHTTPServerDocker:
         response = http_client.post(
             f"{module_name}/{method_name}",
             json={
-                "data": pickle_b64([args, kwargs]),
+                "data": serialize_data([args, kwargs], "pickle"),
                 "stream_logs": True,
                 "serialization": "pickle",
             },
@@ -140,8 +142,8 @@ class TestHTTPServerDocker:
                 "base_env servlet: Calling method call on module summer\n"
             ]
 
-        if resp_obj["output_type"] == "result":
-            assert b64_unpickle(resp_obj["data"]) == 3
+        if resp_obj["output_type"] == "result_serialized":
+            assert deserialize_data(resp_obj["data"], resp_obj["serialization"]) == 3
 
     @pytest.mark.level("local")
     def test_log_streaming_call(self, http_client, remote_log_streaming_func):
@@ -161,7 +163,7 @@ class TestHTTPServerDocker:
             "POST",
             url,
             json={
-                "data": pickle_b64([args, kwargs]),
+                "data": serialize_data([args, kwargs], "pickle"),
                 "stream_logs": True,
                 "serialization": "pickle",
             },
@@ -176,8 +178,11 @@ class TestHTTPServerDocker:
                     assert "Hello from the cluster stdout!" in resp_obj["data"][0]
                     assert "Hello from the cluster logs!" in resp_obj["data"][1]
 
-                if resp_obj["output_type"] == "result":
-                    assert b64_unpickle(resp_obj["data"]) == 3
+                if resp_obj["output_type"] == "result_serialized":
+                    assert (
+                        deserialize_data(resp_obj["data"], resp_obj["serialization"])
+                        == 3
+                    )
 
     @pytest.mark.level("local")
     async def test_async_call(self, async_http_client, remote_func):
@@ -213,11 +218,17 @@ class TestHTTPServerDocker:
 
         response = await async_http_client.post(
             f"/{remote_func.name}/{method}",
-            json={"data": pickle_b64(([1, 2], {})), "serialization": "pickle"},
+            json={
+                "data": serialize_data(([1, 2], {}), "pickle"),
+                "serialization": "pickle",
+            },
             headers=rns_client.request_headers(),
         )
         assert response.status_code == 200
-        assert b64_unpickle(response.json()["data"]) == 3
+        assert (
+            deserialize_data(response.json()["data"], response.json()["serialization"])
+            == 3
+        )
 
     @pytest.mark.level("local")
     async def test_async_call_with_json_serialization(
@@ -289,7 +300,9 @@ class TestHTTPServerDockerDenAuthOnly:
     def test_put_resource_with_invalid_token(self, http_client, blob_data, cluster):
         state = None
         resource = rh.blob(blob_data, system=cluster)
-        data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
+        data = serialize_data(
+            (resource.config_for_rns, state, resource.dryrun), "pickle"
+        )
         response = http_client.post(
             "/resource",
             json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
@@ -323,7 +336,7 @@ class TestHTTPServerDockerDenAuthOnly:
             "/object",
             json=PutObjectParams(
                 key="key1",
-                serialized_data=pickle_b64(test_list),
+                serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
             ).dict(),
             headers=INVALID_HEADERS,
@@ -388,7 +401,9 @@ class TestHTTPServerNoDocker:
             resource = local_blob.to(system="file", path=resource_path)
 
             state = None
-            data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
+            data = serialize_data(
+                (resource.config_for_rns, state, resource.dryrun), "pickle"
+            )
             response = client.post(
                 "/resource",
                 json=dict(
@@ -405,7 +420,7 @@ class TestHTTPServerNoDocker:
             "/object",
             json=PutObjectParams(
                 key="key1",
-                serialized_data=pickle_b64(test_list),
+                serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
             ).dict(),
             headers=rns_client.request_headers(),
@@ -490,7 +505,9 @@ class TestHTTPServerNoDockerDenAuthOnly:
             local_blob = rh.blob(blob_data, path=resource_path)
             resource = local_blob.to(system="file", path=resource_path)
             state = None
-            data = pickle_b64((resource.config_for_rns, state, resource.dryrun))
+            data = serialize_data(
+                (resource.config_for_rns, state, resource.dryrun), "pickle"
+            )
             resp = local_client_with_den_auth.post(
                 "/resource",
                 json=dict(
@@ -508,7 +525,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
             "/object",
             json=PutObjectParams(
                 key="key1",
-                serialized_data=pickle_b64(test_list),
+                serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
             ).dict(),
             headers=INVALID_HEADERS,

@@ -194,8 +194,8 @@ def handle_response(
     elif output_type == OutputType.SUCCESS:
         return
     elif output_type == OutputType.EXCEPTION:
-        fn_exception = b64_unpickle(response_data["error"])
-        fn_traceback = b64_unpickle(response_data["traceback"])
+        fn_exception = deserialize_data(response_data["error"], "pickle")
+        fn_traceback = deserialize_data(response_data["traceback"], "pickle")
         if not (
             isinstance(fn_exception, StopIteration)
             or isinstance(fn_exception, GeneratorExit)
