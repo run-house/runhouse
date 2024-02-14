@@ -100,7 +100,7 @@ class OnDemandCluster(Cluster):
         self.client = None
 
         # Checks if state info is in local sky db, populates if so.
-        status_dict = self.status(refresh=False)
+        status_dict = self._sky_status(refresh=False)
         if status_dict:
             self._populate_connection_from_status_dict(status_dict)
 
@@ -115,7 +115,7 @@ class OnDemandCluster(Cluster):
     @property
     def config_for_rns(self):
         config = super().config_for_rns
-        status = self.status()
+        status = self._sky_status()
 
         # Also store the ssh keys for the cluster in RNS
         config.update(
@@ -246,7 +246,7 @@ class OnDemandCluster(Cluster):
         self._update_from_sky_status(dryrun=False)
         return self.address is not None
 
-    def status(self, refresh: bool = True, retry: bool = True):
+    def _sky_status(self, refresh: bool = True, retry: bool = True):
         """
         Get status of Sky cluster.
 
@@ -269,11 +269,8 @@ class OnDemandCluster(Cluster):
              'metadata': {}}
 
         .. note:: For more information see SkyPilot's :code:`ResourceHandle` `class
-        <https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends
-        /cloud_vm_ray_backend.py#L1457>`_.
+        <https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457>`_.
 
-        Example:
-            >>> status = rh.ondemand_cluster("rh-cpu").status()
         """
 
         if not sky.global_user_state.get_cluster_from_name(self.name):
@@ -287,7 +284,7 @@ class OnDemandCluster(Cluster):
             if not retry:
                 raise e
 
-            return self.status(refresh=False, retry=False)
+            return self._sky_status(refresh=False, retry=False)
 
         # We still need to check if the cluster present in case the cluster went down and was removed from the DB
         if len(state) == 0:
@@ -299,7 +296,7 @@ class OnDemandCluster(Cluster):
         # Find the internal IP corresponding to the public_head_ip and the rest are workers
         internal_head_ip = None
         worker_ips = []
-        stable_internal_external_ips = self.status()[
+        stable_internal_external_ips = self._sky_status()[
             "handle"
         ].stable_internal_external_ips
         for internal, external in stable_internal_external_ips:
@@ -332,7 +329,7 @@ class OnDemandCluster(Cluster):
                 ssh_values = backend_utils.ssh_credential_from_yaml(yaml_path)
                 self._creds = rh.secret(
                     name=f"{self.name}_ssh_secret", provider="ssh", values=ssh_values
-                )
+                ).save()
 
             # Add worker IPs if multi-node cluster - keep the head node as the first IP
             for ip in handle.cached_external_ips:
@@ -344,7 +341,7 @@ class OnDemandCluster(Cluster):
 
     def _update_from_sky_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
-        cluster_dict = self.status(refresh=not dryrun)
+        cluster_dict = self._sky_status(refresh=not dryrun)
         self._populate_connection_from_status_dict(cluster_dict)
 
     def get_instance_type(self):
