@@ -145,14 +145,7 @@ class Cluster(Resource):
         # self.on_this_cluster() will still work as expected.
         if on_this_cluster:
             obj_store.set_cluster_config_value("name", self.rns_address)
-        elif self.is_up() and not self.client:
-            try:
-                self.connect_server_client()
-                self.client.check_server()
-            except:
-                self.client = None
-
-        if self.client:
+        elif self.client:
             self.client.set_cluster_name(self.rns_address)
 
         return self
@@ -525,6 +518,9 @@ class Cluster(Resource):
                 use_https=self._use_https,
                 system=self,
             )
+
+        if self.rns_address:
+            self.client.set_cluster_name(self.rns_address)
 
     def check_server(self, restart_server=True):
         if self.on_this_cluster():
