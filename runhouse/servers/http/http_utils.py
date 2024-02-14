@@ -33,6 +33,7 @@ class RequestContext(BaseModel):
 
 
 class ServerSettings(BaseModel):
+    cluster_name: Optional[str] = None
     den_auth: Optional[bool] = None
     flush_auth_cache: Optional[bool] = None
 
@@ -130,7 +131,10 @@ def serialize_data(data: Any, serialization: Optional[str]):
         return None
 
     if serialization == "json":
-        return json.dumps(data)
+        try:
+            return json.dumps(data)
+        except TypeError as e:
+            return json.dumps(str(e))
     elif serialization == "pickle":
         return pickle_b64(data)
     elif serialization is None:
@@ -143,7 +147,9 @@ def handle_exception_response(
     exception: Exception, traceback, serialization="pickle", from_http_server=False
 ):
     if not (
-        isinstance(exception, StopIteration) or isinstance(exception, GeneratorExit)
+        isinstance(exception, StopIteration)
+        or isinstance(exception, GeneratorExit)
+        or isinstance(exception, StopAsyncIteration)
     ):
         logger.exception(exception)
 
@@ -214,6 +220,7 @@ def handle_response(response_data, output_type, err_str):
         if not (
             isinstance(fn_exception, StopIteration)
             or isinstance(fn_exception, GeneratorExit)
+            or isinstance(fn_exception, StopAsyncIteration)
         ):
             logger.error(f"{err_str}: {fn_exception}")
             logger.error(f"Traceback: {fn_traceback}")

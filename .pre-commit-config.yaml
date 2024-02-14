@@ -9,7 +9,7 @@ repos:
     rev: v1.3.2
     hooks:
       - id: ufmt
-        exclude: (runhouse/servers/grpc/unary_pb2.py|runhouse/servers/grpc/unary_pb2_grpc.py)
+        exclude: (runhouse/servers/grpc/unary_pb2.py|runhouse/servers/grpc/unary_pb2_grpc.py|runhouse/resources/hardware/sky/)
         additional_dependencies:
           - black == 22.6.0
           - usort == 1.0.4
@@ -18,5 +18,5 @@ repos:
     rev: v0.0.191
     hooks:
       - id: ruff
-        exclude: (runhouse/servers/grpc/unary_pb2.py|runhouse/servers/grpc/unary_pb2_grpc.py)
+        exclude: (runhouse/servers/grpc/unary_pb2.py|runhouse/servers/grpc/unary_pb2_grpc.py|runhouse/resources/hardware/sky/)
         args: [--line-length=120, '--ignore=E402,E721,E722,E731,F821', '--per-file-ignores=__init__.py:F401']

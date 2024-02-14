@@ -18,7 +18,7 @@ def call_func_with_curl(ip_address, func_name, token, *args):
     # curl --cacert '/Users/josh.l/.rh/certs/rh_server.crt' https://localhost:8444/check
     # >> {"rh_version":"0.0.18"}
 
-    cmd = f"""curl --cacert {path_to_cert} -X POST "https://{ip_address}/call/{func_name}/call?serialization=None" -d '{{"args": {list(args)}}}' -H "Content-Type: application/json" -H "Authorization: Bearer {token}" """  # noqa
+    cmd = f"""curl --cacert {path_to_cert} -X POST "https://{ip_address}/{func_name}/call?serialization=None" -d '{{"args": {list(args)}}}' -H "Content-Type: application/json" -H "Authorization: Bearer {token}" """  # noqa
     res = subprocess.run(
         cmd,
         shell=True,

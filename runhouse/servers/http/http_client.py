@@ -119,10 +119,18 @@ class HTTPClient:
     @staticmethod
     def from_endpoint(endpoint: str, auth=None, cert_path=None):
         protocol, uri = endpoint.split("://")
-        host, port_and_route = uri.split(":", 1)
-        port, _ = port_and_route.split("/", 1)
+        if protocol not in ["http", "https"]:
+            raise ValueError(f"Invalid protocol: {protocol}")
+        port = None
+        if ":" in uri:
+            host, port_and_route = uri.split(":", 1)
+            port, _ = port_and_route.split("/", 1)
+        else:
+            host, _ = uri.split("/", 1)
         use_https = protocol == "https"
-        client = HTTPClient(host, int(port), auth, cert_path, use_https=False)
+        client = HTTPClient(
+            host, int(port) if port else None, auth, cert_path, use_https=False
+        )
         client.use_https = use_https
         return client
 
@@ -322,6 +330,8 @@ class HTTPClient:
                 continue
             except StopIteration:
                 break
+            except StopAsyncIteration:
+                break
 
             resp = json.loads(responses_json)
             output_type = resp["output_type"]
@@ -474,6 +484,9 @@ class HTTPClient:
                 f"Error switching to new settings: {new_settings} on server: {res.content.decode()}"
             )
         return res
+
+    def set_cluster_name(self, name: str):
+        return self.set_settings({"cluster_name": name})
 
     def delete(self, keys=None, env=None):
         return self.request_json(

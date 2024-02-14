@@ -142,7 +142,7 @@ my_remote_counter.increment(2)  # Prints "New count: 3" and returns 3
 
 You can also call the Runhouse HTTP server directly (though you may need to open a port or tunnel to do so):
 ```bash
-curl -X POST -H "Content-Type: application/json" http://my_cluster_address:32300/call/my_counter/count
+curl -X POST -H "Content-Type: application/json" http://my_cluster_address:32300/my_counter/count
 ```
 
 This is only the tip of the iceberg. If you like what you see, please check out the

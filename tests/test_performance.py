@@ -32,7 +32,7 @@ def run_performance_tests(summer_func):
     suffix = "https" if cluster._use_https else "http"
     address = cluster.server_address
 
-    call_url = f"{suffix}://{address}:{port}/call/summer_func/call/?serialization=None"
+    call_url = f"{suffix}://{address}:{port}/summer_func/call/?serialization=None"
     logger.info(f"Call url: {call_url}")
     times_list, avg_time = profile(
         lambda: requests.post(

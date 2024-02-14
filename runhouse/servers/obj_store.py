@@ -208,10 +208,19 @@ class ObjStore:
     # Generic helpers
     ##############################################
     @staticmethod
-    def call_actor_method(actor: ray.actor.ActorHandle, method: str, *args, **kwargs):
+    def call_actor_method(
+        actor: ray.actor.ActorHandle, method: str, *args, run_async=False, **kwargs
+    ):
         if actor is None:
             raise ObjStoreError("Attempting to call an actor method on a None actor.")
-        return ray.get(getattr(actor, method).remote(*args, **kwargs))
+        if not run_async:
+            return ray.get(getattr(actor, method).remote(*args, **kwargs))
+        else:
+
+            async def _call_async():
+                return await getattr(actor, method).remote(*args, **kwargs)
+
+            return _call_async()
 
     @staticmethod
     def get_env_servlet(
@@ -840,6 +849,7 @@ class ObjStore:
         run_name: Optional[str] = None,
         stream_logs: bool = False,
         remote: bool = False,
+        run_async: bool = False,
     ):
         return ObjStore.call_actor_method(
             ObjStore.get_env_servlet(env_servlet_name),
@@ -852,6 +862,7 @@ class ObjStore:
             stream_logs=stream_logs,
             remote=remote,
             ctx=dict(req_ctx.get()),
+            run_async=run_async,
         )
 
     def call_local(
@@ -862,7 +873,6 @@ class ObjStore:
         run_name: Optional[str] = None,
         stream_logs: bool = False,
         remote: bool = False,
-        run_async: bool = False,  # TODO implement
         **kwargs,
     ):
         """Base call functionality: Load the module, and call a method on it with args and kwargs. Nothing else.
@@ -1043,6 +1053,7 @@ class ObjStore:
         run_name: Optional[str] = None,
         stream_logs: bool = False,
         remote: bool = False,
+        run_async: bool = False,
     ):
         env_servlet_name_containing_key = self.get_env_servlet_name_for_key(key)
         if not env_servlet_name_containing_key:
@@ -1077,6 +1088,7 @@ class ObjStore:
                 run_name=run_name,
                 stream_logs=stream_logs,
                 remote=remote,
+                run_async=run_async,
             )
 
         if remote and isinstance(res, dict) and "resource_type" in res:
