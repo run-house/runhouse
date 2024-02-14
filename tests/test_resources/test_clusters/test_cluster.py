@@ -208,7 +208,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         ]
 
     @pytest.mark.level("local")
-    def test_rh_status_cli(self, cluster):
+    def test_rh_status_cli_in_cluster(self, cluster):
         cluster.put(key="status_key2", obj="status_value2", env="base_env")
         res = cluster.run(["runhouse status"])[0][1]
         assert "😈 Runhouse Daemon is running 🏃" in res
@@ -222,10 +222,22 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert "status_key2 (str)" in res
         assert "ssh_certs" not in res
 
-    def test_sasha(self):
-        my_c = rh.cluster(name="/sashab/sasha-ondemand-cluster-1")
-        res = subprocess.check_output(["runhouse", "status", my_c.name])
-        print(res)
+    @pytest.mark.level("local")
+    def test_rh_status_cli_not_in_cluster(self, cluster):
+        cluster.put(key="status_key3", obj="status_value3", env="base_env")
+        res = str(
+            subprocess.check_output(["runhouse", "status", f"{cluster.name}"]), "utf-8"
+        )
+        assert "😈 Runhouse Daemon is running 🏃" in res
+        assert f"server_port: {cluster.server_port}" in res
+        assert f"server_connection_type: {cluster.server_connection_type}" in res
+        assert f"den_auth: {str(cluster.den_auth)}" in res
+        assert f"resource_type: {cluster.RESOURCE_TYPE.lower()}" in res
+        assert f"ips: {str(cluster.ips)}" in res
+        assert "Serving 🍦 :" in res
+        assert "base_env (runhouse.resources.envs.env.Env):" in res
+        assert "status_key3 (str)" in res
+        assert "ssh_certs" not in res
 
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")

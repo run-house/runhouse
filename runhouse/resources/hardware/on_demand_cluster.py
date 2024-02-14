@@ -374,14 +374,10 @@ class OnDemandCluster(Cluster):
              'metadata': {}}
 
         .. note::
-            For more information see SkyPilot's :code:`ResourceHandle` `class <https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457>`_.
+            For more information see SkyPilot's :code:`ResourceHandle` `class
+             <https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457>`_.
 
-        Example:
-            >>> status = rh.ondemand_cluster("rh-cpu").status()
-        """  # noqa
-        # return backend_utils._refresh_cluster_record(
-        #     self.name, force_refresh=refresh, acquire_per_cluster_status_lock=False
-        # )
+        """
         if not sky.global_user_state.get_cluster_from_name(self.name):
             return None
 

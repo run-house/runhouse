@@ -577,10 +577,14 @@ class Cluster(Resource):
         return
 
     def status(self):
-        self.check_server()
-        if self.on_this_cluster():
-            return obj_store.status()
-        return self.client.status()
+        try:
+            self.check_server()
+            if self.on_this_cluster():
+                return obj_store.status()
+            return self.client.status()
+        except ValueError as e:
+            print(str(e))
+            return
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
