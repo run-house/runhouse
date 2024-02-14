@@ -53,6 +53,8 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+suspend_autostop = False
+
 
 def validate_cluster_access(func):
     """If using Den auth, validate the user's Runhouse token and access to the cluster before continuing."""
@@ -212,12 +214,13 @@ class HTTPServer:
 
     @staticmethod
     def register_activity():
-        try:
-            from sky.skylet.autostop_lib import set_last_active_time_to_now
+        if suspend_autostop:
+            try:
+                from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-            set_last_active_time_to_now()
-        except ImportError:
-            pass
+                set_last_active_time_to_now()
+            except ImportError:
+                pass
 
     @staticmethod
     @app.get("/cert")
@@ -264,43 +267,6 @@ class HTTPServer:
             return {"rh_version": runhouse.__version__}
         except Exception as e:
             logger.exception(e)
-            HTTPServer.register_activity()
-            return Response(
-                error=serialize_data(e, "pickle"),
-                traceback=serialize_data(traceback.format_exc(), "pickle"),
-                output_type=OutputType.EXCEPTION,
-            )
-
-    @staticmethod
-    def call_servlet_method(servlet, method, args, block=True):
-        if isinstance(servlet, ray.actor.ActorHandle):
-            obj_ref = getattr(servlet, method).remote(*args)
-            if block:
-                return ray.get(obj_ref)
-            else:
-                return obj_ref
-        else:
-            return getattr(servlet, method)(*args)
-
-    @staticmethod
-    def call_in_env_servlet(
-        method,
-        args=None,
-        env=None,
-        create=False,
-        lookup_env_for_name=None,
-        block=True,
-    ):
-        HTTPServer.register_activity()
-        try:
-            if lookup_env_for_name:
-                env = env or obj_store.get_env_servlet_name_for_key(lookup_env_for_name)
-            servlet = ObjStore.get_env_servlet(env or "base", create=create)
-            # If servlet is a RayActor, call with .remote
-            return HTTPServer.call_servlet_method(servlet, method, args, block=block)
-        except Exception as e:
-            logger.exception(e)
-            HTTPServer.register_activity()
             return Response(
                 error=serialize_data(e, "pickle"),
                 traceback=serialize_data(traceback.format_exc(), "pickle"),
@@ -376,7 +342,6 @@ class HTTPServer:
         method_name: str = None,
         params: CallParams = Body(default=None),
     ):
-        HTTPServer.register_activity()
         return await HTTPServer._call(key, method_name, params)
 
     @staticmethod
@@ -394,8 +359,6 @@ class HTTPServer:
         run_async: Optional[bool] = False,
     ):
         try:
-            HTTPServer.register_activity()
-
             # Default argument to json doesn't allow a user to pass in a serialization string if they want
             # But, if they didn't pass anything, we want it to be `json` by default.
             serialization = serialization or "json"
@@ -426,7 +389,6 @@ class HTTPServer:
             return await HTTPServer._call(key, method_name, params)
         except Exception as e:
             logger.exception(e)
-            HTTPServer.register_activity()
             return Response(
                 error=serialize_data(e, "pickle"),
                 traceback=serialize_data(traceback.format_exc(), "pickle"),
@@ -894,6 +856,7 @@ if __name__ == "__main__":
         )
     else:
         logger.info("Loaded cluster config from Ray.")
+        suspend_autostop = cluster_config.get("autostop_mins", -1) > 0
 
     ########################################
     # Handling args that could be specified in the
