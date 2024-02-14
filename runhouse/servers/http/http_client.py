@@ -319,7 +319,7 @@ class HTTPClient:
 
         # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
         # maybe a stream of results), so we need to separate these out.
-        non_generator_result = None
+        result = None
         res_iter = res.iter_lines(chunk_size=None)
         # We need to manually iterate through res_iter so we can try/except to bypass a ChunkedEncodingError bug
         while True:
@@ -336,37 +336,7 @@ class HTTPClient:
             resp = json.loads(responses_json)
             output_type = resp["output_type"]
             result = handle_response(resp, output_type, error_str)
-            if output_type in [OutputType.RESULT_STREAM, OutputType.SUCCESS_STREAM]:
-                # First time we encounter a stream result, we know the rest of the results will be a stream, so return
-                # a generator
-                def results_generator():
-                    # If this is supposed to be an empty generator, there's no first result to return
-                    if not output_type == OutputType.SUCCESS_STREAM:
-                        yield result
-                    for responses_json_inner in res_iter:
-                        resp_inner = json.loads(responses_json_inner)
-                        output_type_inner = resp_inner["output_type"]
-                        result_inner = handle_response(
-                            resp_inner, output_type_inner, error_str
-                        )
-                        # if output_type == OutputType.SUCCESS_STREAM:
-                        #     break
-                        if output_type_inner in [
-                            OutputType.RESULT_STREAM,
-                            OutputType.RESULT,
-                        ]:
-                            yield result_inner
-                    end_inner = time.time()
-                    if method_name:
-                        log_str = f"Time to call {key}.{method_name}: {round(end_inner - start, 2)} seconds"
-                    else:
-                        log_str = (
-                            f"Time to get {key}: {round(end_inner - start, 2)} seconds"
-                        )
-                    logging.info(log_str)
-
-                return results_generator()
-            elif output_type == OutputType.CONFIG:
+            if output_type == OutputType.CONFIG:
                 # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
                 # slow, we can just set it explicitly.
                 if (
@@ -375,20 +345,16 @@ class HTTPClient:
                     and system.rns_address == result["system"]
                 ):
                     result["system"] = system
-                non_generator_result = Resource.from_config(result, dryrun=True)
-
-            elif output_type in [OutputType.RESULT, OutputType.RESULT_SERIALIZED]:
-                # Finish iterating over logs before returning single result
-                non_generator_result = result
+                result = Resource.from_config(result, dryrun=True)
 
         end = time.time()
 
         if (
-            hasattr(non_generator_result, "system")
+            hasattr(result, "system")
             and system is not None
-            and non_generator_result.system.rns_address == system.rns_address
+            and result.system.rns_address == system.rns_address
         ):
-            non_generator_result.system = system
+            result.system = system
 
         if method_name:
             log_str = (
@@ -397,7 +363,7 @@ class HTTPClient:
         else:
             log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
         logging.info(log_str)
-        return non_generator_result
+        return result
 
     def put_object(self, key: str, value: Any, env=None):
         return self.request_json(

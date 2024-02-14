@@ -94,13 +94,8 @@ class OutputType:
     STDOUT = "stdout"
     STDERR = "stderr"
     SUCCESS = "success"  # No output
-    NOT_FOUND = "not_found"
     CANCELLED = "cancelled"
-    RESULT = "result"
-    RESULT_LIST = "result_list"
-    RESULT_STREAM = "result_stream"
     RESULT_SERIALIZED = "result_serialized"
-    SUCCESS_STREAM = "success_stream"  # No output, but with generators
     CONFIG = "config"
 
 
@@ -200,19 +195,12 @@ def load_current_cluster_rns_address():
 def handle_response(response_data, output_type, err_str):
     if output_type == OutputType.RESULT_SERIALIZED:
         return deserialize_data(response_data["data"], response_data["serialization"])
-    if output_type in [OutputType.RESULT, OutputType.RESULT_STREAM]:
-        return b64_unpickle(response_data["data"])
     elif output_type == OutputType.CONFIG:
         # No need to unpickle since this was just sent as json
         return response_data["data"]
-    elif output_type == OutputType.RESULT_LIST:
-        # Map, starmap, and repeat return lists of results
-        return [b64_unpickle(val) for val in response_data["data"]]
-    elif output_type == OutputType.NOT_FOUND:
-        raise KeyError(f"{err_str}: key {response_data['data']} not found")
     elif output_type == OutputType.CANCELLED:
         raise RuntimeError(f"{err_str}: task was cancelled")
-    elif output_type in [OutputType.SUCCESS, OutputType.SUCCESS_STREAM]:
+    elif output_type == OutputType.SUCCESS:
         return
     elif output_type == OutputType.EXCEPTION:
         fn_exception = b64_unpickle(response_data["error"])

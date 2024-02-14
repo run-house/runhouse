@@ -238,7 +238,9 @@ class HTTPServer:
             with open(cert_path, "rb") as cert_file:
                 cert = cert_file.read()
 
-            return Response(data=pickle_b64(cert), output_type=OutputType.RESULT)
+            return Response(
+                data=pickle_b64(cert), output_type=OutputType.RESULT_SERIALIZED
+            )
 
         except Exception as e:
             logger.exception(e)
