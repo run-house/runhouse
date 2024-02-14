@@ -4,13 +4,8 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
-from runhouse.servers.http.auth import hash_token
-from runhouse.servers.http.http_server import HTTPServer
 from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
 from runhouse.servers.obj_store import ObjStore
-
-from tests.test_servers.conftest import summer
-from tests.utils import friend_account
 
 
 @pytest.mark.servertest
@@ -87,61 +82,3 @@ class TestServlet:
         )
         assert resp.output_type == "exception"
         assert isinstance(b64_unpickle(resp.error), KeyError)
-
-    @pytest.mark.skip("Not implemented yet.")
-    @pytest.mark.level("unit")
-    def test_call(self, test_servlet, docker_cluster_pk_ssh_no_auth):
-        token_hash = None
-        den_auth = False
-        remote_func = rh.function(summer, system=docker_cluster_pk_ssh_no_auth)
-
-        method_name = "call"
-        module_name = remote_func.name
-        args = (1, 2)
-        kwargs = {}
-        serialization = "none"
-        resp = HTTPServer.call_servlet_method(
-            test_servlet,
-            "call",
-            [
-                module_name,
-                method_name,
-                args,
-                kwargs,
-                serialization,
-                token_hash,
-                den_auth,
-            ],
-        )
-
-        assert b64_unpickle(resp.data) == 3
-
-    @pytest.mark.skip("Not implemented yet.")
-    @pytest.mark.level("unit")
-    def test_call_with_den_auth(self, test_servlet):
-        with friend_account() as test_account_dict:
-            token_hash = hash_token(test_account_dict["token"])
-            den_auth = True
-            remote_func = rh.function(summer).save()
-
-        method_name = "call"
-        module_name = remote_func.name
-        args = (1, 2)
-        kwargs = {}
-        serialization = "none"
-
-        resp = HTTPServer.call_servlet_method(
-            test_servlet,
-            "call",
-            [
-                module_name,
-                method_name,
-                args,
-                kwargs,
-                serialization,
-                token_hash,
-                den_auth,
-            ],
-        )
-
-        assert b64_unpickle(resp.data) == 3
