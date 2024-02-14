@@ -262,15 +262,18 @@ class RNSClient:
                 "Failed to extract token from request auth header. Expected in format: Bearer <token>"
             )
 
+        hashed_token = self.cluster_token(den_token, resource_address)
+
+        return {"Authorization": f"Bearer {hashed_token}"}
+
+    def cluster_token(self, den_token: str, resource_address: str):
         if "/" in resource_address:
             # If provided as a full rns address, extract the top level directory
             resource_address = self.base_folder(resource_address)
 
         hash_input = (den_token + resource_address).encode("utf-8")
         hash_hex = hashlib.sha256(hash_input).hexdigest()
-        cluster_token = f"{hash_hex}+{resource_address}+{self._configs.username}"
-
-        return {"Authorization": f"Bearer {cluster_token}"}
+        return f"{hash_hex}+{resource_address}+{self._configs.username}"
 
     def resource_request_payload(self, payload) -> dict:
         payload = remove_null_values_from_dict(payload)
