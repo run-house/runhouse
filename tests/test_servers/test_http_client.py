@@ -10,8 +10,8 @@ from runhouse.globals import rns_client
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import (
     DeleteObjectParams,
-    pickle_b64,
     PutObjectParams,
+    serialize_data,
 )
 
 
@@ -128,7 +128,7 @@ class TestHTTPClient:
             json.dumps(
                 {
                     "output_type": "result_serialized",
-                    "data": pickle_b64("final_result"),
+                    "data": serialize_data("final_result", "pickle"),
                     "serialization": "pickle",
                 }
             ),
@@ -191,7 +191,7 @@ class TestHTTPClient:
 
         # Assert that the post request was called with the correct data
         expected_json_data = {
-            "data": pickle_b64([args, kwargs]),
+            "data": serialize_data([args, kwargs], "pickle"),
             "serialization": "pickle",
             "run_name": None,
             "stream_logs": True,
@@ -244,7 +244,7 @@ class TestHTTPClient:
 
         key = "my_list"
         value = list(range(5, 50, 2)) + ["a string"]
-        expected_data = pickle_b64(value)
+        expected_data = serialize_data(value, "pickle")
 
         self.client.put_object(key, value)
 

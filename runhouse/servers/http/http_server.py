@@ -36,7 +36,6 @@ from runhouse.servers.http.http_utils import (
     get_token_from_request,
     handle_exception_response,
     OutputType,
-    pickle_b64,
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
@@ -238,14 +237,16 @@ class HTTPServer:
                 cert = cert_file.read()
 
             return Response(
-                data=pickle_b64(cert), output_type=OutputType.RESULT_SERIALIZED
+                data=serialize_data(cert, "pickle"),
+                output_type=OutputType.RESULT_SERIALIZED,
+                serialization="pickle",
             )
 
         except Exception as e:
             logger.exception(e)
             return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
+                error=serialize_data(e, "pickle"),
+                traceback=serialize_data(traceback.format_exc(), "pickle"),
                 output_type=OutputType.EXCEPTION,
             )
 
@@ -265,8 +266,8 @@ class HTTPServer:
             logger.exception(e)
             HTTPServer.register_activity()
             return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
+                error=serialize_data(e, "pickle"),
+                traceback=serialize_data(traceback.format_exc(), "pickle"),
                 output_type=OutputType.EXCEPTION,
             )
 
@@ -301,8 +302,8 @@ class HTTPServer:
             logger.exception(e)
             HTTPServer.register_activity()
             return Response(
-                error=pickle_b64(e),
-                traceback=pickle_b64(traceback.format_exc()),
+                error=serialize_data(e, "pickle"),
+                traceback=serialize_data(traceback.format_exc(), "pickle"),
                 output_type=OutputType.EXCEPTION,
             )
 

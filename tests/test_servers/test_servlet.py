@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
-from runhouse.servers.http.http_utils import b64_unpickle, pickle_b64
+from runhouse.servers.http.http_utils import deserialize_data, serialize_data
 from runhouse.servers.obj_store import ObjStore
 
 
@@ -21,12 +21,14 @@ class TestServlet:
             resp = ObjStore.call_actor_method(
                 test_servlet,
                 "put_resource_local",
-                data=pickle_b64((resource.config_for_rns, state, resource.dryrun)),
+                data=serialize_data(
+                    (resource.config_for_rns, state, resource.dryrun), "pickle"
+                ),
                 serialization="pickle",
             )
 
             assert resp.output_type == "result_serialized"
-            assert b64_unpickle(resp.data).startswith("file_")
+            assert deserialize_data(resp.data, resp.serialization).startswith("file_")
 
     @pytest.mark.level("unit")
     def test_put_obj_local(self, test_servlet, blob_data):
@@ -37,7 +39,7 @@ class TestServlet:
                 test_servlet,
                 "put_local",
                 key="key1",
-                data=pickle_b64(resource),
+                data=serialize_data(resource, "pickle"),
                 serialization="pickle",
             )
             assert resp.output_type == "success"
@@ -53,7 +55,7 @@ class TestServlet:
             remote=False,
         )
         assert resp.output_type == "result_serialized"
-        blob = b64_unpickle(resp.data)
+        blob = deserialize_data(resp.data, resp.serialization)
         assert isinstance(blob, rh.Blob)
 
     @pytest.mark.level("unit")
@@ -67,7 +69,7 @@ class TestServlet:
             remote=True,
         )
         assert resp.output_type == "result_serialized"
-        blob_config = b64_unpickle(resp.data)
+        blob_config = deserialize_data(resp.data, resp.serialization)
         assert isinstance(blob_config, dict)
 
     @pytest.mark.level("unit")
@@ -81,4 +83,4 @@ class TestServlet:
             remote=False,
         )
         assert resp.output_type == "exception"
-        assert isinstance(b64_unpickle(resp.error), KeyError)
+        assert isinstance(deserialize_data(resp.error, "pickle"), KeyError)
