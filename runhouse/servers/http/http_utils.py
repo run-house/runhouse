@@ -13,17 +13,6 @@ from ray.exceptions import RayTaskError
 logger = logging.getLogger(__name__)
 
 
-class Message(BaseModel):
-    data: Any = None
-    serialization: str = None
-    env: str = None
-    key: Optional[str] = None
-    stream_logs: Optional[bool] = True
-    save: Optional[bool] = False
-    remote: Optional[bool] = False
-    run_async: Optional[bool] = False
-
-
 class RequestContext(BaseModel):
     request_id: str
     username: Optional[
@@ -192,7 +181,9 @@ def load_current_cluster_rns_address():
     return current_cluster.rns_address if current_cluster else None
 
 
-def handle_response(response_data, output_type, err_str):
+def handle_response(
+    response_data: Dict[Any, Any], output_type: OutputType, err_str: str
+):
     if output_type == OutputType.RESULT_SERIALIZED:
         return deserialize_data(response_data["data"], response_data["serialization"])
     elif output_type == OutputType.CONFIG:
