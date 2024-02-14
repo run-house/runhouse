@@ -268,9 +268,9 @@ class OnDemandCluster(Cluster):
              'autostop': -1,
              'metadata': {}}
 
+
         .. note:: For more information see SkyPilot's :code:`ResourceHandle` `class
         <https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457>`_.
-
         """
 
         if not sky.global_user_state.get_cluster_from_name(self.name):
@@ -497,7 +497,6 @@ class OnDemandCluster(Cluster):
             return self.creds.values
 
         self._update_from_sky_status(dryrun=True)
-
         return self.creds.values
 
     def ssh(self, node: str = None):

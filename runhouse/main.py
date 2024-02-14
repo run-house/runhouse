@@ -191,9 +191,7 @@ def status(
     )
 ):
     """Get the config info about your runhouse cluster(s), as well as the environments setup of the cluster(s)"""
-
     cluster_or_local = rh.here
-
     if cluster_or_local == "file":
         if cluster_name is None:
             console.print("Missing argument CLUSTER_NAME.")
