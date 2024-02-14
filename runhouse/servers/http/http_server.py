@@ -34,7 +34,6 @@ from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
     get_token_from_request,
-    GetObjectParams,
     handle_exception_response,
     OutputType,
     pickle_b64,
@@ -520,18 +519,23 @@ class HTTPServer:
     @staticmethod
     @app.get("/object")
     @validate_cluster_access
-    def get_object(request: Request, params: GetObjectParams):
+    def get_object(
+        request: Request,
+        key: str,
+        serialization: Optional[str] = "json",
+        remote: bool = False,
+    ):
         try:
             return obj_store.get(
-                key=params.key,
-                serialization=params.serialization,
-                remote=params.remote,
+                key=key,
+                serialization=serialization,
+                remote=remote,
             )
         except Exception as e:
             return handle_exception_response(
                 e,
                 traceback.format_exc(),
-                serialization=params.serialization,
+                serialization=serialization,
                 from_http_server=True,
             )
 
