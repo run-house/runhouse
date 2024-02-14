@@ -195,13 +195,22 @@ class HTTPClient:
         ):
             endpoint += "/"
 
-        response = retry_with_exponential_backoff(req_fn)(
-            self._formatted_url(endpoint),
-            json=json_dict,
-            headers=headers,
-            auth=self.auth,
-            verify=self.verify,
-        )
+        if req_type == "get":
+            response = retry_with_exponential_backoff(req_fn)(
+                self._formatted_url(endpoint),
+                params=json_dict,
+                headers=headers,
+                auth=self.auth,
+                verify=self.verify,
+            )
+        else:
+            response = retry_with_exponential_backoff(req_fn)(
+                self._formatted_url(endpoint),
+                json=json_dict,
+                headers=headers,
+                auth=self.auth,
+                verify=self.verify,
+            )
         if response.status_code != 200:
             raise ValueError(
                 f"Error calling {endpoint} on server: {response.content.decode()}"
