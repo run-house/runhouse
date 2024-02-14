@@ -1067,7 +1067,9 @@ class ObjStore:
         ):
             from runhouse.servers.http.http_utils import deserialize_data
 
-            args, kwargs = deserialize_data(data, serialization) if data else ([], {})
+            args, kwargs = (
+                tuple(deserialize_data(data, serialization)) if data else ([], {})
+            )
 
             res = self.call_local(
                 key,
@@ -1138,15 +1140,15 @@ class ObjStore:
 
         env_name = env_name or self.servlet_name
         if self.has_local_storage and env_name == self.servlet_name:
-            resource_config, state, dryrun = deserialize_data(
-                serialized_data, serialization
+            resource_config, state, dryrun = tuple(
+                deserialize_data(serialized_data, serialization)
             )
             return self.put_resource_local(resource_config, state, dryrun)
 
         # Normally, serialization and deserialization happens within the servlet
         # However, if we're putting an env, we need to deserialize it here and
         # actually create the corresponding env servlet.
-        resource_config, _, _ = deserialize_data(serialized_data, serialization)
+        resource_config, _, _ = tuple(deserialize_data(serialized_data, serialization))
         if resource_config["resource_type"] == "env":
 
             # Note that the passed in `env_name` and the `env_name_to_create` here are

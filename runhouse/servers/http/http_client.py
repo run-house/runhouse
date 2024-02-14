@@ -396,7 +396,7 @@ class HTTPClient:
             req_type="post",
             # TODO wire up dryrun properly
             json_dict=PutResourceParams(
-                serialized_data=pickle_b64((config, state, dryrun)),
+                serialized_data=pickle_b64([config, state, dryrun]),
                 env_name=env_name,
                 serialization="pickle",
             ).dict(),
