@@ -1,4 +1,3 @@
-import json
 import logging
 import traceback
 from functools import wraps
@@ -6,14 +5,10 @@ from typing import Any, Optional
 
 from runhouse.globals import obj_store
 
-from runhouse.resources.resource import Resource
-from runhouse.rns.utils.api import ResourceVisibility
-
 from runhouse.servers.http.http_utils import (
     deserialize_data,
     handle_exception_response,
     OutputType,
-    pickle_b64,
     Response,
     serialize_data,
 )
@@ -167,48 +162,3 @@ class EnvServlet:
     def status_local(self):
         self.register_activity()
         return obj_store.status_local()
-
-    def call(
-        self,
-        module_name: str,
-        method=None,
-        args=None,
-        kwargs=None,
-        serialization="json",
-        token_hash=None,
-        den_auth=False,
-    ):
-        self.register_activity()
-        module = obj_store.get(module_name, default=KeyError)
-        if den_auth:
-            if not isinstance(module, Resource) or module.visibility not in [
-                ResourceVisibility.UNLISTED,
-                ResourceVisibility.PUBLIC,
-                "unlisted",
-                "public",
-            ]:
-                resource_uri = (
-                    module.rns_address if hasattr(module, "rns_address") else None
-                )
-                if not obj_store.has_resource_access(token_hash, resource_uri):
-                    raise PermissionError(
-                        f"No read or write access to requested resource {resource_uri}"
-                    )
-
-        if method:
-            fn = getattr(module, method)
-            result = fn(*(args or []), **(kwargs or {}))
-        else:
-            result = module
-
-        logger.info(f"Got result back from call: {result}")
-
-        if serialization == "json":
-            return json.dumps(result)
-        elif serialization == "pickle":
-            return pickle_b64(result)
-        elif serialization == "None":
-            # e.g. if the user wants to handle their own serialization
-            return result
-        else:
-            raise ValueError(f"Unknown serialization: {serialization}")
