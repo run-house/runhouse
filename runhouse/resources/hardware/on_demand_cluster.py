@@ -490,11 +490,11 @@ class OnDemandCluster(Cluster):
             raise Exception(f"File with ssh key not found in: {path_to_file}")
 
     @property
-    def ssh_creds(self):
+    def creds(self):
         """Retrieve SSH creds for the cluster.
 
         Example:
-            >>> credentials = rh.ondemand_cluster("rh-cpu").ssh_creds
+            >>> credentials = rh.ondemand_cluster("rh-cpu").creds
         """
         if self._creds:
             return self.creds.values

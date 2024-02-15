@@ -97,11 +97,6 @@ class Cluster(Resource):
         self.domain = domain
         self.use_local_telemetry = use_local_telemetry
 
-        try:
-            self.add_secrets([self._creds])
-        except AssertionError:
-            pass
-
     @property
     def address(self):
         return self.ips[0] if isinstance(self.ips, List) else None
@@ -154,12 +149,8 @@ class Cluster(Resource):
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
-        import runhouse as rh
 
         resource_subtype = config.get("resource_subtype")
-        ssh_cred_values = config.get("creds")
-        if ssh_cred_values:
-            config["creds"] = rh.secret(name=ssh_cred_values)
 
         if resource_subtype == "Cluster":
             return Cluster(**config, dryrun=dryrun)
@@ -192,8 +183,11 @@ class Cluster(Resource):
             ],
         )
         if self.is_up():
-            config["creds"] = self._creds.rns_address
-            # config["creds_provider"] = self._creds.provider
+            config["creds"] = (
+                self._resource_string_for_subconfig(self._creds)
+                if self._creds
+                else None
+            )
 
         if self._use_custom_certs:
             config["ssl_certfile"] = self.cert_config.cert_path

@@ -105,11 +105,8 @@ def cluster(
             pass
 
     # TODO: if using default ssh creds - make a copy of them and rename them to the secret name
-    # ssh_creds_secret = rh.secret(name=f"{name}-ssh-secret", provider="ssh", values=ssh_creds).save()
-
-    secret_name = f"{name}-ssh-secret"
     ssh_creds_secret = rh.secret(
-        name=secret_name, provider="ssh", values=ssh_creds
+        name=f"{name}-ssh-secret", provider="ssh", values=ssh_creds
     ).save()
 
     if "instance_type" in kwargs.keys():

@@ -371,8 +371,6 @@ def set_up_local_cluster(
     # doesn't have the rns address, and the auth verification to Den fails.
     rh_cluster.save()
 
-    rh_cluster.save()
-
     # Can't use the defaults_cache alone because we may need the token or username from the env variables
     config = rh.configs.defaults_cache
     config["token"] = rh.configs.token
@@ -381,8 +379,6 @@ def set_up_local_cluster(
     if rh_cluster._use_https:
         # If re-using fixtures make sure the crt file gets copied on to the cluster
         rh_cluster.restart_server()
-
-    # secret_to_env = rh.Secret.from_name(rh_cluster._creds.rns_address)
 
     rh.env(
         reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
@@ -394,7 +390,6 @@ def set_up_local_cluster(
         if logged_in
         else False,
         name="base_env",
-        # secrets=[secret_to_env]
     ).to(rh_cluster)
 
     def cleanup():
