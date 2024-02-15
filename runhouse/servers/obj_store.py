@@ -603,7 +603,7 @@ class ObjStore:
         # package the config back into the remote object here before returning it.
         if (
             remote
-            and serialization is None
+            and (serialization is None or serialization == "none")
             and isinstance(res, dict)
             and "resource_type" in res
         ):

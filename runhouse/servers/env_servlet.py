@@ -37,7 +37,7 @@ def error_handling_decorator(func):
         # the exception if there is one, instead of returning a Response object.
         try:
             output = func(*args, **kwargs)
-            if serialization is None:
+            if serialization is None or serialization == "none":
                 obj_store.unset_ctx(ctx_token) if ctx_token else None
                 return output
             if output is not None:
