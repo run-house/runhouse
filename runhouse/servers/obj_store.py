@@ -883,12 +883,15 @@ class ObjStore:
 
         from runhouse.resources.provenance import run
 
-        log_ctx = run(
-            name=run_name,
-            log_dest="file" if run_name else None,
-            load=False,
-        )
-        log_ctx.__enter__()
+        log_ctx = None
+        if stream_logs:
+            # When we start collecting logs for telemetry, we'll enter here too
+            log_ctx = run(
+                name=run_name,
+                log_dest="file" if run_name else None,
+                load=False,
+            )
+            log_ctx.__enter__()
 
         obj = self.get_local(key, default=KeyError)
 
@@ -998,7 +1001,8 @@ class ObjStore:
             )
             fut = self.construct_call_retrievable(res, run_name, laziness_type)
             self.put_local(run_name, fut)
-            log_ctx.__exit__(None, None, None)
+            if log_ctx:
+                log_ctx.__exit__(None, None, None)
             return fut
 
         from runhouse.resources.resource import Resource
@@ -1020,7 +1024,8 @@ class ObjStore:
                 # If remote is True and the result is a resource, we return just the config
                 res = res.config_for_rns
 
-        log_ctx.__exit__(None, None, None)
+        if log_ctx:
+            log_ctx.__exit__(None, None, None)
 
         return res
 
