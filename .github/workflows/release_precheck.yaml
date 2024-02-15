@@ -1,0 +1,40 @@
+name: Conda Environment Setup and Test
+
+on:
+  push:
+    branches:
+      - gh-release-pre-check
+#  pull_request:
+#    branches:
+#      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.7, 3.8, 3.9, 3.10, 3.11]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.python-version }}
+        environment-file: environment.yml
+        activate-environment: test-env-${{ matrix.python-version }}
+        allow-softlinks: true
+        use-only-tar-bz2: true # For faster environment creation
+
+    - name: Install current package
+      run: |
+        conda activate test-env-${{ matrix.python-version }}
+        python -m pip install .
+
+    - name: Test package import
+      run: |
+        conda activate test-env-${{ matrix.python-version }}
+        python -c "import runhouse"
