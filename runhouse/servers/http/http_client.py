@@ -63,7 +63,7 @@ class HTTPClient:
     def __init__(
         self,
         host: str,
-        port: int,
+        port: Optional[int],
         auth=None,
         cert_path=None,
         use_https=False,
@@ -142,7 +142,9 @@ class HTTPClient:
 
     def _formatted_url(self, endpoint: str):
         prefix = "https" if self.use_https else "http"
-        return f"{prefix}://{self.host}:{self.port}/{endpoint}"
+        if self.port:
+            return f"{prefix}://{self.host}:{self.port}/{endpoint}"
+        return f"{prefix}://{self.host}/{endpoint}"
 
     def request(
         self,
