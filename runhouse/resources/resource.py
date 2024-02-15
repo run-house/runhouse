@@ -63,6 +63,8 @@ class Resource:
                 name = name[len("/builtins/") :]
             if name[0] == "^" and name != "^":
                 name = name[1:]
+            if "/" not in name:
+                name = f"{rns_client.current_folder}/{name}"
             self._name, self._rns_folder = rns_client.split_rns_name_and_path(
                 rns_client.resolve_rns_path(name)
             )

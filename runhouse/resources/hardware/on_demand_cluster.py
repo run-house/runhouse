@@ -332,7 +332,7 @@ class OnDemandCluster(Cluster):
                         name=f"{self.name}_ssh_secret",
                         provider="ssh",
                         values=ssh_values,
-                    )
+                    ).save()
 
             # Add worker IPs if multi-node cluster - keep the head node as the first IP
             for ip in handle.cached_external_ips:
