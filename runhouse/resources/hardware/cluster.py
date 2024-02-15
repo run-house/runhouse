@@ -576,12 +576,17 @@ class Cluster(Resource):
 
         return
 
-    def status(self):
+    def status(self, resource_address: str = None):
+        """Loads the status of the Runhouse daemon running on the cluster."""
+        # Note: If running outside a local cluster need to include a resource address to construct the cluster subtoken
+        # Allow for specifying a resource address explicitly in case the resource has no rns address yet
         try:
             self.check_server()
             if self.on_this_cluster():
                 return obj_store.status()
-            return self.client.status()
+            return self.client.status(
+                resource_address=resource_address or self.rns_address
+            )
         except ValueError as e:
             raise e
 

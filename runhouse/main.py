@@ -15,7 +15,7 @@ import runhouse as rh
 
 import runhouse.rns.login
 
-from runhouse import __version__, cluster, configs
+from runhouse import __version__, cluster, Cluster, configs
 from runhouse.constants import (
     RAY_KILL_CMD,
     RAY_START_CMD,
@@ -25,6 +25,7 @@ from runhouse.constants import (
     START_NOHUP_CMD,
     START_SCREEN_CMD,
 )
+from runhouse.globals import rns_client
 from runhouse.resources.hardware.ray_utils import check_for_existing_ray_instance
 
 
@@ -198,8 +199,11 @@ def status(
             return
         else:
             try:
-                current_cluster = rh.cluster(name=cluster_name)
-                config = current_cluster.status()
+                cluster_config: dict = rns_client.load_config(name=cluster_name)
+                current_cluster: Cluster = Cluster.from_config(cluster_config)
+                cluster_status: dict = current_cluster.status(
+                    resource_address=current_cluster.rns_address
+                )
             except ValueError as e:
                 console.print(f"Failed to load status for cluster: {e}.")
                 return
@@ -211,11 +215,9 @@ def status(
     else:
         from runhouse.globals import obj_store
 
-        config = obj_store.status()
+        cluster_status: dict = obj_store.status()
 
-    config = _print_status(config)
-
-    return config
+    return _print_status(cluster_status)
 
 
 def load_cluster(cluster_name: str):
