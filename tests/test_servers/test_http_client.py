@@ -1,4 +1,3 @@
-import inspect
 import json
 
 import pytest
@@ -11,8 +10,8 @@ from runhouse.globals import rns_client
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import (
     DeleteObjectParams,
-    pickle_b64,
     PutObjectParams,
+    serialize_data,
 )
 
 
@@ -125,14 +124,14 @@ class TestHTTPClient:
     def test_call_module_method(self, mocker):
 
         response_sequence = [
-            json.dumps({"output_type": "log", "data": "Log message"}),
+            json.dumps({"output_type": "stdout", "data": "Log message"}),
             json.dumps(
-                {"output_type": "result_stream", "data": pickle_b64("stream_result_1")}
+                {
+                    "output_type": "result_serialized",
+                    "data": serialize_data("final_result", "pickle"),
+                    "serialization": "pickle",
+                }
             ),
-            json.dumps(
-                {"output_type": "result_stream", "data": pickle_b64("stream_result_2")}
-            ),
-            json.dumps({"output_type": "result", "data": pickle_b64("final_result")}),
         ]
 
         # Mock the response to iter_lines to return our simulated server response
@@ -144,15 +143,9 @@ class TestHTTPClient:
         # Call the method under test
         method_name = "install"
         module_name = "base_env"
-        result_generator = self.client.call(module_name, method_name)
+        result = self.client.call(module_name, method_name)
 
-        # Iterate through the generator and collect results
-        results = []
-        for result in result_generator:
-            results.append(result)
-
-        expected_results = ["stream_result_1", "stream_result_2", "final_result"]
-        assert results == expected_results
+        assert result == "final_result"
 
         # Assert that the post request was called correctly
         expected_url = self.client._formatted_url(f"{module_name}/{method_name}")
@@ -194,11 +187,11 @@ class TestHTTPClient:
         module_name = "module"
         method_name = "install"
 
-        self.client.call(module_name, method_name, data=(args, kwargs))
+        self.client.call(module_name, method_name, data=[args, kwargs])
 
         # Assert that the post request was called with the correct data
         expected_json_data = {
-            "data": pickle_b64((args, kwargs)),
+            "data": serialize_data([args, kwargs], "pickle"),
             "serialization": "pickle",
             "run_name": None,
             "stream_logs": True,
@@ -230,24 +223,6 @@ class TestHTTPClient:
             self.client.call("module", "method")
 
     @pytest.mark.level("unit")
-    def test_call_module_method_stream_logs(self, mocker):
-        # Setup the mock response with a log in the stream
-        response_sequence = [
-            json.dumps(
-                {"output_type": "result_stream", "data": pickle_b64("Log message")}
-            ),
-        ]
-        mock_response = mocker.Mock()
-        mock_response.status_code = 200
-        mock_response.iter_lines.return_value = iter(response_sequence)
-        mocker.patch("requests.Session.post", return_value=mock_response)
-
-        # Call the method under test
-        res = self.client.call("base_env", "install")
-        assert inspect.isgenerator(res)
-        assert next(res) == "Log message"
-
-    @pytest.mark.level("unit")
     def test_call_module_method_config(self, mocker):
         test_data = self.local_cluster.config_for_rns
         mock_response = mocker.Mock()
@@ -263,30 +238,13 @@ class TestHTTPClient:
         assert cluster.config_for_rns == test_data
 
     @pytest.mark.level("unit")
-    def test_call_module_method_not_found_error(self, mocker):
-        mock_response = mocker.Mock()
-        mock_response.status_code = 200
-        missing_key = "missing_key"
-        mock_response.iter_lines.return_value = iter(
-            [
-                json.dumps({"output_type": "not_found", "data": missing_key}),
-            ]
-        )
-        mocker.patch("requests.Session.post", return_value=mock_response)
-
-        with pytest.raises(KeyError) as context:
-            next(self.client.call("module", "method"))
-
-        assert f"key {missing_key} not found" in str(context)
-
-    @pytest.mark.level("unit")
     def test_put_object(self, mocker):
 
         mock_request = mocker.patch("runhouse.servers.http.HTTPClient.request_json")
 
         key = "my_list"
         value = list(range(5, 50, 2)) + ["a string"]
-        expected_data = pickle_b64(value)
+        expected_data = serialize_data(value, "pickle")
 
         self.client.put_object(key, value)
 

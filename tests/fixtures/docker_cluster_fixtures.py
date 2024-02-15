@@ -369,6 +369,7 @@ def set_up_local_cluster(
     # the "owner's" token) to the container in many cases, so we're relying on authenticating the caller
     # to the server through Den. If the cluster isn't saved before coming up, the config in the cluster servlet
     # doesn't have the rns address, and the auth verification to Den fails.
+    rh_cluster.save()
 
     rh_cluster.save()
 

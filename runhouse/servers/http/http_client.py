@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional, Union
 import requests
 
 from runhouse.globals import rns_client
+from runhouse.logger import ClusterLogsFormatter
 
 from runhouse.resources.envs.utils import _get_env_from
 
@@ -20,7 +21,6 @@ from runhouse.servers.http.http_utils import (
     GetObjectParams,
     handle_response,
     OutputType,
-    pickle_b64,
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
@@ -89,6 +89,8 @@ class HTTPClient:
 
         self.client.verify = self.verify
         self.client.timeout = None
+
+        self.log_formatter = ClusterLogsFormatter(self.system)
 
     def _certs_are_self_signed(self) -> bool:
         """Checks whether the cert provided is self-signed. If it is, all client requests will include the path
@@ -195,20 +197,34 @@ class HTTPClient:
         ):
             endpoint += "/"
 
-        response = retry_with_exponential_backoff(req_fn)(
-            self._formatted_url(endpoint),
-            json=json_dict,
-            headers=headers,
-            auth=self.auth,
-            verify=self.verify,
-        )
+        if req_type == "get":
+            response = retry_with_exponential_backoff(req_fn)(
+                self._formatted_url(endpoint),
+                params=json_dict,
+                headers=headers,
+                auth=self.auth,
+                verify=self.verify,
+            )
+        else:
+            response = retry_with_exponential_backoff(req_fn)(
+                self._formatted_url(endpoint),
+                json=json_dict,
+                headers=headers,
+                auth=self.auth,
+                verify=self.verify,
+            )
         if response.status_code != 200:
             raise ValueError(
                 f"Error calling {endpoint} on server: {response.content.decode()}"
             )
         resp_json = response.json()
         if isinstance(resp_json, dict) and "output_type" in resp_json:
-            return handle_response(resp_json, resp_json["output_type"], err_str)
+            return handle_response(
+                resp_json,
+                resp_json["output_type"],
+                err_str,
+                log_formatter=self.log_formatter,
+            )
         return resp_json
 
     def check_server(self):
@@ -299,7 +315,7 @@ class HTTPClient:
             self._formatted_url(f"{key}/{method_name}"),
             json=CallParams(
                 data=serialize_data(data, serialization),
-                serialization="pickle",
+                serialization=serialization,
                 run_name=run_name,
                 stream_logs=stream_logs,
                 save=save,
@@ -319,7 +335,7 @@ class HTTPClient:
 
         # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
         # maybe a stream of results), so we need to separate these out.
-        non_generator_result = None
+        result = None
         res_iter = res.iter_lines(chunk_size=None)
         # We need to manually iterate through res_iter so we can try/except to bypass a ChunkedEncodingError bug
         while True:
@@ -335,38 +351,10 @@ class HTTPClient:
 
             resp = json.loads(responses_json)
             output_type = resp["output_type"]
-            result = handle_response(resp, output_type, error_str)
-            if output_type in [OutputType.RESULT_STREAM, OutputType.SUCCESS_STREAM]:
-                # First time we encounter a stream result, we know the rest of the results will be a stream, so return
-                # a generator
-                def results_generator():
-                    # If this is supposed to be an empty generator, there's no first result to return
-                    if not output_type == OutputType.SUCCESS_STREAM:
-                        yield result
-                    for responses_json_inner in res_iter:
-                        resp_inner = json.loads(responses_json_inner)
-                        output_type_inner = resp_inner["output_type"]
-                        result_inner = handle_response(
-                            resp_inner, output_type_inner, error_str
-                        )
-                        # if output_type == OutputType.SUCCESS_STREAM:
-                        #     break
-                        if output_type_inner in [
-                            OutputType.RESULT_STREAM,
-                            OutputType.RESULT,
-                        ]:
-                            yield result_inner
-                    end_inner = time.time()
-                    if method_name:
-                        log_str = f"Time to call {key}.{method_name}: {round(end_inner - start, 2)} seconds"
-                    else:
-                        log_str = (
-                            f"Time to get {key}: {round(end_inner - start, 2)} seconds"
-                        )
-                    logging.info(log_str)
-
-                return results_generator()
-            elif output_type == OutputType.CONFIG:
+            result = handle_response(
+                resp, output_type, error_str, log_formatter=self.log_formatter
+            )
+            if output_type == OutputType.CONFIG:
                 # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
                 # slow, we can just set it explicitly.
                 if (
@@ -375,20 +363,16 @@ class HTTPClient:
                     and system.rns_address == result["system"]
                 ):
                     result["system"] = system
-                non_generator_result = Resource.from_config(result, dryrun=True)
-
-            elif output_type in [OutputType.RESULT, OutputType.RESULT_SERIALIZED]:
-                # Finish iterating over logs before returning single result
-                non_generator_result = result
+                result = Resource.from_config(result, dryrun=True)
 
         end = time.time()
 
         if (
-            hasattr(non_generator_result, "system")
+            hasattr(result, "system")
             and system is not None
-            and non_generator_result.system.rns_address == system.rns_address
+            and result.system.rns_address == system.rns_address
         ):
-            non_generator_result.system = system
+            result.system = system
 
         if method_name:
             log_str = (
@@ -397,7 +381,7 @@ class HTTPClient:
         else:
             log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
         logging.info(log_str)
-        return non_generator_result
+        return result
 
     def put_object(self, key: str, value: Any, env=None):
         return self.request_json(
@@ -405,7 +389,7 @@ class HTTPClient:
             req_type="post",
             json_dict=PutObjectParams(
                 key=key,
-                serialized_data=pickle_b64(value),
+                serialized_data=serialize_data(value, "pickle"),
                 env_name=env,
                 serialization="pickle",
             ).dict(),
@@ -421,7 +405,7 @@ class HTTPClient:
             req_type="post",
             # TODO wire up dryrun properly
             json_dict=PutResourceParams(
-                serialized_data=pickle_b64((config, state, dryrun)),
+                serialized_data=serialize_data([config, state, dryrun], "pickle"),
                 env_name=env_name,
                 serialization="pickle",
             ).dict(),

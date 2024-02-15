@@ -8,7 +8,7 @@ import requests
 
 from runhouse.globals import rns_client
 from runhouse.servers.caddy.config import CaddyConfig
-from runhouse.servers.http.http_utils import pickle_b64, PutObjectParams
+from runhouse.servers.http.http_utils import PutObjectParams, serialize_data
 
 
 @pytest.mark.servertest
@@ -361,7 +361,9 @@ class TestCaddyServerLocally:
         response = requests.post(
             f"{protocol}://{cluster.server_address}:{cluster.client_port}/object",
             json=PutObjectParams(
-                serialized_data=pickle_b64(test_list), key=key, serialization="pickle"
+                serialized_data=serialize_data(test_list, "pickle"),
+                key=key,
+                serialization="pickle",
             ).dict(),
             headers=rns_client.request_headers(),
             verify=verify,

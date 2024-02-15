@@ -4,13 +4,8 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
-from runhouse.servers.http.auth import hash_token
-from runhouse.servers.http.http_server import HTTPServer
-from runhouse.servers.http.http_utils import b64_unpickle, Message, pickle_b64
+from runhouse.servers.http.http_utils import deserialize_data, serialize_data
 from runhouse.servers.obj_store import ObjStore
-
-from tests.test_servers.conftest import summer
-from tests.utils import friend_account
 
 
 @pytest.mark.servertest
@@ -26,12 +21,14 @@ class TestServlet:
             resp = ObjStore.call_actor_method(
                 test_servlet,
                 "put_resource_local",
-                data=pickle_b64((resource.config_for_rns, state, resource.dryrun)),
+                data=serialize_data(
+                    (resource.config_for_rns, state, resource.dryrun), "pickle"
+                ),
                 serialization="pickle",
             )
 
             assert resp.output_type == "result_serialized"
-            assert b64_unpickle(resp.data).startswith("file_")
+            assert deserialize_data(resp.data, resp.serialization).startswith("file_")
 
     @pytest.mark.level("unit")
     def test_put_obj_local(self, test_servlet, blob_data):
@@ -42,7 +39,7 @@ class TestServlet:
                 test_servlet,
                 "put_local",
                 key="key1",
-                data=pickle_b64(resource),
+                data=serialize_data(resource, "pickle"),
                 serialization="pickle",
             )
             assert resp.output_type == "success"
@@ -58,7 +55,7 @@ class TestServlet:
             remote=False,
         )
         assert resp.output_type == "result_serialized"
-        blob = b64_unpickle(resp.data)
+        blob = deserialize_data(resp.data, resp.serialization)
         assert isinstance(blob, rh.Blob)
 
     @pytest.mark.level("unit")
@@ -72,7 +69,7 @@ class TestServlet:
             remote=True,
         )
         assert resp.output_type == "result_serialized"
-        blob_config = b64_unpickle(resp.data)
+        blob_config = deserialize_data(resp.data, resp.serialization)
         assert isinstance(blob_config, dict)
 
     @pytest.mark.level("unit")
@@ -86,106 +83,4 @@ class TestServlet:
             remote=False,
         )
         assert resp.output_type == "exception"
-        assert isinstance(b64_unpickle(resp.error), KeyError)
-
-    @pytest.mark.skip("Not implemented yet.")
-    @pytest.mark.level("unit")
-    def test_call(self, test_servlet, docker_cluster_pk_ssh_no_auth):
-        token_hash = None
-        den_auth = False
-        remote_func = rh.function(summer, system=docker_cluster_pk_ssh_no_auth)
-
-        method_name = "call"
-        module_name = remote_func.name
-        args = (1, 2)
-        kwargs = {}
-        serialization = "none"
-        resp = HTTPServer.call_servlet_method(
-            test_servlet,
-            "call",
-            [
-                module_name,
-                method_name,
-                args,
-                kwargs,
-                serialization,
-                token_hash,
-                den_auth,
-            ],
-        )
-
-        assert b64_unpickle(resp.data) == 3
-
-    @pytest.mark.skip("Not implemented yet.")
-    @pytest.mark.level("unit")
-    def test_call_with_den_auth(self, test_servlet):
-        with friend_account() as test_account_dict:
-            token_hash = hash_token(test_account_dict["token"])
-            den_auth = True
-            remote_func = rh.function(summer).save()
-
-        method_name = "call"
-        module_name = remote_func.name
-        args = (1, 2)
-        kwargs = {}
-        serialization = "none"
-
-        resp = HTTPServer.call_servlet_method(
-            test_servlet,
-            "call",
-            [
-                module_name,
-                method_name,
-                args,
-                kwargs,
-                serialization,
-                token_hash,
-                den_auth,
-            ],
-        )
-
-        assert b64_unpickle(resp.data) == 3
-
-    @pytest.mark.skip("Not implemented yet.")
-    @pytest.mark.level("unit")
-    def test_call_module_method_(self, test_servlet):
-        with friend_account():
-            token_hash = None
-            den_auth = False
-            remote_func = rh.function(summer).save()
-
-        method_name = "call"
-        module_name = remote_func.name
-        args = (1, 2)
-        kwargs = {}
-        message = Message(data=pickle_b64(args, kwargs))
-
-        resp = HTTPServer.call_servlet_method(
-            test_servlet,
-            "call_module_method",
-            [module_name, method_name, message, token_hash, den_auth],
-        )
-
-        assert b64_unpickle(resp.data) == 3
-
-    @pytest.mark.skip("Not implemented yet.")
-    @pytest.mark.level("unit")
-    def test_call_module_method_with_den_auth(self, test_servlet):
-        with friend_account() as test_account_dict:
-            token_hash = hash_token(test_account_dict["token"])
-            den_auth = True
-            remote_func = rh.function(summer).save()
-
-        method_name = "call"
-        module_name = remote_func.name
-        args = (1, 2)
-        kwargs = {}
-        message = Message(data=pickle_b64(args, kwargs))
-
-        resp = HTTPServer.call_servlet_method(
-            test_servlet,
-            "call_module_method",
-            [module_name, method_name, message, token_hash, den_auth],
-        )
-
-        assert b64_unpickle(resp.data) == 3
+        assert isinstance(deserialize_data(resp.error, "pickle"), KeyError)
