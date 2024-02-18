@@ -275,6 +275,12 @@ class Resource:
         config["name"] = name
         config = cls._check_for_child_configs(config)
 
+        creds = config.get("creds")
+        if isinstance(creds, str):
+            from runhouse.resources.secrets.secret import Secret
+
+            config["creds"] = Secret.from_name(creds)
+
         # Add this resource's name to the resource artifact registry if part of a run
         rns_client.add_upstream_resource(name)
 

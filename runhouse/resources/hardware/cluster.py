@@ -12,6 +12,7 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 
 # Filter out DeprecationWarnings
@@ -1379,3 +1380,38 @@ class Cluster(Resource):
                 f"Cluster name {self.name} is a reserved name. Please use a different name which is not one of "
                 f"{RESERVED_SYSTEM_NAMES}."
             )
+
+    def share(
+        self,
+        users: Union[str, List[str]] = None,
+        access_level: Union[ResourceAccess, str] = ResourceAccess.READ,
+        visibility: Optional[Union[ResourceVisibility, str]] = None,
+        notify_users: bool = True,
+        headers: Optional[Dict] = None,
+        # Deprecated
+        access_type: Union[ResourceAccess, str] = None,
+    ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
+
+        # save cluster and creds if not saved
+        self.save()
+        self._creds.save()
+
+        # share creds
+        self._creds.share(
+            users=users,
+            access_level=access_level,
+            visibility=visibility,
+            notify_users=notify_users,
+            headers=headers,
+            access_type=access_type,
+        )
+
+        # share cluster
+        return super().share(
+            users=users,
+            access_level=access_level,
+            visibility=visibility,
+            notify_users=notify_users,
+            headers=headers,
+            access_type=access_type,
+        )
