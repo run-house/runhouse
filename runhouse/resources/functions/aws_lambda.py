@@ -62,7 +62,7 @@ class LambdaFunction(Function):
 
     def __init__(
         self,
-        paths_to_code: list[str],
+        paths_to_code: List[str],
         handler_function_name: str,
         runtime: str,
         fn_pointers: tuple,
@@ -174,10 +174,10 @@ class LambdaFunction(Function):
     @classmethod
     def from_handler_file(
         cls,
-        paths_to_code: list[str],
+        paths_to_code: List[str],
         handler_function_name: str,
         name: Optional[str] = None,
-        env: Optional[dict or list[str] or Env] = None,
+        env: Optional[dict or List[str] or Env] = None,
         runtime: Optional[str] = None,
         timeout: Optional[int] = None,
         memory_size: Optional[int] = None,

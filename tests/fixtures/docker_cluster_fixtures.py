@@ -299,7 +299,7 @@ def run_shell_command_direct(subprocess, cmd: str):
     assert result.returncode == 0
 
 
-def run_shell_command(subprocess, cmd: list[str], cwd: str = None):
+def run_shell_command(subprocess, cmd: List[str], cwd: str = None):
     # Run the command and wait for it to complete
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd or Path.cwd())
 
@@ -311,7 +311,7 @@ def run_shell_command(subprocess, cmd: list[str], cwd: str = None):
     assert result.returncode == 0
 
 
-def popen_shell_command(subprocess, command: list[str], cwd: str = None):
+def popen_shell_command(subprocess, command: List[str], cwd: str = None):
     process = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
