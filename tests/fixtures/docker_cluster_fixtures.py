@@ -35,8 +35,14 @@ def cluster(request):
 
 @pytest.fixture(scope="session")
 def named_cluster():
+    from tests.test_resources.test_secrets.conftest import provider_secret_values
+
     # Name cannot be the only arg or we attempt to load from name, and throw an error when it's not found
-    args = dict(name="test-simple-cluster", host="my_url.com")
+    args = dict(
+        name="test-simple-cluster",
+        host="my_url.com",
+        ssh_creds=provider_secret_values["ssh"],
+    )
     c = rh.cluster(**args)
     init_args[id(c)] = args
     return c
