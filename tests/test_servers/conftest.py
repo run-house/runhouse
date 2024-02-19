@@ -78,10 +78,13 @@ def remote_log_streaming_func(cluster):
 
 @pytest.fixture(scope="session")
 def local_cluster():
+    from tests.test_resources.test_secrets.conftest import provider_secret_values
+
     return rh.cluster(
         name="faux_local_cluster",
         server_connection_type="none",
         host="localhost",
+        ssh_creds=provider_secret_values["ssh"],
     )
 
 
