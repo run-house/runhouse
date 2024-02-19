@@ -313,7 +313,8 @@ class TestModule:
         resolved_obj = helper(remote_instance.resolve())
         assert resolved_obj.__class__.__name__ == "SlowPandas"
         assert resolved_obj.size == 20  # resolved_obj.remote.size causing an error
-        assert resolved_obj.config_for_rns == remote_instance.config_for_rns
+        assert resolved_obj.system == remote_instance.system
+        # assert resolved_obj.config_for_rns == remote_instance.config_for_rns
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")

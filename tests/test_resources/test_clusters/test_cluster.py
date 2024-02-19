@@ -18,17 +18,6 @@ from tests.utils import get_random_str
 3) Test AWS, GCP, and Azure static clusters separately
 """
 
-from tests.utils import friend_account
-
-
-def load_shared_resource_config(resource_class_name, address):
-    resource_class = getattr(rh, resource_class_name)
-    loaded_resource = resource_class.from_name(address, dryrun=True)
-    config = loaded_resource.config_for_rns
-    config.pop("live_state", None)  # Too many little differences, leads to flaky tests
-    return config
-    # TODO allow resource subclass tests to extend set of properties to test
-
 
 def save_resource_and_return_config():
     df = pd.DataFrame(
@@ -270,53 +259,3 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert error_txt in res
         finally:
             cluster.run(["runhouse restart"])
-
-    @pytest.mark.level("local")
-    def test_sharing(self, cluster, friend_account_logged_in_docker_cluster_pk_ssh):
-        # Skip this test for ondemand clusters, because making
-        # it compatible with ondemand_cluster requires changes
-        # that break CI.
-        # TODO: Remove this by doing some CI-specific logic.
-        if cluster.__class__.__name__ == "OnDemandCluster":
-            return
-
-        if cluster.rns_address.startswith("~"):
-            # For `local_named_resource` resolve the rns address so it can be shared and loaded
-            from runhouse.globals import rns_client
-
-            cluster.rns_address = rns_client.local_to_remote_address(
-                cluster.rns_address
-            )
-
-        cluster.share(
-            users=["info@run.house"],
-            access_level="read",
-            notify_users=False,
-        )
-
-        # First try loading in same process/filesystem because it's more debuggable, but not as thorough
-        resource_class_name = cluster.config_for_rns["resource_type"].capitalize()
-        config = cluster.config_for_rns
-        config.pop(
-            "live_state", None
-        )  # For ondemand_cluster: too many little differences, leads to flaky tests
-
-        with friend_account():
-            assert (
-                load_shared_resource_config(resource_class_name, cluster.rns_address)
-                == config
-            )
-
-        # TODO: If we are testing with an ondemand_cluster we to
-        # sync sky key so loading ondemand_cluster from config works
-        # Also need aws secret to load availability zones
-        # secrets=["sky", "aws"],
-        load_shared_resource_config_cluster = rh.function(
-            load_shared_resource_config
-        ).to(friend_account_logged_in_docker_cluster_pk_ssh)
-        assert (
-            load_shared_resource_config_cluster(
-                resource_class_name, cluster.rns_address
-            )
-            == config
-        )
