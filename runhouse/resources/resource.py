@@ -287,7 +287,7 @@ class Resource:
 
     @staticmethod
     def from_config(config, dryrun=False):
-        resource_type = config.pop("resource_type")
+        resource_type = config.pop("resource_type", None)
         dryrun = config.pop("dryrun", False) or dryrun
 
         if resource_type == "resource":
