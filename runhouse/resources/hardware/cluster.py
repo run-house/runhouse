@@ -152,7 +152,6 @@ class Cluster(Resource):
     def from_config(config: dict, dryrun=False):
 
         resource_subtype = config.get("resource_subtype")
-
         if resource_subtype == "Cluster":
             return Cluster(**config, dryrun=dryrun)
         elif resource_subtype == "OnDemandCluster":
@@ -844,6 +843,11 @@ class Cluster(Resource):
     @property
     def creds(self):
         """Retrieve SSH credentials."""
+        if isinstance(self._creds, str):
+            from runhouse.resources.secrets.secret import Secret
+            from runhouse.resources.secrets.utils import load_config
+
+            self._creds = Secret.from_config(config=load_config(name=self._creds))
         return self._creds.values or {}
 
     def _rsync(
@@ -1395,8 +1399,6 @@ class Cluster(Resource):
 
         # save cluster and creds if not saved
         self.save()
-        if not isinstance(self._creds, str):
-            self._creds.save()
 
         # share creds
         self._creds.share(
