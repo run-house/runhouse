@@ -76,7 +76,7 @@ install_requires = [
     "ray[default] >= 2.2.0, <= 2.6.3, != 2.6.0",
     "rich",
     "sentry-sdk",
-    "sshfs",
+    "sshfs >= 2023.1.0, <= 2023.4.1",
     "sshtunnel>=0.3.0",
     "typer",
     "uvicorn",
