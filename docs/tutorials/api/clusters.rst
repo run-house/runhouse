@@ -43,7 +43,7 @@ cluster.
 
     import runhouse as rh
 
-    aws_cluster = rh.cluster(name="test-cluster", instance_type="CPU:2")
+    aws_cluster = rh.cluster(name="test-cluster", instance_type="CPU:2", provider="aws")
 
 Next, we set up a basic function to throw up on our cluster. For more
 information about Functions & Modules that you can put up on a cluster,
