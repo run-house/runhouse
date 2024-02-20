@@ -77,7 +77,7 @@ class Folder(Resource):
             self.default_path(self.rns_address, system)
             if path is None
             else path
-            if isinstance(system, Resource)
+            if system is not self.DEFAULT_FS
             else path
             if Path(path).expanduser().is_absolute()
             else str(Path(rns_client.locate_working_dir()) / path)
@@ -97,18 +97,18 @@ class Folder(Resource):
 
     @classmethod
     def default_path(cls, rns_address, system):
-        if system == Folder.DEFAULT_FS or isinstance(system, Cluster):
-            if rns_address:
-                return str(
-                    Path.cwd() / rns_client.split_rns_name_and_path(rns_address)[0]
-                )  # saves to cwd / name
-            return f"{Folder.DEFAULT_CACHE_FOLDER}/{generate_uuid()}"
+        name = (
+            rns_client.split_rns_name_and_path(rns_address)[0]
+            if rns_address
+            else generate_uuid()
+        )
+
+        if system == Folder.DEFAULT_FS:
+            return str(Path.cwd() / name)
+        elif isinstance(system, Cluster):
+            return f"{Folder.DEFAULT_CACHE_FOLDER}/{name}"
         else:
-            # If no path provided for a remote file system default to its name if provided
-            if rns_address:
-                name = rns_address[1:].replace("/", "_") + f".{cls.RESOURCE_TYPE}"
-                return f"{Folder.DEFAULT_FOLDER_PATH}/{name}"
-            return f"{Folder.DEFAULT_FOLDER_PATH}/{generate_uuid()}"
+            return f"{Folder.DEFAULT_FOLDER_PATH}/{name}"
 
     # ----------------------------------
     @staticmethod
