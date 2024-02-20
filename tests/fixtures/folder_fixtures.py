@@ -59,16 +59,19 @@ def cluster_folder(ondemand_cpu_cluster):
 
 
 @pytest.fixture
-def s3_folder():
+def s3_folder(local_folder):
+    # create s3 folder and files
+    tmp_folder = rh.folder(system="s3")
+    tmp_folder._upload(src=local_folder.path, region="us-east-1")
+
     args = {
         "name": "test_s3_folder",
         "system": "s3",
-        "path": "rh-folder",
+        "path": tmp_folder.path,
     }
 
     s3_folder = rh.folder(**args)
     init_args[id(s3_folder)] = args
-    s3_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
 
     yield s3_folder
 
@@ -77,16 +80,18 @@ def s3_folder():
 
 
 @pytest.fixture
-def gcs_folder():
+def gcs_folder(local_folder):
+    # create gcs folder and files
+    gcs_path = local_folder.to(system="gs").path
+
     args = {
         "name": "test_gcs_folder",
         "system": "gs",
-        "path": "rh-folder",
+        "path": gcs_path,
     }
 
     gcs_folder = rh.folder(**args)
     init_args[id(gcs_folder)] = args
-    gcs_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
 
     yield gcs_folder
 
