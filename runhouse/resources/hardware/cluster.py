@@ -484,12 +484,8 @@ class Cluster(Resource):
             )
             self.client_port = self._rpc_tunnel.local_bind_port
 
-            ssh_user = self.creds.get(
-                "ssh_user"
-            )  # TODO: get the values of the secret -> get
-            password = self.creds.get(
-                "password"
-            )  # TODO: get the values of the secret -> get
+            ssh_user = self.creds.get("ssh_user")
+            password = self.creds.get("password")
             auth = (ssh_user, password) if ssh_user and password else None
 
             # Connecting to localhost because it's tunneled into the server at the specified port.
@@ -844,6 +840,11 @@ class Cluster(Resource):
     @property
     def creds(self):
         """Retrieve SSH credentials."""
+        if isinstance(self._creds, str):
+            from runhouse.resources.secrets.secret import Secret
+            from runhouse.resources.secrets.utils import load_config
+
+            self._creds = Secret.from_config(config=load_config(name=self._creds))
         return self._creds.values or {}
 
     def _rsync(

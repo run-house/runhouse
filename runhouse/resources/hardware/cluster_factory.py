@@ -104,7 +104,6 @@ def cluster(
         except ValueError:
             pass
 
-    # TODO: if using default ssh creds - make a copy of them and rename them to the secret name
     ssh_creds_secret = rh.secret(
         name=f"{name}-ssh-secret", provider="ssh", values=ssh_creds
     ).save()
