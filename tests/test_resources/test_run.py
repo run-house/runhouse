@@ -72,7 +72,7 @@ def test_get_or_call_from_cache(summer_func):
         summer_func.get_or_call(run_name, a=10, b=10, c=10, load=False)
 
 
-def test_invalid_fn_sync_run(summer_func, ondemand_cpu_cluster):
+def test_invalid_fn_sync_run(summer_func, ondemand_aws_cluster):
     """Test error handling for invalid function Run. The function expects to receive integers but
     does not receive any. An error should be thrown via Ray."""
     import ray
@@ -98,7 +98,7 @@ def test_invalid_fn_async_run(summer_func):
 
 
 @pytest.mark.skip("Not implemented yet.")
-def test_get_fn_status_updates(ondemand_cpu_cluster, slow_func):
+def test_get_fn_status_updates(ondemand_aws_cluster, slow_func):
     """Run a function that takes a long time to run, confirming that its status changes as we refresh the Run"""
     async_run = slow_func.run(run_name="my_slow_async_run", a=1, b=2)
 
@@ -176,18 +176,18 @@ def test_get_or_run_latest(summer_func):
 
 
 @pytest.mark.skip("Not implemented yet.")
-def test_delete_async_run_from_system(ondemand_cpu_cluster, submitted_async_run):
+def test_delete_async_run_from_system(ondemand_aws_cluster, submitted_async_run):
     # Load the run from the cluster and delete its dedicated folder
-    async_run = ondemand_cpu_cluster.get_run(submitted_async_run)
+    async_run = ondemand_aws_cluster.get_run(submitted_async_run)
     async_run.folder.rm()
     assert not async_run.folder.exists_in_system()
 
 
 @pytest.mark.skip("Not implemented yet.")
-def test_save_fn_run_to_rns(ondemand_cpu_cluster, submitted_run):
+def test_save_fn_run_to_rns(ondemand_aws_cluster, submitted_run):
     """Saves run config to RNS"""
     # Load run that lives on the cluster
-    func_run = ondemand_cpu_cluster.get_run(submitted_run)
+    func_run = ondemand_aws_cluster.get_run(submitted_run)
     assert func_run
 
     # Save to RNS
@@ -212,8 +212,8 @@ def test_latest_fn_run(summer_func):
 
 
 @pytest.mark.skip("Not implemented yet.")
-def test_copy_fn_run_from_cluster_to_local(ondemand_cpu_cluster, submitted_run):
-    my_run = ondemand_cpu_cluster.get_run(submitted_run)
+def test_copy_fn_run_from_cluster_to_local(ondemand_aws_cluster, submitted_run):
+    my_run = ondemand_aws_cluster.get_run(submitted_run)
     my_local_run = my_run.to("here")
     assert my_local_run.folder.exists_in_system()
 
@@ -227,9 +227,9 @@ def test_copy_fn_run_from_cluster_to_local(ondemand_cpu_cluster, submitted_run):
 
 @pytest.mark.skip("Not implemented yet.")
 def test_copy_fn_run_from_system_to_s3(
-    ondemand_cpu_cluster, runs_s3_bucket, submitted_run
+    ondemand_aws_cluster, runs_s3_bucket, submitted_run
 ):
-    my_run = ondemand_cpu_cluster.get_run(submitted_run)
+    my_run = ondemand_aws_cluster.get_run(submitted_run)
     my_run_on_s3 = my_run.to("s3", path=f"/{runs_s3_bucket}/my_test_run")
 
     assert my_run_on_s3.folder.exists_in_system()
@@ -258,9 +258,9 @@ def test_delete_fn_run_from_rns(submitted_run):
 # ------------------------- CLI RUN ------------ ----------------------
 
 
-def test_create_cli_python_command_run(ondemand_cpu_cluster):
+def test_create_cli_python_command_run(ondemand_aws_cluster):
     # Run python commands on the specified system. Save the run results to the .rh/logs/<run_name> folder of the system.
-    return_codes = ondemand_cpu_cluster.run_python(
+    return_codes = ondemand_aws_cluster.run_python(
         [
             "import runhouse as rh",
             "import logging",
@@ -277,17 +277,17 @@ def test_create_cli_python_command_run(ondemand_cpu_cluster):
     assert "File path" in return_codes[0][1].strip()
 
 
-def test_create_cli_command_run(ondemand_cpu_cluster):
+def test_create_cli_command_run(ondemand_aws_cluster):
     """Run CLI command on the specified system.
     Saves the Run locally to the rh/<run_name> folder of the local file system."""
-    return_codes = ondemand_cpu_cluster.run(["python --version"], run_name=CLI_RUN_NAME)
+    return_codes = ondemand_aws_cluster.run(["python --version"], run_name=CLI_RUN_NAME)
 
     assert return_codes[0][0] == 0, "Failed to run CLI command"
     assert return_codes[0][1].strip() == "Python 3.10.6"
 
 
 @pytest.mark.skip("Not implemented yet.")
-def test_send_cli_run_to_cluster(ondemand_cpu_cluster):
+def test_send_cli_run_to_cluster(ondemand_aws_cluster):
     """Send the CLI based Run which was initially saved on the local file system to the cpu cluster."""
     # Load the run from the local file system
     loaded_run = rh.run(
@@ -298,7 +298,7 @@ def test_send_cli_run_to_cluster(ondemand_cpu_cluster):
 
     # Save to default path on the cluster (~/.rh/logs/<run_name>)
     cluster_run = loaded_run.to(
-        ondemand_cpu_cluster, path=rh.Run._base_cluster_folder_path(name=CLI_RUN_NAME)
+        ondemand_aws_cluster, path=rh.Run._base_cluster_folder_path(name=CLI_RUN_NAME)
     )
 
     assert cluster_run.folder.exists_in_system()
@@ -306,17 +306,17 @@ def test_send_cli_run_to_cluster(ondemand_cpu_cluster):
 
 
 @pytest.mark.skip("Not implemented yet.")
-def test_load_cli_command_run_from_cluster(ondemand_cpu_cluster):
+def test_load_cli_command_run_from_cluster(ondemand_aws_cluster):
     # At this point the Run exists locally and on the cluster (hasn't yet been saved to RNS).
     # Load from the cluster
-    cli_run = ondemand_cpu_cluster.get_run(CLI_RUN_NAME)
+    cli_run = ondemand_aws_cluster.get_run(CLI_RUN_NAME)
     assert isinstance(cli_run, rh.Run)
 
 
 @pytest.mark.skip("Not implemented yet.")
-def test_save_cli_run_to_rns(ondemand_cpu_cluster):
+def test_save_cli_run_to_rns(ondemand_aws_cluster):
     # Load the run from the cluster
-    cli_run = ondemand_cpu_cluster.get_run(CLI_RUN_NAME)
+    cli_run = ondemand_aws_cluster.get_run(CLI_RUN_NAME)
 
     # Save to RNS
     cli_run.save(name=CLI_RUN_NAME)
@@ -327,9 +327,9 @@ def test_save_cli_run_to_rns(ondemand_cpu_cluster):
 
 
 @pytest.mark.skip("Not implemented yet.")
-def test_read_cli_command_stdout_from_cluster(ondemand_cpu_cluster):
+def test_read_cli_command_stdout_from_cluster(ondemand_aws_cluster):
     # Read the stdout from the cluster
-    cli_run = ondemand_cpu_cluster.get_run(CLI_RUN_NAME)
+    cli_run = ondemand_aws_cluster.get_run(CLI_RUN_NAME)
     cli_stdout = cli_run.stdout()
     assert cli_stdout == "Python 3.10.6"
 
@@ -344,20 +344,20 @@ def test_delete_cli_run_from_local_filesystem():
 
 
 @pytest.mark.skip("Not implemented yet.")
-def test_delete_cli_run_from_cluster(ondemand_cpu_cluster):
+def test_delete_cli_run_from_cluster(ondemand_aws_cluster):
     """Delete the config where it was copied to (in the ``~/.rh/logs/<run_name>`` folder of the cluster)"""
-    cli_run = ondemand_cpu_cluster.get_run(CLI_RUN_NAME)
+    cli_run = ondemand_aws_cluster.get_run(CLI_RUN_NAME)
     assert cli_run, f"Failed to load run {CLI_RUN_NAME} from cluster"
 
     # Update the Run's folder to point to the cluster instead of the local file system
-    cli_run.folder.system = ondemand_cpu_cluster
+    cli_run.folder.system = ondemand_aws_cluster
     cli_run.folder.path = rh.Run._base_cluster_folder_path(name=CLI_RUN_NAME)
     assert cli_run.folder.exists_in_system()
 
     cli_run.folder.rm()
     assert not cli_run.folder.exists_in_system()
 
-    cli_run = ondemand_cpu_cluster.get_run(CLI_RUN_NAME)
+    cli_run = ondemand_aws_cluster.get_run(CLI_RUN_NAME)
     assert cli_run is None, f"Failed to delete {cli_run} on cluster"
 
 
@@ -373,7 +373,7 @@ def test_delete_cli_run_from_rns():
 
 
 @pytest.mark.skip("Not implemented yet.")
-def test_create_local_ctx_manager_run(summer_func, ondemand_cpu_cluster):
+def test_create_local_ctx_manager_run(summer_func, ondemand_aws_cluster):
     from runhouse.globals import rns_client
 
     ctx_mgr_func = "my_ctx_mgr_func"
@@ -389,7 +389,7 @@ def test_create_local_ctx_manager_run(summer_func, ondemand_cpu_cluster):
         run_res = current_run.result()
         print(f"Run result: {run_res}")
 
-        cluster_config = rh.load(name=ondemand_cpu_cluster.name, instantiate=False)
+        cluster_config = rh.load(name=ondemand_aws_cluster.name, instantiate=False)
         cluster = rh.Cluster.from_config(config=cluster_config, dryrun=True)
         print(f"Cluster loaded: {cluster.name}")
 
@@ -402,10 +402,10 @@ def test_create_local_ctx_manager_run(summer_func, ondemand_cpu_cluster):
     # Artifacts include the rns resolved name (ex: "/jlewitt1/rh-cpu")
     assert r.downstream_artifacts == [
         rns_client.resolve_rns_path(ctx_mgr_func),
-        rns_client.resolve_rns_path(ondemand_cpu_cluster.name),
+        rns_client.resolve_rns_path(ondemand_aws_cluster.name),
     ]
     assert r.upstream_artifacts == [
-        rns_client.resolve_rns_path(ondemand_cpu_cluster.name),
+        rns_client.resolve_rns_path(ondemand_aws_cluster.name),
     ]
 
 

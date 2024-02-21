@@ -45,10 +45,10 @@ def local_folder_docker(docker_cluster_pk_ssh_no_auth):
 
 
 @pytest.fixture
-def cluster_folder(ondemand_cpu_cluster):
+def cluster_folder(ondemand_aws_cluster):
     args = {
         "name": "test_cluster_folder",
-        "system": ondemand_cpu_cluster,
+        "system": ondemand_aws_cluster,
         "path": "rh-folder",
     }
 

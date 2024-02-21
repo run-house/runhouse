@@ -26,14 +26,14 @@ def sd_generate_image(prompt):
     return model(prompt).images[0]
 
 
-def test_cluster_config(ondemand_cpu_cluster):
-    config = ondemand_cpu_cluster.config_for_rns
+def test_cluster_config(ondemand_aws_cluster):
+    config = ondemand_aws_cluster.config_for_rns
     cluster2 = OnDemandCluster.from_config(config)
-    assert cluster2.address == ondemand_cpu_cluster.address
+    assert cluster2.address == ondemand_aws_cluster.address
 
 
-def test_cluster_sharing(ondemand_cpu_cluster):
-    ondemand_cpu_cluster.share(
+def test_cluster_sharing(ondemand_aws_cluster):
+    ondemand_aws_cluster.share(
         users=["donny@run.house", "josh@run.house"],
         access_level="write",
         notify_users=False,
@@ -41,8 +41,8 @@ def test_cluster_sharing(ondemand_cpu_cluster):
     assert True
 
 
-def test_read_shared_cluster(ondemand_cpu_cluster):
-    res = ondemand_cpu_cluster.run_python(["import numpy", "print(numpy.__version__)"])
+def test_read_shared_cluster(ondemand_aws_cluster):
+    res = ondemand_aws_cluster.run_python(["import numpy", "print(numpy.__version__)"])
     assert res[0][1]
 
 
@@ -78,8 +78,8 @@ def test_on_same_cluster(cluster):
     assert func_hw(hw_copy)
 
 
-def test_on_diff_cluster(ondemand_cpu_cluster, byo_cpu):
-    func_hw = rh.function(is_on_cluster).to(ondemand_cpu_cluster)
+def test_on_diff_cluster(ondemand_aws_cluster, byo_cpu):
+    func_hw = rh.function(is_on_cluster).to(ondemand_aws_cluster)
     assert not func_hw(byo_cpu)
 
 
@@ -141,8 +141,10 @@ def test_byo_proxy(byo_cpu, local_folder):
     # assert "sample_file_0.txt" in local_folder.ls(full_paths=False)
 
 
-def test_cluster_with_den_auth(ondemand_https_cluster_with_auth, summer_func_with_auth):
-    ondemand_https_cluster_with_auth.restart_server()
+def test_cluster_with_den_auth(
+    ondemand_aws_https_cluster_with_auth, summer_func_with_auth
+):
+    ondemand_aws_https_cluster_with_auth.restart_server()
     from runhouse.globals import configs
 
     # Create an invalid token, confirm the server does not accept the request
@@ -163,26 +165,30 @@ def test_cluster_with_den_auth(ondemand_https_cluster_with_auth, summer_func_wit
 
 
 def test_start_server_with_custom_certs(
-    ondemand_https_cluster_with_auth, summer_func_with_auth
+    ondemand_aws_https_cluster_with_auth, summer_func_with_auth
 ):
     # NOTE: to check certificate matching:
     # openssl x509 -noout -modulus -in rh_server.crt | openssl md5
     # openssl rsa -noout -modulus -in rh_server.key | openssl md5
     from runhouse.servers.http.certs import TLSCertConfig
 
-    ssl_certfile = f"~/ssl/certs/{ondemand_https_cluster_with_auth.name}/rh_server.crt"
-    ssl_keyfile = f"~/ssl/private/{ondemand_https_cluster_with_auth.name}/rh_server.key"
+    ssl_certfile = (
+        f"~/ssl/certs/{ondemand_aws_https_cluster_with_auth.name}/rh_server.crt"
+    )
+    ssl_keyfile = (
+        f"~/ssl/private/{ondemand_aws_https_cluster_with_auth.name}/rh_server.key"
+    )
 
     # # NOTE: need to include the IP of the cluster when generating the cert
     TLSCertConfig(
         key_path=ssl_keyfile,
         cert_path=ssl_certfile,
-    ).generate_certs(address=ondemand_https_cluster_with_auth.address)
+    ).generate_certs(address=ondemand_aws_https_cluster_with_auth.address)
 
     # # Restart the server using the custom certs
-    ondemand_https_cluster_with_auth.ssl_certfile = ssl_certfile
-    ondemand_https_cluster_with_auth.ssl_keyfile = ssl_keyfile
-    ondemand_https_cluster_with_auth.restart_server()
+    ondemand_aws_https_cluster_with_auth.ssl_certfile = ssl_certfile
+    ondemand_aws_https_cluster_with_auth.ssl_keyfile = ssl_keyfile
+    ondemand_aws_https_cluster_with_auth.restart_server()
 
     try:
         summer_func_with_auth(1, 2)

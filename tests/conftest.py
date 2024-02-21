@@ -209,9 +209,10 @@ from tests.fixtures.on_demand_cluster_fixtures import (
     kubernetes_cpu_cluster,  # noqa: F401
     multinode_cpu_cluster,  # noqa: F401
     on_demand_cluster,  # noqa: F401
+    ondemand_aws_cluster,  # noqa: F401
+    ondemand_aws_https_cluster_with_auth,  # noqa: F401
     ondemand_cluster,  # noqa: F401
-    ondemand_cpu_cluster,  # noqa: F401
-    ondemand_https_cluster_with_auth,  # noqa: F401
+    ondemand_gcp_cluster,  # noqa: F401
     v100_gpu_cluster,  # noqa: F401
 )
 from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
@@ -315,15 +316,21 @@ default_fixtures[TestLevels.LOCAL] = {
     ]
 }
 default_fixtures[TestLevels.MINIMAL] = {
-    "cluster": ["ondemand_cpu_cluster", "kubernetes_cpu_cluster"]
+    "cluster": [
+        "ondemand_aws_cluster",
+        "ondemand_gcp_cluster",
+        "ondemand_aws_https_cluster_with_auth",
+        "kubernetes_cpu_cluster",
+    ]
 }
 default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
         "docker_cluster_pk_ssh_no_auth",
         "docker_cluster_pk_ssh_den_auth",
         "docker_cluster_pwd_ssh_no_auth",
-        "ondemand_cpu_cluster",
-        "ondemand_https_cluster_with_auth",
+        "ondemand_aws_cluster",
+        "ondemand_gcp_cluster",
+        "ondemand_aws_https_cluster_with_auth",
         "password_cluster",
         "multinode_cpu_cluster",
         "static_cpu_cluster",
@@ -334,8 +341,9 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "docker_cluster_pk_ssh_no_auth",
         "docker_cluster_pk_ssh_den_auth",
         "docker_cluster_pwd_ssh_no_auth",
-        "ondemand_cpu_cluster",
-        "ondemand_https_cluster_with_auth",
+        "ondemand_aws_cluster",
+        "ondemand_gcp_cluster",
+        "ondemand_aws_https_cluster_with_auth",
         "password_cluster",
         "multinode_cpu_cluster",
         "static_cpu_cluster",

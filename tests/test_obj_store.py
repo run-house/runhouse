@@ -23,13 +23,12 @@ LOCAL = {
         "docker_cluster_pk_ssh_no_auth",
     ]
 }
-MINIMAL = {"cluster": ["ondemand_cpu_cluster"]}
+MINIMAL = {"cluster": ["ondemand_aws_cluster"]}
 THOROUGH = {
     "cluster": [
         "docker_cluster_pwd_ssh_no_auth",
         "docker_cluster_pk_ssh_no_auth",
-        "ondemand_cpu_cluster",
-        "ondemand_https_cluster_with_auth",
+        "ondemand_aws_cluster",
         "password_cluster",
         "multinode_cpu_cluster",
         "byo_cpu",
@@ -39,8 +38,7 @@ MAXIMAL = {
     "cluster": [
         "docker_cluster_pwd_ssh_no_auth",
         "docker_cluster_pk_ssh_no_auth",
-        "ondemand_cpu_cluster",
-        "ondemand_https_cluster_with_auth",
+        "ondemand_aws_cluster",
         "password_cluster",
         "multinode_cpu_cluster",
         "byo_cpu",
