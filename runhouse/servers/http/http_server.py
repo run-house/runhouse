@@ -663,10 +663,13 @@ class HTTPServer:
         from opentelemetry import trace
 
         span = trace.get_current_span()
-        username = configs.get("username")
 
-        # Set the username as a span attribute
-        span.set_attribute("username", username)
+        token = get_token_from_request(request)
+        username = username_from_token(token)
+        if username:
+            # Set the username as a span attribute
+            span.set_attribute("username", username)
+
         return await call_next(request)
 
     @staticmethod
