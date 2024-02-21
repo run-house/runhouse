@@ -1,5 +1,4 @@
 import subprocess
-from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -339,10 +338,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
 
         cluster_name = cluster.name
-        original_cluster_creds = cluster.creds
-        original_cluster_creds["ssh_private_key"] = str(
-            Path(original_cluster_creds["ssh_private_key"]).expanduser()
-        )
 
         with friend_account():
             shared_cluster = rh.cluster(name=cluster_name)
@@ -351,7 +346,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                 "ssh_user": "rh-docker-user",
                 "ssh_private_key": "/home/runner/.ssh/sky-key",
             }
-            shared_cluster._update_creds_values(original_cluster_creds)
             echo_msg = "hello from shared cluster"
             run_res = shared_cluster.run([f"echo {echo_msg}"])
             assert echo_msg in run_res[0][1]

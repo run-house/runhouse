@@ -1008,13 +1008,6 @@ class Cluster(Resource):
             ssh_creds["ssh_private_key"] = new_key
         return ssh_creds
 
-    def _update_creds_values(self, new_values):
-        from runhouse.resources.secrets.secret import Secret
-
-        config = self._creds.config_for_rns
-        config["values"] = new_values
-        self._creds = Secret.from_config(config)
-
     def _ping(self, timeout=5):
         ssh_call = threading.Thread(target=lambda: self.run(['echo "hello"']))
         ssh_call.start()
