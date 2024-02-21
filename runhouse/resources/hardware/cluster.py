@@ -840,6 +840,10 @@ class Cluster(Resource):
     @property
     def creds(self):
         """Retrieve SSH credentials."""
+        from runhouse.resources.secrets.secret import Secret
+
+        if isinstance(self._creds, str):
+            self._creds = Secret.from_name(self._creds)
         return self._creds.values or {}
 
     def _rsync(
