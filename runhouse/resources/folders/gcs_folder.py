@@ -113,7 +113,7 @@ class GCSFolder(Folder):
         disable_multiprocessing_flag = '-o "GSUtil:parallel_process_count=1"'
         sync_command = f"gsutil -m {disable_multiprocessing_flag} rsync -rd gs://{gs_bucket_name} s3://{s3_bucket_name}"
         try:
-            subprocess.call(sync_command, shell=True)
+            subprocess.run(sync_command, shell=True)
         except subprocess.CalledProcessError as e:
             raise e
 

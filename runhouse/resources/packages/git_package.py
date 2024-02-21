@@ -58,14 +58,12 @@ class GitPackage(Package):
                 ["git", "clone", self.git_url],
                 cwd=Path(self.install_target).expanduser().parent,
                 check=True,
-                capture_output=True,
             )
         else:
             logging.info(f"Pulling: git -C {self.install_target} fetch {self.git_url}")
             subprocess.run(
                 f"git -C {self.install_target} fetch {self.git_url}".split(" "),
                 check=True,
-                capture_output=True,
                 cwd=Path(self.install_target).expanduser().parent,
             )
         # Checkout the revision
@@ -75,7 +73,6 @@ class GitPackage(Package):
                 ["git", "-C", self.install_target, "checkout", self.revision],
                 cwd=Path(self.install_target).expanduser().parent,
                 check=True,
-                capture_output=True,
             )
         # Use super to install the package
         super()._install(env)

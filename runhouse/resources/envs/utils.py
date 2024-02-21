@@ -116,13 +116,13 @@ def _env_vars_from_file(env_file):
 
 
 def _install_conda():
-    if subprocess.call(shlex.split("conda --version")) != 0:
+    if subprocess.run(shlex.split("conda --version")) != 0:
         logging.info("Conda is not installed")
-        subprocess.call(
+        subprocess.run(
             "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh",
             shell=True,
         )
-        subprocess.call("bash ~/miniconda.sh -b -p ~/miniconda", shell=True)
-        subprocess.call("source $HOME/miniconda3/bin/activate", shell=True)
-        if subprocess.call(shlex.split("conda --version")) != 0:
+        subprocess.run("bash ~/miniconda.sh -b -p ~/miniconda", shell=True)
+        subprocess.run("source $HOME/miniconda3/bin/activate", shell=True)
+        if subprocess.run(shlex.split("conda --version")) != 0:
             raise RuntimeError("Could not install Conda.")

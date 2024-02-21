@@ -171,12 +171,12 @@ class Env(Resource):
             use_shell = any(shell_feat in cmd for shell_feat in [">", "|", "&&", "||"])
             if use_shell:
                 # Example: "echo '<TOKEN>' > ~/.rh/config.yaml"
-                ret_code = subprocess.call(
+                ret_code = subprocess.run(
                     cmd,
                     shell=True,
                 )
             else:
-                ret_code = subprocess.call(
+                ret_code = subprocess.run(
                     shlex.split(cmd),
                     # cwd=self.working_dir,  # Should we do this?
                     shell=False,
