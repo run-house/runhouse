@@ -52,7 +52,7 @@ Table of Contents
    :maxdepth: 1
    :caption: Getting Started
 
-   tutorials/api/quick_start
+   tutorials/start/quick_start
    architecture
    api_tutorials
 
