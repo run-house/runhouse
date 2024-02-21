@@ -414,7 +414,7 @@ class Folder(Resource):
         cmd = (
             f'rsync {src_str} {dest_str} --password_file {data_config["key_filename"]}'
         )
-        subprocess.check_call(shlex.split(cmd))
+        subprocess.run(shlex.split(cmd), capture_output=True, check=True)
 
     def mkdir(self):
         """Create the folder in specified file system if it doesn't already exist."""
