@@ -198,9 +198,7 @@ def status(
             return
         else:
             try:
-                time.sleep(3)
                 current_cluster = rh.cluster(name=cluster_name)
-                time.sleep(5)
                 config = current_cluster.status()
             except ValueError:
                 console.print(
