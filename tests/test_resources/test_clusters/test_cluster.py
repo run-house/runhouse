@@ -1,4 +1,5 @@
 import subprocess
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -296,9 +297,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # First try loading in same process/filesystem because it's more debuggable, but not as thorough
         resource_class_name = cluster.config_for_rns["resource_type"].capitalize()
         config = cluster.config_for_rns
-        config.pop(
-            "live_state", None
-        )  # For ondemand_cluster: too many little differences, leads to flaky tests
 
         with friend_account():
             assert (
@@ -319,3 +317,42 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             )
             == config
         )
+
+    @pytest.mark.level("local")
+    def test_access_to_shared_cluster(self, cluster):
+        # TODO: Remove this by doing some CI-specific logic.
+        if cluster.__class__.__name__ == "OnDemandCluster":
+            return
+
+        if cluster.rns_address.startswith("~"):
+            # For `local_named_resource` resolve the rns address so it can be shared and loaded
+            from runhouse.globals import rns_client
+
+            cluster.rns_address = rns_client.local_to_remote_address(
+                cluster.rns_address
+            )
+
+        cluster.share(
+            users=["info@run.house"],
+            access_level="read",
+            notify_users=False,
+        )
+
+        cluster_name = cluster.name
+        original_cluster_creds = cluster.creds
+        original_cluster_creds["ssh_private_key"] = str(
+            Path(original_cluster_creds["ssh_private_key"]).expanduser()
+        )
+
+        with friend_account():
+            shared_cluster = rh.cluster(name=cluster_name)
+            assert shared_cluster.name == cluster_name
+            assert shared_cluster.creds == {
+                "ssh_user": "rh-docker-user",
+                "ssh_private_key": "/home/runner/.ssh/sky-key",
+            }
+            shared_cluster._update_creds_values(original_cluster_creds)
+            echo_msg = "hello from shared cluster"
+            run_res = shared_cluster.run([f"echo {echo_msg}"])
+            assert echo_msg in run_res[0][1]
+            shared_cluster.ssh()

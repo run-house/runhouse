@@ -163,9 +163,6 @@ class TestResource:
             "resource_type"
         ].capitalize()
         config = saved_resource.config_for_rns
-        config.pop(
-            "live_state", None
-        )  # For ondemand_cluster: too many little differences, leads to flaky tests
 
         with friend_account():
             assert (

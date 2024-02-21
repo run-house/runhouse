@@ -273,11 +273,21 @@ class Resource:
         config["name"] = name
         config = cls._check_for_child_configs(config)
 
-        creds = config.get("creds")
+        if "ssh_creds" in config.keys():
+            creds = config.pop("ssh_creds")
+        else:
+            creds = config.pop("creds", None)
+
         if isinstance(creds, str):
             from runhouse.resources.secrets.secret import Secret
 
-            config["creds"] = Secret.from_name(creds)
+            creds = Secret.from_name(creds)
+        elif isinstance(creds, dict):
+            import runhouse as rh
+
+            creds = rh.secret(name=f"{name}-ssh-secret", provider="ssh", values=creds)
+
+        config["creds"] = creds
 
         # Add this resource's name to the resource artifact registry if part of a run
         rns_client.add_upstream_resource(name)
