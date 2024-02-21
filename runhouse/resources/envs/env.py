@@ -40,7 +40,6 @@ class Env(Resource):
         .. note::
             To create an Env, please use the factory method :func:`env`.
         """
-
         super().__init__(name=name, dryrun=dryrun)
         self._reqs = reqs
         self.setup_cmds = setup_cmds
