@@ -54,12 +54,13 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
     }
     MINIMAL = {
         "env": ["base_env", "named_env", "base_conda_env"],
-        "cluster": ["ondemand_cpu_cluster"],
+        "cluster": ["ondemand_aws_cluster", "ondemand_gcp_cluster"],
     }
     THOROUGH = {
         "env": ["base_env", "named_env", "base_conda_env", "conda_env_from_dict"],
         "cluster": [
-            "ondemand_cpu_cluster",
+            "ondemand_aws_cluster",
+            "ondemand_gcp_cluster",
             "static_cpu_cluster",
             "password_cluster",
             "multinode_cpu_cluster",
@@ -77,7 +78,8 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             "conda_env_from_path",
         ],
         "cluster": [
-            "ondemand_cpu_cluster",
+            "ondemand_aws_cluster",
+            "ondemand_gcp_cluster",
             "static_cpu_cluster",
             "password_cluster",
             "multinode_cpu_cluster",

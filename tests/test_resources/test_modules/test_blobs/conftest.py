@@ -61,17 +61,17 @@ def gcs_blob(blob_data, blob_gcs_bucket):
 
 
 @pytest.fixture
-def cluster_blob(blob_data, ondemand_cpu_cluster):
+def cluster_blob(blob_data, ondemand_aws_cluster):
     return rh.blob(
         data=blob_data,
-        system=ondemand_cpu_cluster,
+        system=ondemand_aws_cluster,
     )
 
 
 @pytest.fixture
-def cluster_file(blob_data, ondemand_cpu_cluster):
+def cluster_file(blob_data, ondemand_aws_cluster):
     return rh.blob(
         data=blob_data,
-        system=ondemand_cpu_cluster,
+        system=ondemand_aws_cluster,
         path="test_blob.pickle",
     )

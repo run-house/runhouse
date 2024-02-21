@@ -191,6 +191,7 @@ class TestHTTPServerDocker:
                     )
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_call(self, async_http_client, remote_func):
         method = "call"
 
@@ -203,6 +204,7 @@ class TestHTTPServerDocker:
         assert response.json() == 3
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_call_with_invalid_serialization(
         self, async_http_client, remote_func
     ):
@@ -217,6 +219,7 @@ class TestHTTPServerDocker:
         assert "Invalid serialization type" in response.text
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_call_with_pickle_serialization(
         self, async_http_client, remote_func
     ):
@@ -237,6 +240,7 @@ class TestHTTPServerDocker:
         )
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_call_with_json_serialization(
         self, async_http_client, remote_func
     ):
