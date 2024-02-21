@@ -54,17 +54,28 @@ class GitPackage(Package):
         # Clone down the repo
         if not Path(self.install_target).exists():
             logging.info(f"Cloning: git clone {self.git_url}")
-            subprocess.check_call(["git", "clone", self.git_url])
+            subprocess.run(
+                ["git", "clone", self.git_url],
+                cwd=Path(self.install_target).expanduser().parent,
+                check=True,
+                capture_output=True,
+            )
         else:
             logging.info(f"Pulling: git -C {self.install_target} fetch {self.git_url}")
-            subprocess.check_call(
-                f"git -C {self.install_target} fetch {self.git_url}".split(" ")
+            subprocess.run(
+                f"git -C {self.install_target} fetch {self.git_url}".split(" "),
+                check=True,
+                capture_output=True,
+                cwd=Path(self.install_target).expanduser().parent,
             )
         # Checkout the revision
         if self.revision:
             logging.info(f"Checking out revision: git checkout {self.revision}")
-            subprocess.check_call(
-                ["git", "-C", self.install_target, "checkout", self.revision]
+            subprocess.run(
+                ["git", "-C", self.install_target, "checkout", self.revision],
+                cwd=Path(self.install_target).expanduser().parent,
+                check=True,
+                capture_output=True,
             )
         # Use super to install the package
         super()._install(env)
