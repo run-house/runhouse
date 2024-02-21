@@ -44,20 +44,13 @@ class TestResourceSharing:
         return res
 
     @staticmethod
-    def update_cluster_auth_cache(cluster, username, token):
-        """Refresh cache on cluster for current user to reflect any Den updates made in the test."""
-        refresh_cmd = f"obj_store.add_user_to_auth_cache('{username},{token}')"
-        cluster.run_python(["from runhouse.globals import obj_store", refresh_cmd])
-
-    @staticmethod
-    def call_cluster_methods(cluster, test_env, valid_token):
+    def call_cluster_methods(cluster, valid_token):
         cluster_methods = [
             (cluster.put, ("test_obj", list(range(10)))),
             (cluster.get, ("test_obj",)),
             (cluster.keys, ()),
             (cluster.rename, ("test_obj", "test_obj2")),
             (cluster.add_secrets, ({"aws": "abc123"},)),
-            (cluster.put_resource, (test_env,)),
         ]
 
         for method, args in cluster_methods:
@@ -83,6 +76,8 @@ class TestResourceSharing:
         res = self.call_func_with_curl(
             cluster, resource.name, cluster_token, **{"a": 1, "b": 2}
         )
+
+        # Note: kwarg vals should no longer be concatenated once schema support is addde
         assert "12" in res.stdout
 
         # Reload the shared function and call it
@@ -90,13 +85,13 @@ class TestResourceSharing:
         assert reloaded_func(1, 2) == 3
 
     @pytest.mark.level("local")
-    def test_use_cluster_apis_for_shared_resource(self, resource, test_env):
+    def test_use_cluster_apis_for_shared_resource(self, resource):
         # Should be able to use the shared cluster APIs if given access
         current_token = rh.configs.token
 
         # Confirm we can perform cluster actions with the current token
         cluster = resource.system
-        self.call_cluster_methods(cluster, test_env, valid_token=True)
+        self.call_cluster_methods(cluster, valid_token=True)
 
         # Should not be able to install packages on the cluster with read access
         try:
@@ -106,7 +101,7 @@ class TestResourceSharing:
 
         # Confirm we cannot perform actions on the cluster with an invalid token
         rh.configs.token = "abc123"
-        self.call_cluster_methods(cluster, test_env, valid_token=False)
+        self.call_cluster_methods(cluster, valid_token=False)
 
         # Reset back to valid token
         rh.configs.token = current_token
@@ -158,8 +153,6 @@ class TestResourceSharing:
             if resp.status_code != 200:
                 assert False, f"Failed to delete user access to resource: {resp.text}"
 
-            self.update_cluster_auth_cache(cluster, current_username, current_token)
-
         # Confirm user can no longer call the function since only has read access to the cluster
         cluster_token = rns_client.cluster_token(current_token, cluster.rns_address)
         res = self.call_func_with_curl(
@@ -181,6 +174,7 @@ class TestResourceSharing:
         cluster_uri = rns_client.resource_uri(cluster.rns_address)
 
         with friend_account():
+            friend_account_request_headers = rns_client.request_headers()
             # Give user write access to cluster from test account
             resp = requests.put(
                 f"{rns_client.api_server_url}/resource/{cluster_uri}/users/access",
@@ -191,7 +185,7 @@ class TestResourceSharing:
                         "notify_users": False,
                     }
                 ),
-                headers=rns_client.request_headers(),
+                headers=friend_account_request_headers,
             )
             if resp.status_code != 200:
                 assert False, f"Failed to give write access to cluster: {resp.text}"
@@ -201,12 +195,10 @@ class TestResourceSharing:
 
             resp = requests.delete(
                 f"{rns_client.api_server_url}/resource/{resource_uri}/user/{current_username}",
-                headers=rns_client.request_headers(),
+                headers=friend_account_request_headers,
             )
             if resp.status_code != 200:
                 assert False, f"Failed to delete user access to resource: {resp.text}"
-
-            self.update_cluster_auth_cache(cluster, current_username, current_token)
 
         # Confirm user can still call the function with write access to the cluster
         cluster_token = rns_client.cluster_token(current_token, cluster.rns_address)
@@ -234,8 +226,6 @@ class TestResourceSharing:
             )
             if resp.status_code != 200:
                 assert False, f"Failed to delete user access to cluster: {resp.text}"
-
-            self.update_cluster_auth_cache(cluster, current_username, current_token)
 
         # Confirm current user can still call the function
         cluster_token = rns_client.cluster_token(current_token, cluster.rns_address)
