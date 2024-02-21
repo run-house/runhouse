@@ -344,7 +344,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert shared_cluster.name == cluster_name
             assert shared_cluster.creds == {
                 "ssh_user": "rh-docker-user",
-                "ssh_private_key": "/home/runner/.ssh/sky-key",
+                "ssh_private_key": "~/.ssh/sky-key",
             }
             echo_msg = "hello from shared cluster"
             run_res = shared_cluster.run([f"echo {echo_msg}"])

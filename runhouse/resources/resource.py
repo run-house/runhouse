@@ -263,6 +263,24 @@ class Resource:
             return obj_store.get(name)
 
         config = rns_client.load_config(name=name)
+        creds = config.pop("creds", None) or config.pop("ssh_creds", None)
+
+        import runhouse as rh
+        from runhouse.resources.secrets.secret import Secret
+        from runhouse.resources.secrets.utils import load_config
+
+        if isinstance(creds, str):
+            creds = Secret.from_config(config=load_config(name=creds))
+        if isinstance(creds, dict):
+            if "name" in creds.keys():
+                creds = Secret.from_config(creds)
+            else:
+                ssh_creds = Secret.setup_ssh_creds(creds)
+                creds = rh.secret(
+                    name=f"{name}-ssh-secret", provider="ssh", values=ssh_creds
+                )
+
+        config["creds"] = creds
 
         if alt_options:
             config = cls._compare_config_with_alt_options(config, alt_options)

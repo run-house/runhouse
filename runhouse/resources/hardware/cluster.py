@@ -999,15 +999,6 @@ class Cluster(Resource):
 
         subprocess.run(cmd.split(" "))
 
-    @classmethod
-    def setup_ssh_creds(cls, ssh_creds):
-        if "ssh_private_key" in list(ssh_creds.keys()):
-            new_key = ssh_creds.pop("ssh_private_key").split("/")
-            ssh_index = new_key.index(".ssh")
-            new_key = f'~/{"/".join(new_key[ssh_index:])}'
-            ssh_creds["ssh_private_key"] = new_key
-        return ssh_creds
-
     def _ping(self, timeout=5):
         ssh_call = threading.Thread(target=lambda: self.run(['echo "hello"']))
         ssh_call.start()

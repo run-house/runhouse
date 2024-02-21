@@ -104,7 +104,9 @@ def cluster(
         except ValueError:
             pass
 
-    ssh_creds = Cluster.setup_ssh_creds(ssh_creds)
+    from runhouse.resources.secrets.secret import Secret
+
+    ssh_creds = Secret.setup_ssh_creds(ssh_creds)
     ssh_creds_secret = rh.secret(
         name=f"{name}-ssh-secret", provider="ssh", values=ssh_creds
     ).save()
