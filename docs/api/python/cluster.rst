@@ -282,8 +282,10 @@ Let's illustrate this with a simple example:
     # and view the function metadata in Runhouse Den
     remote_func.share("user1@gmail.com", access_level="read")
 
-    # User1 can then call the function from any environment
+    # This other user (user1) can then call the function remotely from any python environment
     res = remote_func("run", "house")
+    >> print(res)
+    >> "runhouse"
 
 
 We can also call the function via an HTTP request, making it easy for other users to call the function with

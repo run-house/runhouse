@@ -745,7 +745,7 @@ class Module(Resource):
             >>> my_module = rh.module(my_class)
             >>> my_remote_fn(my_module.resolve()) # my_module will be replaced with the original class `my_class`
 
-            >>> my_result_blob = my_remote_fn.remote(args)
+            >>> my_result_blob = my_remote_fn.call.remote(args)
             >>> my_other_remote_fn(my_result_blob.resolve()) # my_result_blob will be replaced with its data
 
         """
@@ -809,6 +809,7 @@ class Module(Resource):
         """Register the resource and save to local working_dir config and RNS config store."""
         # Need to override Resource's save to handle key changes in the obj store
         # Also check that this is a Blob and not a File
+        old_rns_address = self.rns_address
         if name:
             _, base_name = rns_client.split_rns_name_and_path(
                 rns_client.resolve_rns_path(name)
@@ -820,7 +821,13 @@ class Module(Resource):
                     self.name = name
                     if isinstance(self.system, Cluster):
                         self.system.put_resource(self)
-        return super().save(overwrite=overwrite)
+
+        res = super().save(overwrite=overwrite)
+
+        if old_rns_address != self.rns_address:
+            self.remote.name = self.rns_address
+
+        return res
 
     def share(self, *args, visibility=None, **kwargs):
         if visibility and not visibility == self.visibility:

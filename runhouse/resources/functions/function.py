@@ -152,10 +152,6 @@ class Function(Module):
         ray_wrapped_fn = ray.remote(fn)
         return ray.get([ray_wrapped_fn.remote(*args, **kwargs) for args in args_lists])
 
-    def remote(self, *args, local=True, **kwargs):
-        obj = self.call.remote(*args, **kwargs)
-        return obj
-
     def run(self, *args, local=True, **kwargs):
         key = self.call.run(*args, **kwargs)
         return key
@@ -164,8 +160,8 @@ class Function(Module):
         """Get the result of a Function call that was submitted as async using `run`.
 
         Args:
-            run_key: A single or list of runhouse run_key strings returned by a Function.remote() call. The ObjectRefs
-                must be from the cluster that this Function is running on.
+            run_key: A single or list of runhouse run_key strings returned by calling ``.call.remote()`` on the
+                Function. The ObjectRefs must be from the cluster that this Function is running on.
 
         Example:
             >>> remote_fn = rh.function(local_fn).to(gpu)
