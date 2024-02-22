@@ -339,14 +339,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
 
         cluster_name = cluster.name
+        cluster_creds = cluster.creds
 
         with friend_account():
             shared_cluster = rh.cluster(name=cluster_name)
             assert shared_cluster.name == cluster_name
-            assert shared_cluster.creds == {
-                "ssh_user": "rh-docker-user",
-                "ssh_private_key": "~/.ssh/sky-key",
-            }
+            assert shared_cluster.creds == cluster_creds
             echo_msg = "hello from shared cluster"
             run_res = shared_cluster.run([f"echo {echo_msg}"])
             assert echo_msg in run_res[0][1]
