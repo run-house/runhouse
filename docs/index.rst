@@ -20,16 +20,16 @@ Table of Contents
    :maxdepth: 1
    :caption: Getting Started
 
-   tutorials/api/quick_start
+   tutorials/getting_started/quick_start
 
 .. toctree::
    :maxdepth: 1
    :caption: API Basics
 
-   tutorials/api/compute
-   tutorials/api/data
-   tutorials/api/secrets
-   tutorials/api/resources
+   tutorials/api_basics/compute
+   tutorials/api_basics/data
+   tutorials/api_basics/secrets
+   tutorials/api_basics/resources
 
 .. toctree::
    :maxdepth: 1
@@ -51,10 +51,9 @@ Table of Contents
    :maxdepth: 1
    :caption: Examples
 
-   tutorials/examples/inference
-   tutorials/examples/training
-   tutorials/examples/distributed
-   Pipelining: BERT <https://github.com/run-house/funhouse/tree/main/bert_pipeline>
+   examples/inference
+   examples/training
+   examples/distributed
 
 
 Contributing and Community

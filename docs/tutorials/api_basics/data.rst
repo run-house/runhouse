@@ -3,7 +3,7 @@ Data: Folders, Tables, & Blobs
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/stable/docs/notebooks/api/data.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/api_basics/data.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 

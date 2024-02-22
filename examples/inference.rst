@@ -3,7 +3,7 @@ Inference: Stable Diffusion and FLAN-T5
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/stable/docs/notebooks/examples/inference.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/examples/inference.ipynb">
     <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 Runhouse is nothing more than an accessibility and sharing layer into

@@ -3,7 +3,7 @@ Secrets Management
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/stable/docs/notebooks/api/secrets.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/api_basics/secrets.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 Secrets are a Runhouse resource that provides a simple interface for
