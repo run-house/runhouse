@@ -581,9 +581,9 @@ class Cluster(Resource):
 
         return
 
-    def status(self):
+    def status(self, restart_server=True):
         try:
-            self.check_server()
+            self.check_server(restart_server)
             if self.on_this_cluster():
                 return obj_store.status()
             return self.client.status()

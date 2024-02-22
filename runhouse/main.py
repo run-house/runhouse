@@ -199,7 +199,7 @@ def status(
         else:
             try:
                 current_cluster = rh.cluster(name=cluster_name)
-                config = current_cluster.status()
+                config = current_cluster.status(restart_server=False)
             except ValueError:
                 console.print(
                     f"Cluster {cluster_name} is not found in Den. Please save it, in order to get its"
