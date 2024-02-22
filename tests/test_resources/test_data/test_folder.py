@@ -184,12 +184,3 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         # remove folder in s3
         s3_folder.rm()
         assert not s3_folder.exists_in_system()
-
-    @pytest.mark.level("local")
-    def test_from_config(self, folder, dest):
-        config = folder.config_for_rns
-        new_resource = rh.Folder.from_config(config)
-        assert new_resource.config_for_rns == folder.config_for_rns
-        assert new_resource.rns_address == folder.rns_address
-        assert new_resource.dryrun == folder.dryrun
-        # TODO allow resource subclass tests to extend set of properties to test
