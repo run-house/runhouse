@@ -12,6 +12,7 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import runhouse
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 
@@ -54,7 +55,7 @@ class Cluster(Resource):
         # Name will almost always be provided unless a "local" cluster is created
         name: Optional[str] = None,
         ips: List[str] = None,
-        creds: "SSHSecret" = None,
+        creds: Union["SSHSecret", str] = None,
         server_host: str = None,
         server_port: int = None,
         ssh_port: int = None,
@@ -840,11 +841,19 @@ class Cluster(Resource):
     @property
     def creds(self):
         """Retrieve SSH credentials."""
-        from runhouse.resources.secrets.secret import Secret
-
         if isinstance(self._creds, str):
-            self._creds = Secret.from_name(self._creds)
+            from runhouse.resources.secrets.secret import Secret
+
+            self._creds = Secret.from_name(name=self._creds)
         return self._creds.values or {}
+
+    @creds.setter
+    def creds(self, new_creds):
+        if not isinstance(new_creds, runhouse.Secret):
+            raise ValueError(
+                f"Cluster creds should be of type runhouse.Secret, you provided {type(new_creds)}"
+            )
+        self._creds = new_creds
 
     def _rsync(
         self,
