@@ -604,9 +604,9 @@ def docker_cluster_pwd_ssh_no_auth(request):
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 4
 
-    pwd_file = "docker_user_passwd"
-    rh_parent_path = get_rh_parent_path()
-    pwd = (rh_parent_path.parent / pwd_file).read_text().strip()
+    # pwd_file = "docker_user_passwd"
+    # rh_parent_path = get_rh_parent_path()
+    # pwd = (rh_parent_path.parent / pwd_file).read_text().strip()
 
     local_cluster, cleanup = set_up_local_cluster(
         image_name="pwd",
@@ -620,7 +620,8 @@ def docker_cluster_pwd_ssh_no_auth(request):
         additional_cluster_init_args={
             "name": "docker_cluster_pwd_ssh_no_auth",
             "server_connection_type": "ssh",
-            "ssh_creds": {"ssh_user": SSH_USER, "password": pwd},
+            "ssh_creds": {"ssh_user": SSH_USER, "password": "password"}
+            # "ssh_creds": {"ssh_user": SSH_USER, "password": pwd}
         },
     )
     # Yield the cluster
