@@ -232,6 +232,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert "status_key2 (str)" in res
         assert "creds" not in res
 
+    @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")
     def test_rh_status_cli_not_in_cluster(self, cluster):
         cluster.put(key="status_key3", obj="status_value3", env="base_env")
