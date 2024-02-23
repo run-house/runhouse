@@ -73,11 +73,8 @@ cd docs/
 make clean html
 ```
 
-If updating or adding a notebook or colab file, please follow the following steps:
-
-* export the notebook into a `.ipynb` file (`notebook_name.ipynb`), and add/update the notebook file under `docs/notebooks`, either in the `api` or `examples` folder
-* To construct the `.rst` file corresponding to the notebook text and output, run from the runhouse git root:
-```
-scripts/docs/convert_nb_to_rst.sh docs/notebooks/xxx/notebook_name.ipynb
-```
-* push changes to both the `.ipynb` and `.rst` files
+### Tutorials and Examples
+Notebook (`.ipynb`) code lives in [run-house/notebooks](https://github.com/run-house/notebooks). If modifying
+a tutorial or example involving a `.ipynb` file, please refer to these
+[instructions](https://github.com/run-house/notebooks?tab=readme-ov-file#syncing-docs-to-run-houserunhouse) for
+how to upload your notebook to the notebooks repo and sync the rendered `.rst` file over to the runhouse repo.
