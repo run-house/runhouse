@@ -174,7 +174,7 @@ class TestFunction:
         assert pid_res > 0
 
         # Test passing a remote into a normal call
-        pid_blob = pid_fn.remote()
+        pid_blob = pid_fn.call.remote()
         pid_res = cluster.get(pid_blob.name).data
         assert pid_res > 0
         pid_res = pid_blob.fetch()
@@ -223,9 +223,9 @@ class TestFunction:
         current_jobs = cluster.keys()
         assert set([pid_obj1, pid_obj2]).issubset(current_jobs)
 
-        pid_obj3 = pid_fn.remote()
+        pid_obj3 = pid_fn.call.remote()
         time.sleep(1)
-        pid_obj4 = pid_fn.remote()
+        pid_obj4 = pid_fn.call.remote()
         time.sleep(1)
         current_jobs = cluster.keys()
         assert set(
@@ -519,10 +519,10 @@ class TestFunction:
         assert response is None
 
     @pytest.mark.level("unit")
-    def test_remote_unittest(self, mocker):
-        mock_function = mocker.patch("runhouse.Function.remote")
+    def test_call_unittest(self, mocker):
+        mock_function = mocker.patch("runhouse.Function.call")
         mock_function.return_value = 5
-        response = self.function.remote(3, 2)
+        response = self.function.call(3, 2)
         assert response == 5
         mock_function.assert_called_once_with(3, 2)
 

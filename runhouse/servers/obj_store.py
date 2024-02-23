@@ -885,6 +885,7 @@ class ObjStore:
 
         obj = self.get_local(key, default=KeyError)
 
+        from runhouse.resources.envs.env import Env
         from runhouse.resources.module import Module
         from runhouse.resources.resource import Resource
 
@@ -906,7 +907,10 @@ class ObjStore:
                 # Setting to None in the case of non-resource or no rns_address will force auth to only
                 # succeed if the user has WRITE or READ access to the cluster
                 resource_uri = obj.rns_address if hasattr(obj, "rns_address") else None
-                if not self.has_resource_access(ctx.username, resource_uri):
+                if key != Env.DEFAULT_NAME and not self.has_resource_access(
+                    ctx.username, resource_uri
+                ):
+                    # Do not validate access to the default Env
                     raise PermissionError(
                         f"Unauthorized access to resource {key}.",
                     )
