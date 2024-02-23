@@ -49,14 +49,6 @@ Table of Contents
    api/python
    api/cli
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Examples
-
-   examples/inference
-   examples/training
-   examples/distributed
-
 
 Contributing and Community
 --------------------------
