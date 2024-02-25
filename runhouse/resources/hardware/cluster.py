@@ -929,6 +929,8 @@ class Cluster(Resource):
         ssh_credentials = copy.copy(self.creds) or {}
         ssh_credentials.pop("ssh_host", node)
         pwd = ssh_credentials.pop("password", None)
+        ssh_credentials.pop("private_key", None)
+        ssh_credentials.pop("public_key", None)
         ssh_control_name = ssh_credentials.pop(
             "ssh_control_name", f"{node}:{self.ssh_port}"
         )
@@ -1133,6 +1135,8 @@ class Cluster(Resource):
         ssh_credentials = copy.copy(self.creds)
         host = ssh_credentials.pop("ssh_host", node or self.address)
         pwd = ssh_credentials.pop("password", None)
+        ssh_credentials.pop("private_key", None)
+        ssh_credentials.pop("public_key", None)
         ssh_control_name = ssh_credentials.pop(
             "ssh_control_name", f"{node}:{self.ssh_port}"
         )

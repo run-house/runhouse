@@ -5,8 +5,6 @@ import warnings
 
 from typing import Dict, List, Optional, Union
 
-import runhouse as rh
-
 from runhouse.constants import LOCAL_HOSTS, RESERVED_SYSTEM_NAMES
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import relative_ssh_path
@@ -104,12 +102,9 @@ def cluster(
         except ValueError:
             pass
 
-    from runhouse.resources.secrets.secret import Secret
+    from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
-    ssh_creds = Secret.setup_ssh_creds(ssh_creds)
-    ssh_creds_secret = rh.secret(
-        name=f"{name}-ssh-secret", provider="ssh", values=ssh_creds
-    ).save()
+    ssh_creds_secret = SSHSecret.setup_ssh_creds(ssh_creds)
 
     if "instance_type" in kwargs.keys():
         return ondemand_cluster(

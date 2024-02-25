@@ -282,6 +282,7 @@ class Resource:
     @classmethod
     def update_creds_in_config(cls, config, name):
         import runhouse as rh
+        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
         from runhouse.resources.secrets.secret import Secret
         from runhouse.resources.secrets.utils import load_config
 
@@ -293,7 +294,7 @@ class Resource:
             if "name" in creds.keys():
                 creds = Secret.from_config(creds)
             else:
-                ssh_creds = Secret.setup_ssh_creds(creds)
+                ssh_creds = SSHSecret.setup_ssh_creds(creds)
                 creds = rh.secret(
                     name=f"{name}-ssh-secret", provider="ssh", values=ssh_creds
                 )

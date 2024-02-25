@@ -92,7 +92,7 @@ class SSHSecret(ProviderSecret):
 
         return new_secret
 
-    def _from_path(self, path: Union[str, File]):
+    def _from_path(self, path: Union[str, File], public_path=None):
         if path == self._DEFAULT_CREDENTIALS_PATH:
             path = f"{self._DEFAULT_CREDENTIALS_PATH}/{self.key}"
 
@@ -103,7 +103,13 @@ class SSHSecret(ProviderSecret):
             pub_key_file = file(path=f"{path.path}.pub", system=path.system)
             pub_key = pub_key_file.fetch(mode="r", deserialize=False)
         else:
-            pub_key_path = os.path.expanduser(f"{path}.pub")
+            pub_key_path = (
+                os.path.expanduser(f"{path}.pub")
+                if not public_path
+                else os.path.expanduser(f"{public_path}.pub")
+                if ".pub" not in public_path
+                else public_path
+            )
             priv_key_path = os.path.expanduser(path)
 
             if not (os.path.exists(pub_key_path) and os.path.exists(priv_key_path)):
@@ -134,3 +140,80 @@ class SSHSecret(ProviderSecret):
             system.call(key, "_write_to_file", path=path, values=values)
             remote_priv_file = file(path=path, system=system)
         return remote_priv_file
+
+    @classmethod
+    def setup_ssh_creds(cls, ssh_creds: Union[dict, str]):
+        """
+        if the created secret is an ssh secret, and the values contain ssh_private_key, this method set up the
+        key to be the relative path to the private key. Later on, if the secret will be shared, this path will be
+        transformed to the absolut path in the destination.
+        :param ssh_creds: dict, the "original" credentials passed to the secrets constructor
+        :return: a dict of the new creds, where ssh_private_key is the relative path to the private key.
+        """
+        import runhouse as rh
+
+        if isinstance(ssh_creds, str):
+            return cls.from_name(name=ssh_creds)
+
+        if len(ssh_creds) > 2:
+            raise ValueError("Too many ssh credentials were provided")
+
+        creds_keys = list(ssh_creds.keys())
+
+        if len(creds_keys) == 1 and "ssh_private_key" in creds_keys:
+            if Path(ssh_creds["ssh_private_key"]).exists():
+                values = cls._from_path(self=cls, path=ssh_creds["private_key"])
+                values["ssh_private_key"] = ssh_creds["private_key"]
+            else:
+                raise ValueError(
+                    "SSH creds require both private and public key, but only private key was provided"
+                )
+        elif "ssh_private_key" in creds_keys and "ssh_public key" in creds_keys:
+            private_key, public_key = (
+                ssh_creds["ssh_private_key"],
+                ssh_creds["ssh_public_key"],
+            )
+            private_key_path, public_key_path = Path(private_key), Path(public_key)
+            if private_key_path.exists() and public_key_path.exists():
+                if private_key_path.parent == public_key_path.parent:
+                    values = cls._from_path(self=cls, path=private_key)
+                else:
+                    values = cls._from_path(
+                        self=cls, path=private_key, public_path=public_key
+                    )
+                values["ssh_private_key"], values["ssh_public_key"] = (
+                    private_key_path,
+                    public_key_path,
+                )
+            else:
+                values = {"private_key": private_key, "public_key": public_key}
+        elif "ssh_private_key" in creds_keys and "ssh_user" in creds_keys:
+            private_key, username = ssh_creds["ssh_private_key"], ssh_creds["ssh_user"]
+            if Path(private_key).exists():
+                private_key = cls._from_path(self=cls, path=private_key).get(
+                    "private_key"
+                )
+            if Path(username).exists():
+                username = super()._from_path(username)
+            values = {
+                "private_key": private_key,
+                "ssh_user": username,
+                "ssh_private_key": ssh_creds["ssh_private_key"],
+            }
+        elif "ssh_user" in creds_keys and "password" in creds_keys:
+            password, username = ssh_creds["password"], ssh_creds["ssh_user"]
+            if Path(password).exists():
+                password = super()._from_path(password)
+            if Path(username).exists():
+                username = super()._from_path(username)
+            values = {"password": password, "ssh_user": username}
+        else:
+            values = {}
+            for k in creds_keys:
+                v = ssh_creds[k]
+                if Path(v).exists():
+                    v = super()._from_path(v)
+                values.update({k: v})
+
+        new_secret = rh.secret(provider="ssh", values=values).save()
+        return new_secret

@@ -116,7 +116,6 @@ class OnDemandCluster(Cluster):
     def config_for_rns(self):
         config = super().config_for_rns
         sky_status = self._sky_status()
-
         # Also store the ssh keys for the cluster in RNS
         config.update(
             {
@@ -128,12 +127,10 @@ class OnDemandCluster(Cluster):
                 "use_spot": self.use_spot,
                 "image_id": self.image_id,
                 "region": self.region,
-                "cluster_yaml": sky_status["handle"].cluster_yaml,
                 "head_ip": sky_status["handle"].head_ip,
                 "stable_internal_external_ips": sky_status[
                     "handle"
                 ].stable_internal_external_ips,
-                "public_key": self.creds["ssh_private_key"] + ".pub",
             }
         )
 
@@ -459,7 +456,7 @@ class OnDemandCluster(Cluster):
             >>> rh.ondemand_cluster("rh-cpu").teardown_and_delete()
         """
         self.teardown()
-        rns_client.delete_configs()
+        rns_client.delete_configs(resource=self)
 
     @contextlib.contextmanager
     def pause_autostop(self):

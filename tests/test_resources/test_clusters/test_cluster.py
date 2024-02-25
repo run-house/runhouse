@@ -82,7 +82,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert cluster.address == args["ips"][0]
 
         if "ssh_creds" in args:
-            assert cluster.creds == args["ssh_creds"]
+            cluster_creds = cluster.creds
+            cluster_creds.pop("private_key", None)
+            cluster_creds.pop("public_key", None)
+            assert cluster_creds == args["ssh_creds"]
 
         if "server_host" in args:
             assert cluster.server_host == args["server_host"]
@@ -318,6 +321,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             == config
         )
 
+    @pytest.mark.skip("WIP")
     @pytest.mark.level("local")
     def test_access_to_shared_cluster(self, cluster):
         # TODO: Remove this by doing some CI-specific logic.

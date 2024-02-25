@@ -329,19 +329,3 @@ class Secret(Resource):
         if self.values:
             return True
         return False
-
-    @classmethod
-    def setup_ssh_creds(cls, ssh_creds):
-        """
-        if the created secret is an ssh secret, and the values contain ssh_private_key, this method set up the
-        key to be the relative path to the private key. Later on, if the secret will be shared, this path will be
-        transformed to the absolut path in the destination.
-        :param ssh_creds: dict, the "original" credentials passed to the secrets constructor
-        :return: a dict of the new creds, where ssh_private_key is the relative path to the private key.
-        """
-        if "ssh_private_key" in list(ssh_creds.keys()):
-            new_key = ssh_creds.pop("ssh_private_key").split("/")
-            ssh_index = new_key.index(".ssh")
-            new_key = f'~/{"/".join(new_key[ssh_index:])}'
-            ssh_creds["ssh_private_key"] = new_key
-        return ssh_creds
