@@ -414,7 +414,7 @@ class Folder(Resource):
         cmd = (
             f'rsync {src_str} {dest_str} --password_file {data_config["key_filename"]}'
         )
-        subprocess.check_call(shlex.split(cmd))
+        subprocess.run(shlex.split(cmd), capture_output=True, check=True)
 
     def mkdir(self):
         """Create the folder in specified file system if it doesn't already exist."""
@@ -563,16 +563,23 @@ class Folder(Resource):
         """CLI command for uploading folder to remote bucket. Needed when uploading a folder from a cluster."""
         raise NotImplementedError
 
-    def _run_upload_cli_cmd(self, sync_dir_command: str, access_denied_message: str):
+    def _run_upload_cli_cmd(self, command: str):
         """Uploads a folder to a remote bucket.
         Based on the CLI command skypilot uses to upload the folder"""
-        from sky.data.data_utils import run_upload_cli
-
-        run_upload_cli(
-            command=sync_dir_command,
-            access_denied_message=access_denied_message,
-            bucket_name=self._bucket_name_from_path(self.path),
-        )
+        # Adapted from: https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/data_utils.py#L165 # noqa
+        with subprocess.Popen(
+            command, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, shell=True
+        ) as process:
+            stderr = []
+            while True:
+                line = process.stderr.readline()
+                if not line:
+                    break
+                str_line = line.decode("utf-8")
+                stderr.append(str_line)
+            returncode = process.wait()
+            if returncode != 0:
+                raise RuntimeError(" ".join(stderr).strip())
 
     def _download(self, dest):
         raise NotImplementedError

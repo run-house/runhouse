@@ -187,6 +187,7 @@ from tests.fixtures.docker_cluster_fixtures import (
     named_cluster,  # noqa: F401
     password_cluster,  # noqa: F401
     shared_cluster,  # noqa: F401
+    shared_function,  # noqa: F401
     static_cpu_cluster,  # noqa: F401
 )
 
@@ -258,7 +259,6 @@ from tests.test_resources.test_modules.test_folders.test_packages.conftest impor
 # ----------------- Functions -----------------
 from tests.test_resources.test_modules.test_functions.conftest import (
     func_with_artifacts,  # noqa: F401
-    shared_function,  # noqa: F401
     slow_func,  # noqa: F401
     slow_running_func,  # noqa: F401
     summer_func,  # noqa: F401

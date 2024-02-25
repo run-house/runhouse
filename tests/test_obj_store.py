@@ -78,7 +78,7 @@ def test_stream_logs(cluster):
 def test_get_from_cluster(cluster):
     print_fn = rh.function(fn=do_printing_and_logging, system=cluster)
     print(print_fn())
-    res = print_fn.remote()
+    res = print_fn.call.remote()
     assert isinstance(res, rh.Blob)
     assert res.name in cluster.keys()
 
@@ -136,7 +136,7 @@ def test_pinning_and_arg_replacement(cluster):
     pin_fn = rh.function(pinning_helper).to(cluster)
 
     # First run should pin "run_pin" and "run_pin_inside"
-    pin_fn.remote(key="run_pin", run_name="pinning_test")
+    pin_fn.call.remote(key="run_pin", run_name="pinning_test")
     print(cluster.keys())
     assert cluster.get("pinning_test").fetch() == ["fn result"] * 3
     assert cluster.get("run_pin_inside").data == ["put within fn"] * 5

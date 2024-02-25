@@ -64,6 +64,7 @@ class HTTPClient:
         self,
         host: str,
         port: Optional[int],
+        resource_address: str,
         auth=None,
         cert_path=None,
         use_https=False,
@@ -74,6 +75,7 @@ class HTTPClient:
         self.auth = auth
         self.cert_path = cert_path
         self.use_https = use_https
+        self.resource_address = resource_address
         self.system = system
 
         self.client = requests.Session()
@@ -104,7 +106,7 @@ class HTTPClient:
 
         cert_path = Path(self.cert_path)
         if not cert_path.exists():
-            raise FileNotFoundError(f"No cert found in path: {cert_path}")
+            return False
 
         # Check whether the cert is self-signed
         with open(cert_path, "rb") as cert_file:
@@ -119,7 +121,7 @@ class HTTPClient:
         return False
 
     @staticmethod
-    def from_endpoint(endpoint: str, auth=None, cert_path=None):
+    def from_endpoint(endpoint: str, resource_address: str, auth=None, cert_path=None):
         protocol, uri = endpoint.split("://")
         if protocol not in ["http", "https"]:
             raise ValueError(f"Invalid protocol: {protocol}")
@@ -136,7 +138,14 @@ class HTTPClient:
         else:
             port = int(port)
 
-        client = HTTPClient(host, port, auth, cert_path, use_https=False)
+        client = HTTPClient(
+            host,
+            port=port,
+            auth=auth,
+            cert_path=cert_path,
+            resource_address=resource_address,
+            use_https=False,
+        )
         client.use_https = use_https
         return client
 
@@ -150,6 +159,7 @@ class HTTPClient:
         self,
         endpoint,
         req_type="post",
+        resource_address=None,
         data=None,
         env=None,
         stream_logs=True,
@@ -159,6 +169,7 @@ class HTTPClient:
         timeout=None,
         headers: Union[Dict, None] = None,
     ):
+        headers = rns_client.request_headers(resource_address, headers)
         json_dict = {
             "data": data,
             "env": env,
@@ -185,7 +196,11 @@ class HTTPClient:
         headers: Union[Dict, None] = None,
     ):
         # Support use case where we explicitly do not want to provide headers (e.g. requesting a cert)
-        headers = rns_client.request_headers() if headers != {} else headers
+        headers = (
+            rns_client.request_headers(self.resource_address)
+            if headers != {}
+            else headers
+        )
         req_fn = (
             session.get
             if req_type == "get"
@@ -254,8 +269,10 @@ class HTTPClient:
                 f"but local Runhouse version is ({runhouse.__version__})"
             )
 
-    def status(self):
-        return self.request("status", req_type="get")
+    def status(self, resource_address: str):
+        """Load the remote cluster's status."""
+        # Note: Resource address must be specified in order to construct the cluster subtoken
+        return self.request("status", req_type="get", resource_address=resource_address)
 
     def get_certificate(self):
         cert: bytes = self.request(
@@ -274,6 +291,7 @@ class HTTPClient:
         method_name: str,
         data: Any = None,
         serialization: Optional[str] = None,
+        resource_address=None,
         run_name: Optional[str] = None,
         stream_logs: bool = True,
         remote: bool = False,
@@ -286,6 +304,7 @@ class HTTPClient:
             method_name,
             data=data,
             serialization=serialization,
+            resource_address=resource_address or self.resource_address,
             run_name=run_name,
             stream_logs=stream_logs,
             remote=remote,
@@ -300,6 +319,7 @@ class HTTPClient:
         method_name: str,
         data: Any = None,
         serialization: Optional[str] = None,
+        resource_address=None,
         run_name: Optional[str] = None,
         stream_logs: bool = True,
         remote: bool = False,
@@ -329,7 +349,7 @@ class HTTPClient:
                 run_async=run_async,
             ).dict(),
             stream=not run_async,
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(resource_address),
             auth=self.auth,
             verify=self.verify,
         )
@@ -465,7 +485,7 @@ class HTTPClient:
         res = retry_with_exponential_backoff(session.post)(
             self._formatted_url("settings"),
             json=new_settings,
-            headers=rns_client.request_headers(),
+            headers=rns_client.request_headers(self.resource_address),
             auth=self.auth,
             verify=self.verify,
         )

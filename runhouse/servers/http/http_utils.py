@@ -3,7 +3,9 @@ import json
 import logging
 import re
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
+
+import requests
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -17,10 +19,7 @@ logger = logging.getLogger(__name__)
 
 class RequestContext(BaseModel):
     request_id: str
-    username: Optional[
-        str
-    ]  # TODO refactor the auth cache to use usernames instead of token hashes
-    token_hash: Optional[str]
+    username: Optional[str]
 
 
 class ServerSettings(BaseModel):
@@ -171,9 +170,33 @@ def handle_exception_response(
     )
 
 
+def username_from_token(token: str) -> Union[str, None]:
+    """Get the username from the provided cluster subtoken."""
+    from runhouse.globals import rns_client
+    from runhouse.rns.utils.api import read_resp_data
+
+    resp = requests.get(
+        f"{rns_client.api_server_url}/user",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if resp.status_code != 200:
+        return None
+
+    user_data = read_resp_data(resp)
+    username = user_data.get("username")
+    if not username:
+        return None
+
+    return username
+
+
 def get_token_from_request(request):
-    auth_headers = request.headers.get("Authorization", "")
+    auth_headers = auth_headers_from_request(request)
     return auth_headers.split("Bearer ")[-1] if auth_headers else None
+
+
+def auth_headers_from_request(request):
+    return request.headers.get("Authorization", "")
 
 
 def load_current_cluster_rns_address():

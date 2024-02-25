@@ -40,8 +40,6 @@ jobs:
           echo "VAULT_NAMESPACE=${{ secrets.VAULT_NAMESPACE }}" >> env_file
           echo "VAULT_ROLE_ID=${{ secrets.VAULT_ROLE_ID }}" >> env_file
           echo "VAULT_SECRET_ID=${{ secrets.VAULT_SECRET_ID }}" >> env_file
-          echo "TEST_ACCOUNT_TOKEN=${{ env.TEST_ACCOUNT_TOKEN }}" >> env_file
-          echo "SHARED_ACCOUNT_TOKEN=${{ env.SHARED_ACCOUNT_TOKEN }}" >> env_file
           echo "DEV_MODE=true" >> env_file
 
       - name: Setup Runhouse

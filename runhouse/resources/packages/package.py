@@ -1,6 +1,7 @@
 import copy
 import logging
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -224,7 +225,7 @@ class Package(Resource):
             return "cpu"
 
         try:
-            subprocess.check_call(["nvidia-smi"])
+            subprocess.run(["nvidia-smi"], capture_output=True, check=True)
             return cuda_version
         except (subprocess.CalledProcessError, FileNotFoundError):
             return "cpu"
@@ -259,7 +260,7 @@ class Package(Resource):
         else:
             cmd = f"{sys.executable} -m {pip_cmd}"
             logging.info(f"Running: {cmd}")
-            subprocess.check_call(cmd.split(" "))
+            subprocess.run(shlex.split(cmd), check=True, capture_output=True)
 
     @staticmethod
     def _conda_install(install_cmd: str, env: Union[str, "Env"] = ""):
@@ -274,17 +275,29 @@ class Package(Resource):
         logging.info(f"Running: {cmd}")
         # check if conda is installed, and if not, install it
         try:
-            subprocess.check_call(["conda", "--version"])
+            subprocess.run(["conda", "--version"], capture_output=True, check=True)
             subprocess.run(cmd.split(" "))
         except FileNotFoundError:
             logging.info("Conda not found, installing...")
-            subprocess.check_call(
+            subprocess.run(
                 "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh "
-                "-O ~/miniconda.sh".split(" ")
+                "-O ~/miniconda.sh".split(" "),
+                capture_output=True,
+                check=True,
             )
-            subprocess.check_call(["bash", "~/miniconda.sh", "-b", "-p", "~/miniconda"])
-            subprocess.check_call("source $HOME/miniconda3/bin/activate".split(" "))
-            status = subprocess.check_call(cmd.split(" "))
+            subprocess.run(
+                ["bash", "~/miniconda.sh", "-b", "-p", "~/miniconda"],
+                capture_output=True,
+                check=True,
+            )
+            subprocess.run(
+                "source $HOME/miniconda3/bin/activate".split(" "),
+                capture_output=True,
+                check=True,
+            )
+            status = subprocess.run(
+                cmd.split(" "), capture_output=True, check=True
+            ).returncode
             if not status == 0:
                 raise RuntimeError(
                     "Conda install failed, check that the package exists and is "

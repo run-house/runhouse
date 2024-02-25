@@ -42,7 +42,7 @@ def submitted_async_run(summer_func):  # noqa: F811
 
 def test_read_prov_info(summer_func):
     """Reads the stdout for the Run."""
-    remote_res = summer_func.remote(a=1, b=2)
+    remote_res = summer_func.call.remote(a=1, b=2)
     assert isinstance(remote_res, rh.Blob)
     assert remote_res.name in summer_func.system.keys()
     assert remote_res.fetch() == 3

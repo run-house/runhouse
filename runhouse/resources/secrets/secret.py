@@ -221,9 +221,7 @@ class Secret(Resource):
                     headers=headers,
                 )
                 if resp.status_code != 200:
-                    raise Exception(
-                        f"Failed to upload secrets in Vault: {load_resp_content(resp)}"
-                    )
+                    raise Exception("Failed to upload secrets in Vault")
 
         else:
             config_path = os.path.expanduser(f"~/.rh/secrets/{self.name}.json")

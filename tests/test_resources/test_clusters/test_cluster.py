@@ -83,8 +83,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         if "ssh_creds" in args:
             cluster_creds = cluster.creds
-            cluster_creds.pop("private_key", None)
-            cluster_creds.pop("public_key", None)
+            if "ssh_private_key" in cluster_creds:
+                # this means that the secret was created by accessing an ssh-key file
+                cluster_creds.pop("private_key", None)
+                cluster_creds.pop("public_key", None)
             assert cluster_creds == args["ssh_creds"]
 
         if "server_host" in args:

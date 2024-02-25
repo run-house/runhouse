@@ -28,7 +28,11 @@ class TestHTTPClient:
             ssh_creds=provider_secret_values["ssh"],
         )
         self.local_cluster = rh.cluster(**args)
-        self.client = HTTPClient("localhost", DEFAULT_SERVER_PORT)
+        self.client = HTTPClient(
+            "localhost",
+            DEFAULT_SERVER_PORT,
+            resource_address=self.local_cluster.rns_address,
+        )
 
     @pytest.mark.level("unit")
     def test_check_server(self, mocker):
@@ -84,7 +88,6 @@ class TestHTTPClient:
         mock_cert.issuer = "issuer"
         mock_cert.subject = "subject"
 
-        mock_exists = mocker.patch("pathlib.Path.exists", return_value=True)
         mock_load_cert = mocker.patch(
             "builtins.open", mocker.mock_open(read_data="cert_data")
         )
@@ -98,6 +101,7 @@ class TestHTTPClient:
         client = HTTPClient(
             "localhost",
             DEFAULT_SERVER_PORT,
+            resource_address=self.local_cluster.rns_address,
             use_https=True,
             cert_path="/valid/path",
         )
@@ -108,24 +112,27 @@ class TestHTTPClient:
         mock_cert.subject = "self-signed"
         mock_load_cert.return_value = mock_cert
 
-        # Test with HTTPS enabled and an existing cert path
+        # If providing a valid self-signed cert, "verify" should be the path to the cert
+        mocker.patch("pathlib.Path.exists", return_value=True)
         client = HTTPClient(
             "localhost",
             DEFAULT_SERVER_PORT,
+            resource_address=self.local_cluster.rns_address,
             use_https=True,
             cert_path="/self-signed/path",
         )
         assert client.verify == "/self-signed/path"
 
-        # Test with HTTPS enabled and an invalid cert path
-        mock_exists.return_value = False
-        with pytest.raises(FileNotFoundError):
-            HTTPClient(
-                "localhost",
-                DEFAULT_SERVER_PORT,
-                use_https=True,
-                cert_path="/invalid/path",
-            )
+        # If providing an invalid cert path we still default to verify=True since https is enabled
+        mocker.patch("pathlib.Path.exists", return_value=False)
+        client = HTTPClient(
+            "localhost",
+            DEFAULT_SERVER_PORT,
+            resource_address=self.local_cluster.rns_address,
+            use_https=True,
+            cert_path="/invalid/path",
+        )
+        assert client.verify is True
 
     @pytest.mark.level("unit")
     def test_call_module_method(self, mocker):
@@ -150,7 +157,9 @@ class TestHTTPClient:
         # Call the method under test
         method_name = "install"
         module_name = "base_env"
-        result = self.client.call(module_name, method_name)
+        result = self.client.call(
+            module_name, method_name, resource_address=self.local_cluster.rns_address
+        )
 
         assert result == "final_result"
 
@@ -165,7 +174,9 @@ class TestHTTPClient:
             "remote": False,
             "run_async": False,
         }
-        expected_headers = rns_client.request_headers()
+        expected_headers = rns_client.request_headers(
+            resource_address=self.local_cluster.rns_address
+        )
         expected_verify = self.client.verify
 
         mock_post.assert_called_once_with(
@@ -194,7 +205,12 @@ class TestHTTPClient:
         module_name = "module"
         method_name = "install"
 
-        self.client.call(module_name, method_name, data=[args, kwargs])
+        self.client.call(
+            module_name,
+            method_name,
+            data=[args, kwargs],
+            resource_address=self.local_cluster.rns_address,
+        )
 
         # Assert that the post request was called with the correct data
         expected_json_data = {
@@ -207,7 +223,7 @@ class TestHTTPClient:
             "run_async": False,
         }
         expected_url = f"http://localhost:32300/{module_name}/{method_name}"
-        expected_headers = rns_client.request_headers()
+        expected_headers = rns_client.request_headers(self.local_cluster.rns_address)
         expected_verify = self.client.verify
 
         mock_post.assert_called_with(
@@ -220,17 +236,19 @@ class TestHTTPClient:
         )
 
     @pytest.mark.level("unit")
-    def test_call_module_method_error_handling(self, mocker):
+    def test_call_module_method_error_handling(self, mocker, local_cluster):
         mock_response = mocker.Mock()
         mock_response.status_code = 500
         mock_response.content = b"Internal Server Error"
         mocker.patch("requests.Session.post", return_value=mock_response)
 
         with pytest.raises(ValueError):
-            self.client.call("module", "method")
+            self.client.call(
+                "module", "method", resource_address=local_cluster.rns_address
+            )
 
     @pytest.mark.level("unit")
-    def test_call_module_method_config(self, mocker):
+    def test_call_module_method_config(self, mocker, local_cluster):
         test_data = self.local_cluster.config_for_rns
         mock_response = mocker.Mock()
         mock_response.status_code = 200
@@ -241,7 +259,9 @@ class TestHTTPClient:
         )
         mocker.patch("requests.Session.post", return_value=mock_response)
 
-        cluster = self.client.call("base_env", "install")
+        cluster = self.client.call(
+            "base_env", "install", resource_address=local_cluster.rns_address
+        )
         assert cluster.config_for_rns == test_data
 
     @pytest.mark.level("unit")
