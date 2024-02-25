@@ -12,7 +12,6 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import runhouse
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 
@@ -853,14 +852,6 @@ class Cluster(Resource):
 
             self._creds = Secret.from_name(name=self._creds)
         return self._creds.values or {}
-
-    @creds.setter
-    def creds(self, new_creds):
-        if not isinstance(new_creds, runhouse.Secret):
-            raise ValueError(
-                f"Cluster creds should be of type runhouse.Secret, you provided {type(new_creds)}"
-            )
-        self._creds = new_creds
 
     def _rsync(
         self,
