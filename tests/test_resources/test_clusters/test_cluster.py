@@ -25,7 +25,6 @@ def load_shared_resource_config(resource_class_name, address):
     resource_class = getattr(rh, resource_class_name)
     loaded_resource = resource_class.from_name(address, dryrun=True)
     config = loaded_resource.config_for_rns
-    config.pop("live_state", None)  # Too many little differences, leads to flaky tests
     return config
 
 
