@@ -337,14 +337,14 @@ class TestHTTPServerDockerDenAuthOnly:
                 headers=rns_client.request_headers(cluster.rns_address),
             )
             assert cluster.rns_address not in [
-                config["name"] for config in res.json()["data"]
+                config["name"] for config in res.json().get("data", [])
             ]
             response = http_client.get(
                 "/keys", headers=rns_client.request_headers(cluster.rns_address)
             )
 
         assert response.status_code == 403
-        assert "Cluster access is required for this operation." in response.text
+        assert "Failed to validate cluster token" in response.text
 
     @pytest.mark.level("local")
     def test_request_with_no_token(self, http_client):

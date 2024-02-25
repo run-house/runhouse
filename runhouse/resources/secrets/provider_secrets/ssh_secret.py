@@ -53,17 +53,20 @@ class SSHSecret(ProviderSecret):
                 new_values = config.pop("values")
                 config["values"] = new_values
             else:
-                folder_name = config["name"][1:].replace("/", "_")
-                ssh_path = str(Path("~/.ssh").expanduser() / folder_name / "ssh-key")
                 new_values = config.pop("values")
-                private_key_to_write = {
-                    "private_key": new_values.pop("private_key", ""),
-                    "public_key": new_values.pop("public_key", ""),
-                }
-                SSHSecret._write_to_file(
-                    self=SSHSecret, path=ssh_path, values=private_key_to_write
-                )
-                new_values["ssh_private_key"] = ssh_path
+                if "ssh_public_key" in new_values.keys():
+                    folder_name = config["name"][1:].replace("/", "_")
+                    ssh_path = str(
+                        Path("~/.ssh").expanduser() / folder_name / "ssh-key"
+                    )
+                    private_key_to_write = {
+                        "private_key": new_values.pop("private_key", ""),
+                        "public_key": new_values.pop("public_key", ""),
+                    }
+                    SSHSecret._write_to_file(
+                        self=SSHSecret, path=ssh_path, values=private_key_to_write
+                    )
+                    new_values["ssh_private_key"] = ssh_path
                 config["values"] = new_values
             return SSHSecret(**config, dryrun=dryrun)
         except KeyError:
