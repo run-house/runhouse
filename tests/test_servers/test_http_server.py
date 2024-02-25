@@ -344,7 +344,7 @@ class TestHTTPServerDockerDenAuthOnly:
             )
 
         assert response.status_code == 403
-        assert "Failed to validate cluster token" in response.text
+        assert "Cluster access is required for this operation." in response.text
 
     @pytest.mark.level("local")
     def test_request_with_no_token(self, http_client):
