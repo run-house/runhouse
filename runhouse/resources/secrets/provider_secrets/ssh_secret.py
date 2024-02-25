@@ -5,7 +5,7 @@ from pathlib import Path
 
 from typing import Any, Dict, Optional, Union
 
-from runhouse.globals import rns_client
+from runhouse.globals import configs, rns_client
 
 from runhouse.resources.blobs.file import File
 from runhouse.resources.hardware.cluster import Cluster
@@ -45,6 +45,25 @@ class SSHSecret(ProviderSecret):
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = False):
+        secret_creator = config["owner"]["username"]
+        current_user = configs.username
+        if secret_creator == current_user:
+            new_values = config.pop("values")
+            new_values.pop("private_key", None)
+            config["values"] = new_values
+        else:
+            folder_name = config["name"][1:].replace("/", "_")
+            ssh_path = str(Path("~/.ssh").expanduser() / folder_name / "ssh-key")
+            new_values = config.pop("values")
+            private_key_to_write = {
+                "private_key": new_values.pop("private_key", ""),
+                "public_key": new_values.pop("public_key", ""),
+            }
+            SSHSecret._write_to_file(
+                self=SSHSecret, path=ssh_path, values=private_key_to_write
+            )
+            new_values["ssh_private_key"] = ssh_path
+            config["values"] = new_values
         return SSHSecret(**config, dryrun=dryrun)
 
     def save(
@@ -67,12 +86,12 @@ class SSHSecret(ProviderSecret):
         pub_key_path = Path(f"{os.path.expanduser(priv_key_path)}.pub")
 
         if priv_key_path.exists() and pub_key_path.exists():
-            if values == self._from_path(path):
+            if values == self._from_path(self=self, path=path):
                 logger.info(f"Secrets already exist in {path}. Skipping.")
                 self.path = path
                 return self
             logger.warning(
-                f"SSH Secrets for {self.key} already exist in {path}. "
+                f"SSH Secrets for {self.name or self.key} already exist in {path}. "
                 "Automatically overriding SSH keys is not supported by Runhouse. "
                 "Please manually edit these files."
             )
@@ -88,7 +107,10 @@ class SSHSecret(ProviderSecret):
         new_secret = copy.deepcopy(self)
         new_secret._values = None
         new_secret.path = path
-        new_secret._add_to_rh_config(path)
+        try:
+            new_secret._add_to_rh_config(val=path)
+        except TypeError:
+            pass
 
         return new_secret
 

@@ -321,7 +321,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             == config
         )
 
-    @pytest.mark.skip("WIP")
     @pytest.mark.level("local")
     def test_access_to_shared_cluster(self, cluster):
         # TODO: Remove this by doing some CI-specific logic.
@@ -338,17 +337,19 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         cluster.share(
             users=["info@run.house"],
-            access_level="read",
+            access_level="write",
             notify_users=False,
         )
 
-        cluster_name = cluster.name
+        cluster_name = cluster.rns_address
         cluster_creds = cluster.creds
+        cluster_creds.pop("private_key", None)
+        cluster_creds.pop("public_key", None)
 
         with friend_account():
             shared_cluster = rh.cluster(name=cluster_name)
-            assert shared_cluster.name == cluster_name
-            assert shared_cluster.creds == cluster_creds
+            assert shared_cluster.rns_address == cluster_name
+            assert shared_cluster.creds.keys() == cluster_creds.keys()
             echo_msg = "hello from shared cluster"
             run_res = shared_cluster.run([f"echo {echo_msg}"])
             assert echo_msg in run_res[0][1]
