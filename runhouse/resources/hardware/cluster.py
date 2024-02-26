@@ -801,6 +801,7 @@ class Cluster(Resource):
                 data=(args, kwargs),
                 stream_logs=stream_logs,
                 run_name=run_name,
+                # remote=remote,
                 run_async=run_async,
                 serialization=None,
             )

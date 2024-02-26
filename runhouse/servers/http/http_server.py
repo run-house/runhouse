@@ -338,8 +338,10 @@ class HTTPServer:
                     key=key,
                     method_name=method_name,
                     data=params.data,
+                    stream_logs=params.stream_logs,
                     serialization=params.serialization,
                     run_name=params.run_name,
+                    # remote=params.remote,
                     run_async=True,
                 )
             )
