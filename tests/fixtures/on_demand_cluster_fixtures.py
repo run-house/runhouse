@@ -7,7 +7,7 @@ import runhouse as rh
 from runhouse.constants import DEFAULT_HTTPS_PORT
 
 from tests.conftest import init_args
-from tests.utils import test_env
+from tests.utils import friend_account, test_env
 
 
 @pytest.fixture(scope="session")
@@ -85,6 +85,34 @@ def ondemand_https_cluster_with_auth():
 
 
 @pytest.fixture(scope="session")
+def shared_ondemand_cluster_with_auth():
+    username_to_share = rh.configs.username
+
+    with friend_account():
+        args = {
+            "name": "rh-cpu-shared-https",
+            "instance_type": "CPU:2+",
+            "den_auth": True,
+            "server_connection_type": "tls",
+            "server_port": DEFAULT_HTTPS_PORT,
+            "open_ports": [DEFAULT_HTTPS_PORT],
+        }
+        c = rh.ondemand_cluster(**args)
+        c.up_if_not()
+        init_args[id(c)] = args
+
+        test_env().to(c)
+
+        # Enable den auth to properly test resource access on shared resources
+        c.enable_den_auth()
+
+        # Share the cluster with the test account
+        c.share(username_to_share, notify_users=False, access_level="read")
+
+    return c
+
+
+@pytest.fixture(scope="session")
 def multinode_cpu_cluster():
     args = {
         "name": "rh-cpu-multinode",
@@ -104,7 +132,6 @@ def multinode_cpu_cluster():
 
 @pytest.fixture(scope="session")
 def kubernetes_cpu_cluster():
-
     kube_config_path = Path.home() / ".kube" / "config"
 
     if not kube_config_path.exists():

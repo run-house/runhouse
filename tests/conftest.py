@@ -186,8 +186,7 @@ from tests.fixtures.docker_cluster_fixtures import (
     local_daemon,  # noqa: F401
     named_cluster,  # noqa: F401
     password_cluster,  # noqa: F401
-    shared_cluster,  # noqa: F401
-    shared_function,  # noqa: F401
+    shared_local_docker_cluster,  # noqa: F401
     static_cpu_cluster,  # noqa: F401
 )
 
@@ -212,6 +211,7 @@ from tests.fixtures.on_demand_cluster_fixtures import (
     ondemand_cluster,  # noqa: F401
     ondemand_cpu_cluster,  # noqa: F401
     ondemand_https_cluster_with_auth,  # noqa: F401
+    shared_ondemand_cluster_with_auth,  # noqa: F401
     v100_gpu_cluster,  # noqa: F401
 )
 from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
@@ -259,6 +259,8 @@ from tests.test_resources.test_modules.test_folders.test_packages.conftest impor
 # ----------------- Functions -----------------
 from tests.test_resources.test_modules.test_functions.conftest import (
     func_with_artifacts,  # noqa: F401
+    shared_local_function,  # noqa: F401
+    shared_remote_function,  # noqa: F401
     slow_func,  # noqa: F401
     slow_running_func,  # noqa: F401
     summer_func,  # noqa: F401

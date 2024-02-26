@@ -12,11 +12,11 @@ from tests.utils import friend_account
 
 
 class TestResourceSharing:
-    UNIT = {"resource": ["shared_function"]}
-    LOCAL = {"resource": ["shared_function"]}
-    MINIMAL = {"resource": ["shared_function"]}
-    THOROUGH = {"resource": ["shared_function"]}
-    MAXIMAL = {"resource": ["shared_function"]}
+    UNIT = {"resource": ["shared_local_function"]}
+    LOCAL = {"resource": ["shared_local_function"]}
+    MINIMAL = {"resource": ["shared_remote_function"]}
+    THOROUGH = {"resource": ["shared_remote_function"]}
+    MAXIMAL = {"resource": ["shared_remote_function"]}
 
     @staticmethod
     def call_func_with_curl(cluster, func_name, cluster_token, **kwargs):

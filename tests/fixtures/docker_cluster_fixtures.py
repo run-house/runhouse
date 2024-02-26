@@ -666,7 +666,7 @@ def friend_account_logged_in_docker_cluster_pk_ssh(request):
 
 
 @pytest.fixture(scope="session")
-def shared_cluster(friend_account_logged_in_docker_cluster_pk_ssh):
+def shared_local_docker_cluster(friend_account_logged_in_docker_cluster_pk_ssh):
     username_to_share = rh.configs.username
 
     # Enable den auth to properly test resource access on shared resources
@@ -679,18 +679,3 @@ def shared_cluster(friend_account_logged_in_docker_cluster_pk_ssh):
         )
 
     return friend_account_logged_in_docker_cluster_pk_ssh
-
-
-@pytest.fixture(scope="session")
-def shared_function(shared_cluster):
-    from tests.test_servers.conftest import summer
-
-    username_to_share = rh.configs.username
-    with friend_account():
-        # Create function on shared cluster with the same test account
-        f = rh.function(summer).to(shared_cluster, env=["pytest"]).save()
-
-        # Share the cluster & function with the current account
-        f.share(username_to_share, access_level="read", notify_users=False)
-
-    return f

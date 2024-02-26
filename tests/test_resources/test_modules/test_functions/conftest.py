@@ -39,8 +39,10 @@ def summer_func_with_auth(ondemand_https_cluster_with_auth):
 
 
 @pytest.fixture(scope="session")
-def summer_func_shared(shared_cluster):
-    return rh.function(summer, name="summer_func").to(shared_cluster, env=["pytest"])
+def summer_func_shared(shared_local_docker_cluster):
+    return rh.function(summer, name="summer_func").to(
+        shared_local_docker_cluster, env=["pytest"]
+    )
 
 
 @pytest.fixture(scope="session")
@@ -55,3 +57,39 @@ def slow_func(ondemand_cpu_cluster):
     return rh.function(slow_running_func, name="slow_func").to(
         ondemand_cpu_cluster, env=["pytest"]
     )
+
+
+@pytest.fixture(scope="session")
+def shared_local_function(shared_local_docker_cluster):
+    from tests.test_servers.conftest import summer
+    from tests.utils import friend_account
+
+    username_to_share = rh.configs.username
+    with friend_account():
+        # Create function on shared cluster with the same test account
+        f = rh.function(summer).to(shared_local_docker_cluster, env=["pytest"]).save()
+
+        # Share the cluster & function with the current account
+        f.share(username_to_share, access_level="read", notify_users=False)
+
+    return f
+
+
+@pytest.fixture(scope="session")
+def shared_remote_function(shared_ondemand_cluster_with_auth):
+    from tests.test_servers.conftest import summer
+    from tests.utils import friend_account
+
+    username_to_share = rh.configs.username
+    with friend_account():
+        # Create function on shared cluster with the same test account
+        f = (
+            rh.function(summer)
+            .to(shared_ondemand_cluster_with_auth, env=["pytest"])
+            .save()
+        )
+
+        # Share the cluster & function with the current account
+        f.share(username_to_share, access_level="read", notify_users=False)
+
+    return f
