@@ -150,9 +150,7 @@ class Cluster(Resource):
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
-
         resource_subtype = config.get("resource_subtype")
-
         if resource_subtype == "Cluster":
             return Cluster(**config, dryrun=dryrun)
         elif resource_subtype == "OnDemandCluster":
