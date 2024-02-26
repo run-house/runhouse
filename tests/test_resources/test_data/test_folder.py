@@ -185,7 +185,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         s3_folder.rm()
         assert not s3_folder.exists_in_system()
 
-    @pytest.mark.level("unit")
+    @pytest.mark.level("local")
     def test_from_config(self, folder):
         config = folder.config_for_rns
         new_resource = rh.Folder.from_config(config)
