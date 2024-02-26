@@ -8,9 +8,9 @@ from typing import Dict, List, Optional, Union
 from runhouse.globals import obj_store
 
 from runhouse.resources.packages import Package
+from runhouse.utils import install_conda
 
 from .env import Env
-from .utils import _install_conda
 
 
 logger = logging.getLogger(__name__)
@@ -103,8 +103,7 @@ class CondaEnv(Env):
                 .split()[1]
             )
             self.conda_yaml["dependencies"].append(f"python=={base_python_version}")
-        if subprocess.run(shlex.split("conda --version")) != 0:
-            _install_conda()
+        install_conda()
         local_env_exists = f"\n{self.env_name} " in subprocess.check_output(
             shlex.split("conda info --envs"), shell=False
         ).decode("utf-8")
