@@ -506,7 +506,7 @@ class Module(Resource):
         else:
             return self
 
-    def replicate(self, num_replicas=1, names=None, envs=None, parallel=True):
+    def replicate(self, num_replicas=1, names=None, envs=None, parallel=False):
         """Replicate the module on the cluster in a new env and return the new modules."""
         if not self.system or not self.name:
             raise ValueError(
