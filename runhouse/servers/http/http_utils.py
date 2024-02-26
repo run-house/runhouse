@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class RequestContext(BaseModel):
     request_id: str
-    username: Optional[str]
+    token: Optional[str]
 
 
 class ServerSettings(BaseModel):

@@ -306,17 +306,12 @@ class ObjStore:
 
     def _populate_ctx_locally(self):
         from runhouse.globals import configs
-        from runhouse.servers.http.http_utils import username_from_token
 
         den_auth_enabled = self.get_cluster_config().get("den_auth")
         token = configs.token
-        username = configs.username
-
-        if den_auth_enabled:
-            if not username:
-                username = username_from_token(token)
-            self.add_user_to_auth_cache(username, token, refresh_cache=False)
-        return self.set_ctx(request_id=str(uuid.uuid4()), username=username)
+        if den_auth_enabled and token:
+            self.add_user_to_auth_cache(token, refresh_cache=False)
+        return self.set_ctx(request_id=str(uuid.uuid4()), token=token)
 
     @staticmethod
     def unset_ctx(ctx_token):
@@ -345,33 +340,48 @@ class ObjStore:
     ##############################################
     # Auth cache internal functions
     ##############################################
-    def add_user_to_auth_cache(self, username, token, refresh_cache=True):
+    def add_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
         return self.call_actor_method(
-            self.cluster_servlet,
-            "add_user_to_auth_cache",
-            username,
-            token,
-            refresh_cache,
+            self.cluster_servlet, "add_user_to_auth_cache", token, refresh_cache
         )
 
-    def resource_access_level(self, username, resource_uri: str):
+    def resource_access_level(self, token: str, resource_uri: str):
         return self.call_actor_method(
             self.cluster_servlet,
             "resource_access_level",
-            username,
+            token,
             resource_uri,
         )
 
-    def user_resources(self, username: str):
-        return self.call_actor_method(self.cluster_servlet, "user_resources", username)
+    def user_resources(self, token: str):
+        return self.call_actor_method(self.cluster_servlet, "user_resources", token)
 
-    def has_resource_access(self, username: str, resource_uri=None) -> bool:
+    def get_username(self, token: str):
+        return self.call_actor_method(self.cluster_servlet, "get_username", token)
+
+    def has_resource_access(self, token: str, resource_uri=None) -> bool:
         """Checks whether user has read or write access to a given module saved on the cluster."""
+        from runhouse.globals import configs, rns_client
         from runhouse.rns.utils.api import ResourceAccess
         from runhouse.servers.http.http_utils import load_current_cluster_rns_address
 
+        if token is None:
+            # If no token is provided assume no access
+            return False
+
+        # The logged-in user always has full access to the cluster and its resources. This is especially
+        # important if they flip on Den Auth without saving the cluster.
+        if configs.token:
+            if configs.token == token:
+                return True
+            if (
+                resource_uri
+                and rns_client.cluster_token(configs.token, resource_uri) == token
+            ):
+                return True
+
         cluster_uri = load_current_cluster_rns_address()
-        cluster_access = self.resource_access_level(username, cluster_uri)
+        cluster_access = self.resource_access_level(token, cluster_uri)
         if cluster_access == ResourceAccess.WRITE:
             # if user has write access to cluster will have access to all resources
             return True
@@ -383,16 +393,14 @@ class ObjStore:
             # If module does not have a name, must have access to the cluster
             return False
 
-        resource_access_level = self.resource_access_level(username, resource_uri)
+        resource_access_level = self.resource_access_level(token, resource_uri)
         if resource_access_level not in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return False
 
         return True
 
-    def clear_auth_cache(self, username: str = None):
-        return self.call_actor_method(
-            self.cluster_servlet, "clear_auth_cache", username
-        )
+    def clear_auth_cache(self, token: str = None):
+        return self.call_actor_method(self.cluster_servlet, "clear_auth_cache", token)
 
     ##############################################
     # Key to servlet where it is stored mapping
@@ -907,7 +915,7 @@ class ObjStore:
                 "public",
             ]:
                 ctx = req_ctx.get()
-                if not ctx or not ctx.username:
+                if not ctx or not ctx.token:
                     raise PermissionError(
                         "No Runhouse token provided. Try running `$ runhouse login` or visiting "
                         "https://run.house/login to retrieve a token. If calling via HTTP, please "
@@ -918,7 +926,7 @@ class ObjStore:
                 # succeed if the user has WRITE or READ access to the cluster
                 resource_uri = obj.rns_address if hasattr(obj, "rns_address") else None
                 if key != Env.DEFAULT_NAME and not self.has_resource_access(
-                    ctx.username, resource_uri
+                    ctx.token, resource_uri
                 ):
                     # Do not validate access to the default Env
                     raise PermissionError(
