@@ -1,6 +1,15 @@
+import concurrent.futures
+import contextvars
 import logging
-from multiprocessing import pool
 from typing import List, Optional, Union
+
+try:
+    from tqdm import tqdm
+except ImportError:
+
+    def tqdm(*args, **kwargs):
+        return args[0]
+
 
 from runhouse.resources.functions import function, Function
 
@@ -14,8 +23,8 @@ class Mapper(Module):
         self,
         module: Module = None,
         method: str = None,
-        num_replicas: Optional[int] = -1,
-        replicas: Optional[List[Module]] = None,
+        replicas: Union[None, int, List[Module]] = None,
+        concurrency=1,
         **kwargs,
     ):
         """
@@ -28,21 +37,29 @@ class Mapper(Module):
         super().__init__(**kwargs)
         self.module = module
         self.method = method
-        self.num_replicas = num_replicas
+        self.concurrency = concurrency
         self._auto_replicas = []
-        self._user_replicas = replicas or []
+        self._user_replicas = []
         self._last_called = 0
-        if self.num_replicas > len(self.replicas) and self.num_replicas > 0:
-            self._add_auto_replicas(self.num_replicas - len(self.replicas))
+        if isinstance(replicas, int):
+            if replicas > self.num_replicas and replicas > 0:
+                self.add_replicas(replicas)
+        elif isinstance(replicas, list):
+            self._user_replicas = replicas
 
     @property
     def replicas(self):
         return [self.module] + self._auto_replicas + self._user_replicas
 
+    @property
+    def num_replicas(self):
+        return len(self.replicas)
+
     def add_replicas(self, replicas: Union[int, List[Module]]):
         if isinstance(replicas, int):
-            self.num_replicas += replicas
-            self._add_auto_replicas(self.num_replicas - len(self.replicas))
+            new_replicas = replicas - self.num_replicas
+            logger.info(f"Adding {new_replicas} replicas")
+            self._add_auto_replicas(new_replicas)
         else:
             self._user_replicas.extend(replicas)
 
@@ -61,11 +78,7 @@ class Mapper(Module):
             self._last_called = 0
         return self._last_called
 
-    @staticmethod
-    def _call_method_on_replica(replica, method, args, kwargs):
-        return getattr(replica, method)(*args, **kwargs)
-
-    def map(self, *args, retries=3, **kwargs):
+    def map(self, *args, method: Optional[str] = None, retries: int = 0, **kwargs):
         """Map the function or method over a list of arguments.
 
         Example:
@@ -73,40 +86,87 @@ class Mapper(Module):
             >>>     return arg1 + arg2 + arg3
             >>>
             >>> remote_fn = rh.function(local_sum).to(my_cluster)
-            >>> mapper = rh.mapper(remote_fn, num_replicas=2)
+            >>> mapper = rh.mapper(remote_fn, replicas=2)
             >>> mapper.map([1, 2], [1, 4], [2, 3])
             >>> # output: [4, 9]
 
         """
-        kwargs["stream_logs"] = kwargs.get("stream_logs", False)
+        # Don't stream logs by default unless the mapper is remote (i.e. mediating the mapping)
+        return self.starmap(
+            arg_list=zip(*args), method=method, retries=retries, **kwargs
+        )
+
+    def starmap(
+        self, arg_list: List, method: Optional[str] = None, retries: int = 0, **kwargs
+    ):
+        """Like :func:`map` except that the elements of the iterable are expected to be iterables
+        that are unpacked as arguments. An iterable of ``[(1,2), (3, 4)]`` results in
+        ``func(1,2), func(3,4)]``.
+
+        Example:
+            >>> def local_sum(arg1, arg2, arg3):
+            >>>     return arg1 + arg2 + arg3
+            >>>
+            >>> remote_fn = rh.function(local_sum).to(my_cluster)
+            >>> mapper = rh.mapper(remote_fn, replicas=2)
+            >>> arg_list = [(1,2), (3, 4)]
+            >>> # runs the function twice, once with args (1, 2) and once with args (3, 4)
+            >>> mapper.starmap(arg_list)
+        """
+        # Don't stream logs by default unless the mapper is remote (i.e. mediating the mapping)
+        if self.system and not self.system.on_this_cluster():
+            kwargs["stream_logs"] = kwargs.get("stream_logs", True)
+        else:
+            kwargs["stream_logs"] = kwargs.get("stream_logs", False)
 
         retry_list = []
 
         def call_method_on_replica(job):
-            replica, method, argies, kwargies = job
+            replica, method_name, context, argies, kwargies = job
+            # reset context
+            for var, value in context.items():
+                var.set(value)
+
             try:
-                return getattr(replica, method)(*argies, **kwargies)
+                return getattr(replica, method_name)(*argies, **kwargies)
             except Exception as e:
-                logger.error(f"Error running {method} on {replica.name}: {e}")
+                logger.error(f"Error running {method_name} on {replica.name}: {e}")
                 retry_list.append(job)
 
+        context = contextvars.copy_context()
         jobs = [
-            (self.replicas[self.increment_counter()], self.method, args, kwargs)
-            for args in zip(*args)
+            (
+                self.replicas[self.increment_counter()],
+                method or self.method,
+                context,
+                args,
+                kwargs,
+            )
+            for args in arg_list
         ]
 
         results = []
-        with pool.ThreadPool() as p:
-            # Run the function in parallel on the arguments, keeping the order.
-            results = list(p.map(call_method_on_replica, jobs))
+        max_threads = round(self.concurrency * self.num_replicas)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+            futs = [executor.submit(call_method_on_replica, job) for job in jobs]
+            for fut in tqdm(concurrent.futures.as_completed(futs), total=len(jobs)):
+                results.extend([fut.result()])
             for i in range(retries):
+                if len(retry_list) == 0:
+                    break
                 logger.info(f"Retry {i}: {len(retry_list)} failed jobs")
                 jobs, retry_list = retry_list, []
-                results.extend(list(p.map(call_method_on_replica, jobs)))
+                results.append(
+                    list(
+                        tqdm(
+                            executor.map(call_method_on_replica, jobs), total=len(jobs)
+                        )
+                    )
+                )
 
         return results
 
-        # TODO should we add an async version of this?
+        # TODO should we add an async version of this for when we're on the cluster?
         # async def call_method_on_args(argies):
         #     return getattr(self.replicas[self.increment_counter()], self.method)(*argies, **kwargs)
         #
@@ -119,37 +179,7 @@ class Mapper(Module):
         #     )
         # return asyncio.run(gather())
 
-    def starmap(self, args_lists: List, **kwargs):
-        """Like :func:`map` except that the elements of the iterable are expected to be iterables
-        that are unpacked as arguments. An iterable of ``[(1,2), (3, 4)]`` results in
-        ``func(1,2), func(3,4)]``.
-
-        Example:
-            >>> def local_sum(arg1, arg2, arg3):
-            >>>     return arg1 + arg2 + arg3
-            >>>
-            >>> remote_fn = rh.function(local_sum).to(my_cluster)
-            >>> mapper = rh.mapper(remote_fn, num_replicas=2)
-            >>> arg_list = [(1,2), (3, 4)]
-            >>> # runs the function twice, once with args (1, 2) and once with args (3, 4)
-            >>> mapper.starmap(arg_list)
-        """
-        kwargs["stream_logs"] = kwargs.get("stream_logs", False)
-
-        def call_method_on_replica(job):
-            replica, method, argies, kwargies = job
-            return getattr(replica, method)(*argies, **kwargies)
-
-        jobs = [
-            (self.replicas[self.increment_counter()], self.method, args, kwargs)
-            for args in args_lists
-        ]
-
-        with pool.ThreadPool(self.num_replicas) as p:
-            # Run the function in parallel on the arguments, keeping the order.
-            return list(p.imap(call_method_on_replica, jobs))
-
-    def call(self, *args, **kwargs):
+    def call(self, *args, method: Optional[str] = None, **kwargs):
         """Call the function or method on a single replica.
 
         Example:
@@ -157,13 +187,13 @@ class Mapper(Module):
             >>>     return arg1 + arg2 + arg3
             >>>
             >>> remote_fn = rh.function(local_sum).to(my_cluster)
-            >>> mapper = rh.mapper(remote_fn, num_replicas=2)
+            >>> mapper = rh.mapper(remote_fn, replicas=2)
             >>> for i in range(10):
             >>>     mapper.call(i, 1, 2)
             >>>     # output: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, run in round-robin replica order
 
         """
-        return getattr(self.replicas[self.increment_counter()], self.method)(
+        return getattr(self.replicas[self.increment_counter()], method or self.method)(
             *args, **kwargs
         )
 
@@ -171,8 +201,8 @@ class Mapper(Module):
 def mapper(
     module: Module,
     method: Optional[str] = None,
-    num_replicas: int = -1,
-    replicas: Optional[List[Module]] = None,
+    replicas: Union[None, int, List[Module]] = None,
+    concurrency: int = 1,
     **kwargs,
 ) -> Mapper:
     """
@@ -183,22 +213,17 @@ def mapper(
         module (Module): The module or function to be mapped.
         method (Optional[str], optional): The method of the module to be called. If the module is already a callable,
             this value defaults to ``"call"``.
-        num_replicas (int, optional): The number of replicas to run the map function across. (Default: ``-1``)
-
-            * If ``num_replicas`` is -1, it will be set to the number of available CPUs (according to Ray).
-            * If ``num_replicas`` is greater than the number of user-specified replicas (``replicas``),
-              the remaining replicas will be auto-generated by duplicating the module.
-            * If ``num_replicas`` is 0, it will be left as the number of user-replicas passed into the module.
-            * If ``num_replicas`` is less than the number of user-specified replicas, only ``num_replicas`` will
-              be used.
-        replicas (Optional[List[Module]], optional): List of user-specified replicas.
+        concurrency (int, optional): The number of concurrent calls to each replica, executed in separate threads.
+            Defaults to 1.
+        replicas (Optional[List[Module]], optional): List of user-specified replicas, or an int specifying the number
+            of replicas to be automatically created. Defaults to None.
 
     Returns:
         Mapper: The resulting Mapper object.
 
     Example:
         >>> remote_fn = rh.function(local_fn).to(cluster)
-        >>> mapper = rh.mapper(remote_fn, num_replicas=2)
+        >>> mapper = rh.mapper(remote_fn, replicas=2)
 
         >>> remote_module = rh.module(cls=MyClass, system=cluster, env="my_env")
         >>> mapper = rh.mapper(remote_module, method=my_class_method, replicas=-1)
@@ -210,4 +235,10 @@ def mapper(
     if isinstance(module, Function):
         method = method or "call"
 
-    return Mapper(module, method, num_replicas, replicas, **kwargs)
+    return Mapper(
+        module=module,
+        method=method,
+        replicas=replicas,
+        concurrency=concurrency,
+        **kwargs,
+    )
