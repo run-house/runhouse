@@ -51,7 +51,6 @@ def local_daemon(request):
             "runhouse restart",
             shell=True,  # Needed because we need to be in the right conda env
             cwd=local_rh_package_path,
-            capture_output=True,
             text=True,
             check=True,
         )
@@ -63,7 +62,7 @@ def local_daemon(request):
 
     finally:
         if not request.config.getoption("--detached"):
-            subprocess.run("runhouse stop", capture_output=True, text=True, shell=True)
+            subprocess.run("runhouse stop", text=True, shell=True)
 
 
 @pytest.fixture(scope="session")

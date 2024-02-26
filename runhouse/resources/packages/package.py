@@ -225,7 +225,7 @@ class Package(Resource):
             return "cpu"
 
         try:
-            subprocess.run(["nvidia-smi"], capture_output=True, check=True)
+            subprocess.run(["nvidia-smi"], check=True)
             return cuda_version
         except (subprocess.CalledProcessError, FileNotFoundError):
             return "cpu"
@@ -260,7 +260,7 @@ class Package(Resource):
         else:
             cmd = f"{sys.executable} -m {pip_cmd}"
             logging.info(f"Running: {cmd}")
-            subprocess.run(shlex.split(cmd), check=True, capture_output=True)
+            subprocess.run(shlex.split(cmd), check=True)
 
     @staticmethod
     def _conda_install(install_cmd: str, env: Union[str, "Env"] = ""):
@@ -275,29 +275,25 @@ class Package(Resource):
         logging.info(f"Running: {cmd}")
         # check if conda is installed, and if not, install it
         try:
-            subprocess.run(["conda", "--version"], capture_output=True, check=True)
-            subprocess.run(cmd.split(" "))
+            subprocess.run(["conda", "--version"], check=True)
+            subprocess.run(shlex.split(cmd))
         except FileNotFoundError:
             logging.info("Conda not found, installing...")
             subprocess.run(
-                "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh "
-                "-O ~/miniconda.sh".split(" "),
-                capture_output=True,
+                shlex.split(
+                    "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh"
+                ),
                 check=True,
             )
             subprocess.run(
                 ["bash", "~/miniconda.sh", "-b", "-p", "~/miniconda"],
-                capture_output=True,
                 check=True,
             )
             subprocess.run(
                 "source $HOME/miniconda3/bin/activate".split(" "),
-                capture_output=True,
                 check=True,
             )
-            status = subprocess.run(
-                cmd.split(" "), capture_output=True, check=True
-            ).returncode
+            status = subprocess.run(shlex.split(cmd), check=True).returncode
             if not status == 0:
                 raise RuntimeError(
                     "Conda install failed, check that the package exists and is "

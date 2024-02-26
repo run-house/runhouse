@@ -4,6 +4,7 @@ import importlib
 import json
 import logging
 import re
+import shlex
 import subprocess
 import sys
 import threading
@@ -798,6 +799,8 @@ class Cluster(Resource):
                 module_name,
                 method_name,
                 data=(args, kwargs),
+                stream_logs=stream_logs,
+                run_name=run_name,
                 run_async=run_async,
                 serialization=None,
             )
@@ -913,7 +916,7 @@ class Cluster(Resource):
             if filter_options:
                 cmd += [filter_options]
 
-            subprocess.run(cmd, check=True, capture_output=stream_logs, text=True)
+            subprocess.run(cmd, check=True, capture_output=not stream_logs, text=True)
             return
 
         ssh_credentials = copy.copy(self.ssh_creds) or {}
@@ -1000,7 +1003,7 @@ class Cluster(Resource):
             # if needs a password, will prompt for manual password
             cmd = f"ssh {creds['ssh_user']}@{self.address}"
 
-        subprocess.run(cmd.split(" "))
+        subprocess.run(shlex.split(cmd))
 
     def _ping(self, timeout=5):
         ssh_call = threading.Thread(target=lambda: self.run(['echo "hello"']))
@@ -1073,7 +1076,7 @@ class Cluster(Resource):
                 ret_code = subprocess.run(
                     command,
                     shell=True,
-                    capture_output=stream_logs,
+                    capture_output=not stream_logs,
                     text=True,
                     check=not require_outputs,
                 ).returncode
