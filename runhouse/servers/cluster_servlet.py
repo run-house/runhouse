@@ -1,7 +1,9 @@
 import logging
 from typing import Any, Dict, List, Optional, Set, Union
 
+from runhouse.globals import configs, rns_client
 from runhouse.resources.hardware import load_cluster_config_from_file
+from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.http.auth import AuthCache
 
 logger = logging.getLogger(__name__)
@@ -40,23 +42,35 @@ class ClusterServlet:
     ##############################################
     # Auth cache internal functions
     ##############################################
-    def add_user_to_auth_cache(self, username, token, refresh_cache=True):
-        self._auth_cache.add_user(username, token, refresh_cache)
+    def add_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
+        self._auth_cache.add_user(token, refresh_cache)
 
-    def resource_access_level(
-        self, username: str, resource_uri: str
-    ) -> Union[str, None]:
-        return self._auth_cache.lookup_access_level(username, resource_uri)
+    def resource_access_level(self, token: str, resource_uri: str) -> Union[str, None]:
+        # If the token in this request matches that of the owner of the cluster,
+        # they have access to everything
+        if configs.token and (
+            configs.token == token
+            or rns_client.cluster_token(configs.token, resource_uri) == token
+        ):
+            return ResourceAccess.WRITE
+        return self._auth_cache.lookup_access_level(token, resource_uri)
 
-    def user_resources(self, username: str) -> dict:
-        return self._auth_cache.get_user_resources(username)
+    def user_resources(self, token: str) -> dict:
+        return self._auth_cache.get_user_resources(token)
 
-    def has_resource_access(self, username: str, resource_uri=None) -> bool:
+    def get_username(self, token: str) -> str:
+        return self._auth_cache.get_username(token)
+
+    def has_resource_access(self, token: str, resource_uri=None) -> bool:
         """Checks whether user has read or write access to a given module saved on the cluster."""
         from runhouse.rns.utils.api import ResourceAccess
 
+        if token is None:
+            # If no token is provided assume no access
+            return False
+
         cluster_uri = self.cluster_config["name"]
-        cluster_access = self.resource_access_level(username, cluster_uri)
+        cluster_access = self.resource_access_level(token, cluster_uri)
         if cluster_access == ResourceAccess.WRITE:
             # if user has write access to cluster will have access to all resources
             return True
@@ -68,14 +82,14 @@ class ClusterServlet:
             # If module does not have a name, must have access to the cluster
             return False
 
-        resource_access_level = self.resource_access_level(username, resource_uri)
+        resource_access_level = self.resource_access_level(token, resource_uri)
         if resource_access_level not in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return False
 
         return True
 
-    def clear_auth_cache(self, username: str = None):
-        self._auth_cache.clear_cache(username)
+    def clear_auth_cache(self, token: str = None):
+        self._auth_cache.clear_cache(token)
 
     ##############################################
     # Key to servlet where it is stored mapping
