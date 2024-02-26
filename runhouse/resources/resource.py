@@ -321,7 +321,7 @@ class Resource:
             return obj_store.get(name)
 
         config = rns_client.load_config(name=name)
-        config = Resource.update_creds_in_config(config, name)
+        config = Resource.update_creds_in_config(config)
 
         if alt_options:
             config = cls._compare_config_with_alt_options(config, alt_options)
