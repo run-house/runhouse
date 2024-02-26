@@ -70,9 +70,11 @@ def verify_cluster_access(
     from runhouse.globals import configs, obj_store
 
     # The logged-in user always has full access to the cluster. This is especially important if they flip on
-    # Den Auth without saving the cluster.
-    if configs.token == token:
-        # Note: this can only be validated if the token provided is a Runhouse token and not a hashed cluster token
+    # Den Auth without saving the cluster. We may need to generate a subtoken here to check.
+    if configs.token and (
+        configs.token == token
+        or rns_client.cluster_token(configs.token, cluster_uri) == token
+    ):
         return True
 
     # Check if user already has saved resources in cache
