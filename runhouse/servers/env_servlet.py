@@ -22,8 +22,9 @@ def error_handling_decorator(func):
     def wrapper(*args, **kwargs):
         EnvServlet.register_activity()
         ctx = kwargs.pop("ctx", None)
+        ctx_token = None
         if ctx:
-            obj_store.set_ctx(**ctx)
+            ctx_token = obj_store.set_ctx(**ctx)
 
         serialization = kwargs.get("serialization", None)
         if "data" in kwargs:
@@ -37,19 +38,23 @@ def error_handling_decorator(func):
         try:
             output = func(*args, **kwargs)
             if serialization is None:
+                obj_store.unset_ctx(ctx_token) if ctx_token else None
                 return output
             if output is not None:
                 serialized_data = serialize_data(output, serialization)
+                obj_store.unset_ctx(ctx_token) if ctx_token else None
                 return Response(
                     output_type=OutputType.RESULT_SERIALIZED,
                     data=serialized_data,
                     serialization=serialization,
                 )
             else:
+                obj_store.unset_ctx(ctx_token) if ctx_token else None
                 return Response(
                     output_type=OutputType.SUCCESS,
                 )
         except Exception as e:
+            obj_store.unset_ctx(ctx_token) if ctx_token else None
             return handle_exception_response(e, traceback.format_exc(), serialization)
 
     return wrapper

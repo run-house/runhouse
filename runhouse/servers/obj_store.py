@@ -51,6 +51,9 @@ def get_cluster_servlet(create_if_not_exists: bool = False):
     except ValueError:
         cluster_servlet = None
 
+    # Ensure the ClusterServlet starts on the head node, per
+    # https://discuss.ray.io/t/how-to-ensure-actor-is-running-on-the-same-node-only/2083/3
+    current_ip = ray.get_runtime_context().worker.node_ip_address
     if cluster_servlet is None and create_if_not_exists:
         cluster_servlet = (
             ray.remote(ClusterServlet)
@@ -59,6 +62,8 @@ def get_cluster_servlet(create_if_not_exists: bool = False):
                 get_if_exists=True,
                 lifetime="detached",
                 namespace="runhouse",
+                max_concurrency=10000,
+                resources={f"node:{current_ip}": 0.001},
             )
             .remote()
         )
@@ -305,9 +310,11 @@ class ObjStore:
 
         den_auth_enabled = self.get_cluster_config().get("den_auth")
         token = configs.token
-        username = username_from_token(token)
+        username = configs.username
 
-        if den_auth_enabled and username:
+        if den_auth_enabled:
+            if not username:
+                username = username_from_token(token)
             self.add_user_to_auth_cache(username, token, refresh_cache=False)
         return self.set_ctx(request_id=str(uuid.uuid4()), username=username)
 
