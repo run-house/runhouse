@@ -9,7 +9,6 @@ from typing import Any, Dict
 import rich.errors
 import yaml
 
-import runhouse as rh
 
 try:
     import sky
@@ -318,18 +317,18 @@ class OnDemandCluster(Cluster):
         time.sleep(5)
 
     def _populate_connection_from_status_dict(self, cluster_dict: Dict[str, Any]):
+        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
+
         if cluster_dict and cluster_dict["status"].name in ["UP", "INIT"]:
             handle = cluster_dict["handle"]
             self.address = handle.head_ip
             yaml_path = handle.cluster_yaml
             if Path(yaml_path).exists():
                 ssh_values = backend_utils.ssh_credential_from_yaml(yaml_path)
-                if self._creds and self._creds.values != ssh_values:
-                    self._creds = rh.secret(
-                        name=f"{self.name}_ssh_secret",
-                        provider="ssh",
-                        values=ssh_values,
-                    ).save()
+                if not self._creds or (
+                    self._creds and self._creds.values != ssh_values
+                ):
+                    self._creds = SSHSecret.setup_ssh_creds(ssh_values, self.name)
 
             # Add worker IPs if multi-node cluster - keep the head node as the first IP
             for ip in handle.cached_external_ips:
@@ -494,7 +493,7 @@ class OnDemandCluster(Cluster):
             >>> credentials = rh.ondemand_cluster("rh-cpu").creds
         """
         if self._creds:
-            return self.creds.values
+            return self._creds.values
 
         self._update_from_sky_status(dryrun=True)
         return self.creds.values

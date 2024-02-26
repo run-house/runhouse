@@ -75,6 +75,7 @@ class SSHSecret(ProviderSecret):
     def save(
         self, name: str = None, save_values: bool = True, headers: Optional[Dict] = None
     ):
+
         if name:
             self.name = name
         elif not self.name:
@@ -170,13 +171,14 @@ class SSHSecret(ProviderSecret):
         return remote_priv_file
 
     @classmethod
-    def setup_ssh_creds(cls, ssh_creds: Union[dict, str]):
+    def setup_ssh_creds(cls, ssh_creds: Union[dict, str], resource_name: str):
         """
         this method creates an SSHSecret instance based o n the passed values. If the passed values are paths to private
          and/or public keys, this method extracts the content of the files saved in those files, in order for them to
          be saved in den. (Currently if we just pass a path/to/ssh/key to SSHSecret constructor, the content of the file
          will not be saved to Vault. We need to pass the content itself.
         :param ssh_creds: the ssh credentials passed by the user, dict.
+        :param resource_name: the name of the resource that the ssh secret is accosted to.
         :return: An SSHSecret, where the values of it equal to ssh_creds.
         """
         import runhouse as rh
@@ -184,13 +186,10 @@ class SSHSecret(ProviderSecret):
         if isinstance(ssh_creds, str):
             return cls.from_name(name=ssh_creds)
 
-        if len(ssh_creds) > 2:
-            raise ValueError("Too many ssh credentials were provided")
-
         creds_keys = list(ssh_creds.keys())
 
         if len(creds_keys) == 1 and "ssh_private_key" in creds_keys:
-            if Path(ssh_creds["ssh_private_key"]).exists():
+            if Path(ssh_creds["ssh_private_key"]).expanduser().exists():
                 values = cls._from_path(self=cls, path=ssh_creds["private_key"])
                 values["ssh_private_key"] = ssh_creds["private_key"]
             else:
@@ -203,7 +202,10 @@ class SSHSecret(ProviderSecret):
                 ssh_creds["ssh_private_key"],
                 ssh_creds["ssh_public_key"],
             )
-            private_key_path, public_key_path = Path(private_key), Path(public_key)
+            private_key_path, public_key_path = (
+                Path(private_key).expanduser(),
+                Path(public_key).expanduser(),
+            )
             if private_key_path.exists() and public_key_path.exists():
                 if private_key_path.parent == public_key_path.parent:
                     values = cls._from_path(self=cls, path=private_key)
@@ -219,11 +221,11 @@ class SSHSecret(ProviderSecret):
                 values = {"private_key": private_key, "public_key": public_key}
         elif "ssh_private_key" in creds_keys and "ssh_user" in creds_keys:
             private_key, username = ssh_creds["ssh_private_key"], ssh_creds["ssh_user"]
-            if Path(private_key).exists():
+            if Path(private_key).expanduser().exists():
                 private_key = cls._from_path(self=cls, path=private_key).get(
                     "private_key"
                 )
-            if Path(username).exists():
+            if Path(username).expanduser().exists():
                 username = super()._from_path(username)
             values = {
                 "private_key": private_key,
@@ -232,9 +234,9 @@ class SSHSecret(ProviderSecret):
             }
         elif "ssh_user" in creds_keys and "password" in creds_keys:
             password, username = ssh_creds["password"], ssh_creds["ssh_user"]
-            if Path(password).exists():
+            if Path(password).expanduser().exists():
                 password = super()._from_path(password)
-            if Path(username).exists():
+            if Path(username).expanduser().exists():
                 username = super()._from_path(username)
             values = {"password": password, "ssh_user": username}
         else:
@@ -244,6 +246,9 @@ class SSHSecret(ProviderSecret):
                 if Path(v).exists():
                     v = super()._from_path(v)
                 values.update({k: v})
-
-        new_secret = rh.secret(provider="ssh", values=values).save()
+        values_to_add = {k: ssh_creds[k] for k in ssh_creds if k not in values.keys()}
+        values.update(values_to_add)
+        new_secret = rh.secret(provider="ssh", values=values).save(
+            name=f"{resource_name}-ssh-secret"
+        )
         return new_secret

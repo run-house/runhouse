@@ -306,7 +306,7 @@ class Resource:
             if "name" in creds.keys():
                 creds = Secret.from_config(creds)
             else:
-                creds = SSHSecret.setup_ssh_creds(creds)
+                creds = SSHSecret.setup_ssh_creds(creds, config["name"])
 
         config["creds"] = creds
         return config

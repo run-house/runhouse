@@ -104,7 +104,7 @@ def cluster(
 
     from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
-    ssh_creds_secret = SSHSecret.setup_ssh_creds(ssh_creds)
+    ssh_creds_secret = SSHSecret.setup_ssh_creds(ssh_creds, name)
 
     if "instance_type" in kwargs.keys():
         return ondemand_cluster(
