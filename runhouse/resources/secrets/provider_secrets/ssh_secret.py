@@ -172,11 +172,12 @@ class SSHSecret(ProviderSecret):
     @classmethod
     def setup_ssh_creds(cls, ssh_creds: Union[dict, str]):
         """
-        if the created secret is an ssh secret, and the values contain ssh_private_key, this method set up the
-        key to be the relative path to the private key. Later on, if the secret will be shared, this path will be
-        transformed to the absolut path in the destination.
-        :param ssh_creds: dict, the "original" credentials passed to the secrets constructor
-        :return: a dict of the new creds, where ssh_private_key is the relative path to the private key.
+        this method creates an SSHSecret instance based o n the passed values. If the passed values are paths to private
+         and/or public keys, this method extracts the content of the files saved in those files, in order for them to
+         be saved in den. (Currently if we just pass a path/to/ssh/key to SSHSecret constructor, the content of the file
+         will not be saved to Vault. We need to pass the content itself.
+        :param ssh_creds: the ssh credentials passed by the user, dict.
+        :return: An SSHSecret, where the values of it equal to ssh_creds.
         """
         import runhouse as rh
 
@@ -193,6 +194,7 @@ class SSHSecret(ProviderSecret):
                 values = cls._from_path(self=cls, path=ssh_creds["private_key"])
                 values["ssh_private_key"] = ssh_creds["private_key"]
             else:
+                # case where the user decides to pass the private key as text and not as path.
                 raise ValueError(
                     "SSH creds require both private and public key, but only private key was provided"
                 )

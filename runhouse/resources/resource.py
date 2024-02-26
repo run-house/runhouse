@@ -255,6 +255,13 @@ class Resource:
 
     @classmethod
     def _update_system_in_config(cls, config):
+        """
+        When loading a resource from config, sometimes we need to load the system associated with that resource.
+        This method loading the SSHSecret associated with the system, and updated the config of the system and the
+        resource accordingly.
+        :param config: The rns config of the resource.
+        :return: Updated resource config, where config[system][creds] is SSHSecret.
+        """
         import runhouse as rh
         from runhouse.resources.secrets.secret import Secret
         from runhouse.resources.secrets.utils import load_config
@@ -280,7 +287,13 @@ class Resource:
         return config
 
     @classmethod
-    def update_creds_in_config(cls, config, name):
+    def update_creds_in_config(cls, config):
+        """
+        When loading a resource from config, sometimes we need to load the secret with that resource.
+        This method loading the SSHSecret associated with the resource, and updated the config of resource accordingly.
+        :param config: The rns config of the resource.
+        :return: Updated resource config, where config[creds] is SSHSecret.
+        """
         from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
         from runhouse.resources.secrets.secret import Secret
         from runhouse.resources.secrets.utils import load_config
