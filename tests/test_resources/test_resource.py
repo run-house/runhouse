@@ -64,8 +64,7 @@ class TestResource:
 
     @pytest.mark.level("unit")
     def test_from_config(self, resource):
-        config = resource.config_for_rns
-        new_resource = rh.Resource.from_config(config)
+        new_resource = rh.Resource.from_config(resource.config_for_rns)
         assert new_resource.config_for_rns == resource.config_for_rns
         assert new_resource.rns_address == resource.rns_address
         assert new_resource.dryrun == resource.dryrun
