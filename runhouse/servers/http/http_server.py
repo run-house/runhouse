@@ -186,7 +186,6 @@ class HTTPServer:
             # Instrument the requests library
             RequestsInstrumentor().instrument()
 
-            @staticmethod
             @app.get("/spans")
             @validate_cluster_access
             def get_spans(request: Request):
@@ -196,6 +195,31 @@ class HTTPServer:
                         for span in self.memory_exporter.get_finished_spans()
                     ]
                 }
+
+            @app.middleware("http")
+            async def _add_username_to_span(request: Request, call_next):
+                from opentelemetry import trace
+
+                span = trace.get_current_span()
+                username = configs.get("username")
+
+                # Set the username as a span attribute
+                span.set_attribute("username", username)
+                return await call_next(request)
+
+            @app.middleware("http")
+            async def _add_username_to_span(request: Request, call_next):
+                from opentelemetry import trace
+
+                span = trace.get_current_span()
+
+                token = get_token_from_request(request)
+                username = username_from_token(token)
+                if username:
+                    # Set the username as a span attribute
+                    span.set_attribute("username", username)
+
+                return await call_next(request)
 
         # Ray and ClusterServlet should already be
         # initialized by the start script (see below)
@@ -211,11 +235,12 @@ class HTTPServer:
         # except Exception as e:
         #     logger.error(f"Failed to collect cluster stats: {str(e)}")
 
-        try:
-            # Collect telemetry stats for the cluster
-            self._collect_telemetry_stats()
-        except Exception as e:
-            logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
+        if enable_local_span_collection:
+            try:
+                # Collect telemetry stats for the cluster
+                self._collect_telemetry_stats()
+            except Exception as e:
+                logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
 
         # We initialize a base env servlet where some things may run.
         # TODO: We aren't sure _exactly_ where this is or isn't used.
@@ -660,21 +685,6 @@ class HTTPServer:
         )
 
     @staticmethod
-    @app.middleware("http")
-    async def _add_username_to_span(request: Request, call_next):
-        from opentelemetry import trace
-
-        span = trace.get_current_span()
-
-        token = get_token_from_request(request)
-        username = username_from_token(token)
-        if username:
-            # Set the username as a span attribute
-            span.set_attribute("username", username)
-
-        return await call_next(request)
-
-    @staticmethod
     def _collect_telemetry_stats():
         """Collect telemetry stats and send them to the Runhouse hosted OpenTelemetry collector"""
         from opentelemetry import trace
@@ -1060,7 +1070,8 @@ if __name__ == "__main__":
 
     HTTPServer(
         conda_env=conda_name,
-        enable_local_span_collection=use_local_telemetry,
+        enable_local_span_collection=use_local_telemetry
+        or configs.data_collection_enabled(),
     )
 
     if den_auth:
