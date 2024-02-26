@@ -1,7 +1,6 @@
 import copy
 import logging
 import re
-import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -11,6 +10,7 @@ from runhouse import globals
 from runhouse.resources.folders import Folder, folder
 from runhouse.resources.hardware.utils import _get_cluster_from
 from runhouse.resources.resource import Resource
+from runhouse.utils import install_conda, run_with_logs
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
 
@@ -259,8 +259,11 @@ class Package(Resource):
             env.run([pip_cmd])
         else:
             cmd = f"{sys.executable} -m {pip_cmd}"
-            logging.info(f"Running: {cmd}")
-            subprocess.run(shlex.split(cmd), check=True)
+            retcode = run_with_logs(cmd)
+            if retcode != 0:
+                raise RuntimeError(
+                    "Pip install failed, check that the package exists and is available for your platform."
+                )
 
     @staticmethod
     def _conda_install(install_cmd: str, env: Union[str, "Env"] = ""):
@@ -272,33 +275,15 @@ class Package(Resource):
 
                 env = Env.from_name(env)
             cmd = f"{env._run_cmd} {cmd}"
-        logging.info(f"Running: {cmd}")
-        # check if conda is installed, and if not, install it
-        try:
-            subprocess.run(["conda", "--version"], check=True)
-            subprocess.run(shlex.split(cmd))
-        except FileNotFoundError:
-            logging.info("Conda not found, installing...")
-            subprocess.run(
-                shlex.split(
-                    "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh"
-                ),
-                check=True,
+
+        install_conda()
+
+        retcode = run_with_logs(cmd)
+        if retcode != 0:
+            raise RuntimeError(
+                "Conda install failed, check that the package exists and is "
+                "available for your platform."
             )
-            subprocess.run(
-                ["bash", "~/miniconda.sh", "-b", "-p", "~/miniconda"],
-                check=True,
-            )
-            subprocess.run(
-                "source $HOME/miniconda3/bin/activate".split(" "),
-                check=True,
-            )
-            status = subprocess.run(shlex.split(cmd), check=True).returncode
-            if not status == 0:
-                raise RuntimeError(
-                    "Conda install failed, check that the package exists and is "
-                    "available for your platform."
-                )
 
     def to(
         self,
