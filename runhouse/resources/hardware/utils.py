@@ -44,8 +44,6 @@ class ServerConnectionType(str, Enum):
         on port 443.
     ``none``: Do not use port forwarding, and start the server with HTTP, by default on port 80.
     ``aws_ssm``: Use AWS SSM to connect to the server, by default on port 32300.
-    ``paramiko``: Use paramiko to connect to the server (e.g. if you provide a password with SSH credentials), by
-        default on port 32300.
     """
 
     SSH = "ssh"

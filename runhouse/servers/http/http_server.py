@@ -26,7 +26,7 @@ from runhouse.constants import (
 )
 from runhouse.globals import configs, obj_store, rns_client
 
-from runhouse.rns.utils.api import load_resp_content, resolve_absolute_path
+from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import verify_cluster_access
@@ -43,7 +43,6 @@ from runhouse.servers.http.http_utils import (
     Response,
     serialize_data,
     ServerSettings,
-    username_from_token,
 )
 from runhouse.servers.obj_store import (
     ClusterServletSetupOption,
@@ -71,29 +70,25 @@ def validate_cluster_access(func):
 
         func_call: bool = func.__name__ in ["post_call", "get_call"]
         token = get_token_from_request(request)
-        username = None
-
-        if den_auth_enabled:
-            # Validate the cluster subtoken
-            _validate_request_token(token)
-
-            username = username_from_token(token)
-            if username is None:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Failed to validate user from provided token.",
-                )
 
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
-        ctx_token = obj_store.set_ctx(request_id=request_id, username=username)
+        ctx_token = obj_store.set_ctx(request_id=request_id, token=token)
 
         try:
-            if func_call and token and username:
-                obj_store.add_user_to_auth_cache(username, token, refresh_cache=False)
+            if func_call and token:
+                obj_store.add_user_to_auth_cache(token, refresh_cache=False)
 
             if den_auth_enabled and not func_call:
+                if token is None:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="No Runhouse token provided. Try running `$ runhouse login` or visiting "
+                        "https://run.house/login to retrieve a token. If calling via HTTP, please "
+                        "provide a valid token in the Authorization header.",
+                    )
+
                 cluster_uri = obj_store.get_cluster_config().get("name")
-                cluster_access = verify_cluster_access(cluster_uri, username, token)
+                cluster_access = verify_cluster_access(cluster_uri, token)
                 if not cluster_access:
                     # Must have cluster access for all the non func calls
                     # Note: for func calls we handle the auth in the object store
@@ -115,32 +110,6 @@ def validate_cluster_access(func):
         return res
 
     return wrapper
-
-
-def _validate_request_token(request_token: str):
-    """Checks whether the cluster token is valid if provided in the request Auth headers.
-    If a regular Runhouse bearer token is provided it will be validated by the object store.
-    If a cluster subtoken is provided, validate it via Den."""
-    if request_token is None:
-        raise HTTPException(
-            status_code=401,
-            detail="No Runhouse token provided. Try running `$ runhouse login` or visiting "
-            "https://run.house/login to retrieve a token.",
-        )
-
-    if "+" not in request_token:
-        # Only support cluster subtokens
-        raise HTTPException(status_code=401, detail="Invalid cluster token provided")
-
-    resp = requests.post(
-        f"{rns_client.api_server_url}/auth/cluster",
-        headers={"Authorization": request_token},
-    )
-
-    if resp.status_code != 200:
-        raise HTTPException(
-            status_code=resp.status_code, detail=load_resp_content(resp)
-        )
 
 
 class HTTPServer:
@@ -186,7 +155,6 @@ class HTTPServer:
             # Instrument the requests library
             RequestsInstrumentor().instrument()
 
-            @staticmethod
             @app.get("/spans")
             @validate_cluster_access
             def get_spans(request: Request):
@@ -196,6 +164,20 @@ class HTTPServer:
                         for span in self.memory_exporter.get_finished_spans()
                     ]
                 }
+
+            @app.middleware("http")
+            async def _add_username_to_span(request: Request, call_next):
+                from opentelemetry import trace
+
+                span = trace.get_current_span()
+
+                token = get_token_from_request(request)
+                username = obj_store.get_username(token)
+                if username:
+                    # Set the username as a span attribute
+                    span.set_attribute("username", username)
+
+                return await call_next(request)
 
         # Ray and ClusterServlet should already be
         # initialized by the start script (see below)
@@ -211,11 +193,12 @@ class HTTPServer:
         # except Exception as e:
         #     logger.error(f"Failed to collect cluster stats: {str(e)}")
 
-        try:
-            # Collect telemetry stats for the cluster
-            self._collect_telemetry_stats()
-        except Exception as e:
-            logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
+        if enable_local_span_collection:
+            try:
+                # Collect telemetry stats for the cluster
+                self._collect_telemetry_stats()
+            except Exception as e:
+                logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
 
         # We initialize a base env servlet where some things may run.
         # TODO: We aren't sure _exactly_ where this is or isn't used.
@@ -330,7 +313,6 @@ class HTTPServer:
                 precision="ms",  # Higher precision because we see collisions within the same second
                 sep="@",
             )
-
             # Call async so we can loop to collect logs until the result is ready
 
             fut = asyncio.create_task(
@@ -338,8 +320,10 @@ class HTTPServer:
                     key=key,
                     method_name=method_name,
                     data=params.data,
+                    stream_logs=params.stream_logs,
                     serialization=params.serialization,
                     run_name=params.run_name,
+                    # remote=params.remote,
                     run_async=True,
                 )
             )
@@ -665,7 +649,7 @@ class HTTPServer:
         span = trace.get_current_span()
 
         token = get_token_from_request(request)
-        username = username_from_token(token)
+        username = obj_store.get_username(token)
         if username:
             # Set the username as a span attribute
             span.set_attribute("username", username)
@@ -1058,7 +1042,8 @@ if __name__ == "__main__":
 
     HTTPServer(
         conda_env=conda_name,
-        enable_local_span_collection=use_local_telemetry,
+        enable_local_span_collection=use_local_telemetry
+        or configs.data_collection_enabled(),
     )
 
     if den_auth:

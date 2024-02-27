@@ -49,7 +49,6 @@ def cluster(
             API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
             with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
             without an SSH tunnel. ``aws_ssm`` will start the server with HTTP using AWS SSM port forwarding.
-            ``paramiko``will use paramiko to create an SSH tunnel to the cluster.
         ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
         ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
         domain(str, optional): Domain name for the cluster. Relevant if enabling HTTPs on the cluster.
@@ -335,7 +334,6 @@ def ondemand_cluster(
             API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
             with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
             without an SSH tunnel. ``aws_ssm`` will start the server with HTTP using AWS SSM port forwarding.
-            ``paramiko``will use paramiko to create an SSH tunnel to the cluster.
         ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
         ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
         domain(str, optional): Domain name for the cluster. Relevant if enabling HTTPs on the cluster.

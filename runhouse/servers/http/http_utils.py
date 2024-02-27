@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class RequestContext(BaseModel):
     request_id: str
-    username: Optional[str]
+    token: Optional[str]
 
 
 class ServerSettings(BaseModel):
@@ -105,7 +105,7 @@ def deserialize_data(data: Any, serialization: Optional[str]):
         return json.loads(data)
     elif serialization == "pickle":
         return b64_unpickle(data)
-    elif serialization == "none" or serialization is None:
+    elif serialization is None or serialization == "none":
         return data
     else:
         raise ValueError(f"Invalid serialization type {serialization}")
@@ -122,7 +122,7 @@ def serialize_data(data: Any, serialization: Optional[str]):
             return json.dumps(str(e))
     elif serialization == "pickle":
         return pickle_b64(data)
-    elif serialization == "none" or serialization is None:
+    elif serialization is None or serialization == "none":
         return data
     else:
         raise ValueError(f"Invalid serialization type {serialization}")

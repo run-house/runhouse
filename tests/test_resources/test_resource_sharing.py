@@ -122,7 +122,7 @@ class TestResourceSharing:
         try:
             resource(2, 2) == 4
         except Exception as e:
-            assert "Error calling call on server" in str(e)
+            assert "Unauthorized access to resource summer." in str(e)
 
         # Reset back to valid token and confirm we can call function again
         rh.configs.token = current_token
@@ -172,7 +172,10 @@ class TestResourceSharing:
         # Confirm user can still call the function with write access to the cluster
         cluster_token = rns_client.cluster_token(current_token, cluster.rns_address)
         res = self.call_func_with_curl(
-            cluster, resource.name, cluster_token, **{"a": 1, "b": 2}
+            cluster,
+            resource.name,
+            cluster_token,
+            **{"a": 1, "b": 2, "serialization": "none"},
         )
 
         assert "12" in res.stdout

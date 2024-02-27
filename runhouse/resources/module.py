@@ -89,11 +89,7 @@ class Module(Resource):
             self._resource_string_for_subconfig(self.system) if self.system else None
         )
         config["env"] = (
-            None
-            if not self.env
-            else self.env.config_for_rns
-            if self.env.name == Env.DEFAULT_NAME
-            else self._resource_string_for_subconfig(self.env)
+            self._resource_string_for_subconfig(self.env) if self.env else None
         )
         if self._pointers:
             # For some reason sometimes this is coming back as a string, so we force it into a tuple
@@ -174,10 +170,10 @@ class Module(Resource):
     def _check_for_child_configs(cls, config):
         """Overload by child resources to load any resources they hold internally."""
         system = config.get("system")
-        if isinstance(system, str):
+        if isinstance(system, str) or isinstance(system, dict):
             config["system"] = _get_cluster_from(system)
         env = config.get("env")
-        if isinstance(env, str):
+        if isinstance(env, str) or isinstance(env, dict):
             config["env"] = _get_env_from(env)
         return config
 

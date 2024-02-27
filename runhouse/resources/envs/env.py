@@ -1,8 +1,6 @@
 import copy
 import logging
 import os
-import shlex
-import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -11,6 +9,8 @@ from runhouse.resources.folders import Folder
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
+
+from runhouse.utils import run_with_logs
 
 from .utils import _env_vars_from_file
 
@@ -161,7 +161,7 @@ class Env(Resource):
             pkg._install(self)
         return self.run(self.setup_cmds) if self.setup_cmds else None
 
-    def run(self, cmds: List[str]):
+    def run(self, cmds: Union[List[str], str]):
         """Run command locally inside the environment"""
         ret_codes = []
         for cmd in cmds:
@@ -171,17 +171,10 @@ class Env(Resource):
             use_shell = any(shell_feat in cmd for shell_feat in [">", "|", "&&", "||"])
             if use_shell:
                 # Example: "echo '<TOKEN>' > ~/.rh/config.yaml"
-                ret_code = subprocess.call(
-                    cmd,
-                    shell=True,
-                )
+                retcode = run_with_logs(cmd, shell=True)
             else:
-                ret_code = subprocess.call(
-                    shlex.split(cmd),
-                    # cwd=self.working_dir,  # Should we do this?
-                    shell=False,
-                )
-            ret_codes.append(ret_code)
+                retcode = run_with_logs(cmd, shell=False)
+            ret_codes.append(retcode)
         return ret_codes
 
     def to(

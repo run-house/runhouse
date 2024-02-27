@@ -286,7 +286,7 @@ class TestHTTPServerDocker:
         if cluster.den_auth:
             # Should not be able to access cluster APIs
             assert response.status_code == 403
-            assert "Failed to validate cluster token" in response.text
+            assert "Cluster access is required for this operation." in response.text
         else:
             # If den auth is not enabled token should be ignored
             assert response.status_code == 200
@@ -301,7 +301,7 @@ class TestHTTPServerDocker:
         )
 
         if cluster.den_auth:
-            assert response.status_code == 401
+            assert response.status_code == 403
         else:
             assert response.status_code == 200
 
@@ -371,7 +371,8 @@ class TestHTTPServerDockerDenAuthOnly:
             json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
             headers=INVALID_HEADERS,
         )
-        assert response.status_code == 401
+        assert response.status_code == 403
+        assert "Cluster access is required for this operation." in response.text
 
     @pytest.mark.level("local")
     def test_call_module_method_with_invalid_token(self, http_client, remote_func):
@@ -388,7 +389,8 @@ class TestHTTPServerDockerDenAuthOnly:
             },
             headers=INVALID_HEADERS,
         )
-        assert response.status_code == 401
+        assert response.status_code == 403
+        assert "Unauthorized access to resource summer" in response.text
 
     @pytest.mark.level("local")
     def test_put_object_with_invalid_token(self, http_client):
@@ -402,7 +404,8 @@ class TestHTTPServerDockerDenAuthOnly:
             ).dict(),
             headers=INVALID_HEADERS,
         )
-        assert response.status_code == 401
+        assert response.status_code == 403
+        assert "Cluster access is required for this operation." in response.text
 
     @pytest.mark.level("local")
     def test_rename_object_with_invalid_token(self, http_client):
@@ -413,13 +416,15 @@ class TestHTTPServerDockerDenAuthOnly:
             json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
             headers=INVALID_HEADERS,
         )
-        assert response.status_code == 401
+        assert response.status_code == 403
+        assert "Cluster access is required for this operation." in response.text
 
     @pytest.mark.level("local")
     def test_get_keys_with_invalid_token(self, http_client):
         response = http_client.get("/keys", headers=INVALID_HEADERS)
 
-        assert response.status_code == 401
+        assert response.status_code == 403
+        assert "Cluster access is required for this operation." in response.text
 
 
 @pytest.fixture(scope="function")
@@ -576,7 +581,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
                 headers=INVALID_HEADERS,
             )
 
-            assert resp.status_code == 401
+            assert resp.status_code == 403
 
     @pytest.mark.level("unit")
     def test_put_object_with_invalid_token(self, local_client_with_den_auth):
@@ -590,7 +595,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
             ).dict(),
             headers=INVALID_HEADERS,
         )
-        assert resp.status_code == 401
+        assert resp.status_code == 403
 
     @pytest.mark.level("unit")
     def test_rename_object_with_invalid_token(self, local_client_with_den_auth):
@@ -601,11 +606,11 @@ class TestHTTPServerNoDockerDenAuthOnly:
             json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
             headers=INVALID_HEADERS,
         )
-        assert resp.status_code == 401
+        assert resp.status_code == 403
 
     @pytest.mark.level("unit")
     def test_get_keys_with_invalid_token(self, local_client_with_den_auth):
         resp = local_client_with_den_auth.get("/keys", headers=INVALID_HEADERS)
-        assert resp.status_code == 401
+        assert resp.status_code == 403
 
     # TODO (JL): Test call_module_method.

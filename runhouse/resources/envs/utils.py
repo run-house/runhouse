@@ -1,5 +1,3 @@
-import logging
-import shlex
 import subprocess
 
 from pathlib import Path
@@ -113,16 +111,3 @@ def _env_vars_from_file(env_file):
     dotenv_path = find_dotenv(str(env_file), usecwd=True)
     env_vars = dotenv_values(dotenv_path)
     return dict(env_vars)
-
-
-def _install_conda():
-    if subprocess.call(shlex.split("conda --version")) != 0:
-        logging.info("Conda is not installed")
-        subprocess.call(
-            "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh",
-            shell=True,
-        )
-        subprocess.call("bash ~/miniconda.sh -b -p ~/miniconda", shell=True)
-        subprocess.call("source $HOME/miniconda3/bin/activate", shell=True)
-        if subprocess.call(shlex.split("conda --version")) != 0:
-            raise RuntimeError("Could not install Conda.")
