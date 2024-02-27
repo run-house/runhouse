@@ -93,7 +93,7 @@ class SSHSecret(ProviderSecret):
         pub_key_path = Path(f"{os.path.expanduser(priv_key_path)}.pub")
 
         if priv_key_path.exists() and pub_key_path.exists():
-            if values == self._from_path(self=self, path=path):
+            if values == self._from_path(path=path):
                 logger.info(f"Secrets already exist in {path}. Skipping.")
                 self.path = path
                 return self
@@ -171,15 +171,17 @@ class SSHSecret(ProviderSecret):
         return remote_priv_file
 
     @classmethod
-    def setup_ssh_creds(cls, ssh_creds: Union[dict, str], resource_name: str):
+    def setup_ssh_creds(cls, ssh_creds: Union[Dict, str], resource_name: str):
         """
         this method creates an SSHSecret instance based o n the passed values. If the passed values are paths to private
          and/or public keys, this method extracts the content of the files saved in those files, in order for them to
          be saved in den. (Currently if we just pass a path/to/ssh/key to SSHSecret constructor, the content of the file
          will not be saved to Vault. We need to pass the content itself.
-        :param ssh_creds: the ssh credentials passed by the user, dict.
-        :param resource_name: the name of the resource that the ssh secret is accosted to.
-        :return: An SSHSecret, where the values of it equal to ssh_creds.
+         Args:
+            ssh_creds (Dict or str): the ssh credentials passed by the user, dict.
+            resource_name (str): the name of the resource that the ssh secret is accosted to.
+         Returns:
+            SSHSecret: the values of it equal to ssh_creds.
         """
         import runhouse as rh
 

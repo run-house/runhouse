@@ -81,7 +81,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert cluster.address == args["ips"][0]
 
         if "ssh_creds" in args:
-            cluster_creds = cluster.creds
+            cluster_creds = cluster.ssh_creds
             if "ssh_private_key" in cluster_creds:
                 # this means that the secret was created by accessing an ssh-key file
                 cluster_creds.pop("private_key", None)
@@ -343,14 +343,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
 
         cluster_name = cluster.rns_address
-        cluster_creds = cluster.creds
+        cluster_creds = cluster.ssh_creds
         cluster_creds.pop("private_key", None)
         cluster_creds.pop("public_key", None)
 
         with friend_account():
             shared_cluster = rh.cluster(name=cluster_name)
             assert shared_cluster.rns_address == cluster_name
-            assert shared_cluster.creds.keys() == cluster_creds.keys()
+            assert shared_cluster.ssh_creds.keys() == cluster_creds.keys()
             echo_msg = "hello from shared cluster"
             run_res = shared_cluster.run([f"echo {echo_msg}"])
             assert echo_msg in run_res[0][1]

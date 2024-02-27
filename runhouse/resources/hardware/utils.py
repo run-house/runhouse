@@ -99,6 +99,7 @@ def _get_cluster_from(system, dryrun=False):
         return Cluster.from_config(system, dryrun)
 
     if isinstance(system, str):
+
         config = _current_cluster(key="config")
         if config and system == config.get("name"):
             return Cluster.from_config(config, dryrun)

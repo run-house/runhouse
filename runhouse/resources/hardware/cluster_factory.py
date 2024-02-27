@@ -102,9 +102,12 @@ def cluster(
         except ValueError:
             pass
 
-    from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
+    if ssh_creds:
+        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
-    ssh_creds_secret = SSHSecret.setup_ssh_creds(ssh_creds, name)
+        ssh_creds_secret = SSHSecret.setup_ssh_creds(ssh_creds, name)
+    else:
+        ssh_creds_secret = ssh_creds
 
     if "instance_type" in kwargs.keys():
         return ondemand_cluster(

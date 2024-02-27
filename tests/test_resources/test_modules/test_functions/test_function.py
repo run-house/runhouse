@@ -272,15 +272,17 @@ class TestFunction:
         assert True
 
     @pytest.mark.level("local")
-    def test_share_and_revoke_function(self, cluster):
+    def test_share_and_revoke_function(self, docker_cluster_pk_http_exposed):
         # TODO: refactor in order to test the function.share() method.
-        my_function = rh.function(fn=summer).to(cluster)
-        if cluster.server_connection_type in ["tls", "none"]:
+        my_function = rh.function(fn=summer).to(docker_cluster_pk_http_exposed)
+        if docker_cluster_pk_http_exposed.server_connection_type in ["tls", "none"]:
             my_function.set_endpoint(
-                f"{cluster.endpoint()}:{cluster.client_port}/{my_function.name}"
+                f"{docker_cluster_pk_http_exposed.endpoint()}:{docker_cluster_pk_http_exposed.client_port}/{my_function.name}"
             )
         else:
-            my_function.set_endpoint(f"{cluster.endpoint()}/{my_function.name}")
+            my_function.set_endpoint(
+                f"{docker_cluster_pk_http_exposed.endpoint()}/{my_function.name}"
+            )
         my_function.save(REMOTE_FUNC_NAME)
 
         my_function.share(
@@ -344,7 +346,7 @@ class TestFunction:
     @pytest.mark.level("local")
     def test_http_url(self, cluster):
         remote_sum = rh.function(summer).to(cluster).save("@/remote_function")
-        ssh_creds = cluster.creds
+        ssh_creds = cluster.ssh_creds
         if cluster.server_connection_type in ["tls", "none"]:
             addr = f"{cluster.endpoint()}:{cluster.client_port}/{remote_sum.name}"
         else:
