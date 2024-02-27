@@ -218,8 +218,6 @@ be started on the cluster on port :code:`32300`.
   `AWS Systems Manager <https://docs.aws.amazon.com/systems-manager/latest/userguide/what-is-systems-manager.html>`_ to
   create an SSH tunnel to the cluster, by default on port :code:`32300`. *Note: this is currently only relevant
   for SageMaker Clusters.*
-- ``paramiko``: Uses `Paramiko <https://www.paramiko.org/>`_ to create an SSH tunnel to the cluster. This
-  is relevant if you are using a cluster which requires a password to authenticate.
 
 
 .. note::
