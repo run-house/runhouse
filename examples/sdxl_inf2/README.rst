@@ -35,4 +35,4 @@ Run the example
 ---------------
 .. code-block:: cli
 
-    python inf2_sxdl.py
+    python inf2_sdxl.py
