@@ -1,4 +1,4 @@
-StableDiffusion XL Pipeline on AWS Inferentia2
+Stable Diffusion XL Pipeline on AWS Inferentia2
 ================================================
 
 This simple code example brings up an AWS Inferentia2 instance using SkyPilot.
@@ -36,5 +36,3 @@ Run the example
 .. code-block:: cli
 
     python inf2_sxdl.py
-
-"""
