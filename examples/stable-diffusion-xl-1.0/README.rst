@@ -1,15 +1,15 @@
-Deploy Llama2 on AWS EC2
+Deploy Stable Diffusion XL 1.0 on AWS EC2
 ================================================
 
-This simple code example brings up an AWS Inferentia2 instance using SkyPilot.
+This simple code example brings up an AWS EC2 instance using SkyPilot.
 
 Install dependencies
 --------------------
 .. code-block:: cli
 
     # Optionally, set up a virtual environment
-    conda create -n llama-demo-apps python=3.8
-    conda activate llama-demo-apps
+    conda create -n rh-sdxl python=3.9.15
+    conda activate rh-sdxl
 
     # Install the required packages
     pip install -r requirements.txt
@@ -35,4 +35,4 @@ Run the example
 ---------------
 .. code-block:: cli
 
-    python llama2_ec2.py
+    python sdxl.py
