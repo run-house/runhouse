@@ -55,7 +55,7 @@ class Cluster(Resource):
         # Name will almost always be provided unless a "local" cluster is created
         name: Optional[str] = None,
         ips: List[str] = None,
-        creds: Union["SSHSecret", str] = None,
+        creds: "Secret" = None,
         server_host: str = None,
         server_port: int = None,
         ssh_port: int = None,
@@ -1445,6 +1445,5 @@ class Cluster(Resource):
                 creds = Secret.from_config(creds)
             else:
                 creds = setup_cluster_creds(creds, config["name"])
-
         config["creds"] = creds
         return config

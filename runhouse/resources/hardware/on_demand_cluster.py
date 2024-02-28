@@ -324,9 +324,7 @@ class OnDemandCluster(Cluster):
             yaml_path = handle.cluster_yaml
             if Path(yaml_path).exists():
                 ssh_values = backend_utils.ssh_credential_from_yaml(yaml_path)
-                if not self._creds or (
-                    self._creds and self._creds.values != ssh_values
-                ):
+                if not self._creds:
                     from runhouse.resources.secrets.utils import setup_cluster_creds
 
                     self._creds = setup_cluster_creds(ssh_values, self.name)
