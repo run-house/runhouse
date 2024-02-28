@@ -1,5 +1,5 @@
-Secrets Management
-==================
+Secrets
+=======
 
 .. raw:: html
 

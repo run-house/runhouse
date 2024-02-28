@@ -28,8 +28,9 @@ Table of Contents
    :maxdepth: 1
    :caption: API Basics
 
-   tutorials/api_compute
-   tutorials/api_data
+   tutorials/api_clusters
+   tutorials/api_modules
+   tutorials/api_envs
    tutorials/api_secrets
    tutorials/api_resources
 
