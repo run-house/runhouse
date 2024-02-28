@@ -20,7 +20,9 @@ Table of Contents
    :maxdepth: 1
    :caption: Getting Started
 
-   tutorials/getting_started/quick_start
+   tutorials/getting_started/cloud_quick_start
+   tutorials/getting_started/local_quick_start
+   tutorials/getting_started/den_quick_start
 
 .. toctree::
    :maxdepth: 1
