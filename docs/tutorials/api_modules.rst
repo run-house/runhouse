@@ -66,7 +66,7 @@ are set up.
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2024-02-27 20:21:54.329646 | Writing out function to /Users/caroline/Documents/runhouse/notebooks/docs/api_basics/np_sum_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
+    INFO | 2024-02-27 20:21:54.329646 | Writing out function to /Users/caroline/Documents/runhouse/notebooks/docs/np_sum_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
     INFO | 2024-02-27 20:21:55.378194 | Server rh-cluster is up.
     INFO | 2024-02-27 20:21:55.384844 | Copying package from file:///Users/caroline/Documents/runhouse/notebooks to: rh-cluster
     INFO | 2024-02-27 20:22:06.614361 | Calling base_env.install
