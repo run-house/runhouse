@@ -272,17 +272,15 @@ class TestFunction:
         assert True
 
     @pytest.mark.level("local")
-    def test_share_and_revoke_function(self, docker_cluster_pk_http_exposed):
+    def test_share_and_revoke_function(self, cluster):
         # TODO: refactor in order to test the function.share() method.
-        my_function = rh.function(fn=summer).to(docker_cluster_pk_http_exposed)
-        if docker_cluster_pk_http_exposed.server_connection_type in ["tls", "none"]:
+        my_function = rh.function(fn=summer).to(cluster)
+        if cluster.server_connection_type in ["tls", "none"]:
             my_function.set_endpoint(
-                f"{docker_cluster_pk_http_exposed.endpoint()}:{docker_cluster_pk_http_exposed.client_port}/{my_function.name}"
+                f"{cluster.endpoint()}:{cluster.client_port}/{my_function.name}"
             )
         else:
-            my_function.set_endpoint(
-                f"{docker_cluster_pk_http_exposed.endpoint()}/{my_function.name}"
-            )
+            my_function.set_endpoint(f"{cluster.endpoint()}/{my_function.name}")
         my_function.save(REMOTE_FUNC_NAME)
 
         my_function.share(
