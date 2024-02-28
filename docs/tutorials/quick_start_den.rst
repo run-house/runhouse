@@ -38,7 +38,7 @@ Saving
 
 Let’s start by constructing some runhouse resources that we’d like to
 save down. These resources are taking from our `Cloud Quick Start
-Tutorial <run.house/docs/tutorials/getting_started/cloud_quick_start>`__.
+Tutorial <run.house/docs/tutorials/quick_start_cloud>`__.
 
 .. code:: ipython3
 
@@ -118,6 +118,6 @@ Dive Deeper
 Check on more in-depth tutorials on:
 
 -  Resource Management
-   https://www.run.house/docs/tutorials/api_basics/resources
+   https://www.run.house/docs/tutorials/api_resources
 -  Secrets Management
-   https://www.run.house/docs/tutorials/api_basics/secrets
+   https://www.run.house/docs/tutorials/api_secrets

@@ -105,7 +105,7 @@ which means there’s no need to install anything locally either.
 
 For a more in-depth walkthrough of Runhouse’s function and env APIs,
 please refer to the `Compute API
-Tutorial <https://www.run.house/docs/tutorials/api/compute>`__.
+Tutorial <https://www.run.house/docs/tutorials/api_compute>`__.
 
 .. code:: ipython3
 

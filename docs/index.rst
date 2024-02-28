@@ -20,18 +20,18 @@ Table of Contents
    :maxdepth: 1
    :caption: Getting Started
 
-   tutorials/getting_started/cloud_quick_start
-   tutorials/getting_started/local_quick_start
-   tutorials/getting_started/den_quick_start
+   tutorials/quick_start_cloud
+   tutorials/quick_start_local
+   tutorials/quick_start_den
 
 .. toctree::
    :maxdepth: 1
    :caption: API Basics
 
-   tutorials/api_basics/compute
-   tutorials/api_basics/data
-   tutorials/api_basics/secrets
-   tutorials/api_basics/resources
+   tutorials/api_compute
+   tutorials/api_data
+   tutorials/api_secrets
+   tutorials/api_resources
 
 .. toctree::
    :maxdepth: 1

@@ -64,7 +64,7 @@ Setup <https://www.run.house/docs/tutorials/quick_start#cluster-setup>`__.
 On-Premise Cluster
 ~~~~~~~~~~~~~~~~~~
 
-For an on-prem cluster, you can instantaite it as follows, filling in
+For an on-prem cluster, you can instantiate it as follows, filling in
 the IP address, ssh user and private key path.
 
 .. code:: ipython3
