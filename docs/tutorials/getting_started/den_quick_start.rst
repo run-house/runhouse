@@ -1,5 +1,5 @@
-Runhouse Den
-============
+Den Quick Start
+===============
 
 .. raw:: html
 
