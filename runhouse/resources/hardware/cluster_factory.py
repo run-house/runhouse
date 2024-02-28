@@ -102,9 +102,9 @@ def cluster(
             pass
 
     if ssh_creds:
-        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
+        from runhouse.resources.secrets.utils import setup_cluster_creds
 
-        ssh_creds_secret = SSHSecret.setup_ssh_creds(ssh_creds, name)
+        ssh_creds_secret = setup_cluster_creds(ssh_creds, name)
     else:
         ssh_creds_secret = ssh_creds
 

@@ -317,7 +317,6 @@ class OnDemandCluster(Cluster):
         time.sleep(5)
 
     def _populate_connection_from_status_dict(self, cluster_dict: Dict[str, Any]):
-        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
         if cluster_dict and cluster_dict["status"].name in ["UP", "INIT"]:
             handle = cluster_dict["handle"]
@@ -328,7 +327,9 @@ class OnDemandCluster(Cluster):
                 if not self._creds or (
                     self._creds and self._creds.values != ssh_values
                 ):
-                    self._creds = SSHSecret.setup_ssh_creds(ssh_values, self.name)
+                    from runhouse.resources.secrets.utils import setup_cluster_creds
+
+                    self._creds = setup_cluster_creds(ssh_values, self.name)
 
             # Add worker IPs if multi-node cluster - keep the head node as the first IP
             for ip in handle.cached_external_ips:

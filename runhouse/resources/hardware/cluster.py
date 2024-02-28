@@ -1433,9 +1433,8 @@ class Cluster(Resource):
     @classmethod
     def _check_for_child_configs(cls, config):
         """Overload by child resources to load any resources they hold internally."""
-        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
         from runhouse.resources.secrets.secret import Secret
-        from runhouse.resources.secrets.utils import load_config
+        from runhouse.resources.secrets.utils import load_config, setup_cluster_creds
 
         creds = config.pop("creds", None) or config.pop("ssh_creds", None)
 
@@ -1445,7 +1444,7 @@ class Cluster(Resource):
             if "name" in creds.keys():
                 creds = Secret.from_config(creds)
             else:
-                creds = SSHSecret.setup_ssh_creds(creds, config["name"])
+                creds = setup_cluster_creds(creds, config["name"])
 
         config["creds"] = creds
         return config

@@ -253,64 +253,6 @@ class Resource:
                 return None
         return config
 
-    # @classmethod
-    # def _update_system_in_config(cls, config):
-    #     """
-    #     When loading a resource from config, sometimes we need to load the system associated with that resource.
-    #     This method loading the SSHSecret associated with the system, and updated the config of the system and the
-    #     resource accordingly.
-    #     :param config: The rns config of the resource.
-    #     :return: Updated resource config, where config[system][creds] is SSHSecret.
-    #     """
-    #     import runhouse as rh
-    #     from runhouse.resources.secrets.secret import Secret
-    #     from runhouse.resources.secrets.utils import load_config
-    #
-    #     system = config.pop("system", None)
-    #     if isinstance(system, dict):
-    #         if "ssh_creds" in system.keys():
-    #             creds = system.pop("ssh_creds")
-    #         else:
-    #             creds = system.pop("creds", None)
-    #
-    #         if isinstance(creds, str):
-    #             creds = Secret.from_config(config=load_config(name=creds))
-    #
-    #         elif isinstance(creds, dict):
-    #             creds = rh.secret(
-    #                 name=f"{config['name']}-ssh-secret", provider="ssh", values=creds
-    #             )
-    #
-    #         system["creds"] = creds
-    #
-    #     config["system"] = system
-    #     return config
-    #
-    # @classmethod
-    # def update_creds_in_config(cls, config):
-    #     """
-    #     When loading a resource from config, sometimes we need to load the secret with that resource.
-    #    This method loading the SSHSecret associated with the resource, and updated the config of resource accordingly.
-    #     :param config: The rns config of the resource.
-    #     :return: Updated resource config, where config[creds] is SSHSecret.
-    #     """
-    #     from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
-    #     from runhouse.resources.secrets.secret import Secret
-    #     from runhouse.resources.secrets.utils import load_config
-    #
-    #     creds = config.pop("creds", None) or config.pop("ssh_creds", None)
-    #
-    #     if isinstance(creds, str):
-    #         creds = Secret.from_config(config=load_config(name=creds))
-    #     if isinstance(creds, dict):
-    #         if "name" in creds.keys():
-    #             creds = Secret.from_config(creds)
-    #         else:
-    #             creds = SSHSecret.setup_ssh_creds(creds, config["name"])
-    #
-    #     config["creds"] = creds
-    #     return config
-
     @classmethod
     def from_name(cls, name, dryrun=False, alt_options=None):
         """Load existing Resource via its name."""
