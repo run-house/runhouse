@@ -303,10 +303,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         config = cluster.config_for_rns
 
         with friend_account():
-            assert (
-                load_shared_resource_config(resource_class_name, cluster.rns_address)
-                == config
+            curr_config = load_shared_resource_config(
+                resource_class_name, cluster.rns_address
             )
+            new_creds = curr_config.pop("creds", None)
+            assert f'{config["name"]}-ssh-secret' in new_creds
+            curr_config["creds"] = new_creds.replace("loaded_secret_", "")
+            assert curr_config == config
 
         # TODO: If we are testing with an ondemand_cluster we to
         # sync sky key so loading ondemand_cluster from config works
@@ -315,12 +318,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         load_shared_resource_config_cluster = rh.function(
             load_shared_resource_config
         ).to(friend_account_logged_in_docker_cluster_pk_ssh)
-        assert (
-            load_shared_resource_config_cluster(
-                resource_class_name, cluster.rns_address
-            )
-            == config
+        new_config = load_shared_resource_config_cluster(
+            resource_class_name, cluster.rns_address
         )
+        new_creds = curr_config.pop("creds", None)
+        assert f'{config["name"]}-ssh-secret' in new_creds
+        new_config["creds"] = new_creds.replace("loaded_secret_", "")
+        assert new_config == config
 
     @pytest.mark.level("local")
     def test_access_to_shared_cluster(self, cluster):

@@ -163,12 +163,14 @@ class TestResource:
         config = saved_resource.config_for_rns
 
         with friend_account():
-            assert (
-                load_shared_resource_config(
-                    resource_class_name, saved_resource.rns_address
-                )
-                == config
+            new_config = load_shared_resource_config(
+                resource_class_name, saved_resource.rns_address
             )
+            if new_config["resource_subtype"] == "Secret":
+                secret_name = new_config.pop("name")
+                assert "loaded_secret_" in secret_name
+                new_config["name"] = secret_name.replace("loaded_secret_", "")
+            assert new_config == config
 
         # TODO: If we are testing with an ondemand_cluster we to
         # sync sky key so loading ondemand_cluster from config works
@@ -177,12 +179,14 @@ class TestResource:
         load_shared_resource_config_cluster = rh.function(
             load_shared_resource_config
         ).to(friend_account_logged_in_docker_cluster_pk_ssh)
-        assert (
-            load_shared_resource_config_cluster(
-                resource_class_name, saved_resource.rns_address
-            )
-            == config
+        new_config = load_shared_resource_config_cluster(
+            resource_class_name, saved_resource.rns_address
         )
+        if new_config["resource_subtype"] == "Secret":
+            secret_name = new_config.pop("name")
+            assert "loaded_secret_" in secret_name
+            new_config["name"] = secret_name.replace("loaded_secret_", "")
+        assert new_config == config
 
     # TODO API to run this on local_docker_slim when level == "local"
     @pytest.mark.skip
