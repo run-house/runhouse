@@ -45,28 +45,22 @@ class StableDiffusionXLPipeline(rh.Module):
         )
         self.pipeline.to("cuda")
 
-    def generate(self, **kwargs):
+    def generate(self, input_prompt: str, output_format: str = "JPEG", **parameters):
         # extract prompt from data
-        prompt = kwargs.pop("inputs", kwargs)
-        parameters = kwargs.pop("parameters", None)
-
         if not self.pipeline:
             self._load_pipeline()
 
-        if parameters is not None:
-            generated_images = self.pipeline(prompt, **parameters)["images"]
-        else:
-            generated_images = self.pipeline(prompt)["images"]
+        generated_images = self.pipeline(input_prompt, **parameters)["images"]
 
         # postprocess convert image into base64 string
         encoded_images = []
         for image in generated_images:
             buffered = BytesIO()
-            image.save(buffered, format="JPEG")
+            image.save(buffered, format=output_format)
             encoded_images.append(base64.b64encode(buffered.getvalue()).decode())
 
         # always return the first
-        return {"generated_images": encoded_images}
+        return encoded_images
 
 
 # helper decoder
@@ -107,13 +101,11 @@ if __name__ == "__main__":
 
     # run prediction
     response = model.generate(
-        inputs=prompt,
-        parameters={
-            "num_inference_steps": 25,
-            "negative_prompt": "disfigured, ugly, deformed",
-        },
+        prompt,
+        num_inference_steps=25,
+        negative_prompt="disfigured, ugly, deformed",
     )
 
-    for gen_img in response["generated_images"]:
+    for gen_img in response:
         img = decode_base64_image(gen_img)
         img.show()
