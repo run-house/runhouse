@@ -3,7 +3,7 @@ Cloud Quick Start
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/getting_started/cloud_quick_start.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick_start_cloud.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 Runhouse lets you quickly and easily deploy your Python code as
@@ -54,7 +54,7 @@ the ``rh.cluster`` factory function.
 
 This requires having access to a cluster or a cloud provider account. If
 you do not have access to a cluster, you can try the `local
-version <run.house/docs/tutorials/getting_started/local_quick_start>`__
+version <run.house/docs/tutorials/quick_start_local>`__
 of this tutorial, which sets up and deploys the Python function to a
 local server, rather than a remote cluster.
 

@@ -7,7 +7,7 @@ Local Quick Start
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 In `Cloud Quick
-Start <run.house/docs/tutorials/getting_started/local_quick_start>`__,
+Start <run.house/docs/tutorials/quick_start_cloud>`__,
 we demonstrate how to deploy a local function to a remote cluster using
 Runhouse. In this local-only version, we show how to use Runhouse to set
 up a local web server, and deploy an arbitrary Python function to it.
