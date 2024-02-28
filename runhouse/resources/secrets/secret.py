@@ -75,7 +75,7 @@ class Secret(Resource):
         current_user = configs.username
         owner_user = config["owner"]["username"] if "owner" in config.keys() else None
 
-        if owner_user and current_user != owner_user:
+        if owner_user and current_user != owner_user and config["values"]:
             new_creds_values = config["values"]
             folder_name = config["name"].replace("/", "_")
             path = f"~/.rh/secrets/{folder_name}"
@@ -93,12 +93,12 @@ class Secret(Resource):
                     f.write(public_key_value)
             if private_key_value and public_key_value:
                 new_creds_values = {
-                    "ssh_private_key": str(private_key_path),
-                    "ssh_public_key": str(public_key_path),
+                    "ssh_private_key": str(private_key_path / "ssh-key"),
+                    "ssh_public_key": str(public_key_path / "ssh-key.pub"),
                 }
             if private_key_value and new_creds_values.get("ssh_user"):
                 new_creds_values = {
-                    "ssh_private_key": str(private_key_path),
+                    "ssh_private_key": str(private_key_path / "ssh-key"),
                     "ssh_user": new_creds_values.get("ssh_user"),
                 }
             return rh.secret(

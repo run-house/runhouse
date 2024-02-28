@@ -193,5 +193,5 @@ def setup_cluster_creds(ssh_creds: Union[Dict, str], resource_name: str):
             values.update({k: v})
     values_to_add = {k: ssh_creds[k] for k in ssh_creds if k not in values.keys()}
     values.update(values_to_add)
-    new_secret = rh.secret(values=values).save(name=f"{resource_name}-ssh-secret")
+    new_secret = rh.secret(values=values)
     return new_secret
