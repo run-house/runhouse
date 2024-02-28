@@ -6,13 +6,13 @@ Cloud Quick Start
     <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/getting_started/cloud_quick_start.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
-Runhouse lets you quickly and easily deploy your Python code and
-applications on your own infra.
+Runhouse lets you quickly and easily deploy your Python code as
+production-grade applications on your own infra.
 
 This tutorial demonstrates how to
 
--  Create Runhouse resources for a ``cluster`` and ``function``
--  Run a locally defined function on remote compute
+-  Start a cloud VM with the Runhouse API server running on it
+-  Send a locally defined function onto the VM to serve it as a service.
 
 Installing Runhouse
 -------------------
@@ -23,10 +23,10 @@ The Runhouse base package can be installed with:
 
     !pip install runhouse
 
-To use Runhouse to launch and interact with remote clusters, please
-instead run the following command. This additionally installs
+To use Runhouse to launch on-demand clusters, please instead run the
+following command. This additionally installs
 `SkyPilot <https://github.com/skypilot-org/skypilot>`__, which is used
-for launching on-demand clusters and interacting with runhouse clusters.
+for launching fresh VMs through your cloud provider.
 
 .. code:: ipython3
 
@@ -89,13 +89,15 @@ Deployment
 ----------
 
 For the function, simply wrap it in ``rh.function``, then send it to the
-cluster with ``.to``.
+cluster with ``.to``. This sets up the function on the cluster as a
+proper service, by syncing over the code and setting up and specified
+dependencies. Furthermore, it runs through SSH, and no additional auth,
+port, or manual setup is necessary.
 
 Modules, or classes, are also supported. For finer control of where the
 function/module runs, you will also be able to specify the environment
 (a list of package requirements, a Conda env, or Runhouse env) where it
-runs. These are covered in more detail in the `Compute
-Tutorial <https://www.run.house/docs/tutorials/api/compute>`__.
+runs. These are covered in more detail in the API tutorials.
 
 .. code:: ipython3
 

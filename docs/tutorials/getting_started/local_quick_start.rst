@@ -10,7 +10,7 @@ In `Cloud Quick
 Start <run.house/docs/tutorials/getting_started/local_quick_start>`__,
 we demonstrate how to deploy a local function to a remote cluster using
 Runhouse. In this local-only version, we show how to use Runhouse to set
-up a local server, and deploy an arbitrary Python function to it.
+up a local web server, and deploy an arbitrary Python function to it.
 
 Runhouse Server Setup
 ---------------------
