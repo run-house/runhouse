@@ -11,31 +11,28 @@ logger = logging.getLogger(__name__)
 
 class AuthCache:
     # Maps a user's token to all the resources they have access to
-    CACHE = {}
-    USERNAMES = {}
+    def __init__(self):
+        self.CACHE = {}
+        self.USERNAMES = {}
 
-    @classmethod
-    def get_user_resources(cls, token: str) -> dict:
+    def get_user_resources(self, token: str) -> dict:
         """Get resources associated with a particular token"""
-        return cls.CACHE.get(token, {})
+        return self.CACHE.get(token, {})
 
-    @classmethod
-    def get_username(cls, token: str) -> Optional[str]:
+    def get_username(self, token: str) -> Optional[str]:
         """Get username associated with a particular token"""
-        return cls.USERNAMES.get(token)
+        return self.USERNAMES.get(token)
 
-    @classmethod
-    def lookup_access_level(cls, token: str, resource_uri: str) -> Union[str, None]:
-        resources: dict = cls.get_user_resources(token)
+    def lookup_access_level(self, token: str, resource_uri: str) -> Union[str, None]:
+        resources: dict = self.get_user_resources(token)
         return resources.get(resource_uri)
 
-    @classmethod
-    def add_user(cls, token, refresh_cache=True):
+    def add_user(self, token, refresh_cache=True):
         """Refresh the server cache with the latest resources and access levels for a particular token"""
         if token is None:
             return
 
-        if not refresh_cache and token in cls.CACHE:
+        if not refresh_cache and token in self.CACHE:
             return
 
         resp = rns_client.session.get(
@@ -51,7 +48,7 @@ class AuthCache:
         username = username_from_token(token)
         if username is None:
             raise ValueError("Failed to find Runhouse user from provided token.")
-        cls.USERNAMES[token] = username
+        self.USERNAMES[token] = username
 
         resp_data = json.loads(resp.content)
         # Support access_level and access_type for BC
@@ -61,7 +58,7 @@ class AuthCache:
             for resource in resp_data["data"]
         }
         # Update server cache with a user's resources and access type
-        cls.CACHE[token] = all_resources
+        self.CACHE[token] = all_resources
 
     def clear_cache(self, token: str = None):
         """Clear the server cache, If a token is specified, clear the cache for that particular user only"""
