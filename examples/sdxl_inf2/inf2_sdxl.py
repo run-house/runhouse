@@ -46,28 +46,23 @@ class StableDiffusionXLPipeline(rh.Module):
             self.model_dir, device_ids=[0, 1]
         )
 
-    def generate(self, **kwargs):
-        # extract prompt from data
-        prompt = kwargs.pop("inputs", kwargs)
-        parameters = kwargs.pop("parameters", None)
-
+    def generate(self, input_prompt: str, output_format: str = "JPEG", **parameters):
         if not self.pipeline:
             self._load_pipeline()
 
-        if parameters is not None:
-            generated_images = self.pipeline(prompt, **parameters)["images"]
-        else:
-            generated_images = self.pipeline(prompt)["images"]
+        generated_images = self.pipeline(input_prompt, **parameters)["images"]
+
+        if output_format == "PIL":
+            return generated_images
 
         # postprocess convert image into base64 string
         encoded_images = []
         for image in generated_images:
             buffered = BytesIO()
-            image.save(buffered, format="JPEG")
+            image.save(buffered, format=output_format)
             encoded_images.append(base64.b64encode(buffered.getvalue()).decode())
 
-        # always return the first
-        return {"generated_images": encoded_images}
+        return encoded_images
 
 
 # helper decoder
@@ -90,6 +85,9 @@ if __name__ == "__main__":
         # https://aws.amazon.com/marketplace/pp/prodview-gr3e6yiscria2
         image_id="ami-0f2c9159df4d244a2",
         region="us-east-1",
+        server_connection_type="tls",
+        open_ports=[443],
+        den_auth=True,
     ).up_if_not()
 
     # Set up dependencies
@@ -121,12 +119,10 @@ if __name__ == "__main__":
 
     # run prediction
     response = model.generate(
-        inputs=prompt,
-        parameters={
-            "num_inference_steps": 25,
-            "negative_prompt": "disfigured, ugly, deformed",
-        },
+        prompt,
+        num_inference_steps=25,
+        negative_prompt="disfigured, ugly, deformed",
     )
 
-    img = decode_base64_image(response["generated_images"][0])
+    img = decode_base64_image(response[0])
     img.show()
