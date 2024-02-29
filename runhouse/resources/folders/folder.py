@@ -12,7 +12,6 @@ import fsspec
 
 import sshfs
 
-from runhouse.constants import RESERVED_SYSTEM_NAMES
 from runhouse.globals import rns_client
 from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
@@ -136,9 +135,9 @@ class Folder(Resource):
     @classmethod
     def _check_for_child_configs(cls, config):
         """Overload by child resources to load any resources they hold internally."""
-        system = config["system"]
-        if isinstance(system, str) and system not in RESERVED_SYSTEM_NAMES:
-            config["system"] = rns_client.load_config(name=system) or system
+        system = config.get("system")
+        if isinstance(system, str):
+            config["system"] = _get_cluster_from(system)
         return config
 
     @property
