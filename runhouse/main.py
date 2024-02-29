@@ -105,13 +105,15 @@ def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluste
         )
         raise typer.Exit(1)
 
-    if up:
-        c.up_if_not()
-    if not c.is_up():
-        console.print(
-            f"Cluster {cluster_name} is not up. Please run `runhouse ssh {cluster_name} --up`."
-        )
-        raise typer.Exit(1)
+    is_shared = "loaded_secret_" in c._creds.name
+    if not is_shared:
+        if up:
+            c.up_if_not()
+        if not c.is_up():
+            console.print(
+                f"Cluster {cluster_name} is not up. Please run `runhouse ssh {cluster_name} --up`."
+            )
+            raise typer.Exit(1)
     c.ssh()
 
 
