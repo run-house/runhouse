@@ -104,9 +104,7 @@ def cluster(
     if ssh_creds:
         from runhouse.resources.secrets.utils import setup_cluster_creds
 
-        ssh_creds_secret = setup_cluster_creds(ssh_creds, name).save(
-            name=f"{name}-ssh-secret"
-        )
+        ssh_creds_secret = setup_cluster_creds(ssh_creds, name)
     else:
         ssh_creds_secret = ssh_creds
 

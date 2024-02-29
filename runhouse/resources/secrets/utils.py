@@ -111,7 +111,7 @@ def _check_file_for_mismatches(path, existing_vals, new_vals, overwrite):
     return False
 
 
-def setup_cluster_creds(ssh_creds: Union[Dict, str], resource_name: str):
+def setup_cluster_creds(ssh_creds: Union[Dict, str], resource_name):
     """
     this method creates an SSHSecret instance based o n the passed values. If the passed values are paths to private
      and/or public keys, this method extracts the content of the files saved in those files, in order for them to
@@ -193,5 +193,7 @@ def setup_cluster_creds(ssh_creds: Union[Dict, str], resource_name: str):
             values.update({k: v})
     values_to_add = {k: ssh_creds[k] for k in ssh_creds if k not in values.keys()}
     values.update(values_to_add)
-    new_secret = rh.secret(values=values)
+    new_secret = rh.secret(name=f"{resource_name}-ssh-secret", values=values).save(
+        name=f"{resource_name}-ssh-secret"
+    )
     return new_secret
