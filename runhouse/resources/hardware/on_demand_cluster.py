@@ -78,7 +78,8 @@ class OnDemandCluster(Cluster):
             dryrun=dryrun,
             **kwargs,
         )
-
+        self.ips = kwargs.get("ips", None)
+        self.address = kwargs.get("head_ip", None)
         self.instance_type = instance_type
         self.num_instances = num_instances
         self.provider = provider or configs.get("default_provider")
@@ -95,8 +96,6 @@ class OnDemandCluster(Cluster):
         self.memory = memory
         self.disk_size = disk_size
 
-        if not kwargs.get("ips", None):
-            self.address = None
         self.stable_internal_external_ips = kwargs.get(
             "stable_internal_external_ips", None
         )
@@ -528,7 +527,7 @@ class OnDemandCluster(Cluster):
         else:
             # If SSHing onto a specific node, which requires the default sky public key for verification
             ssh_user = self.ssh_creds.get("ssh_user")
-            node = self.ips[0]
+            node = self.ips[0] or self.address
             sky_key = Path(
                 self.ssh_creds.get("ssh_private_key", self.DEFAULT_KEYFILE)
             ).expanduser()
