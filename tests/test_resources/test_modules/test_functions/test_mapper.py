@@ -53,6 +53,15 @@ def get_pid_and_ray_node(a=0):
     )
 
 
+def sleep_and_return(secs):
+    # Return the start and end time so we can ensure that the calls are non-blocking
+    import time
+
+    start = time.time()
+    time.sleep(secs)
+    return start, time.time()
+
+
 class TestMapper:
 
     """Testing strategy:
@@ -73,7 +82,7 @@ class TestMapper:
         # Test .map()
         num_replicas = 3
         pid_fn = rh.function(getpid).to(cluster)
-        mapper = rh.mapper(pid_fn, num_replicas=num_replicas)
+        mapper = rh.mapper(pid_fn, replicas=num_replicas)
         assert len(mapper.replicas) == num_replicas
         for i in range(num_replicas):
             assert mapper.replicas[i].system == cluster
@@ -86,7 +95,7 @@ class TestMapper:
 
         # Test .starmap() and reusing the envs
         summer_fn = rh.function(summer).to(cluster)
-        sum_mapper = rh.mapper(summer_fn, num_replicas=num_replicas)
+        sum_mapper = rh.mapper(summer_fn, replicas=num_replicas)
         assert len(sum_mapper.replicas) == num_replicas
         for i in range(num_replicas):
             assert sum_mapper.replicas[i].system == cluster
@@ -106,12 +115,26 @@ class TestMapper:
         # Test call
         assert len(set(mapper.call() for _ in range(4))) == 3
 
+    @pytest.mark.level("local")
+    def test_remote_mapper_remote_function(self, cluster):
+        # Test that calls are non-blocking, and sending the mapper to the cluster
+        sleep_fn = rh.function(sleep_and_return).to(cluster)
+        sleep_mapper = rh.mapper(sleep_fn).to(cluster)
+        sleep_mapper.add_replicas(2)
+        start_end_times = sleep_mapper.map([1] * 5)
+        assert len(start_end_times) == 5
+        assert all(isinstance(t, tuple) and len(t) == 2 for t in start_end_times)
+        # Ensure that the calls are non-blocking by checking that each end time
+        # is greater than the start time before it
+        for i in range(1, len(start_end_times)):
+            assert start_end_times[i][0] < start_end_times[i][1]
+
     @pytest.mark.level("thorough")
     def test_multinode_map(self, multinode_cpu_cluster):
         num_replicas = 6
         env = rh.env(compute={"CPU": 0.5}, reqs=["pytest"])
         pid_fn = rh.function(get_pid_and_ray_node).to(multinode_cpu_cluster, env=env)
-        mapper = rh.mapper(pid_fn, num_replicas=num_replicas)
+        mapper = rh.mapper(pid_fn, replicas=num_replicas)
         assert len(mapper.replicas) == num_replicas
         for i in range(num_replicas):
             assert mapper.replicas[i].system == multinode_cpu_cluster
@@ -121,6 +144,19 @@ class TestMapper:
         assert len(set(pids)) == num_replicas
         assert len(set(nodes)) == 2
         assert len(set(node for (pid, node) in [mapper.call() for _ in range(10)])) == 2
+
+        # Test that calls are non-blocking, and sending the mapper to the cluster
+        sleep_fn = rh.function(sleep_and_return).to(multinode_cpu_cluster)
+        sleep_mapper = rh.mapper(sleep_fn).to(multinode_cpu_cluster)
+        sleep_mapper.add_replicas(5)
+        start_end_times = sleep_mapper.map([1] * 10)
+        assert len(start_end_times) == 10
+        assert all(isinstance(t, tuple) and len(t) == 2 for t in start_end_times)
+        # Ensure that the calls are non-blocking by checking that each end time
+        # is greater than the start time before it
+        print(start_end_times)
+        for i in range(1, len(start_end_times)):
+            assert start_end_times[i][0] < start_end_times[i][1]
 
     @pytest.mark.skip
     @pytest.mark.level("local")

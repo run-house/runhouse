@@ -506,7 +506,7 @@ class Module(Resource):
         else:
             return self
 
-    def replicate(self, num_replicas=1, names=None, envs=None, parallel=True):
+    def replicate(self, num_replicas=1, names=None, envs=None, parallel=False):
         """Replicate the module on the cluster in a new env and return the new modules."""
         if not self.system or not self.name:
             raise ValueError(
@@ -531,15 +531,17 @@ class Module(Resource):
             if isinstance(envs, list):
                 env = _get_env_from(envs[i])
             else:
-                env_conf = self.env.config_for_rns
-                env_conf["name"] = f"{self.env.name}_replica_{i}"
-                env = Env.from_config(env_conf)
+                # We do a shallow copy here because we want to reuse the Package objects in the env
+                # If we reconstruct from scratch, the cluster may not have been saved (but has a name), and won't
+                # be populated properly inside the package's folder's system.
+                env = copy.copy(self.env)
+                env.name = f"{self.env.name}_replica_{i}"
 
-            new_config = self.config_for_rns
-            new_config["name"] = name
-            new_config.pop("env", None)
-            new_config.pop("system", None)
-            new_module = Module.from_config(new_config).to(self.system, env)
+            new_module = copy.copy(self)
+            new_module.name = name
+            new_module.env = None
+            new_module.system = None
+            new_module = new_module.to(self.system, env=env)
             return new_module
 
         if parallel:
