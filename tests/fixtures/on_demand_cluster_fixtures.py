@@ -18,12 +18,13 @@ def on_demand_cluster(request):
 @pytest.fixture(
     params=[
         "ondemand_aws_cluster",
+        "ondemand_gcp_cluster",
+        "ondemand_k8s_cluster",
         "v100_gpu_cluster",
         "k80_gpu_cluster",
         "a10g_gpu_cluster",
-        "kubernetes_cpu_cluster",
     ],
-    ids=["cpu", "v100", "k80", "a10g", "kubernetes"],
+    ids=["aws_cpu", "gcp_cpu", "k8s_cpu", "v100", "k80", "a10g"],
 )
 def ondemand_cluster(request):
     return request.getfixturevalue(request.param)
@@ -79,6 +80,31 @@ def ondemand_gcp_cluster():
 
 
 @pytest.fixture(scope="session")
+def ondemand_k8s_cluster():
+    kube_config_path = Path.home() / ".kube" / "config"
+
+    if not kube_config_path.exists():
+        pytest.skip("no kubeconfig found")
+
+    args = {
+        "name": "rh-cpu-k8s",
+        "provider": "kubernetes",
+        "instance_type": "1CPU--1GB",
+    }
+    c = rh.ondemand_cluster(**args)
+    init_args[id(c)] = args
+
+    c.up_if_not()
+
+    # Save to RNS - to be loaded in other tests (ex: Runs)
+    c.save()
+
+    # Call save before installing in the event we want to use TLS / den auth
+    test_env().to(c)
+    return c
+
+
+@pytest.fixture(scope="session")
 def v100_gpu_cluster():
     return rh.ondemand_cluster(
         name="rh-v100", instance_type="V100:1", provider="aws"
@@ -113,31 +139,5 @@ def multinode_cpu_cluster():
 
     c.save()
 
-    test_env().to(c)
-    return c
-
-
-@pytest.fixture(scope="session")
-def kubernetes_cpu_cluster():
-
-    kube_config_path = Path.home() / ".kube" / "config"
-
-    if not kube_config_path.exists():
-        pytest.skip("no kubeconfig found")
-
-    args = {
-        "name": "rh-cpu-k8s",
-        "provider": "kubernetes",
-        "instance_type": "1CPU--1GB",
-    }
-    c = rh.ondemand_cluster(**args)
-    init_args[id(c)] = args
-
-    c.up_if_not()
-
-    # Save to RNS - to be loaded in other tests (ex: Runs)
-    c.save()
-
-    # Call save before installing in the event we want to use TLS / den auth
     test_env().to(c)
     return c

@@ -322,7 +322,7 @@ class TestHTTPServerDockerDenAuthOnly:
 
     UNIT = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
     LOCAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
-    MINIMAL = {"cluster": []}
+    MINIMAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
     THOROUGH = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
     MAXIMAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
 
