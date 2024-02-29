@@ -114,7 +114,6 @@ class OnDemandCluster(Cluster):
     @property
     def config_for_rns(self):
         config = super().config_for_rns
-        sky_status = self._sky_status()
         # Also store the ssh keys for the cluster in RNS
         config.update(
             {
@@ -126,10 +125,8 @@ class OnDemandCluster(Cluster):
                 "use_spot": self.use_spot,
                 "image_id": self.image_id,
                 "region": self.region,
-                "head_ip": sky_status["handle"].head_ip,
-                "stable_internal_external_ips": sky_status[
-                    "handle"
-                ].stable_internal_external_ips,
+                "head_ip": self.address,
+                "stable_internal_external_ips": self.stable_internal_external_ips,
             }
         )
 
@@ -321,6 +318,7 @@ class OnDemandCluster(Cluster):
         if cluster_dict and cluster_dict["status"].name in ["UP", "INIT"]:
             handle = cluster_dict["handle"]
             self.address = handle.head_ip
+            self.stable_internal_external_ips = handle.stable_internal_external_ips
             yaml_path = handle.cluster_yaml
             if Path(yaml_path).exists():
                 ssh_values = backend_utils.ssh_credential_from_yaml(yaml_path)
