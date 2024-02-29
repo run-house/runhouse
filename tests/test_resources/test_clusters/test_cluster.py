@@ -359,9 +359,3 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             run_res = shared_cluster.run([f"echo {echo_msg}"])
             assert echo_msg in run_res[0][1]
             shared_cluster.ssh()
-
-    def test_sasha(self):
-        name = "/sashab/sasha-ondemand-cluster"
-        c = rh.cluster(name=name)
-        c_name = c.name
-        print(c_name)
