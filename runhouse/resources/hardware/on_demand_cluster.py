@@ -334,6 +334,7 @@ class OnDemandCluster(Cluster):
         else:
             self.address = None
             self._creds = None
+            self.stable_internal_external_ips = None
 
     def _update_from_sky_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
