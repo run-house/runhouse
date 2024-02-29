@@ -1,4 +1,4 @@
-Stable Diffusion XL Pipeline on AWS Inferentia2
+Deploy Stable Diffusion XL 1.0 on AWS Inferentia2
 ================================================
 
 This simple code example brings up an AWS Inferentia2 instance using SkyPilot.

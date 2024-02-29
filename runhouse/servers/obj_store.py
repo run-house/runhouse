@@ -62,7 +62,7 @@ def get_cluster_servlet(create_if_not_exists: bool = False):
                 get_if_exists=True,
                 lifetime="detached",
                 namespace="runhouse",
-                max_concurrency=10000,
+                max_concurrency=1000,
                 resources={f"node:{current_ip}": 0.001},
             )
             .remote()

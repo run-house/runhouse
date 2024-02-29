@@ -217,7 +217,7 @@ class HTTPServer:
         return obj_store.get_cluster_config().get("den_auth", False)
 
     @classmethod
-    def enable_den_auth(cls, flush=True):
+    def enable_den_auth(cls, flush: Optional[bool] = True):
         obj_store.set_cluster_config_value("den_auth", True)
         if flush:
             obj_store.clear_auth_cache()

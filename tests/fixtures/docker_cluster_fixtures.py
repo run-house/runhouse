@@ -442,7 +442,7 @@ def docker_cluster_pk_tls_exposed(request):
             "server_connection_type": "tls",
             "server_port": DEFAULT_HTTPS_PORT,
             "client_port": local_client_port,
-            "den_auth": False,
+            "den_auth": True,
             "use_local_telemetry": True,
         },
     )
@@ -542,7 +542,7 @@ def docker_cluster_pk_ssh_no_auth(
 def docker_cluster_pk_http_exposed(request):
     """This basic cluster fixture is set up with:
     - Public key authentication
-    - Den auth enabled
+    - Den auth disabled (to mimic VPC)
     - Caddy set up on startup to forward Runhouse HTTP Server to port 80
     - Telemetry enabled
     """
@@ -576,7 +576,7 @@ def docker_cluster_pk_http_exposed(request):
             "server_connection_type": "none",
             "server_port": DEFAULT_HTTP_PORT,
             "client_port": local_client_port,
-            "den_auth": True,
+            "den_auth": False,
             "use_local_telemetry": True,
         },
     )
