@@ -82,7 +82,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         ],
         "cluster": ["ondemand_aws_cluster"],
     }
-    THOROUGH = {
+    RELEASE = {
         "secret": ["test_secret"] + provider_secrets,
         "cluster": [
             "ondemand_aws_cluster",

@@ -14,7 +14,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             "ondemand_k8s_cluster",
         ]
     }
-    THOROUGH = {
+    RELEASE = {
         "cluster": [
             "ondemand_aws_cluster",
             "ondemand_gcp_cluster",

@@ -24,7 +24,7 @@ LOCAL = {
     ]
 }
 MINIMAL = {"cluster": ["ondemand_aws_cluster"]}
-THOROUGH = {
+RELEASE = {
     "cluster": [
         "docker_cluster_pwd_ssh_no_auth",
         "docker_cluster_pk_ssh_no_auth",

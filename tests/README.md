@@ -7,7 +7,7 @@ for a given test suite, and which tests to run for a set of fixtures:
   * "unit" - Mock and dryrun fixtures (often a single local mock) and unit testing only
   * "local" - A comprehensive set of local fixtures, often in containers (run in CI/CD)
   * "minimal" - Minimal set of remote and local fixtures, used for iteration and most PR merges (DEFAULT)
-  * "thorough" - Thorough set of fixtures, run ahead of release (or PR merge for major changes)
+  * "release" - Thorough set of fixtures, run ahead of release (or PR merge for major changes)
   * "maximal" - Testing with all possible fixtures, rarely used
 
 This allows us to run a single test file with different levels to test different infra, and override the level
@@ -53,7 +53,7 @@ which is a subclass of Function. Here's an example of what your workflow might l
   * Optional - review fixtures and tests with reviewer
   * Start unblocking the tests on each fixture level
 * If changes to function.py or module.py are required, run test_function or test_module with "minimal"
-  * Before merging, run with level "thorough" if any cross-cutting modules are materially modified
+  * Before merging, run with level "release" if any cross-cutting modules are materially modified
     * If any breakage is found for a fixture (e.g. sagemaker), jump into culprit's test file and run with "minimal"
 * Iterate with reviewer and rerun tests at various levels as needed
 * CI/CD will run the full Runhouse suite with local before merging

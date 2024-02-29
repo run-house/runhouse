@@ -38,7 +38,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         ]
     }
     MINIMAL = {"cluster": ["ondemand_aws_cluster"]}
-    THOROUGH = {
+    RELEASE = {
         "cluster": [
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pk_ssh_den_auth",
@@ -78,7 +78,7 @@ class TestLevels(str, enum.Enum):
     UNIT = "unit"
     LOCAL = "local"
     MINIMAL = "minimal"
-    THOROUGH = "thorough"
+    RELEASE = "release"
     MAXIMAL = "maximal"
 
 
@@ -88,7 +88,7 @@ TEST_LEVEL_HIERARCHY = {
     TestLevels.UNIT: 0,
     TestLevels.LOCAL: 1,
     TestLevels.MINIMAL: 2,
-    TestLevels.THOROUGH: 3,
+    TestLevels.RELEASE: 3,
     TestLevels.MAXIMAL: 4,
 }
 
@@ -98,7 +98,7 @@ def pytest_addoption(parser):
         "--level",
         action="store",
         default=DEFAULT_LEVEL,
-        help="Fixture set to spin up: unit, local, minimal, thorough, or maximal",
+        help="Fixture set to spin up: unit, local, minimal, release, or maximal",
     )
     parser.addoption(
         "--force-rebuild",
@@ -344,7 +344,7 @@ default_fixtures[TestLevels.MINIMAL] = {
         "ondemand_aws_cluster",
     ]
 }
-default_fixtures[TestLevels.THOROUGH] = {
+default_fixtures[TestLevels.RELEASE] = {
     "cluster": [
         "docker_cluster_pk_ssh_no_auth",
         "docker_cluster_pk_ssh_den_auth",
