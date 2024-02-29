@@ -97,6 +97,9 @@ class OnDemandCluster(Cluster):
 
         self.address = None
         self.client = None
+        self.stable_internal_external_ips = kwargs.get(
+            "stable_internal_external_ips", None
+        )
 
         # Checks if state info is in local sky db, populates if so.
         status_dict = self._sky_status(refresh=False)
