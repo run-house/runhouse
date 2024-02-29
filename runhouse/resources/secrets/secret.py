@@ -56,9 +56,41 @@ class Secret(Resource):
         return config
 
     @staticmethod
+    def _write_shared_secret_to_local(config):
+        import runhouse as rh
+
+        new_creds_values = config["values"]
+        folder_name = config["name"].replace("/", "_")
+        path = f"~/.rh/secrets/{folder_name}"
+        private_key_value, public_key_value = new_creds_values.get(
+            "private_key"
+        ), new_creds_values.get("public_key")
+        private_key_path = public_key_path = Path(f"{path}").expanduser()
+        if private_key_value:
+            if not private_key_path.exists():
+                os.makedirs(str(private_key_path))
+            with open(str(private_key_path / "ssh-key"), "w") as f:
+                f.write(private_key_value)
+        if public_key_value:
+            with open(str(public_key_path / "ssh-key.pub"), "w") as f:
+                f.write(public_key_value)
+        if private_key_value and public_key_value:
+            new_creds_values = {
+                "ssh_private_key": str(private_key_path / "ssh-key"),
+                "ssh_public_key": str(public_key_path / "ssh-key.pub"),
+            }
+        if private_key_value and new_creds_values.get("ssh_user"):
+            new_creds_values = {
+                "ssh_private_key": str(private_key_path / "ssh-key"),
+                "ssh_user": new_creds_values.get("ssh_user"),
+            }
+        return rh.secret(
+            values=new_creds_values, name=f"loaded_secret_{config['name']}"
+        )
+
+    @staticmethod
     def from_config(config: dict, dryrun: bool = False):
         """Create a Secret object from a config dictionary."""
-        import runhouse as rh
 
         if "provider" in config:
             from runhouse.resources.secrets.provider_secrets.providers import (
@@ -76,34 +108,7 @@ class Secret(Resource):
         owner_user = config["owner"]["username"] if "owner" in config.keys() else None
 
         if owner_user and current_user != owner_user and config["values"]:
-            new_creds_values = config["values"]
-            folder_name = config["name"].replace("/", "_")
-            path = f"~/.rh/secrets/{folder_name}"
-            private_key_value, public_key_value = new_creds_values.get(
-                "private_key"
-            ), new_creds_values.get("public_key")
-            private_key_path = public_key_path = Path(f"{path}").expanduser()
-            if private_key_value:
-                if not private_key_path.exists():
-                    os.makedirs(str(private_key_path))
-                with open(str(private_key_path / "ssh-key"), "w") as f:
-                    f.write(private_key_value)
-            if public_key_value:
-                with open(str(public_key_path / "ssh-key.pub"), "w") as f:
-                    f.write(public_key_value)
-            if private_key_value and public_key_value:
-                new_creds_values = {
-                    "ssh_private_key": str(private_key_path / "ssh-key"),
-                    "ssh_public_key": str(public_key_path / "ssh-key.pub"),
-                }
-            if private_key_value and new_creds_values.get("ssh_user"):
-                new_creds_values = {
-                    "ssh_private_key": str(private_key_path / "ssh-key"),
-                    "ssh_user": new_creds_values.get("ssh_user"),
-                }
-            return rh.secret(
-                values=new_creds_values, name=f"loaded_secret_{config['name']}"
-            )
+            return Secret._write_shared_secret_to_local(config)
 
         return Secret(**config, dryrun=dryrun)
 
