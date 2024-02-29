@@ -3,7 +3,7 @@ Functions and Modules
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/api_modules.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/api-modules.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 Runhouse makes Python functions and modules portable. Runhouse functions
@@ -19,7 +19,7 @@ Setup
 We first construct a Runhouse Cluster resource, which is the compute to
 which we will be sending and running our remote Python code on. You can
 read more in the `Cluster
-tutorial <run.house/docs/tutorials/api_clusters>`__.
+tutorial <run.house/docs/tutorials/api-clusters>`__.
 
 .. code:: ipython3
 

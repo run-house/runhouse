@@ -20,28 +20,28 @@ Table of Contents
    :maxdepth: 1
    :caption: Getting Started
 
-   tutorials/quick_start_cloud
-   tutorials/quick_start_local
-   tutorials/quick_start_den
+   tutorials/quick-start-cloud
+   tutorials/quick-start-local
+   tutorials/quick-start-den
 
 .. toctree::
    :maxdepth: 1
    :caption: API Basics
 
-   tutorials/api_clusters
-   tutorials/api_modules
-   tutorials/api_envs
-   tutorials/api_secrets
-   tutorials/api_resources
+   tutorials/api-clusters
+   tutorials/api-modules
+   tutorials/api-envs
+   tutorials/api-secrets
+   tutorials/api-resources
 
 .. toctree::
    :maxdepth: 1
    :caption: Extra Topics
 
    architecture
-   debugging_logging
+   debugging-logging
    troubleshooting
-   security_and_authentication
+   security-and-authentication
 
 .. toctree::
    :maxdepth: 1
