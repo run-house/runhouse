@@ -69,11 +69,15 @@ class Secret(Resource):
         if private_key_value:
             if not private_key_path.exists():
                 os.makedirs(str(private_key_path))
-            with open(str(private_key_path / "ssh-key"), "w") as f:
+            private_file_path = private_key_path / "ssh-key"
+            with open(str(private_file_path), "w") as f:
                 f.write(private_key_value)
+            private_file_path.chmod(0o600)
         if public_key_value:
+            public_file_path = public_key_path / "ssh-key.pub"
             with open(str(public_key_path / "ssh-key.pub"), "w") as f:
                 f.write(public_key_value)
+            public_file_path.chmod(0o600)
         if private_key_value and public_key_value:
             new_creds_values = {
                 "ssh_private_key": str(private_key_path / "ssh-key"),
