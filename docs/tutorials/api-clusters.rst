@@ -48,7 +48,7 @@ cluster.
 Next, we set up a basic function to throw up on our cluster. For more
 information about Functions & Modules that you can put up on a cluster,
 see `Functions &
-Modules <https://www.run.house/docs/tutorials/api_modules>`__.
+Modules <https://www.run.house/docs/tutorials/api-modules>`__.
 
 .. code:: ipython3
 
