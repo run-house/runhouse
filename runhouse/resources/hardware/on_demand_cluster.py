@@ -95,8 +95,8 @@ class OnDemandCluster(Cluster):
         self.memory = memory
         self.disk_size = disk_size
 
-        self.address = None
-        self.client = None
+        if not kwargs.get("ips", None):
+            self.address = None
         self.stable_internal_external_ips = kwargs.get(
             "stable_internal_external_ips", None
         )
