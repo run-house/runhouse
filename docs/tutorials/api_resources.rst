@@ -3,7 +3,7 @@ Resource Management
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/api_basics/resources.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/api_resources.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 Runhouse provides a suite of accessibility features that makes it easy

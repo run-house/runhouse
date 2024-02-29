@@ -31,7 +31,7 @@ management, where it can automatically detect locally set up provider
 secrets, and gives you the option to upload them securely into your
 account. For more information on Secrets management, refer to the
 `Secrets
-Tutorial <https://www.run.house/docs/main/en/tutorials/api_basics/secrets>`__.
+Tutorial <https://www.run.house/docs/main/en/tutorials/api_secrets>`__.
 
 Saving
 ------
