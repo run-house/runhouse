@@ -525,14 +525,15 @@ class OnDemandCluster(Cluster):
             cmd = f"kubectl exec -it {pod_name} -- /bin/bash"
             subprocess.run(cmd, shell=True, check=True)
 
-        elif node is None:
-            # SSH onto head node - can provide the name as specified in the local ~/.ssh/config
-            subprocess.run(["ssh", f"{self.name}"])
         else:
             # If SSHing onto a specific node, which requires the default sky public key for verification
-            sky_key = Path(self.DEFAULT_KEYFILE).expanduser()
+            ssh_user = self.ssh_creds.get("ssh_user")
+            node = self.ips[0]
+            sky_key = Path(
+                self.ssh_creds.get("ssh_private_key", self.DEFAULT_KEYFILE)
+            ).expanduser()
 
             if not sky_key.exists():
                 raise FileNotFoundError(f"Expected default sky key in path: {sky_key}")
 
-            subprocess.run(["ssh", "-i", str(sky_key), f"ubuntu@{node}"])
+            subprocess.run(["ssh", "-i", str(sky_key), f"{ssh_user}@{node}"])
