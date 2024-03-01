@@ -300,7 +300,7 @@ class TestFunction:
                 my_function = rh.function(name=my_function.rns_address)
                 my_function(1, 2)
 
-    @pytest.mark.level("thorough")
+    @pytest.mark.level("release")
     def test_load_function_in_new_cluster(
         self, ondemand_aws_cluster, static_cpu_cluster
     ):
@@ -321,7 +321,7 @@ class TestFunction:
 
         remote_sum.delete_configs()
 
-    @pytest.mark.level("thorough")
+    @pytest.mark.level("release")
     def test_nested_diff_clusters(self, ondemand_aws_cluster, static_cpu_cluster):
         summer_cpu = rh.function(summer).to(ondemand_aws_cluster)
         call_function_diff_cpu = rh.function(call_function).to(static_cpu_cluster)

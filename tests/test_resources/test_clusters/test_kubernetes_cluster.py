@@ -20,17 +20,17 @@ class TestKubernetesCluster(
     UNIT = {"cluster": []}
     LOCAL = {"cluster": []}
     MINIMAL = {"cluster": ["ondemand_k8s_cluster"]}
-    THOROUGH = {"cluster": ["ondemand_k8s_cluster"]}
+    RELEASE = {"cluster": ["ondemand_k8s_cluster"]}
     MAXIMAL = {"cluster": ["ondemand_k8s_cluster"]}
 
-    @pytest.mark.level("thorough")
+    @pytest.mark.level("release")
     def test_read_shared_k8s_cluster(self, ondemand_k8s_cluster):
         res = ondemand_k8s_cluster.run_python(
             ["import numpy", "print(numpy.__version__)"]
         )
         assert res[0][1]
 
-    @pytest.mark.level("thorough")
+    @pytest.mark.level("release")
     def test_function_on_k8s_cluster(self, ondemand_k8s_cluster):
         num_cpus_cluster = rh.function(name="num_cpus_cluster", fn=num_cpus).to(
             system=ondemand_k8s_cluster, reqs=["./"]

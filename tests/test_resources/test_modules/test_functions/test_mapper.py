@@ -106,7 +106,7 @@ class TestMapper:
         # Test call
         assert len(set(mapper.call() for _ in range(4))) == 3
 
-    @pytest.mark.level("thorough")
+    @pytest.mark.level("release")
     def test_multinode_map(self, multinode_cpu_cluster):
         num_replicas = 6
         env = rh.env(compute={"CPU": 0.5}, reqs=["pytest"])

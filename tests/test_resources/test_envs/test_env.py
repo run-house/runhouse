@@ -56,7 +56,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         "env": ["base_env", "named_env", "base_conda_env"],
         "cluster": ["ondemand_aws_cluster"],
     }
-    THOROUGH = {
+    RELEASE = {
         "env": ["base_env", "named_env", "base_conda_env", "conda_env_from_dict"],
         "cluster": [
             "ondemand_aws_cluster",
