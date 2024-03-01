@@ -7,7 +7,7 @@ for a given test suite, and which tests to run for a set of fixtures:
   * "unit" - Mock and dryrun fixtures (often a single local mock) and unit testing only
   * "local" - A comprehensive set of local fixtures, often in containers (run in CI/CD)
   * "minimal" - Minimal set of remote and local fixtures, used for iteration and most PR merges (DEFAULT)
-  * "release" - Thorough set of fixtures, run ahead of release (or PR merge for major changes)
+  * "release" - Set of fixtures to run ahead of release (or PR merge for major changes)
   * "maximal" - Testing with all possible fixtures, rarely used
 
 This allows us to run a single test file with different levels to test different infra, and override the level
