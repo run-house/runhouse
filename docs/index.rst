@@ -54,9 +54,9 @@ Table of Contents
    :maxdepth: 1
    :caption: Examples
 
-   examples/inference
-   examples/training
-   examples/distributed
+   examples/inference-stable-diffusion-flan-t5
+   examples/training-transformers
+   examples/distributed-hf-accelerate
 
 
 Contributing and Community
