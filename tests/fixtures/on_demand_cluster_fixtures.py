@@ -106,23 +106,46 @@ def ondemand_k8s_cluster():
 
 @pytest.fixture(scope="session")
 def v100_gpu_cluster():
-    return rh.ondemand_cluster(
-        name="rh-v100", instance_type="V100:1", provider="aws"
-    ).up_if_not()
+    args = {"name": "rh-v100", "instance_type": "V100:1", "provider": "aws"}
+
+    c = rh.ondemand_cluster(**args)
+    init_args[id(c)] = args
+
+    c.up_if_not()
+
+    c.save()
+
+    test_env().to(c)
+    return c
 
 
 @pytest.fixture(scope="session")
 def k80_gpu_cluster():
-    return rh.ondemand_cluster(
-        name="rh-k80", instance_type="K80:1", provider="aws"
-    ).up_if_not()
+    args = {"name": "rh-k80", "instance_type": "K80:1", "provider": "aws"}
+
+    c = rh.ondemand_cluster(**args)
+    init_args[id(c)] = args
+
+    c.up_if_not()
+
+    c.save()
+
+    test_env().to(c)
+    return c
 
 
 @pytest.fixture(scope="session")
 def a10g_gpu_cluster():
-    return rh.ondemand_cluster(
-        name="rh-a10x", instance_type="g5.2xlarge", provider="aws"
-    ).up_if_not()
+    args = {"name": "rh-a10x", "instance_type": "g5.2xlarge", "provider": "aws"}
+    c = rh.ondemand_cluster(**args)
+    init_args[id(c)] = args
+
+    c.up_if_not()
+
+    c.save()
+
+    test_env().to(c)
+    return c
 
 
 @pytest.fixture(scope="session")
