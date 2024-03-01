@@ -23,27 +23,28 @@ LOCAL = {
         "docker_cluster_pk_ssh_no_auth",
     ]
 }
-MINIMAL = {"cluster": ["ondemand_cpu_cluster"]}
-THOROUGH = {
+MINIMAL = {"cluster": ["ondemand_aws_cluster"]}
+RELEASE = {
     "cluster": [
-        "docker_cluster_pwd_ssh_no_auth",
-        "docker_cluster_pk_ssh_no_auth",
-        "ondemand_cpu_cluster",
-        "ondemand_https_cluster_with_auth",
+        "ondemand_aws_cluster",
+        "ondemand_gcp_cluster",
+        "ondemand_k8s_cluster",
+        "ondemand_aws_https_cluster_with_auth",
         "password_cluster",
-        "multinode_cpu_cluster",
-        "byo_cpu",
+        "static_cpu_cluster",
     ]
 }
 MAXIMAL = {
     "cluster": [
         "docker_cluster_pwd_ssh_no_auth",
         "docker_cluster_pk_ssh_no_auth",
-        "ondemand_cpu_cluster",
-        "ondemand_https_cluster_with_auth",
+        "ondemand_aws_cluster",
+        "ondemand_gcp_cluster",
+        "ondemand_k8s_cluster",
+        "ondemand_aws_https_cluster_with_auth",
         "password_cluster",
         "multinode_cpu_cluster",
-        "byo_cpu",
+        "static_cpu_cluster",
     ]
 }
 

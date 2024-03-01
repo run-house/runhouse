@@ -129,7 +129,7 @@ class TestMapper:
         for i in range(1, len(start_end_times)):
             assert start_end_times[i][0] < start_end_times[i][1]
 
-    @pytest.mark.level("thorough")
+    @pytest.mark.level("release")
     def test_multinode_map(self, multinode_cpu_cluster):
         num_replicas = 6
         env = rh.env(compute={"CPU": 0.5}, reqs=["pytest"])

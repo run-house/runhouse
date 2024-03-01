@@ -47,8 +47,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         ]
     }
     MINIMAL = {"cluster": ["static_cpu_cluster"]}
-    THOROUGH = {
-        "cluster": ["static_cpu_cluster", "password_cluster", "multinode_cpu_cluster"]
+    RELEASE = {
+        "cluster": [
+            "static_cpu_cluster",
+            "password_cluster",
+        ]
     }
     MAXIMAL = {
         "cluster": [

@@ -34,8 +34,8 @@ def test_from_string():
         assert p.install_target == "~/runhouse"
 
 
-def test_share_package(ondemand_cpu_cluster, local_package):
-    local_package.to(system=ondemand_cpu_cluster)
+def test_share_package(ondemand_aws_cluster, local_package):
+    local_package.to(system=ondemand_aws_cluster)
     local_package.save("package_to_share")  # shareable resource requires a name
 
     local_package.share(
@@ -46,7 +46,7 @@ def test_share_package(ondemand_cpu_cluster, local_package):
 
     # TODO test loading from a different account for real
     # Confirm the package's folder is now on the cluster
-    status_codes = ondemand_cpu_cluster.run(commands=["ls tmp_package"])
+    status_codes = ondemand_aws_cluster.run(commands=["ls tmp_package"])
     assert "sample_file_0.txt" in status_codes[0][1]
 
 

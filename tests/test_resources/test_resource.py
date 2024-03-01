@@ -21,7 +21,7 @@ class TestResource:
     UNIT = {"resource": ["unnamed_resource", "named_resource", "local_named_resource"]}
     LOCAL = {"resource": ["unnamed_resource", "named_resource", "local_named_resource"]}
     MINIMAL = {"resource": ["named_resource"]}
-    THOROUGH = {
+    RELEASE = {
         "resource": ["unnamed_resource", "named_resource", "local_named_resource"]
     }
     MAXIMAL = {

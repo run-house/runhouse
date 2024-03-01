@@ -191,6 +191,7 @@ class TestHTTPServerDocker:
                     )
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_call(self, async_http_client, remote_func):
         method = "call"
 
@@ -203,6 +204,7 @@ class TestHTTPServerDocker:
         assert response.json() == 3
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_call_with_invalid_serialization(
         self, async_http_client, remote_func
     ):
@@ -217,6 +219,7 @@ class TestHTTPServerDocker:
         assert "Invalid serialization type" in response.text
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_call_with_pickle_serialization(
         self, async_http_client, remote_func
     ):
@@ -237,6 +240,7 @@ class TestHTTPServerDocker:
         )
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_call_with_json_serialization(
         self, async_http_client, remote_func
     ):
@@ -318,8 +322,8 @@ class TestHTTPServerDockerDenAuthOnly:
 
     UNIT = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
     LOCAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
-    MINIMAL = {"cluster": []}
-    THOROUGH = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
+    MINIMAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
+    RELEASE = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
     MAXIMAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
@@ -448,7 +452,7 @@ class TestHTTPServerNoDocker:
     UNIT = {"client": ["local_client", "local_client_with_den_auth"]}
     LOCAL = {"client": ["local_client", "local_client_with_den_auth"]}
     MINIMAL = {"client": ["local_client", "local_client_with_den_auth"]}
-    THOROUGH = {"client": ["local_client", "local_client_with_den_auth"]}
+    RELEASE = {"client": ["local_client", "local_client_with_den_auth"]}
     MAXIMAL = {"client": ["local_client", "local_client_with_den_auth"]}
 
     @pytest.mark.level("unit")

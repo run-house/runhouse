@@ -354,6 +354,7 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_module_from_subclass_async(self, cluster, env):
         remote_df = SlowPandas(size=3).to(cluster, env)
         assert remote_df.system == cluster
@@ -444,6 +445,7 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_fetch_class_and_properties(self, cluster, env):
         RemoteCalc = rh.module(cls=Calculator).to(cluster)
         owner = "Runhouse"
@@ -550,6 +552,7 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_set_async(self, cluster, env):
         RemoteCalc = rh.module(Calculator).to(cluster)
         my_remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_remote_dev")
@@ -611,20 +614,20 @@ class TestModule:
             "mult",
         }
 
-    @pytest.mark.level("thorough")
+    @pytest.mark.level("release")
     def test_shared_readonly(
         self,
-        ondemand_https_cluster_with_auth,
+        ondemand_aws_https_cluster_with_auth,
         friend_account_logged_in_docker_cluster_pk_ssh,
     ):
         from tests.utils import friend_account
 
-        if ondemand_https_cluster_with_auth.address == "localhost":
+        if ondemand_aws_https_cluster_with_auth.address == "localhost":
             pytest.skip("Skipping sharing test on local cluster")
 
         size = 3
         remote_df = SlowPandas(size=size).to(
-            ondemand_https_cluster_with_auth, name="remote_df"
+            ondemand_aws_https_cluster_with_auth, name="remote_df"
         )
         remote_df.share(
             users=["info@run.house"],
@@ -638,7 +641,7 @@ class TestModule:
             )
 
         cpu_count = int(
-            ondemand_https_cluster_with_auth.run_python(
+            ondemand_aws_https_cluster_with_auth.run_python(
                 ["import os; print(os.cpu_count())"]
             )[0][1]
         )
