@@ -3,7 +3,7 @@ Training: Transformers
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/examples/training.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/examples/training-transformers.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 This tutorial demonstrates how to use Runhouse to facilitate model
