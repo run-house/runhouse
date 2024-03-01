@@ -614,7 +614,7 @@ class TestModule:
             "mult",
         }
 
-    @pytest.mark.level("thorough")
+    @pytest.mark.level("release")
     def test_shared_readonly(
         self,
         ondemand_aws_https_cluster_with_auth,

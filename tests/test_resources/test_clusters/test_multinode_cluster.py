@@ -5,7 +5,7 @@ import pytest
 
 
 class TestMultiNodeCluster:
-    @pytest.mark.level("thorough")
+    @pytest.mark.level("release")
     def test_rsync_and_ssh_onto_worker_node(self, multinode_cpu_cluster):
         worker_node = multinode_cpu_cluster.ips[-1]
         local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
@@ -27,7 +27,7 @@ class TestMultiNodeCluster:
 
         assert "runhouse" in status_codes[0][1]
 
-    @pytest.mark.level("thorough")
+    @pytest.mark.level("release")
     def test_ray_started_on_worker_node_after_cluster_restart(
         self, multinode_cpu_cluster
     ):

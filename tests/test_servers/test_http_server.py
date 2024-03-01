@@ -322,8 +322,8 @@ class TestHTTPServerDockerDenAuthOnly:
 
     UNIT = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
     LOCAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
-    MINIMAL = {"cluster": []}
-    THOROUGH = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
+    MINIMAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
+    RELEASE = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
     MAXIMAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
@@ -452,7 +452,7 @@ class TestHTTPServerNoDocker:
     UNIT = {"client": ["local_client", "local_client_with_den_auth"]}
     LOCAL = {"client": ["local_client", "local_client_with_den_auth"]}
     MINIMAL = {"client": ["local_client", "local_client_with_den_auth"]}
-    THOROUGH = {"client": ["local_client", "local_client_with_den_auth"]}
+    RELEASE = {"client": ["local_client", "local_client_with_den_auth"]}
     MAXIMAL = {"client": ["local_client", "local_client_with_den_auth"]}
 
     @pytest.mark.level("unit")
