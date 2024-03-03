@@ -522,7 +522,7 @@ class OnDemandCluster(Cluster):
         else:
             # If SSHing onto a specific node, which requires the default sky public key for verification
             ssh_user = self.ssh_creds.get("ssh_user")
-            node = self.ips[0] or self.address
+            node = node or self.address
             sky_key = Path(
                 self.ssh_creds.get("ssh_private_key", self.DEFAULT_KEYFILE)
             ).expanduser()

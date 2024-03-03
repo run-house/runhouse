@@ -97,7 +97,7 @@ class SSHSecret(ProviderSecret):
 
         return new_secret
 
-    def _from_path(self, path: Union[str, File], public_path=None):
+    def _from_path(self, path: Union[str, File]):
         if path == self._DEFAULT_CREDENTIALS_PATH:
             path = f"{self._DEFAULT_CREDENTIALS_PATH}/{self.key}"
 
@@ -108,13 +108,7 @@ class SSHSecret(ProviderSecret):
             pub_key_file = file(path=f"{path.path}.pub", system=path.system)
             pub_key = pub_key_file.fetch(mode="r", deserialize=False)
         else:
-            pub_key_path = (
-                os.path.expanduser(f"{path}.pub")
-                if not public_path
-                else os.path.expanduser(f"{public_path}.pub")
-                if ".pub" not in public_path
-                else public_path
-            )
+            pub_key_path = os.path.expanduser(f"{path}.pub")
             priv_key_path = os.path.expanduser(path)
 
             if not (os.path.exists(pub_key_path) and os.path.exists(priv_key_path)):
