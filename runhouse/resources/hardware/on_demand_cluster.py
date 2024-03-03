@@ -100,11 +100,7 @@ class OnDemandCluster(Cluster):
         )
 
         # Checks if state info is in local sky db, populates if so.
-        status_dict = self._sky_status(refresh=False)
-        if status_dict:
-            self._populate_connection_from_status_dict(status_dict)
-
-        if not self.address and not dryrun and not self.ips:
+        if not dryrun and not self.ips and not self._creds:
             # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
             self._update_from_sky_status(dryrun=False)
 
