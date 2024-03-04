@@ -17,12 +17,18 @@ class HFChatModel(rh.Module):
             self.model_id, **self.model_kwargs
         )
 
-    def predict(self, prompt, **inf_kwargs):
+    def predict(self, prompt_text, **inf_kwargs):
+        default_inf_kwargs = {
+            "temperature": 0.7,
+            "max_new_tokens": 500,
+            "repetition_penalty": 1.0,
+        }
+        default_inf_kwargs.update(inf_kwargs)
         if not self.model:
             self.load_model()
-        inputs = self.tokenizer(prompt, return_tensors="pt").to("cuda")
+        inputs = self.tokenizer(prompt_text, return_tensors="pt").to("cuda")
         generated_ids = self.model.generate(
-            **inputs, **inf_kwargs, streamer=TextStreamer(self.tokenizer)
+            **inputs, **default_inf_kwargs, streamer=TextStreamer(self.tokenizer)
         )
         return self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
@@ -56,8 +62,6 @@ if __name__ == "__main__":
         )
         if prompt.lower() == "exit":
             break
-        output = remote_hf_chat_model.predict(
-            prompt, temperature=0.7, max_new_tokens=1000, repetition_penalty=1.0
-        )
+        output = remote_hf_chat_model.predict(prompt)
         print("\n\n... Model Output ...\n")
         print(output)
