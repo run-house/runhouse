@@ -447,7 +447,10 @@ class Module(Resource):
         if item in dir(Module) or item in MODULE_ATTRS or not hasattr(self, "_client"):
             return super().__getattribute__(item)
 
-        name = super().__getattribute__("_name")
+        try:
+            name = super().__getattribute__("_name")
+        except AttributeError:
+            return super().__getattribute__(item)
 
         if item not in self.signature(rich=False) or not name:
             return super().__getattribute__(item)
