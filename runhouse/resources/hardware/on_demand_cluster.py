@@ -487,10 +487,7 @@ class OnDemandCluster(Cluster):
         Example:
             >>> credentials = rh.ondemand_cluster("rh-cpu").ssh_creds
         """
-        if self._creds:
-            return self._creds.values
 
-        self._update_from_sky_status(dryrun=True)
         return self._creds.values
 
     def ssh(self, node: str = None):
