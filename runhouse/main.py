@@ -105,8 +105,7 @@ def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluste
         )
         raise typer.Exit(1)
 
-    is_shared = f"{c._creds.name}/" in c.ssh_creds.get("ssh_private_key", "")
-    if not is_shared:
+    if not c.is_shared:
         if up:
             c.up_if_not()
         if not c.is_up():

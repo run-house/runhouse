@@ -133,10 +133,10 @@ class Folder(Resource):
         return Folder(**config, dryrun=dryrun)
 
     @classmethod
-    def _check_for_child_configs(cls, config):
+    def _check_for_child_configs(cls, config: dict):
         """Overload by child resources to load any resources they hold internally."""
         system = config.get("system")
-        if isinstance(system, str):
+        if isinstance(system, str) or isinstance(system, dict):
             config["system"] = _get_cluster_from(system)
         return config
 
@@ -186,7 +186,7 @@ class Folder(Resource):
                     raise ValueError(
                         "Cluster must be started before copying data from it."
                     )
-            creds = self.system.ssh_creds
+            creds = self.system.creds_values
 
             client_keys = (
                 [str(Path(creds["ssh_private_key"]).expanduser())]
@@ -495,9 +495,9 @@ class Folder(Resource):
     def _cluster_to_cluster(self, dest_cluster, dest_path):
         src_path = self.path
 
-        cluster_creds = self.system.ssh_creds
+        cluster_creds = self.system.creds_values
 
-        if not cluster_creds.get("password") and not dest_cluster.ssh_creds.get(
+        if not cluster_creds.get("password") and not dest_cluster.creds_values.get(
             "password"
         ):
             creds_file = cluster_creds.get("ssh_private_key")

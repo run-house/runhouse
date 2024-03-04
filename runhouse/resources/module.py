@@ -173,7 +173,7 @@ class Module(Resource):
         return resource_class(**config, dryrun=dryrun)
 
     @classmethod
-    def _check_for_child_configs(cls, config):
+    def _check_for_child_configs(cls, config: dict):
         """Overload by child resources to load any resources they hold internally."""
         system = config.get("system")
         if isinstance(system, str) or isinstance(system, dict):

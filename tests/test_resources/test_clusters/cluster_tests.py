@@ -120,8 +120,8 @@ def test_byo_proxy(static_cpu_cluster, local_folder):
     # static_cpu_cluster._rpc_tunnel.close()
     static_cpu_cluster._rpc_tunnel = None
 
-    static_cpu_cluster._ssh_creds["ssh_host"] = "127.0.0.1"
-    static_cpu_cluster._ssh_creds.update(
+    static_cpu_cluster._creds["ssh_host"] = "127.0.0.1"
+    static_cpu_cluster._creds.update(
         {"ssh_proxy_command": "ssh -W %h:%p ubuntu@test-byo-cluster"}
     )
     assert static_cpu_cluster.up_if_not()
