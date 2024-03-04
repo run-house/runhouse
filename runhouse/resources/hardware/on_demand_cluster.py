@@ -78,8 +78,7 @@ class OnDemandCluster(Cluster):
             dryrun=dryrun,
             **kwargs,
         )
-        self._creds = kwargs.get("creds", None)
-        self.address = kwargs.get("head_ip", None)
+
         self.instance_type = instance_type
         self.num_instances = num_instances
         self.provider = provider or configs.get("default_provider")
