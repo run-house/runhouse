@@ -1,7 +1,7 @@
 # # Deploy Stable Diffusion XL 1.0 on AWS Inferentia
 
 # This example demonstrates how to deploy a
-# [Stable Diffusion XL model from Hugging Face](https://huggingface.co/aws-neuron/stable-diffusion-xl-base-1-0-1024x1024) # noqa: E501
+# [Stable Diffusion XL model from Hugging Face](https://huggingface.co/aws-neuron/stable-diffusion-xl-base-1-0-1024x1024)
 # on AWS Inferentia2 using
 # Runhouse. [AWS Inferentia2 instances](https://aws.amazon.com/ec2/instance-types/inf2/)
 # are powered by AWS Neuron, a custom hardware accelerator for machine learning
@@ -47,7 +47,7 @@ from PIL import Image
 # This is a Runhouse class that allows you to
 # run code in your class on a remote machine.
 #
-# Learn more in the [Runhouse documentation on functions and modules](https://www.run.house/docs/stable/tutorials/api-modules) # noqa: E501
+# Learn more in the [Runhouse documentation on functions and modules](https://www.run.house/docs/stable/tutorials/api-modules)
 class StableDiffusionXLPipeline(rh.Module):
     def __init__(
         self,
