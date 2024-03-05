@@ -587,8 +587,8 @@ class Folder(Resource):
         """CLI command for downloading folder from remote bucket. Needed when downloading a folder to a cluster."""
         raise NotImplementedError
 
-    def config(self):
-        config = super().config()
+    def config(self, condensed=True):
+        config = super().config(condensed)
         config_attrs = ["local_mount", "data_config"]
         self.save_attrs_to_config(config, config_attrs)
 
@@ -603,7 +603,11 @@ class Folder(Resource):
             config["path"] = self.path
 
         if isinstance(self.system, Resource):  # If system is a cluster
-            config["system"] = self._resource_string_for_subconfig(self.system)
+            config["system"] = (
+                self._resource_string_for_subconfig(self.system)
+                if condensed
+                else self.system
+            )
         else:
             config["system"] = self.system
 

@@ -69,10 +69,14 @@ class Table(Resource):
             config["system"] = _get_cluster_from(config["system"], dryrun=dryrun)
         return _load_table_subclass(config, dryrun=dryrun)
 
-    def config(self):
-        config = super().config()
+    def config(self, condensed=True):
+        config = super().config(condensed)
         if isinstance(self._folder, Resource):
-            config["system"] = self._resource_string_for_subconfig(self.system)
+            config["system"] = (
+                self._resource_string_for_subconfig(self.system)
+                if condensed
+                else self.system
+            )
             config["data_config"] = self._folder._data_config
         else:
             config["system"] = self.system

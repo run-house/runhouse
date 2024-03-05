@@ -85,9 +85,9 @@ class Resource:
     @property
     def config_for_rns(self):
         # Added for BC for version 0.0.20
-        return self.config()
+        return self.config(condensed=False)
 
-    def config(self):
+    def config(self, condensed=True):
         config = {
             "name": self.rns_address or self.name,
             "resource_type": self.RESOURCE_TYPE,

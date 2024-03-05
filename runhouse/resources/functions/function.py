@@ -170,8 +170,8 @@ class Function(Module):
         """
         return self.system.get(run_key)
 
-    def config(self):
-        config = super().config()
+    def config(self, condensed=True):
+        config = super().config(condensed)
         config.update(
             {
                 "fn_pointers": self.fn_pointers,

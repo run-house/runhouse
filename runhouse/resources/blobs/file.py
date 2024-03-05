@@ -39,8 +39,8 @@ class File(Blob):
         )
         super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
-    def config(self):
-        config = super().config()
+    def config(self, condensed=True):
+        config = super().config(condensed)
         file_config = {
             "path": self.path,  # pair with data source to create the physical URL
             "data_config": self.data_config,

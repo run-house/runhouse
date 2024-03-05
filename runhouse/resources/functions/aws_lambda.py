@@ -878,8 +878,8 @@ class LambdaFunction(Function):
                 f"Could nor delete an AWS resource, got {aws_exception.response['Error']['Message']}"
             )
 
-    def config(self):
-        config = super().config()
+    def config(self, condensed=True):
+        config = super().config(condensed)
         config.update(
             {
                 "paths_to_code": self.local_path_to_code,

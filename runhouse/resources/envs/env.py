@@ -78,8 +78,8 @@ class Env(Resource):
         for k, v in env_vars.items():
             os.environ[k] = v
 
-    def config(self):
-        config = super().config()
+    def config(self, condensed=True):
+        config = super().config(condensed)
         self.save_attrs_to_config(
             config, ["setup_cmds", "env_vars", "env_name", "compute"]
         )
@@ -87,6 +87,8 @@ class Env(Resource):
             {
                 "reqs": [
                     self._resource_string_for_subconfig(package)
+                    if condensed
+                    else package
                     for package in self._reqs
                 ],
                 "working_dir": self._resource_string_for_subconfig(self.working_dir),
