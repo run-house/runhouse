@@ -143,8 +143,8 @@ class TestModule:
         assert res == "cpu"
 
         # Test for property
-        res = cluster.call("numpy_pkg", "config_for_rns", stream_logs=True)
-        numpy_config = Package.from_string("numpy").config_for_rns
+        res = cluster.call("numpy_pkg", "config", stream_logs=True)
+        numpy_config = Package.from_string("numpy").config()
         assert res
         assert isinstance(res, dict)
         assert res == numpy_config
@@ -231,7 +231,7 @@ class TestModule:
             size=40, run_name="remote_instance3"
         )
 
-        remote_instance_config = remote_instance3.system.config_for_rns
+        remote_instance_config = remote_instance3.system.config()
         remote_instance_ssl_certfile = remote_instance_config.pop("ssl_certfile", None)
         remote_instance_ssl_keyfile = remote_instance_config.pop("ssl_keyfile", None)
 
@@ -246,7 +246,7 @@ class TestModule:
             f"{TLSCertConfig.CADDY_CLUSTER_DIR}/{TLSCertConfig.PRIVATE_KEY_NAME}",
         ]
 
-        cluster_config = cluster.config_for_rns
+        cluster_config = cluster.config()
         cluster_ssl_certfile = cluster_config.pop("ssl_certfile", None)
         cluster_ssl_keyfile = cluster_config.pop("ssl_keyfile", None)
         # Cluster config should point to the certs stored locally
@@ -279,7 +279,7 @@ class TestModule:
         helper = rh.function(resolve_test_helper).to(cluster)
         resolved_obj = helper(remote_instance.resolve())
         assert resolved_obj.__class__.__name__ == "SlowNumpyArray"
-        assert not hasattr(resolved_obj, "config_for_rns")
+        assert not hasattr(resolved_obj, "config")
         assert resolved_obj.size == 20
         assert list(resolved_obj.arr) == [0, 1, 2]
 
@@ -341,7 +341,7 @@ class TestModule:
         remote_instance = SlowPandas(size=3).get_or_to(
             cluster, env=env, name="SlowPandas"
         )
-        assert remote_instance.system.config_for_rns == cluster.config_for_rns
+        assert remote_instance.system.config() == cluster.config()
         # Check that size is unchanged from when we set it to 20 above
         assert remote_instance.remote.size == 20
 
@@ -350,10 +350,11 @@ class TestModule:
         resolved_obj = helper(remote_instance.resolve())
         assert resolved_obj.__class__.__name__ == "SlowPandas"
         assert resolved_obj.size == 20  # resolved_obj.remote.size causing an error
-        assert resolved_obj.config_for_rns == remote_instance.config_for_rns
+        assert resolved_obj.config() == remote_instance.config()
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_module_from_subclass_async(self, cluster, env):
         remote_df = SlowPandas(size=3).to(cluster, env)
         assert remote_df.system == cluster
@@ -444,6 +445,7 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_fetch_class_and_properties(self, cluster, env):
         RemoteCalc = rh.module(cls=Calculator).to(cluster)
         owner = "Runhouse"
@@ -550,6 +552,7 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_set_async(self, cluster, env):
         RemoteCalc = rh.module(Calculator).to(cluster)
         my_remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_remote_dev")
@@ -611,20 +614,20 @@ class TestModule:
             "mult",
         }
 
-    @pytest.mark.level("thorough")
+    @pytest.mark.level("release")
     def test_shared_readonly(
         self,
-        ondemand_https_cluster_with_auth,
+        ondemand_aws_https_cluster_with_auth,
         friend_account_logged_in_docker_cluster_pk_ssh,
     ):
         from tests.utils import friend_account
 
-        if ondemand_https_cluster_with_auth.address == "localhost":
+        if ondemand_aws_https_cluster_with_auth.address == "localhost":
             pytest.skip("Skipping sharing test on local cluster")
 
         size = 3
         remote_df = SlowPandas(size=size).to(
-            ondemand_https_cluster_with_auth, name="remote_df"
+            ondemand_aws_https_cluster_with_auth, name="remote_df"
         )
         remote_df.share(
             users=["info@run.house"],
@@ -638,7 +641,7 @@ class TestModule:
             )
 
         cpu_count = int(
-            ondemand_https_cluster_with_auth.run_python(
+            ondemand_aws_https_cluster_with_auth.run_python(
                 ["import os; print(os.cpu_count())"]
             )[0][1]
         )

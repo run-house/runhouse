@@ -43,4 +43,4 @@ class TestTelemetry:
         else:
             # Check the status code
             assert response.status_code == 404
-            assert response.text == "404 page not found\n"
+            assert response.text == '{"detail":"Not Found"}'

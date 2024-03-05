@@ -35,13 +35,12 @@ class GitPackage(Package):
         self.git_url = git_url
         self.revision = revision
 
-    @property
-    def config_for_rns(self):
+    def config(self, condensed=True):
         # If the package is just a simple Package.from_string string, no
         # need to store it in rns, just give back the string.
         # if self.install_method in ['pip', 'conda', 'git']:
         #     return f'{self.install_method}:{self.name}'
-        config = super().config_for_rns
+        config = super().config(condensed)
         self.save_attrs_to_config(config, ["git_url", "revision"])
         return config
 

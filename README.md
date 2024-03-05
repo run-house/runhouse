@@ -146,7 +146,7 @@ curl -X POST -H "Content-Type: application/json" http://my_cluster_address:32300
 ```
 
 This is only the tip of the iceberg. If you like what you see, please check out the
-[🐣 Getting Started guide](https://www.run.house/docs/tutorials/quick_start).
+[🐣 Getting Started guide](https://www.run.house/docs/tutorials/cloud_quick_start).
 
 ## 🛋️ Creating a Runhouse Den Account for Secrets and Sharing
 
@@ -193,7 +193,7 @@ Please reach out (first name at run.house) to contribute or share feedback!
 
 ## 👨‍🏫 Learn More
 
-[**🐣 Getting Started**](https://www.run.house/docs/tutorials/quick_start): Installation, setup, and a quick walkthrough.
+[**🐣 Getting Started**](https://www.run.house/docs/tutorials/cloud_quick_start): Installation, setup, and a quick walkthrough.
 
 [**📖 Docs**](https://www.run.house/docs):
 Detailed API references, basic API examples and walkthroughs, end-to-end tutorials, and high-level architecture overview.

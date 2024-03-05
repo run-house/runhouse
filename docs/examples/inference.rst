@@ -1,1 +1,0 @@
-.. include:: ../../examples/inference.rst

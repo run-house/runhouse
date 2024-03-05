@@ -78,9 +78,8 @@ class Env(Resource):
         for k, v in env_vars.items():
             os.environ[k] = v
 
-    @property
-    def config_for_rns(self):
-        config = super().config_for_rns
+    def config(self, condensed=True):
+        config = super().config(condensed)
         self.save_attrs_to_config(
             config, ["setup_cmds", "env_vars", "env_name", "compute"]
         )
@@ -88,6 +87,8 @@ class Env(Resource):
             {
                 "reqs": [
                     self._resource_string_for_subconfig(package)
+                    if condensed
+                    else package
                     for package in self._reqs
                 ],
                 "working_dir": self._resource_string_for_subconfig(self.working_dir),
@@ -139,7 +140,7 @@ class Env(Resource):
     def install(self, force=False):
         """Locally install packages and run setup commands."""
         # Hash the config_for_rns to check if we need to install
-        env_config = self.config_for_rns
+        env_config = self.config()
         # Remove the name because auto-generated names will be different, but the installed components are the same
         env_config.pop("name")
         install_hash = hash(str(env_config))

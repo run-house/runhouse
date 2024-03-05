@@ -33,7 +33,7 @@ def save_resource_and_return_config():
         {"id": [1, 2, 3, 4, 5, 6], "grade": ["a", "b", "b", "a", "a", "e"]}
     )
     table = rh.table(df, name="test_table")
-    return table.config_for_rns
+    return table.config()
 
 
 def test_table_to_rh_here():
@@ -56,8 +56,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         ]
     }
     MINIMAL = {"cluster": ["static_cpu_cluster"]}
-    THOROUGH = {
-        "cluster": ["static_cpu_cluster", "password_cluster", "multinode_cpu_cluster"]
+    RELEASE = {
+        "cluster": [
+            "static_cpu_cluster",
+            "password_cluster",
+        ]
     }
     MAXIMAL = {
         "cluster": [
@@ -276,6 +279,16 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             cluster.run(["runhouse restart"])
 
     @pytest.mark.level("local")
+    def test_condensed_config_for_cluster(self, cluster):
+        import ast
+
+        return_codes = cluster.run_python(["import runhouse as rh", "print(rh.here)"])
+        assert return_codes[0][0] == 0
+
+        cluster_config = ast.literal_eval(return_codes[0][1])
+        assert cluster_config == cluster.config()
+
+    @pytest.mark.level("local")
     def test_sharing(self, cluster, friend_account_logged_in_docker_cluster_pk_ssh):
         # Skip this test for ondemand clusters, because making
         # it compatible with ondemand_cluster requires changes
@@ -299,7 +312,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
 
         # First try loading in same process/filesystem because it's more debuggable, but not as thorough
-        resource_class_name = cluster.config_for_rns["resource_type"].capitalize()
+        resource_class_name = cluster.config().get("resource_type").capitalize()
         config = cluster.config_for_rns
 
         with friend_account():

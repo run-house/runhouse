@@ -10,7 +10,7 @@ from tests.utils import friend_account
 def load_shared_resource_config(resource_class_name, address):
     resource_class = getattr(rh, resource_class_name)
     loaded_resource = resource_class.from_name(address, dryrun=True)
-    config = loaded_resource.config_for_rns
+    config = loaded_resource.config()
     return config
     # TODO allow resource subclass tests to extend set of properties to test
 
@@ -20,7 +20,7 @@ class TestResource:
     UNIT = {"resource": ["unnamed_resource", "named_resource", "local_named_resource"]}
     LOCAL = {"resource": ["unnamed_resource", "named_resource", "local_named_resource"]}
     MINIMAL = {"resource": ["named_resource"]}
-    THOROUGH = {
+    RELEASE = {
         "resource": ["unnamed_resource", "named_resource", "local_named_resource"]
     }
     MAXIMAL = {
@@ -51,7 +51,7 @@ class TestResource:
     @pytest.mark.level("unit")
     def test_config_for_rns(self, resource):
         args = init_args.get(id(resource))
-        config = resource.config_for_rns
+        config = resource.config()
         assert isinstance(config, dict)
         if resource.rns_address:
             assert config["name"] == resource.rns_address
@@ -64,8 +64,8 @@ class TestResource:
 
     @pytest.mark.level("unit")
     def test_from_config(self, resource):
-        new_resource = rh.Resource.from_config(resource.config_for_rns)
-        assert new_resource.config_for_rns == resource.config_for_rns
+        new_resource = rh.Resource.from_config(resource.config())
+        assert new_resource.config() == resource.config()
         assert new_resource.rns_address == resource.rns_address
         assert new_resource.dryrun == resource.dryrun
         # TODO allow resource subclass tests to extend set of properties to test
@@ -74,7 +74,7 @@ class TestResource:
     def test_save_and_load(self, saved_resource):
         # Test loading from name
         loaded_resource = saved_resource.__class__.from_name(saved_resource.rns_address)
-        assert loaded_resource.config_for_rns == saved_resource.config_for_rns
+        assert loaded_resource.config() == saved_resource.config()
         # Changing the name doesn't work for OnDemandCluster, because the name won't match the local sky db
         if isinstance(saved_resource, rh.OnDemandCluster):
             return
@@ -89,7 +89,7 @@ class TestResource:
             # but an alt name. It also updates the local config to point to the new RNS config.
             saved_resource.save(alt_name)
             alt_resource = saved_resource.__class__.from_name(alt_name)
-            assert alt_resource.config_for_rns == saved_resource.config_for_rns
+            assert alt_resource.config() == saved_resource.config()
 
             # Test that original resource is still available in Den
             reloaded_resource = saved_resource.__class__.from_name(original_name)
@@ -122,7 +122,7 @@ class TestResource:
         assert "data" in history[0]
         # Not all config_for_rns values are saved inside data field
         config = json.loads(
-            json.dumps(saved_resource.config_for_rns)
+            json.dumps(saved_resource.config())
         )  # To deal with tuples and non-json types
         for k, v in history[0]["data"].items():
             if k == "client_port":
@@ -157,10 +157,8 @@ class TestResource:
         )
 
         # First try loading in same process/filesystem because it's more debuggable, but not as thorough
-        resource_class_name = saved_resource.config_for_rns[
-            "resource_type"
-        ].capitalize()
-        config = saved_resource.config_for_rns
+        resource_class_name = saved_resource.config().get("resource_type").capitalize()
+        config = saved_resource.config()
 
         with friend_account():
             new_config = load_shared_resource_config(
@@ -170,6 +168,13 @@ class TestResource:
                 secret_name = new_config.pop("name")
                 assert "loaded_secret_" in secret_name
                 new_config["name"] = secret_name.replace("loaded_secret_", "")
+
+            # Don't compare the client keys, their paths could differ locally and on the cluster
+            # Cluster: '/home/runner/.ssh/sky-key
+            # Locally: /home/runner/.rh/secrets/cluster-name/ssh-key
+            new_config.get("data_config", {}).pop("client_keys", None)
+            config.get("data_config", {}).pop("client_keys", None)
+
             assert new_config == config
 
         # TODO: If we are testing with an ondemand_cluster we to

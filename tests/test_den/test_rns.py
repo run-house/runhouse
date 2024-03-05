@@ -78,7 +78,7 @@ def test_ls():
     rh.set_folder("@")
 
 
-def test_from_name(ondemand_cpu_cluster):
+def test_from_name(ondemand_aws_cluster):
     f = rh.folder(name="~/tests/bert_ft")
     assert f.path
-    assert ondemand_cpu_cluster.instance_type == "CPU:2+"
+    assert ondemand_aws_cluster.instance_type == "CPU:2+"

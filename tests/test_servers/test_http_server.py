@@ -59,7 +59,7 @@ class TestHTTPServerDocker:
         state = None
         resource = rh.blob(data=blob_data, system=cluster)
         data = serialize_data(
-            (resource.config_for_rns, state, resource.dryrun), "pickle"
+            (resource.config(condensed=False), state, resource.dryrun), "pickle"
         )
         response = http_client.post(
             "/resource",
@@ -191,6 +191,7 @@ class TestHTTPServerDocker:
                     )
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_call(self, async_http_client, remote_func):
         method = "call"
 
@@ -203,6 +204,7 @@ class TestHTTPServerDocker:
         assert response.json() == 3
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_call_with_invalid_serialization(
         self, async_http_client, remote_func
     ):
@@ -217,6 +219,7 @@ class TestHTTPServerDocker:
         assert "Invalid serialization type" in response.text
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_call_with_pickle_serialization(
         self, async_http_client, remote_func
     ):
@@ -237,6 +240,7 @@ class TestHTTPServerDocker:
         )
 
     @pytest.mark.level("local")
+    @pytest.mark.asyncio
     async def test_async_call_with_json_serialization(
         self, async_http_client, remote_func
     ):
@@ -318,8 +322,8 @@ class TestHTTPServerDockerDenAuthOnly:
 
     UNIT = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
     LOCAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
-    MINIMAL = {"cluster": []}
-    THOROUGH = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
+    MINIMAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
+    RELEASE = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
     MAXIMAL = {"cluster": ["docker_cluster_pk_ssh_den_auth"]}
 
     # -------- INVALID TOKEN / CLUSTER ACCESS TESTS ----------- #
@@ -364,7 +368,7 @@ class TestHTTPServerDockerDenAuthOnly:
         state = None
         resource = rh.blob(blob_data, system=cluster)
         data = serialize_data(
-            (resource.config_for_rns, state, resource.dryrun), "pickle"
+            (resource.config(condensed=False), state, resource.dryrun), "pickle"
         )
         response = http_client.post(
             "/resource",
@@ -448,7 +452,7 @@ class TestHTTPServerNoDocker:
     UNIT = {"client": ["local_client", "local_client_with_den_auth"]}
     LOCAL = {"client": ["local_client", "local_client_with_den_auth"]}
     MINIMAL = {"client": ["local_client", "local_client_with_den_auth"]}
-    THOROUGH = {"client": ["local_client", "local_client_with_den_auth"]}
+    RELEASE = {"client": ["local_client", "local_client_with_den_auth"]}
     MAXIMAL = {"client": ["local_client", "local_client_with_den_auth"]}
 
     @pytest.mark.level("unit")
@@ -465,7 +469,7 @@ class TestHTTPServerNoDocker:
 
             state = None
             data = serialize_data(
-                (resource.config_for_rns, state, resource.dryrun), "pickle"
+                (resource.config(condensed=False), state, resource.dryrun), "pickle"
             )
             response = client.post(
                 "/resource",
@@ -571,7 +575,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
             resource = local_blob.to(system="file", path=resource_path)
             state = None
             data = serialize_data(
-                (resource.config_for_rns, state, resource.dryrun), "pickle"
+                (resource.config(condensed=False), state, resource.dryrun), "pickle"
             )
             resp = local_client_with_den_auth.post(
                 "/resource",

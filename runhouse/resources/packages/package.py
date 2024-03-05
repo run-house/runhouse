@@ -54,13 +54,12 @@ class Package(Resource):
         self.install_target = install_target
         self.install_args = install_args
 
-    @property
-    def config_for_rns(self):
+    def config(self, condensed=True):
         # If the package is just a simple Package.from_string string, no
         # need to store it in rns, just give back the string.
         # if self.install_method in ['pip', 'conda', 'git']:
         #     return f'{self.install_method}:{self.name}'
-        config = super().config_for_rns
+        config = super().config(condensed)
         config["install_method"] = self.install_method
         config["install_target"] = self._resource_string_for_subconfig(
             self.install_target

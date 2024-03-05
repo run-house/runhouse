@@ -334,7 +334,7 @@ class TestCaddyServerLocally:
             "docker_cluster_pk_tls_den_auth",
         ]
     }
-    THOROUGH = {
+    RELEASE = {
         "cluster": [
             "docker_cluster_pk_http_exposed",
             "docker_cluster_pk_tls_den_auth",
