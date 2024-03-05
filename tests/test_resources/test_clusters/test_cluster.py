@@ -262,3 +262,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert error_txt in res
         finally:
             cluster.run(["runhouse restart"])
+
+    @pytest.mark.level("local")
+    def test_condensed_config_for_cluster(self, cluster):
+        import ast
+
+        return_codes = cluster.run_python(["import runhouse as rh", "print(rh.here)"])
+        assert return_codes[0][0] == 0
+
+        cluster_config = ast.literal_eval(return_codes[0][1])
+        assert cluster_config == cluster.config()

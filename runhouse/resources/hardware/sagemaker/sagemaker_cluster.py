@@ -155,8 +155,8 @@ class SageMakerCluster(Cluster):
         # Note: Setting instance ID as cluster IP for compatibility with Cluster parent class methods
         self.address = self.instance_id
 
-    def config(self):
-        config = super().config()
+    def config(self, condensed=True):
+        config = super().config(condensed)
         config.update(
             {
                 "instance_id": self.instance_id,

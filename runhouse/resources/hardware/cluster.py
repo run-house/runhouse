@@ -167,8 +167,8 @@ class Cluster(Resource):
         else:
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 
-    def config(self):
-        config = super().config()
+    def config(self, condensed=True):
+        config = super().config(condensed)
         self.save_attrs_to_config(
             config,
             [
@@ -414,7 +414,7 @@ class Cluster(Resource):
 
         state = state or {}
         if self.on_this_cluster():
-            data = (resource.config(), state, dryrun)
+            data = (resource.config(condensed=False), state, dryrun)
             return obj_store.put_resource(serialized_data=data, env_name=env_name)
         return self.client.put_resource(
             resource, state=state or {}, env_name=env_name, dryrun=dryrun

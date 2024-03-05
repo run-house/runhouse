@@ -64,8 +64,8 @@ class ProviderSecret(Secret):
             return self._from_env(self.env_vars)
         return {}
 
-    def config(self):
-        config = super().config()
+    def config(self, condensed=True):
+        config = super().config(condensed)
         config.update({"provider": self.provider})
         if self.path:
             config.update({"path": self.path})

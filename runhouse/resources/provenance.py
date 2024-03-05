@@ -193,9 +193,9 @@ class Run(Resource):
         state["_stdout_handler"] = None
         return state
 
-    def config(self):
+    def config(self, condensed=True):
         """Metadata to store in RNS for the Run."""
-        config = super().config()
+        config = super().config(condensed)
         base_config = {
             "status": self.status,
             "start_time": self.start_time,

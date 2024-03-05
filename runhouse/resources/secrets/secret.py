@@ -45,8 +45,8 @@ class Secret(Resource):
     def values(self):
         return self._values
 
-    def config(self):
-        config = super().config()
+    def config(self, condensed=True):
+        config = super().config(condensed)
         if self._values:
             config.update(
                 {

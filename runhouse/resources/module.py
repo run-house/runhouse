@@ -77,16 +77,23 @@ class Module(Resource):
         self._signature = signature
         self._resolve = False
 
-    def config(self):
+    def config(self, condensed=True):
         if not self.system:
             raise ValueError(
                 "Cannot save an in-memory local module to RNS. Please send the module to a local "
                 "path or system first."
             )
-        config = super().config()
-        config["system"] = (
-            self._resource_string_for_subconfig(self.system) if self.system else None
-        )
+        config = super().config(condensed)
+        if self.system:
+            system = (
+                self._resource_string_for_subconfig(self.system)
+                if condensed
+                else self.system
+            )
+        else:
+            system = None
+
+        config["system"] = system
         config["env"] = (
             self._resource_string_for_subconfig(self.env) if self.env else None
         )

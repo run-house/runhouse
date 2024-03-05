@@ -22,7 +22,7 @@ class TestServlet:
                 test_servlet,
                 "put_resource_local",
                 data=serialize_data(
-                    (resource.config(), state, resource.dryrun), "pickle"
+                    (resource.config(condensed=False), state, resource.dryrun), "pickle"
                 ),
                 serialization="pickle",
             )
