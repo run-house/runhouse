@@ -43,7 +43,7 @@ from PIL import Image
 # This is a Runhouse class that allows you to
 # run code in your class on a remote machine.
 #
-# Learn more in the [Runhouse documentation on functions and modules](https://www.run.house/docs/stable/tutorials/api-modules) # noqa: E501
+# Learn more in the [Runhouse documentation on functions and modules](https://www.run.house/docs/stable/tutorials/api-modules)
 class StableDiffusionXLPipeline(rh.Module):
     def __init__(
         self,
@@ -114,7 +114,7 @@ def decode_base64_image(image_string):
 # Our `instance_type` here is defined as `g5.8xlarge`, which is an AWS instance type. We can alternatively specify
 # an accelerator type and count, such as `A10G:1`, and any instance type with those specifications will be used.
 #
-# Learn more in the [Runhouse documentation on clusters](https://www.run.house/docs/stable/tutorials/api-clusters) # noqa: E501
+# Learn more in the [Runhouse documentation on clusters](https://www.run.house/docs/stable/tutorials/api-clusters)
 #
 # NOTE: Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwiwse,
 # the script code will run when Runhouse attempts to run code remotely.

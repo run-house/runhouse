@@ -40,7 +40,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
 # This is a Runhouse class that allows you to
 # run code in your class on a remote machine.
 #
-# Learn more in the [Runhouse documentation on functions and modules](https://www.run.house/docs/stable/tutorials/api-modules) # noqa: E501
+# Learn more in the [Runhouse documentation on functions and modules](https://www.run.house/docs/stable/tutorials/api-modules)
 class HFChatModel(rh.Module):
     def __init__(self, model_id="meta-llama/Llama-2-13b-chat-hf", **model_kwargs):
         super().__init__()
