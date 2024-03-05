@@ -144,9 +144,7 @@ class TestModule:
 
         # Test for property
         res = cluster.call("numpy_pkg", "config", stream_logs=True)
-        numpy_config = Package.from_string("numpy").config
-        res = cluster.call("numpy_pkg", "config", stream_logs=True)
-        numpy_config = Package.from_string("numpy").config
+        numpy_config = Package.from_string("numpy").config()
         assert res
         assert isinstance(res, dict)
         assert res == numpy_config

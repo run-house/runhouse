@@ -155,9 +155,8 @@ def test_put_resource(cluster, test_env):
     test_env.name = "~/test_env"
     cluster.put_resource(test_env)
     assert cluster.get("test_env").config == test_env.config
-    assert cluster.call("test_env", "config", stream_logs=True) == test_env.config
-    assert cluster.get("test_env").config == test_env.config
-    assert cluster.call("test_env", "config", stream_logs=True) == test_env.config
+    assert cluster.call("test_env", "config", stream_logs=True) == test_env.config()
+    assert cluster.get("test_env").config() == test_env.config()
     assert cluster.call("test_env", "name", stream_logs=True) == "test_env"
 
 
