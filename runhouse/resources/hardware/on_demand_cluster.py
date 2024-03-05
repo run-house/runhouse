@@ -117,9 +117,8 @@ class OnDemandCluster(Cluster):
     def from_config(config: dict, dryrun=False):
         return OnDemandCluster(**config, dryrun=dryrun)
 
-    @property
     def config(self):
-        config = super().config
+        config = super().config()
 
         # Also store the ssh keys for the cluster in RNS
         config.update(

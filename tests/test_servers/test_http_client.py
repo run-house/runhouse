@@ -242,7 +242,7 @@ class TestHTTPClient:
 
     @pytest.mark.level("unit")
     def test_call_module_method_config(self, mocker, local_cluster):
-        test_data = self.local_cluster.config
+        test_data = self.local_cluster.config()
         mock_response = mocker.Mock()
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = iter(
@@ -255,7 +255,7 @@ class TestHTTPClient:
         cluster = self.client.call(
             "base_env", "install", resource_address=local_cluster.rns_address
         )
-        assert cluster.config == test_data
+        assert cluster.config() == test_data
 
     @pytest.mark.level("unit")
     def test_put_object(self, mocker):

@@ -64,9 +64,8 @@ class ProviderSecret(Secret):
             return self._from_env(self.env_vars)
         return {}
 
-    @property
     def config(self):
-        config = super().config
+        config = super().config()
         config.update({"provider": self.provider})
         if self.path:
             config.update({"path": self.path})

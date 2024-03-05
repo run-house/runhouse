@@ -69,9 +69,8 @@ class Table(Resource):
             config["system"] = _get_cluster_from(config["system"], dryrun=dryrun)
         return _load_table_subclass(config, dryrun=dryrun)
 
-    @property
     def config(self):
-        config = super().config
+        config = super().config()
         if isinstance(self._folder, Resource):
             config["system"] = self._resource_string_for_subconfig(self.system)
             config["data_config"] = self._folder._data_config
