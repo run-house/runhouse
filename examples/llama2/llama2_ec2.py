@@ -40,7 +40,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
 # This is a Runhouse class that allows you to
 # run code in your class on a remote machine.
 #
-# Learn more in the [Runhouse documentation on functions and modules](https://www.run.house/docs/stable/tutorials/api-modules)
+# Learn more in the [Runhouse docs on functions and modules](https://www.run.house/docs/stable/tutorials/api-modules).
 class HFChatModel(rh.Module):
     def __init__(self, model_id="meta-llama/Llama-2-13b-chat-hf", **model_kwargs):
         super().__init__()
@@ -78,7 +78,7 @@ class HFChatModel(rh.Module):
 # Our `instance_type` here is defined as `A10G:1`, which is the accelerator type and count that we need. We could
 # alternatively specify a specific AWS instance type, such as `p3.2xlarge` or `g4dn.xlarge`.
 #
-# Learn more in the [Runhouse documentation on clusters](https://www.run.house/docs/stable/tutorials/api-clusters)
+# Learn more in the [Runhouse docs on clusters](https://www.run.house/docs/stable/tutorials/api-clusters).
 #
 # NOTE: Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwiwse,
 # the script code will run when Runhouse attempts to run code remotely.
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
     # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
     #
-    # Learn more in the [Runhouse documentation on envs](https://www.run.house/docs/stable/tutorials/api-envs)
+    # Learn more in the [Runhouse docs on envs](https://www.run.house/docs/stable/tutorials/api-envs).
     env = rh.env(
         reqs=[
             "torch",
