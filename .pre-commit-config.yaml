@@ -14,8 +14,8 @@ repos:
           - black == 22.6.0
           - usort == 1.0.4
 
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.191
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.0
     hooks:
       - id: ruff
         exclude: (runhouse/servers/grpc/unary_pb2.py|runhouse/servers/grpc/unary_pb2_grpc.py|runhouse/resources/hardware/sky/)
