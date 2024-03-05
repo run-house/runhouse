@@ -167,6 +167,7 @@ def handle_exception_response(
         output_type=OutputType.EXCEPTION,
         error=serialize_data(exception, serialization=serialization),
         traceback=serialize_data(traceback, serialization=serialization),
+        serialization=serialization,
     )
 
 
@@ -224,8 +225,12 @@ def handle_response(
     elif output_type == OutputType.SUCCESS:
         return
     elif output_type == OutputType.EXCEPTION:
-        fn_exception = deserialize_data(response_data["error"], "pickle")
-        fn_traceback = deserialize_data(response_data["traceback"], "pickle")
+        fn_exception = deserialize_data(
+            response_data["error"], response_data["serialization"]
+        )
+        fn_traceback = deserialize_data(
+            response_data["traceback"], response_data["serialization"]
+        )
         if not (
             isinstance(fn_exception, StopIteration)
             or isinstance(fn_exception, GeneratorExit)
