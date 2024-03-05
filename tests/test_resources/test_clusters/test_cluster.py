@@ -24,7 +24,7 @@ def save_resource_and_return_config():
         {"id": [1, 2, 3, 4, 5, 6], "grade": ["a", "b", "b", "a", "a", "e"]}
     )
     table = rh.table(df, name="test_table")
-    return table.config_for_rns
+    return table.config
 
 
 def test_table_to_rh_here():

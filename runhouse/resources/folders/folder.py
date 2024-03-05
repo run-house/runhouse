@@ -380,7 +380,7 @@ class Folder(Resource):
         """Local or cluster to blob storage."""
         local_folder_path = self.path
 
-        folder_config = self.config_for_rns
+        folder_config = self.config
         folder_config["system"] = system
         folder_config["path"] = data_store_path
         folder_config["data_config"] = data_config
@@ -588,8 +588,8 @@ class Folder(Resource):
         raise NotImplementedError
 
     @property
-    def config_for_rns(self):
-        config = super().config_for_rns
+    def config(self):
+        config = super().config
         config_attrs = ["local_mount", "data_config"]
         self.save_attrs_to_config(config, config_attrs)
 

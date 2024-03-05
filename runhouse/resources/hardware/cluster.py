@@ -115,7 +115,7 @@ class Cluster(Resource):
         return None
 
     def save_config_to_cluster(self, node: str = None):
-        config = self.config_for_rns
+        config = self.config
         if "live_state" in config.keys():
             # a bunch of setup commands that mess up dumping
             del config["live_state"]
@@ -168,8 +168,8 @@ class Cluster(Resource):
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 
     @property
-    def config_for_rns(self):
-        config = super().config_for_rns
+    def config(self):
+        config = super().config
         self.save_attrs_to_config(
             config,
             [
@@ -415,7 +415,7 @@ class Cluster(Resource):
 
         state = state or {}
         if self.on_this_cluster():
-            data = (resource.config_for_rns, state, dryrun)
+            data = (resource.config, state, dryrun)
             return obj_store.put_resource(serialized_data=data, env_name=env_name)
         return self.client.put_resource(
             resource, state=state or {}, env_name=env_name, dryrun=dryrun

@@ -27,7 +27,7 @@ def sd_generate_image(prompt):
 
 
 def test_cluster_config(ondemand_aws_cluster):
-    config = ondemand_aws_cluster.config_for_rns
+    config = ondemand_aws_cluster.config
     cluster2 = OnDemandCluster.from_config(config)
     assert cluster2.address == ondemand_aws_cluster.address
 

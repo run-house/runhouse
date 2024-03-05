@@ -554,8 +554,8 @@ class ObjStore:
             try:
                 res = self._kv_store[key]
                 if remote:
-                    if hasattr(res, "config_for_rns"):
-                        return res.config_for_rns
+                    if hasattr(res, "config"):
+                        return res.config
                     else:
                         raise ValueError(
                             f"Cannot return remote for non-Resource object of type {type(res)}."
@@ -1030,7 +1030,7 @@ class ObjStore:
                 # Need to save the resource in case we haven't yet (e.g. if run_name was auto-generated)
                 self.put_local(res.name, res)
                 # If remote is True and the result is a resource, we return just the config
-                res = res.config_for_rns
+                res = res.config
 
         if log_ctx:
             log_ctx.__exit__(None, None, None)

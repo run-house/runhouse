@@ -171,8 +171,8 @@ class Function(Module):
         return self.system.get(run_key)
 
     @property
-    def config_for_rns(self):
-        config = super().config_for_rns
+    def config(self):
+        config = super().config
         config.update(
             {
                 "fn_pointers": self.fn_pointers,

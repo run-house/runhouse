@@ -46,9 +46,7 @@ def saved_resource(resource, saved_resource_pool, test_rns_folder):
     if resource.name not in saved_resource_pool:
         # Create a variant of the resource under a different name so we don't conflict with other tests or
         # or other runs of the test.
-        resource_copy = resource.from_config(
-            config=resource.config_for_rns, dryrun=True
-        )
+        resource_copy = resource.from_config(config=resource.config, dryrun=True)
         if not resource.rns_address or resource.rns_address[:2] != "~/":
             # No need to vary the name for local resources
             # Put resource copies in a folder together so it's easier to clean up

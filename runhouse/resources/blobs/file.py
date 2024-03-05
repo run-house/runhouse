@@ -40,8 +40,8 @@ class File(Blob):
         super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
     @property
-    def config_for_rns(self):
-        config = super().config_for_rns
+    def config(self):
+        config = super().config
         file_config = {
             "path": self.path,  # pair with data source to create the physical URL
             "data_config": self.data_config,

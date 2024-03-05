@@ -882,8 +882,8 @@ class LambdaFunction(Function):
     # Properties setup
     # --------------------------------------
     @property
-    def config_for_rns(self):
-        config = super().config_for_rns
+    def config(self):
+        config = super().config
         config.update(
             {
                 "paths_to_code": self.local_path_to_code,

@@ -156,8 +156,8 @@ class SageMakerCluster(Cluster):
         self.address = self.instance_id
 
     @property
-    def config_for_rns(self):
-        config = super().config_for_rns
+    def config(self):
+        config = super().config
         config.update(
             {
                 "instance_id": self.instance_id,
@@ -1381,7 +1381,7 @@ class SageMakerCluster(Cluster):
         return image_url
 
     def _update_autostop(self, autostop_mins: int = None):
-        cluster_config = self.config_for_rns
+        cluster_config = self.config
         cluster_config["autostop_mins"] = autostop_mins or -1
         if not self.client:
             self.connect_server_client()
