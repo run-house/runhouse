@@ -68,7 +68,7 @@ def test_share_git_package():
 
 def test_load_shared_git_package():
     git_package = rh.package(name="@/shared_git_package")
-    assert git_package.config_for_rns
+    assert git_package.config
 
 
 def test_local_package_function(cluster):

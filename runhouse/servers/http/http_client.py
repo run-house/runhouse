@@ -425,7 +425,7 @@ class HTTPClient:
     def put_resource(
         self, resource, env_name: Optional[str] = None, state=None, dryrun=False
     ):
-        config = resource.config_for_rns
+        config = resource.config
         return self.request_json(
             "resource",
             req_type="post",

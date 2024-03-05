@@ -118,8 +118,8 @@ class OnDemandCluster(Cluster):
         return OnDemandCluster(**config, dryrun=dryrun)
 
     @property
-    def config_for_rns(self):
-        config = super().config_for_rns
+    def config(self):
+        config = super().config
 
         # Also store the ssh keys for the cluster in RNS
         config.update(

@@ -54,8 +54,8 @@ class CondaEnv(Env):
         return CondaEnv(**config, dryrun=dryrun)
 
     @property
-    def config_for_rns(self):
-        config = super().config_for_rns
+    def config(self):
+        config = super().config
         config.update({"conda_yaml": self.conda_yaml})
         return config
 
@@ -109,7 +109,7 @@ class CondaEnv(Env):
         ).decode("utf-8")
 
         # Hash the config_for_rns to check if we need to create/install the conda env
-        env_config = self.config_for_rns
+        env_config = self.config
         # Remove the name because auto-generated names will be different, but the installed components are the same
         env_config.pop("name")
         install_hash = hash(str(env_config))

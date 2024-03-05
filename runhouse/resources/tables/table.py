@@ -70,8 +70,8 @@ class Table(Resource):
         return _load_table_subclass(config, dryrun=dryrun)
 
     @property
-    def config_for_rns(self):
-        config = super().config_for_rns
+    def config(self):
+        config = super().config
         if isinstance(self._folder, Resource):
             config["system"] = self._resource_string_for_subconfig(self.system)
             config["data_config"] = self._folder._data_config

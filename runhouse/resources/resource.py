@@ -83,12 +83,12 @@ class Resource:
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
 
     @property
-    def config_for_rns(self):
+    def config(self):
         config = {
             "name": self.rns_address or self.name,
             "resource_type": self.RESOURCE_TYPE,
             "resource_subtype": self.__class__.__name__,
-            "provenance": self.provenance.config_for_rns if self.provenance else None,
+            "provenance": self.provenance.config if self.provenance else None,
         }
         self.save_attrs_to_config(
             config,
@@ -110,12 +110,12 @@ class Resource:
                 if resource.rns_address.startswith("^"):
                     # Fork the resource if it's a built-in and consider it a new resource
                     resource._rns_folder = None
-                    return resource.config_for_rns
+                    return resource.config
                 return resource.rns_address
             else:
                 # If the resource doesn't have an rns_address, we consider it unsaved and put the whole config into
                 # the parent config.
-                return resource.config_for_rns
+                return resource.config
         raise ValueError(
             f"Resource {resource} is not a valid sub-resource for {self.__class__.__name__}"
         )
@@ -206,7 +206,7 @@ class Resource:
         return self
 
     def __str__(self):
-        return pprint.pformat(self.config_for_rns)
+        return pprint.pformat(self.config)
 
     @classmethod
     def _check_for_child_configs(cls, config):
