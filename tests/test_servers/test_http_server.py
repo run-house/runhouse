@@ -58,7 +58,7 @@ class TestHTTPServerDocker:
     def test_put_resource(self, http_client, blob_data, cluster):
         state = None
         resource = rh.blob(data=blob_data, system=cluster)
-        data = serialize_data((resource.config, state, resource.dryrun), "pickle")
+        data = serialize_data((resource.config(), state, resource.dryrun), "pickle")
         response = http_client.post(
             "/resource",
             json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
@@ -365,7 +365,7 @@ class TestHTTPServerDockerDenAuthOnly:
     def test_put_resource_with_invalid_token(self, http_client, blob_data, cluster):
         state = None
         resource = rh.blob(blob_data, system=cluster)
-        data = serialize_data((resource.config, state, resource.dryrun), "pickle")
+        data = serialize_data((resource.config(), state, resource.dryrun), "pickle")
         response = http_client.post(
             "/resource",
             json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
@@ -464,7 +464,7 @@ class TestHTTPServerNoDocker:
             resource = local_blob.to(system="file", path=resource_path)
 
             state = None
-            data = serialize_data((resource.config, state, resource.dryrun), "pickle")
+            data = serialize_data((resource.config(), state, resource.dryrun), "pickle")
             response = client.post(
                 "/resource",
                 json=dict(
@@ -568,7 +568,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
             local_blob = rh.blob(blob_data, path=resource_path)
             resource = local_blob.to(system="file", path=resource_path)
             state = None
-            data = serialize_data((resource.config, state, resource.dryrun), "pickle")
+            data = serialize_data((resource.config(), state, resource.dryrun), "pickle")
             resp = local_client_with_den_auth.post(
                 "/resource",
                 json=dict(

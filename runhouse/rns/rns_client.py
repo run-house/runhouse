@@ -467,7 +467,7 @@ class RNSClient:
         """Register the resource, saving it to local config folder and/or RNS config store. Uses the resource's
         `self.config` to generate the dict to save."""
         rns_address = resource.rns_address
-        config = resource.config
+        config = resource.config()
 
         if not overwrite and self.exists(rns_address):
             raise ValueError(

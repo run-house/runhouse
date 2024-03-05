@@ -45,9 +45,8 @@ class Secret(Resource):
     def values(self):
         return self._values
 
-    @property
     def config(self):
-        config = super().config
+        config = super().config()
         if self._values:
             config.update(
                 {
@@ -186,7 +185,7 @@ class Secret(Resource):
 
         self._rns_folder = self._rns_folder or rns_client.current_folder
 
-        config = self.config
+        config = self.config()
         config["name"] = self.rns_address
         if "values" in config:
             # don't save values into Den config

@@ -144,9 +144,7 @@ class TestModule:
 
         # Test for property
         res = cluster.call("numpy_pkg", "config", stream_logs=True)
-        numpy_config = Package.from_string("numpy").config
-        res = cluster.call("numpy_pkg", "config", stream_logs=True)
-        numpy_config = Package.from_string("numpy").config
+        numpy_config = Package.from_string("numpy").config()
         assert res
         assert isinstance(res, dict)
         assert res == numpy_config
@@ -233,7 +231,7 @@ class TestModule:
             size=40, run_name="remote_instance3"
         )
 
-        remote_instance_config = remote_instance3.system.config
+        remote_instance_config = remote_instance3.system.config()
         remote_instance_ssl_certfile = remote_instance_config.pop("ssl_certfile", None)
         remote_instance_ssl_keyfile = remote_instance_config.pop("ssl_keyfile", None)
 
@@ -248,7 +246,7 @@ class TestModule:
             f"{TLSCertConfig.CADDY_CLUSTER_DIR}/{TLSCertConfig.PRIVATE_KEY_NAME}",
         ]
 
-        cluster_config = cluster.config
+        cluster_config = cluster.config()
         cluster_ssl_certfile = cluster_config.pop("ssl_certfile", None)
         cluster_ssl_keyfile = cluster_config.pop("ssl_keyfile", None)
         # Cluster config should point to the certs stored locally
@@ -343,7 +341,7 @@ class TestModule:
         remote_instance = SlowPandas(size=3).get_or_to(
             cluster, env=env, name="SlowPandas"
         )
-        assert remote_instance.system.config == cluster.config
+        assert remote_instance.system.config() == cluster.config()
         # Check that size is unchanged from when we set it to 20 above
         assert remote_instance.remote.size == 20
 
@@ -352,7 +350,7 @@ class TestModule:
         resolved_obj = helper(remote_instance.resolve())
         assert resolved_obj.__class__.__name__ == "SlowPandas"
         assert resolved_obj.size == 20  # resolved_obj.remote.size causing an error
-        assert resolved_obj.config == remote_instance.config
+        assert resolved_obj.config() == remote_instance.config()
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")

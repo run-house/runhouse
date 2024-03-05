@@ -85,9 +85,8 @@ class Resource:
     @property
     def config_for_rns(self):
         # Added for BC for version 0.0.20
-        return self.config
+        return self.config()
 
-    @property
     def config(self):
         config = {
             "name": self.rns_address or self.name,
@@ -115,12 +114,12 @@ class Resource:
                 if resource.rns_address.startswith("^"):
                     # Fork the resource if it's a built-in and consider it a new resource
                     resource._rns_folder = None
-                    return resource.config
+                    return resource.config()
                 return resource.rns_address
             else:
                 # If the resource doesn't have an rns_address, we consider it unsaved and put the whole config into
                 # the parent config.
-                return resource.config
+                return resource.config()
         raise ValueError(
             f"Resource {resource} is not a valid sub-resource for {self.__class__.__name__}"
         )
@@ -196,7 +195,7 @@ class Resource:
         overwrite: bool = True,
     ):
         """Register the resource, saving it to local working_dir config and RNS config store. Uses the resource's
-        `self.config_for_rns` to generate the dict to save."""
+        `self.config()` to generate the dict to save."""
 
         # add this resource this run's downstream artifact registry if it's being saved as part of a run
         rns_client.add_downstream_resource(name or self.name)
@@ -211,7 +210,7 @@ class Resource:
         return self
 
     def __str__(self):
-        return pprint.pformat(self.config)
+        return pprint.pformat(self.config())
 
     @classmethod
     def _check_for_child_configs(cls, config):

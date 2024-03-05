@@ -77,14 +77,13 @@ class Module(Resource):
         self._signature = signature
         self._resolve = False
 
-    @property
     def config(self):
         if not self.system:
             raise ValueError(
                 "Cannot save an in-memory local module to RNS. Please send the module to a local "
                 "path or system first."
             )
-        config = super().config
+        config = super().config()
         config["system"] = (
             self._resource_string_for_subconfig(self.system) if self.system else None
         )
@@ -390,7 +389,7 @@ class Module(Resource):
             new_module.name = name or self.name or self.default_name()
             # TODO dedup with _extract_state
             # Exclude anything already being sent in the config and private module attributes
-            excluded_state_keys = list(new_module.config.keys()) + [
+            excluded_state_keys = list(new_module.config().keys()) + [
                 "_system",
                 "_name",
                 "_rns_folder",

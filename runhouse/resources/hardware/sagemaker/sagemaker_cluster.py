@@ -155,9 +155,8 @@ class SageMakerCluster(Cluster):
         # Note: Setting instance ID as cluster IP for compatibility with Cluster parent class methods
         self.address = self.instance_id
 
-    @property
     def config(self):
-        config = super().config
+        config = super().config()
         config.update(
             {
                 "instance_id": self.instance_id,
@@ -1381,7 +1380,7 @@ class SageMakerCluster(Cluster):
         return image_url
 
     def _update_autostop(self, autostop_mins: int = None):
-        cluster_config = self.config
+        cluster_config = self.config()
         cluster_config["autostop_mins"] = autostop_mins or -1
         if not self.client:
             self.connect_server_client()
