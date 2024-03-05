@@ -554,7 +554,7 @@ class ObjStore:
             try:
                 res = self._kv_store[key]
                 if remote:
-                    if hasattr(res, "config_for_rns"):
+                    if hasattr(res, "config"):
                         return res.config
                     else:
                         raise ValueError(

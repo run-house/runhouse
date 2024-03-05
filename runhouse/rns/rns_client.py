@@ -465,7 +465,7 @@ class RNSClient:
 
     def save_config(self, resource, overwrite: bool = True):
         """Register the resource, saving it to local config folder and/or RNS config store. Uses the resource's
-        `self.config_for_rns` to generate the dict to save."""
+        `self.config` to generate the dict to save."""
         rns_address = resource.rns_address
         config = resource.config
 

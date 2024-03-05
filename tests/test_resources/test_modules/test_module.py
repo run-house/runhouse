@@ -143,7 +143,9 @@ class TestModule:
         assert res == "cpu"
 
         # Test for property
-        res = cluster.call("numpy_pkg", "config_for_rns", stream_logs=True)
+        res = cluster.call("numpy_pkg", "config", stream_logs=True)
+        numpy_config = Package.from_string("numpy").config
+        res = cluster.call("numpy_pkg", "config", stream_logs=True)
         numpy_config = Package.from_string("numpy").config
         assert res
         assert isinstance(res, dict)
@@ -279,7 +281,7 @@ class TestModule:
         helper = rh.function(resolve_test_helper).to(cluster)
         resolved_obj = helper(remote_instance.resolve())
         assert resolved_obj.__class__.__name__ == "SlowNumpyArray"
-        assert not hasattr(resolved_obj, "config_for_rns")
+        assert not hasattr(resolved_obj, "config")
         assert resolved_obj.size == 20
         assert list(resolved_obj.arr) == [0, 1, 2]
 
