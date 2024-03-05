@@ -432,9 +432,10 @@ class OnDemandCluster(Cluster):
                 self._ssh_creds = backend_utils.ssh_credential_from_yaml(yaml_path)
 
             # Add worker IPs if multi-node cluster - keep the head node as the first IP
-            for ip in handle.cached_external_ips:
-                if ip not in self.ips:
-                    self.ips.append(ip)
+            if handle.cached_external_ips:
+                for ip in handle.cached_external_ips:
+                    if ip not in self.ips:
+                        self.ips.append(ip)
         else:
             self.address = None
             self._ssh_creds = None

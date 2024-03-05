@@ -10,9 +10,23 @@ from tests.conftest import init_args
 from tests.utils import test_env
 
 
-@pytest.fixture(scope="session")
-def on_demand_cluster(request):
-    return request.getfixturevalue(request.param)
+@pytest.fixture()
+def restart_server(request):
+    return request.config.getoption("--restart-server")
+
+
+def setup_test_cluster(args, request):
+    cluster = rh.ondemand_cluster(**args)
+    init_args[id(cluster)] = args
+
+    if not cluster.is_up():
+        cluster.up()
+    elif request.config.getoption("--restart-server"):
+        cluster.restart_server()
+
+    cluster.save()
+    test_env().to(cluster)
+    return cluster
 
 
 @pytest.fixture(
@@ -33,16 +47,8 @@ def ondemand_cluster(request):
 @pytest.fixture(scope="session")
 def ondemand_aws_cluster():
     args = {"name": "aws-cpu", "instance_type": "CPU:2+", "provider": "aws"}
-    c = rh.ondemand_cluster(**args)
-    init_args[id(c)] = args
-
-    c.up_if_not()
-
-    # Save to RNS - to be loaded in other tests (ex: Runs)
-    c.save()
-
-    test_env().to(c)
-    return c
+    cluster = setup_test_cluster(args)
+    return cluster
 
 
 @pytest.fixture(scope="session")
@@ -50,33 +56,22 @@ def ondemand_aws_https_cluster_with_auth():
     args = {
         "name": "aws-cpu-https",
         "instance_type": "CPU:2+",
+        "provider": "aws",
         "den_auth": True,
         "server_connection_type": "tls",
         # Use Caddy for SSL & reverse proxying (if port not specified here will launch certs with uvicorn)
         # "server_port": DEFAULT_HTTPS_PORT,
         "open_ports": [DEFAULT_HTTPS_PORT],
     }
-    c = rh.ondemand_cluster(**args)
-    c.up_if_not()
-    init_args[id(c)] = args
-
-    test_env().to(c)
-    return c
+    cluster = setup_test_cluster(args)
+    return cluster
 
 
 @pytest.fixture(scope="session")
 def ondemand_gcp_cluster():
     args = {"name": "gcp-cpu", "instance_type": "CPU:2+", "provider": "gcp"}
-    c = rh.ondemand_cluster(**args)
-    init_args[id(c)] = args
-
-    c.up_if_not()
-
-    # Save to RNS - to be loaded in other tests (ex: Runs)
-    c.save()
-
-    test_env().to(c)
-    return c
+    cluster = setup_test_cluster(args)
+    return cluster
 
 
 @pytest.fixture(scope="session")
@@ -91,76 +86,37 @@ def ondemand_k8s_cluster():
         "provider": "kubernetes",
         "instance_type": "1CPU--1GB",
     }
-    c = rh.ondemand_cluster(**args)
-    init_args[id(c)] = args
-
-    c.up_if_not()
-
-    # Save to RNS - to be loaded in other tests (ex: Runs)
-    c.save()
-
-    # Call save before installing in the event we want to use TLS / den auth
-    test_env().to(c)
-    return c
+    cluster = setup_test_cluster(args)
+    return cluster
 
 
 @pytest.fixture(scope="session")
 def v100_gpu_cluster():
     args = {"name": "rh-v100", "instance_type": "V100:1", "provider": "aws"}
-
-    c = rh.ondemand_cluster(**args)
-    init_args[id(c)] = args
-
-    c.up_if_not()
-
-    c.save()
-
-    test_env().to(c)
-    return c
+    cluster = setup_test_cluster(args)
+    return cluster
 
 
 @pytest.fixture(scope="session")
 def k80_gpu_cluster():
     args = {"name": "rh-k80", "instance_type": "K80:1", "provider": "aws"}
-
-    c = rh.ondemand_cluster(**args)
-    init_args[id(c)] = args
-
-    c.up_if_not()
-
-    c.save()
-
-    test_env().to(c)
-    return c
+    cluster = setup_test_cluster(args)
+    return cluster
 
 
 @pytest.fixture(scope="session")
 def a10g_gpu_cluster():
     args = {"name": "rh-a10x", "instance_type": "g5.2xlarge", "provider": "aws"}
-    c = rh.ondemand_cluster(**args)
-    init_args[id(c)] = args
-
-    c.up_if_not()
-
-    c.save()
-
-    test_env().to(c)
-    return c
+    cluster = setup_test_cluster(args)
+    return cluster
 
 
 @pytest.fixture(scope="session")
-def multinode_cpu_cluster():
+def multinode_cpu_cluster(request):
     args = {
         "name": "rh-cpu-multinode",
         "num_instances": 2,
         "instance_type": "CPU:2+",
     }
-    c = rh.ondemand_cluster(**args)
-    init_args[id(c)] = args
-
-    c.up_if_not()
-
-    c.save()
-
-    test_env().to(c)
-    return c
+    cluster = setup_test_cluster(args, request)
+    return cluster
