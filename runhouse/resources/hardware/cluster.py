@@ -188,7 +188,8 @@ class Cluster(Resource):
                 "client_port",
             ],
         )
-        creds = self._resource_string_for_subconfig(self._creds, condensed)
+        creds = self._resource_string_for_subconfig(self._creds)
+
         # user A shares cluster with user B, with "write" permissions. If user B will save the cluster to Den, we
         # would NOT like that the loaded secret will overwrite the original secret that was created and shared by
         # user A.
