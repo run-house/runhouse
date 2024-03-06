@@ -85,17 +85,15 @@ class Module(Resource):
             )
         config = super().config(condensed)
         if self.system:
-            system = (
-                self._resource_string_for_subconfig(self.system)
-                if condensed
-                else self.system
-            )
+            system = self._resource_string_for_subconfig(self.system, condensed)
         else:
             system = None
 
         config["system"] = system
         config["env"] = (
-            self._resource_string_for_subconfig(self.env) if self.env else None
+            self._resource_string_for_subconfig(self.env, condensed)
+            if self.env
+            else None
         )
         if self._pointers:
             # For some reason sometimes this is coming back as a string, so we force it into a tuple

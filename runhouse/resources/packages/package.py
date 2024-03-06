@@ -62,7 +62,7 @@ class Package(Resource):
         config = super().config(condensed)
         config["install_method"] = self.install_method
         config["install_target"] = self._resource_string_for_subconfig(
-            self.install_target
+            self.install_target, condensed
         )
         config["install_args"] = self.install_args
         return config

@@ -115,7 +115,7 @@ class Cluster(Resource):
         return None
 
     def save_config_to_cluster(self, node: str = None):
-        config = self.config()
+        config = self.config(condensed=False)
         if "live_state" in config.keys():
             # a bunch of setup commands that mess up dumping
             del config["live_state"]
