@@ -603,10 +603,8 @@ class Folder(Resource):
             config["path"] = self.path
 
         if isinstance(self.system, Resource):  # If system is a cluster
-            config["system"] = (
-                self._resource_string_for_subconfig(self.system)
-                if condensed
-                else self.system
+            config["system"] = self._resource_string_for_subconfig(
+                self.system, condensed
             )
         else:
             config["system"] = self.system

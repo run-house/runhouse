@@ -86,12 +86,12 @@ class Env(Resource):
         config.update(
             {
                 "reqs": [
-                    self._resource_string_for_subconfig(package)
-                    if condensed
-                    else package
+                    self._resource_string_for_subconfig(package, condensed)
                     for package in self._reqs
                 ],
-                "working_dir": self._resource_string_for_subconfig(self.working_dir),
+                "working_dir": self._resource_string_for_subconfig(
+                    self.working_dir, condensed
+                ),
             }
         )
         return config

@@ -123,7 +123,7 @@ class Cluster(Resource):
         return None
 
     def save_config_to_cluster(self, node: str = None):
-        config = self.config()
+        config = self.config(condensed=False)
         json_config = f"{json.dumps(config)}"
 
         self.run(
@@ -188,19 +188,14 @@ class Cluster(Resource):
                 "client_port",
             ],
         )
-        if self.is_up():
-            if condensed:
-                creds = self._resource_string_for_subconfig(self._creds)
-                # user A shares cluster with user B, with "write" permissions. If user B will save the cluster to Den, we
-                # would NOT like that the loaded secret will overwrite the original secret that was created and shared by
-                # user A.
-                if creds and "loaded_secret_" in creds:
-                    creds = creds.replace("loaded_secret_", "")
-            else:
-                # TODO [SB] do we need to replace anything if creds remain a Secret object?
-                creds = self._creds
+        creds = self._resource_string_for_subconfig(self._creds, condensed)
+        # user A shares cluster with user B, with "write" permissions. If user B will save the cluster to Den, we
+        # would NOT like that the loaded secret will overwrite the original secret that was created and shared by
+        # user A.
+        if creds and "loaded_secret_" in creds:
+            creds = creds.replace("loaded_secret_", "")
 
-            config["creds"] = creds
+        config["creds"] = creds
 
         if self._use_custom_certs:
             config["ssl_certfile"] = self.cert_config.cert_path

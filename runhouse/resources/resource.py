@@ -102,24 +102,26 @@ class Resource:
         )
         return config
 
-    def _resource_string_for_subconfig(self, resource: Union[None, str, "Resource"]):
+    def _resource_string_for_subconfig(
+        self, resource: Union[None, str, "Resource"], condensed=True
+    ):
         """Returns a string representation of a sub-resource for use in a config."""
         if resource is None or isinstance(resource, str):
             return resource
         if isinstance(resource, Resource):
-            if resource.rns_address:
+            if condensed and resource.rns_address:
                 # We operate on the assumption that rns_address is only populated once a resource has been saved.
                 # That way, if rns_address is not None, we have reasonable likelihood that the resource was saved and
                 # we can just pass the address. The only exception here is if the resource is a built-in.
                 if resource.rns_address.startswith("^"):
                     # Fork the resource if it's a built-in and consider it a new resource
                     resource._rns_folder = None
-                    return resource.config()
+                    return resource.config(condensed)
                 return resource.rns_address
             else:
                 # If the resource doesn't have an rns_address, we consider it unsaved and put the whole config into
                 # the parent config.
-                return resource.config()
+                return resource.config(condensed)
         raise ValueError(
             f"Resource {resource} is not a valid sub-resource for {self.__class__.__name__}"
         )
