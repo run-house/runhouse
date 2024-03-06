@@ -36,15 +36,6 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: Extra Topics
-
-   architecture
-   debugging-logging
-   troubleshooting
-   security-and-authentication
-
-.. toctree::
-   :maxdepth: 1
    :caption: API Reference
 
    api/python
@@ -52,11 +43,12 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: Examples
+   :caption: Other Topics
 
-   examples/inference-stable-diffusion-flan-t5
-   examples/training-transformers
-   examples/distributed-hf-accelerate
+   architecture
+   debugging-logging
+   troubleshooting
+   security-and-authentication
 
 
 Contributing and Community
