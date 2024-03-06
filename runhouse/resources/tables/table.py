@@ -72,10 +72,8 @@ class Table(Resource):
     def config(self, condensed=True):
         config = super().config(condensed)
         if isinstance(self._folder, Resource):
-            config["system"] = (
-                self._resource_string_for_subconfig(self.system)
-                if condensed
-                else self.system
+            config["system"] = self._resource_string_for_subconfig(
+                self.system, condensed
             )
             config["data_config"] = self._folder._data_config
         else:

@@ -209,7 +209,9 @@ class Run(Resource):
             "upstream_artifacts": self.upstream_artifacts,
             "downstream_artifacts": self.downstream_artifacts,
             "path": self.folder.path,
-            "system": self._resource_string_for_subconfig(self.folder.system),
+            "system": self._resource_string_for_subconfig(
+                self.folder.system, condensed
+            ),
             "error": str(self.error),
             "traceback": str(self.traceback),
         }
