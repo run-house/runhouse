@@ -91,7 +91,6 @@ class Cluster(Resource):
         self.ssl_certfile = ssl_certfile
         self.ssl_keyfile = ssl_keyfile
         self.server_connection_type = server_connection_type
-
         self.server_port = server_port
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
@@ -156,9 +155,11 @@ class Cluster(Resource):
 
         return self
 
-    @staticmethod
-    def from_config(config: dict, dryrun=False):
+    @classmethod
+    def from_config(cls, config: dict, dryrun=False):
         resource_subtype = config.get("resource_subtype")
+        config = cls._check_for_child_configs(config)
+
         if resource_subtype == "Cluster":
             return Cluster(**config, dryrun=dryrun)
         elif resource_subtype == "OnDemandCluster":
@@ -188,7 +189,7 @@ class Cluster(Resource):
                 "client_port",
             ],
         )
-        creds = self._resource_string_for_subconfig(self._creds)
+        creds = self._resource_string_for_subconfig(self._creds, condensed)
 
         # user A shares cluster with user B, with "write" permissions. If user B will save the cluster to Den, we
         # would NOT like that the loaded secret will overwrite the original secret that was created and shared by

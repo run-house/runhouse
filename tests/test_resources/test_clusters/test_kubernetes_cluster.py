@@ -33,7 +33,7 @@ class TestKubernetesCluster(
     @pytest.mark.level("release")
     def test_function_on_k8s_cluster(self, ondemand_k8s_cluster):
         num_cpus_cluster = rh.function(name="num_cpus_cluster", fn=num_cpus).to(
-            system=ondemand_k8s_cluster, reqs=["./"]
+            system=ondemand_k8s_cluster, env=["./"]
         )
         # TODO: This test will be improved so that it passes on any cluster setting
         assert num_cpus_cluster() == "Num cpus: 4"

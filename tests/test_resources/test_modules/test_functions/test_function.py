@@ -77,11 +77,6 @@ async def async_slow_generator(size):
         yield f"Hello from the cluster! {arr}"
 
 
-def slow_getpid(a=0):
-    time.sleep(10)
-    return os.getpid() + a
-
-
 @pytest.mark.functiontest
 class TestFunction:
 

@@ -87,6 +87,10 @@ def password_cluster():
     ssh_creds = {"ssh_user": "ubuntu", "password": "cluster-pass"}
     args = dict(name="rh-password", host=[sky_cluster.address], ssh_creds=ssh_creds)
     c = rh.cluster(**args).save()
+    c.restart_server(resync_rh=True)
     init_args[id(c)] = args
+
+    test_env().to(c)
+    c.sync_secrets(["ssh"])
 
     return c

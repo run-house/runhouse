@@ -40,7 +40,6 @@ class SSHSecret(ProviderSecret):
         super().__init__(
             name=name, provider=provider, values=values, path=path, dryrun=dryrun
         )
-
         if self.path == self._DEFAULT_CREDENTIALS_PATH:
             self.path = str(Path(self._DEFAULT_CREDENTIALS_PATH) / self.key)
 
@@ -52,7 +51,6 @@ class SSHSecret(ProviderSecret):
     def save(
         self, name: str = None, save_values: bool = True, headers: Optional[Dict] = None
     ):
-
         if name:
             self.name = name
         elif not self.name:

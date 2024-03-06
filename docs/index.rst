@@ -31,17 +31,9 @@ Table of Contents
    tutorials/api-clusters
    tutorials/api-modules
    tutorials/api-envs
+   tutorials/api-folders
    tutorials/api-secrets
    tutorials/api-resources
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Extra Topics
-
-   architecture
-   debugging-logging
-   troubleshooting
-   security-and-authentication
 
 .. toctree::
    :maxdepth: 1
@@ -52,11 +44,12 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: Examples
+   :caption: Other Topics
 
-   examples/inference-stable-diffusion-flan-t5
-   examples/training-transformers
-   examples/distributed-hf-accelerate
+   architecture
+   debugging-logging
+   troubleshooting
+   security-and-authentication
 
 
 Contributing and Community

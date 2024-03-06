@@ -61,8 +61,6 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         "cluster": [
             "ondemand_aws_cluster",
             "password_cluster",
-            "docker_cluster_pk_ssh_no_auth",
-            "docker_cluster_pk_ssh_den_auth",
         ],
     }
     MAXIMAL = {

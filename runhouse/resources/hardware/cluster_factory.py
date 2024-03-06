@@ -84,6 +84,7 @@ def cluster(
         raise ValueError(
             "Cluster factory method can only accept one of `host` or `ips` as an argument."
         )
+
     if name:
         alt_options = dict(
             host=host,

@@ -9,7 +9,6 @@ from typing import Any, Dict
 import rich.errors
 import yaml
 
-
 try:
     import sky
     from sky.backends import backend_utils
@@ -65,7 +64,6 @@ class OnDemandCluster(Cluster):
         .. note::
             To build a cluster, please use the factory method :func:`cluster`.
         """
-
         super().__init__(
             name=name,
             server_host=server_host,
@@ -78,6 +76,7 @@ class OnDemandCluster(Cluster):
             dryrun=dryrun,
             **kwargs,
         )
+
         self.instance_type = instance_type
         self.num_instances = num_instances
         self.provider = provider or configs.get("default_provider")
@@ -134,10 +133,6 @@ class OnDemandCluster(Cluster):
             backend_utils.SSHConfigHelper.add_cluster(
                 self.name, [self.address], ray_yaml["auth"]
             )
-
-    def __getstate__(self):
-        """Make sure live_state is loaded in before pickling."""
-        return super().__getstate__()
 
     @staticmethod
     def relative_yaml_path(yaml_path):
@@ -259,7 +254,6 @@ class OnDemandCluster(Cluster):
         .. note:: For more information see SkyPilot's :code:`ResourceHandle` `class
         <https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457>`_.
         """
-
         if not sky.global_user_state.get_cluster_from_name(self.name):
             return None
 
@@ -270,13 +264,11 @@ class OnDemandCluster(Cluster):
             # time we call status), we can retry without refreshing
             if not retry:
                 raise e
-
             return self._sky_status(refresh=False, retry=False)
 
         # We still need to check if the cluster present in case the cluster went down and was removed from the DB
         if len(state) == 0:
             return None
-
         return state[0]
 
     def _start_ray_workers(self, ray_port):
@@ -321,9 +313,10 @@ class OnDemandCluster(Cluster):
                     self._creds = setup_cluster_creds(ssh_values, self.name)
 
             # Add worker IPs if multi-node cluster - keep the head node as the first IP
-            for ip in handle.cached_external_ips:
-                if ip not in self.ips:
-                    self.ips.append(ip)
+            if handle.cached_external_ips:
+                for ip in handle.cached_external_ips:
+                    if ip not in self.ips:
+                        self.ips.append(ip)
         else:
             self.address = None
             self._creds = None

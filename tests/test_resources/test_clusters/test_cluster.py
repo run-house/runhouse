@@ -6,7 +6,12 @@ import requests
 
 import runhouse as rh
 
-from runhouse.constants import DEFAULT_SERVER_PORT, LOCALHOST
+from runhouse.constants import (
+    DEFAULT_HTTP_PORT,
+    DEFAULT_HTTPS_PORT,
+    DEFAULT_SERVER_PORT,
+    LOCALHOST,
+)
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
@@ -24,7 +29,7 @@ from tests.utils import friend_account
 def load_shared_resource_config(resource_class_name, address):
     resource_class = getattr(rh, resource_class_name)
     loaded_resource = resource_class.from_name(address, dryrun=True)
-    return loaded_resource.config(False)
+    return loaded_resource.config()
 
 
 def save_resource_and_return_config():
@@ -139,10 +144,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert endpoint == f"http://{LOCALHOST}:{cluster.client_port}"
         else:
             url_base = "https" if cluster.server_connection_type == "tls" else "http"
-            assert (
-                endpoint
-                == f"{url_base}://{cluster.server_address}:{cluster.server_port}"
-            )
+            if cluster.server_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
+                assert (
+                    endpoint
+                    == f"{url_base}://{cluster.server_address}:{cluster.server_port}"
+                )
+            else:
+                assert endpoint == f"{url_base}://{cluster.server_address}"
 
         # Try to curl docs
         verify = cluster.client.verify
@@ -176,9 +184,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_cluster_delete_env(self, cluster):
-        env1 = rh.env(reqs=["numpy"], name="env1").to(cluster)
-        env2 = rh.env(reqs=["numpy"], name="env2").to(cluster)
-        env3 = rh.env(reqs=["numpy"], name="env3")
+        env1 = rh.env(reqs=[], working_dir="./", name="env1").to(cluster)
+        env2 = rh.env(reqs=[], working_dir="./", name="env2").to(cluster)
+        env3 = rh.env(reqs=[], working_dir="./", name="env3")
 
         cluster.put("k1", "v1", env=env1.name)
         cluster.put("k2", "v2", env=env2.name)
@@ -312,7 +320,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         # First try loading in same process/filesystem because it's more debuggable, but not as thorough
         resource_class_name = cluster.config().get("resource_type").capitalize()
-        config = cluster.config_for_rns
+        config = cluster.config()
 
         with friend_account():
             curr_config = load_shared_resource_config(

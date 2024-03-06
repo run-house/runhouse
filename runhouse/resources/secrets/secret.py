@@ -13,6 +13,7 @@ from runhouse.resources.secrets.utils import _delete_vault_secrets, load_config
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
 from runhouse.rns.utils.names import _generate_default_name
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -94,7 +95,6 @@ class Secret(Resource):
     @staticmethod
     def from_config(config: dict, dryrun: bool = False):
         """Create a Secret object from a config dictionary."""
-
         if "provider" in config:
             from runhouse.resources.secrets.provider_secrets.providers import (
                 _get_provider_class,

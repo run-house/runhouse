@@ -47,7 +47,7 @@ from PIL import Image
 # This is a Runhouse class that allows you to
 # run code in your class on a remote machine.
 #
-# Learn more in the [Runhouse docs on functions and modules](https://www.run.house/docs/stable/tutorials/api-modules).
+# Learn more in the [Runhouse docs on functions and modules](/docs/tutorials/api-modules).
 class StableDiffusionXLPipeline(rh.Module):
     def __init__(
         self,
@@ -129,11 +129,11 @@ def decode_base64_image(image_string):
 # The cluster we set up here also uses `tls` for the `server_connection_type`, which means that all communication
 # will be over HTTPS and encrypted. We need to tell SkyPilot to open port 443 for this to work.
 #
-# We also set `den_auth` to `True`, which means that we will use [Runhouse Den](https://www.run.house/dashboard) to
+# We also set `den_auth` to `True`, which means that we will use [Runhouse Den](/dashboard) to
 # authenticate public requests to this cluster. This means that we can open this cluster to the public internet, and
 # only people who have ran `runhouse login` and set up Runhouse accounts will be able to access it.
 #
-# Learn more in the [Runhouse docs on clusters](https://www.run.house/docs/stable/tutorials/api-clusters).
+# Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
 #
 # NOTE: Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwiwse,
 # the script code will run when Runhouse attempts to run code remotely.
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
     # We also can set environment variables, such as `NEURON_RT_NUM_CORES` which is required for AWS Neuron.
     #
-    # Learn more in the [Runhouse docs on envs](https://www.run.house/docs/stable/tutorials/api-envs).
+    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
     env = rh.env(
         name="sdxl_inference",
         reqs=[

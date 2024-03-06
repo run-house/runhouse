@@ -76,7 +76,7 @@ class Folder(Resource):
             self.default_path(self.rns_address, system)
             if path is None
             else path
-            if system is not self.DEFAULT_FS
+            if system != "file"
             else path
             if Path(path).expanduser().is_absolute()
             else str(Path(rns_client.locate_working_dir()) / path)

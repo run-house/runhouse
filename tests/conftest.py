@@ -114,6 +114,12 @@ def pytest_addoption(parser):
         default=False,
         help="Don't filter tests by marks.",
     )
+    parser.addoption(
+        "--restart-server",
+        action="store_true",
+        default=False,
+        help="Restart the server on the cluster fixtures.",
+    )
 
 
 def pytest_generate_tests(metafunc):
@@ -208,7 +214,6 @@ from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
     multinode_cpu_cluster,  # noqa: F401
-    on_demand_cluster,  # noqa: F401
     ondemand_aws_cluster,  # noqa: F401
     ondemand_aws_https_cluster_with_auth,  # noqa: F401
     ondemand_cluster,  # noqa: F401

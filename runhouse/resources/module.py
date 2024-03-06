@@ -86,7 +86,6 @@ class Module(Resource):
         config = super().config(condensed)
         if self.system:
             system = self._resource_string_for_subconfig(self.system, condensed)
-
         else:
             system = None
 

@@ -241,6 +241,10 @@ class HTTPServer:
     def get_cert():
         """Download the certificate file for this server necessary for enabling HTTPS.
         User must have access to the cluster in order to download the certificate."""
+
+        # Default for this endpoint is "pickle" serialization
+        serialization = "pickle"
+
         try:
             certs_config = TLSCertConfig()
             cert_path = certs_config.cert_path
@@ -254,22 +258,27 @@ class HTTPServer:
                 cert = cert_file.read()
 
             return Response(
-                data=serialize_data(cert, "pickle"),
+                data=serialize_data(cert, serialization),
                 output_type=OutputType.RESULT_SERIALIZED,
-                serialization="pickle",
+                serialization=serialization,
             )
 
         except Exception as e:
             logger.exception(e)
             return Response(
-                error=serialize_data(e, "pickle"),
-                traceback=serialize_data(traceback.format_exc(), "pickle"),
                 output_type=OutputType.EXCEPTION,
+                error=serialize_data(e, serialization),
+                traceback=serialize_data(traceback.format_exc(), serialization),
+                serialization=serialization,
             )
 
     @staticmethod
     @app.get("/check")
     def check_server():
+
+        # Default for this endpoint is "pickle" serialization
+        serialization = "pickle"
+
         try:
             HTTPServer.register_activity()
             if not ray.is_initialized():
@@ -282,9 +291,10 @@ class HTTPServer:
         except Exception as e:
             logger.exception(e)
             return Response(
-                error=serialize_data(e, "pickle"),
-                traceback=serialize_data(traceback.format_exc(), "pickle"),
                 output_type=OutputType.EXCEPTION,
+                error=serialize_data(e, serialization),
+                traceback=serialize_data(traceback.format_exc(), serialization),
+                serialization=serialization,
             )
 
     @staticmethod
@@ -374,10 +384,11 @@ class HTTPServer:
         remote: Optional[bool] = False,
         run_async: Optional[bool] = False,
     ):
+        # Default argument to json doesn't allow a user to pass in a serialization string if they want
+        # But, if they didn't pass anything, we want it to be `json` by default.
+        serialization = serialization or "json"
+
         try:
-            # Default argument to json doesn't allow a user to pass in a serialization string if they want
-            # But, if they didn't pass anything, we want it to be `json` by default.
-            serialization = serialization or "json"
 
             # The types need to be explicitly specified as parameters first so that
             # we can cast Query params to the right type.
@@ -406,9 +417,12 @@ class HTTPServer:
         except Exception as e:
             logger.exception(e)
             return Response(
-                error=serialize_data(e, "pickle"),
-                traceback=serialize_data(traceback.format_exc(), "pickle"),
                 output_type=OutputType.EXCEPTION,
+                error=serialize_data(e, serialization=serialization),
+                traceback=serialize_data(
+                    traceback.format_exc(), serialization=serialization
+                ),
+                serialization=serialization,
             )
 
     @staticmethod
@@ -491,6 +505,7 @@ class HTTPServer:
                         traceback=serialize_data(
                             traceback.format_exc(), serialization=serialization
                         ),
+                        serialization=serialization,
                     )
                 )
             )
