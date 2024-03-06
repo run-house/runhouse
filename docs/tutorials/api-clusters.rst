@@ -3,29 +3,35 @@ Clusters
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/runhouse/blob/stable/docs/notebooks/api/clusters.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/api-clusters.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 A cluster is the most basic form of compute in Runhouse, largely
 representing a group of instances or VMs connected with Ray. They
 largely fall in two categories:
 
-1. Static Clusters: Any machine you have SSH access to, set up with IP
+1. *Static Clusters*: Any machine you have SSH access to, set up with IP
    addresses and SSH credentials.
-2. On-Demand Clusters: Any cloud instance spun up automatically for you
-   with your cloud credentials.
+2. *On-Demand Clusters*: Any cloud instance spun up automatically for
+   you with your cloud credentials.
 
 Runhouse provides various APIs for interacting with remote clusters,
 such as terminating an on-demand cloud cluster or running remote CLI or
 Python commands from your local dev environment.
 
-Let’s start with a simple example using AWS. After making sure your
-``~/.aws/credentials`` file is set up with access to create instances in
-EC2, you can install Runhouse and create on-demand clusters in AWS.
+Let’s start with a simple example using AWS. First, install ``runhouse``
+with AWS dependencies:
 
 .. code:: ipython3
 
     ! pip install "runhouse[aws]"
+
+Make sure your AWS credentials are set up:
+
+.. code:: ipython3
+
+    ! aws configure
+    ! sky check
 
 On-Demand Clusters
 ------------------
@@ -39,11 +45,17 @@ construction. This ``name`` parameter is used for saving down or loading
 previous saved clusters, and also used for various CLI commands for the
 cluster.
 
+Our ``instance_type`` here is defined as ``CPU:2``, which is the
+accelerator type and count that we need (another example would be
+``A10G:2``). We could alternatively specify a specific specific instance
+type, such as ``p3.2xlarge`` or ``g4dn.xlarge`` (these are instance
+types on AWS).
+
 .. code:: ipython3
 
     import runhouse as rh
 
-    aws_cluster = rh.cluster(name="test-cluster", instance_type="CPU:2", provider="aws")
+    aws_cluster = rh.cluster(name="test-cluster", instance_type="CPU:2")
 
 Next, we set up a basic function to throw up on our cluster. For more
 information about Functions & Modules that you can put up on a cluster,
@@ -69,8 +81,8 @@ remotely on your AWS instance.
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2024-02-20 16:38:13.733518 | Calling run_home.call
-    INFO | 2024-02-20 16:38:14.807770 | Time to call run_home.call: 1.07 seconds
+    INFO | 2024-03-06 15:18:58.439252 | Calling run_home.call
+    INFO | 2024-03-06 15:18:59.490122 | Time to call run_home.call: 1.05 seconds
 
 
 
@@ -103,8 +115,9 @@ and access objects and functions via ``curl``.
 .. parsed-literal::
     :class: code-output
 
-    /Users/rohinbhasin/work/runhouse/runhouse/resources/hardware/on_demand_cluster.py:317: UserWarning: Server is insecure and must be inside a VPC or have `den_auth` enabled to secure it.
+    WARNING | 2024-03-06 15:19:05.297411 | /Users/rohinbhasin/work/runhouse/runhouse/resources/hardware/on_demand_cluster.py:317: UserWarning: Server is insecure and must be inside a VPC or have `den_auth` enabled to secure it.
       warnings.warn(
+
 
 
 .. code:: ipython3
@@ -119,8 +132,8 @@ and access objects and functions via ``curl``.
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2024-02-20 17:09:03.605194 | Calling run_home.call
-    INFO | 2024-02-20 17:09:04.640570 | Time to call run_home.call: 1.04 seconds
+    INFO | 2024-03-06 15:26:05.482586 | Calling run_home.call
+    INFO | 2024-03-06 15:26:06.550625 | Time to call run_home.call: 1.07 seconds
 
 
 
@@ -142,13 +155,46 @@ and access objects and functions via ``curl``.
 .. parsed-literal::
     :class: code-output
 
-    '3.86.210.191'
+    '54.172.178.196'
 
 
 
 .. code:: ipython3
 
-    ! curl "https://3.86.210.191/run_home/call?name=Marvin" -k
+    ! curl "https://54.172.178.196/run_home/call?name=Marvin" -k
+
+
+.. parsed-literal::
+    :class: code-output
+
+    {"data":"\"Run home Marvin!\"","error":null,"traceback":null,"output_type":"result_serialized","serialization":"json"}
+
+This cluster is exposed to the open Internet, so anyone can hit it. If
+you do want to share functions and apps publically, it’s recommended you
+set ``den_auth=True`` when setting up your cluster, which requires a
+user to run ``runhouse login`` in order to hit the cluster. We’ll enable
+it now:
+
+.. code:: ipython3
+
+    tls_cluster.enable_den_auth()
+
+.. code:: ipython3
+
+    ! curl "https://54.172.178.196/run_home/call?name=Marvin" -k
+
+
+.. parsed-literal::
+    :class: code-output
+
+    {"data":null,"error":raise PermissionError(\\nPermissionError: No Runhouse token provided. Try running `$ runhouse login` or visiting https://run.house/login to retrieve a token. If calling via HTTP, please provide a valid token in the Authorization header.\\n\"","output_type":"exception","serialization":null}
+
+If we send our Runhouse Den token as a header, then the request is
+valid:
+
+.. code:: ipython3
+
+    ! curl "https://54.172.178.196/run_home/call?name=Marvin" -k -H "Authorization: Bearer <YOUR TOKEN HERE>"
 
 
 .. parsed-literal::
@@ -182,7 +228,7 @@ Useful Cluster Functions
 .. parsed-literal::
     :class: code-output
 
-    Warning: Permanently added '3.86.210.191' (ED25519) to the list of known hosts.
+    Warning: Permanently added '54.172.178.196' (ED25519) to the list of known hosts.
 
 
 .. parsed-literal::
@@ -199,7 +245,7 @@ Useful Cluster Functions
 
     [(0,
       'Requirement already satisfied: numpy in /opt/conda/lib/python3.10/site-packages (1.26.4)\nnumpy==1.26.4\n',
-      "Warning: Permanently added '3.86.210.191' (ED25519) to the list of known hosts.\r\n")]
+      "Warning: Permanently added '54.172.178.196' (ED25519) to the list of known hosts.\r\n")]
 
 
 
