@@ -1,6 +1,7 @@
 import copy
 import json
 import os
+from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from runhouse.globals import configs, rns_client
@@ -274,6 +275,17 @@ class ProviderSecret(Secret):
                         contents = f.read()
                     return contents
         return {}
+
+    @staticmethod
+    def extract_secrets_from_path(path: str) -> Union[str, None]:
+        secret_path = os.path.expanduser(path)
+
+        if not os.path.exists(secret_path):
+            return None
+
+        provider_secret = Path(secret_path).read_text()
+
+        return provider_secret
 
     def _add_to_rh_config(self, val):
         if not self.name:

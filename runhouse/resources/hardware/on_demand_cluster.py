@@ -78,7 +78,6 @@ class OnDemandCluster(Cluster):
             dryrun=dryrun,
             **kwargs,
         )
-
         self.instance_type = instance_type
         self.num_instances = num_instances
         self.provider = provider or configs.get("default_provider")
@@ -100,7 +99,7 @@ class OnDemandCluster(Cluster):
         )
 
         # Checks if state info is in local sky db, populates if so.
-        if not dryrun and not self.ips and not self._creds:
+        if not dryrun and not self.ips and not self.creds_values:
             # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
             self._update_from_sky_status(dryrun=False)
 
@@ -110,22 +109,19 @@ class OnDemandCluster(Cluster):
 
     def config(self, condensed=True):
         config = super().config(condensed)
-        # Also store the ssh keys for the cluster in RNS
-        config.update(
-            {
-                "instance_type": self.instance_type,
-                "num_instances": self.num_instances,
-                "provider": self.provider,
-                "autostop_mins": self.autostop_mins,
-                "open_ports": self.open_ports,
-                "use_spot": self.use_spot,
-                "image_id": self.image_id,
-                "region": self.region,
-                "head_ip": self.address,
-                "stable_internal_external_ips": self.stable_internal_external_ips,
-            }
+        self.save_attrs_to_config(
+            config,
+            [
+                "instance_type",
+                "num_instances",
+                "provider",
+                "open_ports",
+                "use_spot",
+                "image_id",
+                "region",
+                "stable_internal_external_ips",
+            ],
         )
-
         return config
 
     def _copy_sky_yaml_from_cluster(self, abs_yaml_path: str):
@@ -312,7 +308,6 @@ class OnDemandCluster(Cluster):
         time.sleep(5)
 
     def _populate_connection_from_status_dict(self, cluster_dict: Dict[str, Any]):
-
         if cluster_dict and cluster_dict["status"].name in ["UP", "INIT"]:
             handle = cluster_dict["handle"]
             self.address = handle.head_ip
@@ -320,7 +315,7 @@ class OnDemandCluster(Cluster):
             yaml_path = handle.cluster_yaml
             if Path(yaml_path).exists():
                 ssh_values = backend_utils.ssh_credential_from_yaml(yaml_path)
-                if not self._creds:
+                if not self.creds_values:
                     from runhouse.resources.secrets.utils import setup_cluster_creds
 
                     self._creds = setup_cluster_creds(ssh_values, self.name)
@@ -336,6 +331,11 @@ class OnDemandCluster(Cluster):
 
     def _update_from_sky_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
+        if self.is_shared:
+            # If the cluster is shared can ignore, since the sky data will only be saved on the machine where
+            # the cluster was initially upped
+            return
+
         cluster_dict = self._sky_status(refresh=not dryrun)
         self._populate_connection_from_status_dict(cluster_dict)
 
@@ -481,16 +481,6 @@ class OnDemandCluster(Cluster):
         except FileNotFoundError:
             raise Exception(f"File with ssh key not found in: {path_to_file}")
 
-    @property
-    def ssh_creds(self):
-        """Retrieve SSH creds for the cluster.
-
-        Example:
-            >>> credentials = rh.ondemand_cluster("rh-cpu").ssh_creds
-        """
-
-        return self._creds.values
-
     def ssh(self, node: str = None):
         """SSH into the cluster. If no node is specified, will SSH onto the head node.
 
@@ -519,13 +509,21 @@ class OnDemandCluster(Cluster):
 
         else:
             # If SSHing onto a specific node, which requires the default sky public key for verification
-            ssh_user = self.ssh_creds.get("ssh_user")
-            node = node or self.address
+            ssh_user = self.creds_values.get("ssh_user")
             sky_key = Path(
-                self.ssh_creds.get("ssh_private_key", self.DEFAULT_KEYFILE)
+                self.creds_values.get("ssh_private_key", self.DEFAULT_KEYFILE)
             ).expanduser()
 
             if not sky_key.exists():
                 raise FileNotFoundError(f"Expected default sky key in path: {sky_key}")
 
-            subprocess.run(["ssh", "-i", str(sky_key), f"{ssh_user}@{node}"])
+            subprocess.run(
+                [
+                    "ssh",
+                    "-o",
+                    "StrictHostKeyChecking=accept-new",
+                    "-i",
+                    str(sky_key),
+                    f"{ssh_user}@{node or self.address}",
+                ]
+            )

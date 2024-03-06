@@ -78,13 +78,12 @@ class Cluster(Resource):
         .. note::
             To build a cluster, please use the factory method :func:`cluster`.
         """
-
         super().__init__(name=name, dryrun=dryrun)
 
-        self._creds = creds
-        self.ips = ips
         self._rpc_tunnel = None
+        self._creds = creds
 
+        self.ips = ips
         self.client = None
         self.den_auth = den_auth
         self.cert_config = TLSCertConfig(cert_path=ssl_certfile, key_path=ssl_keyfile)
@@ -92,6 +91,7 @@ class Cluster(Resource):
         self.ssl_certfile = ssl_certfile
         self.ssl_keyfile = ssl_keyfile
         self.server_connection_type = server_connection_type
+
         self.server_port = server_port
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
@@ -107,6 +107,13 @@ class Cluster(Resource):
     def address(self, addr):
         self.ips = self.ips or [None]
         self.ips[0] = addr
+
+    @property
+    def creds_values(self) -> Dict:
+        if not self._creds:
+            return {}
+
+        return self._creds.values
 
     def _get_env_activate_cmd(self, env=None):
         if env:
@@ -255,6 +262,22 @@ class Cluster(Resource):
             return LOCALHOST
 
         return self.address
+
+    @property
+    def is_shared(self) -> bool:
+        from runhouse import Secret
+
+        ssh_creds = self.creds_values
+
+        ssh_private_key = ssh_creds.get("ssh_private_key")
+        ssh_private_key_path = Path(ssh_private_key).expanduser()
+        secrets_base_dir = Path(Secret.DEFAULT_DIR).expanduser()
+
+        # Check if the key path is saved down in the local .rh directory, which we only do for shared credentials
+        if str(ssh_private_key_path).startswith(str(secrets_base_dir)):
+            return True
+
+        return f"{ssh_creds.name}/" in ssh_creds.get("ssh_private_key", "")
 
     def is_up(self) -> bool:
         """Check if the cluster is up.
@@ -489,8 +512,8 @@ class Cluster(Resource):
             )
             self.client_port = self._rpc_tunnel.local_bind_port
 
-            ssh_user = self.ssh_creds.get("ssh_user")
-            password = self.ssh_creds.get("password")
+            ssh_user = self.creds_values.get("ssh_user")
+            password = self.creds_values.get("password")
             auth = (ssh_user, password) if ssh_user and password else None
 
             # Connecting to localhost because it's tunneled into the server at the specified port.
@@ -606,7 +629,7 @@ class Cluster(Resource):
 
         return ssh_tunnel(
             address=self.address,
-            ssh_creds=self.ssh_creds,
+            ssh_creds=self.creds_values,
             local_port=local_port,
             ssh_port=self.ssh_port,
             remote_port=remote_port,
@@ -851,16 +874,6 @@ class Cluster(Resource):
         return state
 
     # ----------------- SSH Methods ----------------- #
-
-    @property
-    def ssh_creds(self):
-        """Retrieve SSH credentials."""
-        if isinstance(self._creds, str):
-            from runhouse.resources.secrets.secret import Secret
-
-            self._creds = Secret.from_name(name=self._creds)
-        return self._creds.values if self._creds else {}
-
     def _rsync(
         self,
         source: str,
@@ -932,7 +945,7 @@ class Cluster(Resource):
             subprocess.run(cmd, check=True, capture_output=not stream_logs, text=True)
             return
 
-        ssh_credentials = copy.copy(self.ssh_creds) or {}
+        ssh_credentials = copy.copy(self.creds_values) or {}
         ssh_credentials.pop("ssh_host", node)
         pwd = ssh_credentials.pop("password", None)
         ssh_credentials.pop("private_key", None)
@@ -1008,7 +1021,7 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").ssh()
         """
-        creds = self.ssh_creds
+        creds = self.creds_values
 
         if creds.get("ssh_private_key"):
             cmd = (
@@ -1153,7 +1166,7 @@ class Cluster(Resource):
 
         return_codes = []
 
-        ssh_credentials = copy.copy(self.ssh_creds)
+        ssh_credentials = copy.copy(self.creds_values)
         host = ssh_credentials.pop("ssh_host", node or self.address)
         pwd = ssh_credentials.pop("password", None)
         ssh_credentials.pop("private_key", None)
@@ -1246,7 +1259,7 @@ class Cluster(Resource):
         command_str = "; ".join(commands)
         command_str_repr = (
             repr(repr(command_str))[2:-2]
-            if self.ssh_creds.get("password")
+            if self.creds_values.get("password")
             else command_str
         )
         formatted_command = f'{cmd_prefix} "{command_str_repr}"'
@@ -1432,6 +1445,9 @@ class Cluster(Resource):
         self.save()
 
         # share creds
+        logger.info(
+            "Sharing cluster credentials, which enables the recipient to SSH into the cluster."
+        )
         self._creds.share(
             users=users,
             access_level=access_level,
@@ -1452,7 +1468,7 @@ class Cluster(Resource):
         )
 
     @classmethod
-    def _check_for_child_configs(cls, config):
+    def _check_for_child_configs(cls, config: dict):
         """Overload by child resources to load any resources they hold internally."""
         from runhouse.resources.secrets.secret import Secret
         from runhouse.resources.secrets.utils import load_config, setup_cluster_creds

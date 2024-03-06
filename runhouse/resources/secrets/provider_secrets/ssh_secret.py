@@ -40,6 +40,7 @@ class SSHSecret(ProviderSecret):
         super().__init__(
             name=name, provider=provider, values=values, path=path, dryrun=dryrun
         )
+
         if self.path == self._DEFAULT_CREDENTIALS_PATH:
             self.path = str(Path(self._DEFAULT_CREDENTIALS_PATH) / self.key)
 
@@ -107,15 +108,20 @@ class SSHSecret(ProviderSecret):
             priv_key = path.fetch(mode="r", deserialize=False)
             pub_key_file = file(path=f"{path.path}.pub", system=path.system)
             pub_key = pub_key_file.fetch(mode="r", deserialize=False)
-        else:
-            pub_key_path = os.path.expanduser(f"{path}.pub")
-            priv_key_path = os.path.expanduser(path)
+            return {"public_key": pub_key, "private_key": priv_key}
 
-            if not (os.path.exists(pub_key_path) and os.path.exists(priv_key_path)):
-                return {}
+        return self.extract_secrets_from_path(path)
 
-            pub_key = Path(pub_key_path).read_text()
-            priv_key = Path(priv_key_path).read_text()
+    @staticmethod
+    def extract_secrets_from_path(path: str) -> Dict:
+        pub_key_path = os.path.expanduser(f"{path}.pub")
+        priv_key_path = os.path.expanduser(path)
+
+        if not (os.path.exists(pub_key_path) and os.path.exists(priv_key_path)):
+            return {}
+
+        pub_key = Path(pub_key_path).read_text()
+        priv_key = Path(priv_key_path).read_text()
 
         return {"public_key": pub_key, "private_key": priv_key}
 
