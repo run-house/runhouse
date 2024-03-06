@@ -319,22 +319,18 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                 resource_class_name, cluster.rns_address
             )
             new_creds = curr_config.get("creds", None)
-            assert f'loaded_secret_{config["name"]}-ssh-secret' == new_creds.rns_address
-            new_creds_config = new_creds.config_for_rns
-            new_creds_config["name"] = f'{config["name"]}-ssh-secret'
+            assert f'loaded_secret_{config["name"]}-ssh-secret' == new_creds["name"]
+            new_creds["name"] = f'{config["name"]}-ssh-secret'
             old_creds = config.get("creds", None)
-            private_key = new_creds.values.get("ssh_private_key", None)
-            old_creds_keys = list(old_creds.values.keys())
+            private_key = new_creds["values"].get("ssh_private_key", None)
+            old_creds_keys = list(old_creds["values"].keys())
             if private_key:
-                old_creds_keys.remove("private_key")
-                assert (
-                    f'_{config.get("creds", None).name}/ssh-key'
-                    in new_creds.values["ssh_private_key"]
-                )
+                path_name = f'{config.get("creds", None)["name"].replace("/", "_")}'
+                assert f"{path_name}/ssh-key" in new_creds["values"]["ssh_private_key"]
             else:
                 curr_config["creds"] = config.get("creds", None)
                 assert curr_config == config
-            assert list(new_creds.values.keys()).sort() == old_creds_keys.sort()
+            assert list(new_creds["values"].keys()).sort() == old_creds_keys.sort()
 
         # TODO: If we are testing with an ondemand_cluster we to
         # sync sky key so loading ondemand_cluster from config works
@@ -347,22 +343,19 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             resource_class_name, cluster.rns_address
         )
         new_creds = new_config.get("creds", None)
-        assert f'loaded_secret_{config["name"]}-ssh-secret' == new_creds.rns_address
-        new_creds_config = new_creds.config_for_rns
-        new_creds_config["name"] = f'{config["name"]}-ssh-secret'
+        assert f'loaded_secret_{config["name"]}-ssh-secret' == new_creds["name"]
+        new_creds["name"] = f'{config["name"]}-ssh-secret'
         old_creds = config.get("creds", None)
-        private_key = new_creds.values.get("ssh_private_key", None)
-        old_creds_keys = list(old_creds.values.keys())
+        private_key = new_creds["values"].get("ssh_private_key", None)
+        old_creds_keys = list(old_creds["values"].keys())
         if private_key:
             old_creds_keys.remove("private_key")
-            assert (
-                f'_{config.get("creds", None).name}/ssh-key'
-                in new_creds.values["ssh_private_key"]
-            )
+            path_name = f'{config.get("creds", None)["name"].replace("/", "_")}'
+            assert f"{path_name}/ssh-key" in new_creds["values"]["ssh_private_key"]
         else:
             new_config["creds"] = config.get("creds", None)
             assert new_config == config
-        assert list(new_creds.values.keys()).sort() == old_creds_keys.sort()
+        assert list(new_creds["values"].keys()).sort() == old_creds_keys.sort()
 
     @pytest.mark.level("local")
     def test_access_to_shared_cluster(self, cluster):
