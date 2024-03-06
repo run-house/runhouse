@@ -102,7 +102,7 @@ class SlowPandas(rh.Module):
     def size_minus_cpus(self):
         return self.size - self.cpu_count()
 
-    async def cpu_count_async(self, local=True):
+    async def cpu_count_async(self):
         return os.cpu_count()
 
 
@@ -467,7 +467,14 @@ class TestModule:
         # fetch subclass
         remote_df_sync = SlowPandas(size=4).to(cluster, env).fetch()
         assert remote_df_sync.size == 4
-        assert remote_df_sync.cpu_count() == SlowPandas(size=4).cpu_count()
+
+        if cluster.on_this_cluster():
+            cpu_count = os.cpu_count()
+        else:
+            cpu_count = int(
+                cluster.run_python(["import os; print(os.cpu_count())"])[0][1]
+            )
+        assert remote_df_sync.cpu_count() == cpu_count
 
         assert (
             await SlowPandas(size=4).to(system=cluster, env=env).fetch_async("size")
@@ -602,9 +609,10 @@ class TestModule:
             "slow_iter_async",
             "home",
             "cpu_count",
+            "cpu_count_async",
             "size_minus_cpus",
         }
-        assert len(json.loads(json.dumps(df.signature(rich=True)))) == 5
+        assert len(json.loads(json.dumps(df.signature(rich=True)))) == 6
 
         RemoteCalc = rh.module(Calculator)
         assert set(RemoteCalc.signature()) == {
