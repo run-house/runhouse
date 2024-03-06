@@ -85,17 +85,16 @@ class Module(Resource):
             )
         config = super().config(condensed)
         if self.system:
-            system = (
-                self._resource_string_for_subconfig(self.system)
-                if condensed
-                else self.system
-            )
+            system = self._resource_string_for_subconfig(self.system, condensed)
+
         else:
             system = None
 
         config["system"] = system
         config["env"] = (
-            self._resource_string_for_subconfig(self.env) if self.env else None
+            self._resource_string_for_subconfig(self.env, condensed)
+            if self.env
+            else None
         )
         if self._pointers:
             # For some reason sometimes this is coming back as a string, so we force it into a tuple
@@ -173,7 +172,7 @@ class Module(Resource):
         return resource_class(**config, dryrun=dryrun)
 
     @classmethod
-    def _check_for_child_configs(cls, config):
+    def _check_for_child_configs(cls, config: dict):
         """Overload by child resources to load any resources they hold internally."""
         system = config.get("system")
         if isinstance(system, str) or isinstance(system, dict):

@@ -60,7 +60,7 @@ class Secret(Resource):
 
         new_creds_values = config["values"]
         folder_name = config["name"].replace("/", "_")
-        path = f"~/.rh/secrets/{folder_name}"
+        path = f"{Secret.DEFAULT_DIR}/{folder_name}"
         private_key_value, public_key_value = new_creds_values.get(
             "private_key"
         ), new_creds_values.get("public_key")
