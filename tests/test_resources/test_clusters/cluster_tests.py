@@ -17,6 +17,12 @@ def np_array(num_list: list):
     return np.array(num_list)
 
 
+def load_rh_config():
+    import runhouse as rh
+
+    return rh.here
+
+
 def sd_generate_image(prompt):
     from diffusers import StableDiffusionPipeline
 

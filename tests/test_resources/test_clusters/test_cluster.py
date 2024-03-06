@@ -15,7 +15,9 @@ from runhouse.constants import (
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
+from tests.test_resources.test_clusters.cluster_tests import load_rh_config
 from tests.utils import get_random_str
+
 
 """ TODO:
 1) In subclasses, test factory methods create same type as parent
@@ -273,10 +275,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_condensed_config_for_cluster(self, cluster):
-        import ast
+        from runhouse import Cluster
 
-        return_codes = cluster.run_python(["import runhouse as rh", "print(rh.here)"])
-        assert return_codes[0][0] == 0
+        remote_func = rh.function(load_rh_config).to(cluster)
+        res = remote_func()
 
-        cluster_config = ast.literal_eval(return_codes[0][1])
-        assert cluster_config == cluster.config()
+        assert isinstance(res, Cluster)
+        assert res.config() == cluster.config()
