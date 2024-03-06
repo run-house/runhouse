@@ -13,3 +13,4 @@ docker
 s3fs
 pandas
 pyarrow
+openapi-core
