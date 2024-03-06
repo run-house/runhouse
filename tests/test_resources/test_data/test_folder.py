@@ -80,7 +80,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         "folder": _all_folder_fixtures,
         "dest": _all_folder_fixtures,
     }
-    THOROUGH = {
+    RELEASE = {
         "folder": _all_folder_fixtures,
         "dest": _all_folder_fixtures,
     }

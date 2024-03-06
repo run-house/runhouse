@@ -106,7 +106,7 @@ def save(
     overwrite: bool = True,
 ):
     """Register the resource, saving it to local working_dir config and/or RNS config store. Uses the resource's
-    `self.config_for_rns` to generate the dict to save."""
+    `self.config()` to generate the dict to save."""
 
     # TODO handle self.access == 'read' instead of this weird overwrite argument
     if name:

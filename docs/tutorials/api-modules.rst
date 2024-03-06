@@ -3,7 +3,7 @@ Functions and Modules
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/api_modules.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/api-modules.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 Runhouse makes Python functions and modules portable. Runhouse functions
@@ -19,7 +19,7 @@ Setup
 We first construct a Runhouse Cluster resource, which is the compute to
 which we will be sending and running our remote Python code on. You can
 read more in the `Cluster
-tutorial <run.house/docs/tutorials/api_clusters>`__.
+tutorial <run.house/docs/tutorials/api-clusters>`__.
 
 .. code:: ipython3
 
@@ -66,7 +66,7 @@ are set up.
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2024-02-27 20:21:54.329646 | Writing out function to /Users/caroline/Documents/runhouse/notebooks/docs/api_basics/np_sum_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
+    INFO | 2024-02-27 20:21:54.329646 | Writing out function to /Users/caroline/Documents/runhouse/notebooks/docs/np_sum_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
     INFO | 2024-02-27 20:21:55.378194 | Server rh-cluster is up.
     INFO | 2024-02-27 20:21:55.384844 | Copying package from file:///Users/caroline/Documents/runhouse/notebooks to: rh-cluster
     INFO | 2024-02-27 20:22:06.614361 | Calling base_env.install

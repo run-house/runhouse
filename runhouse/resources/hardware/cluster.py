@@ -116,14 +116,14 @@ class Cluster(Resource):
         return None
 
     def save_config_to_cluster(self, node: str = None):
-        config = self.config_for_rns
+        config = self.config()
         json_config = f"{json.dumps(config)}"
 
         self.run(
             [
                 f"mkdir -p ~/.rh; touch {CLUSTER_CONFIG_PATH}; echo '{json_config}' > {CLUSTER_CONFIG_PATH}"
             ],
-            node=node or self.address,
+            node=node or "all",
         )
 
     def save(
@@ -165,9 +165,8 @@ class Cluster(Resource):
         else:
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 
-    @property
-    def config_for_rns(self):
-        config = super().config_for_rns
+    def config(self, condensed=True):
+        config = super().config(condensed)
         self.save_attrs_to_config(
             config,
             [
@@ -183,16 +182,17 @@ class Cluster(Resource):
             ],
         )
         if self.is_up():
-            creds = (
-                self._resource_string_for_subconfig(self._creds)
-                if self._creds
-                else None
-            )
-            # user A shares cluster with user B, with "write" permissions. If user B will save the cluster to Den, we
-            # would NOT like that the loaded secret will overwrite the original secret that was created and shared by
-            # user A.
-            if creds and "loaded_secret_" in creds:
-                creds = creds.replace("loaded_secret_", "")
+            if condensed:
+                creds = self._resource_string_for_subconfig(self._creds)
+                # user A shares cluster with user B, with "write" permissions. If user B will save the cluster to Den, we
+                # would NOT like that the loaded secret will overwrite the original secret that was created and shared by
+                # user A.
+                if creds and "loaded_secret_" in creds:
+                    creds = creds.replace("loaded_secret_", "")
+            else:
+                # TODO [SB] do we need to replace anything if creds remain a Secret object?
+                creds = self._creds
+
             config["creds"] = creds
 
         if self._use_custom_certs:
@@ -262,7 +262,7 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").is_up()
         """
-        return self.address is not None
+        return self.on_this_cluster() or self.address is not None
 
     def up_if_not(self):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
@@ -423,7 +423,7 @@ class Cluster(Resource):
 
         state = state or {}
         if self.on_this_cluster():
-            data = (resource.config_for_rns, state, dryrun)
+            data = (resource.config(condensed=False), state, dryrun)
             return obj_store.put_resource(serialized_data=data, env_name=env_name)
         return self.client.put_resource(
             resource, state=state or {}, env_name=env_name, dryrun=dryrun
@@ -1071,6 +1071,21 @@ class Cluster(Resource):
             >>> cpu.run(["python script.py"], run_name="my_exp")
             >>> cpu.run(["python script.py"], node="3.89.174.234")
         """
+        if node == "all":
+            res_list = []
+            for node in self.ips:
+                res = self.run(
+                    commands=commands,
+                    env=env,
+                    stream_logs=stream_logs,
+                    port_forward=port_forward,
+                    require_outputs=require_outputs,
+                    node=node,
+                    run_name=run_name,
+                )
+                res_list.append(res)
+            return res_list
+
         # TODO [DG] suspend autostop while running
         from runhouse.resources.provenance import run
 

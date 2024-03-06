@@ -3,7 +3,7 @@ Training: Transformers
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/examples/training.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/examples/training-transformers.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 This tutorial demonstrates how to use Runhouse to facilitate model
@@ -105,7 +105,7 @@ which means there’s no need to install anything locally either.
 
 For a more in-depth walkthrough of Runhouse’s function and env APIs,
 please refer to the `Compute API
-Tutorial <https://www.run.house/docs/tutorials/api_compute>`__.
+Tutorial <https://www.run.house/docs/tutorials/api-compute>`__.
 
 .. code:: ipython3
 

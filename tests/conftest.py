@@ -37,9 +37,25 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pwd_ssh_no_auth",
         ]
     }
-    MINIMAL = {"cluster": ["static_cpu_cluster"]}
-    THOROUGH = {"cluster": ["static_cpu_cluster", "password_cluster", "multinode_cpu_cluster"]}
-    MAXIMAL = {"cluster": ["static_cpu_cluster", "password_cluster", "multinode_cpu_cluster"]}
+    MINIMAL = {"cluster": ["ondemand_aws_cluster"]}
+    RELEASE = {
+        "cluster": [
+            "ondemand_aws_cluster",
+            "static_cpu_cluster",
+            "password_cluster",
+        ]
+    }
+    MAXIMAL = {
+        "cluster": [
+            "docker_cluster_pk_ssh_no_auth",
+            "docker_cluster_pk_ssh_den_auth",
+            "docker_cluster_pwd_ssh_no_auth",
+            "ondemand_aws_cluster",
+            "static_cpu_cluster",
+            "password_cluster",
+            "multinode_cpu_cluster"
+        ]
+    }
 
 Some key things to avoid:
 - Avoid ever importing from any conftest.py file. This can cause erratic
@@ -58,7 +74,7 @@ class TestLevels(str, enum.Enum):
     UNIT = "unit"
     LOCAL = "local"
     MINIMAL = "minimal"
-    THOROUGH = "thorough"
+    RELEASE = "release"
     MAXIMAL = "maximal"
 
 
@@ -68,7 +84,7 @@ TEST_LEVEL_HIERARCHY = {
     TestLevels.UNIT: 0,
     TestLevels.LOCAL: 1,
     TestLevels.MINIMAL: 2,
-    TestLevels.THOROUGH: 3,
+    TestLevels.RELEASE: 3,
     TestLevels.MAXIMAL: 4,
 }
 
@@ -78,7 +94,7 @@ def pytest_addoption(parser):
         "--level",
         action="store",
         default=DEFAULT_LEVEL,
-        help="Fixture set to spin up: unit, local, minimal, thorough, or maximal",
+        help="Fixture set to spin up: unit, local, minimal, release, or maximal",
     )
     parser.addoption(
         "--force-rebuild",
@@ -173,7 +189,6 @@ def logged_in_account():
 
 from tests.fixtures.docker_cluster_fixtures import (
     build_and_run_image,  # noqa: F401
-    byo_cpu,  # noqa: F401
     cluster,  # noqa: F401
     docker_cluster_pk_http_exposed,  # noqa: F401
     docker_cluster_pk_ssh,  # noqa: F401
@@ -185,15 +200,39 @@ from tests.fixtures.docker_cluster_fixtures import (
     friend_account_logged_in_docker_cluster_pk_ssh,  # noqa: F401
     local_daemon,  # noqa: F401
     named_cluster,  # noqa: F401
-    password_cluster,  # noqa: F401
     shared_cluster,  # noqa: F401
     shared_function,  # noqa: F401
+)
+
+from tests.fixtures.on_demand_cluster_fixtures import (
+    a10g_gpu_cluster,  # noqa: F401
+    k80_gpu_cluster,  # noqa: F401
+    multinode_cpu_cluster,  # noqa: F401
+    on_demand_cluster,  # noqa: F401
+    ondemand_aws_cluster,  # noqa: F401
+    ondemand_aws_https_cluster_with_auth,  # noqa: F401
+    ondemand_cluster,  # noqa: F401
+    ondemand_gcp_cluster,  # noqa: F401
+    ondemand_k8s_cluster,  # noqa: F401
+    v100_gpu_cluster,  # noqa: F401
+)
+
+from tests.fixtures.static_cluster_fixtures import (
+    password_cluster,  # noqa: F401
     static_cpu_cluster,  # noqa: F401
 )
 
+from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
+    other_sm_cluster,  # noqa: F401
+    sm_cluster,  # noqa: F401
+    sm_cluster_with_auth,  # noqa: F401
+    sm_gpu_cluster,  # noqa: F401
+)
+
+
 # ----------------- Folders -----------------
 
-from tests.fixtures.folder_fixtures import (
+from tests.fixtures.folder_fixtures import (  # usort: skip
     cluster_folder,  # noqa: F401
     dest,  # noqa: F401
     folder,  # noqa: F401
@@ -201,24 +240,6 @@ from tests.fixtures.folder_fixtures import (
     local_folder,  # noqa: F401
     local_folder_docker,  # noqa: F401
     s3_folder,  # noqa: F401
-)
-
-from tests.fixtures.on_demand_cluster_fixtures import (
-    a10g_gpu_cluster,  # noqa: F401
-    k80_gpu_cluster,  # noqa: F401
-    kubernetes_cpu_cluster,  # noqa: F401
-    multinode_cpu_cluster,  # noqa: F401
-    on_demand_cluster,  # noqa: F401
-    ondemand_cluster,  # noqa: F401
-    ondemand_cpu_cluster,  # noqa: F401
-    ondemand_https_cluster_with_auth,  # noqa: F401
-    v100_gpu_cluster,  # noqa: F401
-)
-from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
-    other_sm_cluster,  # noqa: F401
-    sm_cluster,  # noqa: F401
-    sm_cluster_with_auth,  # noqa: F401
-    sm_gpu_cluster,  # noqa: F401
 )
 
 # ----------------- Envs -----------------
@@ -309,23 +330,23 @@ default_fixtures[TestLevels.UNIT] = {
 default_fixtures[TestLevels.LOCAL] = {
     "cluster": [
         "docker_cluster_pk_ssh_no_auth",  # Represents private dev use case
-        # "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
+        "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
         "docker_cluster_pk_tls_den_auth",  # Represents public app use case
         "docker_cluster_pk_http_exposed",  # Represents within VPC use case
     ]
 }
 default_fixtures[TestLevels.MINIMAL] = {
-    "cluster": ["ondemand_cpu_cluster", "kubernetes_cpu_cluster"]
-}
-default_fixtures[TestLevels.THOROUGH] = {
     "cluster": [
-        "docker_cluster_pk_ssh_no_auth",
-        "docker_cluster_pk_ssh_den_auth",
-        "docker_cluster_pwd_ssh_no_auth",
-        "ondemand_cpu_cluster",
-        "ondemand_https_cluster_with_auth",
+        "ondemand_aws_cluster",
+    ]
+}
+default_fixtures[TestLevels.RELEASE] = {
+    "cluster": [
+        "ondemand_aws_cluster",
+        "ondemand_gcp_cluster",
+        "ondemand_k8s_cluster",
+        "ondemand_aws_https_cluster_with_auth",
         "password_cluster",
-        "multinode_cpu_cluster",
         "static_cpu_cluster",
     ]
 }
@@ -334,8 +355,9 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "docker_cluster_pk_ssh_no_auth",
         "docker_cluster_pk_ssh_den_auth",
         "docker_cluster_pwd_ssh_no_auth",
-        "ondemand_cpu_cluster",
-        "ondemand_https_cluster_with_auth",
+        "ondemand_aws_cluster",
+        "ondemand_gcp_cluster",
+        "ondemand_aws_https_cluster_with_auth",
         "password_cluster",
         "multinode_cpu_cluster",
         "static_cpu_cluster",

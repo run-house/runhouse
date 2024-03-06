@@ -33,7 +33,7 @@ def save_resource_and_return_config():
         {"id": [1, 2, 3, 4, 5, 6], "grade": ["a", "b", "b", "a", "a", "e"]}
     )
     table = rh.table(df, name="test_table")
-    return table.config_for_rns
+    return table.config()
 
 
 def test_table_to_rh_here():
@@ -56,8 +56,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         ]
     }
     MINIMAL = {"cluster": ["static_cpu_cluster"]}
-    THOROUGH = {
-        "cluster": ["static_cpu_cluster", "password_cluster", "multinode_cpu_cluster"]
+    RELEASE = {
+        "cluster": [
+            "static_cpu_cluster",
+            "password_cluster",
+        ]
     }
     MAXIMAL = {
         "cluster": [
@@ -276,6 +279,16 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             cluster.run(["runhouse restart"])
 
     @pytest.mark.level("local")
+    def test_condensed_config_for_cluster(self, cluster):
+        import ast
+
+        return_codes = cluster.run_python(["import runhouse as rh", "print(rh.here)"])
+        assert return_codes[0][0] == 0
+
+        cluster_config = ast.literal_eval(return_codes[0][1])
+        assert cluster_config == cluster.config()
+
+    @pytest.mark.level("local")
     def test_sharing(self, cluster, friend_account_logged_in_docker_cluster_pk_ssh):
         # Skip this test for ondemand clusters, because making
         # it compatible with ondemand_cluster requires changes
@@ -299,17 +312,30 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
 
         # First try loading in same process/filesystem because it's more debuggable, but not as thorough
-        resource_class_name = cluster.config_for_rns["resource_type"].capitalize()
+        resource_class_name = cluster.config().get("resource_type").capitalize()
         config = cluster.config_for_rns
 
         with friend_account():
             curr_config = load_shared_resource_config(
                 resource_class_name, cluster.rns_address
             )
-            new_creds = curr_config.pop("creds", None)
-            assert f'{config["name"]}-ssh-secret' in new_creds
-            curr_config["creds"] = new_creds.replace("loaded_secret_", "")
-            assert curr_config == config
+            new_creds = curr_config.get("creds", None)
+            assert f'loaded_secret_{config["name"]}-ssh-secret' == new_creds.rns_address
+            new_creds_config = new_creds.config_for_rns
+            new_creds_config["name"] = f'{config["name"]}-ssh-secret'
+            old_creds = config.get("creds", None)
+            private_key = new_creds.values.get("ssh_private_key", None)
+            old_creds_keys = list(old_creds.values.keys())
+            if private_key:
+                old_creds_keys.remove("private_key")
+                assert (
+                    f'_{config.get("creds", None).name}/ssh-key'
+                    in new_creds.values["ssh_private_key"]
+                )
+            else:
+                curr_config["creds"] = config.get("creds", None)
+                assert curr_config == config
+            assert list(new_creds.values.keys()).sort() == old_creds_keys.sort()
 
         # TODO: If we are testing with an ondemand_cluster we to
         # sync sky key so loading ondemand_cluster from config works
@@ -321,10 +347,23 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         new_config = load_shared_resource_config_cluster(
             resource_class_name, cluster.rns_address
         )
-        new_creds = curr_config.pop("creds", None)
-        assert f'{config["name"]}-ssh-secret' in new_creds
-        new_config["creds"] = new_creds.replace("loaded_secret_", "")
-        assert new_config == config
+        new_creds = new_config.get("creds", None)
+        assert f'loaded_secret_{config["name"]}-ssh-secret' == new_creds.rns_address
+        new_creds_config = new_creds.config_for_rns
+        new_creds_config["name"] = f'{config["name"]}-ssh-secret'
+        old_creds = config.get("creds", None)
+        private_key = new_creds.values.get("ssh_private_key", None)
+        old_creds_keys = list(old_creds.values.keys())
+        if private_key:
+            old_creds_keys.remove("private_key")
+            assert (
+                f'_{config.get("creds", None).name}/ssh-key'
+                in new_creds.values["ssh_private_key"]
+            )
+        else:
+            new_config["creds"] = config.get("creds", None)
+            assert new_config == config
+        assert list(new_creds.values.keys()).sort() == old_creds_keys.sort()
 
     @pytest.mark.level("local")
     def test_access_to_shared_cluster(self, cluster):

@@ -108,9 +108,8 @@ class OnDemandCluster(Cluster):
     def from_config(config: dict, dryrun=False):
         return OnDemandCluster(**config, dryrun=dryrun)
 
-    @property
-    def config_for_rns(self):
-        config = super().config_for_rns
+    def config(self, condensed=True):
+        config = super().config(condensed)
         # Also store the ssh keys for the cluster in RNS
         config.update(
             {
@@ -233,6 +232,8 @@ class OnDemandCluster(Cluster):
         Example:
             >>> rh.ondemand_cluster("rh-cpu").is_up()
         """
+        if self.on_this_cluster():
+            return True
         self._update_from_sky_status(dryrun=False)
         return self.address is not None
 

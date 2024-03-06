@@ -64,9 +64,8 @@ class ProviderSecret(Secret):
             return self._from_env(self.env_vars)
         return {}
 
-    @property
-    def config_for_rns(self):
-        config = super().config_for_rns
+    def config(self, condensed=True):
+        config = super().config(condensed)
         config.update({"provider": self.provider})
         if self.path:
             config.update({"path": self.path})

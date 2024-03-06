@@ -15,7 +15,7 @@ class TestResourceSharing:
     UNIT = {"resource": ["shared_function"]}
     LOCAL = {"resource": ["shared_function"]}
     MINIMAL = {"resource": ["shared_function"]}
-    THOROUGH = {"resource": ["shared_function"]}
+    RELEASE = {"resource": ["shared_function"]}
     MAXIMAL = {"resource": ["shared_function"]}
 
     @staticmethod

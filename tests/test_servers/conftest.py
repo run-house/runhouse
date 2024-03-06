@@ -143,7 +143,7 @@ def setup_cluster_config(local_cluster):
 
     try:
         with open(cluster_config_path, "w") as file:
-            json.dump(local_cluster.config_for_rns, file)
+            json.dump(local_cluster.config(), file)
 
         yield
 

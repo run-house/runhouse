@@ -193,10 +193,9 @@ class Run(Resource):
         state["_stdout_handler"] = None
         return state
 
-    @property
-    def config_for_rns(self):
+    def config(self, condensed=True):
         """Metadata to store in RNS for the Run."""
-        config = super().config_for_rns
+        config = super().config(condensed)
         base_config = {
             "status": self.status,
             "start_time": self.start_time,
@@ -247,7 +246,7 @@ class Run(Resource):
     ):
         """If the Run name is being overwritten (ex: initially created with auto-generated name),
         update the Run config stored on the system before saving to RNS."""
-        config_for_rns = self.config_for_rns
+        config_for_rns = self.config()
         config_path = self._path_to_config()
         if not config_for_rns["name"] or name:
             config_for_rns["name"] = resolve_rns_path(name or self.name)
@@ -309,7 +308,7 @@ class Run(Resource):
         For example: ``my_run.refresh().status``"""
         run_config = self._load_run_config(folder=self.folder)
         # Need the metadata from RNS and the Run specific data in order to re-load the Run object
-        config = {**self.config_for_rns, **run_config}
+        config = {**self.config(), **run_config}
         return Run.from_config(config, dryrun=True)
 
     def inputs(self) -> bytes:
@@ -396,7 +395,7 @@ class Run(Resource):
             config (Optional[Dict]): Config to write. If none is provided, the Run's config for RNS will be used.
             overwrite (Optional[bool]): Overwrite the config if one is already saved down. Defaults to ``True``.
         """
-        config_to_write = config or self.config_for_rns
+        config_to_write = config or self.config()
         logger.debug(f"Config to save on system: {config_to_write}")
         self.folder.put(
             {self.RUN_CONFIG_FILE: config_to_write},
