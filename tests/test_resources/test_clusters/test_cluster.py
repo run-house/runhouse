@@ -24,7 +24,7 @@ from tests.utils import friend_account
 def load_shared_resource_config(resource_class_name, address):
     resource_class = getattr(rh, resource_class_name)
     loaded_resource = resource_class.from_name(address, dryrun=True)
-    return loaded_resource.config(False)
+    return loaded_resource.config()
 
 
 def save_resource_and_return_config():
