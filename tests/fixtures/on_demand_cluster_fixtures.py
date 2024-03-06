@@ -45,14 +45,14 @@ def ondemand_cluster(request):
 
 
 @pytest.fixture(scope="session")
-def ondemand_aws_cluster():
+def ondemand_aws_cluster(request):
     args = {"name": "aws-cpu", "instance_type": "CPU:2+", "provider": "aws"}
-    cluster = setup_test_cluster(args)
+    cluster = setup_test_cluster(args, request)
     return cluster
 
 
 @pytest.fixture(scope="session")
-def ondemand_aws_https_cluster_with_auth():
+def ondemand_aws_https_cluster_with_auth(request):
     args = {
         "name": "aws-cpu-https",
         "instance_type": "CPU:2+",
@@ -63,19 +63,19 @@ def ondemand_aws_https_cluster_with_auth():
         # "server_port": DEFAULT_HTTPS_PORT,
         "open_ports": [DEFAULT_HTTPS_PORT],
     }
-    cluster = setup_test_cluster(args)
+    cluster = setup_test_cluster(args, request)
     return cluster
 
 
 @pytest.fixture(scope="session")
-def ondemand_gcp_cluster():
+def ondemand_gcp_cluster(request):
     args = {"name": "gcp-cpu", "instance_type": "CPU:2+", "provider": "gcp"}
-    cluster = setup_test_cluster(args)
+    cluster = setup_test_cluster(args, request)
     return cluster
 
 
 @pytest.fixture(scope="session")
-def ondemand_k8s_cluster():
+def ondemand_k8s_cluster(request):
     kube_config_path = Path.home() / ".kube" / "config"
 
     if not kube_config_path.exists():
@@ -86,28 +86,28 @@ def ondemand_k8s_cluster():
         "provider": "kubernetes",
         "instance_type": "1CPU--1GB",
     }
-    cluster = setup_test_cluster(args)
+    cluster = setup_test_cluster(args, request)
     return cluster
 
 
 @pytest.fixture(scope="session")
-def v100_gpu_cluster():
+def v100_gpu_cluster(request):
     args = {"name": "rh-v100", "instance_type": "V100:1", "provider": "aws"}
-    cluster = setup_test_cluster(args)
+    cluster = setup_test_cluster(args, request)
     return cluster
 
 
 @pytest.fixture(scope="session")
-def k80_gpu_cluster():
+def k80_gpu_cluster(request):
     args = {"name": "rh-k80", "instance_type": "K80:1", "provider": "aws"}
-    cluster = setup_test_cluster(args)
+    cluster = setup_test_cluster(args, request)
     return cluster
 
 
 @pytest.fixture(scope="session")
-def a10g_gpu_cluster():
+def a10g_gpu_cluster(request):
     args = {"name": "rh-a10x", "instance_type": "g5.2xlarge", "provider": "aws"}
-    cluster = setup_test_cluster(args)
+    cluster = setup_test_cluster(args, request)
     return cluster
 
 
