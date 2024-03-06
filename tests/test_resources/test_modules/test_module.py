@@ -130,7 +130,6 @@ class Calculator:
 
 
 @pytest.mark.moduletest
-@pytest.mark.usefixtures("cluster")
 class TestModule:
 
     # --------- integration tests ---------
