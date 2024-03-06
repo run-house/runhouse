@@ -213,7 +213,7 @@ class Resource:
         return pprint.pformat(self.config())
 
     @classmethod
-    def _check_for_child_configs(cls, config):
+    def _check_for_child_configs(cls, config: dict):
         """Overload by child resources to load any resources they hold internally."""
         return config
 
