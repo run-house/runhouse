@@ -657,6 +657,23 @@ class TestModule:
         )
         test_fn(mod_name=remote_df.rns_address, cpu_count=cpu_count, size=size)
 
+    @pytest.mark.level("unit")
+    def test_openapi_spec_generation(self):
+        from openapi_core import OpenAPI
+
+        remote_calc = rh.module(Calculator)
+
+        # Normally we'd send the calculator to a system, save it, and then call this
+        # But for testing purposes we can just pass in a name so this can run as a unit test
+        spec = remote_calc.generate_openapi_spec(spec_name="CalculatorAPI")
+
+        # This automatically validates the spec
+        openapi = OpenAPI.from_dict(spec)
+        assert openapi
+
+        # Assert that the spec can be converted to json
+        assert json.loads(json.dumps(spec))
+
 
 def test_load_and_use_readonly_module(mod_name, cpu_count, size=3):
     remote_df = rh.module(name=mod_name)

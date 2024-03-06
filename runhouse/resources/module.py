@@ -9,6 +9,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple, Type, Union
 
+from apispec import APISpec
+from pydantic import create_model
+
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
@@ -939,6 +942,93 @@ class Module(Resource):
                     pass
 
         return remote_import_path, module_name, cls_or_fn_name
+
+    def generate_openapi_spec(self, spec_name: Optional[str] = None):
+        """Generate an OpenAPI spec for the module.
+
+        TODO: This breaks if the module has type annotations that are classes, and not standard library or
+        typing types.
+
+        Maybe we can do something using: https://github.com/kuimono/openapi-schema-pydantic to allow
+        nested Pydantic models easily as schemas?
+
+        TODO: What happens if there is an empty function, will this work with an empty body even though it is
+        marked as required?
+
+        """
+
+        spec_name = spec_name or self.name
+
+        if not spec_name:
+            raise ValueError(
+                "Module must have a name to generate an OpenAPI spec. Try saving the module first."
+            )
+
+        spec = APISpec(
+            title=spec_name,
+            version="1.0.0",
+            openapi_version="3.1.0",
+            plugins=[],
+        )
+
+        base_module_class_methods = {
+            m[0] for m in inspect.getmembers(Module, predicate=inspect.isfunction)
+        }
+        for method_name, method in inspect.getmembers(
+            self.__class__, predicate=inspect.isfunction
+        ):
+            if method_name.startswith("_") or method_name in base_module_class_methods:
+                continue
+
+            spec.path(
+                path=f"/post_call/{spec_name}/{method_name}",
+                operations={
+                    "post": {
+                        "summary": method.__doc__.strip().split("\n")[0]
+                        if method.__doc__
+                        else "",
+                        "description": method.__doc__.strip() if method.__doc__ else "",
+                        "requestBody": {
+                            "content": {
+                                "application/json": {
+                                    "schema": f"{method_name}_body",
+                                },
+                            },
+                            "required": True,
+                        },
+                        "responses": {
+                            "200": {
+                                "description": "A response containing an output_type, data, and serialization, and optionally an error and traceback."
+                            },
+                        },
+                    },
+                },
+            )
+
+            # Generate schema for the Request Body
+            params = {}
+            for param_name, param in inspect.signature(method).parameters.items():
+                if param_name == "self":
+                    continue
+
+                if param.annotation and param.annotation != inspect.Parameter.empty:
+                    param_type = (
+                        param.annotation.__name__
+                        if isinstance(param.annotation, type)
+                        else param.annotation
+                    )
+                else:
+                    param_type = "string"
+
+                params[param_name] = (
+                    param_type,
+                    param.default if param.default != inspect.Parameter.empty else ...,
+                )
+
+            request_body_schema = create_model(f"{method_name}_body", **params).schema()
+            spec.components.schema(f"{method_name}_body", request_body_schema.copy())
+
+        return spec.to_dict()
 
     # Found in python decorator logic, maybe use
     # func_name = getattr(f, '__qualname__', f.__name__)
