@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from runhouse.globals import rns_client
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
@@ -109,3 +109,94 @@ def _check_file_for_mismatches(path, existing_vals, new_vals, overwrite):
         )
         return True
     return False
+
+
+def setup_cluster_creds(ssh_creds: Union[Dict, str], resource_name: str):
+    """
+    This method creates an SSHSecret instance. If the passed values are paths to private
+    and/or public keys, this method extracts the content of the files saved in those files, in order for them to
+    be saved in Den. (Currently if we just pass a path/to/ssh/key to the SSHSecret constructor, the content of the file
+    will not be saved to Vault. We need to pass the content itself.)
+
+    Args:
+       ssh_creds (Dict or str): the ssh credentials of the cluster, passed by the user, dict.
+       resource_name (str): the name of the resource that the ssh secret is associated with.
+
+    Returns:
+       SSHSecret
+    """
+    import runhouse as rh
+    from runhouse.resources.secrets import Secret
+    from runhouse.resources.secrets.provider_secrets import ProviderSecret
+    from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
+
+    if isinstance(ssh_creds, str):
+        return Secret.from_name(name=ssh_creds)
+
+    creds_keys = list(ssh_creds.keys())
+
+    if len(creds_keys) == 1 and "ssh_private_key" in creds_keys:
+        if Path(ssh_creds["ssh_private_key"]).expanduser().exists():
+            values = SSHSecret.extract_secrets_from_path(path=ssh_creds["private_key"])
+            values["ssh_private_key"] = ssh_creds["private_key"]
+        else:
+            # case where the user decides to pass the private key as text and not as path.
+            raise ValueError(
+                "SSH creds require both private and public key, but only private key was provided"
+            )
+
+    elif "ssh_private_key" in creds_keys and "ssh_public key" in creds_keys:
+        private_key, public_key = (
+            ssh_creds["ssh_private_key"],
+            ssh_creds["ssh_public_key"],
+        )
+        private_key_path, public_key_path = (
+            Path(private_key).expanduser(),
+            Path(public_key).expanduser(),
+        )
+        if private_key_path.exists() and public_key_path.exists():
+            values = SSHSecret.extract_secrets_from_path(path=private_key)
+            values["ssh_private_key"], values["ssh_public_key"] = (
+                private_key_path,
+                public_key_path,
+            )
+        else:
+            values = {"private_key": private_key, "public_key": public_key}
+
+    elif "ssh_private_key" in creds_keys and "ssh_user" in creds_keys:
+        private_key, username = ssh_creds["ssh_private_key"], ssh_creds["ssh_user"]
+        if Path(private_key).expanduser().exists():
+            private_key = SSHSecret.extract_secrets_from_path(path=private_key).get(
+                "private_key"
+            )
+        if Path(username).expanduser().exists():
+            username = ProviderSecret.extract_secrets_from_path(username)
+        values = {
+            "private_key": private_key,
+            "ssh_user": username,
+            "ssh_private_key": ssh_creds["ssh_private_key"],
+        }
+
+    elif "ssh_user" in creds_keys and "password" in creds_keys:
+        password, username = ssh_creds["password"], ssh_creds["ssh_user"]
+        if Path(password).expanduser().exists():
+            password = ProviderSecret.extract_secrets_from_path(password)
+        if Path(username).expanduser().exists():
+            username = ProviderSecret.extract_secrets_from_path(username)
+        values = {"password": password, "ssh_user": username}
+
+    else:
+        values = {}
+        for k in creds_keys:
+            v = ssh_creds[k]
+            if Path(v).exists():
+                v = ProviderSecret.extract_secrets_from_path(v)
+            values.update({k: v})
+
+    values_to_add = {k: ssh_creds[k] for k in ssh_creds if k not in values.keys()}
+    values.update(values_to_add)
+
+    new_secret = rh.secret(name=f"{resource_name}-ssh-secret", values=values).save(
+        name=f"{resource_name}-ssh-secret"
+    )
+    return new_secret

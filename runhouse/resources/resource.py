@@ -215,7 +215,7 @@ class Resource:
         return pprint.pformat(self.config())
 
     @classmethod
-    def _check_for_child_configs(cls, config):
+    def _check_for_child_configs(cls, config: dict):
         """Overload by child resources to load any resources they hold internally."""
         return config
 
@@ -287,7 +287,7 @@ class Resource:
 
     @staticmethod
     def from_config(config, dryrun=False):
-        resource_type = config.pop("resource_type")
+        resource_type = config.pop("resource_type", None)
         dryrun = config.pop("dryrun", False) or dryrun
 
         if resource_type == "resource":

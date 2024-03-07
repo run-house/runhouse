@@ -96,14 +96,23 @@ def notebook(
 @app.command()
 def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluster")):
     """SSH into a cluster created elsewhere (so `ssh cluster` doesn't work out of the box) or not yet up."""
-    c = cluster(name=cluster_name)
-    if up:
-        c.up_if_not()
-    if not c.is_up():
-        console.print(
-            f"Cluster {cluster_name} is not up. Please run `runhouse ssh {cluster_name} --up`."
+
+    try:
+        c = cluster(name=cluster_name)
+    except ValueError:
+        logger.error(
+            f"Could not load cluster called {cluster_name} from Den. Please save it to Den, and rerun."
         )
         raise typer.Exit(1)
+
+    if not c.is_shared:
+        if up:
+            c.up_if_not()
+        if not c.is_up():
+            console.print(
+                f"Cluster {cluster_name} is not up. Please run `runhouse ssh {cluster_name} --up`."
+            )
+            raise typer.Exit(1)
     c.ssh()
 
 

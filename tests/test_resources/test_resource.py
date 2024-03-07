@@ -11,7 +11,6 @@ def load_shared_resource_config(resource_class_name, address):
     resource_class = getattr(rh, resource_class_name)
     loaded_resource = resource_class.from_name(address, dryrun=True)
     config = loaded_resource.config()
-    config.pop("live_state", None)  # Too many little differences, leads to flaky tests
     return config
     # TODO allow resource subclass tests to extend set of properties to test
 
@@ -65,8 +64,7 @@ class TestResource:
 
     @pytest.mark.level("unit")
     def test_from_config(self, resource):
-        config = resource.config()
-        new_resource = rh.Resource.from_config(config)
+        new_resource = rh.Resource.from_config(resource.config())
         assert new_resource.config() == resource.config()
         assert new_resource.rns_address == resource.rns_address
         assert new_resource.dryrun == resource.dryrun
@@ -161,17 +159,23 @@ class TestResource:
         # First try loading in same process/filesystem because it's more debuggable, but not as thorough
         resource_class_name = saved_resource.config().get("resource_type").capitalize()
         config = saved_resource.config()
-        config.pop(
-            "live_state", None
-        )  # For ondemand_cluster: too many little differences, leads to flaky tests
 
         with friend_account():
-            assert (
-                load_shared_resource_config(
-                    resource_class_name, saved_resource.rns_address
-                )
-                == config
+            new_config = load_shared_resource_config(
+                resource_class_name, saved_resource.rns_address
             )
+            if new_config["resource_subtype"] == "Secret":
+                secret_name = new_config.pop("name")
+                assert "loaded_secret_" in secret_name
+                new_config["name"] = secret_name.replace("loaded_secret_", "")
+
+            # Don't compare the client keys, their paths could differ locally and on the cluster
+            # Cluster: '/home/runner/.ssh/sky-key
+            # Locally: /home/runner/.rh/secrets/cluster-name/ssh-key
+            new_config.get("data_config", {}).pop("client_keys", None)
+            config.get("data_config", {}).pop("client_keys", None)
+
+            assert new_config == config
 
         # TODO: If we are testing with an ondemand_cluster we to
         # sync sky key so loading ondemand_cluster from config works
@@ -180,12 +184,17 @@ class TestResource:
         load_shared_resource_config_cluster = rh.function(
             load_shared_resource_config
         ).to(friend_account_logged_in_docker_cluster_pk_ssh)
-        assert (
-            load_shared_resource_config_cluster(
-                resource_class_name, saved_resource.rns_address
-            )
-            == config
+        new_config = load_shared_resource_config_cluster(
+            resource_class_name, saved_resource.rns_address
         )
+        if new_config["resource_subtype"] == "Secret":
+            secret_name = new_config.pop("name")
+            assert "loaded_secret_" in secret_name
+            new_config["name"] = secret_name.replace("loaded_secret_", "")
+
+        new_config.get("data_config", {}).pop("client_keys", None)
+        config.get("data_config", {}).pop("client_keys", None)
+        assert new_config == config
 
     # TODO API to run this on local_docker_slim when level == "local"
     @pytest.mark.skip

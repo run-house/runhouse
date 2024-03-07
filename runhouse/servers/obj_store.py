@@ -1267,7 +1267,7 @@ class ObjStore:
 
     def status(self):
         config_cluster = self.get_cluster_config()
-        config_cluster.pop("ssh_creds", None)
+        config_cluster.pop("creds", None)
         cluster_servlets = {}
         for env in self.get_all_initialized_env_servlet_names():
             resources_in_env_modified = self.call_actor_method(

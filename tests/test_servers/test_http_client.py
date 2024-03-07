@@ -19,7 +19,14 @@ from runhouse.servers.http.http_utils import (
 class TestHTTPClient:
     @pytest.fixture(autouse=True)
     def init_fixtures(self):
-        args = dict(name="local-cluster", host="localhost", server_host="0.0.0.0")
+        from tests.test_resources.test_secrets.conftest import provider_secret_values
+
+        args = dict(
+            name="local-cluster",
+            host="localhost",
+            server_host="0.0.0.0",
+            ssh_creds=provider_secret_values["ssh"],
+        )
         self.local_cluster = rh.cluster(**args)
         self.client = HTTPClient(
             "localhost",

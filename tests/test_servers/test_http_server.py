@@ -341,7 +341,7 @@ class TestHTTPServerDockerDenAuthOnly:
                 headers=rns_client.request_headers(cluster.rns_address),
             )
             assert cluster.rns_address not in [
-                config["name"] for config in res.json()["data"]
+                config["name"] for config in res.json().get("data", [])
             ]
             response = http_client.get(
                 "/keys", headers=rns_client.request_headers(cluster.rns_address)

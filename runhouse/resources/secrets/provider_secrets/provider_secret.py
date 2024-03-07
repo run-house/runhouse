@@ -1,6 +1,7 @@
 import copy
 import json
 import os
+from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from runhouse.globals import configs, rns_client
@@ -81,7 +82,7 @@ class ProviderSecret(Secret):
     def save(
         self, name: str = None, save_values: bool = True, headers: Optional[Dict] = None
     ):
-        name = name or self.rns_address or self.provider
+        name = name or self.name or self.rns_address or self.provider
         return super().save(name=name, save_values=save_values, headers=headers)
 
     def delete(self, headers: Optional[Dict] = None, contents: bool = False):
@@ -185,8 +186,9 @@ class ProviderSecret(Secret):
                 env = env if isinstance(env, Env) else Env(name=env_key)
                 env_key = system.put_resource(env)
             env_vars = self.env_vars or self._DEFAULT_ENV_VARS
-            env_vars = {env_vars[k]: self.values[k] for k in self.values}
-            system.call(env_key, "_set_env_vars", env_vars)
+            if env_vars:
+                env_vars = {env_vars[k]: self.values[k] for k in self.values}
+                system.call(env_key, "_set_env_vars", env_vars)
         return new_secret
 
     def _file_to(
@@ -273,6 +275,17 @@ class ProviderSecret(Secret):
                         contents = f.read()
                     return contents
         return {}
+
+    @staticmethod
+    def extract_secrets_from_path(path: str) -> Union[str, None]:
+        secret_path = os.path.expanduser(path)
+
+        if not os.path.exists(secret_path):
+            return None
+
+        provider_secret = Path(secret_path).read_text()
+
+        return provider_secret
 
     def _add_to_rh_config(self, val):
         if not self.name:

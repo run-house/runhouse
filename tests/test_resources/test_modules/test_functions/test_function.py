@@ -339,7 +339,7 @@ class TestFunction:
     @pytest.mark.level("local")
     def test_http_url(self, cluster):
         remote_sum = rh.function(summer).to(cluster).save("@/remote_function")
-        ssh_creds = cluster.ssh_creds
+        ssh_creds = cluster.creds_values
         if cluster.server_connection_type in ["tls", "none"]:
             addr = f"{cluster.endpoint()}:{cluster.client_port}/{remote_sum.name}"
         else:

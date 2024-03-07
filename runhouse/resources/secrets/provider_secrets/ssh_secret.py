@@ -45,6 +45,7 @@ class SSHSecret(ProviderSecret):
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = False):
+        # try block if for the case we are trying to load a shared secret.
         return SSHSecret(**config, dryrun=dryrun)
 
     def save(
@@ -67,12 +68,12 @@ class SSHSecret(ProviderSecret):
         pub_key_path = Path(f"{os.path.expanduser(priv_key_path)}.pub")
 
         if priv_key_path.exists() and pub_key_path.exists():
-            if values == self._from_path(path):
+            if values == self._from_path(path=path):
                 logger.info(f"Secrets already exist in {path}. Skipping.")
                 self.path = path
                 return self
             logger.warning(
-                f"SSH Secrets for {self.key} already exist in {path}. "
+                f"SSH Secrets for {self.name or self.key} already exist in {path}. "
                 "Automatically overriding SSH keys is not supported by Runhouse. "
                 "Please manually edit these files."
             )
@@ -88,7 +89,10 @@ class SSHSecret(ProviderSecret):
         new_secret = copy.deepcopy(self)
         new_secret._values = None
         new_secret.path = path
-        new_secret._add_to_rh_config(path)
+        try:
+            new_secret._add_to_rh_config(val=path)
+        except TypeError:
+            pass
 
         return new_secret
 
@@ -102,15 +106,20 @@ class SSHSecret(ProviderSecret):
             priv_key = path.fetch(mode="r", deserialize=False)
             pub_key_file = file(path=f"{path.path}.pub", system=path.system)
             pub_key = pub_key_file.fetch(mode="r", deserialize=False)
-        else:
-            pub_key_path = os.path.expanduser(f"{path}.pub")
-            priv_key_path = os.path.expanduser(path)
+            return {"public_key": pub_key, "private_key": priv_key}
 
-            if not (os.path.exists(pub_key_path) and os.path.exists(priv_key_path)):
-                return {}
+        return self.extract_secrets_from_path(path)
 
-            pub_key = Path(pub_key_path).read_text()
-            priv_key = Path(priv_key_path).read_text()
+    @staticmethod
+    def extract_secrets_from_path(path: str) -> Dict:
+        pub_key_path = os.path.expanduser(f"{path}.pub")
+        priv_key_path = os.path.expanduser(path)
+
+        if not (os.path.exists(pub_key_path) and os.path.exists(priv_key_path)):
+            return {}
+
+        pub_key = Path(pub_key_path).read_text()
+        priv_key = Path(priv_key_path).read_text()
 
         return {"public_key": pub_key, "private_key": priv_key}
 
