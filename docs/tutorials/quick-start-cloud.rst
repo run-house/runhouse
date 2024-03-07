@@ -54,7 +54,7 @@ the ``rh.cluster`` factory function.
 
 This requires having access to a cluster or a cloud provider account. If
 you do not have access to a cluster, you can try the `local
-version <run.house/docs/tutorials/quick-start-local>`__ of this
+version <https://www.run.house/docs/tutorials/quick-start-local>`__ of this
 tutorial, which sets up and deploys the Python function to a local
 server, rather than a remote cluster.
 
