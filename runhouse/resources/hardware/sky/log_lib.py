@@ -2,7 +2,7 @@
 
 import copy
 import io
-import multiprocessing
+import multiprocessing.pool  # note: changed this
 import os
 import subprocess
 import sys
