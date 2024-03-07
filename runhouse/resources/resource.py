@@ -56,6 +56,7 @@ class Resource:
         - Secret Abstractions
             - Secret :py:class:`.secret.Secret`
         """
+
         self._name, self._rns_folder = None, None
         if name is not None:
             # TODO validate that name complies with a simple regex

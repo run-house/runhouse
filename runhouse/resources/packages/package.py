@@ -113,7 +113,15 @@ class Package(Resource):
                     )
                     self._pip_install(install_cmd)
                 else:
-                    logging.info(f"{local_path}/requirements.txt not found, skipping")
+                    # handling the fact that a package do not have requirements.txt file, e.g langchain
+                    try:
+                        install_cmd = f"{reqs_path}".split("/")[-2]
+                        print(f"installing {install_cmd}")
+                        self._pip_install(install_cmd)
+                    except Exception:
+                        logging.info(
+                            f"{local_path}/requirements.txt not found, skipping"
+                        )
         else:
             install_cmd = self.install_target + install_args
 

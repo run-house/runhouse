@@ -234,6 +234,7 @@ class Module(Resource):
         self._env = _get_env_from(new_env)
 
     def signature(self, rich=False):
+        # in case it is called during initiation of the module
         if self._signature:
             return self._signature
 
