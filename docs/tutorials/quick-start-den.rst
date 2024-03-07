@@ -3,7 +3,7 @@ Den Quick Start
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/getting_started/den_quick_start.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-den.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 `Runhouse Den <https://www.run.house/dashboard>`__ let’s you save and
@@ -38,7 +38,7 @@ Saving
 
 Let’s start by constructing some runhouse resources that we’d like to
 save down. These resources are taking from our `Cloud Quick Start
-Tutorial <run.house/docs/tutorials/quick_start_cloud>`__.
+Tutorial <run.house/docs/tutorials/getting_started/cloud-quick-start>`__.
 
 .. code:: ipython3
 
@@ -119,5 +119,4 @@ Check on more in-depth tutorials on:
 
 -  Resource Management
    https://www.run.house/docs/tutorials/api-resources
--  Secrets Management
-   https://www.run.house/docs/tutorials/api-secrets
+-  Secrets Management https://www.run.house/docs/tutorials/api-secrets
