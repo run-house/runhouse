@@ -242,7 +242,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert f"resource_type: {cluster.RESOURCE_TYPE.lower()}" in res
         assert f"ips: {str(cluster.ips)}" in res
         assert "Serving 🍦 :" in res
-        assert "base_env (runhouse.resources.envs.env.Env):" in res
+        assert (
+            "base_env (runhouse.resources.envs.env.Env):" in res
+            or "base_env (Env):" in res
+        )
         assert "status_key2 (str)" in res
         assert "creds" not in res
 
