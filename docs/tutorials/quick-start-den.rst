@@ -16,7 +16,7 @@ resources, along with version history.
 Account Creation & Login
 ------------------------
 
-You can create an account on the `run.house <https://run.house>`__
+You can create an account on the `run.house <https://www.run.house>`__
 website, or by calling the login command in Python or CLI.
 
 To login on your dev environment, call ``rh.login()`` in Python or
@@ -38,7 +38,7 @@ Saving
 
 Let’s start by constructing some runhouse resources that we’d like to
 save down. These resources are taking from our `Cloud Quick Start
-Tutorial <run.house/docs/tutorials/getting_started/cloud-quick-start>`__.
+Tutorial <https://www.run.house/docs/tutorials/getting_started/cloud-quick-start>`__.
 
 .. code:: ipython3
 

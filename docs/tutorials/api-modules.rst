@@ -19,7 +19,7 @@ Setup
 We first construct a Runhouse Cluster resource, which is the compute to
 which we will be sending and running our remote Python code on. You can
 read more in the `Cluster
-tutorial <run.house/docs/tutorials/api-clusters>`__.
+tutorial <https://www.run.house/docs/tutorials/api-clusters>`__.
 
 .. code:: ipython3
 

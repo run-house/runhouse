@@ -623,7 +623,7 @@ If you are not logged in to your Runhouse account, the secret config
 will be saved locally.
 
 If you have a Runhouse account, which you can create
-`here <run.house/login>`__ or by calling either the ``runhouse login``
+`here <https://www.run.house/login>`__ or by calling either the ``runhouse login``
 CLI command or ``rh.login()`` Python command, calling ``.save()`` will
 save the resource metadata on Runhouse servers, and the secret values to
 Hashicorp Vault.
@@ -669,7 +669,7 @@ Den Secret
 ~~~~~~~~~~
 
 If you have a Runhouse account, which you can create
-`here <run.house/login>`__ or by calling either the ``runhouse login``
+`here <https://www.run.house/login>`__ or by calling either the ``runhouse login``
 CLI command or ``rh.login()`` Python command, you can save secret to
 your dashboard. The metadata for the Secret resource, such as the
 provider, any path or env vars, etc, will be saved into Runhouse Den
