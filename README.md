@@ -9,21 +9,23 @@
 ## 👵 Welcome Home!
 
 Runhouse is the fastest way to build, run, and deploy production-quality AI apps and workflows on your own compute.
-The same simple APIs support the full lifecycle of AI development, through
-research→evaluation→production→updates→scaling→management, and across any infra. By automatically packaging your apps
-into scalable, secure, and observable services, Runhouse can also turn otherwise redundant AI activities into common
-reusable components across your team or company, which improves cost, velocity, and reproducibility.
+Leverage simple, powerful APIs for the full lifecycle of AI development, through
+research→evaluation→production→updates→scaling→management, and across any infra.
+
+By automatically packaging your apps into scalable, secure, and observable services, Runhouse can also turn
+otherwise redundant AI activities into common reusable components across your team or company, which improves
+cost, velocity, and reproducibility.
 
 Highlights:
-* Dispatch Python functions, classes, and data to remote infra (clusters, cloud VMs, etc.) instantly. No need to
+* 👩‍🔬 Dispatch Python functions, classes, and data to remote infra (clusters, cloud VMs, etc.) instantly. No need to
 reach for a workflow orchestrator to run different chunks of code on various beefy boxes.
-* Deploy Python functions or classes as production-quality services instantly, including HTTPS, auth, observability,
+* 👷‍♀️ Deploy Python functions or classes as production-quality services instantly, including HTTPS, auth, observability,
 scaling, custom domains, secrets, versioning, and more. No research-to-production gap.
-* No DSL, decorators, yaml, CLI incantations, or boilerplate. Just your own Python.
-* Extensive support for Ray, Kubernetes, AWS, GCP, Azure, local, on-prem, and more. When you want to shift or scale,
+* 🐍 No DSL, decorators, yaml, CLI incantations, or boilerplate. Just your own Python.
+* 👩‍🎓 Extensive support for Ray, Kubernetes, AWS, GCP, Azure, local, on-prem, and more. When you want to shift or scale,
 just send your app to more powerful infra.
-* Extreme reusability and portability. A single succinct script can stand up your app, dependencies, and infra.
-* Arbitrarily nest applications to create complex workflows and services. Apps are decoupled so you can change,
+* 👩‍✈️ Extreme reusability and portability. A single succinct script can stand up your app, dependencies, and infra.
+* 👩‍🍳 Arbitrarily nest applications to create complex workflows and services. Apps are decoupled so you can change,
 move, or scale any component without affecting the rest of your system.
 
 The Runhouse API is dead simple. Send your **apps** (functions and classes) into **environments** on compute
@@ -61,7 +63,8 @@ With the above simple structure you can run, deploy, and share:
 
 ## 🛋️ Share Apps and Resources with Runhouse Den
 
-You can unlock unique portability and sharing features by creating a [Runhouse Den account](https://www.run.house).
+You can unlock unique portability and sharing features by creating a
+[Runhouse Den account](https://www.run.house/dashboard).
 Log in from anywhere to save, share, and load resources:
 ```shell
 runhouse login
