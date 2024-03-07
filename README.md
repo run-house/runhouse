@@ -24,7 +24,7 @@ scaling, custom domains, secrets, versioning, and more. No research-to-productio
 * 🐍 No DSL, decorators, yaml, CLI incantations, or boilerplate. Just your own Python.
 * 👩‍🎓 Extensive support for Ray, Kubernetes, AWS, GCP, Azure, local, on-prem, and more. When you want to shift or scale,
 just send your app to more powerful infra.
-* 👩‍✈️ Extreme reusability and portability. A single succinct script can stand up your app, dependencies, and infra.
+* 👩‍🚀 Extreme reusability and portability. A single succinct script can stand up your app, dependencies, and infra.
 * 👩‍🍳 Arbitrarily nest applications to create complex workflows and services. Apps are decoupled so you can change,
 move, or scale any component without affecting the rest of your system.
 
