@@ -742,6 +742,8 @@ class Cluster(Resource):
         if restart_ray and len(self.ips) > 1:
             self._start_ray_workers(DEFAULT_RAY_PORT)
 
+        self.run(["pip install uv"], node="all")
+
         return status_codes
 
     def stop_server(self, stop_ray: bool = True, env: Union[str, "Env"] = None):

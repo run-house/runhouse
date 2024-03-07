@@ -108,6 +108,7 @@ class Package(Resource):
                         cuda_version_or_cpu=cuda_version_or_cpu,
                         args=install_args,
                     )
+                    install_cmd = f"uv pip install {install_cmd}"
                     logging.info(
                         f"pip installing requirements from {reqs_path} with: {install_cmd}"
                     )
@@ -119,6 +120,7 @@ class Package(Resource):
 
         if self.install_method == "pip":
             install_cmd = self._install_cmd_for_torch(install_cmd, cuda_version_or_cpu)
+            install_cmd = f"uv pip install {install_cmd}"
             if not install_cmd:
                 raise ValueError("Invalid install command")
 
@@ -250,14 +252,17 @@ class Package(Resource):
     @staticmethod
     def _pip_install(install_cmd: str, env: Union[str, "Env"] = ""):
         """Run pip install."""
-        pip_cmd = f"pip install {install_cmd}"
         if env:
+            from runhouse.resources.envs import CondaEnv
             from runhouse.resources.envs.utils import _get_env_from
 
             env = _get_env_from(env)
-            env.run([pip_cmd])
+            if isinstance(env, CondaEnv):
+                env.run([install_cmd])
+            else:
+                env.run([f"{install_cmd} --python {sys.executable}"])
         else:
-            cmd = f"{sys.executable} -m {pip_cmd}"
+            cmd = f"{install_cmd} --python {sys.executable}"
             retcode = run_with_logs(cmd)
             if retcode != 0:
                 raise RuntimeError(
