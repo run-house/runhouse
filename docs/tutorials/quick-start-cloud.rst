@@ -3,7 +3,7 @@ Cloud Quick Start
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick_start_cloud.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-cloud.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
 Runhouse lets you quickly and easily deploy your Python code as
@@ -54,9 +54,9 @@ the ``rh.cluster`` factory function.
 
 This requires having access to a cluster or a cloud provider account. If
 you do not have access to a cluster, you can try the `local
-version <run.house/docs/tutorials/quick_start_local>`__
-of this tutorial, which sets up and deploys the Python function to a
-local server, rather than a remote cluster.
+version <run.house/docs/tutorials/quick-start-local>`__ of this
+tutorial, which sets up and deploys the Python function to a local
+server, rather than a remote cluster.
 
 To use a cluster that’s already running:
 
@@ -107,7 +107,7 @@ runs. These are covered in more detail in the API tutorials.
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2024-02-26 21:01:50.579156 | Writing out function to /Users/caroline/Documents/runhouse/notebooks/docs/getting_started/get_pid_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
+    INFO | 2024-02-26 21:01:50.579156 | Writing out function to /Users/caroline/Documents/runhouse/notebooks/docs/get_pid_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
     INFO | 2024-02-26 21:01:50.584346 | Copying package from file:///Users/caroline/Documents/runhouse/notebooks to: rh-cluster
     INFO | 2024-02-26 21:01:54.745264 | Calling base_env.install
 

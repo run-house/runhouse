@@ -3,11 +3,10 @@ Local Quick Start
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/getting_started/local_quick_start.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-local.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
-In `Cloud Quick
-Start <run.house/docs/tutorials/quick_start_cloud>`__,
+In `Cloud Quick Start <run.house/docs/tutorials/quick-start-cloud>`__,
 we demonstrate how to deploy a local function to a remote cluster using
 Runhouse. In this local-only version, we show how to use Runhouse to set
 up a local web server, and deploy an arbitrary Python function to it.
@@ -85,7 +84,7 @@ API. Wrap the function with ``rh.function``, and then use
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2024-02-26 22:14:53.460361 | Writing out function to /Users/caroline/Documents/runhouse/notebooks/docs/getting_started/get_pid_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
+    INFO | 2024-02-26 22:14:53.460361 | Writing out function to /Users/caroline/Documents/runhouse/notebooks/docs/get_pid_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
     INFO | 2024-02-26 22:14:53.523591 | Sending module get_pid to local Runhouse daemon
 
 
