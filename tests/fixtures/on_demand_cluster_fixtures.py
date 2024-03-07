@@ -82,7 +82,7 @@ def ondemand_k8s_cluster(request):
         pytest.skip("no kubeconfig found")
 
     args = {
-        "name": "rh-cpu-k8s",
+        "name": "k8s-cpu",
         "provider": "kubernetes",
         "instance_type": "1CPU--1GB",
     }

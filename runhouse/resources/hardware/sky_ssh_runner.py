@@ -424,8 +424,10 @@ def ssh_tunnel(
                 )
 
                 runner = SkySSHRunner(
-                    host,
-                    **ssh_credentials,
+                    ip=host,
+                    ssh_user=ssh_creds.get("ssh_user"),
+                    ssh_private_key=ssh_creds.get("ssh_private_key"),
+                    ssh_proxy_command=ssh_creds.get("ssh_proxy_command"),
                     ssh_control_name=ssh_control_name,
                     port=ssh_port,
                 )
