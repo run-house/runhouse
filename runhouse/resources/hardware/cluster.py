@@ -265,6 +265,8 @@ class Cluster(Resource):
         from runhouse import Secret
 
         ssh_creds = self.creds_values
+        if not ssh_creds:
+            return False
 
         ssh_private_key = ssh_creds.get("ssh_private_key")
         ssh_private_key_path = Path(ssh_private_key).expanduser()
@@ -274,7 +276,7 @@ class Cluster(Resource):
         if str(ssh_private_key_path).startswith(str(secrets_base_dir)):
             return True
 
-        return f"{ssh_creds.name}/" in ssh_creds.get("ssh_private_key", "")
+        return f"{self._creds.name}/" in ssh_creds.get("ssh_private_key", "")
 
     def is_up(self) -> bool:
         """Check if the cluster is up.
