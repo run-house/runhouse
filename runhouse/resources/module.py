@@ -79,6 +79,7 @@ class Module(Resource):
         self._endpoint = endpoint
         self._signature = signature
         self._resolve = False
+        self.openapi_spec = None
 
     def config(self, condensed=True):
         if not self.system:
@@ -111,6 +112,10 @@ class Module(Resource):
 
         # Only save the endpoint if it's present in _endpoint or externally accessible
         config["endpoint"] = self.endpoint(external=True)
+
+        if self.openapi_spec:
+            config["openapi_spec"] = self.openapi_spec
+
         return config
 
     @classmethod
@@ -154,6 +159,7 @@ class Module(Resource):
             new_module._signature = config.pop("signature", None)
             new_module.dryrun = config.pop("dryrun", False)
             new_module.provenance = config.pop("provenance", None)
+            new_module.openapi_spec = config.pop("openapi_spec", None)
             return new_module
 
         if config.get("resource_subtype", None) == "module":
@@ -817,6 +823,8 @@ class Module(Resource):
         """Register the resource and save to local working_dir config and RNS config store."""
         # Need to override Resource's save to handle key changes in the obj store
         # Also check that this is a Blob and not a File
+        self.openapi_spec = self.generate_openapi_spec()
+
         old_rns_address = self.rns_address
         if name:
             _, base_name = rns_client.split_rns_name_and_path(
@@ -1018,7 +1026,7 @@ class Module(Resource):
                         else param.annotation
                     )
                 else:
-                    param_type = "string"
+                    param_type = str
 
                 params[param_name] = (
                     param_type,
