@@ -27,7 +27,7 @@ class AuthCache:
         resources: dict = self.get_user_resources(token)
         return resources.get(resource_uri)
 
-    def add_user(self, token, refresh_cache=True):
+    async def add_user(self, token, refresh_cache=True):
         """Refresh the server cache with the latest resources and access levels for a particular token"""
         if token is None:
             return
@@ -35,7 +35,7 @@ class AuthCache:
         if not refresh_cache and token in self.CACHE:
             return
 
-        resp = rns_client.session.get(
+        resp = await rns_client.async_session.get(
             f"{rns_client.api_server_url}/resource",
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -45,7 +45,7 @@ class AuthCache:
             )
             return
 
-        username = username_from_token(token)
+        username = await username_from_token(token)
         if username is None:
             raise ValueError("Failed to find Runhouse user from provided token.")
         self.USERNAMES[token] = username
