@@ -390,6 +390,7 @@ class TestHTTPServerDockerDenAuthOnly:
             json={
                 "data": [args, kwargs],
                 "stream_logs": False,
+                "serialization": None,
             },
             headers=INVALID_HEADERS,
         )
