@@ -67,7 +67,8 @@ def validate_cluster_access(func):
         HTTPServer.register_activity()
 
         request: Request = kwargs.get("request")
-        den_auth_enabled: bool = HTTPServer.get_den_auth()
+        config = await obj_store.get_cluster_config(run_async=True)
+        den_auth_enabled: bool = config.get("den_auth", False)
         is_coro = inspect.iscoroutinefunction(func)
 
         func_call: bool = func.__name__ in ["post_call", "get_call"]
@@ -78,7 +79,7 @@ def validate_cluster_access(func):
 
         try:
             if func_call and token:
-                obj_store.add_user_to_auth_cache(token, refresh_cache=False)
+                await obj_store.add_user_to_auth_cache(token, refresh_cache=False, run_async=True)
 
             if den_auth_enabled and not func_call:
                 if token is None:
@@ -89,7 +90,7 @@ def validate_cluster_access(func):
                         "provide a valid token in the Authorization header.",
                     )
 
-                cluster_uri = obj_store.get_cluster_config().get("name")
+                cluster_uri = config.get("name")
                 cluster_access = verify_cluster_access(cluster_uri, token)
                 if not cluster_access:
                     # Must have cluster access for all the non func calls
@@ -174,7 +175,7 @@ class HTTPServer:
                 span = trace.get_current_span()
 
                 token = get_token_from_request(request)
-                username = obj_store.get_username(token)
+                username = await obj_store.get_username(token, run_async=True)
                 if username:
                     # Set the username as a span attribute
                     span.set_attribute("username", username)
@@ -215,18 +216,19 @@ class HTTPServer:
         HTTPServer.register_activity()
 
     @classmethod
-    def get_den_auth(cls):
-        return obj_store.get_cluster_config().get("den_auth", False)
+    async def get_den_auth(cls):
+        config = await obj_store.get_cluster_config(run_async=True)
+        return config.get("den_auth", False)
 
     @classmethod
-    def enable_den_auth(cls, flush: Optional[bool] = True):
-        obj_store.set_cluster_config_value("den_auth", True)
+    async def enable_den_auth(cls, flush: Optional[bool] = True):
+        await obj_store.set_cluster_config_value("den_auth", True, run_async=True)
         if flush:
-            obj_store.clear_auth_cache()
+            await obj_store.clear_auth_cache(run_async=True)
 
     @classmethod
-    def disable_den_auth(cls):
-        obj_store.set_cluster_config_value("den_auth", False)
+    async def disable_den_auth(cls):
+        await obj_store.set_cluster_config_value("den_auth", False, run_async=True)
 
     @staticmethod
     def register_activity():
@@ -308,14 +310,14 @@ class HTTPServer:
     @staticmethod
     @app.post("/settings")
     @validate_cluster_access
-    def update_settings(request: Request, message: ServerSettings) -> Response:
+    async def update_settings(request: Request, message: ServerSettings) -> Response:
         if message.cluster_name:
-            obj_store.set_cluster_config_value("name", message.cluster_name)
+            await obj_store.set_cluster_config_value("name", message.cluster_name, run_async=True)
 
         if message.den_auth:
-            HTTPServer.enable_den_auth(flush=message.flush_auth_cache)
+            await HTTPServer.enable_den_auth(flush=message.flush_auth_cache)
         elif message.den_auth is not None and not message.den_auth:
-            HTTPServer.disable_den_auth()
+            await HTTPServer.disable_den_auth()
 
         return Response(output_type=OutputType.SUCCESS)
 
@@ -577,10 +579,10 @@ class HTTPServer:
     @staticmethod
     @app.post("/resource")
     @validate_cluster_access
-    def put_resource(request: Request, params: PutResourceParams):
+    async def put_resource(request: Request, params: PutResourceParams):
         try:
             env_name = params.env_name or "base"
-            return obj_store.put_resource(
+            return await obj_store.async_put_resource(
                 serialized_data=params.serialized_data,
                 serialization=params.serialization,
                 env_name=env_name,
@@ -593,9 +595,9 @@ class HTTPServer:
     @staticmethod
     @app.post("/object")
     @validate_cluster_access
-    def put_object(request: Request, params: PutObjectParams):
+    async def put_object(request: Request, params: PutObjectParams):
         try:
-            obj_store.put(
+            await obj_store.async_put(
                 key=params.key,
                 value=params.serialized_data,
                 env=params.env_name,
@@ -614,14 +616,14 @@ class HTTPServer:
     @staticmethod
     @app.get("/object")
     @validate_cluster_access
-    def get_object(
+    async def get_object(
         request: Request,
         key: str,
         serialization: Optional[str] = "json",
         remote: bool = False,
     ):
         try:
-            return obj_store.get(
+            return await obj_store.async_get(
                 key=key,
                 serialization=serialization,
                 remote=remote,
@@ -637,9 +639,9 @@ class HTTPServer:
     @staticmethod
     @app.post("/rename")
     @validate_cluster_access
-    def rename_object(request: Request, params: RenameObjectParams):
+    async def rename_object(request: Request, params: RenameObjectParams):
         try:
-            obj_store.rename(
+            await obj_store.async_rename(
                 old_key=params.key,
                 new_key=params.new_key,
             )
@@ -652,15 +654,15 @@ class HTTPServer:
     @staticmethod
     @app.post("/delete_object")
     @validate_cluster_access
-    def delete_obj(request: Request, params: DeleteObjectParams):
+    async def delete_obj(request: Request, params: DeleteObjectParams):
         try:
             if len(params.keys) == 0:
-                cleared = obj_store.keys()
-                obj_store.clear()
+                cleared = await obj_store.async_keys()
+                await obj_store.async_clear()
             else:
                 cleared = []
                 for key in params.keys:
-                    obj_store.delete(key)
+                    await obj_store.async_delete(key)
                     cleared.append(key)
 
             # Expicitly tell the client not to attempt to deserialize the output
@@ -677,10 +679,10 @@ class HTTPServer:
     @staticmethod
     @app.get("/keys")
     @validate_cluster_access
-    def get_keys(request: Request, env_name: Optional[str] = None):
+    async def get_keys(request: Request, env_name: Optional[str] = None):
         try:
             if not env_name:
-                output = obj_store.keys()
+                output = await obj_store.async_keys()
             else:
                 output = ObjStore.keys_for_env_servlet_name(env_name)
 
@@ -698,8 +700,8 @@ class HTTPServer:
     @staticmethod
     @app.get("/status")
     @validate_cluster_access
-    def get_status(request: Request):
-        return obj_store.status()
+    async def get_status(request: Request):
+        return await obj_store.async_status()
 
     @staticmethod
     def _collect_cluster_stats():

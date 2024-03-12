@@ -1,4 +1,6 @@
+import asyncio
 import contextvars
+import functools
 import inspect
 import logging
 import os
@@ -227,6 +229,16 @@ class ObjStore:
 
             return _call_async()
 
+    def __getattr__(self, item: str):
+        if item.startswith("async_"):
+            async def _async_call(*args, **kwargs):
+                loop = asyncio.get_running_loop()
+                return loop.run_in_executor(None, functools.partial(self.__getattr__(item[6:]), *args, **kwargs))
+            return _async_call
+
+        # Otherwise return __getattr__ normally
+        return self.__getattribute__(item)
+
     @staticmethod
     def get_env_servlet(
         env_name: str,
@@ -320,10 +332,10 @@ class ObjStore:
     ##############################################
     # Cluster config state storage methods
     ##############################################
-    def get_cluster_config(self):
+    def get_cluster_config(self, run_async=False):
         # TODO: Potentially add caching here
         if self.cluster_servlet is not None:
-            return self.call_actor_method(self.cluster_servlet, "get_cluster_config")
+            return self.call_actor_method(self.cluster_servlet, "get_cluster_config", run_async=run_async)
         else:
             return {}
 
@@ -332,17 +344,17 @@ class ObjStore:
             self.cluster_servlet, "set_cluster_config", config
         )
 
-    def set_cluster_config_value(self, key: str, value: Any):
+    def set_cluster_config_value(self, key: str, value: Any, run_async=False):
         return self.call_actor_method(
-            self.cluster_servlet, "set_cluster_config_value", key, value
+            self.cluster_servlet, "set_cluster_config_value", key, value, run_async=run_async
         )
 
     ##############################################
     # Auth cache internal functions
     ##############################################
-    def add_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
+    def add_user_to_auth_cache(self, token: str, refresh_cache: bool = True, run_async=False):
         return self.call_actor_method(
-            self.cluster_servlet, "add_user_to_auth_cache", token, refresh_cache
+            self.cluster_servlet, "add_user_to_auth_cache", token, refresh_cache, run_async=run_async
         )
 
     def resource_access_level(self, token: str, resource_uri: str):
@@ -356,8 +368,8 @@ class ObjStore:
     def user_resources(self, token: str):
         return self.call_actor_method(self.cluster_servlet, "user_resources", token)
 
-    def get_username(self, token: str):
-        return self.call_actor_method(self.cluster_servlet, "get_username", token)
+    def get_username(self, token: str, run_async=False):
+        return self.call_actor_method(self.cluster_servlet, "get_username", token, run_async=run_async)
 
     def has_resource_access(self, token: str, resource_uri=None) -> bool:
         """Checks whether user has read or write access to a given module saved on the cluster."""
@@ -399,8 +411,8 @@ class ObjStore:
 
         return True
 
-    def clear_auth_cache(self, token: str = None):
-        return self.call_actor_method(self.cluster_servlet, "clear_auth_cache", token)
+    def clear_auth_cache(self, token: str = None, run_async=False):
+        return self.call_actor_method(self.cluster_servlet, "clear_auth_cache", token, run_async=run_async)
 
     ##############################################
     # Key to servlet where it is stored mapping
