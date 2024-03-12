@@ -1037,10 +1037,17 @@ class Module(Resource):
             module_method_params = create_model(
                 f"{method_name}_schema", **params
             ).schema()
-            module_method_params["title"] = "data"
+            module_method_params["title"] = "kwargs"
 
             request_body_schema = CallParams.schema()
-            request_body_schema["properties"]["data"] = module_method_params
+            request_body_schema["properties"]["data"] = {
+                "title": "data",
+                "type": "object",
+                "properties": {
+                    "kwargs": module_method_params,
+                },
+                "required": ["kwargs"],
+            }
             spec.components.schema(f"{method_name}_body_schema", request_body_schema)
 
         return spec.to_dict()
