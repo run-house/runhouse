@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def error_handling_decorator(func):
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs):
         ctx = kwargs.pop("ctx", None)
         ctx_token = None
         if ctx:
