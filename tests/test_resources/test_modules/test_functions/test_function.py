@@ -352,7 +352,7 @@ class TestFunction:
         verify = cluster.client.verify
         sum1 = requests.post(
             url=f"{addr}/call",
-            json={"data": ([1, 2], {})},
+            json={"data": ([1, 2], {}), "serialization": None},
             headers=rns_client.request_headers(cluster.rns_address)
             if cluster.den_auth
             else None,
@@ -362,7 +362,7 @@ class TestFunction:
         assert sum1 == 3
         sum2 = requests.post(
             url=f"{addr}/call",
-            json={"data": ([], {"a": 1, "b": 2})},
+            json={"data": ([], {"a": 1, "b": 2}), "serialization": None},
             headers=rns_client.request_headers(cluster.rns_address)
             if cluster.den_auth
             else None,

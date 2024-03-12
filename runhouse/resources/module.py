@@ -20,6 +20,7 @@ from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http import HTTPClient
+from runhouse.servers.http.http_utils import CallParams
 
 logger = logging.getLogger(__name__)
 
@@ -999,7 +1000,7 @@ class Module(Resource):
                         "requestBody": {
                             "content": {
                                 "application/json": {
-                                    "schema": f"{method_name}_body",
+                                    "schema": f"{method_name}_body_schema",
                                 },
                             },
                             "required": True,
@@ -1033,8 +1034,14 @@ class Module(Resource):
                     param.default if param.default != inspect.Parameter.empty else ...,
                 )
 
-            request_body_schema = create_model(f"{method_name}_body", **params).schema()
-            spec.components.schema(f"{method_name}_body", request_body_schema.copy())
+            module_method_params = create_model(
+                f"{method_name}_schema", **params
+            ).schema()
+            module_method_params["title"] = "data"
+
+            request_body_schema = CallParams.schema()
+            request_body_schema["properties"]["data"] = module_method_params
+            spec.components.schema(f"{method_name}_body_schema", request_body_schema)
 
         return spec.to_dict()
 
