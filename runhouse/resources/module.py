@@ -234,22 +234,21 @@ class Module(Resource):
         self._env = _get_env_from(new_env)
 
     def signature(self, rich=False):
-        if self._signature:
-            return self._signature
-
-        member_attrs = {
-            name: self.method_signature(method) if rich else None
-            for (name, method) in inspect.getmembers(self.__class__)
-            if not name[0] == "_"
-            and name not in MODULE_ATTRS
-            and name not in dir(Module)
-            and callable(method)
-            # Checks if there's an arg called "local" in the method signature, and if so, if it's default is True.
-            and not getattr(
-                inspect.signature(method).parameters.get("local"), "default", False
-            )
-        }
-        return member_attrs
+        if not self._signature:
+            member_attrs = {
+                name: self.method_signature(method) if rich else None
+                for (name, method) in inspect.getmembers(self.__class__)
+                if not name[0] == "_"
+                and name not in MODULE_ATTRS
+                and name not in MODULE_METHODS
+                and callable(method)
+                # Checks if there's an arg called "local" in the method signature, and if so, if it's default is True.
+                and not getattr(
+                    inspect.signature(method).parameters.get("local"), "default", False
+                )
+            }
+            self._signature = member_attrs
+        return self._signature
 
     def method_signature(self, method):
         """Extracts the properties of a method that we want to preserve when sending the method over the wire."""
@@ -370,7 +369,7 @@ class Module(Resource):
             state = {
                 attr: val
                 for attr, val in self.__dict__.items()
-                if attr not in MODULE_ATTRS and attr not in dir(Module)
+                if attr not in MODULE_ATTRS and attr not in MODULE_METHODS
             }
         return state
 
@@ -488,7 +487,7 @@ class Module(Resource):
     def __getattribute__(self, item):
         """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
         __getattr__ will be called."""
-        if item in dir(Module) or item in MODULE_ATTRS or not hasattr(self, "_client"):
+        if item in MODULE_METHODS or item in MODULE_ATTRS or not hasattr(self, "_client"):
             return super().__getattribute__(item)
 
         try:
@@ -1285,3 +1284,7 @@ def module(
         pointers=cls_pointers,
         name=name,
     )
+
+
+MODULE_METHODS = dir(Module)
+
