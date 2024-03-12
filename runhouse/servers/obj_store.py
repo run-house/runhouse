@@ -425,9 +425,9 @@ class ObjStore:
             )
         )
 
-    def get_env_servlet_name_for_key(self, key: Any):
+    def get_env_servlet_name_for_key(self, key: Any, run_async=False):
         return self.call_actor_method(
-            self.cluster_servlet, "get_env_servlet_name_for_key", key
+            self.cluster_servlet, "get_env_servlet_name_for_key", key, run_async=run_async
         )
 
     def _put_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
@@ -1069,8 +1069,9 @@ class ObjStore:
         stream_logs: bool = False,
         remote: bool = False,
         run_async: bool = False,
+        _env_servlet: Optional[Any] = None,
     ):
-        env_servlet_name_containing_key = self.get_env_servlet_name_for_key(key)
+        env_servlet_name_containing_key = _env_servlet or self.get_env_servlet_name_for_key(key)
         if not env_servlet_name_containing_key:
             raise ObjStoreError(
                 f"Key {key} not found in any env, cannot call method {method_name} on it."

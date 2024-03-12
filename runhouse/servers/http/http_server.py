@@ -336,6 +336,8 @@ class HTTPServer:
             )
             # Call async so we can loop to collect logs until the result is ready
 
+            # Do this here so it's async, harder to do async inside the call method
+            env_servlet = await obj_store.get_env_servlet_name_for_key(key, run_async=True)
             fut = asyncio.create_task(
                 obj_store.call(
                     key=key,
@@ -346,6 +348,7 @@ class HTTPServer:
                     run_name=params.run_name,
                     # remote=params.remote,
                     run_async=True,
+                    _env_servlet=env_servlet
                 )
             )
             # If stream_logs is False, we'll wait for the result and return it
