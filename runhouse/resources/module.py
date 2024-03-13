@@ -7,7 +7,7 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Type, Union
+from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 
 from apispec import APISpec
 from pydantic import create_model
@@ -138,10 +138,36 @@ class Module(Resource):
                     module_cls = _module_subclass_factory(
                         module_cls, config.get("pointers")
                     )
-            except ModuleNotFoundError:
-                # If we fail to construct the module class from the pointers, we check if the code is not local,
-                # i.e. the system is elsewhere. If so, we can still use this module from its signature alone.
-                module_cls = Module
+            except (ModuleNotFoundError, ImportError, AttributeError) as e:
+                if (isinstance(e, ModuleNotFoundError) and module_name in str(e)) or (
+                    (isinstance(e, ImportError) and class_name in str(e))
+                    or (isinstance(e, AttributeError) and class_name in str(e))
+                ):
+                    system = config.get("system", None)
+                    env = config.get("env", None)
+                    env_name = (
+                        env
+                        if isinstance(env, str)
+                        else env["name"]
+                        if isinstance(env, Dict)
+                        else "base_env"
+                        if env is not None
+                        else None
+                    )
+                    if (system and _current_cluster == _get_cluster_from(system)) and (
+                        env_name
+                        and obj_store.cluster_servlet
+                        and obj_store.cluster_servlet.name == env_name
+                    ):
+                        # Could not load Module locally from within the system where it lives
+                        raise e
+
+                    # If we fail to construct the module class from the pointers, but system is elsewhere,
+                    # we can still use this module from its signature alone.
+                    module_cls = Module
+                else:
+                    # Other type of module or import error, such as dependency not installed
+                    raise e
 
             # Module created as subclass of rh.Module may not have rh.Module's
             # constructor signature (e.g. system, env, etc.), so assign them manually
@@ -333,6 +359,7 @@ class Module(Resource):
             obj_store.imported_modules[module_name] = importlib.import_module(
                 module_name
             )
+
         return getattr(obj_store.imported_modules[module_name], obj_name)
 
     def _extract_state(self):

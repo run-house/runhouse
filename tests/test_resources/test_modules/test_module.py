@@ -674,6 +674,15 @@ class TestModule:
         # Assert that the spec can be converted to json
         assert json.loads(json.dumps(spec))
 
+    @pytest.mark.level("local")
+    def test_dependency_exception(self, cluster):
+        from .exception_module import ExceptionModule
+
+        with pytest.raises(ModuleNotFoundError) as err:
+            exc_module = ExceptionModule()
+            exc_module.to(cluster)
+        assert "pyarrow" in str(err.value)
+
 
 def test_load_and_use_readonly_module(mod_name, cpu_count, size=3):
     remote_df = rh.module(name=mod_name)
