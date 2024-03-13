@@ -127,13 +127,12 @@ class TestHTTPServerDocker:
         # Create new func on the cluster, then call it
         method_name = "call"
         module_name = remote_func.name
-        args = (1, 2)
-        kwargs = {}
+        data = {"args": [1, 2], "kwargs": {}}
 
         response = http_client.post(
             f"{module_name}/{method_name}",
             json={
-                "data": serialize_data([args, kwargs], "pickle"),
+                "data": serialize_data(data, "pickle"),
                 "stream_logs": True,
                 "serialization": "pickle",
             },
@@ -179,8 +178,7 @@ class TestHTTPServerDocker:
         method_name = "call"
         module_name = remote_log_streaming_func.name
         clus = remote_log_streaming_func.system
-        args = [3]
-        kwargs = {}
+        data = {"args": [3], "kwargs": {}}
 
         if clus.server_connection_type in ["tls", "none"]:
             url = f"{clus.endpoint()}:{clus.client_port}/{module_name}/{method_name}"
@@ -191,7 +189,7 @@ class TestHTTPServerDocker:
             "POST",
             url,
             json={
-                "data": serialize_data([args, kwargs], "pickle"),
+                "data": serialize_data(data, "pickle"),
                 "stream_logs": True,
                 "serialization": "pickle",
             },
@@ -219,7 +217,13 @@ class TestHTTPServerDocker:
 
         response = await async_http_client.post(
             f"/{remote_func.name}/{method}",
-            json={"data": ([1, 2], {}), "serialization": None},
+            json={
+                "data": {
+                    "args": [1, 2],
+                    "kwargs": {},
+                },
+                "serialization": None,
+            },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
         assert response.status_code == 200
@@ -234,7 +238,13 @@ class TestHTTPServerDocker:
 
         response = await async_http_client.post(
             f"/{remote_func.name}/{method}",
-            json={"data": ([1, 2], {}), "serialization": "random"},
+            json={
+                "data": {
+                    "args": [1, 2],
+                    "kwargs": {},
+                },
+                "serialization": "random",
+            },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
         assert response.status_code == 400
@@ -250,7 +260,13 @@ class TestHTTPServerDocker:
         response = await async_http_client.post(
             f"/{remote_func.name}/{method}",
             json={
-                "data": serialize_data(([1, 2], {}), "pickle"),
+                "data": serialize_data(
+                    {
+                        "args": [1, 2],
+                        "kwargs": {},
+                    },
+                    "pickle",
+                ),
                 "serialization": "pickle",
             },
             headers=rns_client.request_headers(remote_func.system.rns_address),
@@ -270,7 +286,15 @@ class TestHTTPServerDocker:
 
         response = await async_http_client.post(
             f"/{remote_func.name}/{method}",
-            json={"data": json.dumps(([1, 2], {})), "serialization": "json"},
+            json={
+                "data": json.dumps(
+                    {
+                        "args": [1, 2],
+                        "kwargs": {},
+                    }
+                ),
+                "serialization": "json",
+            },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
         assert response.status_code == 200
@@ -410,7 +434,7 @@ class TestHTTPServerDockerDenAuthOnly:
         response = http_client.post(
             f"{module_name}/{method_name}",
             json={
-                "data": [args, kwargs],
+                "data": {"args": args, "kwargs": kwargs},
                 "stream_logs": False,
                 "serialization": None,
             },

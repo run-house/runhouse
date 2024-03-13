@@ -200,21 +200,20 @@ class TestHTTPClient:
         )
         mock_post = mocker.patch("requests.Session.post", return_value=mock_response)
 
-        args = [1, 2]
-        kwargs = {"a": 3, "b": 4}
+        data = {"args": [1, 2], "kwargs": {"a": 3, "b": 4}}
         module_name = "module"
         method_name = "install"
 
         self.client.call(
             module_name,
             method_name,
-            data=[args, kwargs],
+            data=data,
             resource_address=self.local_cluster.rns_address,
         )
 
         # Assert that the post request was called with the correct data
         expected_json_data = {
-            "data": serialize_data([args, kwargs], "pickle"),
+            "data": serialize_data(data, "pickle"),
             "serialization": "pickle",
             "run_name": None,
             "stream_logs": True,

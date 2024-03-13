@@ -1082,8 +1082,9 @@ class ObjStore:
         ):
             from runhouse.servers.http.http_utils import deserialize_data
 
-            args, kwargs = (
-                tuple(deserialize_data(data, serialization)) if data else ([], {})
+            deserialized_data = deserialize_data(data, serialization) or {}
+            args, kwargs = deserialized_data.get("args", []), deserialized_data.get(
+                "kwargs", {}
             )
 
             res = self.call_local(
