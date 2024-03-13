@@ -52,7 +52,7 @@ from runhouse.servers.obj_store import (
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+app = FastAPI(docs_url=None, redoc_url=None)
 
 suspend_autostop = False
 

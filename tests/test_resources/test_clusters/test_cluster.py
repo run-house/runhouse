@@ -155,12 +155,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # Try to curl docs
         verify = cluster.client.verify
         r = requests.get(
-            f"{endpoint}/docs",
+            f"{endpoint}/status",
             verify=verify,
             headers=rh.globals.rns_client.request_headers(),
         )
         assert r.status_code == 200
-        assert "FastAPI" in r.text
+        assert r.json()["resource_subtype"] == "Cluster"
 
     @pytest.mark.level("local")
     def test_cluster_objects(self, cluster):
