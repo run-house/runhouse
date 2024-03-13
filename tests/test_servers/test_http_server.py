@@ -152,6 +152,28 @@ class TestHTTPServerDocker:
             assert deserialize_data(resp_obj["data"], resp_obj["serialization"]) == 3
 
     @pytest.mark.level("local")
+    def test_call_module_method_get_call(self, http_client, remote_func):
+        method_name = "call"
+        module_name = remote_func.name
+
+        response = http_client.get(
+            f"{module_name}/{method_name}",
+            params={
+                "a": 1,
+                "b": 2,
+            },
+            headers=rns_client.request_headers(remote_func.system.rns_address),
+        )
+        assert response.status_code == 200
+
+        resp_obj: dict = response.json()
+
+        assert resp_obj["output_type"] == "result_serialized"
+
+        # Right now everything via a GET request is serialized as strings
+        assert deserialize_data(resp_obj["data"], resp_obj["serialization"]) == "12"
+
+    @pytest.mark.level("local")
     def test_log_streaming_call(self, http_client, remote_log_streaming_func):
         # Create new func on the cluster, then call it
         method_name = "call"
