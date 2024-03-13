@@ -80,7 +80,7 @@ class Module(Resource):
         self._endpoint = endpoint
         self._signature = signature
         self._resolve = False
-        self.openapi_spec = None
+        self._openapi_spec = None
 
     def config(self, condensed=True):
         if not self.system:
@@ -114,8 +114,8 @@ class Module(Resource):
         # Only save the endpoint if it's present in _endpoint or externally accessible
         config["endpoint"] = self.endpoint(external=True)
 
-        if self.openapi_spec:
-            config["openapi_spec"] = self.openapi_spec
+        if self._openapi_spec:
+            config["openapi_spec"] = self._openapi_spec
 
         return config
 
@@ -160,7 +160,7 @@ class Module(Resource):
             new_module._signature = config.pop("signature", None)
             new_module.dryrun = config.pop("dryrun", False)
             new_module.provenance = config.pop("provenance", None)
-            new_module.openapi_spec = config.pop("openapi_spec", None)
+            new_module._openapi_spec = config.pop("openapi_spec", None)
             return new_module
 
         if config.get("resource_subtype", None) == "module":
@@ -829,7 +829,9 @@ class Module(Resource):
         """Register the resource and save to local working_dir config and RNS config store."""
         # Need to override Resource's save to handle key changes in the obj store
         # Also check that this is a Blob and not a File
-        self.openapi_spec = self.generate_openapi_spec()
+
+        # Make sure to generate the openapi spec before saving
+        _ = self.openapi_spec()
 
         old_rns_address = self.rns_address
         if name:
@@ -957,7 +959,7 @@ class Module(Resource):
 
         return remote_import_path, module_name, cls_or_fn_name
 
-    def generate_openapi_spec(self, spec_name: Optional[str] = None):
+    def openapi_spec(self, spec_name: Optional[str] = None):
         """Generate an OpenAPI spec for the module.
 
         TODO: This breaks if the module has type annotations that are classes, and not standard library or
@@ -970,6 +972,8 @@ class Module(Resource):
         marked as required?
 
         """
+        if self._openapi_spec is not None:
+            return self._openapi_spec
 
         spec_name = spec_name or self.name
 
@@ -981,7 +985,7 @@ class Module(Resource):
         spec = APISpec(
             title=spec_name,
             version="1.0.0",
-            openapi_version="3.1.0",
+            openapi_version="3.0.0",
             plugins=[],
         )
 
@@ -995,7 +999,7 @@ class Module(Resource):
                 continue
 
             spec.path(
-                path=f"/post_call/{spec_name}/{method_name}",
+                path=f"/{spec_name}/{method_name}",
                 operations={
                     "post": {
                         "summary": method.__doc__.strip().split("\n")[0]
@@ -1053,9 +1057,11 @@ class Module(Resource):
                 },
                 "required": ["kwargs"],
             }
+            request_body_schema["title"] = f"{method_name} Params"
             spec.components.schema(f"{method_name}_body_schema", request_body_schema)
 
-        return spec.to_dict()
+        self._openapi_spec = spec.to_dict()
+        return self._openapi_spec
 
     # Found in python decorator logic, maybe use
     # func_name = getattr(f, '__qualname__', f.__name__)
