@@ -30,7 +30,7 @@ class ServerSettings(BaseModel):
 
 class CallParams(BaseModel):
     data: Any = None
-    serialization: Optional[str] = "json"
+    serialization: Optional[str] = "none"
     run_name: Optional[str] = None
     stream_logs: Optional[bool] = False
     save: Optional[bool] = False
