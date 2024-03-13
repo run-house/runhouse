@@ -120,14 +120,19 @@ class TestMapper:
         # Test that calls are non-blocking, and sending the mapper to the cluster
         sleep_fn = rh.function(sleep_and_return).to(cluster)
         sleep_mapper = rh.mapper(sleep_fn).to(cluster)
-        sleep_mapper.add_replicas(2)
+        sleep_mapper.add_replicas(5)
         start_end_times = sleep_mapper.map([1] * 5)
         assert len(start_end_times) == 5
         assert all(isinstance(t, tuple) and len(t) == 2 for t in start_end_times)
         # Ensure that the calls are non-blocking by checking that each end time
         # is greater than the start time before it
         for i in range(1, len(start_end_times)):
-            assert start_end_times[i][0] < start_end_times[i][1]
+            # Assert this one started before the last one ended
+            assert start_end_times[i][0] < start_end_times[i - 1][1]
+
+        last_end_time = max([end for (_, end) in start_end_times])
+        earliest_start_time = min([start for (start, _) in start_end_times])
+        assert last_end_time - earliest_start_time < 2
 
     @pytest.mark.level("release")
     def test_multinode_map(self, multinode_cpu_cluster):
@@ -155,7 +160,12 @@ class TestMapper:
         # Ensure that the calls are non-blocking by checking that each end time
         # is greater than the start time before it
         for i in range(1, len(start_end_times)):
-            assert start_end_times[i][0] < start_end_times[i][1]
+            # Assert this one started before the last one ended
+            assert start_end_times[i][0] < start_end_times[i - 1][1]
+
+        last_end_time = max([end for (_, end) in start_end_times])
+        earliest_start_time = min([start for (start, _) in start_end_times])
+        assert last_end_time - earliest_start_time < 2
 
     @pytest.mark.skip
     @pytest.mark.level("local")
