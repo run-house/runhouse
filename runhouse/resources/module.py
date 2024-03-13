@@ -372,11 +372,14 @@ class Module(Resource):
             return self
 
         if system == "here":
-            current_cluster_config = _current_cluster(key="config")
-            if current_cluster_config:
-                system = Cluster.from_config(current_cluster_config)
-            else:
-                system = None
+            from runhouse import here
+
+            system = here
+
+        if system == "file":
+            raise ValueError(
+                f"Need an initialized local server in order to put {self} onto `rh.here`."
+            )
 
         system = (
             _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
