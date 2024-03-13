@@ -317,6 +317,9 @@ class HTTPServer:
         method_name: Optional[str] = None,
         params: CallParams = Body(default=None),
     ):
+        # Allow an empty body
+        params = params or CallParams()
+
         try:
             params.run_name = params.run_name or _generate_default_name(
                 prefix=key if method_name == "__call__" else f"{key}_{method_name}",
