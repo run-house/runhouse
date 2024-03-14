@@ -665,7 +665,7 @@ class TestModule:
 
         # Normally we'd send the calculator to a system, save it, and then call this
         # But for testing purposes we can just pass in a name so this can run as a unit test
-        spec = remote_calc.generate_openapi_spec(spec_name="CalculatorAPI")
+        spec = remote_calc.openapi_spec(spec_name="CalculatorAPI")
 
         # This automatically validates the spec
         openapi = OpenAPI.from_dict(spec)
