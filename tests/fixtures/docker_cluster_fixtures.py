@@ -294,7 +294,7 @@ def set_up_local_cluster(
 
 
 @pytest.fixture(scope="session")
-def docker_cluster_pk_tls_exposed(request):
+def docker_cluster_pk_tls_exposed(request, test_rns_folder):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - Caddy set up on startup to forward Runhouse HTTP server to port 443
@@ -326,7 +326,7 @@ def docker_cluster_pk_tls_exposed(request):
         ],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": "docker_cluster_pk_tls_exposed",
+            "name": f"{test_rns_folder}_docker_cluster_pk_tls_exposed",
             "server_connection_type": "tls",
             "server_port": DEFAULT_HTTPS_PORT,
             "client_port": local_client_port,
@@ -344,7 +344,7 @@ def docker_cluster_pk_tls_exposed(request):
 
 
 @pytest.fixture(scope="session")
-def docker_cluster_pk_ssh(request):
+def docker_cluster_pk_ssh(request, test_rns_folder):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - Nginx set up on startup to forward Runhouse HTTP server to port 443
@@ -372,7 +372,7 @@ def docker_cluster_pk_ssh(request):
         port_fwds=[f"{local_ssh_port}:{DEFAULT_SSH_PORT}"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": "docker_cluster_pk_ssh",
+            "name": f"{test_rns_folder}_docker_cluster_pk_ssh",
             "server_connection_type": "ssh",
             "use_local_telemetry": True,
         },
@@ -427,7 +427,7 @@ def docker_cluster_pk_ssh_no_auth(
 
 
 @pytest.fixture(scope="session")
-def docker_cluster_pk_http_exposed(request):
+def docker_cluster_pk_http_exposed(request, test_rns_folder):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - Den auth disabled (to mimic VPC)
@@ -460,7 +460,7 @@ def docker_cluster_pk_http_exposed(request):
         ],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": "docker_cluster_with_caddy",
+            "name": f"{test_rns_folder}_docker_cluster_with_caddy",
             "server_connection_type": "none",
             "server_port": DEFAULT_HTTP_PORT,
             "client_port": local_client_port,
@@ -477,7 +477,7 @@ def docker_cluster_pk_http_exposed(request):
 
 
 @pytest.fixture(scope="session")
-def docker_cluster_pwd_ssh_no_auth(request):
+def docker_cluster_pwd_ssh_no_auth(request, test_rns_folder):
     """This basic cluster fixture is set up with:
     - Password authentication
     - No Den Auth
@@ -505,7 +505,7 @@ def docker_cluster_pwd_ssh_no_auth(request):
         port_fwds=[f"{local_ssh_port}:{DEFAULT_SSH_PORT}"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": "docker_cluster_pwd_ssh_no_auth",
+            "name": f"{test_rns_folder}_docker_cluster_pwd_ssh_no_auth",
             "server_connection_type": "ssh",
             "ssh_creds": {"ssh_user": SSH_USER, "password": pwd},
         },
@@ -519,7 +519,7 @@ def docker_cluster_pwd_ssh_no_auth(request):
 
 
 @pytest.fixture(scope="session")
-def friend_account_logged_in_docker_cluster_pk_ssh(request):
+def friend_account_logged_in_docker_cluster_pk_ssh(request, test_rns_folder):
     """
     This fixture is not parameterized for every test; it is a separate cluster started with a test account
     (username: kitchen_tester) in order to test sharing resources with other users.
@@ -545,7 +545,7 @@ def friend_account_logged_in_docker_cluster_pk_ssh(request):
             port_fwds=[f"{local_ssh_port}:{DEFAULT_SSH_PORT}"],
             local_ssh_port=local_ssh_port,
             additional_cluster_init_args={
-                "name": "friend_account_logged_in_docker_cluster_pk_ssh",
+                "name": f"{test_rns_folder}_friend_account_logged_in_docker_cluster_pk_ssh",
                 "server_connection_type": "ssh",
                 "den_auth": "den_auth" in request.keywords,
             },
