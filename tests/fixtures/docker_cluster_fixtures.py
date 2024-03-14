@@ -35,7 +35,7 @@ def cluster(request):
 
 @pytest.fixture(scope="session")
 def named_cluster():
-    from tests.test_resources.test_secrets.conftest import provider_secret_values
+    from tests.fixtures.secret_fixtures import provider_secret_values
 
     # Name cannot be the only arg or we attempt to load from name, and throw an error when it's not found
     args = dict(

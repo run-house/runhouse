@@ -78,7 +78,7 @@ def remote_log_streaming_func(cluster):
 
 @pytest.fixture(scope="session")
 def local_cluster():
-    from tests.test_resources.test_secrets.conftest import provider_secret_values
+    from tests.fixtures.secret_fixtures import provider_secret_values
 
     # Save to validate cluster access for HTTP requests
     return rh.cluster(
