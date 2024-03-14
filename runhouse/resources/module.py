@@ -492,7 +492,7 @@ class Module(Resource):
                     run_name=kwargs.pop("run_name", None),
                     stream_logs=kwargs.pop("stream_logs", True),
                     remote=kwargs.pop("remote", False),
-                    data=[args, kwargs],
+                    data={"args": args, "kwargs": kwargs},
                 )
 
             def remote(self, *args, stream_logs=True, run_name=None, **kwargs):
@@ -606,7 +606,7 @@ class Module(Resource):
                 return client.call(
                     key=name,
                     method_name=key,
-                    data=[[value], {}],
+                    data={"args": [value], "kwargs": {}},
                 )
 
             @classmethod
@@ -668,7 +668,9 @@ class Module(Resource):
         else:
             if not client or not name:
                 return self.resolved_state(**kwargs)
-            return client.call(name, "resolved_state", data=[(), kwargs])
+            return client.call(
+                name, "resolved_state", data={"args": [], "kwargs": kwargs}
+            )
 
     async def fetch_async(
         self, key: str, remote: bool = False, stream_logs: bool = False
@@ -733,7 +735,7 @@ class Module(Resource):
             return self._client().call(
                 key=self._name,
                 method_name=key,
-                data=([value], {}),
+                data={"args": [value], "kwargs": {}},
                 stream_logs=False,
             )
 

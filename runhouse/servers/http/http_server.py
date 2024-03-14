@@ -413,7 +413,11 @@ class HTTPServer:
                 if k in call_params_dict:
                     del query_params_remaining[k]
 
-            params.data = serialize_data([[], query_params_remaining], serialization)
+            data = {
+                "args": [],
+                "kwargs": query_params_remaining,
+            }
+            params.data = serialize_data(data, serialization)
 
             logger.info(f"GET call with params: {dict(params)}")
             return await HTTPServer._call(key, method_name, params)

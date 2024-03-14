@@ -114,7 +114,11 @@ class EnvServlet:
         remote: bool = False,
         ctx: Optional[dict] = None,
     ):
-        args, kwargs = tuple(data) if data else ([], {})
+        if data is not None:
+            args, kwargs = data.get("args", []), data.get("kwargs", {})
+        else:
+            args, kwargs = [], {}
+
         return obj_store.call_local(
             key,
             method_name,

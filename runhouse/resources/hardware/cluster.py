@@ -828,7 +828,7 @@ class Cluster(Resource):
             return obj_store.call(
                 module_name,
                 method_name,
-                data=(args, kwargs),
+                data={"args": args, "kwargs": kwargs},
                 stream_logs=stream_logs,
                 run_name=run_name,
                 # remote=remote,
@@ -840,7 +840,7 @@ class Cluster(Resource):
             method_name,
             resource_address=self.rns_address,
             stream_logs=stream_logs,
-            data=[args, kwargs],
+            data={"args": args, "kwargs": kwargs},
             run_name=run_name,
             remote=remote,
             run_async=run_async,
