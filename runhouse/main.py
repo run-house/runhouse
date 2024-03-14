@@ -6,6 +6,8 @@ import webbrowser
 from pathlib import Path
 from typing import List, Optional
 
+import ray
+
 import requests
 
 import typer
@@ -26,8 +28,10 @@ from runhouse.constants import (
     START_SCREEN_CMD,
 )
 from runhouse.globals import obj_store, rns_client
-from runhouse.resources.hardware.ray_utils import check_for_existing_ray_instance
-
+from runhouse.resources.hardware.ray_utils import (
+    check_for_existing_ray_instance,
+    kill_actors,
+)
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -547,10 +551,25 @@ def restart(
 
 
 @app.command()
-def stop(stop_ray: bool = typer.Option(False, help="Stop the Ray runtime")):
+def stop(
+    stop_ray: bool = typer.Option(False, help="Stop the Ray runtime"),
+    cleanup_actors: bool = typer.Option(True, help="Kill all Ray actors"),
+):
+    logger.info("Stopping the server.")
     subprocess.run(SERVER_STOP_CMD, shell=True)
 
+    if cleanup_actors:
+        ray.init(
+            address="auto",
+            ignore_reinit_error=True,
+            logging_level=logging.ERROR,
+            namespace="runhouse",
+        )
+
+        kill_actors(namespace="runhouse", gracefully=False)
+
     if stop_ray:
+        logger.info("Stopping Ray.")
         subprocess.run(RAY_KILL_CMD, shell=True)
 
 
