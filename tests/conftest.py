@@ -222,6 +222,16 @@ from tests.fixtures.on_demand_cluster_fixtures import (
     v100_gpu_cluster,  # noqa: F401
 )
 
+from tests.fixtures.resource_fixtures import (
+    local_named_resource,  # noqa: F401
+    named_resource,  # noqa: F401
+    resource,  # noqa: F401
+    saved_resource,  # noqa: F401
+    saved_resource_pool,  # noqa: F401
+    test_rns_folder,  # noqa: F401
+    unnamed_resource,  # noqa: F401
+)
+
 from tests.fixtures.static_cluster_fixtures import (
     password_cluster,  # noqa: F401
     static_cpu_cluster,  # noqa: F401
