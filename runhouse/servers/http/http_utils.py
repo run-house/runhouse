@@ -73,8 +73,6 @@ class Args(BaseModel):
 
 class Response(BaseModel):
     data: Any = None
-    error: Optional[str] = None
-    traceback: Optional[str] = None
     output_type: str
     serialization: Optional[str] = None
 
@@ -163,10 +161,14 @@ def handle_exception_response(
         # handled by FastAPI's exception handling and returned to the user with the correct status code
         raise exception
 
+    exception_data = {
+        "error": exception,
+        "traceback": traceback,
+    }
+
     return Response(
         output_type=OutputType.EXCEPTION,
-        error=serialize_data(exception, serialization=serialization),
-        traceback=serialize_data(traceback, serialization=serialization),
+        data=serialize_data(exception_data, serialization),
         serialization=serialization,
     )
 
@@ -225,12 +227,11 @@ def handle_response(
     elif output_type == OutputType.SUCCESS:
         return
     elif output_type == OutputType.EXCEPTION:
-        fn_exception = deserialize_data(
-            response_data["error"], response_data["serialization"]
+        exception_data = deserialize_data(
+            response_data["data"], response_data["serialization"]
         )
-        fn_traceback = deserialize_data(
-            response_data["traceback"], response_data["serialization"]
-        )
+        fn_exception = exception_data["error"]
+        fn_traceback = exception_data["traceback"]
         if not (
             isinstance(fn_exception, StopIteration)
             or isinstance(fn_exception, GeneratorExit)
