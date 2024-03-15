@@ -267,10 +267,13 @@ class HTTPServer:
 
         except Exception as e:
             logger.exception(e)
+            exception_data = {
+                "error": e,
+                "traceback": traceback.format_exc(),
+            }
             return Response(
                 output_type=OutputType.EXCEPTION,
-                error=serialize_data(e, serialization),
-                traceback=serialize_data(traceback.format_exc(), serialization),
+                data=serialize_data(exception_data, serialization),
                 serialization=serialization,
             )
 
@@ -292,10 +295,13 @@ class HTTPServer:
             return {"rh_version": runhouse.__version__}
         except Exception as e:
             logger.exception(e)
+            exception_data = {
+                "error": e,
+                "traceback": traceback.format_exc(),
+            }
             return Response(
                 output_type=OutputType.EXCEPTION,
-                error=serialize_data(e, serialization),
-                traceback=serialize_data(traceback.format_exc(), serialization),
+                data=serialize_data(exception_data, serialization),
                 serialization=serialization,
             )
 
@@ -464,12 +470,13 @@ class HTTPServer:
             return await HTTPServer._call(key, method_name, params)
         except Exception as e:
             logger.exception(e)
+            exception_data = {
+                "error": e,
+                "traceback": traceback.format_exc(),
+            }
             return Response(
                 output_type=OutputType.EXCEPTION,
-                error=serialize_data(e, serialization=serialization),
-                traceback=serialize_data(
-                    traceback.format_exc(), serialization=serialization
-                ),
+                data=serialize_data(exception_data, serialization),
                 serialization=serialization,
             )
 
@@ -545,14 +552,15 @@ class HTTPServer:
             # client the exception will be serialized and returned to appear as a native python exception, and if
             # working through an HTTP call stream_logs is False by default, so a normal HTTPException will be raised
             # above before entering this generator.
+            exception_data = {
+                "error": e,
+                "traceback": traceback.format_exc(),
+            }
             yield json.dumps(
                 jsonable_encoder(
                     Response(
                         output_type=OutputType.EXCEPTION,
-                        error=serialize_data(e, serialization=serialization),
-                        traceback=serialize_data(
-                            traceback.format_exc(), serialization=serialization
-                        ),
+                        data=serialize_data(exception_data, serialization),
                         serialization=serialization,
                     )
                 )
