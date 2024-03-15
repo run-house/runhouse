@@ -19,7 +19,7 @@ from runhouse.servers.http.http_utils import (
 class TestHTTPClient:
     @pytest.fixture(autouse=True)
     def init_fixtures(self):
-        from tests.test_resources.test_secrets.conftest import provider_secret_values
+        from tests.fixtures.secret_fixtures import provider_secret_values
 
         args = dict(
             name="local-cluster",

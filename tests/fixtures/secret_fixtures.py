@@ -27,8 +27,8 @@ provider_secret_values = {
 providers = provider_secret_values.keys()
 
 
-def _provider_secret(provider):
-    name = f"_test_{provider}"
+def _provider_secret(provider, test_rns_folder):
+    name = f"{test_rns_folder}_test_{provider}"
     values = provider_secret_values[provider]
 
     args = {"name": name, "provider": provider, "values": values}
@@ -45,83 +45,83 @@ def secret(request):
 
 
 @pytest.fixture(scope="function")
-def test_secret():
-    args = {"name": "custom_secret", "values": base_secret_values}
+def test_secret(test_rns_folder):
+    args = {"name": f"{test_rns_folder}-custom_secret", "values": base_secret_values}
     custom_secret = rh.secret(**args)
     init_args[id(custom_secret)] = args
     return custom_secret
 
 
 @pytest.fixture(scope="function")
-def aws_secret():
-    return _provider_secret("aws")
+def aws_secret(test_rns_folder):
+    return _provider_secret("aws", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def azure_secret():
-    return _provider_secret("azure")
+def azure_secret(test_rns_folder):
+    return _provider_secret("azure", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def gcp_secret():
-    return _provider_secret("gcp")
+def gcp_secret(test_rns_folder):
+    return _provider_secret("gcp", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def lambda_secret():
-    return _provider_secret("lambda")
+def lambda_secret(test_rns_folder):
+    return _provider_secret("lambda", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def github_secret():
-    return _provider_secret("github")
+def github_secret(test_rns_folder):
+    return _provider_secret("github", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def huggingface_secret():
-    return _provider_secret("huggingface")
+def huggingface_secret(test_rns_folder):
+    return _provider_secret("huggingface", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def ssh_secret():
-    return _provider_secret("ssh")
+def ssh_secret(test_rns_folder):
+    return _provider_secret("ssh", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def sky_secret():
-    return _provider_secret("sky")
+def sky_secret(test_rns_folder):
+    return _provider_secret("sky", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def anthropic_secret():
-    return _provider_secret("anthropic")
+def anthropic_secret(test_rns_folder):
+    return _provider_secret("anthropic", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def cohere_secret():
-    return _provider_secret("cohere")
+def cohere_secret(test_rns_folder):
+    return _provider_secret("cohere", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def langchain_secret():
-    return _provider_secret("langchain")
+def langchain_secret(test_rns_folder):
+    return _provider_secret("langchain", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def openai_secret():
-    return _provider_secret("openai")
+def openai_secret(test_rns_folder):
+    return _provider_secret("openai", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def pinecone_secret():
-    return _provider_secret("pinecone")
+def pinecone_secret(test_rns_folder):
+    return _provider_secret("pinecone", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def wandb_secret():
-    return _provider_secret("wandb")
+def wandb_secret(test_rns_folder):
+    return _provider_secret("wandb", test_rns_folder)
 
 
 @pytest.fixture(scope="function")
-def custom_provider_secret():
-    return _provider_secret("custom_provider")
+def custom_provider_secret(test_rns_folder):
+    return _provider_secret("custom_provider", test_rns_folder)
