@@ -133,9 +133,7 @@ class CondaEnv(Env):
                 pkg._install(self)
 
         return (
-            self.run([f"{self._activate_cmd} && {self.setup_cmds.join(' && ')}"])
-            if self.setup_cmds
-            else None
+            self.run([f"{self.setup_cmds.join(' && ')}"]) if self.setup_cmds else None
         )
 
     @property

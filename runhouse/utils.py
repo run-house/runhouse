@@ -18,12 +18,18 @@ def run_with_logs(cmd: Union[List[str], str], **kwargs) -> int:
     """
     if isinstance(cmd, str) and not kwargs.get("shell", False):
         cmd = shlex.split(cmd)
+    capture_output = kwargs.pop("capture_output", False)
+
     logging.info(f"Running command: {cmd} with kwargs: {kwargs}")
-    p = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs
-    )
-    for line in p.stdout:
-        print(line.decode("utf-8").strip())
+    if capture_output:
+        p = subprocess.Popen(cmd, **kwargs)
+    else:
+        p = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs
+        )
+        for line in p.stdout:
+            print(line.decode("utf-8").strip())
+
     return p.wait()
 
 

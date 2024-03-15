@@ -317,8 +317,11 @@ class SageMakerCluster(Cluster):
         """Prefix for commands run on the cluster. Ensure we are running all commands in the conda environment
         and not the system default python."""
         # TODO [JL] Can SageMaker handle this for us?
-        cmd = super()._get_env_activate_cmd(env)
-        return cmd or "source /opt/conda/bin/activate"
+        if env:
+            from runhouse.resources.envs import _get_env_from
+
+            return _get_env_from(env)._activate_cmd
+        return "source /opt/conda/bin/activate"
 
     def _set_boto_session(self, profile_name: str = None):
         self._boto_session = boto3.Session(
@@ -636,13 +639,13 @@ class SageMakerCluster(Cluster):
     def _run_commands_with_ssh(
         self,
         commands: list,
-        cmd_prefix: str,
         stream_logs: bool,
         node: str = None,
         port_forward: int = None,
         require_outputs: bool = True,
     ):
         return_codes = []
+        cmd_prefix = self._get_env_activate_cmd(env=None)
         for command in commands:
             if command.startswith("rsync"):
                 try:

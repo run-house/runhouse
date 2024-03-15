@@ -162,20 +162,36 @@ class Env(Resource):
             pkg._install(self)
         return self.run(self.setup_cmds) if self.setup_cmds else None
 
-    def run(self, cmds: Union[List[str], str]):
-        """Run command locally inside the environment"""
-        ret_codes = []
+    def _run_cmds(
+        self,
+        cmds: List[str],
+        **kwargs,
+    ):
+        return_codes = []
         for cmd in cmds:
-            if self._run_cmd:
-                cmd = f"{self._run_cmd} {cmd}"
-            logging.info(f"Running: {cmd}")
-            use_shell = any(shell_feat in cmd for shell_feat in [">", "|", "&&", "||"])
-            if use_shell:
-                # Example: "echo '<TOKEN>' > ~/.rh/config.yaml"
-                retcode = run_with_logs(cmd, shell=True)
-            else:
-                retcode = run_with_logs(cmd, shell=False)
-            ret_codes.append(retcode)
+            logger.info(f"Running: {cmd} in {self.name}")
+            use_shell = any(
+                shell_feat in cmd for shell_feat in [">", "|", "&&", "||", "$"]
+            )
+            retcode = run_with_logs(cmd, shell=use_shell, **kwargs)
+            return_codes.append(retcode)
+        return return_codes
+
+    def run(
+        self,
+        cmds: Union[List[str], str],
+        system: Cluster = None,
+        **kwargs,
+    ):
+        """Run command locally inside the environment"""
+        # TODO: move this logic into cluster.run()
+        if not system or system.on_this_cluster():
+            return self._run_cmds(cmds, **kwargs)
+
+        if not system.get(self.name):
+            self.to(system)
+        ret_codes = system.call(self.name, "_run_cmds", cmds, **kwargs)
+
         return ret_codes
 
     def to(
