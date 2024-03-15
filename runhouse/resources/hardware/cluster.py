@@ -212,7 +212,7 @@ class Cluster(Resource):
         the internal url (including the local connected port rather than the sever port). If cluster is not up,
         returns None.
         """
-        if not self.is_up():
+        if not self.is_up(refresh=None):
             return None
 
         if self.server_connection_type in [
@@ -278,7 +278,7 @@ class Cluster(Resource):
 
         return f"{self._creds.name}/" in ssh_creds.get("ssh_private_key", "")
 
-    def is_up(self) -> bool:
+    def is_up(self, refresh=None) -> bool:
         """Check if the cluster is up.
 
         Example:
@@ -560,14 +560,7 @@ class Cluster(Resource):
         # For OnDemandCluster, this initial check doesn't trigger a sky.status, which is slow.
         # If cluster simply doesn't have an address we likely need to up it.
         if not self.address and not self.is_up():
-            if not hasattr(self, "up"):
-                raise ValueError(
-                    "Cluster must have a host address (i.e. be up) or have a reup_cluster method "
-                    "(e.g. OnDemandCluster)."
-                )
-            # If this is a OnDemandCluster, before we up the cluster, run a sky.status to see if the cluster
-            # is already up but doesn't have an address assigned yet.
-            self.up_if_not()
+            raise ValueError("Could not determine that the cluster is up.")
 
         if not self.client:
             try:
@@ -581,10 +574,8 @@ class Cluster(Resource):
                 requests.exceptions.ReadTimeout,
                 requests.exceptions.ChunkedEncodingError,
             ):
-                # It's possible that the cluster went down while we were trying to install packages.
-                if not self.is_up():
-                    logger.info(f"Server {self.name} is down.")
-                    self.up_if_not()
+                if not self.is_up(refresh=None):
+                    raise ValueError(f"Cluster {self.name} is down.")
                 elif restart_server:
                     logger.info(
                         f"Server {self.name} is up, but the Runhouse API server may not be up."

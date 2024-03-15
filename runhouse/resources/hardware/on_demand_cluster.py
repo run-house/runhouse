@@ -97,10 +97,13 @@ class OnDemandCluster(Cluster):
             "stable_internal_external_ips", None
         )
 
+        self._last_refresh = None
+
         # Checks if state info is in local sky db, populates if so.
         if not dryrun and not self.ips and not self.creds_values:
             # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
             self._update_from_sky_status(dryrun=False)
+            self._last_refresh = time.time()
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
@@ -217,7 +220,7 @@ class OnDemandCluster(Cluster):
 
     # ----------------- Launch/Lifecycle Methods -----------------
 
-    def is_up(self) -> bool:
+    def is_up(self, refresh=True) -> bool:
         """Whether the cluster is up.
 
         Example:
@@ -225,7 +228,16 @@ class OnDemandCluster(Cluster):
         """
         if self.on_this_cluster():
             return True
-        self._update_from_sky_status(dryrun=False)
+
+        if refresh is None:
+            if not self._last_refresh or not self.address:
+                refresh = True
+            elif self.autostop_mins < 0:
+                refresh = False
+            else:
+                refresh = time.time() - self._last_refresh > (self.autostop_mins * 60)
+
+        self._update_from_sky_status(dryrun=not refresh)
         return self.address is not None
 
     def _sky_status(self, refresh: bool = True, retry: bool = True):
@@ -259,6 +271,7 @@ class OnDemandCluster(Cluster):
 
         try:
             state = sky.status(cluster_names=[self.name], refresh=refresh)
+            self._last_refresh = time.time()
         except rich.errors.LiveError as e:
             # We can't have more than one Live display at once, so if we've already launched one (e.g. the first
             # time we call status), we can retry without refreshing
@@ -436,6 +449,7 @@ class OnDemandCluster(Cluster):
         # Stream logs
         sky.down(self.name)
         self.address = None
+        self._last_refresh = None
 
     def teardown_and_delete(self):
         """Teardown cluster and delete it from configs.
