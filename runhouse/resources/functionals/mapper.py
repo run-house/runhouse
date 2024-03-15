@@ -121,7 +121,7 @@ class Mapper(Module):
 
         retry_list = []
 
-        def call_method_on_replica(job):
+        def call_method_on_replica(job, retry=True):
             replica, method_name, context, argies, kwargies = job
             # reset context
             for var, value in context.items():
@@ -131,7 +131,10 @@ class Mapper(Module):
                 return getattr(replica, method_name)(*argies, **kwargies)
             except Exception as e:
                 logger.error(f"Error running {method_name} on {replica.name}: {e}")
-                retry_list.append(job)
+                if retry:
+                    retry_list.append(job)
+                else:
+                    return e
 
         context = contextvars.copy_context()
         jobs = [
@@ -148,7 +151,10 @@ class Mapper(Module):
         results = []
         max_threads = round(self.concurrency * self.num_replicas)
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
-            futs = [executor.submit(call_method_on_replica, job) for job in jobs]
+            futs = [
+                executor.submit(call_method_on_replica, job, retries > 0)
+                for job in jobs
+            ]
             for fut in tqdm(concurrent.futures.as_completed(futs), total=len(jobs)):
                 results.extend([fut.result()])
             for i in range(retries):
@@ -156,10 +162,12 @@ class Mapper(Module):
                     break
                 logger.info(f"Retry {i}: {len(retry_list)} failed jobs")
                 jobs, retry_list = retry_list, []
+                retry = i != retries - 1
                 results.append(
                     list(
                         tqdm(
-                            executor.map(call_method_on_replica, jobs), total=len(jobs)
+                            executor.map(call_method_on_replica, jobs, retry),
+                            total=len(jobs),
                         )
                     )
                 )

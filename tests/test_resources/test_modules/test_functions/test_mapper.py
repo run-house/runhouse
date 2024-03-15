@@ -62,6 +62,10 @@ def sleep_and_return(secs):
     return start, time.time()
 
 
+def throw_exception(a):
+    raise Exception("mapper exception")
+
+
 class TestMapper:
 
     """Testing strategy:
@@ -192,3 +196,10 @@ class TestMapper:
         alist, blist = range(5), range(4, 9)
         res = re_fn.map(alist, blist)
         assert res == [4, 6, 8, 10, 12]
+
+    @pytest.mark.level("local")
+    def test_throws_exception(self, cluster):
+        remote_exception = rh.function(throw_exception).to(system=cluster)
+        mapper = rh.mapper(remote_exception, replicas=2)
+        results = mapper.map([None, None])
+        assert [isinstance(res, Exception) for res in results]
