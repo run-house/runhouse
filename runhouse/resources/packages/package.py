@@ -112,6 +112,7 @@ class Package(Resource):
                         f"pip installing requirements from {reqs_path} with: {install_cmd}"
                     )
                     self._pip_install(install_cmd)
+
                 else:
                     # handling the fact that a package do not have requirements.txt file, e.g langchain
                     try:
