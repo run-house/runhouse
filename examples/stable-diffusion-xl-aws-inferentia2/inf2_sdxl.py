@@ -20,8 +20,8 @@
 # $ pip install -r requirements.txt
 # ```
 #
-# We'll be launching an AWS EC2 instance via SkyPilot, so we need to make sure our AWS credentials are set up
-# with SkyPilot:
+# We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
+# make sure our AWS credentials are set up:
 # ```shell
 # $ aws configure
 # $ sky check
