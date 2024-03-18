@@ -13,7 +13,7 @@
 # ```
 #
 # We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to make
-# sure our AWS credentials are set up with SkyPilot:
+# sure our AWS credentials are set up:
 # ```shell
 # $ aws configure
 # $ sky check
