@@ -1,2 +1,2 @@
 openai
-runhouse[sky]
+runhouse[aws]
