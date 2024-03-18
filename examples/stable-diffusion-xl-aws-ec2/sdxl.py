@@ -142,7 +142,7 @@ if __name__ == "__main__":
         ],
         secrets=["huggingface"],  # Needed to download Llama2
         env_vars={"NEURON_RT_NUM_CORES": "2"},
-    ).to(cluster)
+    )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
