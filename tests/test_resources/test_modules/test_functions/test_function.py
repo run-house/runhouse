@@ -11,9 +11,11 @@ from runhouse.globals import rns_client
 
 from tests.utils import friend_account
 
-REMOTE_FUNC_NAME = "@/remote_function"
-
 logger = logging.getLogger(__name__)
+
+
+def get_remote_func_name(test_folder):
+    return f"@/{test_folder}/remote_function"
 
 
 def call_function(fn, **kwargs):
@@ -96,20 +98,21 @@ class TestFunction:
         assert rh.exists(local_name) is False
 
     @pytest.mark.level("local")
-    def test_create_function_from_rns(self, cluster):
+    def test_create_function_from_rns(self, cluster, test_rns_folder):
+        remote_func_name = get_remote_func_name(test_rns_folder)
         if cluster.on_this_cluster():
             pytest.mark.skip("Function on local cluster cannot be loaded from RNS.")
 
-        remote_sum = rh.function(summer).to(cluster).save(REMOTE_FUNC_NAME)
+        remote_sum = rh.function(summer).to(cluster).save(remote_func_name)
         del remote_sum
 
         # reload the function
-        remote_sum = rh.function(name=REMOTE_FUNC_NAME)
+        remote_sum = rh.function(name=remote_func_name)
         res = remote_sum(1, 5)
         assert res == 6
 
         remote_sum.delete_configs()
-        assert not rh.exists(REMOTE_FUNC_NAME)
+        assert not rh.exists(remote_func_name)
 
     @pytest.mark.level("local")
     @pytest.mark.asyncio
@@ -119,9 +122,11 @@ class TestFunction:
         assert res == 6
 
     @pytest.mark.level("local")
-    def test_get_function_history(self, cluster):
+    def test_get_function_history(self, cluster, test_rns_folder):
+        remote_func_name = get_remote_func_name(test_rns_folder)
+
         # reload the function from RNS
-        remote_sum = rh.function(summer).to(cluster).save(REMOTE_FUNC_NAME)
+        remote_sum = rh.function(summer).to(cluster).save(remote_func_name)
 
         history = remote_sum.history()
         assert history
@@ -267,7 +272,9 @@ class TestFunction:
         assert True
 
     @pytest.mark.level("local")
-    def test_share_and_revoke_function(self, cluster):
+    def test_share_and_revoke_function(self, cluster, test_rns_folder):
+        remote_func_name = get_remote_func_name(test_rns_folder)
+
         # TODO: refactor in order to test the function.share() method.
         my_function = rh.function(fn=summer).to(cluster)
         if cluster.server_connection_type in ["tls", "none"]:
@@ -276,7 +283,7 @@ class TestFunction:
             )
         else:
             my_function.set_endpoint(f"{cluster.endpoint()}/{my_function.name}")
-        my_function.save(REMOTE_FUNC_NAME)
+        my_function.save(remote_func_name)
 
         my_function.share(
             users=["info@run.house"],
@@ -297,17 +304,19 @@ class TestFunction:
 
     @pytest.mark.level("release")
     def test_load_function_in_new_cluster(
-        self, ondemand_aws_cluster, static_cpu_cluster
+        self, ondemand_aws_cluster, static_cpu_cluster, test_rns_folder
     ):
+        remote_func_name = get_remote_func_name(test_rns_folder)
+
         ondemand_aws_cluster.save(
             f"@/{ondemand_aws_cluster.name}"
         )  # Needs to be saved to rns, right now has a local name by default
-        remote_sum = rh.function(summer).to(ondemand_aws_cluster).save(REMOTE_FUNC_NAME)
+        remote_sum = rh.function(summer).to(ondemand_aws_cluster).save(remote_func_name)
 
         static_cpu_cluster.sync_secrets(["sky"])
         remote_python = (
             "import runhouse as rh; "
-            f"remote_sum = rh.function(name='{REMOTE_FUNC_NAME}'); "
+            f"remote_sum = rh.function(name='{remote_func_name}'); "
             "res = remote_sum(1, 5); "
             "assert res == 6"
         )
