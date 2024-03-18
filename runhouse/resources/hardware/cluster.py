@@ -1090,7 +1090,7 @@ class Cluster(Resource):
 
         from runhouse.resources.envs import Env
 
-        if env and not port_forward and (not node or node == self.address):
+        if env and not port_forward and not node:
             env_name = (
                 env
                 if isinstance(env, str)
@@ -1098,13 +1098,15 @@ class Cluster(Resource):
                 if isinstance(env, Env)
                 else "base_env"
             )
-            kwargs = {
-                "require_outputs": require_outputs,
-                "stream_logs": stream_logs,
-            }
             return_codes = []
             for command in commands:
-                ret_code = self.call(env_name, "_run_command", command, **kwargs)
+                ret_code = self.call(
+                    env_name,
+                    "_run_command",
+                    command,
+                    require_outputs=require_outputs,
+                    stream_logs=stream_logs,
+                )
                 return_codes.append(ret_code)
             return return_codes
 
@@ -1251,7 +1253,6 @@ class Cluster(Resource):
             try to wrap the outer quote with double quotes (") and the inner quotes with a single quote (').
         """
         # If no node provided, assume the commands are to be run on the head node
-        node = node or self.address
         cmd_prefix = "python3 -c"
         command_str = "; ".join(commands)
         command_str_repr = (

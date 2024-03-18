@@ -19,13 +19,14 @@ def run_with_logs(cmd: Union[List[str], str], **kwargs) -> int:
     if isinstance(cmd, str):
         cmd = shlex.split(cmd) if not kwargs.get("shell", False) else [cmd]
     require_outputs = kwargs.pop("require_outputs", False)
+    stream_logs = kwargs.pop("stream_logs", True)
 
     p = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, **kwargs
     )
     stdout, stderr = p.communicate()
 
-    if kwargs.pop("stream_logs", True):
+    if stream_logs:
         print(stdout)
 
     if require_outputs:
