@@ -1086,9 +1086,11 @@ class Cluster(Resource):
                 res_list.append(res)
             return res_list
 
-        if env:
-            from runhouse.resources.envs import Env
+        # TODO [DG] suspend autostop while running
 
+        from runhouse.resources.envs import Env
+
+        if env and not port_forward and (not node or node == self.address):
             env_name = (
                 env
                 if isinstance(env, str)
@@ -1096,28 +1098,24 @@ class Cluster(Resource):
                 if isinstance(env, Env)
                 else "base_env"
             )
-
-            if not self.get(env_name):
-                raise ValueError(
-                    f"Env {env_name} could not be found on Cluster {self.name}."
-                )
-
             kwargs = {
-                "capture_output": not stream_logs,
-                # "check": not require_outputs,
+                "require_outputs": require_outputs,
+                "stream_logs": stream_logs,
             }
-
-            return_codes = self.call(env_name, "_run_cmds", commands, **kwargs)
-
+            return_codes = []
+            for command in commands:
+                ret_code = self.call(env_name, "_run_command", command, **kwargs)
+                return_codes.append(ret_code)
             return return_codes
 
-        # TODO [DG] suspend autostop while running
-        from runhouse.resources.provenance import run
+        env = _get_env_from(env)
+        cmd_prefix = env._run_cmd if isinstance(env, Env) else ""
 
         if self.on_this_cluster():
             return_codes = []
             location_str = "locally" if not self.name else f"on {self.name}"
             for command in commands:
+                command = f"{cmd_prefix} {command}" if cmd_prefix else command
                 logger.info(f"Running command {location_str}: {command}")
                 ret_code = subprocess.run(
                     command,
@@ -1133,6 +1131,7 @@ class Cluster(Resource):
             # If not creating a Run then just run the commands via SSH and return
             return self._run_commands_with_ssh(
                 commands,
+                cmd_prefix,
                 stream_logs,
                 node,
                 port_forward,
@@ -1140,9 +1139,12 @@ class Cluster(Resource):
             )
 
         # Create and save the Run locally
+        from runhouse.resources.provenance import run
+
         with run(name=run_name, cmds=commands, overwrite=True) as r:
             return_codes = self._run_commands_with_ssh(
                 commands,
+                cmd_prefix,
                 stream_logs,
                 node,
                 port_forward,
@@ -1157,6 +1159,7 @@ class Cluster(Resource):
     def _run_commands_with_ssh(
         self,
         commands: list,
+        cmd_prefix: str,
         stream_logs: bool,
         node: str = None,
         port_forward: int = None,
@@ -1184,6 +1187,7 @@ class Cluster(Resource):
 
         if not pwd:
             for command in commands:
+                command = f"{cmd_prefix} {command}" if cmd_prefix else command
                 logger.debug(f"Running command on {self.name}: {command}")
                 ret_code = runner.run(
                     command,
@@ -1196,6 +1200,7 @@ class Cluster(Resource):
             import pexpect
 
             for command in commands:
+                command = f"{cmd_prefix} {command}" if cmd_prefix else command
                 logger.debug(f"Running command on {self.name}: {command}")
                 # We need to quiet the SSH output here or it will print
                 # "Shared connection to ____ closed." at the end, which messes with the output.

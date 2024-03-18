@@ -258,3 +258,15 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
                     assert get_env_var_cpu(var)
 
         named_secret.delete()
+
+    @pytest.mark.level("local")
+    def test_env_run_cmd(self, env, cluster):
+        test_env_var = "ENV_VAR"
+        test_value = "env_val"
+        env.env_vars = {test_env_var: test_value}
+
+        env.to(cluster)
+        res = cluster.run(["echo $ENV_VAR"], env=env)
+
+        assert res[0][0] == 0  # returncode
+        assert "env_val" in res[0][1]  # stdout

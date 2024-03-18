@@ -160,39 +160,19 @@ class Env(Resource):
 
             logger.debug(f"Installing package: {str(pkg)}")
             pkg._install(self)
-        return self.run(self.setup_cmds) if self.setup_cmds else None
+        if self.setup_cmds:
+            for cmd in self.setup_cmds:
+                self._run_command(cmd)
 
-    def _run_cmds(
-        self,
-        cmds: List[str],
-        **kwargs,
-    ):
-        return_codes = []
-        for cmd in cmds:
-            logger.info(f"Running: {cmd} in {self.name}")
-            use_shell = any(
-                shell_feat in cmd for shell_feat in [">", "|", "&&", "||", "$"]
-            )
-            retcode = run_with_logs(cmd, shell=use_shell, **kwargs)
-            return_codes.append(retcode)
-        return return_codes
-
-    def run(
-        self,
-        cmds: Union[List[str], str],
-        system: Cluster = None,
-        **kwargs,
-    ):
+    def _run_command(self, command: str, **kwargs):
         """Run command locally inside the environment"""
-        # TODO: move this logic into cluster.run()
-        if not system or system.on_this_cluster():
-            return self._run_cmds(cmds, **kwargs)
-
-        if not system.get(self.name):
-            self.to(system)
-        ret_codes = system.call(self.name, "_run_cmds", cmds, **kwargs)
-
-        return ret_codes
+        if self._run_cmd:
+            command = f"{self._run_cmd} {command}"
+        logging.info(f"Running command in {self.name}: {command}")
+        use_shell = any(
+            shell_feat in command for shell_feat in [">", "|", "&&", "||", "$"]
+        )
+        return run_with_logs(command, shell=use_shell, **kwargs)
 
     def to(
         self, system: Union[str, Cluster], path=None, mount=False, force_install=False

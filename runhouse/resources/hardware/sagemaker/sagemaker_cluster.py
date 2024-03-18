@@ -639,13 +639,13 @@ class SageMakerCluster(Cluster):
     def _run_commands_with_ssh(
         self,
         commands: list,
+        cmd_prefix: str,
         stream_logs: bool,
         node: str = None,
         port_forward: int = None,
         require_outputs: bool = True,
     ):
         return_codes = []
-        cmd_prefix = self._get_env_activate_cmd(env=None)
         for command in commands:
             if command.startswith("rsync"):
                 try:

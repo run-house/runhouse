@@ -255,7 +255,7 @@ class Package(Resource):
             from runhouse.resources.envs.utils import _get_env_from
 
             env = _get_env_from(env)
-            env.run([pip_cmd])
+            env._run_command(pip_cmd)
         else:
             cmd = f"{sys.executable} -m {pip_cmd}"
             retcode = run_with_logs(cmd)

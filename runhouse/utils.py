@@ -16,21 +16,22 @@ def run_with_logs(cmd: Union[List[str], str], **kwargs) -> int:
     Returns:
         The returncode of the command.
     """
-    if isinstance(cmd, str) and not kwargs.get("shell", False):
-        cmd = shlex.split(cmd)
-    capture_output = kwargs.pop("capture_output", False)
+    if isinstance(cmd, str):
+        cmd = shlex.split(cmd) if not kwargs.get("shell", False) else [cmd]
+    require_outputs = kwargs.pop("require_outputs", False)
 
-    logging.info(f"Running command: {cmd} with kwargs: {kwargs}")
-    if capture_output:
-        p = subprocess.Popen(cmd, **kwargs)
-    else:
-        p = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs
-        )
-        for line in p.stdout:
-            print(line.decode("utf-8").strip())
+    p = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, **kwargs
+    )
+    stdout, stderr = p.communicate()
 
-    return p.wait()
+    if kwargs.pop("stream_logs", True):
+        print(stdout)
+
+    if require_outputs:
+        return p.returncode, stdout, stderr
+
+    return p.returncode
 
 
 def install_conda():
