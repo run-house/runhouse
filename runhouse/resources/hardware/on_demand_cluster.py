@@ -123,6 +123,14 @@ class OnDemandCluster(Cluster):
         )
         return config
 
+    def endpoint(self, external=False):
+        try:
+            self.check_server()
+        except ValueError:
+            return None
+
+        return super().endpoint(external)
+
     def _copy_sky_yaml_from_cluster(self, abs_yaml_path: str):
         if not Path(abs_yaml_path).exists():
             Path(abs_yaml_path).parent.mkdir(parents=True, exist_ok=True)
