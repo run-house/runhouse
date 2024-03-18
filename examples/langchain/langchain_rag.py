@@ -138,7 +138,7 @@ if __name__ == "__main__":
             "bs4",
         ],
         secrets=["openai"],
-    ).get_or_to(cluster)
+    )
 
     urls = (
         "https://www.nyc.gov/site/hpd/services-and-information/tenants-rights-and-responsibilities.page",

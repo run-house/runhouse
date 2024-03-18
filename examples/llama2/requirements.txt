@@ -1,3 +1,2 @@
 runhouse[sky]
-transformers
 torch

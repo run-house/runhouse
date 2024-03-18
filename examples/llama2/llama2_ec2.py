@@ -29,11 +29,12 @@
 #
 # ## Setting up a model class
 #
-# We import runhouse and other required libraries:
+# We import `runhouse` and `torch`, because that's all that's needed to run the script locally.
+# The actual transformers imports can happen within the functions
+# that will be sent to the Runhouse cluster; we don't need those locally.
 
 import runhouse as rh
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
 
 # Next, we define a class that will hold the model and allow us to send prompts to it.
 # You'll notice this class inherits from `rh.Module`.
@@ -48,6 +49,8 @@ class HFChatModel(rh.Module):
         self.tokenizer, self.model = None, None
 
     def load_model(self):
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_id, clean_up_tokenization_spaces=True
         )
@@ -56,6 +59,8 @@ class HFChatModel(rh.Module):
         )
 
     def predict(self, prompt_text, **inf_kwargs):
+        from transformers import TextStreamer
+
         default_inf_kwargs = {
             "temperature": 0.7,
             "max_new_tokens": 500,
