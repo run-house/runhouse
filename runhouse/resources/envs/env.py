@@ -160,23 +160,19 @@ class Env(Resource):
 
             logger.debug(f"Installing package: {str(pkg)}")
             pkg._install(self)
-        return self.run(self.setup_cmds) if self.setup_cmds else None
+        if self.setup_cmds:
+            for cmd in self.setup_cmds:
+                self._run_command(cmd)
 
-    def run(self, cmds: Union[List[str], str]):
+    def _run_command(self, command: str, **kwargs):
         """Run command locally inside the environment"""
-        ret_codes = []
-        for cmd in cmds:
-            if self._run_cmd:
-                cmd = f"{self._run_cmd} {cmd}"
-            logging.info(f"Running: {cmd}")
-            use_shell = any(shell_feat in cmd for shell_feat in [">", "|", "&&", "||"])
-            if use_shell:
-                # Example: "echo '<TOKEN>' > ~/.rh/config.yaml"
-                retcode = run_with_logs(cmd, shell=True)
-            else:
-                retcode = run_with_logs(cmd, shell=False)
-            ret_codes.append(retcode)
-        return ret_codes
+        if self._run_cmd:
+            command = f"{self._run_cmd} {command}"
+        logging.info(f"Running command in {self.name}: {command}")
+        use_shell = any(
+            shell_feat in command for shell_feat in [">", "|", "&&", "||", "$"]
+        )
+        return run_with_logs(command, shell=use_shell, **kwargs)
 
     def to(
         self, system: Union[str, Cluster], path=None, mount=False, force_install=False

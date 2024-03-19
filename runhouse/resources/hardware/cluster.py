@@ -114,13 +114,6 @@ class Cluster(Resource):
 
         return self._creds.values
 
-    def _get_env_activate_cmd(self, env=None):
-        if env:
-            from runhouse.resources.envs import _get_env_from
-
-            return _get_env_from(env)._activate_cmd
-        return None
-
     def save_config_to_cluster(self, node: str = None):
         config = self.config(condensed=False)
         json_config = f"{json.dumps(config)}"
@@ -352,10 +345,10 @@ class Cluster(Resource):
                 _install_url = f"runhouse=={runhouse.__version__}"
             rh_install_cmd = f"python3 -m pip install {_install_url}"
 
-        install_cmd = f"{env._run_cmd} {rh_install_cmd}" if env else rh_install_cmd
-
         for node in self.ips:
-            status_codes = self.run([install_cmd], node=node, stream_logs=True)
+            status_codes = self.run(
+                [rh_install_cmd], node=node, env=env, stream_logs=True
+            )
 
             if status_codes[0][0] != 0:
                 raise ValueError(
@@ -751,10 +744,7 @@ class Cluster(Resource):
             + f" --port {self.server_port}"
         )
 
-        env_activate_cmd = self._get_env_activate_cmd(env)
-        cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
-
-        status_codes = self.run(commands=[cmd])
+        status_codes = self.run(commands=[cmd], env=env)
         if not status_codes[0][0] == 0:
             raise ValueError(f"Failed to restart server {self.name}.")
 
@@ -782,11 +772,9 @@ class Cluster(Resource):
             stop_ray (bool): Whether to stop Ray. (Default: `True`)
             env (str or Env, optional): Specified environment to stop the server on. (Default: ``None``)
         """
-        env_activate_cmd = self._get_env_activate_cmd(env)
         cmd = CLI_STOP_CMD if stop_ray else f"{CLI_STOP_CMD} --no-stop-ray"
-        cmd = f"{env_activate_cmd} && {cmd}" if env_activate_cmd else cmd
 
-        status_codes = self.run([cmd], stream_logs=False)
+        status_codes = self.run([cmd], env=env, stream_logs=False)
         assert status_codes[0][0] == 1
 
     @contextlib.contextmanager
@@ -1099,15 +1087,31 @@ class Cluster(Resource):
             return res_list
 
         # TODO [DG] suspend autostop while running
-        from runhouse.resources.provenance import run
 
-        cmd_prefix = ""
-        if env:
-            if isinstance(env, str):
-                from runhouse.resources.envs import Env
+        from runhouse.resources.envs import Env
 
-                env = Env.from_name(env)
-            cmd_prefix = env._run_cmd
+        if env and not port_forward and not node:
+            env_name = (
+                env
+                if isinstance(env, str)
+                else env.name
+                if isinstance(env, Env)
+                else "base_env"
+            )
+            return_codes = []
+            for command in commands:
+                ret_code = self.call(
+                    env_name,
+                    "_run_command",
+                    command,
+                    require_outputs=require_outputs,
+                    stream_logs=stream_logs,
+                )
+                return_codes.append(ret_code)
+            return return_codes
+
+        env = _get_env_from(env)
+        cmd_prefix = env._run_cmd if isinstance(env, Env) else ""
 
         if self.on_this_cluster():
             return_codes = []
@@ -1137,6 +1141,8 @@ class Cluster(Resource):
             )
 
         # Create and save the Run locally
+        from runhouse.resources.provenance import run
+
         with run(name=run_name, cmds=commands, overwrite=True) as r:
             return_codes = self._run_commands_with_ssh(
                 commands,
@@ -1247,14 +1253,7 @@ class Cluster(Resource):
             try to wrap the outer quote with double quotes (") and the inner quotes with a single quote (').
         """
         # If no node provided, assume the commands are to be run on the head node
-        node = node or self.address
         cmd_prefix = "python3 -c"
-        if env:
-            if isinstance(env, str):
-                from runhouse.resources.envs import Env
-
-                env = Env.from_name(env)
-            cmd_prefix = f"{env._run_cmd} {cmd_prefix}"
         command_str = "; ".join(commands)
         command_str_repr = (
             repr(repr(command_str))[2:-2]
