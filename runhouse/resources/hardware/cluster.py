@@ -148,6 +148,12 @@ class Cluster(Resource):
 
         return self
 
+    def _save_sub_resources(self):
+        from runhouse.resources.secrets import Secret
+
+        if self._creds and isinstance(self._creds, Secret):
+            self._creds.save()
+
     @classmethod
     def from_config(cls, config: dict, dryrun=False):
         resource_subtype = config.get("resource_subtype")
@@ -1471,7 +1477,7 @@ class Cluster(Resource):
 
         if isinstance(creds, str):
             creds = Secret.from_config(config=load_config(name=creds))
-        if isinstance(creds, dict):
+        elif isinstance(creds, dict):
             if "name" in creds.keys():
                 creds = Secret.from_config(creds)
             else:
