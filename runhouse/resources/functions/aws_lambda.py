@@ -686,9 +686,6 @@ class LambdaFunction(Function):
         self,
         env: Optional[List[str]] = [],
         cloud: str = "aws_lambda",
-        # Variables below are deprecated
-        reqs: Optional[List[str]] = None,
-        setup_cmds: Optional[List[str]] = [],
         force_install: Optional[bool] = False,
     ):
         """

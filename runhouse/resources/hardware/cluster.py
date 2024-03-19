@@ -1435,8 +1435,6 @@ class Cluster(Resource):
         visibility: Optional[Union[ResourceVisibility, str]] = None,
         notify_users: bool = True,
         headers: Optional[Dict] = None,
-        # Deprecated
-        access_type: Union[ResourceAccess, str] = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
 
         # save cluster and creds if not saved
@@ -1452,7 +1450,6 @@ class Cluster(Resource):
             visibility=visibility,
             notify_users=notify_users,
             headers=headers,
-            access_type=access_type,
         )
 
         # share cluster
@@ -1462,7 +1459,6 @@ class Cluster(Resource):
             visibility=visibility,
             notify_users=notify_users,
             headers=headers,
-            access_type=access_type,
         )
 
     @classmethod

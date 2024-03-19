@@ -2,7 +2,6 @@ import logging
 
 import pprint
 import sys
-import warnings
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
@@ -366,8 +365,6 @@ class Resource:
         visibility: Optional[Union[ResourceVisibility, str]] = None,
         notify_users: bool = True,
         headers: Optional[Dict] = None,
-        # Deprecated
-        access_type: Union[ResourceAccess, str] = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
         """Grant access to the resource for a list of users (or a single user). If a user has a Runhouse account they
         will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
@@ -437,10 +434,6 @@ class Resource:
                     f"located on a cluster or a remote system. You can use the `.to()` method to do so. "
                     f"For example: `{self.name}.to(system='s3')`"
                 )
-
-        if access_type is not None:
-            warnings.warn("`access_type` is deprecated, please use `access_level`")
-            access_level = access_type
 
         if isinstance(access_level, str):
             access_level = ResourceAccess(access_level)
