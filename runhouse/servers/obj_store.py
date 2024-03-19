@@ -1171,15 +1171,14 @@ class ObjStore:
             # distinct. The `env_name` is the name of the env servlet where we want to store
             # the resource itself. The `env_name_to_create` is the name of the env servlet
             # that we need to create because we are putting an env resource somewhere on the cluster.
-            env_name_to_create = resource_config["env_name"]
             runtime_env = (
-                {"conda_env": env_name_to_create}
+                {"conda_env": resource_config["env_name"]}
                 if resource_config["resource_subtype"] == "CondaEnv"
                 else {}
             )
 
             _ = ObjStore.get_env_servlet(
-                env_name=env_name_to_create,
+                env_name=env_name,
                 create=True,
                 runtime_env=runtime_env,
                 resources=resource_config.get("compute", None),
