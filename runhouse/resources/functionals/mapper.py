@@ -233,7 +233,7 @@ def mapper(
         >>> remote_fn = rh.function(local_fn).to(cluster)
         >>> mapper = rh.mapper(remote_fn, replicas=2)
 
-        >>> remote_module = rh.module(cls=MyClass, system=cluster, env="my_env")
+        >>> remote_module = rh.module(cls=MyClass).to(system=cluster, env="my_env")
         >>> mapper = rh.mapper(remote_module, method=my_class_method, replicas=-1)
     """
 
