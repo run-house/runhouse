@@ -1,6 +1,5 @@
 import logging
 import re
-import warnings
 from pathlib import Path
 from typing import Callable, List, Optional, Union
 
@@ -20,8 +19,6 @@ def function(
     dryrun: bool = False,
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
-    reqs: Optional[List[str]] = None,  # deprecated
-    setup_cmds: Optional[List[str]] = None,  # deprecated
 ):
     """runhouse.function(fn: str | Callable | None = None, name: str | None = None, system: str | Cluster | None = None, env: str | List[str] | Env | None = None, dryrun: bool = False, load_secrets: bool = False, serialize_notebook_fn: bool = False)
 
@@ -64,19 +61,7 @@ def function(
         # Try reloading existing function
         return Function.from_name(name, dryrun)
 
-    if setup_cmds:
-        warnings.warn(
-            "``setup_cmds`` argument has been deprecated. "
-            "Please pass in setup commands to rh.Env corresponding to the function instead."
-        )
-    if reqs is not None:
-        warnings.warn(
-            "``reqs`` argument has been deprecated. Please use ``env`` instead."
-        )
-        env = Env(
-            reqs=reqs, setup_cmds=setup_cmds, working_dir="./", name=Env.DEFAULT_NAME
-        )
-    elif not isinstance(env, Env):
+    if not isinstance(env, Env):
         env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
 
     fn_pointers = None
