@@ -140,12 +140,6 @@ if __name__ == "__main__":
         secrets=["openai"],
     )
 
-    urls = (
-        "https://www.nyc.gov/site/hpd/services-and-information/tenants-rights-and-responsibilities.page",
-        "https://www.nyc.gov/content/tenantprotection/pages/covid19-home-quarantine",
-        "https://www.nyc.gov/content/tenantprotection/pages/new-protections-for-all-tenants",
-    )
-
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
     # by the name `basic_rag_app` if it was already put on the cluster. If we want to update the module each
@@ -153,13 +147,19 @@ if __name__ == "__main__":
     #
     # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
     # set up on the remote machine before the module is run.
+    urls = (
+        "https://www.nyc.gov/site/hpd/services-and-information/tenants-rights-and-responsibilities.page",
+        "https://www.nyc.gov/content/tenantprotection/pages/covid19-home-quarantine",
+        "https://www.nyc.gov/content/tenantprotection/pages/new-protections-for-all-tenants",
+    )
+
     RemoteLangchainRAG = rh.module(LangchainRAG, name="basic_rag_app").get_or_to(
         cluster, env=env
     )
 
-    # After this app is set up, it maintains state on the remote cluster. We can repeatedly call the `invoke`
-    # method, and the module functions as a remote service.
     rag_app = RemoteLangchainRAG(urls)
 
+    # After this app is set up, it maintains state on the remote cluster. We can repeatedly call the `invoke`
+    # method, and the module functions as a remote service.
     user_input = input("Ask a question about NYC tenants rights and responsibilities: ")
     print(rag_app.invoke(user_input))
