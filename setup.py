@@ -90,19 +90,15 @@ extras_require = {
     "sky": ["skypilot==0.5.0"],
     "data": ["pandas", "pyarrow"],
     "aws": [
-        "skypilot==0.5.0",
+        "skypilot[aws]==0.5.0",
         # https://github.com/aio-libs/aiobotocore/issues/983
         # If you don't want to use these exact versions, you can install runhouse without the aws extras, then
         # install your desired versions of awscli and boto3
-        "awscli",
         "pycryptodome==3.12.0",
-        "fsspec==2023.1.0",
     ],
-    "azure": ["skypilot==0.5.0", "azure-cli==2.31.0", "azure-core"],
+    "azure": ["skypilot[azure]==0.5.0"],
     "gcp": [
-        "skypilot==0.5.0",
-        "google-api-python-client",
-        "google-cloud-storage",
+        "skypilot[gcp]==0.5.0",
         "gcsfs",
     ],
     "docker": ["docker"],
