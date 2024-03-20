@@ -1,2 +1,2 @@
-runhouse[sky]
+runhouse[aws]
 torch
