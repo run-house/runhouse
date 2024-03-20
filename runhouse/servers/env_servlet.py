@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 def error_handling_decorator(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        EnvServlet.register_activity()
         ctx = kwargs.pop("ctx", None)
         ctx_token = None
         if ctx:
@@ -72,15 +71,6 @@ class EnvServlet:
 
         self.output_types = {}
         self.thread_ids = {}
-
-    @staticmethod
-    def register_activity():
-        try:
-            from sky.skylet.autostop_lib import set_last_active_time_to_now
-
-            set_last_active_time_to_now()
-        except ImportError:
-            pass
 
     ##############################################################
     # Methods decorated with a standardized error decorating handler
@@ -145,29 +135,22 @@ class EnvServlet:
     # in a Response object.
     ##############################################################
     def keys_local(self):
-        self.register_activity()
         return obj_store.keys_local()
 
     def rename_local(self, key: Any, new_key: Any):
-        self.register_activity()
         return obj_store.rename_local(key, new_key)
 
     def contains_local(self, key: Any):
-        self.register_activity()
         return obj_store.contains_local(key)
 
     def pop_local(self, key: Any, *args):
-        self.register_activity()
         return obj_store.pop_local(key, *args)
 
     def delete_local(self, key: Any):
-        self.register_activity()
         return obj_store.delete_local(key)
 
     def clear_local(self):
-        self.register_activity()
         return obj_store.clear_local()
 
     def status_local(self):
-        self.register_activity()
         return obj_store.status_local()
