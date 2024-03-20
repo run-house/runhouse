@@ -49,9 +49,9 @@ def base_conda_env():
 
 
 @pytest.fixture(scope="function")
-def conda_env_from_dict():
+def named_conda_env_from_dict():
     env_name = "conda_from_dict"
-    conda_dict = _get_conda_env(name=env_name)
+    conda_dict = _get_conda_env(name=f"{env_name}_env")
 
     args = {"name": env_name, "conda_env": conda_dict}
     env = rh.conda_env(**args)

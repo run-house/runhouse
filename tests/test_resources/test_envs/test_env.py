@@ -39,7 +39,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             "base_env",
             "named_env",
             "base_conda_env",
-            "conda_env_from_dict",
+            "named_conda_env_from_dict",
             "conda_env_from_local",
             "conda_env_from_path",
         ]
@@ -49,15 +49,15 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         "cluster": [
             "docker_cluster_pk_ssh_no_auth",
         ]
-        # TODO: extend envs to "base_conda_env", "conda_env_from_dict"],
+        # TODO: extend envs to "base_conda_env", "named_conda_env_from_dict"],
         # and add local clusters once conda docker container is set up
     }
     MINIMAL = {
-        "env": ["base_env", "named_env", "base_conda_env"],
+        "env": ["base_env", "named_env", "base_conda_env", "named_conda_env_from_dict"],
         "cluster": ["ondemand_aws_cluster"],
     }
     RELEASE = {
-        "env": ["base_env", "named_env", "base_conda_env", "conda_env_from_dict"],
+        "env": ["base_env", "named_env", "base_conda_env", "named_conda_env_from_dict"],
         "cluster": [
             "ondemand_aws_cluster",
             "password_cluster",
@@ -68,7 +68,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             "base_env",
             "named_env",
             "base_conda_env",
-            "conda_env_from_dict",
+            "named_conda_env_from_dict",
             "conda_env_from_local",
             "conda_env_from_path",
         ],
