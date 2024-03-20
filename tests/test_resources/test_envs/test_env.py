@@ -105,6 +105,19 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         if "name" not in args:
             assert env.name == rh.Env.DEFAULT_NAME
 
+    @pytest.mark.level("unit")
+    def test_env_conda_env_factories(self):
+        name = "env_name"
+        conda_env = {
+            "name": "conda_env_name",
+            "reqs": "pytest",
+        }
+
+        env = rh.env(name=name, conda_env=conda_env)
+        conda_env = rh.conda_env(name=name, conda_env=conda_env)
+
+        assert env.config() == conda_env.config()
+
     @pytest.mark.level("local")
     def test_env_to_cluster(self, env, cluster):
         env.to(cluster, force_install=True)
