@@ -5,7 +5,7 @@ from typing import Callable, List, Optional, Union
 
 from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.functions.function import Function
-from runhouse.resources.hardware import _get_cluster_from, Cluster
+from runhouse.resources.hardware import Cluster
 from runhouse.resources.packages import git_package
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 def function(
     fn: Optional[Union[str, Callable]] = None,
     name: Optional[str] = None,
-    system: Optional[Union[str, Cluster]] = None,
+    system: Optional[Union[str, Cluster]] = None,  # deprecated
     env: Optional[Union[List[str], Env, str]] = None,
     dryrun: bool = False,
     load_secrets: bool = False,
@@ -28,8 +28,6 @@ def function(
         fn (Optional[str or Callable]): The function to execute on the remote system when the function is called.
         name (Optional[str]): Name of the Function to create or retrieve.
             This can be either from a local config or from the RNS.
-        system (Optional[str or Cluster]): Hardware (cluster) on which to execute the Function.
-            This can be either the string name of a Cluster object, or a Cluster object.
         env (Optional[List[str] or Env or str]): List of requirements to install on the remote cluster, or path to the
             requirements.txt file, or Env object or string name of an Env object.
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
@@ -60,6 +58,12 @@ def function(
     if name and not any([fn, system, env]):
         # Try reloading existing function
         return Function.from_name(name, dryrun)
+
+    if system:
+        raise Exception(
+            "`system` argument is no longer supported in function factory function. "
+            "Use `.to(system=system)` after construction to send the function to the system."
+        )
 
     if not isinstance(env, Env):
         env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
@@ -105,11 +109,7 @@ def function(
         )
         env.reqs = [repo_package] + env.reqs
 
-    system = _get_cluster_from(system)
-
-    new_function = Function(
-        fn_pointers=fn_pointers, name=name, dryrun=dryrun, system=system, env=env
-    )
+    new_function = Function(fn_pointers=fn_pointers, name=name, dryrun=dryrun, env=env)
 
     if load_secrets and not dryrun:
         new_function.send_secrets()

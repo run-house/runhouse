@@ -1169,7 +1169,7 @@ def _module_subclass_factory(cls, cls_pointers):
 def module(
     cls: [Type] = None,
     name: Optional[str] = None,
-    system: Optional[Union[str, Cluster]] = None,
+    system: Optional[Union[str, Cluster]] = None,  # deprecated
     env: Optional[Union[str, Env]] = None,
     dryrun: bool = False,
 ):
@@ -1196,11 +1196,6 @@ def module(
     Args:
         cls: The class to instantiate.
         name (Optional[str]): Name to give the module object, to be reused later on.
-        system (Optional[str or Cluster]): File system or cluster name. If providing a file system this must be one of:
-            [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
-            We are working to add additional file system support. If providing a cluster, this must be a cluster object
-            or name, and whether the data is saved to the object store or filesystem depends on whether a path is
-            specified.
         env (Optional[str or Env]): Environment in which the module should live on the cluster, if system is cluster.
         dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
             (Default: ``False``)
@@ -1214,11 +1209,11 @@ def module(
         >>>
         >>> # Sample rh.Module class
         >>> class Model(rh.Module):
-        >>>    def __init__(self, model_id, device="cpu", system=None, env=None):
+        >>>    def __init__(self, model_id, device="cpu", env=None):
         >>>        # Note that the code here will be run in your local environment prior to being sent to
         >>>        # to a cluster. For loading large models/datasets that are only meant to be used remotely,
         >>>        # we recommend using lazy initialization (see tokenizer and model attributes below).
-        >>>        super().__init__(system=system, env=env)
+        >>>        super().__init__(env=env)
         >>>        self.model_id = model_id
         >>>        self.device = device
         >>>
@@ -1240,7 +1235,8 @@ def module(
         >>>        return self.model(x)
 
         >>> # Creating rh.Module instance
-        >>> model = Model(model_id="bert-base-uncased", device="cuda", system="my_gpu", env="my_env")
+        >>> model = Model(model_id="bert-base-uncased", device="cuda", env="my_env")
+        >>> model = model.to(system="my_gpu")
         >>> model.predict("Hello world!")   # Runs on system in env
         >>> tok = model.remote.tokenizer    # Returns remote tokenizer
         >>> id = model.local.model_id       # Returns local model_id, if any
@@ -1252,8 +1248,8 @@ def module(
         >>> other_model = Model(model_id="bert-base-uncased", device="cuda").to("my_gpu", "my_env")
         >>>
         >>> # Another method: Create a module instance from an existing non-Module class using rh.module()
-        >>> RemoteModel = rh.module(cls=BERTModel, system="my_gpu", env="my_env")
-        >>> remote_model = RemoteModel(model_id="bert-base-uncased", device="cuda")
+        >>> RemoteModel = rh.module(cls=BERTModel, env="my_env")
+        >>> remote_model = RemoteModel(model_id="bert-base-uncased", device="cuda").to(system="my_gpu")
         >>> remote_model.predict("Hello world!")  # Runs on system in env
         >>>
         >>> # You can also call remote class methods
@@ -1267,7 +1263,11 @@ def module(
         # Try reloading existing module
         return Module.from_name(name, dryrun)
 
-    system = _get_cluster_from(system or _current_cluster(key="config"), dryrun=dryrun)
+    if system:
+        raise Exception(
+            "`system` argument is no longer supported in the module factory function. "
+            "Use `.to(system)` or `.get_or_to(system)` after construction to send and run the Module on the system."
+        )
 
     if not isinstance(env, Env):
         env = _get_env_from(env) or Env(name=Env.DEFAULT_NAME)
@@ -1280,7 +1280,6 @@ def module(
 
     module_subclass = _module_subclass_factory(cls, cls_pointers)
     return module_subclass._module_init_only(
-        system=system,
         env=env,
         dryrun=dryrun,
         pointers=cls_pointers,
