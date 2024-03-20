@@ -21,7 +21,6 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import requests.exceptions
 import sshtunnel
-from sshtunnel import SSHTunnelForwarder
 
 from runhouse.constants import (
     CLI_RESTART_CMD,
@@ -489,7 +488,7 @@ class Cluster(Resource):
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
 
         if self._rpc_tunnel and force_reconnect:
-            self._rpc_tunnel.close()
+            self._rpc_tunnel.terminate()
             self._rpc_tunnel = None
 
         if self.server_connection_type in [
@@ -616,7 +615,7 @@ class Cluster(Resource):
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
-    ) -> Union[SSHTunnelForwarder, "SkySSHRunner"]:
+    ) -> "SkySSHRunner":
         from runhouse.resources.hardware.sky_ssh_runner import ssh_tunnel
 
         return ssh_tunnel(
@@ -851,7 +850,7 @@ class Cluster(Resource):
             >>> cluster.disconnect()
         """
         if self._rpc_tunnel:
-            self._rpc_tunnel.stop()
+            self._rpc_tunnel.terminate()
 
     def __getstate__(self):
         """Delete non-serializable elements (e.g. thread locks) before pickling."""
@@ -1351,7 +1350,7 @@ class Cluster(Resource):
                 pkg = Package.from_string("local:" + sync_package_on_close)
                 self._rsync(source=f"~/{pkg.name}", dest=pkg.local_path, up=False)
             if not persist:
-                tunnel.stop()
+                tunnel.terminate()
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
                 self.run(commands=[kill_jupyter_cmd])
 

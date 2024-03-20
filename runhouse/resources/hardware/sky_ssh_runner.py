@@ -7,9 +7,9 @@ import subprocess
 import time
 from typing import Dict, List, Optional, Tuple, Union
 
-from sshtunnel import HandlerSSHTunnelForwarderError, SSHTunnelForwarder
-
 from runhouse.constants import LOCALHOST
+
+from runhouse.globals import sky_ssh_runner_cache
 
 from runhouse.resources.hardware.sky import common_utils, log_lib, subprocess_utils
 
@@ -22,7 +22,6 @@ from runhouse.resources.hardware.sky.command_runner import (
     SSHCommandRunner,
     SshMode,
 )
-from .utils import cache_open_tunnel, get_open_tunnel
 
 
 logger = logging.getLogger(__name__)
@@ -37,6 +36,13 @@ try:
     boto3.set_stream_logger(name="botocore.credentials", level=logging.ERROR)
 except ImportError:
     pass
+
+
+def is_port_in_use(port: int) -> bool:
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("localhost", port)) == 0
 
 
 class SkySSHRunner(SSHCommandRunner):
@@ -234,10 +240,20 @@ class SkySSHRunner(SSHCommandRunner):
         time.sleep(3)
         self._tunnel_procs.append(proc)
         self.local_bind_port = local_port
+        self.remote_bind_port = remote_port
+
+    def tunnel_is_up(self):
+        # Try and do as much as we can to check that this is still alive and the port is still forwarded
+        return self.local_bind_port is not None and is_port_in_use(self.local_bind_port)
 
     def __del__(self):
         for proc in self._tunnel_procs:
             proc.kill()
+
+    def terminate(self):
+        for proc in self._tunnel_procs:
+            proc.terminate()
+        self._tunnel_procs = []
 
     def rsync(
         self,
@@ -355,6 +371,28 @@ class SkySSHRunner(SSHCommandRunner):
         )
 
 
+####################################################################################################
+# Cache and retrieve existing SSH Runners that are set up for a given address and port
+####################################################################################################
+# TODO: Shouldn't the control master prevent new ssh connections from being created?
+def get_existing_sky_ssh_runner(address: str, ssh_port: int) -> Optional[SkySSHRunner]:
+    if (address, ssh_port) in sky_ssh_runner_cache:
+        existing_runner = sky_ssh_runner_cache.get((address, ssh_port))
+        if existing_runner.tunnel_is_up():
+            return existing_runner
+        else:
+            sky_ssh_runner_cache.pop((address, ssh_port))
+
+    else:
+        return None
+
+
+def cache_existing_sky_ssh_runner(
+    address: str, ssh_port: int, runner: SkySSHRunner
+) -> None:
+    sky_ssh_runner_cache[(address, ssh_port)] = runner
+
+
 def ssh_tunnel(
     address: str,
     ssh_creds: Dict,
@@ -362,7 +400,7 @@ def ssh_tunnel(
     ssh_port: int = 22,
     remote_port: Optional[int] = None,
     num_ports_to_try: int = 0,
-) -> Union[SSHTunnelForwarder, "SkySSHRunner"]:
+) -> SkySSHRunner:
     """Initialize an ssh tunnel from a remote server to localhost
 
     Args:
@@ -379,7 +417,7 @@ def ssh_tunnel(
             starting at local_port and incrementing by 1 till we hit the max. Defaults to 0.
 
     Returns:
-        SSHTunnelForwarder or SkySSHRunner: The initialized tunnel.
+        SkySSHRunner: The initialized tunnel.
     """
 
     # Debugging cmds (mac):
@@ -392,98 +430,47 @@ def ssh_tunnel(
     # the same as the remote port on the server.
     remote_port = remote_port or local_port
 
-    tunnel = get_open_tunnel(address, ssh_port)
-    if (
-        tunnel
-        and get_remote_bind_address_from_tunnel(tunnel)[0]
-        and get_remote_bind_address_from_tunnel(tunnel)[1] == remote_port
-    ):
+    tunnel = get_existing_sky_ssh_runner(address, ssh_port)
+    if tunnel and tunnel.ip == address and tunnel.remote_bind_port == remote_port:
         logger.info(
             f"SSH tunnel on to server's port {remote_port} "
             f"via server's ssh port {ssh_port} already created with the cluster."
         )
         return tunnel
 
-    connected = False
-    ssh_tunnel = None
-    while not connected:
-        try:
-            if num_ports_to_try < 0:
-                raise Exception(
-                    f"Failed to create SSH tunnel after {num_ports_to_try} attempts"
-                )
-
-            if ssh_creds.get("ssh_proxy_command"):
-                # Start a tunnel using self.run in a thread, instead of ssh_tunnel
-                ssh_credentials = copy.copy(ssh_creds)
-
-                # Host could be a proxy specified in credentials or is the provided address
-                host = ssh_credentials.pop("ssh_host", address)
-                ssh_control_name = ssh_credentials.pop(
-                    "ssh_control_name", f"{address}:{ssh_port}"
-                )
-
-                runner = SkySSHRunner(
-                    ip=host,
-                    ssh_user=ssh_creds.get("ssh_user"),
-                    ssh_private_key=ssh_creds.get("ssh_private_key"),
-                    ssh_proxy_command=ssh_creds.get("ssh_proxy_command"),
-                    ssh_control_name=ssh_control_name,
-                    port=ssh_port,
-                )
-                runner.tunnel(local_port, remote_port)
-                ssh_tunnel = runner  # Just to keep the object in memory
-            else:
-                logger.debug(
-                    f"Attempting to bind "
-                    f"{LOCALHOST}:{remote_port} via ssh port {ssh_port} "
-                    f"on remote server {address} "
-                    f"to {LOCALHOST}:{local_port} on local machine."
-                )
-                ssh_tunnel = SSHTunnelForwarder(
-                    address,
-                    ssh_username=ssh_creds.get("ssh_user"),
-                    ssh_pkey=ssh_creds.get("ssh_private_key"),
-                    ssh_password=ssh_creds.get("password"),
-                    ssh_port=ssh_port,
-                    local_bind_address=("", local_port),
-                    # Binding to a service running on localhost:<remote_port> on the remote server
-                    remote_bind_address=(
-                        LOCALHOST,
-                        remote_port,
-                    ),
-                    set_keepalive=1,
-                    # mute_exceptions=True,
-                )
-                ssh_tunnel.start()
-            connected = True
-            logger.debug(
-                f"Successfully bound "
-                f"{LOCALHOST}:{remote_port} via ssh port {ssh_port} "
-                f"on remote server {address} "
-                f"to {LOCALHOST}:{local_port} on local machine."
+    while is_port_in_use(local_port):
+        if num_ports_to_try < 0:
+            raise Exception(
+                f"Failed to create find open port after {num_ports_to_try} attempts"
             )
-        except HandlerSSHTunnelForwarderError:
-            # Try connecting with a different port - most likely the issue is the port is already taken
-            local_port += 1
-            num_ports_to_try -= 1
 
-    # ssh_tunnel should certainlly be non-None at this point.
-    cache_open_tunnel(address, ssh_port, ssh_tunnel)
-    return ssh_tunnel
+        logger.info(f"Port {local_port} is already in use. Trying next port.")
+        local_port += 1
+        num_ports_to_try -= 1
 
+    # Start a tunnel using self.run in a thread, instead of ssh_tunnel
+    ssh_credentials = copy.copy(ssh_creds)
 
-def get_remote_bind_address_from_tunnel(tunnel: SSHTunnelForwarder) -> Tuple[str, int]:
-    """Get the remote bind address from an SSHTunnelForwarder object.
+    # Host could be a proxy specified in credentials or is the provided address
+    host = ssh_credentials.pop("ssh_host", address)
+    ssh_control_name = ssh_credentials.pop("ssh_control_name", f"{address}:{ssh_port}")
 
-    Args:
-        tunnel (SSHTunnelForwarder): The tunnel object.
+    runner = SkySSHRunner(
+        ip=host,
+        ssh_user=ssh_creds.get("ssh_user"),
+        ssh_private_key=ssh_creds.get("ssh_private_key"),
+        ssh_proxy_command=ssh_creds.get("ssh_proxy_command"),
+        ssh_control_name=ssh_control_name,
+        port=ssh_port,
+    )
+    runner.tunnel(local_port, remote_port)
 
-    Returns:
-        Tuple[str, int]: The remote bind address.
-    """
+    logger.debug(
+        f"Successfully bound "
+        f"{LOCALHOST}:{remote_port} via ssh port {ssh_port} "
+        f"on remote server {address} "
+        f"to {LOCALHOST}:{local_port} on local machine."
+    )
 
-    if len(tunnel.tunnel_bindings) != 1:
-        raise Exception("Expected exactly one tunnel binding.")
-
-    return list(tunnel.tunnel_bindings.keys())[0]
+    cache_existing_sky_ssh_runner(address, ssh_port, runner)
+    return runner

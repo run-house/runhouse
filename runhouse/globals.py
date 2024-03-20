@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 configs = Defaults()
 
-ssh_tunnel_cache = {}
+sky_ssh_runner_cache = {}
 
 rns_client = RNSClient(configs=configs)
 
