@@ -84,7 +84,7 @@ class SkySSHRunner(SSHCommandRunner):
                 else:
                     local, remote = fwd
                 logger.info(f"Forwarding port {local} to port {remote} on localhost.")
-                ssh += ["-L", f"{remote}:localhost:{local}"]
+                ssh += ["-L", f"{local}:localhost:{remote}"]
         if self._docker_ssh_proxy_command is not None:
             docker_ssh_proxy_command = self._docker_ssh_proxy_command(ssh)
         else:
