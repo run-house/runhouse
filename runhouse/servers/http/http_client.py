@@ -380,9 +380,18 @@ class HTTPClient:
             result = handle_response(
                 resp, output_type, error_str, log_formatter=self.log_formatter
             )
-            if output_type == OutputType.CONFIG:
-                # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
-                # slow, we can just set it explicitly.
+            # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
+            # slow, we can just set it explicitly.
+            from runhouse.resources.module import Module
+
+            if isinstance(result, Module):
+                if (
+                    system
+                    and result.system
+                    and system.rns_address == result.system.rns_address
+                ):
+                    result.system = system
+            elif output_type == OutputType.CONFIG:
                 if (
                     system
                     and "system" in result
