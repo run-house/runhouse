@@ -1,4 +1,4 @@
-# Deploy Mistral's 7B Model with TGI on AWS Inferentia
+# Deploy Mistral's 7B Model on AWS Inferentia
 
 See a more [rich explanation](https://www.run.house/examples/mistral-tgi-inference-on-aws-inferentia)
 of this example on our site.
