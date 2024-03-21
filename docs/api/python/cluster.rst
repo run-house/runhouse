@@ -321,3 +321,49 @@ Runhouse offers two options for enabling TLS/SSL on a cluster with Caddy:
    self-signed certificates to use for the cluster. These certs will not be verified by a CA.
 2. *Using Caddy to generate CA verified certs*: Provide the :code:`domain` argument. Caddy will then obtain
    certificates from Let's Encrypt on-demand when a client connects for the first time.
+
+
+Using a Custom Domain
+~~~~~~~~~~~~~~~~~~~~~
+Runhouse also supports custom domains for deploying your apps and services. In order to configure a domain, make sure
+to first add the relevant A record to your domain's DNS settings. Once the cluster is up, you can add a new A record
+with its public IP address.
+
+
+.. note::
+
+    You'll need to also sure the relevant ports are open (ex: 443) in the security group settings of the cluster.
+    Runhouse will also automatically set up a TLS certificate for the domain via
+    `Caddy <https://caddyserver.com/docs/automatic-https>`_.
+
+Once the server is up, you can include its IP and domain when initializing the Runhouse cluster object:
+
+.. code-block:: python
+
+     cluster = rh.cluster(name="rh-serving-cpu",
+                          ips=["<public IP>"],
+                          domain="<your domain>",
+                          server_connection_type="tls",
+                          open_ports=[443]).up_if_not()
+
+Now we can send modules or functions to our cluster and seamlessly create endpoints which we can then share
+and call from anywhere.
+
+Let's take a look at an example of how to deploy a simple
+`LangChain RAG app <https://www.run.house/examples/langchain-rag-app-aws-ec2>`_.
+
+Once the app has been created and sent to the cluster, we can call it via HTTP directly:
+
+.. code-block:: python
+
+    import requests
+
+    resp = requests.get("https://<domain>/basic_rag_app/invoke?user_prompt=<prompt>")
+    print(resp.json())
+
+
+Or via cURL:
+
+.. code-block:: cli
+
+     curl "https://<domain>/basic_rag_app/invoke?user_prompt=<prompt>"

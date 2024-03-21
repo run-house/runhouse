@@ -32,7 +32,6 @@
 # We import `runhouse`, because that's all that's needed to run the script locally.
 # The actual torch and transformers imports can happen within the functions
 # that will be sent to the Runhouse cluster; we don't need those locally.
-
 from typing import List
 
 import runhouse as rh
@@ -113,7 +112,9 @@ class LangchainRAG:
 # NOTE: Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
 # the script code will run when Runhouse attempts to run code remotely.
 if __name__ == "__main__":
-
+    # Note: Runhouse also supports custom domains secured automatically with HTTPS so you can use your own domain name
+    # when sharing an endpoint. Check out our docs on [using custom domains](https://www.run.house/docs/main/en/api/python/cluster#using-a-custom-domain)
+    # for more information.
     cluster = rh.cluster(
         name="rh-serving-cpu",
         instance_type="CPU:2",
@@ -163,3 +164,20 @@ if __name__ == "__main__":
     # method, and the module functions as a remote service.
     user_input = input("Ask a question about NYC tenants rights and responsibilities: ")
     print(rag_app.invoke(user_input))
+
+    # ## Standing up an endpoint
+    # We can call the model via an HTTP request, which calls directly into the module's `invoke` method:
+    # ```python
+    #   base_url = f"{rag_app.endpoint()}/invoke"
+    #   encoded_prompt = urllib.parse.quote(user_input)
+    #   resp = requests.get(f"{base_url}?user_prompt={encoded_prompt}")
+    #   print(resp.json())
+    # ```
+
+    # And we can also call it via cURL:
+    # ```python
+    # print(
+    #     f"curl {base_url}?user_prompt={encoded_prompt} -X GET -d "
+    #     "-H 'Content-Type: application/json'"
+    # )
+    # ```

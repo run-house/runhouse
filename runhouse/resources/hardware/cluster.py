@@ -221,9 +221,9 @@ class Cluster(Resource):
                 else "http"
             )
             if self.server_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
-                return f"{url_base}://{self.address}:{self.server_port}"
+                return f"{url_base}://{self.server_address}:{self.server_port}"
             else:
-                return f"{url_base}://{self.address}"
+                return f"{url_base}://{self.server_address}"
 
         if external:
             return None
