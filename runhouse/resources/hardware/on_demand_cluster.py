@@ -489,7 +489,6 @@ class OnDemandCluster(Cluster):
             >>> rh.ondemand_cluster("rh-cpu").ssh()
             >>> rh.ondemand_cluster("rh-cpu", node="3.89.174.234").ssh()
         """
-
         if self.provider == "kubernetes":
             command = f"kubectl get pods | grep {self.name}"
 
@@ -510,6 +509,8 @@ class OnDemandCluster(Cluster):
 
         else:
             # If SSHing onto a specific node, which requires the default sky public key for verification
+            from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
+
             ssh_user = self.creds_values.get("ssh_user")
             sky_key = Path(
                 self.creds_values.get("ssh_private_key", self.DEFAULT_KEYFILE)
@@ -518,13 +519,14 @@ class OnDemandCluster(Cluster):
             if not sky_key.exists():
                 raise FileNotFoundError(f"Expected default sky key in path: {sky_key}")
 
+            runner = SkySSHRunner(
+                ip=node or self.address,
+                ssh_user=ssh_user,
+                port=self.ssh_port,
+                ssh_private_key=sky_key,
+            )
             subprocess.run(
-                [
-                    "ssh",
-                    "-o",
-                    "StrictHostKeyChecking=accept-new",
-                    "-i",
-                    str(sky_key),
-                    f"{ssh_user}@{node or self.address}",
-                ]
+                runner._ssh_base_command(
+                    ssh_mode=SshMode.INTERACTIVE, port_forward=None
+                )
             )

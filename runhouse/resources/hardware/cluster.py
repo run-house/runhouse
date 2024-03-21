@@ -4,7 +4,6 @@ import importlib
 import json
 import logging
 import re
-import shlex
 import subprocess
 import sys
 import threading
@@ -1007,17 +1006,18 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").ssh()
         """
+        from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
+
         creds = self.creds_values
-
-        if creds.get("ssh_private_key"):
-            cmd = (
-                f"ssh {creds['ssh_user']}:{self.address} -i {creds['ssh_private_key']}"
-            )
-        else:
-            # if needs a password, will prompt for manual password
-            cmd = f"ssh {creds['ssh_user']}@{self.address}"
-
-        subprocess.run(shlex.split(cmd))
+        runner = SkySSHRunner(
+            ip=self.address,
+            ssh_user=creds["ssh_user"],
+            port=self.ssh_port,
+            ssh_private_key=creds["ssh_private_key"],
+        )
+        subprocess.run(
+            runner._ssh_base_command(ssh_mode=SshMode.INTERACTIVE, port_forward=None)
+        )
 
     def _ping(self, timeout=5):
         ssh_call = threading.Thread(target=lambda: self.run(['echo "hello"']))
