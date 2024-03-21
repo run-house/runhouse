@@ -113,9 +113,9 @@ def _check_file_for_mismatches(path, existing_vals, new_vals, overwrite):
 
 def setup_cluster_creds(ssh_creds: Union[Dict, str], resource_name: str):
     """
-    This method creates an SSHSecret instance. If the passed values are paths to private
+    This method creates an Secret corresponding to a cluster's SSH creds. If the passed values are paths to private
     and/or public keys, this method extracts the content of the files saved in those files, in order for them to
-    be saved in Den. (Currently if we just pass a path/to/ssh/key to the SSHSecret constructor, the content of the file
+    be saved in Vault. (Currently if we just pass a path/to/ssh/key to the Secret constructor, the content of the file
     will not be saved to Vault. We need to pass the content itself.)
 
     Args:
@@ -196,7 +196,5 @@ def setup_cluster_creds(ssh_creds: Union[Dict, str], resource_name: str):
     values_to_add = {k: ssh_creds[k] for k in ssh_creds if k not in values.keys()}
     values.update(values_to_add)
 
-    new_secret = rh.secret(name=f"{resource_name}-ssh-secret", values=values).save(
-        name=f"{resource_name}-ssh-secret"
-    )
+    new_secret = rh.secret(name=f"{resource_name}-ssh-secret", values=values)
     return new_secret
