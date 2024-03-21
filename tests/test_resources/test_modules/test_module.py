@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import time
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -11,7 +10,6 @@ import pytest
 
 import runhouse as rh
 from runhouse import Package
-from runhouse.servers.http.certs import TLSCertConfig
 
 logger = logging.getLogger(__name__)
 
@@ -231,40 +229,7 @@ class TestModule:
         )
 
         remote_instance_config = remote_instance3.system.config()
-        remote_instance_ssl_certfile = remote_instance_config.pop("ssl_certfile", None)
-        remote_instance_ssl_keyfile = remote_instance_config.pop("ssl_keyfile", None)
-
-        # Depending on the cluster type ssl certfile on the cluster should either be None or in the default Caddy dir
-        assert remote_instance_ssl_certfile in [
-            None,
-            f"{TLSCertConfig.CADDY_CLUSTER_DIR}/{TLSCertConfig.CERT_NAME}",
-        ]
-
-        assert remote_instance_ssl_keyfile in [
-            None,
-            f"{TLSCertConfig.CADDY_CLUSTER_DIR}/{TLSCertConfig.PRIVATE_KEY_NAME}",
-        ]
-
         cluster_config = cluster.config()
-        cluster_ssl_certfile = cluster_config.pop("ssl_certfile", None)
-        cluster_ssl_keyfile = cluster_config.pop("ssl_keyfile", None)
-        # Cluster config should point to the certs stored locally
-        assert cluster_ssl_certfile in [
-            None,
-            str(
-                Path(
-                    f"{TLSCertConfig.LOCAL_CERT_DIR}/{TLSCertConfig.CERT_NAME}"
-                ).expanduser()
-            ),
-        ]
-        assert cluster_ssl_keyfile in [
-            None,
-            str(
-                Path(
-                    f"{TLSCertConfig.LOCAL_CERT_DIR}/{TLSCertConfig.PRIVATE_KEY_NAME}"
-                ).expanduser()
-            ),
-        ]
 
         assert remote_instance_config == cluster_config
         assert remote_instance3.remote.size == 40

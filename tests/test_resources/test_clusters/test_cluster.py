@@ -295,8 +295,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         return_codes = cluster.run_python(["import runhouse as rh", "print(rh.here)"])
         assert return_codes[0][0] == 0
 
-        cluster_config = ast.literal_eval(return_codes[0][1])
-        assert cluster_config == cluster.config()
+        on_cluster_config = ast.literal_eval(return_codes[0][1])
+        cluster_config = cluster.config()
+
+        on_cluster_config.pop("creds", None)
+        cluster_config.pop("creds", None)
+
+        assert on_cluster_config == cluster_config
 
     @pytest.mark.level("local")
     def test_sharing(self, cluster, friend_account_logged_in_docker_cluster_pk_ssh):

@@ -113,6 +113,7 @@ class Cluster(Resource):
 
     def save_config_to_cluster(self, node: str = None):
         config = self.config(condensed=False)
+        config.pop("creds")
         json_config = f"{json.dumps(config)}"
 
         self.run(
@@ -519,6 +520,7 @@ class Cluster(Resource):
                 port=self.client_port,
                 auth=auth,
                 resource_address=self.rns_address,
+                system=self,
             )
 
         else:
@@ -544,6 +546,7 @@ class Cluster(Resource):
                 cert_path=cert_path,
                 use_https=self._use_https,
                 resource_address=self.rns_address,
+                system=self,
             )
 
         if self.rns_address:

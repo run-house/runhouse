@@ -44,6 +44,7 @@ def _current_cluster(key="config"):
     from runhouse.globals import obj_store
 
     cluster_config = obj_store.get_cluster_config()
+    cluster_config.pop("creds", None)
     if cluster_config:
         # This could be a local cluster started via runhouse start,
         # in which case it would have no Name.
