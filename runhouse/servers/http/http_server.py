@@ -339,7 +339,7 @@ class HTTPServer:
             # Call async so we can loop to collect logs until the result is ready
 
             # Do this here so it's async, harder to do async inside the call method
-            env_servlet = await obj_store.get_env_servlet_name_for_key(key, run_async=True)
+            env_servlet = await obj_store.get_env_servlet_name_for_key(key)
             fut = asyncio.create_task(
                 obj_store.call(
                     key=key,
@@ -1171,8 +1171,7 @@ if __name__ == "__main__":
     uvicorn_cert = parsed_ssl_certfile if not use_caddy and use_https else None
     uvicorn_key = parsed_ssl_keyfile if not use_caddy and use_https else None
 
-    uvicorn.run(
-        app,
+    obj_store.start_http_server_in_cluster_servlet(
         host=host,
         port=daemon_port,
         ssl_certfile=uvicorn_cert,

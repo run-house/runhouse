@@ -26,6 +26,7 @@ class ClusterServlet:
         self._initialized_env_servlet_names: Set[str] = set()
         self._key_to_env_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache()
+        self._uvicorn_server = None
 
     ##############################################
     # Cluster config state storage methods
@@ -38,6 +39,25 @@ class ClusterServlet:
 
     async def set_cluster_config_value(self, key: str, value: Any):
         self.cluster_config[key] = value
+
+    async def start_http_server(self, host, port, ssl_certfile, ssl_keyfile):
+        from runhouse.servers.http.http_server import app
+        import uvicorn
+
+        config = uvicorn.Config(app,
+                                host=host,
+                                port=port,
+                                ssl_certfile=ssl_certfile,
+                                ssl_keyfile=ssl_keyfile,
+                                loop="uvloop",
+                                lifespan="off",
+                                access_log=False,
+                                )
+        self._uvicorn_server = uvicorn.Server(config)
+
+        from runhouse.globals import obj_store
+        obj_store.cluster_servlet = self
+        await self._uvicorn_server.serve()
 
     ##############################################
     # Auth cache internal functions

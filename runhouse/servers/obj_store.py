@@ -211,6 +211,14 @@ class ObjStore:
         cuda_visible_devices = list(range(int(num_gpus)))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
 
+    def start_http_server_in_cluster_servlet(self, host, port, ssl_certfile, ssl_keyfile):
+        if self.cluster_servlet is not None:
+            return self.call_actor_method(
+                self.cluster_servlet, "start_http_server", host, port, ssl_certfile, ssl_keyfile
+            )
+        else:
+            raise ObjStoreError("Cluster servlet not initialized.")
+
     ##############################################
     # Generic helpers
     ##############################################
@@ -334,8 +342,10 @@ class ObjStore:
     ##############################################
     def get_cluster_config(self, run_async=False):
         # TODO: Potentially add caching here
-        if self.cluster_servlet is not None:
+        if isinstance(self.cluster_servlet, ray.actor.ActorHandle):
             return self.call_actor_method(self.cluster_servlet, "get_cluster_config", run_async=run_async)
+        elif self.cluster_servlet is not None:
+            return self.cluster_servlet.get_cluster_config()
         else:
             return {}
 
@@ -438,9 +448,12 @@ class ObjStore:
         )
 
     def get_env_servlet_name_for_key(self, key: Any, run_async=False):
-        return self.call_actor_method(
-            self.cluster_servlet, "get_env_servlet_name_for_key", key, run_async=run_async
-        )
+        if isinstance(self.cluster_servlet, ray.actor.ActorHandle):
+            return self.call_actor_method(
+                self.cluster_servlet, "get_env_servlet_name_for_key", key, run_async=run_async
+            )
+        else:
+            return self.cluster_servlet.get_env_servlet_name_for_key(key)
 
     def _put_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
         return self.call_actor_method(
