@@ -289,6 +289,9 @@ def set_up_local_cluster(
         docker_client.containers.get(container_name).stop()
         docker_client.containers.prune()
         docker_client.images.prune()
+        if rh_cluster._creds:
+            rh_cluster._creds.delete()
+        rh_cluster.delete_configs()
 
     return rh_cluster, cleanup
 
