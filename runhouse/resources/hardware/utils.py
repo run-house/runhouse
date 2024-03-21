@@ -1,40 +1,13 @@
 import json
+
+import logging
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional
-
-from sshtunnel import SSHTunnelForwarder
+from typing import Dict
 
 from runhouse.constants import CLUSTER_CONFIG_PATH, RESERVED_SYSTEM_NAMES
-from runhouse.globals import ssh_tunnel_cache
 
-# TODO: Move the following two functions into a networking module
-def get_open_tunnel(address: str, ssh_port: int) -> Optional[SSHTunnelForwarder]:
-    if (address, ssh_port) in ssh_tunnel_cache:
-        ssh_tunnel = ssh_tunnel_cache[(address, ssh_port)]
-        if isinstance(ssh_tunnel, SSHTunnelForwarder):
-            # Initializes tunnel_is_up dictionary
-            ssh_tunnel.check_tunnels()
-
-            if (
-                ssh_tunnel.is_active
-                and ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]
-            ):
-                return ssh_tunnel
-
-            else:
-                # If the tunnel is no longer active or up, pop it from the global cache
-                ssh_tunnel_cache.pop((address, ssh_port))
-
-    return None
-
-
-def cache_open_tunnel(
-    address: str,
-    ssh_port: str,
-    ssh_tunnel: SSHTunnelForwarder,
-):
-    ssh_tunnel_cache[(address, ssh_port)] = ssh_tunnel
+logger = logging.getLogger(__name__)
 
 
 class ServerConnectionType(str, Enum):

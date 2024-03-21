@@ -16,7 +16,7 @@ import threading
 import time
 import warnings
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict, Optional, Union
 
 try:
     import boto3
@@ -34,13 +34,47 @@ from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
 
 from runhouse.constants import LOCAL_HOSTS
 
-from runhouse.globals import configs, rns_client, ssh_tunnel_cache
+from runhouse.globals import configs, rns_client
 from runhouse.resources.hardware.cluster import Cluster
-from runhouse.resources.hardware.utils import get_open_tunnel, ServerConnectionType
+from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import is_jsonable, relative_ssh_path, resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 
 logger = logging.getLogger(__name__)
+
+####################################################################################################
+# Caching mechanisms for SSHTunnelForwarder
+####################################################################################################
+
+ssh_tunnel_cache = {}
+
+
+def get_open_ssh_tunnel(address: str, ssh_port: int) -> Optional[SSHTunnelForwarder]:
+    if (address, ssh_port) in ssh_tunnel_cache:
+
+        ssh_tunnel = ssh_tunnel_cache[(address, ssh_port)]
+        # Initializes tunnel_is_up dictionary
+        ssh_tunnel.check_tunnels()
+
+        if (
+            ssh_tunnel.is_active
+            and ssh_tunnel.tunnel_is_up[ssh_tunnel.local_bind_address]
+        ):
+            return ssh_tunnel
+
+        else:
+            # If the tunnel is no longer active or up, pop it from the global cache
+            ssh_tunnel_cache.pop((address, ssh_port))
+    else:
+        return None
+
+
+def cache_open_ssh_tunnel(
+    address: str,
+    ssh_port: str,
+    ssh_tunnel: SSHTunnelForwarder,
+):
+    ssh_tunnel_cache[(address, ssh_port)] = ssh_tunnel
 
 
 class SageMakerCluster(Cluster):
@@ -529,7 +563,7 @@ class SageMakerCluster(Cluster):
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0, retry=True
     ) -> SSHTunnelForwarder:
-        tunnel = get_open_tunnel(self.address, self.ssh_port)
+        tunnel = get_open_ssh_tunnel(self.address, self.ssh_port)
         if tunnel and tunnel.local_bind_port == local_port:
             logger.info(
                 f"SSH tunnel on ports {local_port, remote_port} already created with the cluster"
@@ -575,6 +609,7 @@ class SageMakerCluster(Cluster):
                 local_port, remote_port, num_ports_to_try, retry=False
             )
 
+        cache_open_ssh_tunnel(self.address, self.ssh_port, ssh_tunnel)
         return ssh_tunnel
 
     def ssh(self, interactive: bool = True):
