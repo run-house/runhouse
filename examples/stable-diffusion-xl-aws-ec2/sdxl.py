@@ -63,6 +63,7 @@ class StableDiffusionXLPipeline(rh.Module):
         )
 
     def _load_pipeline(self):
+        import torch
         from diffusers import DiffusionPipeline
         from huggingface_hub import snapshot_download
 
@@ -79,7 +80,7 @@ class StableDiffusionXLPipeline(rh.Module):
 
         # load local converted model into pipeline
         self.pipeline = DiffusionPipeline.from_pretrained(
-            self.model_dir, device_ids=[0, 1]
+            self.model_dir, device_ids=[0, 1], torch_dtype=torch.float16
         )
         self.pipeline.to("cuda")
 
