@@ -74,7 +74,7 @@ class StableDiffusionXLPipeline(rh.Module):
             # save compiled model to local directory
             # Downloads our compiled model from the HuggingFace Hub
             # using the revision as neuron version reference
-            # and makes sure we exlcude the symlink files and "hidden" files, like .DS_Store, .gitignore, etc.
+            # and makes sure we exclude the symlink files and "hidden" files, like .DS_Store, .gitignore, etc.
             snapshot_download(
                 self.model_id,
                 revision="2.15.0",
@@ -135,7 +135,7 @@ def decode_base64_image(image_string):
 #
 # Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
 #
-# NOTE: Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwiwse,
+# NOTE: Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
 # the script code will run when Runhouse attempts to run code remotely.
 if __name__ == "__main__":
     cluster = rh.cluster(
