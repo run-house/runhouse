@@ -4,7 +4,7 @@ import pytest
 import runhouse as rh
 
 from tests.conftest import init_args
-from tests.utils import friend_account
+from tests.utils import friend_account, remove_config_keys
 
 
 def load_shared_resource_config(resource_class_name, address):
@@ -74,10 +74,18 @@ class TestResource:
     def test_save_and_load(self, saved_resource):
         # Test loading from name
         loaded_resource = saved_resource.__class__.from_name(saved_resource.rns_address)
-        assert loaded_resource.config() == saved_resource.config()
-        # Changing the name doesn't work for OnDemandCluster, because the name won't match the local sky db
+
         if isinstance(saved_resource, rh.OnDemandCluster):
+            loaded_resource_config = remove_config_keys(
+                loaded_resource.config(), ["stable_internal_external_ips"]
+            )
+            saved_resource_config = remove_config_keys(
+                saved_resource.config(), ["stable_internal_external_ips"]
+            )
+            assert loaded_resource_config == saved_resource_config
+            # Changing the name doesn't work for OnDemandCluster, because the name won't match the local sky db
             return
+        assert loaded_resource.config() == saved_resource.config()
 
         # Do everything inside a try/finally so we don't leave resources behind if the test fails
         try:
