@@ -72,3 +72,9 @@ def test_env(logged_in=False):
         else False,
         name="base_env",
     )
+
+
+def remove_config_keys(config, keys_to_skip):
+    for key in keys_to_skip:
+        config.pop(key, None)
+    return config

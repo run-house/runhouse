@@ -8,7 +8,6 @@ tqdm
 
 # packages for local and unit tests
 boto3
-skypilot[docker]
 docker
 s3fs
 pandas

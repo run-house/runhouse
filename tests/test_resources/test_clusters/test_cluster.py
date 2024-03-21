@@ -15,7 +15,7 @@ from runhouse.constants import (
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
-from tests.utils import get_random_str
+from tests.utils import get_random_str, remove_config_keys
 
 """ TODO:
 1) In subclasses, test factory methods create same type as parent
@@ -160,7 +160,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             headers=rh.globals.rns_client.request_headers(),
         )
         assert r.status_code == 200
-        assert r.json()["resource_subtype"] == "Cluster"
+        assert r.json()["resource_type"] == "cluster"
 
     @pytest.mark.level("local")
     def test_cluster_objects(self, cluster):
@@ -292,14 +292,24 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_condensed_config_for_cluster(self, cluster):
         import ast
 
-        return_codes = cluster.run_python(["import runhouse as rh", "print(rh.here)"])
+        return_codes = cluster.run_python(
+            ["import runhouse as rh", "print(rh.here)"], stream_logs=False
+        )
         assert return_codes[0][0] == 0
 
         on_cluster_config = ast.literal_eval(return_codes[0][1])
         cluster_config = cluster.config()
 
-        on_cluster_config.pop("creds", None)
-        cluster_config.pop("creds", None)
+        keys_to_skip = ["creds", "client_port", "server_host"]
+        on_cluster_config = remove_config_keys(on_cluster_config, keys_to_skip)
+        cluster_config = remove_config_keys(cluster_config, keys_to_skip)
+
+        if cluster_config.get("stable_internal_external_ips", False):
+            cluster_ips = cluster_config.pop("stable_internal_external_ips", None)[0]
+            on_cluster_ips = on_cluster_config.pop(
+                "stable_internal_external_ips", None
+            )[0]
+            assert tuple(cluster_ips) == tuple(on_cluster_ips)
 
         assert on_cluster_config == cluster_config
 
