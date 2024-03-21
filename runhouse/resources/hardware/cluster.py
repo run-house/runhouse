@@ -19,7 +19,6 @@ from runhouse.servers.http.certs import TLSCertConfig
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import requests.exceptions
-import sshtunnel
 
 from runhouse.constants import (
     CLI_RESTART_CMD,
@@ -574,7 +573,6 @@ class Cluster(Resource):
                 logger.info(f"Server {self.name} is up.")
             except (
                 requests.exceptions.ConnectionError,
-                sshtunnel.BaseSSHTunnelForwarderError,
                 requests.exceptions.ReadTimeout,
                 requests.exceptions.ChunkedEncodingError,
             ):
