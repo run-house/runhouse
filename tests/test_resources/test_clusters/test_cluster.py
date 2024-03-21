@@ -379,4 +379,5 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             echo_msg = "hello from shared cluster"
             run_res = shared_cluster.run([f"echo {echo_msg}"])
             assert echo_msg in run_res[0][1]
-            shared_cluster.ssh()
+            # First element, return code
+            assert shared_cluster.run(["echo hello"])[0][0] == 0
