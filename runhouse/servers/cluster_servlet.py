@@ -52,7 +52,7 @@ class ClusterServlet:
         # they have access to everything
         if configs.token and (
             configs.token == token
-            or rns_client.cluster_token(configs.token, resource_uri) == token
+            or (resource_uri and rns_client.cluster_token(configs.token, resource_uri) == token)
         ):
             return ResourceAccess.WRITE
         return self._auth_cache.lookup_access_level(token, resource_uri)
