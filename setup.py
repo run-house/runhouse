@@ -77,7 +77,6 @@ install_requires = [
     "rich",
     "sentry-sdk",
     "sshfs >= 2023.1.0, <= 2023.4.1",
-    "sshtunnel>=0.3.0",
     "typer",
     "uvicorn",
     "wheel",
@@ -95,6 +94,7 @@ extras_require = {
         # If you don't want to use these exact versions, you can install runhouse without the aws extras, then
         # install your desired versions of awscli and boto3
         "pycryptodome==3.12.0",
+        "sshtunnel>=0.3.0",  # required for sagemaker
     ],
     "azure": ["skypilot[azure]==0.5.0"],
     "gcp": [

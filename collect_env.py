@@ -24,7 +24,6 @@ pip_pkgs = "\n".join(
             "rich",
             "fsspec",
             "pyarrow",
-            "sshtunnel",
             "sshfs",
             "typer",
             "skypilot",
@@ -36,6 +35,7 @@ pip_pkgs = "\n".join(
             "boto3",
             "pycryptodome",
             "s3fs",
+            "sshtunnel",
             # azure
             "azure-cli",
             "azure-core",

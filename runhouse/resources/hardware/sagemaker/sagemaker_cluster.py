@@ -30,8 +30,6 @@ try:
 except ImportError:
     pass
 
-from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
-
 from runhouse.constants import LOCAL_HOSTS
 
 from runhouse.globals import configs, rns_client
@@ -49,7 +47,7 @@ logger = logging.getLogger(__name__)
 ssh_tunnel_cache = {}
 
 
-def get_open_ssh_tunnel(address: str, ssh_port: int) -> Optional[SSHTunnelForwarder]:
+def get_open_ssh_tunnel(address: str, ssh_port: int) -> Optional["SSHTunnelForwarder"]:
     if (address, ssh_port) in ssh_tunnel_cache:
 
         ssh_tunnel = ssh_tunnel_cache[(address, ssh_port)]
@@ -72,7 +70,7 @@ def get_open_ssh_tunnel(address: str, ssh_port: int) -> Optional[SSHTunnelForwar
 def cache_open_ssh_tunnel(
     address: str,
     ssh_port: str,
-    ssh_tunnel: SSHTunnelForwarder,
+    ssh_tunnel: "SSHTunnelForwarder",
 ):
     ssh_tunnel_cache[(address, ssh_port)] = ssh_tunnel
 
@@ -562,7 +560,9 @@ class SageMakerCluster(Cluster):
     # -------------------------------------------------------
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0, retry=True
-    ) -> SSHTunnelForwarder:
+    ) -> "SSHTunnelForwarder":
+        from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
+
         tunnel = get_open_ssh_tunnel(self.address, self.ssh_port)
         if tunnel and tunnel.local_bind_port == local_port:
             logger.info(
