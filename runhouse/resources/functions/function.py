@@ -33,6 +33,7 @@ class Function(Module):
                 To create a Function, please use the factory method :func:`function`.
         """
         self.fn_pointers = fn_pointers
+        self._loaded_fn = None
         super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
 
     # ----------------- Constructor helper methods -----------------
@@ -111,8 +112,9 @@ class Function(Module):
 
     def call(self, *args, **kwargs) -> Any:
         # We need this strictly because Module's __getattribute__ overload can't pick up the __call__ method
-        fn = self._get_obj_from_pointers(*self.fn_pointers)
-        return fn(*args, **kwargs)
+        if not self._loaded_fn:
+            self._loaded_fn = self._get_obj_from_pointers(*self.fn_pointers)
+        return self._loaded_fn(*args, **kwargs)
 
     def method_signature(self, method):
         if callable(method) and method.__name__ == "call":
