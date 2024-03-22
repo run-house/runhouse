@@ -13,7 +13,9 @@ class ClusterServlet:
     def __init__(
         self, cluster_config: Optional[Dict[str, Any]] = None, *args, **kwargs
     ):
+        import os
 
+        print(f"Cluster servlet initialized with pid {os.getpid()}")
         # We do this here instead of at the start of the HTTP Server startup
         # because someone can be running `HTTPServer()` standalone in a test
         # and still want an initialized cluster config in the servlet.

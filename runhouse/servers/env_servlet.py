@@ -61,6 +61,11 @@ def error_handling_decorator(func):
 
 class EnvServlet:
     def __init__(self, env_name: str, *args, **kwargs):
+
+        import os
+
+        print(f"Env servlet initialized with pid {os.getpid()}")
+
         self.env_name = env_name
 
         obj_store.initialize(
