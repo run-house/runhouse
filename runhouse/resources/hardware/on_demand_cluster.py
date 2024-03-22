@@ -213,9 +213,9 @@ class OnDemandCluster(Cluster):
             ]:
                 if self.server_port:
                     warnings.warn(
-                        f"No open ports specified. Make sure port {self.server_port} is open "
-                        f"to {self.server_connection_type} traffic."
+                        f"No open ports specified. Setting default port {self.server_port} to open."
                     )
+                    self.open_ports = [str(self.server_port)]
                 else:
                     warnings.warn(
                         f"No open ports specified. Make sure the relevant port is open. "
