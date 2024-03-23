@@ -289,6 +289,7 @@ class HTTPServer:
             if not ray.is_initialized():
                 raise Exception("Ray is not initialized, restart the server.")
             logger.info("Server is up.")
+            logging.info("Server is up.")
 
             import runhouse
 
@@ -716,11 +717,15 @@ class HTTPServer:
     def _collect_telemetry_stats():
         """Collect telemetry stats and send them to the Runhouse hosted OpenTelemetry collector"""
         from opentelemetry import trace
+        from opentelemetry._logs import set_logger_provider
+        from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
             OTLPSpanExporter,
         )
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
         from opentelemetry.instrumentation.requests import RequestsInstrumentor
+        from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+        from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -761,7 +766,30 @@ class HTTPServer:
         )
 
         logger.info(
-            f"Successfully added telemetry exporter {telemetry_collector_address}"
+            f"Successfully added telemetry traces & spans exporter {telemetry_collector_address}"
+        )
+        logger_provider = LoggerProvider(
+            resource=Resource.create(
+                {
+                    "service.name": "runhouse-service",
+                }
+            ),
+        )
+        set_logger_provider(logger_provider)
+
+        logger_exporter = OTLPLogExporter(
+            endpoint=telemetry_collector_address + "/v1/logs"
+        )
+        logger_provider.add_log_record_processor(
+            BatchLogRecordProcessor(logger_exporter)
+        )
+        handler = LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
+
+        # Attach OTLP handler to root logger
+        logging.getLogger().addHandler(handler)
+
+        logger.info(
+            f"Successfully added telemetry logs exporter {telemetry_collector_address}"
         )
 
         # Instrument the app object
@@ -769,6 +797,8 @@ class HTTPServer:
 
         # Instrument the requests library
         RequestsInstrumentor().instrument()
+
+        # logger_provider.shutdown()
 
     @staticmethod
     def _cluster_status_report():
