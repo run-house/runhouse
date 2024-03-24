@@ -19,9 +19,9 @@ def _generate_default_name(prefix: str = None, precision: str = "s", sep="_") ->
     if precision == "d":
         timestamp_key = f"{datetime.now().strftime('%Y%m%d')}"
     elif precision == "s":
-        timestamp_key = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        timestamp_key = f"{datetime.now().strftime(f'%Y%m%d{sep}%H%M%S')}"
     elif precision == "ms":
-        timestamp_key = f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+        timestamp_key = f"{datetime.now().strftime(f'%Y%m%d{sep}%H%M%S_%f')}"
     if prefix is None:
         return timestamp_key
     return f"{prefix}{sep}{timestamp_key}"

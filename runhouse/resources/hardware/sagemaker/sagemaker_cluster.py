@@ -941,6 +941,7 @@ class SageMakerCluster(Cluster):
             logger.warning("No estimator found, cannot run job.")
             return
 
+        # NOTE: underscores not allowed for training job name - must match: ^[a-zA-Z0-9](-*[a-zA-Z0-9]){0,62}
         self.estimator.fit(
             wait=False,
             job_name=self.job_name or _generate_default_name(self.name, sep="-"),

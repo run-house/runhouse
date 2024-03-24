@@ -23,7 +23,7 @@ def test_launch_and_connect_to_sagemaker(sm_cluster):
     assert sm_cluster.is_up()
 
     # Run func on the cluster
-    np_func = rh.function(np_array, system=sm_cluster, env=["./", "numpy"])
+    np_func = rh.function(np_array).to(system=sm_cluster, env=["./", "numpy"])
     my_list = [1, 2, 3]
     res = np_func(my_list)
     assert res.tolist() == my_list

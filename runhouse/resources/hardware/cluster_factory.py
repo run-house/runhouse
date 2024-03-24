@@ -5,7 +5,7 @@ import warnings
 
 from typing import Dict, List, Optional, Union
 
-from runhouse.constants import LOCAL_HOSTS, RESERVED_SYSTEM_NAMES
+from runhouse.constants import DEFAULT_SERVER_PORT, LOCAL_HOSTS, RESERVED_SYSTEM_NAMES
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import relative_ssh_path
 
@@ -574,6 +574,8 @@ def sagemaker_cluster(
         raise ValueError(
             "SageMaker Cluster currently requires a server host of `localhost` or `127.0.0.1`"
         )
+
+    server_port = server_port or DEFAULT_SERVER_PORT
 
     if name:
         alt_options = dict(
