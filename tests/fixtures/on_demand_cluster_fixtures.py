@@ -9,23 +9,28 @@ from runhouse.constants import DEFAULT_HTTPS_PORT, EMPTY_DEFAULT_ENV_NAME
 from tests.conftest import init_args
 from tests.utils import test_env
 
+NUM_OF_INSTANCES = 2
+
 
 @pytest.fixture()
 def restart_server(request):
     return request.config.getoption("--restart-server")
 
 
-def setup_test_cluster(args, request):
+def setup_test_cluster(args, request, create_env=True):
     cluster = rh.ondemand_cluster(**args)
     init_args[id(cluster)] = args
-
     if not cluster.is_up():
         cluster.up()
     elif request.config.getoption("--restart-server"):
         cluster.restart_server()
 
     cluster.save()
-    if cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
+
+    # checking if to create_env or not for the status tests. Default val of create_env is True,
+    # meaning env will be created if the other part of the condition match.
+    # Therefore it will not affect all other tests (which don't tests status)
+    if create_env and cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
         test_env().to(cluster)
     return cluster
 
@@ -116,10 +121,27 @@ def a10g_gpu_cluster(request):
 def multinode_cpu_cluster(request):
     args = {
         "name": "rh-cpu-multinode",
-        "num_instances": 2,
+        "num_instances": NUM_OF_INSTANCES,
         "instance_type": "CPU:2+",
     }
-    cluster = setup_test_cluster(args, request)
+    create_env = False
+    cluster = setup_test_cluster(args, request, create_env)
+    env = rh.env(name="worker_env", compute={"CPU": 2}).to(cluster)
+    assert env
+    return cluster
+
+
+@pytest.fixture(scope="session")
+def multinode_gpu_cluster(request):
+    args = {
+        "name": "rh-gpu-multinode",
+        "num_instances": NUM_OF_INSTANCES,
+        "instance_type": "g5.xlarge",
+    }
+    create_env = False
+    cluster = setup_test_cluster(args, request, create_env)
+    env = rh.env(name="worker_env", compute={"GPU": 1, "CPU": 4}).to(cluster)
+    assert env
     return cluster
 
 

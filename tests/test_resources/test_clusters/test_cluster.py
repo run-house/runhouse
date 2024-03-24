@@ -85,7 +85,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pk_tls_den_auth",  # Represents public app use case
             "docker_cluster_pk_http_exposed",  # Represents within VPC use case
             "docker_cluster_pwd_ssh_no_auth",
-        ]
+        ],
     }
     MINIMAL = {"cluster": ["static_cpu_cluster"]}
     RELEASE = {
@@ -104,6 +104,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "multinode_cpu_cluster",
         ]
     }
+
+    GPU_CLUSTER_NAMES = ["rh-v100", "rh-k80", "rh-a10x", "rh-gpu-multinode"]
 
     @pytest.mark.level("unit")
     def test_cluster_factory_and_properties(self, cluster):
@@ -190,7 +192,26 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             headers=rh.globals.rns_client.request_headers(),
         )
         assert r.status_code == 200
-        assert r.json()["resource_type"] == "cluster"
+        assert r.json().get("cluster_config")["resource_type"] == "cluster"
+
+    @pytest.mark.level("local")
+    def test_load_cluster_status(self, cluster):
+        endpoint = cluster.endpoint()
+        verify = cluster.client.verify
+        r = requests.get(
+            f"{endpoint}/status",
+            verify=verify,
+            headers=rh.globals.rns_client.request_headers(),
+        )
+
+        assert r.status_code == 200
+        status_data = r.json()
+        assert status_data["cluster_config"]["resource_type"] == "cluster"
+        assert status_data["env_servlet_actors"]
+        assert status_data["system_cpu_usage"]
+        assert status_data["system_memory_usage"]
+        assert status_data["system_disk_usage"]
+        assert not status_data.get("system_gpu_data")
 
     @pytest.mark.level("local")
     def test_cluster_objects(self, cluster):
@@ -248,18 +269,83 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_rh_status_pythonic(self, cluster):
-        cluster.put(key="status_key1", obj="status_value1", env="numpy_env")
-        res = cluster.status()
+        if "multinode" in cluster.name:
+            cluster.put(key="status_key1", obj="status_value1", env="worker_env")
+        else:
+            cluster.put(key="status_key1", obj="status_value1", env="numpy_env")
+        cluster_data = cluster.status()
+        res = cluster_data.get("cluster_config")
+
+        # test cluster config info
         assert res.get("creds") is None
         assert res.get("server_port") == (cluster.server_port or DEFAULT_SERVER_PORT)
         assert res.get("server_connection_type") == cluster.server_connection_type
         assert res.get("den_auth") == cluster.den_auth
         assert res.get("resource_type") == cluster.RESOURCE_TYPE
         assert res.get("ips") == cluster.ips
-        assert "numpy_env" in res.get("envs")
-        assert {"name": "status_key1", "resource_type": "str"} in res.get("envs")[
-            "numpy_env"
+
+        if "multinode" in cluster.name:
+            assert "worker_env" in res.get("envs")
+            assert {"name": "status_key1", "resource_type": "str"} in res.get("envs")[
+                "worker_env"
+            ]
+        else:
+            assert "numpy_env" in res.get("envs")
+            assert {"name": "status_key1", "resource_type": "str"} in res.get("envs")[
+                "numpy_env"
+            ]
+
+        # test memory usage info
+        expected_env_servlet_keys = [
+            "actor_id",
+            "env_gpu_usage",
+            "env_memory_usage",
+            "node_id",
+            "node_ip",
+            "node_name",
+            "pid",
         ]
+        envs_names = list(res.get("envs").keys())
+        envs_names.sort()
+        assert "env_servlet_actors" in cluster_data.keys()
+        env_servlets_info = cluster_data.get("env_servlet_actors")
+        env_actors_keys = list(env_servlets_info.keys())
+        env_actors_keys.sort()
+        assert envs_names == env_actors_keys
+        for env_name in envs_names:
+            env_servlet_info = env_servlets_info.get(env_name)
+            env_servlet_info_keys = list(env_servlet_info.keys())
+            env_servlet_info_keys.sort()
+            assert env_servlet_info_keys == expected_env_servlet_keys
+
+            if cluster.name in self.GPU_CLUSTER_NAMES and env_name == "sd_env":
+                assert env_servlet_info.get("env_gpu_usage")
+
+    @pytest.mark.level("maximal")
+    def test_rh_status_pythonic_gpu(self, cluster):
+        if cluster.name in self.GPU_CLUSTER_NAMES:
+            from tests.test_tutorials import sd_generate
+
+            env_sd = rh.env(
+                reqs=["pytest", "diffusers", "torch", "transformers"],
+                name="sd_env",
+                compute={"GPU": 1, "CPU": 4},
+            ).to(system=cluster, force_install=True)
+
+            assert env_sd
+
+            generate_gpu = rh.function(fn=sd_generate).to(system=cluster, env=env_sd)
+
+            images = generate_gpu(
+                prompt="A hot dog made of matcha powder.", num_images=4, steps=50
+            )
+
+            assert images
+
+            self.test_rh_status_pythonic(cluster)
+
+        else:
+            pytest.skip(f"{cluster.name} is not a GPU cluster, skipping")
 
     @pytest.mark.level("local")
     def test_rh_status_cli_in_cluster(self, cluster):
@@ -282,17 +368,58 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             in status_output_string
         )
         assert f"den_auth: {str(cluster.den_auth)}" in status_output_string
-        assert f"resource_type: {cluster.RESOURCE_TYPE.lower()}" in status_output_string
+        assert (
+            f"resource_subtype: {cluster.config().get('resource_subtype')}"
+            in status_output_string
+        )
         assert f"ips: {str(cluster.ips)}" in status_output_string
         assert "Serving " in status_output_string
-        assert f"{default_env_name}" in status_output_string
+        assert f"{default_env_name} (runhouse.Env)" in status_output_string
         assert "status_key2 (str)" in status_output_string
         assert "creds" not in status_output_string
 
+        # checking the memory info is printed correctly
+        assert "CPU: " in status_output_string
+        assert status_output_string.count("CPU: ") >= 1
+        assert "pid: " in status_output_string
+        assert status_output_string.count("pid: ") >= 1
+        assert "node: " in status_output_string
+        assert status_output_string.count("node: ") >= 1
+
+        # if it is a GPU cluster, check GPU print as well
+        if cluster.name in self.GPU_CLUSTER_NAMES:
+            assert "GPU: " in status_output_string
+            assert status_output_string.count("GPU: ") >= 1
+
+    @pytest.mark.level("maximal")
+    def test_rh_status_cli_in_gpu_cluster(self, cluster):
+        if cluster.name in self.GPU_CLUSTER_NAMES:
+            from tests.test_tutorials import sd_generate
+
+            env_sd = rh.env(
+                reqs=["pytest", "diffusers", "torch", "transformers"],
+                name="sd_env",
+                compute={"GPU": 1},
+            ).to(system=cluster, force_install=True)
+
+            assert env_sd
+            generate_gpu = rh.function(fn=sd_generate).to(system=cluster, env=env_sd)
+            images = generate_gpu(
+                prompt="A hot dog made of matcha powder.", num_images=4, steps=50
+            )
+            assert images
+
+            self.test_rh_status_cli_in_cluster(cluster)
+
+        else:
+            pytest.skip(f"{cluster.name} is not a GPU cluster, skipping")
+
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")
+    # TODO: once fixed, extend this tests for gpu clusters as well.
     def test_rh_status_cli_not_in_cluster(self, cluster):
-        # TODO -- check this base_env
+        default_env_name = cluster.default_env.name
+
         cluster.put(key="status_key3", obj="status_value3")
         res = str(
             subprocess.check_output(["runhouse", "status", f"{cluster.name}"]), "utf-8"
@@ -301,15 +428,16 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert f"server_port: {cluster.server_port}" in res
         assert f"server_connection_type: {cluster.server_connection_type}" in res
         assert f"den_auth: {str(cluster.den_auth)}" in res
-        assert f"resource_type: {cluster.RESOURCE_TYPE.lower()}" in res
+        assert f"resource_subtype: {cluster.RESOURCE_TYPE.capitalize()}" in res
         assert f"ips: {str(cluster.ips)}" in res
         assert "Serving 🍦 :" in res
-        assert "base_env (runhouse.resources.envs.env.Env):" in res
+        assert f"{default_env_name} (runhouse.Env)" in res
         assert "status_key3 (str)" in res
         assert "ssh_certs" not in res
 
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")
+    # TODO: once fixed, extend this tests for gpu clusters as well.
     def test_rh_status_stopped(self, cluster):
         try:
             cluster_name = cluster.name
@@ -457,7 +585,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         # If save did not update the name, this will attempt to create a connection
         # when the cluster is used remotely. However, if you update the name, `on_this_cluster` will
-        # work correclty and then the remote function will just call the object store when it calls .keys()
+        # work correctly and then the remote function will just call the object store when it calls .keys()
         assert cluster.keys() == cluster_keys_remote(cluster)
 
         # Restore the state?

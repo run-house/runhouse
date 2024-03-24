@@ -177,5 +177,5 @@ class EnvServlet:
     async def aclear_local(self):
         return await obj_store.aclear_local()
 
-    async def astatus_local(self):
-        return obj_store.status_local()
+    async def astatus_local(self, env_servlet_pid):
+        return obj_store.status_local(env_servlet_pid)

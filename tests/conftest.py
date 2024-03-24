@@ -239,6 +239,7 @@ from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
     multinode_cpu_cluster,  # noqa: F401
+    multinode_gpu_cluster,  # noqa: F401
     ondemand_aws_cluster,  # noqa: F401
     ondemand_aws_https_cluster_with_auth,  # noqa: F401
     ondemand_cluster,  # noqa: F401
@@ -408,5 +409,6 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "password_cluster",
         "multinode_cpu_cluster",
         "static_cpu_cluster",
+        "multinode_gpu_cluster",  # for testing cluster status on multinode gpu.
     ]
 }
