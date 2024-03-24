@@ -160,7 +160,24 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             headers=rh.globals.rns_client.request_headers(),
         )
         assert r.status_code == 200
-        assert r.json()["resource_type"] == "cluster"
+        assert r.json().get("cluster_config")["resource_type"] == "cluster"
+
+    @pytest.mark.level("local")
+    def test_load_cluster_status(self, cluster):
+        endpoint = cluster.endpoint()
+        verify = cluster.client.verify
+        r = requests.get(
+            f"{endpoint}/status",
+            verify=verify,
+            headers=rh.globals.rns_client.request_headers(),
+        )
+
+        assert r.status_code == 200
+        status_data = r.json()
+        assert status_data["cluster_config"]["resource_type"] == "cluster"
+        assert status_data["ray_available_resources"]
+        assert status_data["ray_total_resources"]
+        assert not status_data["system_gpu_data"]
 
     @pytest.mark.level("local")
     def test_cluster_objects(self, cluster):
@@ -219,7 +236,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     def test_rh_status_pythonic(self, cluster):
         cluster.put(key="status_key1", obj="status_value1", env="numpy_env")
-        res = cluster.status()
+        cluster_data = cluster.status()
+        res = cluster_data.get("cluster_config")
         assert res.get("creds") is None
         assert res.get("server_port") == (cluster.server_port or DEFAULT_SERVER_PORT)
         assert res.get("server_connection_type") == cluster.server_connection_type
