@@ -116,8 +116,9 @@ def serialize_data(data: Any, serialization: Optional[str]):
     if serialization == "json":
         try:
             return json.dumps(data)
-        except TypeError as e:
-            return json.dumps(str(e))
+        except TypeError:
+            data["error"] = str(data["error"])
+            return json.dumps(data)
     elif serialization == "pickle":
         return pickle_b64(data)
     elif serialization is None or serialization == "none":
