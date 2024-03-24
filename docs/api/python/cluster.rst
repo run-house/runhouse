@@ -229,11 +229,11 @@ be started on the cluster on port :code:`32300`.
 Server Authentication
 ---------------------
 
-If desired, Runhouse provides out-of-the-box authentication via users' Runhouse token (generated when
-:ref:`logging in <Login/Logout>`) and set locally at: :code:`~/.rh/config.yaml`). This is crucial if the cluster
-has ports open to the public internet, as would usually be the case when using the ``tls`` connection type. You may
-also set up your own authentication manually inside of your own code, but you should likely still enable Runhouse
-authentication to ensure that even your non-user-facing endpoints into the server are secured.
+If desired, Runhouse provides out-of-the-box authentication via users' Runhouse cluster token (generated when
+:ref:`logging in <Login/Logout>`). This is crucial if the cluster has ports open to the public internet, as would
+usually be the case when using the ``tls`` connection type. You may also set up your own authentication manually
+inside of your own code, but you should likely still enable Runhouse authentication to ensure that even your
+non-user-facing endpoints into the server are secured.
 
 When :ref:`initializing a cluster <Cluster Factory Method>`, you can set the :code:`den_auth` parameter to :code:`True`
 to enable token authentication. Calls to the cluster server can then be made using an auth header with the

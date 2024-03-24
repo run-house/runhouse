@@ -10,7 +10,6 @@ from typing import Any, Dict, List
 import pytest
 
 import runhouse as rh
-import yaml
 
 from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
 
@@ -273,17 +272,9 @@ def set_up_local_cluster(
         # If re-using fixtures make sure the crt file gets copied on to the cluster
         rh_cluster.restart_server()
 
-    rh.env(
-        reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
-        working_dir=None,
-        setup_cmds=[
-            f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
-            f"echo '{yaml.safe_dump(config)}' > ~/.rh/config.yaml"
-        ]
-        if logged_in
-        else False,
-        name="base_env",
-    ).to(rh_cluster)
+    rh.env(reqs=["pytest", "httpx", "pytest_asyncio", "pandas"], working_dir=None).to(
+        rh_cluster
+    )
 
     def cleanup():
         docker_client.containers.get(container_name).stop()

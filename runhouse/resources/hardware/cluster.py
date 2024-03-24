@@ -1,7 +1,6 @@
 import contextlib
 import copy
 import importlib
-import json
 import logging
 import re
 import subprocess
@@ -11,6 +10,8 @@ import time
 import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+
+import yaml
 
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
@@ -23,7 +24,6 @@ import requests.exceptions
 from runhouse.constants import (
     CLI_RESTART_CMD,
     CLI_STOP_CMD,
-    CLUSTER_CONFIG_PATH,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
     DEFAULT_RAY_PORT,
@@ -31,7 +31,7 @@ from runhouse.constants import (
     LOCALHOST,
     RESERVED_SYSTEM_NAMES,
 )
-from runhouse.globals import obj_store, rns_client
+from runhouse.globals import configs, obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import _current_cluster, ServerConnectionType
 from runhouse.resources.resource import Resource
@@ -110,18 +110,6 @@ class Cluster(Resource):
             return {}
 
         return self._creds.values
-
-    def save_config_to_cluster(self, node: str = None):
-        config = self.config(condensed=False)
-        config.pop("creds")
-        json_config = f"{json.dumps(config)}"
-
-        self.run(
-            [
-                f"mkdir -p ~/.rh; touch {CLUSTER_CONFIG_PATH}; echo '{json_config}' > {CLUSTER_CONFIG_PATH}"
-            ],
-            node=node or "all",
-        )
 
     def save(
         self,
@@ -308,6 +296,27 @@ class Cluster(Resource):
             f"cluster.keep_warm will have no effect on self-managed cluster {self.name}."
         )
         return self
+
+    def _save_cluster_token(self):
+        """Save user data (including cluster token) to the cluster."""
+        import shlex
+
+        cluster_token = rns_client.base_cluster_token
+        username = rns_client.username
+
+        path_to_file = Path(configs.CLUSTER_TOKEN_PATH)
+
+        user_data = {
+            username: {"rns_address": self.rns_address, "token": cluster_token}
+        }
+
+        yaml_data = yaml.dump(user_data, default_flow_style=False, allow_unicode=True)
+        token_cmd = f"echo {shlex.quote(yaml_data)} >> {path_to_file}"
+        self.run([token_cmd])
+
+        logger.debug(
+            f"Saved data to cluster owners file on server in path: {configs.CLUSTER_TOKEN_PATH}"
+        )
 
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if self.on_this_cluster():
@@ -674,6 +683,7 @@ class Cluster(Resource):
     def restart_server(
         self,
         _rh_install_url: str = None,
+        _set_owner: bool = False,
         resync_rh: bool = True,
         restart_ray: bool = False,
         env: Union[str, "Env"] = None,
@@ -691,6 +701,11 @@ class Cluster(Resource):
             >>> rh.cluster("rh-cpu").restart_server()
         """
         logger.info(f"Restarting Runhouse API server on {self.name}.")
+
+        if _set_owner and rns_client.token and self.rns_address:
+            # If a Runhouse token is saved locally and rns address exists for the cluster, we can write down the
+            # user's hashed cluster token to the "cluster_owners" file on the cluster
+            self._save_cluster_token()
 
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
@@ -732,9 +747,6 @@ class Cluster(Resource):
                     f"{base_caddy_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
                 )
                 cluster_cert_path = f"{base_caddy_dir}/{self.cert_config.CERT_NAME}"
-
-        # Update the cluster config on the cluster
-        self.save_config_to_cluster()
 
         cmd = (
             CLI_RESTART_CMD
