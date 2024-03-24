@@ -45,7 +45,7 @@ class ClusterServlet:
     # Auth cache internal functions
     ##############################################
     async def add_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
-        self._auth_cache.add_user(token, refresh_cache)
+        self._auth_cache.aadd_user(token, refresh_cache)
 
     async def resource_access_level(
         self, token: str, resource_uri: str
