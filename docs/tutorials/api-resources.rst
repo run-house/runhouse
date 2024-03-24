@@ -26,9 +26,8 @@ Runhouse RNS
 Setting Config Options
 ----------------------
 
-Runhouse stores user configs both locally in ``~/.rh/config.yaml`` and
-remotely in the Runhouse database, letting you preserve your same config
-across environments.
+Runhouse stores user configs locally in ``~/.rh/config.yaml``, letting you preserve convenient defaults to re-use
+across clusters.
 
 Some configs to consider setting:
 

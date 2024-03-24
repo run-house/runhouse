@@ -204,6 +204,13 @@ def get_token_from_request(request):
     return auth_headers.split("Bearer ")[-1] if auth_headers else None
 
 
+def get_username_from_cluster_token(token: str):
+    if "+" not in token:
+        return None
+
+    return token.split("+")[-1]
+
+
 def auth_headers_from_request(request):
     return request.headers.get("Authorization", "")
 

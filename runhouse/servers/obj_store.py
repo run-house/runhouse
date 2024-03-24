@@ -472,7 +472,10 @@ class ObjStore:
                 return True
             if (
                 resource_uri
-                and rns_client.cluster_token(configs.token, resource_uri) == token
+                and rns_client.cluster_token_from_resource_address(
+                    configs.token, resource_uri
+                )
+                == token
             ):
                 return True
 

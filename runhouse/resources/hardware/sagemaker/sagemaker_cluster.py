@@ -401,6 +401,7 @@ class SageMakerCluster(Cluster):
     def restart_server(
         self,
         _rh_install_url: str = None,
+        _set_owner: bool = False,
         resync_rh: bool = True,
         restart_ray: bool = True,
         env: Union[str, "Env"] = None,
@@ -1302,15 +1303,6 @@ class SageMakerCluster(Cluster):
 
         if not self.client:
             self.connect_server_client()
-
-        # Sync the local ~/.rh directory to the cluster
-        self._rsync(
-            source=str(Path("~/.rh").expanduser()),
-            dest="~/.rh",
-            up=True,
-            contents=True,
-        )
-        logger.info("Synced ~/.rh folder to the cluster")
 
         local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
         # local_rh_package_path = Path(pkgutil.get_loader("runhouse").path).parent

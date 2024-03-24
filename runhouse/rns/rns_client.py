@@ -1,4 +1,3 @@
-import hashlib
 import importlib
 import json
 import logging
@@ -148,6 +147,10 @@ class RNSClient:
         return self._configs.token
 
     @property
+    def base_cluster_token(self):
+        return self._configs.cluster_token
+
+    @property
     def username(self):
         return self._configs.get("username", None)
 
@@ -202,12 +205,10 @@ class RNSClient:
     ) -> Union[dict, None]:
         """Returns the authentication headers to use for requests made to Den or to a cluster.
 
-        If the request is being made to Den, we simply construct the request headers with the user's existing
-        Runhouse token.
-
-        If the request is being made to (or from) a cluster, we generate a new unique token to prevent exposing the
-        user's original Runhouse token on the cluster. This new token is based on the user's existing Den token and
-        the Den address of the resource (or cluster API) they are attempting to access.
+        We generate a new unique token to prevent exposing the user's original Runhouse token on the cluster.
+        This new token is based on the user's existing Den token and the Den address of the resource (or cluster API)
+        they are attempting to access. Where relevant, we also store this token on the cluster in order to authenticate
+        cluster owners.
 
         For example, if userA tries to access a function on a cluster that was shared with them by userB, we generate a
         new token containing userA's Den token and top level directory associated with the
@@ -238,8 +239,9 @@ class RNSClient:
             return None
 
         if headers is None:
-            # Use the default headers (i.e. the user's original Den token)
-            headers: dict = self._configs.request_headers
+            # Use the default cluster headers, which includes the hash of the user's den token
+            # We can use this to authenticate requests to a cluster + Den
+            headers: dict = self._configs.cluster_request_headers
 
         if not headers:
             # TODO: allow this? means we failed to load token from configs
@@ -265,18 +267,22 @@ class RNSClient:
                 "Failed to extract token from request auth header. Expected in format: Bearer <token>"
             )
 
-        hashed_token = self.cluster_token(den_token, resource_address)
+        hashed_token = self.cluster_token_from_resource_address(
+            den_token, resource_address
+        )
 
         return {"Authorization": f"Bearer {hashed_token}"}
 
-    def cluster_token(self, den_token: str, resource_address: str):
+    def cluster_token_from_resource_address(
+        self, den_token: str, resource_address: str
+    ):
         if "/" in resource_address:
             # If provided as a full rns address, extract the top level directory
             resource_address = self.base_folder(resource_address)
 
-        hash_input = (den_token + resource_address).encode("utf-8")
-        hash_hex = hashlib.sha256(hash_input).hexdigest()
-        return f"{hash_hex}+{resource_address}+{self._configs.username}"
+        return self._configs._get_or_create_cluster_token(
+            den_token, resource_address, username=self._configs.username
+        )
 
     def resource_request_payload(self, payload) -> dict:
         payload = remove_null_values_from_dict(payload)

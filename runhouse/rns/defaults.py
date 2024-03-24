@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import logging
 import os
@@ -20,6 +21,8 @@ class Defaults:
     USER_ENDPOINT = "user/"
     GROUP_ENDPOINT = "group/"
     CONFIG_PATH = Path("~/.rh/config.yaml").expanduser()
+    CLUSTER_TOKEN_PATH = "~/.rh/cluster_owners.yaml"
+
     # TODO [DG] default sub-dicts for various resources (e.g. defaults.get('cluster').get('resource_type'))
     BASE_DEFAULTS = {
         "default_folder": "~",
@@ -63,6 +66,10 @@ class Defaults:
         self._token = value
 
     @property
+    def cluster_token(self):
+        return self._get_or_create_cluster_token()
+
+    @property
     def username(self):
         if self._simulate_logged_out:
             return None
@@ -84,6 +91,9 @@ class Defaults:
 
     @property
     def default_folder(self):
+        if os.environ.get("RH_DEFAULT_FOLDER"):
+            self._default_folder = os.environ.get("RH_DEFAULT_FOLDER")
+
         if self._simulate_logged_out:
             return self.BASE_DEFAULTS["default_folder"]
 
@@ -129,6 +139,12 @@ class Defaults:
     def request_headers(self) -> dict:
         """Base request headers used to make requests to Runhouse Den."""
         return {"Authorization": f"Bearer {self.token}"} if self.token else {}
+
+    @property
+    def cluster_request_headers(self) -> dict:
+        """Base request headers used to make requests to a cluster."""
+        cluster_token = self.cluster_token
+        return {"Authorization": f"Bearer {cluster_token}"} if cluster_token else {}
 
     def upload_defaults(
         self,
@@ -274,3 +290,40 @@ class Defaults:
             return False
 
         return True
+
+    def load_cluster_token_from_file(self, username: str) -> Optional[str]:
+        path_to_file = Path(self.CLUSTER_TOKEN_PATH).expanduser()
+        if not path_to_file.exists():
+            # File should only exist on clusters, not locally
+            return
+
+        with open(path_to_file, "r") as f:
+            data = yaml.safe_load(f)
+            saved_cluster_token = data.get(username, {}).get("token")
+            return saved_cluster_token
+
+    def _get_or_create_cluster_token(
+        self, den_token: str = None, resource_address: str = None, username: str = None
+    ):
+        if den_token and "+" in den_token:
+            # If the hashed token has already been constructed
+            return den_token
+
+        if den_token and resource_address and username:
+            # If specific values are passed in (as opposed to loading from local config), use those to build the token
+            return self._build_token_hash(den_token, resource_address, username)
+
+        den_token = self.token
+        username = self.username
+
+        if den_token is None or username is None:
+            return None
+
+        # Return the user's self-owned cluster token
+        return self._build_token_hash(den_token, username, username)
+
+    @staticmethod
+    def _build_token_hash(den_token: str, resource_address: str, username: str):
+        hash_input = (den_token + resource_address).encode("utf-8")
+        hash_hex = hashlib.sha256(hash_input).hexdigest()
+        return f"{hash_hex}+{resource_address}+{username}"

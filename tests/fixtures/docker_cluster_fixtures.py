@@ -10,7 +10,6 @@ from typing import Any, Dict, List
 import pytest
 
 import runhouse as rh
-import yaml
 
 from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
 from runhouse.globals import rns_client
@@ -276,14 +275,7 @@ def set_up_local_cluster(
 
     if rh_cluster.default_env.name == rh.Env.DEFAULT_NAME:
         rh.env(
-            reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
-            working_dir=None,
-            setup_cmds=[
-                f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
-                f"echo '{yaml.safe_dump(config)}' > ~/.rh/config.yaml"
-            ]
-            if logged_in
-            else False,
+            reqs=["pytest", "httpx", "pytest_asyncio", "pandas"], working_dir=None
         ).to(rh_cluster)
 
     def cleanup():

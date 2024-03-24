@@ -437,7 +437,7 @@ class OnDemandCluster(Cluster):
         )
 
         self._update_from_sky_status()
-        self.restart_server()
+        self.restart_server(_set_owner=True)
 
         return self
 

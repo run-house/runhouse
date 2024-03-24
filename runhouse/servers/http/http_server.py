@@ -960,18 +960,24 @@ async def main():
     ########################################
     # Handling args that could be specified in the
     # cluster_config.json or via CLI args
+
+    # Throw warnings if there are mismatches between the values (CLI vs cluster_config.json)
+    # Don't throw warnings if the config file does not exist or has not been set
     ########################################
 
     # Den URL
     cluster_config["api_server_url"] = api_server_url
 
     # Server port
-    if parse_args.port is not None and parse_args.port != cluster_config.get(
-        "server_port"
+    config_server_port = cluster_config.get("server_port")
+    if (
+        parse_args.port is not None
+        and config_server_port is not None
+        and parse_args.port != config_server_port
     ):
         logger.warning(
             f"CLI provided server port: {parse_args.port} is different from the server port specified in "
-            f"cluster_config.json: {cluster_config.get('server_port')}. Prioritizing CLI provided port."
+            f"cluster_config.json: {config_server_port}. Prioritizing CLI provided port."
         )
 
     port_arg = (
@@ -982,12 +988,16 @@ async def main():
         cluster_config["server_port"] = port_arg
 
     # Den auth enabled
-    if hasattr(
-        parse_args, "use_den_auth"
-    ) and parse_args.use_den_auth != cluster_config.get("den_auth", False):
+    config_den_auth = cluster_config.get("den_auth")
+    if (
+        hasattr(parse_args, "use_den_auth")
+        and parse_args.use_den_auth
+        and config_den_auth is not None
+        and parse_args.use_den_auth != config_den_auth
+    ):
         logger.warning(
             f"CLI provided den_auth: {parse_args.use_den_auth} is different from the den_auth specified in "
-            f"cluster_config.json: {cluster_config.get('den_auth')}. Prioritizing CLI provided den_auth."
+            f"cluster_config.json: {config_den_auth}. Prioritizing CLI provided den_auth."
         )
 
     den_auth = getattr(parse_args, "use_den_auth", False) or cluster_config.get(
@@ -999,15 +1009,17 @@ async def main():
         await obj_store.aenable_den_auth()
 
     # Telemetry enabled
-    if hasattr(
-        parse_args, "use_local_telemetry"
-    ) and parse_args.use_local_telemetry != cluster_config.get(
-        "use_local_telemetry", False
+    config_telemetry = cluster_config.get("use_local_telemetry")
+    if (
+        hasattr(parse_args, "use_local_telemetry")
+        and parse_args.use_local_telemetry
+        and config_telemetry is not None
+        and parse_args.use_local_telemetry != config_telemetry
     ):
         logger.warning(
             f"CLI provided use_local_telemetry: {parse_args.use_local_telemetry} is different from the "
             f"use_local_telemetry specified in cluster_config.json: "
-            f"{cluster_config.get('use_local_telemetry')}. Prioritizing CLI provided use_local_telemetry."
+            f"{config_telemetry}. Prioritizing CLI provided use_local_telemetry."
         )
 
     use_local_telemetry = getattr(
@@ -1055,12 +1067,16 @@ async def main():
     )
 
     # Host
-    if parse_args.host is not None and parse_args.host != cluster_config.get(
-        "server_host"
+    config_host = cluster_config.get("server_host")
+    if (
+        parse_args.host is not None
+        and parse_args.host
+        and config_host is not None
+        and parse_args.host != config_host
     ):
         logger.warning(
             f"CLI provided server_host: {parse_args.host} is different from the server_host specified in "
-            f"cluster_config.json: {cluster_config.get('server_host')}. Prioritizing CLI provided server_host."
+            f"cluster_config.json: {config_host}. Prioritizing CLI provided server_host."
         )
 
     host = parse_args.host or cluster_config.get("server_host") or DEFAULT_SERVER_HOST
@@ -1080,7 +1096,7 @@ async def main():
     if certs_address is not None:
         cluster_config["ips"] = [certs_address]
     else:
-        cluster_config["ips"] = ["0.0.0.0"]
+        cluster_config["ips"] = [DEFAULT_SERVER_HOST]
 
     config_conn = cluster_config.get("server_connection_type")
 
@@ -1167,11 +1183,11 @@ async def main():
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
     if use_caddy:
         logger.debug("Using Caddy as a reverse proxy")
-        if certs_address is None and domain is None:
-            raise ValueError(
-                "Must provide the server address or domain to configure Caddy. No address or domain found in the "
-                "server start command (--certs-address or --domain) or in the cluster config YAML saved on the cluster."
+        if certs_address is None and domain is None and use_https:
+            logger.warning(
+                "No server address or domain provided for configuring Caddy with HTTPS. Caddy will use localhost."
             )
+            certs_address = "localhost"
 
         cc = CaddyConfig(
             address=certs_address,

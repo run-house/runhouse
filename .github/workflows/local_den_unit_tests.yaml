@@ -45,17 +45,6 @@ jobs:
       - name: Setup Runhouse
         uses: ./.github/workflows/setup_runhouse
 
-      - name: Setup Runhouse Config
-        uses: ./.github/workflows/setup_rh_config
-        with:
-          username: ${{ secrets.TEST_USERNAME }}
-          token: ${{ secrets.TEST_TOKEN }}
-
-      - name: Update Server URL in Runhouse Config
-        run: |
-          echo "api_server_url: http://localhost:8000" >> ~/.rh/config.yaml
-
-
       # TODO: pull the latest "prod" tag from ECR
       - name: Start Den container
         run: |
@@ -65,4 +54,6 @@ jobs:
         env:
           TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          RH_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
+          RH_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest -v --level unit

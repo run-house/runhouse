@@ -720,9 +720,7 @@ Login and Logout
 
 The login flow gives you the option to upload locally detected builtin
 provider secrets, or load down saved-down Vault secrets into your local
-environment. If loading down new secrets, the location (file or env var)
-of the new secrets will be logged in your runhouse config yaml at
-``~/.rh/config.yaml`` as well. There are some useful APIs as well for
+environment. There are some useful APIs as well for
 seeing which secrets you have locally configured or stored in Vault.
 
 .. code:: ipython3
