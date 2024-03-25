@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 from typing import Any, Optional
 
@@ -72,6 +74,22 @@ class EnvServlet:
         self.output_types = {}
         self.thread_ids = {}
 
+        self.executor = ThreadPoolExecutor(max_workers=5)
+        self.loop = asyncio.get_event_loop()
+
+    async def schedule_coroutine(self, coroutine):
+        return await self.loop.run_in_executor(
+            self.executor, self._run_coroutine, coroutine
+        )
+
+    def _run_coroutine(self, coroutine):
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+        try:
+            return new_loop.run_until_complete(coroutine)
+        finally:
+            new_loop.close()
+
     ##############################################################
     # Methods decorated with a standardized error decorating handler
     # These catch exceptions and wrap the output in a Response object.
@@ -109,14 +127,16 @@ class EnvServlet:
         else:
             args, kwargs = [], {}
 
-        return await obj_store.acall_local(
-            key,
-            method_name,
-            run_name=run_name,
-            stream_logs=stream_logs,
-            remote=remote,
-            *args,
-            **kwargs,
+        return await self.schedule_coroutine(
+            obj_store.acall_local(
+                key,
+                method_name,
+                run_name=run_name,
+                stream_logs=stream_logs,
+                remote=remote,
+                *args,
+                **kwargs,
+            )
         )
 
     @error_handling_decorator
