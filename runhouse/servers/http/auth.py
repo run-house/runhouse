@@ -70,7 +70,7 @@ class AuthCache:
             self.USERNAMES.pop(token, None)
 
 
-def verify_cluster_access(
+async def averify_cluster_access(
     cluster_uri: str,
     token: str,
 ) -> bool:
@@ -91,16 +91,16 @@ def verify_cluster_access(
             return True
 
     # Check if user already has saved resources in cache
-    cached_resources: dict = obj_store.user_resources(token)
+    cached_resources: dict = await obj_store.auser_resources(token)
 
     # e.g. {"/jlewitt1/bert-preproc": "read"}
     cluster_access_level = cached_resources.get(cluster_uri)
 
     if cluster_access_level is None:
         # Reload from cache and check again
-        obj_store.add_user_to_auth_cache(token)
+        await obj_store.aadd_user_to_auth_cache(token)
 
-        cached_resources: dict = obj_store.user_resources(token)
+        cached_resources: dict = await obj_store.auser_resources(token)
         cluster_access_level = cached_resources.get(cluster_uri)
 
     return cluster_access_level in [ResourceAccess.WRITE, ResourceAccess.READ]

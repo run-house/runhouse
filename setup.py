@@ -82,6 +82,7 @@ install_requires = [
     "wheel",
     "apispec",
     "httpx",
+    "asgiref",
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following

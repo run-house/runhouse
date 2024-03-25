@@ -1,3 +1,4 @@
+import asyncio
 import contextvars
 import inspect
 import logging
@@ -11,6 +12,7 @@ import ray
 
 import runhouse
 from runhouse.rns.utils.api import ResourceVisibility
+from runhouse.utils import sync_function
 
 logger = logging.getLogger(__name__)
 
@@ -76,13 +78,13 @@ def get_cluster_servlet(create_if_not_exists: bool = False):
 
 def context_wrapper(func):
     @wraps(func)
-    def wrapper(self, *args, **kwargs):
+    async def wrapper(self, *args, **kwargs):
         ctx_token = None
         try:
             if not req_ctx.get():
-                ctx_token = self._populate_ctx_locally()
+                ctx_token = await self._populate_ctx_locally()
 
-            res = func(self, *args, **kwargs)
+            res = await func(self, *args, **kwargs)
         except Exception as e:
             if ctx_token:
                 self.unset_ctx(ctx_token)
@@ -126,7 +128,7 @@ class ObjStore:
         self.installed_envs = {}  # TODO: consider deleting it?
         self._kv_store: Dict[Any, Any] = None
 
-    def initialize(
+    async def ainitialize(
         self,
         servlet_name: Optional[str] = None,
         has_local_storage: bool = False,
@@ -193,12 +195,12 @@ class ObjStore:
 
         # There can only be one initialized EnvServlet with a given name AND with local storage.
         if has_local_storage and servlet_name:
-            if self.is_env_servlet_name_initialized(servlet_name):
+            if await self.ais_env_servlet_name_initialized(servlet_name):
                 raise ValueError(
                     f"There already exists an EnvServlet with name {servlet_name}."
                 )
             else:
-                self.mark_env_servlet_name_as_initialized(servlet_name)
+                await self.amark_env_servlet_name_as_initialized(servlet_name)
 
         self.servlet_name = servlet_name
         self.has_local_storage = has_local_storage
@@ -209,9 +211,33 @@ class ObjStore:
         cuda_visible_devices = list(range(int(num_gpus)))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
 
+    def initialize(
+        self,
+        servlet_name: Optional[str] = None,
+        has_local_storage: bool = False,
+        setup_ray: RaySetupOption = RaySetupOption.GET_OR_FAIL,
+        ray_address: str = "auto",
+        setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
+    ):
+        return sync_function(self.ainitialize)(
+            servlet_name,
+            has_local_storage,
+            setup_ray,
+            ray_address,
+            setup_cluster_servlet,
+        )
+
     ##############################################
     # Generic helpers
     ##############################################
+    @staticmethod
+    async def acall_actor_method(
+        actor: ray.actor.ActorHandle, method: str, *args, **kwargs
+    ):
+        if actor is None:
+            raise ObjStoreError("Attempting to call an actor method on a None actor.")
+        return await getattr(actor, method).remote(*args, **kwargs)
+
     @staticmethod
     def call_actor_method(
         actor: ray.actor.ActorHandle, method: str, *args, run_async=False, **kwargs
@@ -304,13 +330,13 @@ class ObjStore:
         ctx = RequestContext(**ctx_args)
         return req_ctx.set(ctx)
 
-    def _populate_ctx_locally(self):
+    async def _populate_ctx_locally(self):
         from runhouse.globals import configs
 
-        den_auth_enabled = self.get_cluster_config().get("den_auth")
+        den_auth_enabled = (await self.aget_cluster_config()).get("den_auth")
         token = configs.token
         if den_auth_enabled and token:
-            self.add_user_to_auth_cache(token, refresh_cache=False)
+            await self.aadd_user_to_auth_cache(token, refresh_cache=False)
         return self.set_ctx(request_id=str(uuid.uuid4()), token=token)
 
     @staticmethod
@@ -320,46 +346,73 @@ class ObjStore:
     ##############################################
     # Cluster config state storage methods
     ##############################################
-    def get_cluster_config(self):
+    async def aget_cluster_config(self):
         # TODO: Potentially add caching here
         if self.cluster_servlet is not None:
-            return self.call_actor_method(self.cluster_servlet, "get_cluster_config")
+            return await self.acall_actor_method(
+                self.cluster_servlet, "get_cluster_config"
+            )
         else:
             return {}
 
-    def set_cluster_config(self, config: Dict[str, Any]):
-        return self.call_actor_method(
+    def get_cluster_config(self):
+        return sync_function(self.aget_cluster_config)()
+
+    async def aset_cluster_config(self, config: Dict[str, Any]):
+        return await self.acall_actor_method(
             self.cluster_servlet, "set_cluster_config", config
         )
 
-    def set_cluster_config_value(self, key: str, value: Any):
-        return self.call_actor_method(
+    def set_cluster_config(self, config: Dict[str, Any]):
+        return sync_function(self.aset_cluster_config)(config)
+
+    async def aset_cluster_config_value(self, key: str, value: Any):
+        return await self.acall_actor_method(
             self.cluster_servlet, "set_cluster_config_value", key, value
         )
+
+    def set_cluster_config_value(self, key: str, value: Any):
+        return sync_function(self.aset_cluster_config_value)(key, value)
 
     ##############################################
     # Auth cache internal functions
     ##############################################
-    def add_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
-        return self.call_actor_method(
+    async def aadd_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
+        return await self.acall_actor_method(
             self.cluster_servlet, "add_user_to_auth_cache", token, refresh_cache
         )
 
-    def resource_access_level(self, token: str, resource_uri: str):
-        return self.call_actor_method(
+    def add_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
+        return sync_function(self.aadd_user_to_auth_cache)(token, refresh_cache)
+
+    async def aresource_access_level(self, token: str, resource_uri: str):
+        return await self.acall_actor_method(
             self.cluster_servlet,
             "resource_access_level",
             token,
             resource_uri,
         )
 
+    def resource_access_level(self, token: str, resource_uri: str):
+        return sync_function(self.aresource_access_level)(token, resource_uri)
+
+    async def auser_resources(self, token: str):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "user_resources", token
+        )
+
     def user_resources(self, token: str):
-        return self.call_actor_method(self.cluster_servlet, "user_resources", token)
+        return sync_function(self.auser_resources)(token)
+
+    async def aget_username(self, token: str):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "get_username", token
+        )
 
     def get_username(self, token: str):
-        return self.call_actor_method(self.cluster_servlet, "get_username", token)
+        return sync_function(self.aget_username)(token)
 
-    def has_resource_access(self, token: str, resource_uri=None) -> bool:
+    async def ahas_resource_access(self, token: str, resource_uri=None) -> bool:
         """Checks whether user has read or write access to a given module saved on the cluster."""
         from runhouse.globals import configs, rns_client
         from runhouse.rns.utils.api import ResourceAccess
@@ -381,7 +434,7 @@ class ObjStore:
                 return True
 
         cluster_uri = load_current_cluster_rns_address()
-        cluster_access = self.resource_access_level(token, cluster_uri)
+        cluster_access = await self.aresource_access_level(token, cluster_uri)
         if cluster_access == ResourceAccess.WRITE:
             # if user has write access to cluster will have access to all resources
             return True
@@ -393,69 +446,97 @@ class ObjStore:
             # If module does not have a name, must have access to the cluster
             return False
 
-        resource_access_level = self.resource_access_level(token, resource_uri)
+        resource_access_level = await self.aresource_access_level(token, resource_uri)
         if resource_access_level not in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return False
 
         return True
 
+    def has_resource_access(self, token: str, resource_uri=None) -> bool:
+        return sync_function(self.ahas_resource_access)(token, resource_uri)
+
+    async def aclear_auth_cache(self, token: str = None):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "clear_auth_cache", token
+        )
+
     def clear_auth_cache(self, token: str = None):
-        return self.call_actor_method(self.cluster_servlet, "clear_auth_cache", token)
+        return sync_function(self.aclear_auth_cache)(token)
 
     ##############################################
     # Key to servlet where it is stored mapping
     ##############################################
-    def mark_env_servlet_name_as_initialized(self, env_servlet_name: str):
-        return self.call_actor_method(
+    async def amark_env_servlet_name_as_initialized(self, env_servlet_name: str):
+        return await self.acall_actor_method(
             self.cluster_servlet,
             "mark_env_servlet_name_as_initialized",
             env_servlet_name,
         )
 
-    def is_env_servlet_name_initialized(self, env_servlet_name: str) -> bool:
-        return self.call_actor_method(
+    def mark_env_servlet_name_as_initialized(self, env_servlet_name: str):
+        return sync_function(self.amark_env_servlet_name_as_initialized)(
+            env_servlet_name
+        )
+
+    async def ais_env_servlet_name_initialized(self, env_servlet_name: str) -> bool:
+        return await self.acall_actor_method(
             self.cluster_servlet, "is_env_servlet_name_initialized", env_servlet_name
         )
 
-    def get_all_initialized_env_servlet_names(self) -> Set[str]:
+    def is_env_servlet_name_initialized(self, env_servlet_name: str) -> bool:
+        return sync_function(self.ais_env_servlet_name_initialized)(env_servlet_name)
+
+    async def aget_all_initialized_env_servlet_names(self) -> Set[str]:
         return list(
-            self.call_actor_method(
+            await self.acall_actor_method(
                 self.cluster_servlet,
                 "get_all_initialized_env_servlet_names",
             )
         )
 
-    def get_env_servlet_name_for_key(self, key: Any):
-        return self.call_actor_method(
+    def get_all_initialized_env_servlet_names(self) -> Set[str]:
+        return sync_function(self.aget_all_initialized_env_servlet_names)()
+
+    async def aget_env_servlet_name_for_key(self, key: Any):
+        return await self.acall_actor_method(
             self.cluster_servlet, "get_env_servlet_name_for_key", key
         )
 
-    def _put_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
-        return self.call_actor_method(
+    def get_env_servlet_name_for_key(self, key: Any):
+        return sync_function(self.aget_env_servlet_name_for_key)(key)
+
+    async def _aput_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
+        return await self.acall_actor_method(
             self.cluster_servlet, "put_env_servlet_name_for_key", key, env_servlet_name
         )
 
-    def _pop_env_servlet_name_for_key(self, key: Any, *args) -> str:
-        return self.call_actor_method(
+    async def _apop_env_servlet_name_for_key(self, key: Any, *args) -> str:
+        return await self.acall_actor_method(
             self.cluster_servlet, "pop_env_servlet_name_for_key", key, *args
         )
 
     ##############################################
     # Remove Env Servlet
     ##############################################
-    def remove_env_servlet_name(self, env_servlet_name: str):
-        return self.call_actor_method(
+    async def aremove_env_servlet_name(self, env_servlet_name: str):
+        return await self.acall_actor_method(
             self.cluster_servlet, "remove_env_servlet_name", env_servlet_name
         )
+
+    def remove_env_servlet_name(self, env_servlet_name: str):
+        return sync_function(self.aremove_env_servlet_name)(env_servlet_name)
 
     ##############################################
     # KV Store: Keys
     ##############################################
     @staticmethod
-    def keys_for_env_servlet_name(env_servlet_name: str) -> List[Any]:
-        return ObjStore.call_actor_method(
+    async def akeys_for_env_servlet_name(env_servlet_name: str) -> List[Any]:
+        return await ObjStore.call_actor_method(
             ObjStore.get_env_servlet(env_servlet_name), "keys_local"
         )
+
+    async def keys_for_env_servlet_name(self, env_servlet_name: str) -> List[Any]:
+        return await self.akeys_for_env_servlet_name(env_servlet_name)
 
     def keys_local(self) -> List[Any]:
         if self.has_local_storage:
@@ -463,20 +544,23 @@ class ObjStore:
         else:
             return []
 
-    def keys(self) -> List[Any]:
+    async def akeys(self) -> List[Any]:
         # Return keys across the cluster, not only in this process
-        return self.call_actor_method(
+        return await self.acall_actor_method(
             self.cluster_servlet, "get_key_to_env_servlet_name_dict_keys"
         )
+
+    def keys(self) -> List[Any]:
+        return sync_function(self.akeys)()
 
     ##############################################
     # KV Store: Put
     ##############################################
     @staticmethod
-    def put_for_env_servlet_name(
+    async def aput_for_env_servlet_name(
         env_servlet_name: str, key: Any, data: Any, serialization: Optional[str] = None
     ):
-        return ObjStore.call_actor_method(
+        return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_servlet_name),
             "put_local",
             key,
@@ -484,14 +568,14 @@ class ObjStore:
             serialization=serialization,
         )
 
-    def put_local(self, key: Any, value: Any):
+    async def aput_local(self, key: Any, value: Any):
         if self.has_local_storage:
             self._kv_store[key] = value
-            self._put_env_servlet_name_for_key(key, self.servlet_name)
+            await self._aput_env_servlet_name_for_key(key, self.servlet_name)
         else:
             raise NoLocalObjStoreError()
 
-    def put(
+    async def aput(
         self,
         key: Any,
         value: Any,
@@ -515,24 +599,36 @@ class ObjStore:
                 )
 
         # If it does exist somewhere, no more!
-        if self.get(key, default=None) is not None:
+        if await self.aget(key, default=None) is not None:
             logger.warning("Key already exists in some env, overwriting.")
-            self.pop(key)
+            await self.apop(key)
 
         if self.has_local_storage and env == self.servlet_name:
             if serialization is not None:
                 raise ObjStoreError(
                     "We should never reach this branch if serialization is not None."
                 )
-            self.put_local(key, value)
+            await self.aput_local(key, value)
         else:
-            self.put_for_env_servlet_name(env, key, value, serialization)
+            await self.aput_for_env_servlet_name(env, key, value, serialization)
+
+    def put(
+        self,
+        key: Any,
+        value: Any,
+        env: Optional[str] = None,
+        serialization: Optional[str] = None,
+        create_env_if_not_exists: bool = False,
+    ):
+        return sync_function(self.aput)(
+            key, value, env, serialization, create_env_if_not_exists
+        )
 
     ##############################################
     # KV Store: Get
     ##############################################
     @staticmethod
-    def get_from_env_servlet_name(
+    async def aget_from_env_servlet_name(
         env_servlet_name: str,
         key: Any,
         default: Optional[Any] = None,
@@ -540,7 +636,7 @@ class ObjStore:
         remote: bool = False,
     ):
         logger.info(f"Getting {key} from servlet {env_servlet_name}")
-        return ObjStore.call_actor_method(
+        return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_servlet_name),
             "get_local",
             key,
@@ -570,14 +666,14 @@ class ObjStore:
                 raise KeyError(f"No local store exists; key {key} not found.")
             return default
 
-    def get(
+    async def aget(
         self,
         key: Any,
         serialization: Optional[str] = None,
         remote: bool = False,
         default: Optional[Any] = None,
     ):
-        env_servlet_name_containing_key = self.get_env_servlet_name_for_key(key)
+        env_servlet_name_containing_key = await self.aget_env_servlet_name_for_key(key)
 
         if not env_servlet_name_containing_key:
             if default == KeyError:
@@ -599,7 +695,7 @@ class ObjStore:
             # because the EnvServlet already packaged the config into a Response object. This is desired, as we
             # only want the remote object to be reconstructed when it's being returned to the user, which would
             # not be here if serialization is not None (probably the HTTPClient).
-            res = self.get_from_env_servlet_name(
+            res = await self.aget_from_env_servlet_name(
                 env_servlet_name_containing_key,
                 key,
                 default=default,
@@ -616,7 +712,7 @@ class ObjStore:
             and "resource_type" in res
         ):
             config = res
-            if config.get("system") == self.get_cluster_config():
+            if config.get("system") == await self.aget_cluster_config():
                 from runhouse import here
 
                 config["system"] = here
@@ -627,12 +723,21 @@ class ObjStore:
 
         return res
 
+    def get(
+        self,
+        key: Any,
+        serialization: Optional[str] = None,
+        remote: bool = False,
+        default: Optional[Any] = None,
+    ):
+        return sync_function(self.aget)(key, serialization, remote, default)
+
     ##############################################
     # KV Store: Contains
     ##############################################
     @staticmethod
-    def contains_for_env_servlet_name(env_servlet_name: str, key: Any):
-        return ObjStore.call_actor_method(
+    async def acontains_for_env_servlet_name(env_servlet_name: str, key: Any):
+        return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_servlet_name), "contains_local", key
         )
 
@@ -642,11 +747,11 @@ class ObjStore:
         else:
             return False
 
-    def contains(self, key: Any):
+    async def acontains(self, key: Any):
         if self.contains_local(key):
             return True
 
-        env_servlet_name = self.get_env_servlet_name_for_key(key)
+        env_servlet_name = await self.aget_env_servlet_name_for_key(key)
         if env_servlet_name == self.servlet_name and self.has_local_storage:
             raise ObjStoreError(
                 "Key not found in kv store despite env servlet specifying that it is here."
@@ -655,16 +760,19 @@ class ObjStore:
         if env_servlet_name is None:
             return False
 
-        return self.contains_for_env_servlet_name(env_servlet_name, key)
+        return await self.acontains_for_env_servlet_name(env_servlet_name, key)
+
+    def contains(self, key: Any):
+        return sync_function(self.acontains)(key)
 
     ##############################################
     # KV Store: Pop
     ##############################################
     @staticmethod
-    def pop_from_env_servlet_name(
+    async def apop_from_env_servlet_name(
         env_servlet_name: str, key: Any, serialization: Optional[str] = "pickle", *args
     ) -> Any:
-        return ObjStore.call_actor_method(
+        return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_servlet_name),
             "pop_local",
             key,
@@ -672,7 +780,7 @@ class ObjStore:
             *args,
         )
 
-    def pop_local(self, key: Any, *args) -> Any:
+    async def apop_local(self, key: Any, *args) -> Any:
         if self.has_local_storage:
             try:
                 res = self._kv_store.pop(key)
@@ -685,7 +793,7 @@ class ObjStore:
 
             # If the key was found in this env, we also need to pop it
             # from the global env for key cache.
-            env_name = self._pop_env_servlet_name_for_key(key, None)
+            env_name = await self._apop_env_servlet_name_for_key(key, None)
             if env_name and env_name != self.servlet_name:
                 raise ObjStoreError(
                     "The key was popped from this env, but the global env for key cache says it's in another one."
@@ -698,15 +806,17 @@ class ObjStore:
             else:
                 raise KeyError(f"No local store exists; key {key} not found.")
 
-    def pop(self, key: Any, serialization: Optional[str] = "pickle", *args) -> Any:
+    async def apop(
+        self, key: Any, serialization: Optional[str] = "pickle", *args
+    ) -> Any:
         try:
-            return self.pop_local(key)
+            return await self.apop_local(key)
         except KeyError as e:
             key_err = e
 
         # The key was not found in this env
         # So, we check the global key to env cache to see if it's elsewhere
-        env_servlet_name = self.get_env_servlet_name_for_key(key)
+        env_servlet_name = await self.aget_env_servlet_name_for_key(key)
         if env_servlet_name:
             if env_servlet_name == self.servlet_name and self.has_local_storage:
                 raise ObjStoreError(
@@ -714,7 +824,7 @@ class ObjStore:
                 )
             else:
                 # The key was found in another env, so we need to pop it from there
-                return self.pop_from_env_servlet_name(
+                return await self.apop_from_env_servlet_name(
                     env_servlet_name, key, serialization
                 )
         else:
@@ -724,24 +834,27 @@ class ObjStore:
             else:
                 raise key_err
 
+    def pop(self, key: Any, serialization: Optional[str] = "pickle", *args) -> Any:
+        return sync_function(self.apop)(key, serialization, *args)
+
     ##############################################
     # KV Store: Delete
     ##############################################
     @staticmethod
-    def delete_for_env_servlet_name(env_servlet_name: str, key: Any):
-        return ObjStore.call_actor_method(
+    async def adelete_for_env_servlet_name(env_servlet_name: str, key: Any):
+        return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_servlet_name), "delete_local", key
         )
 
-    def delete_local(self, key: Any):
-        self.pop_local(key)
+    async def adelete_local(self, key: Any):
+        await self.pop_local(key)
 
-    def _delete_env_contents(self, env_name: Any):
+    async def _adelete_env_contents(self, env_name: Any):
         from runhouse.globals import env_servlets
 
         # clear keys in the env servlet
-        deleted_keys = self.keys_for_env_servlet_name(env_name)
-        self.clear_for_env_servlet_name(env_name)
+        deleted_keys = await self.akeys_for_env_servlet_name(env_name)
+        await self.aclear_for_env_servlet_name(env_name)
 
         # delete the env servlet actor and remove its references
         if env_name in env_servlets:
@@ -749,26 +862,28 @@ class ObjStore:
             ray.kill(actor)
 
             del env_servlets[env_name]
-        self.remove_env_servlet_name(env_name)
+        await self.aremove_env_servlet_name(env_name)
 
         return deleted_keys
 
-    def delete(self, key: Union[Any, List[Any]]):
+    async def adelete(self, key: Union[Any, List[Any]]):
         keys_to_delete = [key] if isinstance(key, str) else key
         deleted_keys = []
 
         for key_to_delete in keys_to_delete:
-            if key_to_delete in self.get_all_initialized_env_servlet_names():
-                deleted_keys += self._delete_env_contents(key_to_delete)
+            if key_to_delete in await self.aget_all_initialized_env_servlet_names():
+                deleted_keys += await self._adelete_env_contents(key_to_delete)
 
             if key_to_delete in deleted_keys:
                 continue
 
             if self.contains_local(key_to_delete):
-                self.delete_local(key_to_delete)
+                await self.adelete_local(key_to_delete)
                 deleted_keys.append(key_to_delete)
             else:
-                env_servlet_name = self.get_env_servlet_name_for_key(key_to_delete)
+                env_servlet_name = await self.aget_env_servlet_name_for_key(
+                    key_to_delete
+                )
                 if env_servlet_name == self.servlet_name and self.has_local_storage:
                     raise ObjStoreError(
                         "Key not found in kv store despite env servlet specifying that it is here."
@@ -776,49 +891,57 @@ class ObjStore:
                 if env_servlet_name is None:
                     raise KeyError(f"Key {key} not found in any env.")
 
-                self.delete_for_env_servlet_name(env_servlet_name, key_to_delete)
+                await self.adelete_for_env_servlet_name(env_servlet_name, key_to_delete)
                 deleted_keys.append(key_to_delete)
+
+    def delete(self, key: Union[Any, List[Any]]):
+        return sync_function(self.adelete)(key)
 
     ##############################################
     # KV Store: Clear
     ##############################################
     @staticmethod
-    def clear_for_env_servlet_name(env_servlet_name: str):
-        return ObjStore.call_actor_method(
+    async def aclear_for_env_servlet_name(env_servlet_name: str):
+        return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_servlet_name), "clear_local"
         )
 
-    def clear_local(self):
+    async def aclear_local(self):
         if self.has_local_storage:
             for k in list(self._kv_store.keys()):
                 # Pop handles removing from global obj store vs local one
-                self.pop_local(k)
+                await self.apop_local(k)
+
+    async def aclear(self):
+        logger.warning("Clearing all keys from all envs in the object store!")
+        for env_servlet_name in await self.aget_all_initialized_env_servlet_names():
+            if env_servlet_name == self.servlet_name and self.has_local_storage:
+                await self.aclear_local()
+            else:
+                await self.aclear_for_env_servlet_name(env_servlet_name)
 
     def clear(self):
-        logger.warning("Clearing all keys from all envs in the object store!")
-        for env_servlet_name in self.get_all_initialized_env_servlet_names():
-            if env_servlet_name == self.servlet_name and self.has_local_storage:
-                self.clear_local()
-            else:
-                self.clear_for_env_servlet_name(env_servlet_name)
+        return sync_function(self.aclear)()
 
     ##############################################
     # KV Store: Rename
     ##############################################
     @staticmethod
-    def rename_for_env_servlet_name(env_servlet_name: str, old_key: Any, new_key: Any):
-        return ObjStore.call_actor_method(
+    async def arename_for_env_servlet_name(
+        env_servlet_name: str, old_key: Any, new_key: Any
+    ):
+        return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_servlet_name),
             "rename_local",
             old_key,
             new_key,
         )
 
-    def rename_local(self, old_key: Any, new_key: Any):
+    async def arename_local(self, old_key: Any, new_key: Any):
         if self.servlet_name is None or not self.has_local_storage:
             raise NoLocalObjStoreError()
 
-        obj = self.pop(old_key)
+        obj = await self.apop(old_key)
         if obj is not None and hasattr(obj, "rns_address"):
             # Note - we set the obj.name here so the new_key is correctly turned into an rns_address, whether its
             # a full address or just a name. Then, the new_key is set to just the name so its store properly in the
@@ -827,26 +950,31 @@ class ObjStore:
             new_key = obj.name  # new_key is now just the name
 
         # By passing default, we don't throw an error if the key is not found
-        self.put(new_key, obj, env=self.servlet_name)
+        await self.aput(new_key, obj, env=self.servlet_name)
 
-    def rename(self, old_key: Any, new_key: Any):
+    async def arename(self, old_key: Any, new_key: Any):
         # We also need to rename the resource itself
-        env_servlet_name_containing_old_key = self.get_env_servlet_name_for_key(old_key)
+        env_servlet_name_containing_old_key = await self.aget_env_servlet_name_for_key(
+            old_key
+        )
         if (
             env_servlet_name_containing_old_key == self.servlet_name
             and self.has_local_storage
         ):
-            self.rename_local(old_key, new_key)
+            await self.arename_local(old_key, new_key)
         else:
-            self.rename_for_env_servlet_name(
+            await self.arename_for_env_servlet_name(
                 env_servlet_name_containing_old_key, old_key, new_key
             )
+
+    def rename(self, old_key: Any, new_key: Any):
+        return sync_function(self.arename)(old_key, new_key)
 
     ##############################################
     # KV Store: Call
     ##############################################
     @staticmethod
-    def call_for_env_servlet_name(
+    async def acall_for_env_servlet_name(
         env_servlet_name: str,
         key: Any,
         method_name: str,
@@ -857,7 +985,7 @@ class ObjStore:
         remote: bool = False,
         run_async: bool = False,
     ):
-        return ObjStore.call_actor_method(
+        return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_servlet_name),
             "call_local",
             key,
@@ -868,10 +996,9 @@ class ObjStore:
             stream_logs=stream_logs,
             remote=remote,
             ctx=dict(req_ctx.get()),
-            run_async=run_async,
         )
 
-    def call_local(
+    async def acall_local(
         self,
         key: str,
         method_name: Optional[str] = None,
@@ -907,7 +1034,7 @@ class ObjStore:
         from runhouse.resources.module import Module
         from runhouse.resources.resource import Resource
 
-        if self.get_cluster_config().get("den_auth"):
+        if (await self.aget_cluster_config()).get("den_auth"):
             if not isinstance(obj, Resource) or obj.visibility not in [
                 ResourceVisibility.UNLISTED,
                 ResourceVisibility.PUBLIC,
@@ -925,7 +1052,7 @@ class ObjStore:
                 # Setting to None in the case of non-resource or no rns_address will force auth to only
                 # succeed if the user has WRITE or READ access to the cluster
                 resource_uri = obj.rns_address if hasattr(obj, "rns_address") else None
-                if key != Env.DEFAULT_NAME and not self.has_resource_access(
+                if key != Env.DEFAULT_NAME and not await self.ahas_resource_access(
                     ctx.token, resource_uri
                 ):
                     # Do not validate access to the default Env
@@ -1008,7 +1135,7 @@ class ObjStore:
                 f"Storing result to be retrieved later at result key {res}."
             )
             fut = self.construct_call_retrievable(res, run_name, laziness_type)
-            self.put_local(run_name, fut)
+            await self.aput_local(run_name, fut)
             if log_ctx:
                 log_ctx.__exit__(None, None, None)
             return fut
@@ -1020,7 +1147,7 @@ class ObjStore:
                 # This is a user-specified name, so we want to override the existing name with it
                 # and save the resource
                 res.name = run_name or res.name
-                self.put_local(res.name, res)
+                await self.aput_local(res.name, res)
 
             if remote:
                 # If we've reached this block then we know "@" is in run_name and it's an auto-generated name,
@@ -1028,7 +1155,7 @@ class ObjStore:
                 res.name = res.name or run_name
 
                 # Need to save the resource in case we haven't yet (e.g. if run_name was auto-generated)
-                self.put_local(res.name, res)
+                await self.aput_local(res.name, res)
                 # If remote is True and the result is a resource, we return just the config
                 res = res.config()
 
@@ -1059,7 +1186,7 @@ class ObjStore:
             raise ValueError(f"Invalid laziness type {laziness_type}")
 
     @context_wrapper
-    def call(
+    async def acall(
         self,
         key: str,
         method_name: Optional[str] = None,
@@ -1070,7 +1197,7 @@ class ObjStore:
         remote: bool = False,
         run_async: bool = False,
     ):
-        env_servlet_name_containing_key = self.get_env_servlet_name_for_key(key)
+        env_servlet_name_containing_key = await self.aget_env_servlet_name_for_key(key)
         if not env_servlet_name_containing_key:
             raise ObjStoreError(
                 f"Key {key} not found in any env, cannot call method {method_name} on it."
@@ -1087,7 +1214,7 @@ class ObjStore:
                 "kwargs", {}
             )
 
-            res = self.call_local(
+            res = await self.acall_local(
                 key,
                 method_name,
                 run_name=run_name,
@@ -1097,7 +1224,7 @@ class ObjStore:
                 **kwargs,
             )
         else:
-            res = self.call_for_env_servlet_name(
+            res = await self.acall_for_env_servlet_name(
                 env_servlet_name_containing_key,
                 key,
                 method_name,
@@ -1111,9 +1238,9 @@ class ObjStore:
 
         if remote and isinstance(res, dict) and "resource_type" in res:
             config = res
-            if config.get("system").get("name") == self.get_cluster_config().get(
-                "name"
-            ):
+            if config.get("system").get("name") == (
+                await self.aget_cluster_config()
+            ).get("name"):
                 from runhouse import here
 
                 config["system"] = here
@@ -1124,26 +1251,62 @@ class ObjStore:
 
         return res
 
+    def call(
+        self,
+        key: str,
+        method_name: Optional[str] = None,
+        data: Any = None,
+        serialization: Optional[str] = None,
+        run_name: Optional[str] = None,
+        stream_logs: bool = False,
+        remote: bool = False,
+        run_async: bool = False,
+    ):
+        return sync_function(self.acall)(
+            key,
+            method_name,
+            data,
+            serialization,
+            run_name,
+            stream_logs,
+            remote,
+            run_async,
+        )
+
     ##############################################
     # Get several keys for function initialization utilities
     ##############################################
+    async def aget_list(self, keys: List[str], default: Optional[Any] = None):
+        return asyncio.gather([self.aget(key, default=default or key) for key in keys])
+
     def get_list(self, keys: List[str], default: Optional[Any] = None):
-        return [self.get(key, default=default or key) for key in keys]
+        return sync_function(self.aget_list)(keys, default)
+
+    async def aget_obj_refs_list(self, keys: List[Any]):
+
+        return asyncio.gather(
+            [
+                self.aget(key, default=key) if isinstance(key, str) else key
+                for key in keys
+            ]
+        )
 
     def get_obj_refs_list(self, keys: List[Any]):
-        return [
-            self.get(key, default=key) if isinstance(key, str) else key for key in keys
-        ]
+        return sync_function(self.aget_obj_refs_list)(keys)
+
+    async def aget_obj_refs_dict(self, d: Dict[Any, Any]):
+        return {
+            k: await self.aget(v, default=v) if isinstance(v, str) else v
+            for k, v in d.items()
+        }
 
     def get_obj_refs_dict(self, d: Dict[Any, Any]):
-        return {
-            k: self.get(v, default=v) if isinstance(v, str) else v for k, v in d.items()
-        }
+        return sync_function(self.aget_obj_refs_dict)(d)
 
     ##############################################
     # More specific helpers
     ##############################################
-    def put_resource(
+    async def aput_resource(
         self,
         serialized_data: Any,
         serialization: Optional[str] = None,
@@ -1159,7 +1322,7 @@ class ObjStore:
             resource_config, state, dryrun = tuple(
                 deserialize_data(serialized_data, serialization)
             )
-            return self.put_resource_local(resource_config, state, dryrun)
+            return await self.aput_resource_local(resource_config, state, dryrun)
 
         # Normally, serialization and deserialization happens within the servlet
         # However, if we're putting an env, we need to deserialize it here and
@@ -1184,14 +1347,24 @@ class ObjStore:
                 resources=resource_config.get("compute", None),
             )
 
-        return ObjStore.call_actor_method(
+        return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_name),
             "put_resource_local",
             data=serialized_data,
             serialization=serialization,
         )
 
-    def put_resource_local(
+    def put_resource(
+        self,
+        serialized_data: Any,
+        serialization: Optional[str] = None,
+        env_name: Optional[str] = None,
+    ) -> "Response":
+        return sync_function(self.aput_resource)(
+            serialized_data, serialization, env_name
+        )
+
+    async def aput_resource_local(
         self,
         resource_config: Dict[str, Any],
         state: Dict[Any, Any],
@@ -1211,7 +1384,7 @@ class ObjStore:
             resource_config.pop("provider") if "provider" in resource_config else None
         )
 
-        resource_config = self.get_obj_refs_dict(resource_config)
+        resource_config = await self.aget_obj_refs_dict(resource_config)
         resource_config["name"] = name
         resource_config["resource_subtype"] = subtype
         if provider:
@@ -1232,7 +1405,7 @@ class ObjStore:
         else:
             resource.name = name
 
-        self.put(resource.name, resource)
+        await self.aput(resource.name, resource)
 
         # Return the name in case we had to set it
         return resource.name
@@ -1265,14 +1438,17 @@ class ObjStore:
         else:
             return []
 
-    def status(self):
-        config_cluster = self.get_cluster_config()
+    async def astatus(self):
+        config_cluster = await self.aget_cluster_config()
         config_cluster.pop("creds", None)
         cluster_servlets = {}
-        for env in self.get_all_initialized_env_servlet_names():
-            resources_in_env_modified = self.call_actor_method(
+        for env in await self.aget_all_initialized_env_servlet_names():
+            resources_in_env_modified = await self.acall_actor_method(
                 self.get_env_servlet(env), "status_local"
             )
             cluster_servlets[env] = resources_in_env_modified
         config_cluster["envs"] = cluster_servlets
         return config_cluster
+
+    def status(self):
+        return sync_function(self.astatus)()

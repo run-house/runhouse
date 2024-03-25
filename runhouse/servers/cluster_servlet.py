@@ -117,7 +117,7 @@ class ClusterServlet:
         return self._key_to_env_servlet_name.get(key, None)
 
     async def put_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
-        if not self.is_env_servlet_name_initialized(env_servlet_name):
+        if not await self.is_env_servlet_name_initialized(env_servlet_name):
             raise ValueError(
                 f"Env servlet name {env_servlet_name} not initialized, and you tried to mark a resource as in it."
             )
