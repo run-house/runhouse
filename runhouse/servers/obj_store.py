@@ -367,9 +367,6 @@ class ObjStore:
             self.cluster_servlet, "set_cluster_config", config
         )
 
-    def set_cluster_config(self, config: Dict[str, Any]):
-        return sync_function(self.aset_cluster_config)(config)
-
     async def aset_cluster_config_value(self, key: str, value: Any):
         return await self.acall_actor_method(
             self.cluster_servlet, "set_cluster_config_value", key, value
