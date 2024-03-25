@@ -1,6 +1,7 @@
 from typing import AsyncIterable, Awaitable, Generator
 
 from runhouse.resources.module import Module
+from runhouse.servers.obj_store import RunhouseStopIteration
 
 
 class FutureModule(Module, Awaitable):
@@ -67,7 +68,10 @@ class GeneratorModule(Module, Generator):
         return self
 
     def remote_next(self):
-        return self._future.__next__()
+        try:
+            return self._future.__next__()
+        except StopIteration:
+            raise RunhouseStopIteration()
 
     def __next__(self):
         return self.remote_next(run_name=self.name)
