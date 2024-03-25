@@ -328,7 +328,7 @@ class TestObjStore:
         for key in obj_store_2_keys:
             assert obj_store.get(key)
 
-        obj_store._delete_env_contents(env_to_delete)
+        obj_store.delete_env_contents(env_to_delete)
 
         # check obj_store_2 servlet and nested keys are deleted but obj_store_1 unaffected
         assert env_to_delete not in obj_store.get_all_initialized_env_servlet_names()
