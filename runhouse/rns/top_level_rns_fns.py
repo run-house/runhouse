@@ -64,7 +64,7 @@ def load(name: str, instantiate: bool = True, dryrun: bool = False):
         )
 
 
-def get_local_cluster_object():
+async def get_local_cluster_object():
     # By default, obj_store.initialize does not initialize Ray, and instead
     # attempts to connect to an existing cluster.
 
@@ -73,7 +73,7 @@ def get_local_cluster_object():
     # If it was not set, let's proxy requests to `base` since we're likely on the cluster
     # and want to easily read and write from the object store that the Server is using.
     try:
-        obj_store.initialize(
+        await obj_store.ainitialize(
             servlet_name=obj_store.servlet_name or "base",
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
         )
@@ -82,7 +82,7 @@ def get_local_cluster_object():
 
     # When HTTPServer is initialized, the cluster_config is set
     # within the global state.
-    config = obj_store.get_cluster_config()
+    config = await obj_store.aget_cluster_config()
     if config.get("resource_subtype") is not None:
         from runhouse.resources.hardware.utils import _get_cluster_from
 

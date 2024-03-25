@@ -93,7 +93,7 @@ def local_cluster():
 def local_client():
     from fastapi.testclient import TestClient
 
-    HTTPServer(from_test=True)
+    HTTPServer.initialize(from_test=True)
     client = TestClient(app)
 
     yield client
@@ -103,7 +103,7 @@ def local_client():
 def local_client_with_den_auth(logged_in_account):
     from fastapi.testclient import TestClient
 
-    HTTPServer(from_test=True)
+    HTTPServer.initialize(from_test=True)
     HTTPServer.enable_den_auth(flush=False)
     client = TestClient(app)
     with friend_account():
