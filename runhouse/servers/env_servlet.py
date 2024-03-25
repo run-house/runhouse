@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def error_handling_decorator(func):
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs):
         ctx = kwargs.pop("ctx", None)
         ctx_token = None
         if ctx:
@@ -35,7 +35,7 @@ def error_handling_decorator(func):
         # so we should return the result of the function directly, or raise
         # the exception if there is one, instead of returning a Response object.
         try:
-            output = func(*args, **kwargs)
+            output = await func(*args, **kwargs)
             if serialization is None or serialization == "none":
                 obj_store.unset_ctx(ctx_token) if ctx_token else None
                 return output
@@ -60,10 +60,10 @@ def error_handling_decorator(func):
 
 
 class EnvServlet:
-    def __init__(self, env_name: str, *args, **kwargs):
+    async def __init__(self, env_name: str, *args, **kwargs):
         self.env_name = env_name
 
-        obj_store.initialize(
+        await obj_store.ainitialize(
             self.env_name,
             has_local_storage=True,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
@@ -80,20 +80,20 @@ class EnvServlet:
     # even if unused, because they are used by the decorator
     ##############################################################
     @error_handling_decorator
-    def put_resource_local(
+    async def put_resource_local(
         self,
         data: Any,  # This first comes in a serialized format which the decorator re-populates after deserializing
         serialization: Optional[str] = None,
     ):
         resource_config, state, dryrun = tuple(data)
-        return obj_store.put_resource_local(resource_config, state, dryrun)
+        return await obj_store.aput_resource_local(resource_config, state, dryrun)
 
     @error_handling_decorator
-    def put_local(self, key: Any, data: Any, serialization: Optional[str] = None):
-        return obj_store.put_local(key, data)
+    async def put_local(self, key: Any, data: Any, serialization: Optional[str] = None):
+        return await obj_store.aput_local(key, data)
 
     @error_handling_decorator
-    def call_local(
+    async def call_local(
         self,
         key: Any,
         method_name: str = None,
@@ -109,7 +109,7 @@ class EnvServlet:
         else:
             args, kwargs = [], {}
 
-        return obj_store.call_local(
+        return await obj_store.acall_local(
             key,
             method_name,
             run_name=run_name,
@@ -120,7 +120,7 @@ class EnvServlet:
         )
 
     @error_handling_decorator
-    def get_local(
+    async def get_local(
         self,
         key: Any,
         default: Optional[Any] = None,
@@ -134,23 +134,23 @@ class EnvServlet:
     # These do not catch exceptions, and do not wrap the output
     # in a Response object.
     ##############################################################
-    def keys_local(self):
+    async def keys_local(self):
         return obj_store.keys_local()
 
-    def rename_local(self, key: Any, new_key: Any):
-        return obj_store.rename_local(key, new_key)
+    async def rename_local(self, key: Any, new_key: Any):
+        return await obj_store.arename_local(key, new_key)
 
-    def contains_local(self, key: Any):
+    async def contains_local(self, key: Any):
         return obj_store.contains_local(key)
 
-    def pop_local(self, key: Any, *args):
-        return obj_store.pop_local(key, *args)
+    async def pop_local(self, key: Any, *args):
+        return await obj_store.apop_local(key, *args)
 
-    def delete_local(self, key: Any):
-        return obj_store.delete_local(key)
+    async def delete_local(self, key: Any):
+        return await obj_store.adelete_local(key)
 
-    def clear_local(self):
-        return obj_store.clear_local()
+    async def clear_local(self):
+        return await obj_store.aclear_local()
 
-    def status_local(self):
+    async def status_local(self):
         return obj_store.status_local()

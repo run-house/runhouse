@@ -38,6 +38,7 @@ from runhouse.rns.top_level_rns_fns import (
     set_folder,
     unset_folder,
 )
+from runhouse.utils import sync_function
 
 # Note these are global variables that are instantiated within globals.py:
 from .globals import configs, obj_store
@@ -58,7 +59,7 @@ def __getattr__(name):
     if name == "here":
         # If it's either the first time or the cluster was not initialized before, attempt to retrieve the cluster again
         if _rh_here_stored is None or _rh_here_stored == "file":
-            _rh_here_stored = get_local_cluster_object()
+            _rh_here_stored = sync_function(get_local_cluster_object)()
         return _rh_here_stored
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
