@@ -283,3 +283,18 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
         assert res[0][0] == 0  # returncode
         assert "env_val" in res[0][1]  # stdout
+
+    @pytest.mark.level("local")
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "export ENV_VAR=env_val",
+            "pip install numpy; echo $ENV_VAR",
+            "pip freeze | grep numpy",
+        ],
+    )
+    def test_env_run_shell_cmds(self, env, cluster, cmd):
+        env.to(cluster)
+
+        res = cluster.run([cmd], env=env)
+        assert res[0][0] == 0

@@ -169,10 +169,7 @@ class Env(Resource):
         if self._run_cmd:
             command = f"{self._run_cmd} {command}"
         logging.info(f"Running command in {self.name}: {command}")
-        use_shell = any(
-            shell_feat in command for shell_feat in [">", "|", "&&", "||", "$"]
-        )
-        return run_with_logs(command, shell=use_shell, **kwargs)
+        return run_with_logs(command, **kwargs)
 
     def to(
         self, system: Union[str, Cluster], path=None, mount=False, force_install=False

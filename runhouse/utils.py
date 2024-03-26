@@ -1,10 +1,8 @@
 import logging
-import shlex
 import subprocess
-from typing import List, Union
 
 
-def run_with_logs(cmd: Union[List[str], str], **kwargs) -> int:
+def run_with_logs(cmd: str, **kwargs) -> int:
     """Runs a command and prints the output to sys.stdout.
     We can't just pipe to sys.stdout, and when in a `call` method
     we overwrite sys.stdout with a multi-logger to a file and stdout.
@@ -16,14 +14,18 @@ def run_with_logs(cmd: Union[List[str], str], **kwargs) -> int:
     Returns:
         The returncode of the command.
     """
-    if isinstance(cmd, str):
-        cmd = shlex.split(cmd) if not kwargs.get("shell", False) else [cmd]
     require_outputs = kwargs.pop("require_outputs", False)
     stream_logs = kwargs.pop("stream_logs", True)
 
     p = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, **kwargs
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        shell=True,
+        **kwargs
     )
+
     stdout, stderr = p.communicate()
 
     if stream_logs:
