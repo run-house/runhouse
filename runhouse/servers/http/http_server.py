@@ -55,8 +55,8 @@ from runhouse.utils import sync_function
 logger = logging.getLogger(__name__)
 
 app = FastAPI(docs_url=None, redoc_url=None)
-
-suspend_autostop = False
+app.suspend_autostop = False
+app.memory_exporter = None
 
 
 def validate_cluster_access(func):
@@ -116,7 +116,6 @@ def validate_cluster_access(func):
 
 class HTTPServer:
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
-    memory_exporter = None
 
     @classmethod
     async def ainitialize(
@@ -148,10 +147,9 @@ class HTTPServer:
                     )
                 )
             )
-            global memory_exporter
-            memory_exporter = InMemorySpanExporter()
+            app.memory_exporter = InMemorySpanExporter()
             trace.get_tracer_provider().add_span_processor(
-                SimpleSpanProcessor(memory_exporter)
+                SimpleSpanProcessor(app.memory_exporter)
             )
             # Instrument the app object
             FastAPIInstrumentor.instrument_app(app)
@@ -164,7 +162,8 @@ class HTTPServer:
             def get_spans(request: Request):
                 return {
                     "spans": [
-                        span.to_json() for span in memory_exporter.get_finished_spans()
+                        span.to_json()
+                        for span in app.memory_exporter.get_finished_spans()
                     ]
                 }
 
@@ -251,7 +250,7 @@ class HTTPServer:
 
     @staticmethod
     def register_activity():
-        if suspend_autostop:
+        if app.suspend_autostop:
             try:
                 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
@@ -853,7 +852,6 @@ class HTTPServer:
 
 
 async def main():
-    import uvicorn
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -950,8 +948,7 @@ async def main():
         )
     else:
         logger.info("Loaded cluster config from Ray.")
-        global suspend_autostop
-        suspend_autostop = cluster_config.get("autostop_mins", -1) > 0
+        app.suspend_autostop = cluster_config.get("autostop_mins", -1) > 0
 
     ########################################
     # Handling args that could be specified in the
@@ -1186,16 +1183,13 @@ async def main():
     uvicorn_cert = parsed_ssl_certfile if not use_caddy and use_https else None
     uvicorn_key = parsed_ssl_keyfile if not use_caddy and use_https else None
 
-    config = uvicorn.Config(
-        app,
+    await obj_store.start_http_server_in_cluster_servlet(
         host=host,
         port=daemon_port,
         ssl_certfile=uvicorn_cert,
         ssl_keyfile=uvicorn_key,
         loop="uvloop",
     )
-    server = uvicorn.Server(config)
-    await server.serve()
 
 
 if __name__ == "__main__":
