@@ -39,6 +39,7 @@ MODULE_ATTRS = [
     "_resolve",
     "provenance",
     "_signature",
+    "_dumb_signature_cache",
 ]
 
 
@@ -79,6 +80,7 @@ class Module(Resource):
         self._pointers = pointers
         self._endpoint = endpoint
         self._signature = signature
+        self._dumb_signature_cache = None
         self._resolve = False
         self._openapi_spec = None
 
@@ -233,11 +235,8 @@ class Module(Resource):
     def env(self, new_env: Optional[Union[str, Env]]):
         self._env = _get_env_from(new_env)
 
-    def signature(self, rich=False):
-        if self._signature:
-            return self._signature
-
-        member_attrs = {
+    def _compute_signature(self, rich=False):
+        return {
             name: self.method_signature(method) if rich else None
             for (name, method) in inspect.getmembers(self.__class__)
             if not name[0] == "_"
@@ -250,7 +249,16 @@ class Module(Resource):
             )
         }
 
-        return member_attrs
+    def signature(self, rich=False):
+        if self._signature:
+            return self._signature
+
+        if not rich:
+            if self._dumb_signature_cache is None:
+                self._dumb_signature_cache = self._compute_signature(rich=False)
+            return self._dumb_signature_cache
+
+        return self._compute_signature(rich=True)
 
     def method_signature(self, method):
         """Extracts the properties of a method that we want to preserve when sending the method over the wire."""
