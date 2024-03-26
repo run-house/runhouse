@@ -1,10 +1,14 @@
 import logging
 from typing import Any, Dict, List, Optional, Set, Union
 
+import uvicorn
+
 from runhouse.globals import configs, rns_client
 from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.http.auth import AuthCache
+
+from runhouse.servers.http.http_server import app
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +30,21 @@ class ClusterServlet:
         self._initialized_env_servlet_names: Set[str] = set()
         self._key_to_env_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache()
+
+    async def astart_http_server(self, *args, **kwargs):
+        # Hack to set the cluster servlet in the obj_store, don't initialize it
+        from runhouse.globals import obj_store
+        from runhouse.servers.obj_store import ClusterServletSetupOption
+
+        await obj_store.ainitialize(
+            "base", setup_cluster_servlet=ClusterServletSetupOption.NONE
+        )
+        obj_store.cluster_servlet = self
+
+        config = uvicorn.Config(app, *args, **kwargs)
+        self._uvicorn_server = uvicorn.Server(config)
+
+        await self._uvicorn_server.serve()
 
     ##############################################
     # Cluster config state storage methods
