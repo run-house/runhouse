@@ -520,9 +520,9 @@ class TestHTTPServerNoDocker:
             )
             response = client.post(
                 "/resource",
-                json=dict(
-                    PutResourceParams(serialized_data=data, serialization="pickle")
-                ),
+                json=PutResourceParams(
+                    serialized_data=data, serialization="pickle"
+                ).dict(),
                 headers=rns_client.request_headers(local_cluster.rns_address),
             )
             assert response.status_code == 200
@@ -626,9 +626,9 @@ class TestHTTPServerNoDockerDenAuthOnly:
             )
             resp = local_client_with_den_auth.post(
                 "/resource",
-                json=dict(
-                    PutResourceParams(serialized_data=data, serialization="pickle")
-                ),
+                json=PutResourceParams(
+                    serialized_data=data, serialization="pickle"
+                ).dict(),
                 headers=INVALID_HEADERS,
             )
 
