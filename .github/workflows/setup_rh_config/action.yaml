@@ -22,3 +22,4 @@ runs:
         echo "disable_data_collection: true" >> ~/.rh/config.yaml
         echo "token: ${{ inputs.token }}" >> ~/.rh/config.yaml
         echo "username: ${{ inputs.username }}" >> ~/.rh/config.yaml
+        echo "api_server_url: https://api-dev.run.house" >> ~/.rh/config.yaml

@@ -81,7 +81,6 @@ def validate_cluster_access(func):
                         "https://run.house/login to retrieve a token. If calling via HTTP, please "
                         "provide a valid token in the Authorization header.",
                     )
-
                 cluster_uri = (await obj_store.aget_cluster_config()).get("name")
                 cluster_access = await averify_cluster_access(cluster_uri, token)
                 if not cluster_access:
