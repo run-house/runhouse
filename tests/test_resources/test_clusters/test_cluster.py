@@ -54,8 +54,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     UNIT = {"cluster": ["named_cluster"]}
     LOCAL = {
         "cluster": [
-            "docker_cluster_pk_ssh_no_auth",
-            "docker_cluster_pk_ssh_den_auth",
+            "docker_cluster_pk_ssh_no_auth",  # Represents private dev use case
+            "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
+            "docker_cluster_pk_tls_den_auth",  # Represents public app use case
+            "docker_cluster_pk_http_exposed",  # Represents within VPC use case
             "docker_cluster_pwd_ssh_no_auth",
         ]
     }
