@@ -28,6 +28,7 @@ class ClusterServletSetupOption(str, Enum):
     GET_OR_CREATE = "get_or_create"
     GET_OR_FAIL = "get_or_fail"
     FORCE_CREATE = "force_create"
+    NONE = "none"
 
 
 class ObjStoreError(Exception):
@@ -170,15 +171,16 @@ class ObjStore:
                 )
 
         # Now, we expect to be connected to an initialized Ray instance.
-        if setup_cluster_servlet == ClusterServletSetupOption.FORCE_CREATE:
-            kill_actors(namespace="runhouse", gracefully=False)
+        if setup_cluster_servlet != ClusterServletSetupOption.NONE:
+            if setup_cluster_servlet == ClusterServletSetupOption.FORCE_CREATE:
+                kill_actors(namespace="runhouse", gracefully=False)
 
-        create_if_not_exists = (
-            setup_cluster_servlet != ClusterServletSetupOption.GET_OR_FAIL
-        )
-        self.cluster_servlet = get_cluster_servlet(
-            create_if_not_exists=create_if_not_exists
-        )
+            create_if_not_exists = (
+                setup_cluster_servlet != ClusterServletSetupOption.GET_OR_FAIL
+            )
+            self.cluster_servlet = get_cluster_servlet(
+                create_if_not_exists=create_if_not_exists
+            )
         if self.cluster_servlet is None:
             # TODO: logger.<method> is not printing correctly here when doing `runhouse start`.
             # Fix this and general logging.
@@ -231,6 +233,14 @@ class ObjStore:
             setup_cluster_servlet,
         )
 
+    def start_http_server_in_cluster_servlet(self, *args, **kwargs):
+        if self.cluster_servlet is not None:
+            return self.call_actor_method(
+                self.cluster_servlet, "astart_http_server", *args, **kwargs
+            )
+        else:
+            raise ObjStoreError("Cluster servlet not initialized.")
+
     ##############################################
     # Generic helpers
     ##############################################
@@ -240,6 +250,10 @@ class ObjStore:
     ):
         if actor is None:
             raise ObjStoreError("Attempting to call an actor method on a None actor.")
+
+        if not isinstance(actor, ray.actor.ActorHandle):
+            # This is likely the cluster servlet set within itself, hack for now.
+            return await getattr(actor, method)(*args, **kwargs)
         return await getattr(actor, method).remote(*args, **kwargs)
 
     @staticmethod
