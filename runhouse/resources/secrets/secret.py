@@ -217,18 +217,23 @@ class Secret(Resource):
 
     # TODO: refactor this code to reuse rns_client save_config code instead of rewriting
     def save(
-        self, name: str = None, save_values: bool = True, headers: Optional[Dict] = None
+        self,
+        name: str = None,
+        save_values: bool = True,
+        headers: Optional[Dict] = None,
+        folder: str = None,
     ):
         """
         Save the secret config to Den. Save the secret values into Vault if the user is logged in,
-        or to local if not or if the resource is a local resource.
+        or to local if not or if the resource is a local resource. If a folder is specified, save the secret
+        to that folder in Den (e.g. saving secrets for a cluster associated with an organization).
         """
         if name:
             self.name = name
         elif not self.name:
             raise ValueError("A resource must have a name to be saved.")
 
-        self._rns_folder = self._rns_folder or rns_client.current_folder
+        self._rns_folder = folder or self._rns_folder or rns_client.current_folder
 
         config = self.config()
         config["name"] = self.rns_address
