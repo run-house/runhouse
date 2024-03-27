@@ -80,7 +80,7 @@ class EnvServlet:
     # even if unused, because they are used by the decorator
     ##############################################################
     @error_handling_decorator
-    async def put_resource_local(
+    async def aput_resource_local(
         self,
         data: Any,  # This first comes in a serialized format which the decorator re-populates after deserializing
         serialization: Optional[str] = None,
@@ -89,11 +89,13 @@ class EnvServlet:
         return await obj_store.aput_resource_local(resource_config, state, dryrun)
 
     @error_handling_decorator
-    async def put_local(self, key: Any, data: Any, serialization: Optional[str] = None):
+    async def aput_local(
+        self, key: Any, data: Any, serialization: Optional[str] = None
+    ):
         return await obj_store.aput_local(key, data)
 
     @error_handling_decorator
-    async def call_local(
+    async def acall_local(
         self,
         key: Any,
         method_name: str = None,
@@ -120,7 +122,7 @@ class EnvServlet:
         )
 
     @error_handling_decorator
-    async def get_local(
+    async def aget_local(
         self,
         key: Any,
         default: Optional[Any] = None,
@@ -134,23 +136,23 @@ class EnvServlet:
     # These do not catch exceptions, and do not wrap the output
     # in a Response object.
     ##############################################################
-    async def keys_local(self):
+    async def akeys_local(self):
         return obj_store.keys_local()
 
-    async def rename_local(self, key: Any, new_key: Any):
+    async def arename_local(self, key: Any, new_key: Any):
         return await obj_store.arename_local(key, new_key)
 
-    async def contains_local(self, key: Any):
+    async def acontains_local(self, key: Any):
         return obj_store.contains_local(key)
 
-    async def pop_local(self, key: Any, *args):
+    async def apop_local(self, key: Any, *args):
         return await obj_store.apop_local(key, *args)
 
-    async def delete_local(self, key: Any):
+    async def adelete_local(self, key: Any):
         return await obj_store.adelete_local(key)
 
-    async def clear_local(self):
+    async def aclear_local(self):
         return await obj_store.aclear_local()
 
-    async def status_local(self):
+    async def astatus_local(self):
         return obj_store.status_local()

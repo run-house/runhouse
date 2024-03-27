@@ -20,7 +20,7 @@ class TestServlet:
             state = {}
             resp = ObjStore.call_actor_method(
                 test_servlet,
-                "put_resource_local",
+                "aput_resource_local",
                 data=serialize_data(
                     (resource.config(condensed=False), state, resource.dryrun), "pickle"
                 ),
@@ -37,7 +37,7 @@ class TestServlet:
             resource = rh.blob(blob_data, path=resource_path)
             resp = ObjStore.call_actor_method(
                 test_servlet,
-                "put_local",
+                "aput_local",
                 key="key1",
                 data=serialize_data(resource, "pickle"),
                 serialization="pickle",
@@ -48,7 +48,7 @@ class TestServlet:
     def test_get_obj(self, test_servlet):
         resp = ObjStore.call_actor_method(
             test_servlet,
-            "get_local",
+            "aget_local",
             key="key1",
             default=KeyError,
             serialization="pickle",
@@ -62,7 +62,7 @@ class TestServlet:
     def test_get_obj_remote(self, test_servlet):
         resp = ObjStore.call_actor_method(
             test_servlet,
-            "get_local",
+            "aget_local",
             key="key1",
             default=KeyError,
             serialization="pickle",
@@ -76,7 +76,7 @@ class TestServlet:
     def test_get_obj_does_not_exist(self, test_servlet):
         resp = ObjStore.call_actor_method(
             test_servlet,
-            "get_local",
+            "aget_local",
             key="abcdefg",
             default=KeyError,
             serialization="pickle",

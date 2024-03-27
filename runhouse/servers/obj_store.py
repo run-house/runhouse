@@ -513,7 +513,7 @@ class ObjStore:
     @staticmethod
     async def akeys_for_env_servlet_name(env_servlet_name: str) -> List[Any]:
         return await ObjStore.acall_actor_method(
-            ObjStore.get_env_servlet(env_servlet_name), "keys_local"
+            ObjStore.get_env_servlet(env_servlet_name), "akeys_local"
         )
 
     def keys_for_env_servlet_name(self, env_servlet_name: str) -> List[Any]:
@@ -543,7 +543,7 @@ class ObjStore:
     ):
         return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_servlet_name),
-            "put_local",
+            "aput_local",
             key,
             data=data,
             serialization=serialization,
@@ -619,7 +619,7 @@ class ObjStore:
         logger.info(f"Getting {key} from servlet {env_servlet_name}")
         return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_servlet_name),
-            "get_local",
+            "aget_local",
             key,
             default=default,
             serialization=serialization,  # Crucial that this is a kwarg, or the wrapper doesn't pick it up!!
@@ -731,7 +731,7 @@ class ObjStore:
     @staticmethod
     async def acontains_for_env_servlet_name(env_servlet_name: str, key: Any):
         return await ObjStore.acall_actor_method(
-            ObjStore.get_env_servlet(env_servlet_name), "contains_local", key
+            ObjStore.get_env_servlet(env_servlet_name), "acontains_local", key
         )
 
     def contains_local(self, key: Any):
@@ -767,7 +767,7 @@ class ObjStore:
     ) -> Any:
         return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_servlet_name),
-            "pop_local",
+            "apop_local",
             key,
             serialization,
             *args,
@@ -836,7 +836,7 @@ class ObjStore:
     @staticmethod
     async def adelete_for_env_servlet_name(env_servlet_name: str, key: Any):
         return await ObjStore.acall_actor_method(
-            ObjStore.get_env_servlet(env_servlet_name), "delete_local", key
+            ObjStore.get_env_servlet(env_servlet_name), "adelete_local", key
         )
 
     async def adelete_local(self, key: Any):
@@ -899,7 +899,7 @@ class ObjStore:
     @staticmethod
     async def aclear_for_env_servlet_name(env_servlet_name: str):
         return await ObjStore.acall_actor_method(
-            ObjStore.get_env_servlet(env_servlet_name), "clear_local"
+            ObjStore.get_env_servlet(env_servlet_name), "aclear_local"
         )
 
     async def aclear_local(self):
@@ -928,7 +928,7 @@ class ObjStore:
     ):
         return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_servlet_name),
-            "rename_local",
+            "arename_local",
             old_key,
             new_key,
         )
@@ -982,7 +982,7 @@ class ObjStore:
     ):
         return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_servlet_name),
-            "call_local",
+            "acall_local",
             key,
             method_name=method_name,
             data=data,
@@ -1359,7 +1359,7 @@ class ObjStore:
 
         return await ObjStore.acall_actor_method(
             ObjStore.get_env_servlet(env_name),
-            "put_resource_local",
+            "aput_resource_local",
             data=serialized_data,
             serialization=serialization,
         )
@@ -1454,7 +1454,7 @@ class ObjStore:
         cluster_servlets = {}
         for env in await self.aget_all_initialized_env_servlet_names():
             resources_in_env_modified = await self.acall_actor_method(
-                self.get_env_servlet(env), "status_local"
+                self.get_env_servlet(env), "astatus_local"
             )
             cluster_servlets[env] = resources_in_env_modified
         config_cluster["envs"] = cluster_servlets
