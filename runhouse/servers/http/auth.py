@@ -3,7 +3,7 @@ import logging
 from typing import Optional, Union
 
 from runhouse.globals import rns_client
-from runhouse.rns.utils.api import load_resp_content, ResourceAccess
+from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.http.http_utils import username_from_token
 
 logger = logging.getLogger(__name__)
@@ -40,9 +40,7 @@ class AuthCache:
             headers={"Authorization": f"Bearer {token}"},
         )
         if resp.status_code != 200:
-            logger.error(
-                f"Failed to load resources for user: {load_resp_content(resp)}"
-            )
+            logger.error(f"Failed to load resources for user: {resp.text}")
             return
 
         username = username_from_token(token)
