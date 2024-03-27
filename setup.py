@@ -81,6 +81,7 @@ install_requires = [
     "uvicorn",
     "wheel",
     "apispec",
+    "httpx",
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following

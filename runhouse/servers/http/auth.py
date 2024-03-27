@@ -4,7 +4,7 @@ from typing import Optional, Union
 
 from runhouse.globals import rns_client
 from runhouse.rns.utils.api import load_resp_content, ResourceAccess
-from runhouse.servers.http.http_utils import username_from_token
+from runhouse.servers.http.http_utils import ausername_from_token
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class AuthCache:
         resources: dict = self.get_user_resources(token)
         return resources.get(resource_uri)
 
-    def add_user(self, token, refresh_cache=True):
+    async def aadd_user(self, token, refresh_cache=True):
         """Refresh the server cache with the latest resources and access levels for a particular token"""
         if token is None:
             return
@@ -35,7 +35,7 @@ class AuthCache:
         if not refresh_cache and token in self.CACHE:
             return
 
-        resp = rns_client.session.get(
+        resp = await rns_client.async_session.get(
             f"{rns_client.api_server_url}/resource",
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -45,7 +45,7 @@ class AuthCache:
             )
             return
 
-        username = username_from_token(token)
+        username = await ausername_from_token(token)
         if username is None:
             raise ValueError("Failed to find Runhouse user from provided token.")
         self.USERNAMES[token] = username

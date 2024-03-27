@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Optional, Set, Union
 
 import dotenv
+import httpx
 
 import requests
 
@@ -63,6 +64,7 @@ class RNSClient:
 
         self.refresh_defaults()
         self.session = requests.Session()
+        self.async_session = httpx.AsyncClient()
 
     # TODO [DG] move the below into Defaults() so they never need to be refreshed?
     def refresh_defaults(self):

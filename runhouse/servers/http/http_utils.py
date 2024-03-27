@@ -5,8 +5,6 @@ import re
 import sys
 from typing import Any, Dict, List, Optional, Union
 
-import requests
-
 from fastapi import HTTPException
 from pydantic import BaseModel
 from ray import cloudpickle as pickle
@@ -179,12 +177,12 @@ def handle_exception_response(
     )
 
 
-def username_from_token(token: str) -> Union[str, None]:
+async def ausername_from_token(token: str) -> Union[str, None]:
     """Get the username from the provided cluster subtoken."""
     from runhouse.globals import rns_client
     from runhouse.rns.utils.api import read_resp_data
 
-    resp = requests.get(
+    resp = await rns_client.async_session.get(
         f"{rns_client.api_server_url}/user",
         headers={"Authorization": f"Bearer {token}"},
     )
