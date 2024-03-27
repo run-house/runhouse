@@ -80,7 +80,7 @@ class OnDemandCluster(Cluster):
         self.instance_type = instance_type
         self.num_instances = num_instances
         self.provider = provider or configs.get("default_provider")
-        self._autostop_mins = (
+        self.autostop_mins = (
             autostop_mins
             if autostop_mins is not None
             else configs.get("default_autostop")
@@ -102,18 +102,6 @@ class OnDemandCluster(Cluster):
             # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
             self._update_from_sky_status(dryrun=False)
 
-    @property
-    def autostop_mins(self):
-        return self._autostop_mins
-
-    @autostop_mins.setter
-    def autostop_mins(self, mins):
-        self.check_server()
-
-        sky.autostop(self.name, mins, down=True)
-        self._autostop_mins = mins
-        self.client.set_settings({"atuostop_mins": mins})
-
     @staticmethod
     def from_config(config: dict, dryrun=False):
         return OnDemandCluster(**config, dryrun=dryrun)
@@ -131,9 +119,9 @@ class OnDemandCluster(Cluster):
                 "image_id",
                 "region",
                 "stable_internal_external_ips",
+                "autostop_mins",
             ],
         )
-        config["autostop_mins"] = self._autostop_mins
         return config
 
     def endpoint(self, external=False):
@@ -443,7 +431,13 @@ class OnDemandCluster(Cluster):
             autostop_mins (int): Amount of time (in min) to keep the cluster warm after inactivity.
                 If set to -1, keep cluster warm indefinitely. (Default: `-1`)
         """
-        self.autostop_mins = autostop_mins
+        self.check_server()
+        if self.on_this_cluster():
+            raise ValueError("Cannot set autostop_mins live on the cluster.")
+        else:
+            self.client.set_settings({"autostop_mins": autostop_mins})
+            sky.autostop(self.name, autostop_mins, down=True)
+            self.autostop_mins = autostop_mins
 
         return self
 

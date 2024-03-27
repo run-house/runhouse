@@ -568,40 +568,40 @@ class Cluster(Resource):
             # is already up but doesn't have an address assigned yet.
             self.up_if_not()
 
-        try:
-            if not self.client:
+        if not self.client:
+            try:
                 self.connect_server_client()
                 logger.debug(f"Checking server {self.name}")
-            self.client.check_server()
-            logger.info(f"Server {self.name} is up.")
-        except (
-            requests.exceptions.ConnectionError,
-            requests.exceptions.ReadTimeout,
-            requests.exceptions.ChunkedEncodingError,
-        ):
-            # It's possible that the cluster went down while we were trying to install packages.
-            if not self.is_up():
-                logger.info(f"Server {self.name} is down.")
-                self.up_if_not()
-            elif restart_server:
-                logger.info(
-                    f"Server {self.name} is up, but the Runhouse API server may not be up."
-                )
-                self.restart_server()
-                for i in range(5):
-                    logger.info(f"Checking server {self.name} again [{i + 1}/5].")
-                    try:
-                        self.client.check_server()
-                        logger.info(f"Server {self.name} is up.")
-                        return
-                    except (
-                        requests.exceptions.ConnectionError,
-                        requests.exceptions.ReadTimeout,
-                    ) as error:
-                        if i == 5:
-                            logger.error(error)
-                        time.sleep(5)
-            raise ValueError(f"Could not connect to server {self.name}")
+                self.client.check_server()
+                logger.info(f"Server {self.name} is up.")
+            except (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.ReadTimeout,
+                requests.exceptions.ChunkedEncodingError,
+            ):
+                # It's possible that the cluster went down while we were trying to install packages.
+                if not self.is_up():
+                    logger.info(f"Server {self.name} is down.")
+                    self.up_if_not()
+                elif restart_server:
+                    logger.info(
+                        f"Server {self.name} is up, but the Runhouse API server may not be up."
+                    )
+                    self.restart_server()
+                    for i in range(5):
+                        logger.info(f"Checking server {self.name} again [{i + 1}/5].")
+                        try:
+                            self.client.check_server()
+                            logger.info(f"Server {self.name} is up.")
+                            return
+                        except (
+                            requests.exceptions.ConnectionError,
+                            requests.exceptions.ReadTimeout,
+                        ) as error:
+                            if i == 5:
+                                logger.error(error)
+                            time.sleep(5)
+                raise ValueError(f"Could not connect to server {self.name}")
 
         return
 

@@ -56,16 +56,12 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
-autostop_enabled = False
-
 
 def validate_cluster_access(func):
     """If using Den auth, validate the user's cluster subtoken and access to the cluster before continuing."""
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        HTTPServer.register_activity()
-
         request: Request = kwargs.get("request")
         den_auth_enabled: bool = HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
@@ -212,8 +208,6 @@ class HTTPServer:
             runtime_env=runtime_env,
         )
 
-        HTTPServer.register_activity()
-
     @classmethod
     def get_den_auth(cls):
         return obj_store.get_cluster_config().get("den_auth", False)
@@ -227,16 +221,6 @@ class HTTPServer:
     @classmethod
     def disable_den_auth(cls):
         obj_store.set_cluster_config_value("den_auth", False)
-
-    @staticmethod
-    def register_activity():
-        if autostop_enabled:
-            try:
-                from sky.skylet.autostop_lib import set_last_active_time_to_now
-
-                set_last_active_time_to_now()
-            except ImportError:
-                pass
 
     @staticmethod
     @app.get("/cert")
@@ -285,7 +269,6 @@ class HTTPServer:
         serialization = "pickle"
 
         try:
-            HTTPServer.register_activity()
             if not ray.is_initialized():
                 raise Exception("Ray is not initialized, restart the server.")
             logger.info("Server is up.")
@@ -318,7 +301,7 @@ class HTTPServer:
             HTTPServer.disable_den_auth()
 
         if message.autostop_mins:
-            HTTPServer.autostop_enabled = message.autostop_mins > 0
+            obj_store.set_cluster_config_value("autostop_mins", message.autostop_mins)
 
         return Response(output_type=OutputType.SUCCESS)
 
@@ -934,7 +917,6 @@ if __name__ == "__main__":
         )
     else:
         logger.info("Loaded cluster config from Ray.")
-        autostop_enabled = cluster_config.get("autostop_mins", -1) > 0
 
     ########################################
     # Handling args that could be specified in the
