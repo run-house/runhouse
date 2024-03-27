@@ -2,9 +2,10 @@ import json
 
 import pytest
 import runhouse as rh
+from runhouse.constants import TEST_ORG
 
 from tests.conftest import init_args
-from tests.utils import friend_account, remove_config_keys
+from tests.utils import friend_account, friend_account_in_org, remove_config_keys
 
 
 def load_shared_resource_config(resource_class_name, address):
@@ -17,14 +18,38 @@ def load_shared_resource_config(resource_class_name, address):
 
 class TestResource:
 
-    UNIT = {"resource": ["unnamed_resource", "named_resource", "local_named_resource"]}
-    LOCAL = {"resource": ["unnamed_resource", "named_resource", "local_named_resource"]}
-    MINIMAL = {"resource": ["named_resource"]}
+    UNIT = {
+        "resource": [
+            "unnamed_resource",
+            "named_resource_for_org",
+            "named_resource",
+            "local_named_resource",
+        ]
+    }
+    LOCAL = {
+        "resource": [
+            "unnamed_resource",
+            "named_resource_for_org",
+            "named_resource",
+            "local_named_resource",
+        ]
+    }
+    MINIMAL = {"resource": ["named_resource_for_org", "named_resource"]}
     RELEASE = {
-        "resource": ["unnamed_resource", "named_resource", "local_named_resource"]
+        "resource": [
+            "unnamed_resource",
+            "named_resource_for_org",
+            "named_resource",
+            "local_named_resource",
+        ]
     }
     MAXIMAL = {
-        "resource": ["unnamed_resource", "named_resource", "local_named_resource"]
+        "resource": [
+            "unnamed_resource",
+            "named_resource_for_org",
+            "named_resource",
+            "local_named_resource",
+        ]
     }
 
     @pytest.mark.level("unit")
@@ -70,8 +95,9 @@ class TestResource:
         assert new_resource.dryrun == resource.dryrun
         # TODO allow resource subclass tests to extend set of properties to test
 
-    @pytest.mark.level("unit")
+    @pytest.mark.level("local")
     def test_save_and_load(self, saved_resource):
+        alt_resource = None
         # Test loading from name
         loaded_resource = saved_resource.__class__.from_name(saved_resource.rns_address)
 
@@ -112,8 +138,9 @@ class TestResource:
             )
 
         finally:
-            alt_resource.delete_configs()
-            assert not rh.exists(alt_resource.rns_address)
+            if alt_resource is not None:
+                alt_resource.delete_configs()
+                assert not rh.exists(alt_resource.rns_address)
 
     @pytest.mark.level("unit")
     def test_history(self, saved_resource):
@@ -203,6 +230,70 @@ class TestResource:
         new_config.get("data_config", {}).pop("client_keys", None)
         config.get("data_config", {}).pop("client_keys", None)
         assert new_config == config
+
+    @pytest.mark.level("local")
+    def test_sharing_and_loading_resource_for_org(self, named_resource_for_org):
+        # Should not be able to share a resource with a user not part of the org
+        resp = named_resource_for_org.share(
+            users=["team@run.house"], access_level="read"
+        )
+
+        # All elements in the returned tuple are empty
+        assert all(not users for users in resp)
+
+        with pytest.raises(Exception):
+            # Friend account should not be able to load the resource without org membership
+            with friend_account():
+                new_config = load_shared_resource_config(
+                    named_resource_for_org.__class__.__name__,
+                    named_resource_for_org.rns_address,
+                )
+                assert new_config == named_resource_for_org.config()
+
+        # Current user with access to org should be able to reload
+        new_config = load_shared_resource_config(
+            named_resource_for_org.__class__.__name__,
+            named_resource_for_org.rns_address,
+        )
+        assert new_config == named_resource_for_org.config()
+
+    @pytest.mark.level("local")
+    def test_create_and_load_new_subresources_for_org(
+        self, named_resource_for_org, docker_cluster_pk_ssh_den_auth
+    ):
+        from tests.test_servers.conftest import summer
+
+        resource_name = f"/{TEST_ORG}/summer_func"
+        args = {"name": resource_name, "fn": summer}
+
+        # Sending function to the cluster will save the function and associated env under the organization
+        f = rh.function(**args).to(docker_cluster_pk_ssh_den_auth, env=["pytest"])
+        init_args[id(f)] = args
+
+        # # Should be saved to Den under the org
+        f.save()
+
+        # Reload the function with the rns address pointing to the org
+        # This should work given the requesting user has org access
+        reloaded_func = rh.function(name=resource_name)
+        assert (
+            reloaded_func.system.rns_address
+            == docker_cluster_pk_ssh_den_auth.rns_address
+        )
+        assert reloaded_func(1, 2) == 3
+
+        # Should not be able to share the function with a user who is not part of the org
+        resp = reloaded_func.share("team@run.house", access_level="read")
+        assert all(not users for users in resp)
+
+        with pytest.raises(Exception):
+            # Friend account does not have org access, should not be able to reload the function
+            with friend_account():
+                rh.function(name=resource_name)
+
+        # Friend account who is an org member should be able to reload the function
+        with friend_account_in_org():
+            rh.function(name=resource_name)
 
     # TODO API to run this on local_docker_slim when level == "local"
     @pytest.mark.skip

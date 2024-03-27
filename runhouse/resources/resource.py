@@ -165,7 +165,7 @@ class Resource:
     def rns_address(self, new_address):
         self.name = new_address  # Note, this saves the resource to the new address!
 
-    def _save_sub_resources(self):
+    def _save_sub_resources(self, folder: str = None):
         """Overload by child resources to save any resources they hold internally."""
         pass
 
@@ -190,23 +190,19 @@ class Resource:
         else:
             return self
 
-    def save(
-        self,
-        name: str = None,
-        overwrite: bool = True,
-    ):
+    def save(self, name: str = None, overwrite: bool = True, folder: str = None):
         """Register the resource, saving it to local working_dir config and RNS config store. Uses the resource's
         `self.config()` to generate the dict to save."""
 
         # add this resource this run's downstream artifact registry if it's being saved as part of a run
         rns_client.add_downstream_resource(name or self.name)
 
-        self._save_sub_resources()
+        self._save_sub_resources(folder)
         if name:
             self.name = name
 
         # TODO handle self.access == 'read' instead of this weird overwrite argument
-        save(self, overwrite=overwrite)
+        save(self, overwrite=overwrite, folder=folder)
 
         return self
 

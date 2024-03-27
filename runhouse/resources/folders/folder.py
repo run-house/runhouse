@@ -611,9 +611,9 @@ class Folder(Resource):
 
         return config
 
-    def _save_sub_resources(self):
+    def _save_sub_resources(self, folder: str = None):
         if isinstance(self.system, Resource):
-            self.system.save()
+            self.system.save(folder=folder)
 
     @staticmethod
     def _path_relative_to_rh_workdir(path):

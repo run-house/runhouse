@@ -60,6 +60,35 @@ def friend_account():
         rns_client.load_account_from_file()
 
 
+@contextlib.contextmanager
+def friend_account_in_org():
+    """Used for the purposes of testing resource sharing among different accounts.
+    When inside the context manager, use the test account credentials before reverting back to the original
+    account when exiting. This account is also included as part of the test org used in various tests"""
+
+    local_rh_package_path = Path(
+        importlib.util.find_spec("runhouse").origin
+    ).parent.parent
+    dotenv_path = local_rh_package_path / ".env"
+    if not dotenv_path.exists():
+        dotenv_path = None  # Default to standard .env file search
+
+    try:
+        account = rns_client.load_account_from_env(
+            token_env_var="ORG_MEMBER_TOKEN",
+            usr_env_var="ORG_MEMBER_USERNAME",
+            dotenv_path=dotenv_path,
+        )
+        if account is None:
+            pytest.skip(
+                "`ORG_MEMBER_TOKEN` or `ORG_MEMBER_USERNAME` not set, skipping test."
+            )
+        yield account
+
+    finally:
+        rns_client.load_account_from_file()
+
+
 def test_env(logged_in=False):
     return rh.env(
         reqs=["pytest", "httpx", "pytest_asyncio"],

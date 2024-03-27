@@ -79,13 +79,30 @@ Management
 
 Runhouse provides tools for visibility and management of resources as long-living assets shared by teams or projects.
 
-* **Organization structure**: Both resources and users can be organized into arbitrarily-nested groups to apply access
-  permissions, default behaviors (e.g. default storage locations, compute providers, instance autotermination, etc.),
-  project delineation, or staging (e.g. dev vs. prod).
-
-* `Runhouse Den <https://www.run.house/dashboard>`__: provides an individual or admin view of all resources, secrets,
+* `Runhouse Den <https://www.run.house/dashboard>`_: provides an individual or admin view of all resources, secrets,
   groups, and sharing. Resource metadata is automatically versioned in RNS, allowing teams to maintain single-sources
   of truth for assets with zero downtime to update or roll back, and trace exact lineage for any existing resource.
+
+* **Organization structure**: Both resources and users can be organized into organizations to apply and manage shared
+  access and permissions. Resources can be created for an organization by specifying its name in full
+  when creating or loading down a Runhouse resource.
+
+  .. code-block:: python
+
+   import runhouse as rh
+
+   # Create a new function for the organization named "my_org_name"
+   remote_func = rh.function(name="/my_org_name/my_function",
+                             fn=my_func).to(system=my_cluster, env=my_env)
+
+   # Reload the function and invoke it remotely on the cluster
+   remote_func = rh.function(name="/my_org_name/my_function")
+   res = remote_func(*args, **kwargs)
+
+  .. note::
+
+    You must be an organization admin in order to add new members and manage their permissions within the organization.
+    The management panel can be accessed in the `Den account page <https://www.run.house/account#organizations>`_.
 
 Resource Access Levels
 ----------------------

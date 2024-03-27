@@ -15,15 +15,13 @@ from runhouse.constants import (
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
-from tests.utils import get_random_str, remove_config_keys
+from tests.utils import friend_account_in_org, get_random_str, remove_config_keys
 
 """ TODO:
 1) In subclasses, test factory methods create same type as parent
 2) In subclasses, use monkeypatching to make sure `up()` is called for various methods if the server is not up
 3) Test AWS, GCP, and Azure static clusters separately
 """
-
-from tests.utils import friend_account
 
 
 def load_shared_resource_config(resource_class_name, address):
@@ -353,7 +351,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             )
 
         cluster.share(
-            users=["info@run.house"],
+            users=["support@run.house"],
             access_level="read",
             notify_users=False,
         )
@@ -362,7 +360,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         resource_class_name = cluster.config().get("resource_type").capitalize()
         config = cluster.config()
 
-        with friend_account():
+        with friend_account_in_org():
             curr_config = load_shared_resource_config(
                 resource_class_name, cluster.rns_address
             )
@@ -399,7 +397,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             )
 
         cluster.share(
-            users=["info@run.house"],
+            users=["support@run.house"],
             access_level="write",
             notify_users=False,
         )
@@ -409,7 +407,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         cluster_creds.pop("private_key", None)
         cluster_creds.pop("public_key", None)
 
-        with friend_account():
+        with friend_account_in_org():
             shared_cluster = rh.cluster(name=cluster_name)
             assert shared_cluster.rns_address == cluster_name
             assert shared_cluster.creds_values.keys() == cluster_creds.keys()

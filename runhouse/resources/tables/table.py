@@ -177,9 +177,9 @@ class Table(Resource):
         )
         return new_table
 
-    def _save_sub_resources(self):
+    def _save_sub_resources(self, folder: str = None):
         if isinstance(self.system, Resource):
-            self.system.save()
+            self.system.save(folder=folder)
 
     def write(self):
         """Write underlying table data to fsspec URL.

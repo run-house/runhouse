@@ -241,11 +241,7 @@ class Run(Resource):
         }
         return config
 
-    def save(
-        self,
-        name: str = None,
-        overwrite: bool = True,
-    ):
+    def save(self, name: str = None, overwrite: bool = True, folder: str = None):
         """If the Run name is being overwritten (ex: initially created with auto-generated name),
         update the Run config stored on the system before saving to RNS."""
         config_for_rns = self.config()
@@ -255,7 +251,7 @@ class Run(Resource):
             self._write_config(config=config_for_rns)
             logger.debug(f"Updated Run config name in path: {config_path}")
 
-        return super().save(name, overwrite)
+        return super().save(name, overwrite, folder)
 
     def write(self, data: Any, path: str):
         """Write data (ex: function inputs or result, stdout, stderr) to the Run's dedicated folder on the system."""

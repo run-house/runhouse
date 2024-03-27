@@ -13,7 +13,6 @@ import runhouse as rh
 import yaml
 
 from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
-from runhouse.globals import rns_client
 
 from tests.conftest import init_args
 from tests.utils import friend_account
@@ -354,7 +353,7 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
 
 
 @pytest.fixture(scope="session")
-def docker_cluster_pk_ssh(request, test_rns_folder):
+def docker_cluster_pk_ssh(request, test_org_rns_folder):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - Nginx set up on startup to forward Runhouse HTTP server to port 443
@@ -388,7 +387,7 @@ def docker_cluster_pk_ssh(request, test_rns_folder):
         port_fwds=[f"{local_ssh_port}:{DEFAULT_SSH_PORT}"],
         local_ssh_port=local_ssh_port,
         additional_cluster_init_args={
-            "name": f"{test_rns_folder}_docker_cluster_pk_ssh",
+            "name": f"{test_org_rns_folder}_docker_cluster_pk_ssh",
             "server_connection_type": "ssh",
             "use_local_telemetry": True,
         },

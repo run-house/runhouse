@@ -125,17 +125,20 @@ class Cluster(Resource):
             node=node or "all",
         )
 
-    def save(
-        self,
-        name: str = None,
-        overwrite: bool = True,
-    ):
-        # return super().save(name=name, overwrite=overwrite)
+    def save(self, name: str = None, overwrite: bool = True, folder: str = None):
         """Overrides the default resource save() method in order to also update
         the cluster config on the cluster itself.
         """
         on_this_cluster = self.on_this_cluster()
-        super().save(name=name, overwrite=overwrite)
+
+        # Save the cluster sub-resources (ex: ssh creds) using the top level folder of the cluster if the the rns
+        # address has been set, otherwise use the user's current folder (set in local .rh config)
+        base_folder = rns_client.base_folder(self.rns_address)
+        folder = (
+            folder or f"/{base_folder}" if base_folder else rns_client.current_folder
+        )
+
+        super().save(name=name, overwrite=overwrite, folder=folder)
 
         # Running save will have updated the cluster's
         # RNS address. We need to update the name
@@ -148,11 +151,11 @@ class Cluster(Resource):
 
         return self
 
-    def _save_sub_resources(self):
+    def _save_sub_resources(self, folder: str = None):
         from runhouse.resources.secrets import Secret
 
         if self._creds and isinstance(self._creds, Secret):
-            self._creds.save()
+            self._creds.save(folder=folder)
 
     @classmethod
     def from_config(cls, config: dict, dryrun=False):
