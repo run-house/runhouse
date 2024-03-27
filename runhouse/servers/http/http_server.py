@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
-suspend_autostop = False
+autostop_enabled = False
 
 
 def validate_cluster_access(func):
@@ -251,7 +251,7 @@ class HTTPServer:
 
     @staticmethod
     def register_activity():
-        if suspend_autostop:
+        if autostop_enabled:
             try:
                 from sky.skylet.autostop_lib import set_last_active_time_to_now
 
@@ -337,6 +337,9 @@ class HTTPServer:
             await HTTPServer.aenable_den_auth(flush=message.flush_auth_cache)
         elif message.den_auth is not None and not message.den_auth:
             await HTTPServer.adisable_den_auth()
+
+        if message.autostop_mins:
+            HTTPServer.autostop_enabled = message.autostop_mins > 0
 
         return Response(output_type=OutputType.SUCCESS)
 
@@ -950,8 +953,7 @@ async def main():
         )
     else:
         logger.info("Loaded cluster config from Ray.")
-        global suspend_autostop
-        suspend_autostop = cluster_config.get("autostop_mins", -1) > 0
+        autostop_enabled = cluster_config.get("autostop_mins", -1) > 0
 
     ########################################
     # Handling args that could be specified in the
