@@ -75,7 +75,7 @@ def get_cluster_servlet(create_if_not_exists: bool = False):
         )
 
         # Make sure cluster servlet is actually initialized
-        ray.get(cluster_servlet.get_cluster_config.remote())
+        ray.get(cluster_servlet.aget_cluster_config.remote())
 
     return cluster_servlet
 
@@ -354,7 +354,7 @@ class ObjStore:
         # TODO: Potentially add caching here
         if self.cluster_servlet is not None:
             return await self.acall_actor_method(
-                self.cluster_servlet, "get_cluster_config"
+                self.cluster_servlet, "aget_cluster_config"
             )
         else:
             return {}
@@ -364,12 +364,12 @@ class ObjStore:
 
     async def aset_cluster_config(self, config: Dict[str, Any]):
         return await self.acall_actor_method(
-            self.cluster_servlet, "set_cluster_config", config
+            self.cluster_servlet, "aset_cluster_config", config
         )
 
     async def aset_cluster_config_value(self, key: str, value: Any):
         return await self.acall_actor_method(
-            self.cluster_servlet, "set_cluster_config_value", key, value
+            self.cluster_servlet, "aset_cluster_config_value", key, value
         )
 
     def set_cluster_config_value(self, key: str, value: Any):
@@ -380,7 +380,7 @@ class ObjStore:
     ##############################################
     async def aadd_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
         return await self.acall_actor_method(
-            self.cluster_servlet, "add_user_to_auth_cache", token, refresh_cache
+            self.cluster_servlet, "aadd_user_to_auth_cache", token, refresh_cache
         )
 
     def add_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
@@ -389,7 +389,7 @@ class ObjStore:
     async def aresource_access_level(self, token: str, resource_uri: str):
         return await self.acall_actor_method(
             self.cluster_servlet,
-            "resource_access_level",
+            "aresource_access_level",
             token,
             resource_uri,
         )
@@ -399,7 +399,7 @@ class ObjStore:
 
     async def auser_resources(self, token: str):
         return await self.acall_actor_method(
-            self.cluster_servlet, "user_resources", token
+            self.cluster_servlet, "auser_resources", token
         )
 
     def user_resources(self, token: str):
@@ -407,7 +407,7 @@ class ObjStore:
 
     async def aget_username(self, token: str):
         return await self.acall_actor_method(
-            self.cluster_servlet, "get_username", token
+            self.cluster_servlet, "aget_username", token
         )
 
     async def ahas_resource_access(self, token: str, resource_uri=None) -> bool:
@@ -452,7 +452,7 @@ class ObjStore:
 
     async def aclear_auth_cache(self, token: str = None):
         return await self.acall_actor_method(
-            self.cluster_servlet, "clear_auth_cache", token
+            self.cluster_servlet, "aclear_auth_cache", token
         )
 
     ##############################################
@@ -461,20 +461,20 @@ class ObjStore:
     async def amark_env_servlet_name_as_initialized(self, env_servlet_name: str):
         return await self.acall_actor_method(
             self.cluster_servlet,
-            "mark_env_servlet_name_as_initialized",
+            "amark_env_servlet_name_as_initialized",
             env_servlet_name,
         )
 
     async def ais_env_servlet_name_initialized(self, env_servlet_name: str) -> bool:
         return await self.acall_actor_method(
-            self.cluster_servlet, "is_env_servlet_name_initialized", env_servlet_name
+            self.cluster_servlet, "ais_env_servlet_name_initialized", env_servlet_name
         )
 
     async def aget_all_initialized_env_servlet_names(self) -> Set[str]:
         return list(
             await self.acall_actor_method(
                 self.cluster_servlet,
-                "get_all_initialized_env_servlet_names",
+                "aget_all_initialized_env_servlet_names",
             )
         )
 
@@ -483,7 +483,7 @@ class ObjStore:
 
     async def aget_env_servlet_name_for_key(self, key: Any):
         return await self.acall_actor_method(
-            self.cluster_servlet, "get_env_servlet_name_for_key", key
+            self.cluster_servlet, "aget_env_servlet_name_for_key", key
         )
 
     def get_env_servlet_name_for_key(self, key: Any):
@@ -491,12 +491,12 @@ class ObjStore:
 
     async def _aput_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
         return await self.acall_actor_method(
-            self.cluster_servlet, "put_env_servlet_name_for_key", key, env_servlet_name
+            self.cluster_servlet, "aput_env_servlet_name_for_key", key, env_servlet_name
         )
 
     async def _apop_env_servlet_name_for_key(self, key: Any, *args) -> str:
         return await self.acall_actor_method(
-            self.cluster_servlet, "pop_env_servlet_name_for_key", key, *args
+            self.cluster_servlet, "apop_env_servlet_name_for_key", key, *args
         )
 
     ##############################################
@@ -504,7 +504,7 @@ class ObjStore:
     ##############################################
     async def aremove_env_servlet_name(self, env_servlet_name: str):
         return await self.acall_actor_method(
-            self.cluster_servlet, "remove_env_servlet_name", env_servlet_name
+            self.cluster_servlet, "aremove_env_servlet_name", env_servlet_name
         )
 
     ##############################################
@@ -528,7 +528,7 @@ class ObjStore:
     async def akeys(self) -> List[Any]:
         # Return keys across the cluster, not only in this process
         return await self.acall_actor_method(
-            self.cluster_servlet, "get_key_to_env_servlet_name_dict_keys"
+            self.cluster_servlet, "aget_key_to_env_servlet_name_dict_keys"
         )
 
     def keys(self) -> List[Any]:

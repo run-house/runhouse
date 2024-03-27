@@ -30,22 +30,22 @@ class ClusterServlet:
     ##############################################
     # Cluster config state storage methods
     ##############################################
-    async def get_cluster_config(self) -> Dict[str, Any]:
+    async def aget_cluster_config(self) -> Dict[str, Any]:
         return self.cluster_config
 
-    async def set_cluster_config(self, cluster_config: Dict[str, Any]):
+    async def aset_cluster_config(self, cluster_config: Dict[str, Any]):
         self.cluster_config = cluster_config
 
-    async def set_cluster_config_value(self, key: str, value: Any):
+    async def aset_cluster_config_value(self, key: str, value: Any):
         self.cluster_config[key] = value
 
     ##############################################
     # Auth cache internal functions
     ##############################################
-    async def add_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
+    async def aadd_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
         self._auth_cache.add_user(token, refresh_cache)
 
-    async def resource_access_level(
+    async def aresource_access_level(
         self, token: str, resource_uri: str
     ) -> Union[str, None]:
         # If the token in this request matches that of the owner of the cluster,
@@ -57,13 +57,13 @@ class ClusterServlet:
             return ResourceAccess.WRITE
         return self._auth_cache.lookup_access_level(token, resource_uri)
 
-    async def user_resources(self, token: str) -> dict:
+    async def auser_resources(self, token: str) -> dict:
         return self._auth_cache.get_user_resources(token)
 
-    async def get_username(self, token: str) -> str:
+    async def aget_username(self, token: str) -> str:
         return self._auth_cache.get_username(token)
 
-    async def has_resource_access(self, token: str, resource_uri=None) -> bool:
+    async def ahas_resource_access(self, token: str, resource_uri=None) -> bool:
         """Checks whether user has read or write access to a given module saved on the cluster."""
         from runhouse.rns.utils.api import ResourceAccess
 
@@ -72,7 +72,7 @@ class ClusterServlet:
             return False
 
         cluster_uri = self.cluster_config["name"]
-        cluster_access = self.resource_access_level(token, cluster_uri)
+        cluster_access = await self.aresource_access_level(token, cluster_uri)
         if cluster_access == ResourceAccess.WRITE:
             # if user has write access to cluster will have access to all resources
             return True
@@ -84,52 +84,52 @@ class ClusterServlet:
             # If module does not have a name, must have access to the cluster
             return False
 
-        resource_access_level = self.resource_access_level(token, resource_uri)
+        resource_access_level = await self.aresource_access_level(token, resource_uri)
         if resource_access_level not in [ResourceAccess.WRITE, ResourceAccess.READ]:
             return False
 
         return True
 
-    async def clear_auth_cache(self, token: str = None):
+    async def aclear_auth_cache(self, token: str = None):
         self._auth_cache.clear_cache(token)
 
     ##############################################
     # Key to servlet where it is stored mapping
     ##############################################
-    async def mark_env_servlet_name_as_initialized(self, env_servlet_name: str):
+    async def amark_env_servlet_name_as_initialized(self, env_servlet_name: str):
         self._initialized_env_servlet_names.add(env_servlet_name)
 
-    async def is_env_servlet_name_initialized(self, env_servlet_name: str) -> bool:
+    async def ais_env_servlet_name_initialized(self, env_servlet_name: str) -> bool:
         return env_servlet_name in self._initialized_env_servlet_names
 
-    async def get_all_initialized_env_servlet_names(self) -> Set[str]:
+    async def aget_all_initialized_env_servlet_names(self) -> Set[str]:
         return self._initialized_env_servlet_names
 
-    async def get_key_to_env_servlet_name_dict_keys(self) -> List[Any]:
+    async def aget_key_to_env_servlet_name_dict_keys(self) -> List[Any]:
         return list(self._key_to_env_servlet_name.keys())
 
-    async def get_key_to_env_servlet_name_dict(self) -> Dict[Any, str]:
+    async def aget_key_to_env_servlet_name_dict(self) -> Dict[Any, str]:
         return self._key_to_env_servlet_name
 
-    async def get_env_servlet_name_for_key(self, key: Any) -> str:
+    async def aget_env_servlet_name_for_key(self, key: Any) -> str:
         return self._key_to_env_servlet_name.get(key, None)
 
-    async def put_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
-        if not await self.is_env_servlet_name_initialized(env_servlet_name):
+    async def aput_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
+        if not await self.ais_env_servlet_name_initialized(env_servlet_name):
             raise ValueError(
                 f"Env servlet name {env_servlet_name} not initialized, and you tried to mark a resource as in it."
             )
         self._key_to_env_servlet_name[key] = env_servlet_name
 
-    async def pop_env_servlet_name_for_key(self, key: Any, *args) -> str:
+    async def apop_env_servlet_name_for_key(self, key: Any, *args) -> str:
         # *args allows us to pass default or not
         return self._key_to_env_servlet_name.pop(key, *args)
 
-    async def clear_key_to_env_servlet_name_dict(self):
+    async def aclear_key_to_env_servlet_name_dict(self):
         self._key_to_env_servlet_name = {}
 
     ##############################################
     # Remove Env Servlet
     ##############################################
-    async def remove_env_servlet_name(self, env_servlet_name: str):
+    async def aremove_env_servlet_name(self, env_servlet_name: str):
         self._initialized_env_servlet_names.remove(env_servlet_name)
