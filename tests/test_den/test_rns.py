@@ -82,3 +82,25 @@ def test_from_name(ondemand_aws_cluster):
     f = rh.folder(name="~/tests/bert_ft")
     assert f.path
     assert ondemand_aws_cluster.instance_type == "CPU:2+"
+
+
+def test_save_and_load_cluster_token():
+    import shlex
+    import subprocess
+
+    import yaml
+
+    cluster_token = rns_client.base_cluster_token
+    username = rh.configs.get("username")
+
+    path_to_file = Path(rh.configs.CLUSTER_TOKEN_PATH)
+
+    user_data = {username: {"rns_address": username, "token": cluster_token}}
+    yaml_data = yaml.dump(user_data, default_flow_style=False, allow_unicode=True)
+    escaped_yaml_data = shlex.quote(yaml_data)
+
+    token_cmd = f"echo {escaped_yaml_data} >> {path_to_file}"
+    subprocess.run(token_cmd, shell=True, check=True)
+
+    cluster_token_reloaded = rh.configs.load_cluster_token_from_file(username)
+    assert cluster_token_reloaded

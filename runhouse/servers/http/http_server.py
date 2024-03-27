@@ -1136,10 +1136,11 @@ if __name__ == "__main__":
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
     if use_caddy:
         logger.debug("Using Caddy as a reverse proxy")
-        if certs_address is None and domain is None:
+        if certs_address is None and domain is None and use_https:
             raise ValueError(
-                "Must provide the server address or domain to configure Caddy. No address or domain found in the "
-                "server start command (--certs-address or --domain) or in the cluster config YAML saved on the cluster."
+                "Must provide the server address or domain to configure Caddy with HTTPS. No address or domain found "
+                "in the server start command (--certs-address or --domain) or in the cluster config YAML saved "
+                "on the cluster."
             )
 
         cc = CaddyConfig(

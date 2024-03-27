@@ -403,12 +403,7 @@ class OnDemandCluster(Cluster):
                     use_spot=self.use_spot,
                 )
             )
-            if Path("~/.rh").expanduser().exists():
-                task.set_file_mounts(
-                    {
-                        "~/.rh": "~/.rh",
-                    }
-                )
+
             sky.launch(
                 task,
                 cluster_name=self.name,
@@ -419,7 +414,7 @@ class OnDemandCluster(Cluster):
             raise ValueError(f"Cluster provider {self.provider} not supported.")
 
         self._update_from_sky_status()
-        self.restart_server()
+        self.restart_server(_set_owner=True)
 
         return self
 

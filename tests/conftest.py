@@ -177,7 +177,7 @@ def logged_in_account():
     is logged-in for some reason, and skips the test if the logged in state is not available."""
     token = rh.globals.configs.token
     if not token:
-        pytest.skip("`RH_TOKEN` or ~/.rh/config.yaml not set, skipping test.")
+        pytest.skip("`RH_TOKEN` or ~/.cache/runhouse/token not set, skipping test.")
 
     username = rh.globals.configs.username
     if username == "kitchen_tester":
