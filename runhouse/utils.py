@@ -1,5 +1,4 @@
 import asyncio
-import contextvars
 import logging
 import shlex
 import subprocess
@@ -54,10 +53,9 @@ def install_conda():
 from concurrent.futures import ThreadPoolExecutor
 
 
-def _thread_coroutine(coroutine, context):
+def _thread_coroutine(coroutine, req_ctx_var, req_ctx_var_value):
     # Copy contextvars from the parent thread to the new thread
-    for var, value in context.items():
-        var.set(value)
+    req_ctx_var.set(req_ctx_var_value)
 
     # Technically, event loop logic is not threadsafe. However, this event loop is only in this thread.
     loop = asyncio.new_event_loop()
@@ -74,6 +72,8 @@ def _thread_coroutine(coroutine, context):
 # Technically we should not have many threads running async logic at once, however, the calling thread
 # will actually block until the async logic that is spawned in the other thread is done.
 def sync_function(coroutine_func):
+    from runhouse.servers.obj_store import req_ctx
+
     @wraps(coroutine_func)
     def wrapper(*args, **kwargs):
         # Better API than using threading.Thread, since we just need the thread temporarily
@@ -82,7 +82,8 @@ def sync_function(coroutine_func):
             future = executor.submit(
                 _thread_coroutine,
                 coroutine_func(*args, **kwargs),
-                contextvars.copy_context(),
+                req_ctx,
+                req_ctx.get(),
             )
             return future.result()
 
