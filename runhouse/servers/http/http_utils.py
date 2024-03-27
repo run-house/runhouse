@@ -27,6 +27,7 @@ class ServerSettings(BaseModel):
     cluster_name: Optional[str] = None
     den_auth: Optional[bool] = None
     flush_auth_cache: Optional[bool] = None
+    autostop_mins: Optional[int] = None
 
 
 class CallParams(BaseModel):

@@ -1,4 +1,6 @@
 import logging
+import threading
+import time
 from typing import Any, Dict, List, Optional, Set, Union
 
 from runhouse.globals import configs, rns_client
@@ -27,6 +29,34 @@ class ClusterServlet:
         self._key_to_env_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache()
 
+        if self.cluster_config.get("resource_subtype", None) == "OnDemandCluster":
+            self._last_activity = time.time()
+            self._last_register = None
+            thread = threading.Thread(target=self.update_autostop)
+            thread.start()
+
+    ##############################################
+    # Cluster autostop
+    ##############################################
+    def update_autostop(self):
+        from sky.skylet import configs as sky_configs
+
+        while True:
+            autostop = self.cluster_config.get("autostop_mins", -1)
+            self._last_register = sky_configs.get_config("autostop_last_active_time")
+            if autostop > 0 and (
+                not self._last_register
+                or (
+                    # within 5 min of autostop and there's more recent activity
+                    autostop - (time.time() - self._last_register) / 60 < 5
+                    and self._last_activity > self._last_register
+                )
+            ):
+                sky_configs.set_config("autostop_last_active_time", self._last_activity)
+                self._last_register = self._last_activity
+
+            time.sleep(30)
+
     ##############################################
     # Cluster config state storage methods
     ##############################################
@@ -37,6 +67,8 @@ class ClusterServlet:
         self.cluster_config = cluster_config
 
     async def aset_cluster_config_value(self, key: str, value: Any):
+        if key == "autostop_mins" and value > -1:
+            self._last_activity = time.time()
         self.cluster_config[key] = value
 
     ##############################################
@@ -112,6 +144,7 @@ class ClusterServlet:
         return self._key_to_env_servlet_name
 
     async def aget_env_servlet_name_for_key(self, key: Any) -> str:
+        self._last_activity = time.time()
         return self._key_to_env_servlet_name.get(key, None)
 
     async def aput_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
