@@ -21,13 +21,14 @@ class Defaults:
     GROUP_ENDPOINT = "group/"
     CONFIG_PATH = Path("~/.rh/config.yaml").expanduser()
     # TODO [DG] default sub-dicts for various resources (e.g. defaults.get('cluster').get('resource_type'))
+    # Test commit
     BASE_DEFAULTS = {
         "default_folder": "~",
         "default_provider": "cheapest",
         "default_autostop": -1,
         "use_spot": False,
         "use_local_configs": True,
-        "disable_data_collection": False,
+        "disable_data_collection": True,
         "use_local_telemetry": False,
         "use_rns": False,
         "api_server_url": "https://api.run.house",
