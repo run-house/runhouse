@@ -696,7 +696,62 @@ class HTTPServer:
     @app.get("/status")
     @validate_cluster_access
     def get_status(request: Request):
-        return obj_store.status()
+        import psutil
+        import ray
+
+        # Fields: `CPU`, `object_memory_store`, `memory`, `node`
+        ray_available_resources = {}
+        ray_total_resources = {}
+
+        system_gpu_data = {}
+
+        # Note: Ray resource data does not necessarily the real-time utilization of these resources
+        # Ex: a task may be allocated a CPU but might not be using it at 100% capacity
+        try:
+            ray_available_resources = ray.available_resources()
+            ray_total_resources = ray.cluster_resources()
+        except ray.exceptions.RaySystemError as e:
+            # If ray is not initialized
+            logger.warning(e)
+
+        # System wide data
+        cpu_usage = psutil.cpu_percent(interval=1)
+
+        # Fields: `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
+        memory_usage = psutil.virtual_memory()._asdict()
+
+        # Fields: `total`, `used`, `free`, `percent`
+        disk_usage = psutil.disk_usage("/")._asdict()
+
+        try:
+            # Try loading GPU data (if relevant)
+            import torch
+
+            if torch.cuda.is_available():
+                system_gpu_data = {}
+                gpu_count = torch.cuda.device_count()
+                system_gpu_data["gpu_count"] = gpu_count
+                for i in range(gpu_count):
+                    device_name = torch.cuda.get_device_name(i)
+                    device_properties = torch.cuda.get_device_properties(i)
+                    device_data = {
+                        "device_properties": device_properties,
+                        "total_memory": device_properties.total_memory,
+                    }
+                    system_gpu_data[device_name] = device_data
+
+        except:
+            pass
+
+        return {
+            "cluster_config": obj_store.status(),
+            "ray_available_resources": ray_available_resources,
+            "ray_total_resources": ray_total_resources,
+            "system_cpu_usage": cpu_usage,
+            "system_memory_usage": memory_usage,
+            "system_disk_usage": disk_usage,
+            "system_gpu_data": system_gpu_data,
+        }
 
     @staticmethod
     def _collect_cluster_stats():
