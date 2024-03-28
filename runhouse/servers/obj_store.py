@@ -1,9 +1,11 @@
 import asyncio
 import contextvars
+import functools
 import inspect
 import logging
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from functools import wraps
 from typing import Any, Dict, List, Optional, Set, Union
@@ -214,6 +216,8 @@ class ObjStore:
         num_gpus = ray.cluster_resources().get("GPU", 0)
         cuda_visible_devices = list(range(int(num_gpus)))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
+
+        self.thread_pool = ThreadPoolExecutor(max_workers=48)
 
     def initialize(
         self,
@@ -993,6 +997,11 @@ class ObjStore:
             ctx=dict(req_ctx.get()),
         )
 
+    async def arun_in_thread(self, method, *args, **kwargs):
+        return await asyncio.get_event_loop().run_in_executor(
+            self.thread_pool, functools.partial(method, *args, **kwargs)
+        )
+
     async def acall_local(
         self,
         key: str,
@@ -1095,7 +1104,7 @@ class ObjStore:
                 f"{self.servlet_name} env: Calling method {method_name} on module {key}"
             )
             try:
-                res = method(*args, **kwargs)
+                res = await self.arun_in_thread(method, *args, **kwargs)
             except StopIteration:
                 raise RunhouseStopIteration()
         else:
