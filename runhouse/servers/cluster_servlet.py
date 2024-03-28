@@ -68,7 +68,10 @@ class ClusterServlet:
 
     async def aset_cluster_config_value(self, key: str, value: Any):
         if key == "autostop_mins" and value > -1:
+            from sky.skylet import configs as sky_configs
+
             self._last_activity = time.time()
+            sky_configs.set_config("autostop_last_active_time", self._last_activity)
         self.cluster_config[key] = value
 
     ##############################################

@@ -165,7 +165,7 @@ class SageMakerCluster(Cluster):
             self._cluster_instance_id() if self.job_name else None
         )
 
-        self.autostop_mins = (
+        self._autostop_mins = (
             autostop_mins
             if autostop_mins is not None
             else configs.get("default_autostop")
@@ -200,7 +200,7 @@ class SageMakerCluster(Cluster):
                 "instance_type": self.instance_type,
                 "num_instances": self.num_instances,
                 "image_uri": self.image_uri,
-                "autostop_mins": self.autostop_mins,
+                "autostop_mins": self._autostop_mins,
                 "connection_wait_time": self.connection_wait_time,
             }
         )
@@ -541,7 +541,7 @@ class SageMakerCluster(Cluster):
         """Context manager to temporarily pause autostop."""
         self._update_autostop(autostop_mins=-1)
         yield
-        self._update_autostop(self.autostop_mins)
+        self._update_autostop(self._autostop_mins)
 
     def status(self) -> dict:
         """
