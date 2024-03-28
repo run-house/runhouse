@@ -13,6 +13,7 @@ from ray import cloudpickle as pickle
 from ray.exceptions import RayTaskError
 
 from runhouse.logger import ClusterLogsFormatter
+from runhouse.servers.obj_store import RunhouseStopIteration
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +132,8 @@ def handle_exception_response(
     exception: Exception, traceback, serialization="pickle", from_http_server=False
 ):
     if not (
-        isinstance(exception, StopIteration)
+        isinstance(exception, RunhouseStopIteration)
+        or isinstance(exception, StopIteration)
         or isinstance(exception, GeneratorExit)
         or isinstance(exception, StopAsyncIteration)
     ):
@@ -161,6 +163,9 @@ def handle_exception_response(
         # If the exception is an HTTPException, we should let it flow back through the server so it gets
         # handled by FastAPI's exception handling and returned to the user with the correct status code
         raise exception
+
+    if isinstance(exception, RunhouseStopIteration):
+        exception = StopIteration()
 
     exception_data = {
         "error": exception,

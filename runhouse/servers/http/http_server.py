@@ -26,11 +26,10 @@ from runhouse.constants import (
     RH_LOGFILE_PATH,
 )
 from runhouse.globals import configs, obj_store, rns_client
-
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.caddy.config import CaddyConfig
-from runhouse.servers.http.auth import verify_cluster_access
+from runhouse.servers.http.auth import averify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     CallParams,
@@ -51,6 +50,7 @@ from runhouse.servers.obj_store import (
     ObjStoreError,
     RaySetupOption,
 )
+from runhouse.utils import sync_function
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ def validate_cluster_access(func):
         HTTPServer.register_activity()
 
         request: Request = kwargs.get("request")
-        den_auth_enabled: bool = HTTPServer.get_den_auth()
+        den_auth_enabled: bool = await HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
 
         func_call: bool = func.__name__ in ["post_call", "get_call"]
@@ -78,7 +78,7 @@ def validate_cluster_access(func):
 
         try:
             if func_call and token:
-                obj_store.add_user_to_auth_cache(token, refresh_cache=False)
+                await obj_store.aadd_user_to_auth_cache(token, refresh_cache=False)
 
             if den_auth_enabled and not func_call:
                 if token is None:
@@ -89,8 +89,8 @@ def validate_cluster_access(func):
                         "provide a valid token in the Authorization header.",
                     )
 
-                cluster_uri = obj_store.get_cluster_config().get("name")
-                cluster_access = verify_cluster_access(cluster_uri, token)
+                cluster_uri = (await obj_store.aget_cluster_config()).get("name")
+                cluster_access = await averify_cluster_access(cluster_uri, token)
                 if not cluster_access:
                     # Must have cluster access for all the non func calls
                     # Note: for func calls we handle the auth in the object store
@@ -118,8 +118,9 @@ class HTTPServer:
     SKY_YAML = str(Path("~/.sky/sky_ray.yml").expanduser())
     memory_exporter = None
 
-    def __init__(
-        self,
+    @classmethod
+    async def ainitialize(
+        cls,
         conda_env=None,
         enable_local_span_collection=None,
         from_test: bool = False,
@@ -147,9 +148,10 @@ class HTTPServer:
                     )
                 )
             )
-            self.memory_exporter = InMemorySpanExporter()
+            global memory_exporter
+            memory_exporter = InMemorySpanExporter()
             trace.get_tracer_provider().add_span_processor(
-                SimpleSpanProcessor(self.memory_exporter)
+                SimpleSpanProcessor(memory_exporter)
             )
             # Instrument the app object
             FastAPIInstrumentor.instrument_app(app)
@@ -162,8 +164,7 @@ class HTTPServer:
             def get_spans(request: Request):
                 return {
                     "spans": [
-                        span.to_json()
-                        for span in self.memory_exporter.get_finished_spans()
+                        span.to_json() for span in memory_exporter.get_finished_spans()
                     ]
                 }
 
@@ -174,7 +175,7 @@ class HTTPServer:
                 span = trace.get_current_span()
 
                 token = get_token_from_request(request)
-                username = obj_store.get_username(token)
+                username = await obj_store.aget_username(token)
                 if username:
                     # Set the username as a span attribute
                     span.set_attribute("username", username)
@@ -186,7 +187,7 @@ class HTTPServer:
         # But if the HTTPServer was started standalone in a test,
         # We still want to make sure the cluster servlet is initialized
         if from_test:
-            obj_store.initialize("base", setup_ray=RaySetupOption.TEST_PROCESS)
+            await obj_store.ainitialize("base", setup_ray=RaySetupOption.TEST_PROCESS)
 
         # TODO disabling due to latency, figure out what to do with this
         # try:
@@ -198,7 +199,7 @@ class HTTPServer:
         if enable_local_span_collection:
             try:
                 # Collect telemetry stats for the cluster
-                self._collect_telemetry_stats()
+                HTTPServer._collect_telemetry_stats()
             except Exception as e:
                 logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
 
@@ -215,18 +216,38 @@ class HTTPServer:
         HTTPServer.register_activity()
 
     @classmethod
-    def get_den_auth(cls):
-        return obj_store.get_cluster_config().get("den_auth", False)
+    def initialize(
+        cls,
+        conda_env=None,
+        enable_local_span_collection=None,
+        from_test: bool = False,
+        *args,
+        **kwargs,
+    ):
+        return sync_function(cls.ainitialize)(
+            conda_env, enable_local_span_collection, from_test, *args, **kwargs
+        )
 
     @classmethod
-    def enable_den_auth(cls, flush: Optional[bool] = True):
-        obj_store.set_cluster_config_value("den_auth", True)
+    async def get_den_auth(cls):
+        return (await obj_store.aget_cluster_config()).get("den_auth", False)
+
+    @classmethod
+    async def aenable_den_auth(cls, flush: Optional[bool] = True):
+        await obj_store.aset_cluster_config_value("den_auth", True)
         if flush:
-            obj_store.clear_auth_cache()
+            await obj_store.aclear_auth_cache()
+
+    def enable_den_auth(flush: Optional[bool] = True):
+        return sync_function(HTTPServer.aenable_den_auth)(flush)
 
     @classmethod
-    def disable_den_auth(cls):
-        obj_store.set_cluster_config_value("den_auth", False)
+    async def adisable_den_auth(cls):
+        await obj_store.aset_cluster_config_value("den_auth", False)
+
+    @classmethod
+    async def disable_den_auth(cls):
+        return sync_function(HTTPServer.adisable_den_auth)()
 
     @staticmethod
     def register_activity():
@@ -308,14 +329,14 @@ class HTTPServer:
     @staticmethod
     @app.post("/settings")
     @validate_cluster_access
-    def update_settings(request: Request, message: ServerSettings) -> Response:
+    async def update_settings(request: Request, message: ServerSettings) -> Response:
         if message.cluster_name:
-            obj_store.set_cluster_config_value("name", message.cluster_name)
+            await obj_store.aset_cluster_config_value("name", message.cluster_name)
 
         if message.den_auth:
-            HTTPServer.enable_den_auth(flush=message.flush_auth_cache)
+            await HTTPServer.aenable_den_auth(flush=message.flush_auth_cache)
         elif message.den_auth is not None and not message.den_auth:
-            HTTPServer.disable_den_auth()
+            await HTTPServer.adisable_den_auth()
 
         return Response(output_type=OutputType.SUCCESS)
 
@@ -337,7 +358,7 @@ class HTTPServer:
             # Call async so we can loop to collect logs until the result is ready
 
             fut = asyncio.create_task(
-                obj_store.call(
+                obj_store.acall(
                     key=key,
                     method_name=method_name,
                     data=params.data,
@@ -375,7 +396,7 @@ class HTTPServer:
     @validate_cluster_access
     async def get_openapi_spec(request: Request, key: str):
         try:
-            module_openapi_spec = obj_store.call(
+            module_openapi_spec = await obj_store.acall(
                 key, method_name="openapi_spec", serialization=None
             )
         except (AttributeError, ObjStoreError):
@@ -574,10 +595,10 @@ class HTTPServer:
     @staticmethod
     @app.post("/resource")
     @validate_cluster_access
-    def put_resource(request: Request, params: PutResourceParams):
+    async def put_resource(request: Request, params: PutResourceParams):
         try:
             env_name = params.env_name or "base"
-            return obj_store.put_resource(
+            return await obj_store.aput_resource(
                 serialized_data=params.serialized_data,
                 serialization=params.serialization,
                 env_name=env_name,
@@ -590,9 +611,9 @@ class HTTPServer:
     @staticmethod
     @app.post("/object")
     @validate_cluster_access
-    def put_object(request: Request, params: PutObjectParams):
+    async def put_object(request: Request, params: PutObjectParams):
         try:
-            obj_store.put(
+            await obj_store.aput(
                 key=params.key,
                 value=params.serialized_data,
                 env=params.env_name,
@@ -611,14 +632,14 @@ class HTTPServer:
     @staticmethod
     @app.get("/object")
     @validate_cluster_access
-    def get_object(
+    async def get_object(
         request: Request,
         key: str,
         serialization: Optional[str] = "json",
         remote: bool = False,
     ):
         try:
-            return obj_store.get(
+            return await obj_store.aget(
                 key=key,
                 serialization=serialization,
                 remote=remote,
@@ -634,9 +655,9 @@ class HTTPServer:
     @staticmethod
     @app.post("/rename")
     @validate_cluster_access
-    def rename_object(request: Request, params: RenameObjectParams):
+    async def rename_object(request: Request, params: RenameObjectParams):
         try:
-            obj_store.rename(
+            await obj_store.arename(
                 old_key=params.key,
                 new_key=params.new_key,
             )
@@ -649,15 +670,15 @@ class HTTPServer:
     @staticmethod
     @app.post("/delete_object")
     @validate_cluster_access
-    def delete_obj(request: Request, params: DeleteObjectParams):
+    async def delete_obj(request: Request, params: DeleteObjectParams):
         try:
             if len(params.keys) == 0:
-                cleared = obj_store.keys()
-                obj_store.clear()
+                cleared = await obj_store.akeys()
+                await obj_store.aclear()
             else:
                 cleared = []
                 for key in params.keys:
-                    obj_store.delete(key)
+                    await obj_store.adelete(key)
                     cleared.append(key)
 
             # Expicitly tell the client not to attempt to deserialize the output
@@ -674,12 +695,12 @@ class HTTPServer:
     @staticmethod
     @app.get("/keys")
     @validate_cluster_access
-    def get_keys(request: Request, env_name: Optional[str] = None):
+    async def get_keys(request: Request, env_name: Optional[str] = None):
         try:
             if not env_name:
-                output = obj_store.keys()
+                output = await obj_store.akeys()
             else:
-                output = ObjStore.keys_for_env_servlet_name(env_name)
+                output = await ObjStore.akeys_for_env_servlet_name(env_name)
 
             # Expicitly tell the client not to attempt to deserialize the output
             return Response(
@@ -695,8 +716,8 @@ class HTTPServer:
     @staticmethod
     @app.get("/status")
     @validate_cluster_access
-    def get_status(request: Request):
-        return obj_store.status()
+    async def get_status(request: Request):
+        return await obj_store.astatus()
 
     @staticmethod
     def _collect_cluster_stats():
@@ -1096,7 +1117,7 @@ if __name__ == "__main__":
     obj_store.set_cluster_config(cluster_config)
     logger.info("Updated cluster config with parsed argument values.")
 
-    HTTPServer(
+    HTTPServer.initialize(
         conda_env=conda_name,
         enable_local_span_collection=use_local_telemetry
         or configs.data_collection_enabled(),

@@ -1,4 +1,3 @@
-import asyncio
 from typing import AsyncIterable, Awaitable, Generator
 
 from runhouse.resources.module import Module
@@ -14,8 +13,8 @@ class FutureModule(Module, Awaitable):
     def result(self):
         return self._future.result()
 
-    def remote_await(self):
-        return asyncio.run(self._future)
+    async def remote_await(self):
+        return await self._future
 
     def __await__(self):
         # TODO talk about module dunder stuff through this file
@@ -95,14 +94,14 @@ class AsyncGeneratorModule(Module, AsyncIterable):
     def __aiter__(self):
         return self
 
-    def remote_anext(self):
-        return asyncio.run(self._future.__anext__())
+    async def remote_anext(self):
+        return await self._future.__anext__()
 
     async def __anext__(self):
         return self.remote_anext(run_name=self.name)
 
-    def remote_await(self):
-        return self._future.__await__()
+    async def remote_await(self):
+        return await self._future
 
     def __await__(self):
         return self.remote_await()
