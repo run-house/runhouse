@@ -165,6 +165,21 @@ class Resource:
     def rns_address(self, new_address):
         self.name = new_address  # Note, this saves the resource to the new address!
 
+    @property
+    def top_level_resource_folder(self):
+        """Top level folder name used for saving a resource. If not explicitly provided, use the current folder."""
+        # RNS folder set in the configs may differ from the folder associated with this particular resource
+        curr_rns_folder = self._rns_folder or rns_client.current_folder
+        top_level_rns_folder = (
+            f"/{self.rns_address.split('/')[1]}" if self.rns_address else None
+        )
+
+        if top_level_rns_folder and top_level_rns_folder != curr_rns_folder:
+            # If creating a resource under a different folder (ex: Organization)
+            return top_level_rns_folder
+
+        return curr_rns_folder
+
     def _save_sub_resources(self):
         """Overload by child resources to save any resources they hold internally."""
         pass

@@ -118,7 +118,8 @@ def save(
         else:
             resource._name = name
     if not resource.rns_address:
-        resource._rns_folder = rns_client.current_folder
+        resource._rns_folder = resource.top_level_resource_folder
+
     rns_client.save_config(resource=resource, overwrite=overwrite)
 
 

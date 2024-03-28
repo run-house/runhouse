@@ -150,7 +150,8 @@ class Cluster(Resource):
         from runhouse.resources.secrets import Secret
 
         if self._creds and isinstance(self._creds, Secret):
-            self._creds.save()
+            resource_folder = self.top_level_resource_folder
+            self._creds.save(folder=resource_folder)
 
     @classmethod
     def from_config(cls, config: dict, dryrun=False):
