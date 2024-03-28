@@ -123,8 +123,9 @@ def decode_base64_image(image_string):
 # and any instance type with those specifications will be used.
 #
 # We use a specific `image_id`, which in this case is the
-# [Hugging Face Neuron Deep Learning AMI](https://aws.amazon.com/marketplace/pp/prodview-gr3e6yiscria2#) which
-# comes with the AWS Neuron drivers preinstalled.
+# [Deep Learning AMI Base Neuron](https://aws.amazon.com/releasenotes/aws-deep-learning-ami-base-neuron-ubuntu-20-04/)
+# which comes with the AWS Neuron drivers preinstalled. The image_id is region-specific. To change the region,
+# use the AWS CLI command on the page above under "Query AMI-ID with AWSCLI."
 #
 # The cluster we set up here also uses `tls` for the `server_connection_type`, which means that all communication
 # will be over HTTPS and encrypted. We need to tell SkyPilot to open port 443 for this to work.
@@ -142,7 +143,7 @@ if __name__ == "__main__":
         name="rh-inf2",
         instance_type="inf2.8xlarge",
         provider="aws",
-        image_id="ami-0f2c9159df4d244a2",
+        image_id="ami-0e0f965ee5cfbf89b",
         region="us-east-1",
         server_connection_type="tls",
         open_ports=[443],
@@ -160,8 +161,8 @@ if __name__ == "__main__":
     cluster.run(
         [
             "python -m pip config set global.extra-index-url https://pip.repos.neuron.amazonaws.com",
-            "pip install torch_neuronx",
-        ]
+            "python -m pip install neuronx-cc==2.* torch-neuronx==1.13.1.1.13.1",
+        ],
     )
 
     # Next, we define the environment for our module. This includes the required dependencies that need
@@ -173,8 +174,8 @@ if __name__ == "__main__":
     env = rh.env(
         name="sdxl_inference",
         reqs=[
-            "optimum-neuron==0.0.13",
-            "diffusers==0.21.4",
+            "optimum-neuron==0.0.20",
+            "diffusers==0.27.2",
         ],
         secrets=["huggingface"],  # Needed to download Llama2
         env_vars={"NEURON_RT_NUM_CORES": "2"},

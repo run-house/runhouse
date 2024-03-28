@@ -121,8 +121,9 @@ class MistralInstruct(rh.Module):
 # an [AWS instance type on Inferentia](https://aws.amazon.com/ec2/instance-types/inf2/).
 #
 # We use a specific `image_id`, which in this case is the
-# [Hugging Face Neuron Deep Learning AMI](https://aws.amazon.com/marketplace/pp/prodview-gr3e6yiscria2#) which
-# comes with the AWS Neuron drivers preinstalled.
+# [Deep Learning AMI Base Neuron](https://aws.amazon.com/releasenotes/aws-deep-learning-ami-base-neuron-ubuntu-20-04/)
+# which comes with the AWS Neuron drivers preinstalled. The image_id is region-specific. To change the region,
+# use the AWS CLI command on the page above under "Query AMI-ID with AWSCLI."
 # Learn more about clusters in the [Runhouse docs](/docs/tutorials/api-clusters).
 #
 # NOTE: Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
@@ -131,7 +132,7 @@ if __name__ == "__main__":
     cluster = rh.cluster(
         name="rh-inf2-8xlarge",
         instance_type="inf2.8xlarge",
-        image_id="ami-0d608117d5f482a2f",
+        image_id="ami-0e0f965ee5cfbf89b",
         region="us-east-1",
         disk_size=512,
         provider="aws",
@@ -143,8 +144,9 @@ if __name__ == "__main__":
     # [common errors](https://awsdocs-neuron.readthedocs-hosted.com/en/latest/frameworks/torch/torch-neuronx/training-troubleshooting.html):
     cluster.run(
         [
-            "pip install transformers-neuronx --extra-index-url=https://pip.repos.neuron.amazonaws.com",
-        ]
+            "python -m pip config set global.extra-index-url https://pip.repos.neuron.amazonaws.com",
+            "python -m pip install neuronx-cc==2.* torch-neuronx==1.13.1.1.13.1 transformers-neuronx==0.9.474",
+        ],
     )
 
     # Next, we define the environment for our module. This includes the required dependencies that need
@@ -153,7 +155,6 @@ if __name__ == "__main__":
     # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
     env = rh.env(
         name="instruct_env",
-        reqs=["torch", "transformers"],
         working_dir="./",
     )
 
