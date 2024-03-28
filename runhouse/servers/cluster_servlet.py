@@ -42,13 +42,15 @@ class ClusterServlet:
         from sky.skylet import configs as sky_configs
 
         while True:
-            autostop = self.cluster_config.get("autostop_mins", -1)
-            self._last_register = sky_configs.get_config("autostop_last_active_time")
+            autostop = int(self.cluster_config.get("autostop_mins", -1))
+            self._last_register = float(
+                sky_configs.get_config("autostop_last_active_time")
+            )
             if autostop > 0 and (
                 not self._last_register
                 or (
-                    # within 5 min of autostop and there's more recent activity
-                    autostop - (time.time() - self._last_register) / 60 < 5
+                    # within 2 min of autostop and there's more recent activity
+                    60 * autostop - (time.time() - self._last_register) < 120
                     and self._last_activity > self._last_register
                 )
             ):
