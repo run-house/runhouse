@@ -1192,6 +1192,7 @@ async def main():
         port=daemon_port,
         ssl_certfile=uvicorn_cert,
         ssl_keyfile=uvicorn_key,
+        loop="uvloop",
     )
     server = uvicorn.Server(config)
     await server.serve()
