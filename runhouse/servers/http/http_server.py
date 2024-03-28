@@ -852,10 +852,8 @@ class HTTPServer:
             )
 
 
-if __name__ == "__main__":
+async def main():
     import uvicorn
-
-    ssl_keyfile, ssl_certfile = None, None
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -940,18 +938,19 @@ if __name__ == "__main__":
     # We only want to forcibly start a Ray cluster if asked.
     # We connect this to the "base" env, which we'll initialize later,
     # so writes to the obj_store within the server get proxied to the "base" env.
-    obj_store.initialize(
+    await obj_store.ainitialize(
         "base",
         setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
     )
 
-    cluster_config = obj_store.get_cluster_config()
+    cluster_config = await obj_store.aget_cluster_config()
     if not cluster_config:
         logger.warning(
             "Cluster config is not set. Using default values where possible."
         )
     else:
         logger.info("Loaded cluster config from Ray.")
+        global suspend_autostop
         suspend_autostop = cluster_config.get("autostop_mins", -1) > 0
 
     ########################################
@@ -1114,10 +1113,10 @@ if __name__ == "__main__":
         # a local `runhouse start`
         cluster_config["server_connection_type"] = "tls" if use_https else "none"
 
-    obj_store.set_cluster_config(cluster_config)
+    await obj_store.aset_cluster_config(cluster_config)
     logger.info("Updated cluster config with parsed argument values.")
 
-    HTTPServer.initialize(
+    await HTTPServer.ainitialize(
         conda_env=conda_name,
         enable_local_span_collection=use_local_telemetry
         or configs.data_collection_enabled(),
@@ -1125,7 +1124,7 @@ if __name__ == "__main__":
 
     if den_auth:
         # Update den auth if enabled - keep as a class attribute to be referenced by the validator decorator
-        HTTPServer.enable_den_auth()
+        await HTTPServer.aenable_den_auth()
 
     if use_https and not domain:
         # If using https (whether or not Caddy is being used) and no domain is specified, need to provide both
@@ -1187,10 +1186,16 @@ if __name__ == "__main__":
     uvicorn_cert = parsed_ssl_certfile if not use_caddy and use_https else None
     uvicorn_key = parsed_ssl_keyfile if not use_caddy and use_https else None
 
-    uvicorn.run(
+    config = uvicorn.Config(
         app,
         host=host,
         port=daemon_port,
         ssl_certfile=uvicorn_cert,
         ssl_keyfile=uvicorn_key,
     )
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
