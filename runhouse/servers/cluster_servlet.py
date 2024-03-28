@@ -32,7 +32,7 @@ class ClusterServlet:
         if self.cluster_config.get("resource_subtype", None) == "OnDemandCluster":
             self._last_activity = time.time()
             self._last_register = None
-            thread = threading.Thread(target=self.update_autostop)
+            thread = threading.Thread(target=self.update_autostop, daemon=True)
             thread.start()
 
     ##############################################
