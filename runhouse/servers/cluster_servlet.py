@@ -1,9 +1,10 @@
+import asyncio
 import logging
 import threading
 import time
 from typing import Any, Dict, List, Optional, Set, Union
 
-from runhouse.globals import configs, rns_client
+from runhouse.globals import configs, ObjStore, rns_client
 from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.http.auth import AuthCache
@@ -72,6 +73,20 @@ class ClusterServlet:
     async def aset_cluster_config(self, cluster_config: Dict[str, Any]):
         self.cluster_config = cluster_config
 
+        # Propagate the changes to all other process's obj_stores
+        await asyncio.gather(
+            *[
+                ObjStore.acall_actor_method(
+                    ObjStore.get_env_servlet(env_servlet_name),
+                    "aset_cluster_config",
+                    cluster_config,
+                )
+                for env_servlet_name in await self.aget_all_initialized_env_servlet_names()
+            ]
+        )
+
+        return self.cluster_config
+
     async def aset_cluster_config_value(self, key: str, value: Any):
         if key == "autostop_mins" and value > -1:
             from sky.skylet import configs as sky_configs
@@ -79,6 +94,21 @@ class ClusterServlet:
             self._last_activity = time.time()
             sky_configs.set_config("autostop_last_active_time", self._last_activity)
         self.cluster_config[key] = value
+
+        # Propagate the changes to all other process's obj_stores
+        await asyncio.gather(
+            *[
+                ObjStore.acall_actor_method(
+                    ObjStore.get_env_servlet(env_servlet_name),
+                    "aset_cluster_config_value",
+                    key,
+                    value,
+                )
+                for env_servlet_name in await self.aget_all_initialized_env_servlet_names()
+            ]
+        )
+
+        return self.cluster_config
 
     ##############################################
     # Auth cache internal functions

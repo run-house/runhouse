@@ -128,6 +128,7 @@ class ObjStore:
     def __init__(self):
         self.servlet_name: Optional[str] = None
         self.cluster_servlet: Optional[ray.actor.ActorHandle] = None
+        self.cluster_config: Optional[Dict[str, Any]] = None
         self.imported_modules = {}
         self.installed_envs = {}  # TODO: consider deleting it?
         self._kv_store: Dict[Any, Any] = None
@@ -210,6 +211,9 @@ class ObjStore:
         self.has_local_storage = has_local_storage
         if self.has_local_storage:
             self._kv_store = {}
+
+        # Store a local copy of the cluster_config here
+        self.cluster_config = await self.aget_cluster_config(refresh=True)
 
         num_gpus = ray.cluster_resources().get("GPU", 0)
         cuda_visible_devices = list(range(int(num_gpus)))
@@ -345,32 +349,55 @@ class ObjStore:
         req_ctx.reset(ctx_token)
 
     ##############################################
+    # Propagate den auth
+    ##############################################
+    # TODO: Maybe this function needs to be synchronous to propagate Den Auth changes immediately?
+    # Guess we'll find out
+    def is_den_auth_enabled(self):
+        return (
+            self.cluster_config.get("den_auth", False)
+            if self.cluster_config is not None
+            else False
+        )
+
+    async def aset_den_auth(self, den_auth: bool):
+        await self.aset_cluster_config_value("den_auth", den_auth)
+
+    async def aenable_den_auth(self):
+        await self.aset_den_auth(True)
+
+    async def adisable_den_auth(self):
+        await self.aset_den_auth(False)
+
+    ##############################################
     # Cluster config state storage methods
     ##############################################
-    async def aget_cluster_config(self):
-        # TODO: Potentially add caching here
-        if self.cluster_servlet is not None:
-            return await self.acall_actor_method(
-                self.cluster_servlet, "aget_cluster_config"
-            )
-        else:
-            return {}
+    async def aget_cluster_config(self, refresh: bool = False):
+        if refresh or not self.cluster_config:
+            if self.cluster_servlet is not None:
+                self.cluster_config = await self.acall_actor_method(
+                    self.cluster_servlet, "aget_cluster_config"
+                )
+            else:
+                return {}
+
+        return self.cluster_config
 
     def get_cluster_config(self):
         return sync_function(self.aget_cluster_config)()
 
     async def aset_cluster_config(self, config: Dict[str, Any]):
-        return await self.acall_actor_method(
+        self.cluster_config = await self.acall_actor_method(
             self.cluster_servlet, "aset_cluster_config", config
         )
 
     async def aset_cluster_config_value(self, key: str, value: Any):
-        return await self.acall_actor_method(
+        self.cluster_config = await self.acall_actor_method(
             self.cluster_servlet, "aset_cluster_config_value", key, value
         )
 
     def set_cluster_config_value(self, key: str, value: Any):
-        return sync_function(self.aset_cluster_config_value)(key, value)
+        sync_function(self.aset_cluster_config_value)(key, value)
 
     ##############################################
     # Auth cache internal functions
@@ -1009,7 +1036,7 @@ class ObjStore:
         from runhouse.resources.module import Module
         from runhouse.resources.resource import Resource
 
-        if (await self.aget_cluster_config()).get("den_auth"):
+        if self.is_den_auth_enabled():
             if not isinstance(obj, Resource) or obj.visibility not in [
                 ResourceVisibility.UNLISTED,
             ]:
