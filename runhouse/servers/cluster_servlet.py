@@ -1,4 +1,6 @@
 import logging
+import threading
+import time
 from typing import Any, Dict, List, Optional, Set, Union
 
 from runhouse.globals import configs, rns_client
@@ -27,6 +29,36 @@ class ClusterServlet:
         self._key_to_env_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache()
 
+        if self.cluster_config.get("resource_subtype", None) == "OnDemandCluster":
+            self._last_activity = time.time()
+            self._last_register = None
+            thread = threading.Thread(target=self.update_autostop, daemon=True)
+            thread.start()
+
+    ##############################################
+    # Cluster autostop
+    ##############################################
+    def update_autostop(self):
+        from sky.skylet import configs as sky_configs
+
+        while True:
+            autostop = int(self.cluster_config.get("autostop_mins", -1))
+            self._last_register = float(
+                sky_configs.get_config("autostop_last_active_time")
+            )
+            if autostop > 0 and (
+                not self._last_register
+                or (
+                    # within 2 min of autostop and there's more recent activity
+                    60 * autostop - (time.time() - self._last_register) < 120
+                    and self._last_activity > self._last_register
+                )
+            ):
+                sky_configs.set_config("autostop_last_active_time", self._last_activity)
+                self._last_register = self._last_activity
+
+            time.sleep(30)
+
     ##############################################
     # Cluster config state storage methods
     ##############################################
@@ -37,6 +69,11 @@ class ClusterServlet:
         self.cluster_config = cluster_config
 
     async def aset_cluster_config_value(self, key: str, value: Any):
+        if key == "autostop_mins" and value > -1:
+            from sky.skylet import configs as sky_configs
+
+            self._last_activity = time.time()
+            sky_configs.set_config("autostop_last_active_time", self._last_activity)
         self.cluster_config[key] = value
 
     ##############################################
@@ -112,6 +149,7 @@ class ClusterServlet:
         return self._key_to_env_servlet_name
 
     async def aget_env_servlet_name_for_key(self, key: Any) -> str:
+        self._last_activity = time.time()
         return self._key_to_env_servlet_name.get(key, None)
 
     async def aput_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
