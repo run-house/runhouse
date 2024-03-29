@@ -1050,10 +1050,18 @@ class ObjStore:
                 if key != Env.DEFAULT_NAME and not await self.ahas_resource_access(
                     ctx.token, resource_uri
                 ):
-                    # Do not validate access to the default Env
-                    raise PermissionError(
-                        f"Unauthorized access to resource {key}.",
-                    )
+                    # Might be a cache miss - confirm again the user has resource access
+                    await self.aadd_user_to_auth_cache(ctx.token, refresh_cache=True)
+
+                    # Check again now that cache has been refreshed
+                    if not await self.ahas_resource_access(ctx.token, resource_uri):
+                        # Do not validate access to the default Env
+                        raise PermissionError(
+                            f"Unauthorized access to resource\n "
+                            f"resource_uri={resource_uri}\n"
+                            f"key={key}\n"
+                            f"default_name={Env.DEFAULT_NAME}.",
+                        )
 
         # Process any inputs which need to be resolved
         args = [
