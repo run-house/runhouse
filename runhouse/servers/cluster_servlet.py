@@ -46,7 +46,7 @@ class ClusterServlet:
         while True:
             autostop_mins = pickle.loads(
                 sky_configs.get_config("autostop_config")
-            ).autostop_idle_minute
+            ).autostop_idle_minutes
             self._last_register = float(
                 sky_configs.get_config("autostop_last_active_time")
             )
