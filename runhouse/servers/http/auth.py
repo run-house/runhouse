@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import Optional, Union
 
@@ -15,50 +14,51 @@ class AuthCache:
         self.CACHE = {}
         self.USERNAMES = {}
 
-    def get_user_resources(self, token: str) -> dict:
-        """Get resources associated with a particular token"""
-        return self.CACHE.get(token, {})
-
     def get_username(self, token: str) -> Optional[str]:
         """Get username associated with a particular token"""
+        if token not in self.USERNAMES:
+            username = username_from_token(token)
+            if username is not None:
+                self.USERNAMES[token] = username
+
         return self.USERNAMES.get(token)
 
-    def lookup_access_level(self, token: str, resource_uri: str) -> Union[str, None]:
-        resources: dict = self.get_user_resources(token)
-        return resources.get(resource_uri)
-
-    def add_user(self, token, refresh_cache=True):
-        """Refresh the server cache with the latest resources and access levels for a particular token"""
+    def lookup_access_level(
+        self, token: str, resource_uri: str, refresh_cache=True
+    ) -> Union[str, None]:
+        """Get the access level of a particular resource for a user"""
         if token is None:
             return
 
-        if not refresh_cache and token in self.CACHE:
-            return
+        # Also add this user to the username cache
+        self.get_username(token)
+
+        if (token, resource_uri) in self.CACHE and not refresh_cache:
+            return self.CACHE[(token, resource_uri)]
+
+        if resource_uri.startswith("/"):
+            resource_uri_to_send = resource_uri[1:].replace("/", ":")
+        else:
+            resource_uri_to_send = resource_uri.replace("/", ":")
 
         resp = rns_client.session.get(
-            f"{rns_client.api_server_url}/resource",
+            f"{rns_client.api_server_url}/resource/{resource_uri_to_send}",
             headers={"Authorization": f"Bearer {token}"},
         )
+
+        if resp.status_code == 404:
+            logger.error(f"Resource not found: {load_resp_content(resp)}")
+            return
+
         if resp.status_code != 200:
             logger.error(
-                f"Failed to load resources for user: {load_resp_content(resp)}"
+                f"Failed to load access level for resource: {load_resp_content(resp)}"
             )
             return
 
-        username = username_from_token(token)
-        if username is None:
-            raise ValueError("Failed to find Runhouse user from provided token.")
-        self.USERNAMES[token] = username
+        self.CACHE[(token, resource_uri)] = resp.json()["data"]["access_level"]
 
-        resp_data = json.loads(resp.content)
-        # Support access_level and access_type for BC
-        all_resources: dict = {
-            resource["name"]: resource.get("access_level")
-            or resource.get("access_type")
-            for resource in resp_data["data"]
-        }
-        # Update server cache with a user's resources and access type
-        self.CACHE[token] = all_resources
+        return self.CACHE[(token, resource_uri)]
 
     def clear_cache(self, token: str = None):
         """Clear the server cache, If a token is specified, clear the cache for that particular user only"""
@@ -90,17 +90,6 @@ async def averify_cluster_access(
         ):
             return True
 
-    # Check if user already has saved resources in cache
-    cached_resources: dict = await obj_store.auser_resources(token)
-
-    # e.g. {"/jlewitt1/bert-preproc": "read"}
-    cluster_access_level = cached_resources.get(cluster_uri)
-
-    if cluster_access_level is None:
-        # Reload from cache and check again
-        await obj_store.aadd_user_to_auth_cache(token)
-
-        cached_resources: dict = await obj_store.auser_resources(token)
-        cluster_access_level = cached_resources.get(cluster_uri)
+    cluster_access_level = await obj_store.aresource_access_level(token, cluster_uri)
 
     return cluster_access_level in [ResourceAccess.WRITE, ResourceAccess.READ]

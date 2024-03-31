@@ -83,9 +83,6 @@ class ClusterServlet:
     ##############################################
     # Auth cache internal functions
     ##############################################
-    async def aadd_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
-        self._auth_cache.add_user(token, refresh_cache)
-
     async def aresource_access_level(
         self, token: str, resource_uri: str
     ) -> Union[str, None]:
@@ -97,9 +94,6 @@ class ClusterServlet:
         ):
             return ResourceAccess.WRITE
         return self._auth_cache.lookup_access_level(token, resource_uri)
-
-    async def auser_resources(self, token: str) -> dict:
-        return self._auth_cache.get_user_resources(token)
 
     async def aget_username(self, token: str) -> str:
         return self._auth_cache.get_username(token)
