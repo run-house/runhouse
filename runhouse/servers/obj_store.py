@@ -1,9 +1,11 @@
 import asyncio
 import contextvars
+import functools
 import inspect
 import logging
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from functools import wraps
 from typing import Any, Dict, List, Optional, Set, Union
@@ -218,6 +220,8 @@ class ObjStore:
         num_gpus = ray.cluster_resources().get("GPU", 0)
         cuda_visible_devices = list(range(int(num_gpus)))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
+
+        self.thread_pool = ThreadPoolExecutor(max_workers=48)
 
     def initialize(
         self,
@@ -1000,6 +1004,26 @@ class ObjStore:
             ctx=dict(req_ctx.get()),
         )
 
+    async def arun_in_thread(self, method_to_run, *args, **kwargs):
+        def _run_sync_fn_with_context(
+            context_to_set, sync_fn, method_args, method_kwargs
+        ):
+            for var, value in context_to_set.items():
+                var.set(value)
+
+            return sync_fn(*method_args, **method_kwargs)
+
+        return await asyncio.get_event_loop().run_in_executor(
+            self.thread_pool,
+            functools.partial(
+                _run_sync_fn_with_context,
+                context_to_set=contextvars.copy_context(),
+                sync_fn=method_to_run,
+                method_args=args,
+                method_kwargs=kwargs,
+            ),
+        )
+
     async def acall_local(
         self,
         key: str,
@@ -1098,10 +1122,8 @@ class ObjStore:
             logger.info(
                 f"{self.servlet_name} env: Calling method {method_name} on module {key}"
             )
-            try:
-                res = method(*args, **kwargs)
-            except StopIteration:
-                raise RunhouseStopIteration()
+
+            res = await self.arun_in_thread(method, *args, **kwargs)
         else:
             if args and len(args) == 1:
                 # if there's an arg, this is a "set" call on the property
