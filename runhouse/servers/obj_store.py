@@ -337,10 +337,7 @@ class ObjStore:
     async def apopulate_ctx_locally(self):
         from runhouse.globals import configs
 
-        den_auth_enabled = (await self.aget_cluster_config()).get("den_auth")
         token = configs.token
-        if den_auth_enabled and token:
-            await self.aadd_user_to_auth_cache(token, refresh_cache=False)
         return self.set_ctx(request_id=str(uuid.uuid4()), token=token)
 
     @staticmethod
@@ -378,14 +375,6 @@ class ObjStore:
     ##############################################
     # Auth cache internal functions
     ##############################################
-    async def aadd_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
-        return await self.acall_actor_method(
-            self.cluster_servlet, "aadd_user_to_auth_cache", token, refresh_cache
-        )
-
-    def add_user_to_auth_cache(self, token: str, refresh_cache: bool = True):
-        return sync_function(self.aadd_user_to_auth_cache)(token, refresh_cache)
-
     async def aresource_access_level(self, token: str, resource_uri: str):
         return await self.acall_actor_method(
             self.cluster_servlet,
@@ -396,14 +385,6 @@ class ObjStore:
 
     def resource_access_level(self, token: str, resource_uri: str):
         return sync_function(self.aresource_access_level)(token, resource_uri)
-
-    async def auser_resources(self, token: str):
-        return await self.acall_actor_method(
-            self.cluster_servlet, "auser_resources", token
-        )
-
-    def user_resources(self, token: str):
-        return sync_function(self.auser_resources)(token)
 
     async def aget_username(self, token: str):
         return await self.acall_actor_method(
@@ -422,6 +403,8 @@ class ObjStore:
 
         # The logged-in user always has full access to the cluster and its resources. This is especially
         # important if they flip on Den Auth without saving the cluster.
+
+        # configs.token is the token stored on the cluster itself
         if configs.token:
             if configs.token == token:
                 return True
@@ -445,10 +428,7 @@ class ObjStore:
             return False
 
         resource_access_level = await self.aresource_access_level(token, resource_uri)
-        if resource_access_level not in [ResourceAccess.WRITE, ResourceAccess.READ]:
-            return False
-
-        return True
+        return resource_access_level in [ResourceAccess.WRITE, ResourceAccess.READ]
 
     async def aclear_auth_cache(self, token: str = None):
         return await self.acall_actor_method(
@@ -1032,9 +1012,6 @@ class ObjStore:
         if (await self.aget_cluster_config()).get("den_auth"):
             if not isinstance(obj, Resource) or obj.visibility not in [
                 ResourceVisibility.UNLISTED,
-                ResourceVisibility.PUBLIC,
-                "unlisted",
-                "public",
             ]:
                 ctx = req_ctx.get()
                 if not ctx or not ctx.token:

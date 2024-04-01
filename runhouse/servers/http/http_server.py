@@ -73,9 +73,6 @@ def validate_cluster_access(func):
         ctx_token = obj_store.set_ctx(request_id=request_id, token=token)
 
         try:
-            if func_call and token:
-                await obj_store.aadd_user_to_auth_cache(token, refresh_cache=False)
-
             if den_auth_enabled and not func_call:
                 if token is None:
                     raise HTTPException(

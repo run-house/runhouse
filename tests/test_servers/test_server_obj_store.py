@@ -355,20 +355,10 @@ class TestAuthCacheObjStore:
             token = test_account_dict["token"]
 
             # Add test account resources to the local cache
-            obj_store.add_user_to_auth_cache(token)
-            resources = obj_store.user_resources(token)
-            assert resources
-
             resource_uri = f"/{test_account_dict['username']}/summer"
             access_level = obj_store.resource_access_level(token, resource_uri)
 
             assert access_level == "write"
-
-    @pytest.mark.level("unit")
-    def test_no_resources_for_invalid_token(self, obj_store):
-        token = "abc"
-        resources = obj_store.user_resources(token)
-        assert not resources
 
     @pytest.mark.level("unit")
     def test_no_resource_access_for_invalid_token(self, obj_store):
