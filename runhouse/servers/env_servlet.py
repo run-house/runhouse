@@ -1,7 +1,7 @@
 import logging
 import traceback
 from functools import wraps
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from runhouse.globals import obj_store
 
@@ -71,6 +71,15 @@ class EnvServlet:
 
         self.output_types = {}
         self.thread_ids = {}
+
+    ##############################################################
+    # Methods to disable or enable den auth
+    ##############################################################
+    async def aset_cluster_config(self, cluster_config: Dict[str, Any]):
+        obj_store.cluster_config = cluster_config
+
+    async def aset_cluster_config_value(self, key: str, value: Any):
+        obj_store.cluster_config[key] = value
 
     ##############################################################
     # Methods decorated with a standardized error decorating handler

@@ -221,11 +221,12 @@ class HTTPServer:
 
     @classmethod
     async def get_den_auth(cls):
-        return (await obj_store.aget_cluster_config()).get("den_auth", False)
+        return obj_store.is_den_auth_enabled()
 
     @classmethod
     async def aenable_den_auth(cls, flush: Optional[bool] = True):
-        await obj_store.aset_cluster_config_value("den_auth", True)
+        await obj_store.aenable_den_auth()
+
         if flush:
             await obj_store.aclear_auth_cache()
 
@@ -234,7 +235,7 @@ class HTTPServer:
 
     @classmethod
     async def adisable_den_auth(cls):
-        await obj_store.aset_cluster_config_value("den_auth", False)
+        await obj_store.adisable_den_auth()
 
     @classmethod
     async def disable_den_auth(cls):
@@ -968,6 +969,9 @@ async def main():
         "den_auth", False
     )
     cluster_config["den_auth"] = den_auth
+
+    if den_auth:
+        await obj_store.aenable_den_auth()
 
     # Telemetry enabled
     if hasattr(
