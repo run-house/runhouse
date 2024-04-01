@@ -2,6 +2,7 @@ import asyncio
 import contextvars
 import logging
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 
 
@@ -53,9 +54,6 @@ def install_conda():
             raise RuntimeError("Could not install Conda.")
 
 
-from concurrent.futures import ThreadPoolExecutor
-
-
 def _thread_coroutine(coroutine, context):
     # Copy contextvars from the parent thread to the new thread
     for var, value in context.items():
@@ -89,126 +87,3 @@ def sync_function(coroutine_func):
             return future.result()
 
     return wrapper
-
-
-####################################################################################################
-# Other implementations I've tried of this
-####################################################################################################
-# WORKING
-#
-# import nest_asyncio
-# from asyncio import Task
-
-# def _to_task(future, as_task, loop):
-#     if not as_task or isinstance(future, Task):
-#         return future
-#     return loop.create_task(future)
-
-# def sync_function(coroutine_func, as_task=True):
-#     """
-#     A better implementation of `asyncio.run`.
-
-#     :param future: A future or task or call of an async method.
-#     :param as_task: Forces the future to be scheduled as task (needed for e.g. aiohttp).
-#     """
-#     @wraps(coroutine_func)
-#     def wrapper(*args, **kwargs):
-#         future = coroutine_func(*args, **kwargs)
-#         try:
-#             loop = asyncio.get_running_loop()
-#         except RuntimeError:  # no event loop running:
-#             loop = asyncio.new_event_loop()
-#             return loop.run_until_complete(_to_task(future, as_task, loop))
-#         else:
-#             nest_asyncio.apply(loop)
-#             return asyncio.run(_to_task(future, as_task, loop))
-
-#     return wrapper
-
-
-# KINDA WORKING
-#
-# I got led to this solution from an answer in here:
-# https://stackoverflow.com/questions/46827007/runtimeerror-this-event-loop-is-already-running-in-python
-# That originally used nest_asyncio, but I wanted to avoid that, and some actual good ass engineer thought of this:
-# https://stackoverflow.com/questions/52232177/runtimeerror-timeout-context-manager-should-be-used-inside-a-task/69514930#69514930
-# which I still don't really get
-
-# Another useful post: https://stackoverflow.com/questions/57238316/future-from-asyncio-run-coroutine-threadsafe-hangs-forever
-
-# import threading
-
-# def _start_background_loop(loop):
-#     asyncio.set_event_loop(loop)
-#     loop.run_forever()
-
-
-# # This should only run per process, I guess
-# _LOOP = asyncio.new_event_loop()
-# _LOOP_THREAD = threading.Thread(
-#     target=_start_background_loop, args=(_LOOP,), daemon=True
-# )
-# _LOOP_THREAD.start()
-
-# def sync_function(coroutine_func):
-#     @wraps(coroutine_func)
-#     def wrapper(*args, **kwargs):
-#         return asyncio.run_coroutine_threadsafe(
-#             coroutine_func(*args, **kwargs), _LOOP
-#         ).result()
-
-#     return wrapper
-
-
-# NOT WORKING
-#
-# def sync_function(coroutine_func):
-
-#     @wraps(coroutine_func)
-#     def wrapper(*args, **kwargs):
-#         try:
-#             old_loop = asyncio.get_running_loop()
-#         except RuntimeError:
-#             old_loop = None
-
-#         inner_new_loop = asyncio.new_event_loop()
-#         asyncio.set_event_loop(inner_new_loop)
-
-#         try:
-#             return inner_new_loop.run_until_complete(coroutine_func(*args, **kwargs))
-#         finally:
-#             inner_new_loop.close()
-#             if old_loop is not None:
-#                 asyncio.set_event_loop(old_loop)
-
-#     return wrapper
-
-# NOT WORKING
-#
-# def sync_function(coroutine_func):
-
-#     @wraps(coroutine_func)
-#     def wrapper(*args, **kwargs):
-#         try:
-#             old_loop = asyncio.get_running_loop()
-#         except RuntimeError:
-#             old_loop = None
-
-#         inner_new_loop = asyncio.new_event_loop()
-#         asyncio.set_event_loop(inner_new_loop)
-
-#         try:
-#             future = asyncio.run_coroutine_threadsafe(coroutine_func(*args, **kwargs), inner_new_loop)
-#             return future.result()
-#         finally:
-#             inner_new_loop.close()
-#             if old_loop is not None:
-#                 asyncio.set_event_loop(old_loop)
-
-#     return wrapper
-
-# NOT WORKING
-#
-# def sync_function(coroutine_func):
-#     from asgiref.sync import async_to_sync
-#     return async_to_sync(coroutine_func)
