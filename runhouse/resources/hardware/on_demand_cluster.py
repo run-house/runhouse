@@ -478,7 +478,7 @@ class OnDemandCluster(Cluster):
         """
         sky.autostop(self.name, idle_minutes=-1)
         yield
-        sky.autostop(self.name, idle_minutes=self._autostop_mins)
+        sky.autostop(self.name, idle_minutes=self._autostop_mins, down=True)
 
     # ----------------- SSH Methods ----------------- #
 
