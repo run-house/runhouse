@@ -40,29 +40,17 @@ class ClusterServlet:
     # Cluster autostop
     ##############################################
     def update_autostop(self):
-        import pickle
-
-        from sky.skylet import configs as sky_configs
+        from runhouse.servers import sky_utils
 
         while True:
-            autostop_mins = pickle.loads(
-                sky_configs.get_config("autostop_config")
-            ).autostop_idle_minutes
             self._last_register = float(
-                sky_configs.get_config("autostop_last_active_time")
+                sky_utils.get_config("autostop_last_active_time")
             )
-            if autostop_mins > 0 and (
-                not self._last_register
-                or (
-                    # within 2 min of autostop and there's more recent activity
-                    60 * autostop_mins - (time.time() - self._last_register) < 120
-                    and self._last_activity > self._last_register
-                )
-            ):
-                sky_configs.set_config("autostop_last_active_time", self._last_activity)
+            if not self._last_register or self._last_activity > self.last_register:
+                sky_utils.set_config("autostop_last_active_time", self._last_activity)
                 self._last_register = self._last_activity
 
-            time.sleep(30)
+            time.sleep(58)
 
     ##############################################
     # Cluster config state storage methods
@@ -90,10 +78,10 @@ class ClusterServlet:
 
     async def aset_cluster_config_value(self, key: str, value: Any):
         if key == "autostop_mins" and value > -1:
-            from sky.skylet import configs as sky_configs
+            from runhouse.servers import sky_utils
 
             self._last_activity = time.time()
-            sky_configs.set_config("autostop_last_active_time", self._last_activity)
+            sky_utils.set_config("autostop_last_active_time", self._last_activity)
         self.cluster_config[key] = value
 
         # Propagate the changes to all other process's obj_stores
