@@ -37,7 +37,6 @@ class CallParams(BaseModel):
     stream_logs: Optional[bool] = False
     save: Optional[bool] = False
     remote: Optional[bool] = False
-    run_async: Optional[bool] = False
 
 
 class PutResourceParams(BaseModel):

@@ -350,7 +350,6 @@ class HTTPServer:
                     serialization=params.serialization,
                     run_name=params.run_name,
                     # remote=params.remote,
-                    run_async=True,
                 )
             )
             # If stream_logs is False, we'll wait for the result and return it
@@ -437,7 +436,6 @@ class HTTPServer:
         stream_logs: Optional[bool] = False,
         save: Optional[bool] = False,
         remote: Optional[bool] = False,
-        run_async: Optional[bool] = False,
     ):
         # Default argument to json doesn't allow a user to pass in a serialization string if they want
         # But, if they didn't pass anything, we want it to be `json` by default.
@@ -453,7 +451,6 @@ class HTTPServer:
                 stream_logs=stream_logs,
                 save=save,
                 remote=remote,
-                run_async=run_async,
             )
 
             query_params_remaining = dict(request.query_params)

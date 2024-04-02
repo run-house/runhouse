@@ -818,14 +818,14 @@ class Cluster(Resource):
         self.check_server()
         # Note: might be single value, might be a generator!
         if self.on_this_cluster():
-            return obj_store.call(
+            method_to_call = obj_store.acall if run_async else obj_store.call
+            return method_to_call(
                 module_name,
                 method_name,
                 data={"args": args, "kwargs": kwargs},
                 stream_logs=stream_logs,
                 run_name=run_name,
                 # remote=remote,
-                run_async=run_async,
                 serialization=None,
             )
         return self.client.call_module_method(
@@ -836,7 +836,6 @@ class Cluster(Resource):
             data={"args": args, "kwargs": kwargs},
             run_name=run_name,
             remote=remote,
-            run_async=run_async,
             save=save,
             system=self,
         )
