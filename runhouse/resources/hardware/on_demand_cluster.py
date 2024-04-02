@@ -337,10 +337,7 @@ class OnDemandCluster(Cluster):
                     self._creds = setup_cluster_creds(ssh_values, self.name)
 
             # Add worker IPs if multi-node cluster - keep the head node as the first IP
-            if handle.cached_external_ips:
-                for ip in handle.cached_external_ips:
-                    if ip not in self.ips:
-                        self.ips.append(ip)
+            self.ips = [ext for _, ext in self.stable_internal_external_ips]
         else:
             self.address = None
             self._creds = None
