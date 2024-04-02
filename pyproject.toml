@@ -8,3 +8,6 @@ extend-exclude = ["runhouse/servers/grpc/unary_pb2.py", "runhouse/servers/grpc/u
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 "examples/*" = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
