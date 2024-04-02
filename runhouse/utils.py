@@ -6,8 +6,29 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 
+from runhouse.constants import CONDA_INSTALL_CMDS
 
-def run_with_logs(cmd: str, **kwargs) -> int:
+
+def run_setup_command(cmd: str, cluster: "Cluster" = None, stream_logs: bool = False):
+    """
+    Helper function to run a command during possibly the cluster default env setup. If a cluster is provided,
+    run command on the cluster using SSH. If the cluster is not provided, run locally, as if already on the
+    cluster (rpc call).
+
+    Args:
+        cmd (str): Command to run on the
+        cluster (Optional[Cluster]): (default: None)
+        stream_logs (bool): (default: False)
+
+    Returns:
+       (status code, stdout)
+    """
+    if not cluster:
+        return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
+    return cluster._run_commands_with_ssh([cmd], stream_logs=stream_logs)[0]
+
+
+def run_with_logs(cmd: str, **kwargs):
     """Runs a command and prints the output to sys.stdout.
     We can't just pipe to sys.stdout, and when in a `call` method
     we overwrite sys.stdout with a multi-logger to a file and stdout.
@@ -51,16 +72,12 @@ def run_with_logs(cmd: str, **kwargs) -> int:
     return p.returncode
 
 
-def install_conda():
-    if run_with_logs("conda --version") != 0:
-        logging.info("Conda is not installed")
-        run_with_logs(
-            "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh",
-            shell=True,
-        )
-        run_with_logs("bash ~/miniconda.sh -b -p ~/miniconda", shell=True)
-        run_with_logs("source $HOME/miniconda3/bin/activate", shell=True)
-        if run_with_logs("conda --version") != 0:
+def install_conda(cluster: "Cluster" = None):
+    if run_setup_command("conda --version")[0] != 0:
+        logging.info("Conda is not installed. Installing...")
+        for cmd in CONDA_INSTALL_CMDS:
+            run_setup_command(cmd, stream_logs=True)
+        if run_setup_command("conda --version")[0] != 0:
             raise RuntimeError("Could not install Conda.")
 
 

@@ -1,7 +1,6 @@
 import copy
 import logging
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, Optional, Union
@@ -10,7 +9,7 @@ from runhouse import globals
 from runhouse.resources.folders import Folder, folder
 from runhouse.resources.hardware.utils import _get_cluster_from
 from runhouse.resources.resource import Resource
-from runhouse.utils import install_conda, run_with_logs
+from runhouse.utils import install_conda, run_setup_command
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
 
@@ -76,65 +75,96 @@ class Package(Resource):
             return f"Package: {self.install_target.path}"
         return f"Package: {self.install_target}"
 
-    def _install(self, env: Union[str, "Env"] = None):
+    def _install_cmd(self, cluster: "Cluster" = None):
+        install_cmd = ""
+        install_args = f" {self.install_args}" if self.install_args else ""
+        cuda_version_or_cpu = self._detect_cuda_version_or_cpu(cluster=cluster)
+
+        if isinstance(self.install_target, Folder):
+            # TODO [DG] Revisit for pip: Would be nice if we could use -e by default, but importlib on the rpc server
+            #  isn't finding the package right after its installed.
+            # if (Path(local_path) / 'setup.py').exists():
+            #     install_cmd = f'-e {local_path}' + install_args
+            path = (
+                self.install_target.local_path
+                if self.install_target.is_local()
+                else self.install_target.path
+            )
+            if self.install_method in ["pip", "conda"]:
+                install_cmd = f"{path}" + install_args
+            elif self.install_method == "reqs":
+                reqs_path = f"{path}/requirements.txt"
+
+                if (not cluster and Path(reqs_path).expanduser().exists()) or (
+                    cluster and self.install_target.exists_in_system()
+                ):
+                    install_cmd = self._requirements_txt_install_cmd(
+                        path=reqs_path,
+                        cuda_version_or_cpu=cuda_version_or_cpu,
+                        args=install_args,
+                    )
+                else:
+                    return None
+        else:
+            install_cmd = self.install_target + install_args
+
+        if self.install_method == "pip":
+            install_cmd = f"pip install {self._install_cmd_for_torch(install_cmd, cuda_version_or_cpu)}"
+        elif self.install_method == "reqs":
+            install_cmd = f"pip install {install_cmd}"
+        elif self.install_method == "conda":
+            install_cmd = f"conda install -y {install_cmd}"
+
+        return install_cmd
+
+    def _install(self, env: Union[str, "Env"] = None, cluster: "Cluster" = None):
         """Install package.
 
         Args:
             env (Env or str): Environment to install package on. If left empty, defaults to base environment.
                 (Default: ``None``)
         """
-        logging.info(f"Installing {str(self)} with method {self.install_method}.")
-        install_cmd = ""
-        install_args = f" {self.install_args}" if self.install_args else ""
-        cuda_version_or_cpu = self._detect_cuda_version_or_cpu()
 
-        if isinstance(self.install_target, Folder):
-            local_path = self.install_target.local_path
-            if self.install_method == "pip":
-                # TODO [DG] Revisit: Would be nice if we could use -e by default, but importlib on the rpc server
-                #  isn't finding the package right after its installed.
-                # if (Path(local_path) / 'setup.py').exists():
-                #     install_cmd = f'-e {local_path}' + install_args
-                # else:
-                install_cmd = f"{local_path}" + install_args
-            elif self.install_method == "conda":
-                install_cmd = f"{local_path}" + install_args
-            elif self.install_method == "reqs":
-                reqs_path = f"{local_path}/requirements.txt"
-                logging.info(f"reqs path: {reqs_path}")
-                if Path(reqs_path).expanduser().exists():
-                    install_cmd = self._requirements_txt_install_cmd(
-                        path=reqs_path,
-                        cuda_version_or_cpu=cuda_version_or_cpu,
-                        args=install_args,
-                    )
-                    logging.info(
-                        f"pip installing requirements from {reqs_path} with: {install_cmd}"
-                    )
-                    self._pip_install(install_cmd)
-                else:
-                    logging.info(f"{local_path}/requirements.txt not found, skipping")
-        else:
-            install_cmd = self.install_target + install_args
+        logging.info(f"Installing {str(self)} with method {self.install_method}.")
+        install_cmd = self._install_cmd()
+
+        if self.install_method == "local":
+            raise Exception(self.name)
 
         if self.install_method == "pip":
-            install_cmd = self._install_cmd_for_torch(install_cmd, cuda_version_or_cpu)
-            if not install_cmd:
-                raise ValueError("Invalid install command")
-
-            self._pip_install(install_cmd, env)
+            self._pip_install(install_cmd, env, cluster=cluster)
         elif self.install_method == "conda":
-            self._conda_install(install_cmd, env)
-        elif self.install_method in ["local", "reqs"]:
+            self._conda_install(install_cmd, env, cluster=cluster)
+        elif self.install_method in ["reqs", "local"]:
             if isinstance(self.install_target, Folder):
-                sys.path.append(local_path)
-            elif Path(self.install_target).resolve().expanduser().exists():
+                path = (
+                    self.install_target.local_path
+                    if self.install_target.is_local()
+                    else self.install_target.path
+                )
+
+                if self.install_method == "reqs" and install_cmd:
+                    logging.info(
+                        f"pip installing {path}/requirements.txt with: {install_cmd}"
+                    )
+                    self._pip_install(install_cmd, env, cluster=cluster)
+                else:
+                    logging.info(f"{path}/requirements.txt not found, skipping")
+
+                sys.path.append(path) if not cluster else run_setup_command(
+                    f"export PATH=$PATH;{path}", cluster=cluster
+                )
+            elif (
+                not cluster
+                and Path(self.install_target).resolve().expanduser().exists()
+            ):
                 sys.path.append(str(Path(self.install_target).resolve().expanduser()))
             else:
                 raise ValueError(
                     f"install_target must be a Folder or a path to a directory for "
                     f"install_method {self.install_method}"
                 )
+
         # elif self.install_method == 'unpickle':
         #     # unpickle the functions and make them importable
         #     with self.get('functions.pickle') as f:
@@ -210,24 +240,20 @@ class Package(Resource):
         return self.TORCH_INDEX_URLS.get(cuda_version_or_cpu)
 
     @staticmethod
-    def _detect_cuda_version_or_cpu():
+    def _detect_cuda_version_or_cpu(cluster: "Cluster" = None):
         """Return the CUDA version on the cluster. If we are on a CPU-only cluster return 'cpu'.
 
         Note: A cpu-only machine may have the CUDA toolkit installed, which means nvcc will still return
         a valid version. Also check if the NVIDIA driver is installed to confirm we are on a GPU."""
-        try:
-            cuda_version_info: str = subprocess.check_output(
-                "nvcc --version", shell=True
-            ).decode("utf-8")
-            cuda_version = cuda_version_info.split("release ")[1].split(",")[0]
-        except subprocess.CalledProcessError:
-            return "cpu"
 
-        try:
-            subprocess.run(["nvidia-smi"], check=True)
-            return cuda_version
-        except (subprocess.CalledProcessError, FileNotFoundError):
+        status_codes = run_setup_command("nvcc --version", cluster=cluster)
+        if not status_codes[0] == 0:
             return "cpu"
+        cuda_version = status_codes[1].split("release ")[1].split(",")[0]
+
+        if run_setup_command("nvidia-smi", cluster=cluster)[0] == 0:
+            return cuda_version
+        return "cpu"
 
     @staticmethod
     def _packages_to_install_from_cmd(install_cmd: str):
@@ -248,36 +274,43 @@ class Package(Resource):
     # ----------------------------------
 
     @staticmethod
-    def _pip_install(install_cmd: str, env: Union[str, "Env"] = ""):
+    def _pip_install(
+        install_cmd: str, env: Union[str, "Env"] = "", cluster: "Cluster" = None
+    ):
         """Run pip install."""
-        pip_cmd = f"pip install {install_cmd}"
         if env:
             from runhouse.resources.envs.utils import _get_env_from
 
             env = _get_env_from(env)
-            env._run_command(pip_cmd)
+            install_cmd = f"{env._run_cmd} {install_cmd}"
+            run_setup_command(install_cmd, cluster=cluster)
         else:
-            cmd = f"{sys.executable} -m {pip_cmd}"
-            retcode = run_with_logs(cmd)
+            cmd = (
+                f"python3 -m {install_cmd}"
+                if cluster
+                else f"{sys.executable} -m {install_cmd}"
+            )
+            retcode = run_setup_command(cmd, cluster=cluster)[0]
             if retcode != 0:
                 raise RuntimeError(
                     "Pip install failed, check that the package exists and is available for your platform."
                 )
 
     @staticmethod
-    def _conda_install(install_cmd: str, env: Union[str, "Env"] = ""):
+    def _conda_install(
+        install_cmd: str, env: Union[str, "Env"] = "", cluster: "Cluster" = None
+    ):
         """Run conda install."""
-        cmd = f"conda install -y {install_cmd}"
         if env:
             if isinstance(env, str):
                 from runhouse.resources.envs import Env
 
                 env = Env.from_name(env)
-            cmd = f"{env._run_cmd} {cmd}"
+            install_cmd = f"{env._run_cmd} {install_cmd}"
 
         install_conda()
 
-        retcode = run_with_logs(cmd)
+        retcode = run_setup_command(install_cmd, cluster=cluster)[0]
         if retcode != 0:
             raise RuntimeError(
                 "Conda install failed, check that the package exists and is "
