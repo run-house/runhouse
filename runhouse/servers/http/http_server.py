@@ -471,7 +471,6 @@ class HTTPServer:
             }
             params.data = serialize_data(data, serialization)
 
-            logger.info(f"GET call with params: {dict(params)}")
             return await HTTPServer._call(key, method_name, params)
         except Exception as e:
             logger.exception(e)
