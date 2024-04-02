@@ -110,9 +110,12 @@ class CondaEnv(Env):
                 on the cluster using SSH. (default: ``None``)
         """
         if not any(["python" in dep for dep in self.conda_yaml["dependencies"]]):
-            base_python_version = run_setup_command(
+            status_codes = run_setup_command(
                 "python --version", cluster=cluster, stream_logs=False
-            )[1].split()[1]
+            )
+            base_python_version = (
+                status_codes[1].split()[1] if status_codes[0] == 0 else "3.10.9"
+            )
             self.conda_yaml["dependencies"].append(f"python=={base_python_version}")
         install_conda(cluster=cluster)
         local_env_exists = (

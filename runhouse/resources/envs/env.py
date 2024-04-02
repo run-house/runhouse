@@ -205,6 +205,8 @@ class Env(Resource):
         new_env.secrets = self._secrets_to(system)
 
         if isinstance(system, Cluster):
+            if new_env.name == Env.DEFAULT_NAME:
+                new_env.name = system.default_env.name
             key = system.put_resource(new_env)
             env_vars = (
                 _env_vars_from_file(self.env_vars)

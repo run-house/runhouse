@@ -28,6 +28,7 @@ def cluster(
     ssl_certfile: str = None,
     domain: str = None,
     den_auth: bool = False,
+    default_env: Union["Env", str] = None,
     dryrun: bool = False,
     **kwargs,
 ) -> Union[Cluster, OnDemandCluster, SageMakerCluster]:
@@ -55,6 +56,7 @@ def cluster(
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
+        # TODO [CC]: Add default_env docstrings
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
 
@@ -95,6 +97,7 @@ def cluster(
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
             domain=domain,
+            default_env=default_env,
             kwargs=kwargs if len(kwargs) > 0 else None,
         )
         # Filter out None/default values
@@ -125,6 +128,7 @@ def cluster(
             ssl_certfile=ssl_certfile,
             domain=domain,
             den_auth=den_auth,
+            default_env=default_env,
             dryrun=dryrun,
             **kwargs,
         )
@@ -153,6 +157,7 @@ def cluster(
             ssl_certfile=ssl_certfile,
             domain=domain,
             den_auth=den_auth,
+            default_env=default_env,
             dryrun=dryrun,
             **kwargs,
         )
@@ -176,6 +181,7 @@ def cluster(
         ssl_certfile=ssl_certfile,
         domain=domain,
         den_auth=den_auth,
+        default_env=default_env,
         dryrun=dryrun,
         **kwargs,
     )
@@ -307,7 +313,8 @@ def ondemand_cluster(
     ssl_keyfile: str = None,
     ssl_certfile: str = None,
     domain: str = None,
-    den_auth: bool = None,
+    den_auth: bool = False,
+    default_env: Union["Env", str] = None,
     dryrun: bool = False,
     **kwargs,
 ) -> OnDemandCluster:
@@ -379,6 +386,7 @@ def ondemand_cluster(
         kube_config_path = kwargs.pop("kube_config_path", None)
         context = kwargs.pop("context", None)
         server_connection_type = kwargs.pop("server_connection_type", None)
+        default_env = kwargs.pop("default_env", None)
 
         return kubernetes_cluster(
             name=name,
@@ -387,6 +395,7 @@ def ondemand_cluster(
             kube_config_path=kube_config_path,
             context=context,
             server_connection_type=server_connection_type,
+            default_env=default_env,
         )
 
     if name:
@@ -406,6 +415,7 @@ def ondemand_cluster(
             ssl_certfile=ssl_certfile,
             domain=domain,
             den_auth=den_auth,
+            default_env=default_env,
         )
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
@@ -435,6 +445,7 @@ def ondemand_cluster(
         ssl_certfile=ssl_certfile,
         domain=domain,
         den_auth=den_auth,
+        default_env=default_env,
         name=name,
         dryrun=dryrun,
         **kwargs,
@@ -467,6 +478,7 @@ def sagemaker_cluster(
     ssl_certfile: str = None,
     domain: str = None,
     den_auth: bool = False,
+    default_env: Union["Env", str] = None,
     dryrun: bool = False,
     **kwargs,
 ) -> SageMakerCluster:
@@ -595,6 +607,7 @@ def sagemaker_cluster(
             ssl_certfile=ssl_certfile,
             domain=domain,
             den_auth=den_auth,
+            default_env=default_env,
         )
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
@@ -632,6 +645,7 @@ def sagemaker_cluster(
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
         domain=domain,
+        default_env=default_env,
         dryrun=dryrun,
         **kwargs,
     )
