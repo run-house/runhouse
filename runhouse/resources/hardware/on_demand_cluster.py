@@ -41,6 +41,7 @@ class OnDemandCluster(Cluster):
         instance_type: str = None,
         num_instances: int = None,
         provider: str = None,
+        default_env: "Env" = None,
         dryrun=False,
         autostop_mins=None,
         use_spot=False,
@@ -66,6 +67,7 @@ class OnDemandCluster(Cluster):
         """
         super().__init__(
             name=name,
+            default_env=default_env,
             server_host=server_host,
             server_port=server_port,
             server_connection_type=server_connection_type,

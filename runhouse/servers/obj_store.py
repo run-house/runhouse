@@ -195,6 +195,8 @@ class ObjStore:
                 "Warning, cluster servlet is not initialized. Object Store operations will not work."
             )
 
+        # TODO -- set the servlet name here to be the default env on the cluster
+
         # There are 3 operating modes of the KV store:
         # servlet_name is set, has_local_storage is True: This is an EnvServlet with a local KV store.
         # servlet_name is set, has_local_storage is False: This is an ObjStore class that is not an EnvServlet,
