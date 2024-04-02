@@ -139,7 +139,7 @@ class TestMapper:
         assert last_end_time - earliest_start_time < 2
 
     @pytest.mark.level("release")
-    def test_multinode_map(self, multinode_cpu_cluster):
+    def test_local_multinode_map(self, multinode_cpu_cluster):
         num_replicas = 6
         env = rh.env(compute={"CPU": 0.5}, reqs=["pytest"])
         pid_fn = rh.function(get_pid_and_ray_node).to(multinode_cpu_cluster, env=env)
@@ -152,11 +152,14 @@ class TestMapper:
         assert len(pids) == 100
         assert len(set(pids)) == num_replicas
         assert len(set(nodes)) == 2
-        assert len(set(node for (pid, node) in [mapper.call() for _ in range(10)])) == 2
+        assert len(set(node for (_, node) in [mapper.call() for _ in range(10)])) == 2
 
+    @pytest.mark.level("release")
+    def test_remote_multinode_map(self, multinode_cpu_cluster):
         # Test that calls are non-blocking, and sending the mapper to the cluster
-        sleep_fn = rh.function(sleep_and_return).to(multinode_cpu_cluster)
-        sleep_mapper = rh.mapper(sleep_fn).to(multinode_cpu_cluster)
+        env = rh.env(name="new_env", reqs=["pytest"])
+        sleep_fn = rh.function(sleep_and_return).to(multinode_cpu_cluster, env=env)
+        sleep_mapper = rh.mapper(sleep_fn, concurrency=2).to(multinode_cpu_cluster)
         sleep_mapper.add_replicas(5)
         start_end_times = sleep_mapper.map([1] * 10)
         assert len(start_end_times) == 10
