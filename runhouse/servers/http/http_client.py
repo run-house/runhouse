@@ -77,10 +77,6 @@ class HTTPClient:
         self.use_https = use_https
         self.resource_address = resource_address
         self.system = system
-
-        self.client = requests.Session()
-        self.client.auth = self.auth
-
         self.verify = False
 
         if self.use_https:
@@ -88,9 +84,6 @@ class HTTPClient:
             # Only verify with the specific cert path if the cert itself is self-signed, otherwise we use the default
             # setting of "True", which will verify the cluster's SSL certs
             self.verify = self.cert_path if self._certs_are_self_signed() else True
-
-        self.client.verify = self.verify
-        self.client.timeout = None
 
         self.log_formatter = ClusterLogsFormatter(self.system)
 
