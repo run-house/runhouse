@@ -10,7 +10,7 @@ from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
 
-from runhouse.utils import run_with_logs
+from runhouse.utils import run_setup_command, run_with_logs
 
 from .utils import _env_vars_from_file
 
@@ -137,7 +137,7 @@ class Env(Resource):
                 new_secrets.append(secret.to(system=system, env=self))
         return new_secrets
 
-    def install(self, force=False):
+    def install(self, force: bool = False, cluster: Cluster = None):
         """Locally install packages and run setup commands."""
         # Hash the config_for_rns to check if we need to install
         env_config = self.config()
@@ -153,16 +153,20 @@ class Env(Resource):
         for package in self.reqs:
             if isinstance(package, str):
                 pkg = Package.from_string(package)
+                if cluster and pkg.install_method == "reqs":
+                    pkg = pkg.to(cluster)
             elif hasattr(package, "_install"):
                 pkg = package
             else:
                 raise ValueError(f"package {package} not recognized")
 
             logger.debug(f"Installing package: {str(pkg)}")
-            pkg._install(self)
+            pkg._install(self, cluster=cluster)
+
         if self.setup_cmds:
             for cmd in self.setup_cmds:
-                self._run_command(cmd)
+                cmd = f"{self._run_cmd} {cmd}" if self._run_cmd else cmd
+                run_setup_command(cmd, cluster=cluster)
 
     def _run_command(self, command: str, **kwargs):
         """Run command locally inside the environment"""

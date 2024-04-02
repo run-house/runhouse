@@ -49,10 +49,11 @@ class GitPackage(Package):
             return f"GitPackage: {self.name}"
         return f"GitPackage: {self.git_url}@{self.revision}"
 
-    def _install(self, env: Union[str, "Env"] = None):
+    def _install(self, env: Union[str, "Env"] = None, cluster: "Cluster" = None):
         # Clone down the repo
         if not Path(self.install_target).exists():
             logging.info(f"Cloning: git clone {self.git_url}")
+
             subprocess.run(
                 ["git", "clone", self.git_url],
                 cwd=Path(self.install_target).expanduser().parent,
@@ -74,7 +75,7 @@ class GitPackage(Package):
                 check=True,
             )
         # Use super to install the package
-        super()._install(env)
+        super()._install(env, cluster=cluster)
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
