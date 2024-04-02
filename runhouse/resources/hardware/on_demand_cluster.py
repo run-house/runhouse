@@ -394,42 +394,45 @@ class OnDemandCluster(Cluster):
         if self.on_this_cluster():
             return self
 
-        if self.provider in ["aws", "gcp", "azure", "lambda", "kubernetes", "cheapest"]:
-            task = sky.Task(num_nodes=self.num_instances)
-            cloud_provider = (
-                sky.clouds.CLOUD_REGISTRY.from_str(self.provider)
-                if self.provider != "cheapest"
-                else None
+        supported_providers = ["cheapest"] + list(sky.clouds.CLOUD_REGISTRY)
+        if self.provider not in supported_providers:
+            raise ValueError(
+                f"Cluster provider {self.provider} not supported. Must be one {supported_providers} supported by SkyPilot."
             )
-            task.set_resources(
-                sky.Resources(
-                    # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
-                    cloud=cloud_provider,
-                    instance_type=self.get_instance_type(),
-                    accelerators=self.accelerators(),
-                    cpus=self.num_cpus(),
-                    memory=self.memory,
-                    region=self.region or configs.get("default_region"),
-                    disk_size=self.disk_size,
-                    ports=self.open_ports,
-                    image_id=self.image_id,
-                    use_spot=self.use_spot,
-                )
+
+        task = sky.Task(num_nodes=self.num_instances)
+        cloud_provider = (
+            sky.clouds.CLOUD_REGISTRY.from_str(self.provider)
+            if self.provider != "cheapest"
+            else None
+        )
+        task.set_resources(
+            sky.Resources(
+                # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
+                cloud=cloud_provider,
+                instance_type=self.get_instance_type(),
+                accelerators=self.accelerators(),
+                cpus=self.num_cpus(),
+                memory=self.memory,
+                region=self.region or configs.get("default_region"),
+                disk_size=self.disk_size,
+                ports=self.open_ports,
+                image_id=self.image_id,
+                use_spot=self.use_spot,
             )
-            if Path("~/.rh").expanduser().exists():
-                task.set_file_mounts(
-                    {
-                        "~/.rh": "~/.rh",
-                    }
-                )
-            sky.launch(
-                task,
-                cluster_name=self.name,
-                idle_minutes_to_autostop=self._autostop_mins,
-                down=True,
+        )
+        if Path("~/.rh").expanduser().exists():
+            task.set_file_mounts(
+                {
+                    "~/.rh": "~/.rh",
+                }
             )
-        else:
-            raise ValueError(f"Cluster provider {self.provider} not supported.")
+        sky.launch(
+            task,
+            cluster_name=self.name,
+            idle_minutes_to_autostop=self._autostop_mins,
+            down=True,
+        )
 
         self._update_from_sky_status()
         self.restart_server()
