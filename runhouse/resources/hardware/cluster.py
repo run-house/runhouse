@@ -825,7 +825,12 @@ class Cluster(Resource):
                 # remote=remote,
                 serialization=None,
             )
-        return self.client.call_module_method(
+        method_to_call = (
+            self.client.acall_module_method
+            if run_async
+            else self.client.call_module_method
+        )
+        return method_to_call(
             module_name,
             method_name,
             resource_address=self.rns_address,

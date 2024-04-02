@@ -519,6 +519,11 @@ class Module(Resource):
         if not client:
             return super().__getattribute__(item)
 
+        is_coroutine_function = (
+            self.signature(rich=True)[item]["async"]
+            and not self.signature(rich=True)[item]["gen"]
+        )
+
         class RemoteMethodWrapper:
             """Helper class to allow methods to be called with __call__, remote, or run."""
 
@@ -527,14 +532,30 @@ class Module(Resource):
                 # the local code path here will throw an error if they are included and not supported in the
                 # method signature.
 
-                return client.call(
-                    name,
-                    item,
-                    run_name=kwargs.pop("run_name", None),
-                    stream_logs=kwargs.pop("stream_logs", True),
-                    remote=kwargs.pop("remote", False),
-                    data={"args": args, "kwargs": kwargs},
-                )
+                # Always take the user overrided behavior if they want it
+                if "run_async" in kwargs:
+                    run_async = kwargs.pop("run_async")
+                else:
+                    run_async = is_coroutine_function
+
+                if run_async:
+                    return client.acall(
+                        name,
+                        item,
+                        run_name=kwargs.pop("run_name", None),
+                        stream_logs=kwargs.pop("stream_logs", True),
+                        remote=kwargs.pop("remote", False),
+                        data={"args": args, "kwargs": kwargs},
+                    )
+                else:
+                    return client.call(
+                        name,
+                        item,
+                        run_name=kwargs.pop("run_name", None),
+                        stream_logs=kwargs.pop("stream_logs", True),
+                        remote=kwargs.pop("remote", False),
+                        data={"args": args, "kwargs": kwargs},
+                    )
 
             def remote(self, *args, stream_logs=True, run_name=None, **kwargs):
                 return self.__call__(

@@ -30,6 +30,14 @@ async def async_summer(a, b):
     return a + b
 
 
+def returns_coroutine(a, b):
+    return async_summer(a, b)
+
+
+async def async_returns_coroutine(a, b):
+    return async_summer(a, b)
+
+
 def np_array(list):
     import numpy as np
 
@@ -596,3 +604,46 @@ class TestFunction:
     def test_send_secrets_unittest(self, mock_get):
         # TODO: need to think if send_secrets is a relevant Function method
         pass
+
+    @pytest.mark.level("local")
+    @pytest.mark.asyncio
+    async def test_run_async_permutations(self, cluster):
+        async_summer_remote = rh.function(async_summer).to(cluster)
+        summer_remote = rh.function(summer).to(cluster)
+
+        # Test things work natively
+        assert await async_summer_remote(2, 3) == 5
+        assert summer_remote(2, 3) == 5
+
+        # Test that can call with run_async set
+        assert await async_summer_remote(2, 3, run_async=True) == 5
+        assert async_summer_remote(2, 3, run_async=False) == 5
+        assert await summer_remote(2, 3, run_async=True) == 5
+        assert summer_remote(2, 3, run_async=False) == 5
+
+    @pytest.mark.level("local")
+    @pytest.mark.asyncio
+    async def test_returns_coroutine(self, cluster):
+        returns_coroutine_remote = rh.function(returns_coroutine).to(cluster)
+        async_returns_coroutine_remote = rh.function(async_returns_coroutine).to(
+            cluster
+        )
+
+        # Test that can call with run_async set
+        future_module = returns_coroutine_remote(2, 3)
+        assert future_module.__class__.__name__ == "FutureModule"
+        assert await future_module == 5
+
+        # Test that can call with run_async set to True
+        future_module = await returns_coroutine_remote(2, 3, run_async=True)
+        assert future_module.__class__.__name__ == "FutureModule"
+        assert await future_module == 5
+
+        future_module = await async_returns_coroutine_remote(2, 3)
+        assert future_module.__class__.__name__ == "FutureModule"
+        assert await future_module == 5
+
+        # Test that can call with run_async set to False
+        future_module = async_returns_coroutine_remote(2, 3, run_async=False)
+        assert future_module.__class__.__name__ == "FutureModule"
+        assert await future_module == 5

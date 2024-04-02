@@ -127,6 +127,17 @@ class Calculator:
         return a * b
 
 
+class LotsOfAsync:
+    async def asum(self, a: int, b: int):
+        return a + b
+
+    def returns_coroutine(self, a: int, b: int):
+        return self.asum(a, b)
+
+    async def async_returns_coroutine(self, a: int, b: int):
+        return self.asum(a, b)
+
+
 @pytest.mark.moduletest
 class TestModule:
 
@@ -647,6 +658,56 @@ class TestModule:
             exc_module = ExceptionModule()
             exc_module.to(cluster)
         assert "pyarrow" in str(err.value)
+
+    @pytest.mark.level("local")
+    @pytest.mark.asyncio
+    async def test_run_async_permutations(self, cluster):
+        lots_of_async_remote = rh.module(LotsOfAsync).to(cluster)
+        calculator_remote = rh.module(Calculator).to(cluster)
+
+        lots_of_async_remote_instance = lots_of_async_remote()
+        calculator_remote_instance = calculator_remote()
+
+        # Test things work natively
+        assert await lots_of_async_remote_instance.asum(2, 3) == 5
+        assert calculator_remote_instance.summer(2, 3) == 5
+
+        # Test that can call with run_async set
+        assert await lots_of_async_remote_instance.asum(2, 3, run_async=True) == 5
+        assert lots_of_async_remote_instance.asum(2, 3, run_async=False) == 5
+        assert await calculator_remote_instance.summer(2, 3, run_async=True) == 5
+        assert calculator_remote_instance.summer(2, 3, run_async=False) == 5
+
+    @pytest.mark.level("local")
+    @pytest.mark.asyncio
+    async def test_returns_coroutine(self, cluster):
+        lots_of_async_remote = rh.module(LotsOfAsync).to(cluster)
+        lots_of_async_remote_instance = lots_of_async_remote()
+
+        # Test that can call with run_async set
+        future_module = lots_of_async_remote_instance.returns_coroutine(2, 3)
+        assert future_module.__class__.__name__ == "FutureModule"
+        assert await future_module == 5
+
+        # Test that can call with run_async set to True
+        future_module = await lots_of_async_remote_instance.returns_coroutine(
+            2, 3, run_async=True
+        )
+        assert future_module.__class__.__name__ == "FutureModule"
+        assert await future_module == 5
+
+        future_module = await lots_of_async_remote_instance.async_returns_coroutine(
+            2, 3
+        )
+        assert future_module.__class__.__name__ == "FutureModule"
+        assert await future_module == 5
+
+        # Test that can call with run_async set to False
+        future_module = lots_of_async_remote_instance.async_returns_coroutine(
+            2, 3, run_async=False
+        )
+        assert future_module.__class__.__name__ == "FutureModule"
+        assert await future_module == 5
 
 
 def test_load_and_use_readonly_module(mod_name, cpu_count, size=3):
