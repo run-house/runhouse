@@ -244,26 +244,18 @@ class ObjStore:
     ##############################################
     @staticmethod
     async def acall_actor_method(
-        actor: ray.actor.ActorHandle, method: str, *args, run_async=False, **kwargs
+        actor: ray.actor.ActorHandle, method: str, *args, **kwargs
     ):
         if actor is None:
             raise ObjStoreError("Attempting to call an actor method on a None actor.")
         return await getattr(actor, method).remote(*args, **kwargs)
 
     @staticmethod
-    def call_actor_method(
-        actor: ray.actor.ActorHandle, method: str, *args, run_async=False, **kwargs
-    ):
+    def call_actor_method(actor: ray.actor.ActorHandle, method: str, *args, **kwargs):
         if actor is None:
             raise ObjStoreError("Attempting to call an actor method on a None actor.")
-        if not run_async:
-            return ray.get(getattr(actor, method).remote(*args, **kwargs))
-        else:
 
-            async def _call_async():
-                return await getattr(actor, method).remote(*args, **kwargs)
-
-            return _call_async()
+        return ray.get(getattr(actor, method).remote(*args, **kwargs))
 
     @staticmethod
     def get_env_servlet(
@@ -1230,7 +1222,6 @@ class ObjStore:
         run_name: Optional[str] = None,
         stream_logs: bool = False,
         remote: bool = False,
-        run_async: bool = False,
     ):
         env_servlet_name_containing_key = await self.aget_env_servlet_name_for_key(key)
         if not env_servlet_name_containing_key:
@@ -1294,7 +1285,6 @@ class ObjStore:
         run_name: Optional[str] = None,
         stream_logs: bool = False,
         remote: bool = False,
-        run_async: bool = False,
     ):
         return sync_function(self.acall)(
             key,
@@ -1304,7 +1294,6 @@ class ObjStore:
             run_name,
             stream_logs,
             remote,
-            run_async,
         )
 
     ##############################################

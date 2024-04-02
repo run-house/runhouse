@@ -288,7 +288,6 @@ class HTTPClient:
         run_name: Optional[str] = None,
         stream_logs: bool = True,
         remote: bool = False,
-        run_async=False,
         save=False,
     ):
         """wrapper to temporarily support cluster's call signature"""
@@ -301,7 +300,6 @@ class HTTPClient:
             run_name=run_name,
             stream_logs=stream_logs,
             remote=remote,
-            run_async=run_async,
             save=save,
             system=self.system,
         )
@@ -316,7 +314,6 @@ class HTTPClient:
         run_name: Optional[str] = None,
         stream_logs: bool = True,
         remote: bool = False,
-        run_async=False,
         save=False,
         system=None,
     ):
@@ -339,9 +336,8 @@ class HTTPClient:
                 stream_logs=stream_logs,
                 save=save,
                 remote=remote,
-                run_async=run_async,
             ).dict(),
-            stream=not run_async,
+            stream=True,
             headers=rns_client.request_headers(resource_address),
             auth=self.auth,
             verify=self.verify,

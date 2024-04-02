@@ -549,7 +549,6 @@ class Module(Resource):
                     *args,
                     stream_logs=stream_logs,
                     run_name=run_name,
-                    run_async=True,
                     **kwargs,
                 )
 

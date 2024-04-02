@@ -172,7 +172,6 @@ class TestHTTPClient:
             "stream_logs": True,
             "save": False,
             "remote": False,
-            "run_async": False,
         }
         expected_headers = rns_client.request_headers(
             resource_address=self.local_cluster.rns_address
@@ -182,9 +181,9 @@ class TestHTTPClient:
         mock_post.assert_called_once_with(
             expected_url,
             json=expected_json_data,
-            stream=True,
             headers=expected_headers,
             auth=None,
+            stream=True,
             verify=expected_verify,
         )
 
@@ -219,7 +218,6 @@ class TestHTTPClient:
             "stream_logs": True,
             "save": False,
             "remote": False,
-            "run_async": False,
         }
         expected_url = f"http://localhost:32300/{module_name}/{method_name}"
         expected_headers = rns_client.request_headers(self.local_cluster.rns_address)
@@ -228,9 +226,9 @@ class TestHTTPClient:
         mock_post.assert_called_with(
             expected_url,
             json=expected_json_data,
-            stream=True,
             headers=expected_headers,
             auth=None,
+            stream=True,
             verify=expected_verify,
         )
 
