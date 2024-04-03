@@ -54,6 +54,14 @@ def install_conda():
             raise RuntimeError("Could not install Conda.")
 
 
+# Periodic coroutine to be created with `asyncio.create_task`
+# Use functools.partial if you need to pass arguments to the function
+async def periodic(interval_sec, coro_func):
+    while True:
+        await asyncio.sleep(interval_sec)
+        await coro_func()
+
+
 def _thread_coroutine(coroutine, context):
     # Copy contextvars from the parent thread to the new thread
     for var, value in context.items():
