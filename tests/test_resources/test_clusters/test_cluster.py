@@ -48,6 +48,18 @@ def test_table_to_rh_here():
     assert rh.here.get("test_table") is not None
 
 
+def summer(a: int, b: int):
+    return a + b
+
+
+def sub(a: int, b: int):
+    return a - b
+
+
+def cluster_keys(cluster):
+    return cluster.keys()
+
+
 class TestCluster(tests.test_resources.test_resource.TestResource):
     MAP_FIXTURES = {"resource": "cluster"}
 
@@ -396,3 +408,25 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert echo_msg in run_res[0][1]
             # First element, return code
             assert shared_cluster.run(["echo hello"])[0][0] == 0
+
+    @pytest.mark.level("local")
+    def test_changing_name_and_saving_in_between(self, cluster):
+        remote_summer = rh.function(summer).to(cluster)
+        assert remote_summer(3, 4) == 7
+        old_name = cluster.name
+
+        cluster.save(name="new_testing_name")
+
+        assert remote_summer(3, 4) == 7
+        remote_sub = rh.function(sub).to(cluster)
+        assert remote_sub(3, 4) == -1
+
+        cluster_keys_remote = rh.function(cluster_keys).to(cluster)
+
+        # If save did not update the name, this will attempt to create a connection
+        # when the cluster is used remotely. However, if you update the name, `on_this_cluster` will
+        # work correclty and then the remote function will just call the object store when it calls .keys()
+        assert cluster.keys() == cluster_keys_remote(cluster)
+
+        # Restore the state?
+        cluster.save(name=old_name)

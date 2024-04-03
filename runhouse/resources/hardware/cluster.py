@@ -549,9 +549,6 @@ class Cluster(Resource):
                 system=self,
             )
 
-        if self.rns_address:
-            self.client.set_cluster_name(self.rns_address)
-
     def check_server(self, restart_server=True):
         if self.on_this_cluster():
             return
