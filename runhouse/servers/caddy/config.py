@@ -142,11 +142,19 @@ class CaddyConfig:
             # https://caddyserver.com/docs/running#using-the-service
             logger.info("Installing Caddy...")
 
+            caddy_version = "2.7.6"
+            arch = subprocess.run(
+                "dpkg --print-architecture",
+                shell=True,
+                text=True,
+                check=True,
+                capture_output=True,
+            ).stdout.strip()
+            caddy_deb_url = f"https://github.com/caddyserver/caddy/releases/download/v{caddy_version}/caddy_{caddy_version}_linux_{arch}.deb"
+
             commands = [
-                "sudo apt update && sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https",
-                "yes | curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg",  # noqa
-                "yes | curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list",  # noqa
-                "sudo apt update && sudo apt install caddy -y",
+                f"sudo wget -q {caddy_deb_url}",
+                f'sudo apt install "./caddy_{caddy_version}_linux_{arch}.deb"',
             ]
 
             for cmd in commands:
