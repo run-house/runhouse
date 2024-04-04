@@ -117,24 +117,18 @@ class Mapper(Module):
         """Map the function or method over a list of arguments.
 
         Example:
-            >>> def local_sum(arg1, arg2, arg3):
-            >>>     return arg1 + arg2 + arg3
-            >>>
-            >>> # Option 1: Pass a function directly to the mapper, and send both to the cluster
             >>> mapper = rh.mapper(local_sum, replicas=2).to(my_cluster)
-            >>> mapper.map([1, 2], [1, 4], [2, 3])
+            >>> mapper.map([1, 2], [1, 4], [2, 3], retries=3)
 
-            >>> # Option 2: Create a remote module yourself and pass it to the mapper, which is still local
-            >>> remote_fn = rh.function(local_sum).to(my_cluster, env=my_fn_env)
-            >>> mapper = rh.mapper(remote_fn, replicas=2)
-            >>> mapper.map([1, 2], [1, 4], [2, 3])
-            >>> # output: [4, 9]
-
-            >>> # Option 3: Create a remote module and mapper for greater flexibility, and send both to the cluster
-            >>> remote_fn = rh.function(local_sum).to(my_cluster, env=my_fn_env)
-            >>> mapper = rh.mapper(remote_fn).to(my_cluster, env=my_mapper_env)
-            >>> mapper.add_replicas(2)  # You can add replicas separately or at the time of creation, like above
-            >>> mapper.map([1, 2], [1, 4], [2, 3])
+            >>> # If you're mapping over a remote module, you can choose not to specify which method to call initially
+            >>> # so you can call different methods in different maps (note that our replicas can hold state!)
+            >>> # Note that in the example below we're careful to use the same number of replicas as data
+            >>> # we have to process, or the state in a replica would be overwritten by the next call.
+            >>> shards = len(source_paths)
+            >>> mapper = rh.mapper(remote_module, replicas=shards).to(my_cluster)
+            >>> mapper.map(*source_paths, method="load_data")
+            >>> mapper.map([]*shards, method="process_data")  # Calls each replica once with no args
+            >>> mapper.map(*output_paths, method="save_data")
         """
         # Don't stream logs by default unless the mapper is remote (i.e. mediating the mapping)
         return self.starmap(
@@ -275,11 +269,28 @@ def mapper(
         Mapper: The resulting Mapper object.
 
     Example:
-        >>> remote_fn = rh.function(local_fn).to(cluster)
-        >>> mapper = rh.mapper(remote_fn, replicas=2)
+        >>> def local_sum(arg1, arg2, arg3):
+        >>>     return arg1 + arg2 + arg3
+        >>>
+        >>> # Option 1: Pass a function directly to the mapper, and send both to the cluster
+        >>> mapper = rh.mapper(local_sum, replicas=2).to(my_cluster)
+        >>> mapper.map([1, 2], [1, 4], [2, 3])
 
-        >>> remote_module = rh.module(cls=MyClass).to(system=cluster, env="my_env")
-        >>> mapper = rh.mapper(remote_module, method=my_class_method, replicas=-1)
+        >>> # Option 2: Create a remote module yourself and pass it to the mapper, which is still local
+        >>> remote_fn = rh.function(local_sum).to(my_cluster, env=my_fn_env)
+        >>> mapper = rh.mapper(remote_fn, replicas=2)
+        >>> mapper.map([1, 2], [1, 4], [2, 3])
+        >>> # output: [4, 9]
+
+        >>> # Option 3: Create a remote module and mapper for greater flexibility, and send both to the cluster
+        >>> # You can map over a "class" module (stateless) or an "instance" module to preserve state
+        >>> remote_class = rh.module(cls=MyClass).to(system=cluster, env=my_module_env)
+        >>> stateless_mapper = rh.mapper(remote_class, method="my_class_method", replicas=2).to(cluster)
+        >>> mapper.map([1, 2], [1, 4], [2, 3])
+
+        >>> remote_app = remote_class()
+        >>> stateful_mapper = rh.mapper(remote_app, method="my_instance_method", replicas=2).to(cluster)
+        >>> mapper.map([1, 2], [1, 4], [2, 3])
     """
 
     if callable(module) and not isinstance(module, Module):
