@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 import pytest
@@ -35,7 +36,7 @@ def saved_resource_pool():
 
 @pytest.fixture(scope="session")
 def test_rns_folder():
-    return f"testing-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    return f"testing-{uuid.uuid4()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
 
 @pytest.fixture(scope="function")
