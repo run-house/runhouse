@@ -1,7 +1,7 @@
 import concurrent.futures
 import contextvars
 import logging
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 try:
     from tqdm import tqdm
@@ -11,7 +11,9 @@ except ImportError:
         return args[0]
 
 
+from runhouse.resources.envs.env import Env
 from runhouse.resources.functions import function, Function
+from runhouse.resources.hardware.cluster import Cluster
 
 from runhouse.resources.module import Module
 
@@ -38,12 +40,18 @@ class Mapper(Module):
         self.module = module
         self.method = method
         self.concurrency = concurrency
+        self._num_auto_replicas = None
         self._auto_replicas = []
         self._user_replicas = []
         self._last_called = 0
         if isinstance(replicas, int):
-            if replicas > self.num_replicas and replicas > 0:
-                self.add_replicas(replicas)
+            if self.module.system:
+                # Only add replicas if the replicated module is already on a cluster
+                if replicas > self.num_replicas and replicas > 0:
+                    self.add_replicas(replicas)
+            else:
+                # Otherwise, store this for later once we've sent the mapper to the cluster
+                self._num_auto_replicas = replicas
         elif isinstance(replicas, list):
             self._user_replicas = replicas
 
@@ -78,6 +86,33 @@ class Mapper(Module):
             self._last_called = 0
         return self._last_called
 
+    def to(
+        self,
+        system: Union[str, Cluster],
+        env: Optional[Union[str, List[str], Env]] = None,
+        name: Optional[str] = None,
+        force_install: bool = False,
+    ):
+        """Put a copy of the Mapper and its internal module on the destination system and env, and
+        return the new mapper.
+
+        Example:
+            >>> local_mapper = rh.mapper(my_module, replicas=2)
+            >>> cluster_mapper = local_mapper.to(my_cluster)
+        """
+        if not self.module.system:
+            # Note that we don't pass name here, as this is the name meant for the mapper
+            self.module = self.module.to(
+                system=system, env=env, force_install=force_install
+            )
+        remote_mapper = super().to(
+            system=system, env=env, name=name, force_install=force_install
+        )
+
+        if isinstance(self._num_auto_replicas, int):
+            remote_mapper.add_replicas(self._num_auto_replicas)
+        return remote_mapper
+
     def map(self, *args, method: Optional[str] = None, retries: int = 0, **kwargs):
         """Map the function or method over a list of arguments.
 
@@ -85,11 +120,21 @@ class Mapper(Module):
             >>> def local_sum(arg1, arg2, arg3):
             >>>     return arg1 + arg2 + arg3
             >>>
-            >>> remote_fn = rh.function(local_sum).to(my_cluster)
+            >>> # Option 1: Pass a function directly to the mapper, and send both to the cluster
+            >>> mapper = rh.mapper(local_sum, replicas=2).to(my_cluster)
+            >>> mapper.map([1, 2], [1, 4], [2, 3])
+
+            >>> # Option 2: Create a remote module yourself and pass it to the mapper, which is still local
+            >>> remote_fn = rh.function(local_sum).to(my_cluster, env=my_fn_env)
             >>> mapper = rh.mapper(remote_fn, replicas=2)
             >>> mapper.map([1, 2], [1, 4], [2, 3])
             >>> # output: [4, 9]
 
+            >>> # Option 3: Create a remote module and mapper for greater flexibility, and send both to the cluster
+            >>> remote_fn = rh.function(local_sum).to(my_cluster, env=my_fn_env)
+            >>> mapper = rh.mapper(remote_fn).to(my_cluster, env=my_mapper_env)
+            >>> mapper.add_replicas(2)  # You can add replicas separately or at the time of creation, like above
+            >>> mapper.map([1, 2], [1, 4], [2, 3])
         """
         # Don't stream logs by default unless the mapper is remote (i.e. mediating the mapping)
         return self.starmap(
@@ -207,7 +252,7 @@ class Mapper(Module):
 
 
 def mapper(
-    module: Module,
+    module: Union[Module, Callable],
     method: Optional[str] = None,
     replicas: Union[None, int, List[Module]] = None,
     concurrency: int = 1,

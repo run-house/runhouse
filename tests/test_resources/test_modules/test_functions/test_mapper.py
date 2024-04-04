@@ -122,8 +122,8 @@ class TestMapper:
     @pytest.mark.level("local")
     def test_remote_mapper_remote_function(self, cluster):
         # Test that calls are non-blocking, and sending the mapper to the cluster
-        sleep_fn = rh.function(sleep_and_return).to(cluster)
-        sleep_mapper = rh.mapper(sleep_fn).to(cluster)
+        # Also tests passing function directly into mapper without sending it to the cluster first
+        sleep_mapper = rh.mapper(sleep_and_return).to(cluster)
         sleep_mapper.add_replicas(5)
         start_end_times = sleep_mapper.map([1] * 5)
         assert len(start_end_times) == 5
