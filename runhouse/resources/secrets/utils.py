@@ -38,12 +38,15 @@ def _load_vault_secret(
 ):
     """Load secrets data from Vault for a particular resource URI. By default we allow for reloading shared secrets."""
     headers = headers or rns_client.request_headers()
+    uri = f"{rns_client.api_server_url}/{endpoint}/{resource_uri}?shared=true"
     resp = rns_client.session.get(
-        f"{rns_client.api_server_url}/{endpoint}/{resource_uri}?shared=true",
+        uri,
         headers=headers,
     )
     if resp.status_code != 200:
-        raise Exception(f"Failed to load secret from Vault: {load_resp_content(resp)}")
+        raise Exception(
+            f"Received [{resp.status_code}] from Den GET '{uri}': Failed to load secret from Vault: {load_resp_content(resp)}"
+        )
 
     config = read_resp_data(resp)
 
@@ -61,12 +64,15 @@ def _delete_vault_secrets(
     headers: Optional[Dict] = None,
 ):
     headers = headers or rns_client.request_headers()
+    uri = f"{rns_client.api_server_url}/{endpoint}/{resource_uri}"
     resp = rns_client.session.delete(
-        f"{rns_client.api_server_url}/{endpoint}/{resource_uri}",
+        uri,
         headers=headers,
     )
     if resp.status_code != 200:
-        logger.error(f"Failed to delete secrets from Vault: {load_resp_content(resp)}")
+        logger.error(
+            f"Received [{resp.status_code}] from Den DELETE '{uri}': Failed to delete secrets from Vault: {load_resp_content(resp)}"
+        )
 
 
 def _load_local_config(name):

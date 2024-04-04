@@ -152,14 +152,15 @@ class Defaults:
             if entity == "user"
             else self.GROUP_ENDPOINT + f"/{entity}"
         )
+        uri = f'{self.get("api_server_url")}/{endpoint}/config'
         resp = requests.put(
-            f'{self.get("api_server_url")}/{endpoint}/config',
+            uri,
             data=json.dumps(to_upload),
             headers=headers or self.request_headers,
         )
         if resp.status_code != 200:
             raise Exception(
-                f"Failed to update defaults for {entity}, received status code {resp.status_code}"
+                f"Received [{resp.status_code}] from Den PUT '{uri}': Failed to update defaults for {entity}."
             )
         logger.info(f"Uploaded defaults for {entity} to rns.")
 
@@ -173,10 +174,11 @@ class Defaults:
             else self.GROUP_ENDPOINT + f"/{entity}"
         )
         headers = headers or self.request_headers
-        resp = requests.get(f'{self.get("api_server_url")}/{endpoint}', headers=headers)
+        uri = f'{self.get("api_server_url")}/{endpoint}'
+        resp = requests.get(uri, headers=headers)
         if resp.status_code != 200:
             raise Exception(
-                f"Failed to download defaults for {entity}, received status code {resp.status_code}"
+                f"Received [{resp.status_code}] from Den GET '{uri}': Failed to download defaults for {entity}."
             )
         resp_data: dict = read_resp_data(resp)
         raw_defaults = resp_data.get("config", {})

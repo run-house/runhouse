@@ -328,7 +328,9 @@ class Resource:
 
         resp = rns_client.session.get(uri, headers=rns_client.request_headers())
         if resp.status_code != 200:
-            logger.warning(f"No resource history found: {load_resp_content(resp)}")
+            logger.warning(
+                f"Received [{resp.status_code}] from Den GET '{uri}': No resource history found: {load_resp_content(resp)}"
+            )
             return []
 
         resource_history = read_resp_data(resp)
@@ -473,13 +475,14 @@ class Resource:
             users = [users]
 
         request_uri = rns_client.resource_uri(self.rns_address)
+        uri = f"{rns_client.api_server_url}/resource/{request_uri}/users/access"
         resp = rns_client.session.put(
-            f"{rns_client.api_server_url}/resource/{request_uri}/users/access",
+            uri,
             json={"users": users, "access_level": ResourceAccess.DENIED},
             headers=headers or rns_client.request_headers(),
         )
 
         if resp.status_code != 200:
             raise Exception(
-                f"Failed to revoke access for resource: {load_resp_content(resp)}"
+                f"Received [{resp.status_code}] from Den PUT '{uri}': Failed to revoke access for resource: {load_resp_content(resp)}"
             )
