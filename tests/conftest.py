@@ -122,6 +122,13 @@ def pytest_addoption(parser):
         help="Restart the server on the cluster fixtures.",
     )
 
+    parser.addoption(
+        "--api-server-url",
+        action="store",
+        default="https://api.run.house",
+        help="URL of Runhouse Den",
+    )
+
 
 def pytest_generate_tests(metafunc):
     level = metafunc.config.getoption("level")
@@ -160,7 +167,10 @@ def pytest_collection_modifyitems(config, items):
         items[:] = new_items
 
 
-def pytest_configure():
+def pytest_configure(config):
+    import os
+
+    os.environ["API_SERVER_URL"] = config.getoption("api_server_url")
     pytest.init_args = {}
     subprocess.run(RAY_START_CMD, shell=True)
 

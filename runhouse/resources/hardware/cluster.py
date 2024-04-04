@@ -113,6 +113,7 @@ class Cluster(Resource):
         return self._creds.values
 
     def save_config_to_cluster(self, node: str = None):
+
         config = self.config(condensed=False)
         config.pop("creds")
         json_config = f"{json.dumps(config)}"
@@ -196,6 +197,7 @@ class Cluster(Resource):
             creds = creds.replace("loaded_secret_", "")
 
         config["creds"] = creds
+        config["api_server_url"] = rns_client.api_server_url
 
         if self._use_custom_certs:
             config["ssl_certfile"] = self.cert_config.cert_path
@@ -743,11 +745,12 @@ class Cluster(Resource):
             + (f" --domain {domain}" if domain else "")
             + (" --use-local-telemetry" if use_local_telemetry else "")
             + f" --port {self.server_port}"
+            + f" --api-server-url {rns_client.api_server_url}"
         )
 
         status_codes = self.run(commands=[cmd], env=env)
         if not status_codes[0][0] == 0:
-            raise ValueError(f"Failed to restart server {self.name}.")
+            raise ValueError(f"Failed to restart server {self.name}")
 
         if https_flag:
             rns_address = self.rns_address or self.name
