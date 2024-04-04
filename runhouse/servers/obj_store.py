@@ -443,6 +443,11 @@ class ObjStore:
             # if user has write access to cluster will have access to all resources
             return True
 
+        if resource_uri != cluster_uri and cluster_access == ResourceAccess.READ:
+            # If the user has READ access to the cluster and this isn't a cluster management
+            # endpoint, they have access to all resources
+            return True
+
         if resource_uri is None and cluster_access not in [
             ResourceAccess.WRITE,
             ResourceAccess.READ,
