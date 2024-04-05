@@ -368,14 +368,16 @@ class RNSClient:
             "access_level": access_level,
             "notify_users": notify_users,
         }
-        uri = "resource/" + resource_uri
+        uri = f"{self.api_server_url}/resource/{resource_uri}/users/access"
         resp = self.session.put(
-            f"{self.api_server_url}/{uri}/users/access",
+            uri,
             data=json.dumps(access_payload),
             headers=headers,
         )
         if resp.status_code != 200:
-            raise Exception(f"Failed to grant access: {load_resp_content(resp)}")
+            raise Exception(
+                f"Received [{resp.status_code}] from Den PUT '{uri}': Failed to grant access to: {load_resp_content(resp)}"
+            )
 
         resp_data: dict = read_resp_data(resp)
         added_users: dict = resp_data.get("added_users", {})
@@ -417,12 +419,15 @@ class RNSClient:
 
             resource_uri = self.resource_uri(name)
             logger.debug(f"Attempting to load config for {rns_address} from RNS.")
+            uri = f"{self.api_server_url}/resource/{resource_uri}"
             resp = self.session.get(
-                f"{self.api_server_url}/resource/{resource_uri}",
+                uri,
                 headers=request_headers,
             )
             if resp.status_code != 200:
-                logger.debug(f"No config found in RNS: {load_resp_content(resp)}")
+                logger.debug(
+                    f"Received [{resp.status_code}] from Den GET '{uri}': No config found in RNS: {load_resp_content(resp)}"
+                )
                 # No config found, so return empty config
                 return {}
 
@@ -502,32 +507,33 @@ class RNSClient:
             logger.info(f"Saving config for {resource_name} to RNS")
 
         resource_uri = self.resource_uri(resource_name)
-        uri = f"resource/{resource_uri}"
+        put_uri = f"{self.api_server_url}/resource/{resource_uri}"
 
         payload = self.resource_request_payload(config)
         headers = self.request_headers()
-        resp = self.session.put(
-            f"{self.api_server_url}/{uri}", data=json.dumps(payload), headers=headers
-        )
+        resp = self.session.put(put_uri, data=json.dumps(payload), headers=headers)
         if resp.status_code == 200:
-            logger.debug(f"Config updated in Den for resource: {uri}")
+            logger.debug(f"Config updated in Den for resource: {resource_uri}")
         elif resp.status_code == 422:  # No changes made to existing Resource
-            logger.debug(f"Config for {uri} has not changed, nothing to update")
+            logger.debug(
+                f"Config for {resource_uri} has not changed, nothing to update"
+            )
         elif resp.status_code == 404:  # Resource not found
-            logger.debug(f"Saving new resource in Den for resource: {uri}")
+            logger.debug(f"Saving new resource in Den for resource: {resource_uri}")
             # Resource does not yet exist, in which case we need to create from scratch
+            post_uri = f"{self.api_server_url}/resource"
             resp = self.session.post(
-                f"{self.api_server_url}/resource",
+                post_uri,
                 data=json.dumps(payload),
                 headers=headers,
             )
             if resp.status_code != 200:
                 raise Exception(
-                    f"Failed to create new resource: {load_resp_content(resp)}"
+                    f"Received [{resp.status_code}] from Den POST '{post_uri}': Failed to create new resource '{resource_uri}': {load_resp_content(resp)}"
                 )
         else:
             raise Exception(
-                f"Failed to save resource: {resource_name}: {load_resp_content(resp)}"
+                f"Received [{resp.status_code}] from Den PUT '{put_uri}': Failed to save resource '{resource_uri}': {load_resp_content(resp)}"
             )
 
     def delete_configs(
@@ -554,14 +560,14 @@ class RNSClient:
 
         if rns_address.startswith("/"):
             resource_uri = self.resource_uri(rns_address)
-            uri = "resource/" + resource_uri
-            resp = self.session.delete(
-                f"{self.api_server_url}/{uri}", headers=self.request_headers()
-            )
+            uri = f"{self.api_server_url}/resource/{resource_uri}"
+            resp = self.session.delete(uri, headers=self.request_headers())
             if resp.status_code != 200:
-                logger.error(f"Failed to delete_configs <{uri}>")
+                logger.error(
+                    f"Received [{resp.status_code}] from Den DELETE '{uri}': Failed to delete resource: {load_resp_content(resp)}"
+                )
             else:
-                logger.info(f"Successfully deleted <{uri}>")
+                logger.info(f"Successful Den Delete '{uri}'")
 
     def resolve_rns_data_resource_name(self, name: str):
         """If no name is explicitly provided for the data resource, we need to create one based on the relevant

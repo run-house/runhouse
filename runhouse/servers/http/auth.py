@@ -41,18 +41,21 @@ class AuthCache:
         else:
             resource_uri_to_send = resource_uri.replace("/", ":")
 
+        uri = f"{rns_client.api_server_url}/resource/{resource_uri_to_send}"
         resp = rns_client.session.get(
-            f"{rns_client.api_server_url}/resource/{resource_uri_to_send}",
+            uri,
             headers={"Authorization": f"Bearer {token}"},
         )
 
         if resp.status_code == 404:
-            logger.error(f"Resource not found: {load_resp_content(resp)}")
+            logger.error(
+                f"Received [{resp.status_code}] from Den GET '{uri}': Resource not found: {load_resp_content(resp)}"
+            )
             return
 
         if resp.status_code != 200:
             logger.error(
-                f"Failed to load access level for resource: {load_resp_content(resp)}"
+                f"Received [{resp.status_code}] from Den GET '{uri}': Failed to load access level for resource: {load_resp_content(resp)}"
             )
             return
 

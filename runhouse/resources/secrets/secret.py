@@ -147,13 +147,16 @@ class Secret(Resource):
     @classmethod
     def vault_secrets(cls, headers: Optional[Dict] = None) -> List[str]:
         """Get secret names that are stored in Vault"""
+        uri = f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}"
         resp = rns_client.session.get(
-            f"{rns_client.api_server_url}/{cls.USER_ENDPOINT}",
+            uri,
             headers=headers or rns_client.request_headers(),
         )
 
         if resp.status_code not in [200, 404]:
-            raise Exception("Failed to download secrets from Vault")
+            raise Exception(
+                f"Received [{resp.status_code}] from Den GET '{uri}': Failed to download secrets from Vault."
+            )
 
         response = read_resp_data(resp)
         return list(response.keys())
@@ -242,8 +245,9 @@ class Secret(Resource):
         if self.rns_address.startswith("/"):
             logger.info(f"Saving config for {self.name} to Den")
             payload = rns_client.resource_request_payload(config)
+            uri = f"{rns_client.api_server_url}/resource"
             resp = rns_client.session.post(
-                f"{rns_client.api_server_url}/resource",
+                uri,
                 data=json.dumps(payload),
                 headers=headers,
             )
@@ -251,21 +255,24 @@ class Secret(Resource):
             # If resource config hasn't changed (i.e. nothing to update) will return a 422
             if resp.status_code not in [200, 422]:
                 raise Exception(
-                    f"Failed to save metadata to Den: {load_resp_content(resp)}"
+                    f"Received [{resp.status_code}] from Den POST '{uri}': Failed to save metadata to Den: {load_resp_content(resp)}"
                 )
 
             if save_values:
                 logger.info(f"Saving secrets for {self.name} to Vault")
                 resource_uri = rns_client.resource_uri(self.rns_address)
+                uri = f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}"
                 resp = rns_client.session.put(
-                    f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}",
+                    uri,
                     data=json.dumps(
                         {"name": self.rns_address, "data": {"values": self.values}}
                     ),
                     headers=headers,
                 )
                 if resp.status_code != 200:
-                    raise Exception("Failed to upload secrets in Vault")
+                    raise Exception(
+                        f"Received [{resp.status_code}] from Den PUT '{uri}': Failed to put resources in Vault: {load_resp_content(resp)}"
+                    )
 
         else:
             config_path = os.path.expanduser(f"~/.rh/secrets/{self.name}.json")
@@ -307,13 +314,14 @@ class Secret(Resource):
         _delete_vault_secrets(resource_uri, self.USER_ENDPOINT, headers=headers)
 
         # Delete RNS data for resource
+        uri = f"{rns_client.api_server_url}/resource/{resource_uri}"
         resp = rns_client.session.delete(
-            f"{rns_client.api_server_url}/resource/{resource_uri}",
+            uri,
             headers=headers,
         )
         if resp.status_code != 200:
             logger.error(
-                f"Failed to delete secret resource from Den: {load_resp_content(resp)}"
+                f"Received [{resp.status_code}] from Den DELETE '{uri}': Failed to delete secret resource from Den: {load_resp_content(resp)}"
             )
 
     def to(
