@@ -258,7 +258,8 @@ class Module(Resource):
                 self._dumb_signature_cache = self._compute_signature(rich=False)
             return self._dumb_signature_cache
 
-        return self._compute_signature(rich=True)
+        self._signature = self._compute_signature(rich=True)
+        return self._signature
 
     def method_signature(self, method):
         """Extracts the properties of a method that we want to preserve when sending the method over the wire."""
