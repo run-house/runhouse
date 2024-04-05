@@ -1176,8 +1176,8 @@ class Cluster(Resource):
     def _run_commands_with_ssh(
         self,
         commands: list,
-        cmd_prefix: str,
-        stream_logs: bool,
+        cmd_prefix: str = "",
+        stream_logs: bool = True,
         node: str = None,
         port_forward: int = None,
         require_outputs: bool = True,
