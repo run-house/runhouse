@@ -139,27 +139,8 @@ class CondaEnv(Env):
 
         self._create_conda_env(force=force, cluster=cluster)
 
-        if self.reqs:
-            for package in self.reqs:
-                if isinstance(package, str):
-                    pkg = Package.from_string(package)
-                    if pkg.install_method == "reqs" and cluster:
-                        pkg = pkg.to(cluster)
-                elif hasattr(package, "_install"):
-                    pkg = package
-                else:
-                    raise ValueError(f"package {package} not recognized")
-
-                logger.debug(f"Installing package: {str(pkg)}")
-                if not cluster:
-                    pkg._install(self)
-                else:
-                    install_cmd = f"{self._run_cmd} {pkg._install_cmd(cluster=cluster)}"
-                    run_setup_command(install_cmd, cluster=cluster)
-
-        if self.setup_cmds:
-            setup_cmds = f"{self._run_cmd} {self.setup_cmds.join(' && ')}"
-            run_setup_command(setup_cmds, cluster=cluster)
+        self._install_reqs(cluster=cluster)
+        self._run_setup_cmds(cluster=cluster)
 
         return
 

@@ -137,6 +137,29 @@ class Env(Resource):
                 new_secrets.append(secret.to(system=system, env=self))
         return new_secrets
 
+    def _install_reqs(self, cluster: Cluster = None):
+        if self.reqs:
+            for package in self.reqs:
+                if isinstance(package, str):
+                    pkg = Package.from_string(package)
+                    if pkg.install_method in ["reqs", "local"] and cluster:
+                        pkg = pkg.to(cluster)
+                elif hasattr(package, "_install"):
+                    pkg = package
+                else:
+                    raise ValueError(f"package {package} not recognized")
+
+                logger.debug(f"Installing package: {str(pkg)}")
+                pkg._install(env=self, cluster=cluster)
+
+    def _run_setup_cmds(self, cluster: Cluster = None):
+        if not self.setup_cmds:
+            return
+
+        for cmd in self.setup_cmds:
+            cmd = f"{self._run_cmd} {cmd}" if self._run_cmd else cmd
+            run_setup_command(cmd, cluster=cluster)
+
     def install(self, force: bool = False, cluster: Cluster = None):
         """Locally install packages and run setup commands."""
         # Hash the config_for_rns to check if we need to install
@@ -150,23 +173,8 @@ class Env(Resource):
             return
         obj_store.installed_envs[install_hash] = self.name
 
-        for package in self.reqs:
-            if isinstance(package, str):
-                pkg = Package.from_string(package)
-                if cluster and pkg.install_method == "reqs":
-                    pkg = pkg.to(cluster)
-            elif hasattr(package, "_install"):
-                pkg = package
-            else:
-                raise ValueError(f"package {package} not recognized")
-
-            logger.debug(f"Installing package: {str(pkg)}")
-            pkg._install(self, cluster=cluster)
-
-        if self.setup_cmds:
-            for cmd in self.setup_cmds:
-                cmd = f"{self._run_cmd} {cmd}" if self._run_cmd else cmd
-                run_setup_command(cmd, cluster=cluster)
+        self._install_reqs(cluster=cluster)
+        self._run_setup_cmds(cluster=cluster)
 
     def _run_command(self, command: str, **kwargs):
         """Run command locally inside the environment"""

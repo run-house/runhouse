@@ -45,7 +45,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         ]
     }
     LOCAL = {
-        "env": ["named_env", "base_env"],  # ["base_env", "named_env"],
+        "env": ["base_env", "named_env"],
         "cluster": [
             "docker_cluster_pk_ssh_no_auth",
         ]
@@ -161,7 +161,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     def test_addtl_env_reqs(self, env, cluster):
         package = "jedi"
-        env.reqs = env._reqs + [package]
+        env.reqs = env.reqs + [package] if env.reqs else [package]
         env.to(cluster, force_install=True)
 
         res = cluster.run([f"pip freeze | grep {package}"], env=env)
@@ -173,7 +173,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     def test_fn_to_env(self, env, cluster):
         package = "numpy"
-        env.reqs = env._reqs + [package]
+        env.reqs = env.reqs + [package] or [package]
         fn = rh.function(np_summer).to(system=cluster, env=env, force_install=True)
         assert fn(1, 4) == 5
 

@@ -85,26 +85,40 @@ class Package(Resource):
             #  isn't finding the package right after its installed.
             # if (Path(local_path) / 'setup.py').exists():
             #     install_cmd = f'-e {local_path}' + install_args
-            path = (
-                self.install_target.local_path
-                if self.install_target.is_local()
-                else self.install_target.path
-            )
             if self.install_method in ["pip", "conda"]:
                 install_cmd = f"{path}" + install_args
             elif self.install_method == "reqs":
-                reqs_path = f"{path}/requirements.txt"
+                if not cluster:
+                    path = self.install_target.local_path
+                    reqs_path = f"{path}/requirements.txt"
 
-                if (not cluster and Path(reqs_path).expanduser().exists()) or (
-                    cluster and self.install_target.exists_in_system()
-                ):
-                    install_cmd = self._requirements_txt_install_cmd(
-                        path=reqs_path,
-                        cuda_version_or_cpu=cuda_version_or_cpu,
-                        args=install_args,
-                    )
+                    if not Path(reqs_path).expanduser().exists():
+                        return None
+
+                    with open(reqs_path) as f:
+                        reqs = f.readlines()
                 else:
-                    return None
+                    if not self.install_target.system == cluster:
+                        install_target = self.to(cluster).install_target
+                    else:
+                        install_target = self.install_target
+                    if not install_target.exists_in_system():
+                        return None
+
+                    reqs = (
+                        install_target.get("requirements.txt", mode="r")
+                        .strip("\n")
+                        .split("\n")
+                    )
+                    reqs_path = f"{install_target.path}/requirements.txt"
+
+                install_cmd = self._requirements_txt_install_cmd(
+                    path=reqs_path,
+                    reqs=reqs,
+                    cuda_version_or_cpu=cuda_version_or_cpu,
+                    args=install_args,
+                    cluster=cluster,
+                )
         else:
             install_cmd = self.install_target + install_args
 
@@ -123,13 +137,11 @@ class Package(Resource):
         Args:
             env (Env or str): Environment to install package on. If left empty, defaults to base environment.
                 (Default: ``None``)
+            cluster (Optional[Cluster]): If provided, will install package on cluster using SSH.
         """
 
         logging.info(f"Installing {str(self)} with method {self.install_method}.")
-        install_cmd = self._install_cmd()
-
-        if self.install_method == "local":
-            raise Exception(self.name)
+        install_cmd = self._install_cmd(cluster=cluster)
 
         if self.install_method == "pip":
             self._pip_install(install_cmd, env, cluster=cluster)
@@ -137,11 +149,12 @@ class Package(Resource):
             self._conda_install(install_cmd, env, cluster=cluster)
         elif self.install_method in ["reqs", "local"]:
             if isinstance(self.install_target, Folder):
-                path = (
-                    self.install_target.local_path
-                    if self.install_target.is_local()
-                    else self.install_target.path
-                )
+                if not cluster:
+                    path = self.install_target.local_path
+                elif self.install_target.exists_in_system():
+                    path = self.install_target.path
+                else:
+                    path = self.to(cluster).install_target.path
 
                 if self.install_method == "reqs" and install_cmd:
                     logging.info(
@@ -164,7 +177,6 @@ class Package(Resource):
                     f"install_target must be a Folder or a path to a directory for "
                     f"install_method {self.install_method}"
                 )
-
         # elif self.install_method == 'unpickle':
         #     # unpickle the functions and make them importable
         #     with self.get('functions.pickle') as f:
@@ -177,12 +189,11 @@ class Package(Resource):
     # ----------------------------------
     # Torch Install Helpers
     # ----------------------------------
-    def _requirements_txt_install_cmd(self, path, cuda_version_or_cpu="", args=""):
+    def _requirements_txt_install_cmd(
+        self, path, reqs, cuda_version_or_cpu="", args="", cluster=None
+    ):
         """Read requirements from file, append --index-url and --extra-index-url where relevant for torch packages,
         and return list of formatted packages."""
-        with open(path) as f:
-            reqs = f.readlines()
-
         # if torch extra index url is already defined by the user or torch isn't a req, directly pip install reqs file
         if not [req for req in reqs if "torch" in req]:
             return f"-r {path}" + args
