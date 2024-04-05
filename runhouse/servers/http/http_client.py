@@ -494,7 +494,9 @@ class HTTPClient:
         return res
 
     def set_cluster_name(self, name: str):
-        return self.set_settings({"cluster_name": name})
+        resp = self.set_settings({"cluster_name": name})
+        self.resource_address = name
+        return resp
 
     def delete(self, keys=None, env=None):
         return self.request_json(
