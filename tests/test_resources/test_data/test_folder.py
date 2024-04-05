@@ -89,7 +89,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         "dest": _all_folder_fixtures,
     }
 
-    @pytest.mark.level("unit")
+    @pytest.mark.level("minimal")
     def test_send_folder_to_dest(self, folder, dest):
         _check_skip_test(folder, dest)
 
