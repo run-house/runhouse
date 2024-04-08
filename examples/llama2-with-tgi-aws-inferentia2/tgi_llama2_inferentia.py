@@ -174,8 +174,10 @@ class TGIInference(rh.Module):
 # use the AWS CLI command on the page above under "Query AMI-ID with AWSCLI."
 # Learn more about clusters in the [Runhouse docs](/docs/tutorials/api-clusters).
 #
-# NOTE: Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
+# :::note{.info title="Note"}
+# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
 # the script code will run when Runhouse attempts to run code remotely.
+# :::
 if __name__ == "__main__":
     port = 8080
     cluster = rh.cluster(

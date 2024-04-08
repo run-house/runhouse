@@ -85,8 +85,10 @@ class HFChatModel(rh.Module):
 #
 # Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
 #
-# NOTE: Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
+# :::note{.info title="Note"}
+# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
 # the script code will run when Runhouse attempts to run code remotely.
+# :::
 if __name__ == "__main__":
     gpu = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws")
 
