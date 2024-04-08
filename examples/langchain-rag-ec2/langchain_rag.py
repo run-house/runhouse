@@ -109,8 +109,10 @@ class LangchainRAG:
 #
 # Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
 #
-# NOTE: Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
+# :::note{.info title="Note"}
+# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
 # the script code will run when Runhouse attempts to run code remotely.
+# :::
 if __name__ == "__main__":
     # Note: Runhouse also supports custom domains secured automatically with HTTPS so you can use your own domain name
     # when sharing an endpoint. Check out our docs on [using custom domains](https://www.run.house/docs/main/en/api/python/cluster#using-a-custom-domain)
