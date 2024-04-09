@@ -17,7 +17,7 @@ import runhouse as rh
 
 import runhouse.rns.login
 
-from runhouse import __version__, cluster, Cluster, configs
+from runhouse import __version__, cluster, configs
 from runhouse.constants import (
     RAY_KILL_CMD,
     RAY_START_CMD,
@@ -27,7 +27,7 @@ from runhouse.constants import (
     START_NOHUP_CMD,
     START_SCREEN_CMD,
 )
-from runhouse.globals import obj_store, rns_client
+from runhouse.globals import obj_store
 from runhouse.resources.hardware.ray_utils import (
     check_for_existing_ray_instance,
     kill_actors,
@@ -91,7 +91,8 @@ def notebook(
         c.up_if_not()
     if not c.is_up():
         console.print(
-            f"Cluster {cluster_name} is not up. Please run `runhouse notebook {cluster_name} --up`."
+            f"Cluster {cluster_name} is not up. Please run `runhouse notebook {cluster_name} --up` to bring "
+            f"it up if it is an on-demand cluster."
         )
         raise typer.Exit(1)
     c.notebook()
@@ -111,8 +112,15 @@ def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluste
 
     if not c.is_shared:
         if up:
-            c.up_if_not()
-        if not c.is_up():
+            try:
+                c.up_if_not()
+            except NotImplementedError:
+                console.print(
+                    f"Cluster {cluster_name} is not an on-demand cluster, so it can't be brought up automatically."
+                    f"Please start it manually and re-save the cluster with the new connection info in Python."
+                )
+                raise typer.Exit(1)
+        elif not c.is_up():
             console.print(
                 f"Cluster {cluster_name} is not up. Please run `runhouse ssh {cluster_name} --up`."
             )
@@ -204,31 +212,35 @@ def status(
     )
 ):
     """Load the status of the Runhouse daemon running on a cluster."""
-    cluster_or_local = rh.here
-    if cluster_or_local != "file":
+
+    if cluster_name:
+        current_cluster = cluster(name=cluster_name)
+        if not current_cluster.is_up():
+            console.print(
+                f"Cluster {cluster_name} is not up. If it's an on-demand cluster, you can run "
+                f"`runhouse ssh --up {cluster_name}` to bring it up automatically."
+            )
+            raise typer.Exit(1)
+        try:
+            current_cluster.check_server(restart_server=False)
+        except requests.exceptions.ConnectionError:
+            console.print(
+                f"Could not connect to the server on cluster {cluster_name}. Check that the server is up with "
+                f"`runhouse ssh {cluster_name}` or `sky status -r` for on-demand clusters."
+            )
+            raise typer.Exit(1)
+        cluster_status = current_cluster.status()
+    else:
+        current_cluster = rh.here
+        if not current_cluster or current_cluster == "file":
+            console.print(
+                "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}. "
+                "Start it with `runhouse restart` or specify a remote "
+                "cluster to poll with `runhouse status <cluster_name>`."
+            )
+            raise typer.Exit(1)
         # If we are on the cluster load status directly from the object store
         cluster_status: dict = obj_store.status()
-        return _print_status(cluster_status)
-
-    if cluster_name is None:
-        # If running outside the cluster must specify a cluster name
-        console.print("Missing argument `cluster_name`.")
-        return
-
-    try:
-        cluster_config: dict = rns_client.load_config(name=cluster_name)
-        current_cluster: Cluster = Cluster.from_config(cluster_config)
-        cluster_status: dict = current_cluster.status(
-            resource_address=current_cluster.rns_address
-        )
-    except ValueError:
-        console.print("Failed to load status for cluster.")
-        return
-    except requests.exceptions.ConnectionError:
-        console.print(
-            "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}"
-        )
-        return
 
     return _print_status(cluster_status)
 

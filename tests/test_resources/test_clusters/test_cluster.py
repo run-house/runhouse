@@ -60,6 +60,10 @@ def cluster_keys(cluster):
     return cluster.keys()
 
 
+def cluster_config():
+    return rh.here.config()
+
+
 class TestCluster(tests.test_resources.test_resource.TestResource):
     MAP_FIXTURES = {"resource": "cluster"}
 
@@ -246,20 +250,30 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     def test_rh_status_cli_in_cluster(self, cluster):
         cluster.put(key="status_key2", obj="status_value2", env="base_env")
-        res = cluster.run(["runhouse status"])[0][1]
-        assert "😈 Runhouse Daemon is running 🏃" in res
-        assert f"server_port: {cluster.server_port}" in res
-        assert f"server_connection_type: {cluster.server_connection_type}" in res
-        assert f"den_auth: {str(cluster.den_auth)}" in res
-        assert f"resource_type: {cluster.RESOURCE_TYPE.lower()}" in res
-        assert f"ips: {str(cluster.ips)}" in res
-        assert "Serving 🍦 :" in res
-        assert (
-            "base_env (runhouse.resources.envs.env.Env):" in res
-            or "base_env (Env):" in res
+        status_output_string = cluster.run(
+            ["runhouse status"], _ssh_mode="non_interactive"
+        )[0][1]
+        # The string that's returned is utf-8 with the literal escape characters mixed in.
+        # We need to convert the escape characters to their actual values to compare the strings.
+        status_output_string = status_output_string.encode("utf-8").decode(
+            "unicode_escape"
         )
-        assert "status_key2 (str)" in res
-        assert "creds" not in res
+        assert "Runhouse Daemon is running" in status_output_string
+        assert f"server_port: {cluster.server_port}" in status_output_string
+        assert (
+            f"server_connection_type: {cluster.server_connection_type}"
+            in status_output_string
+        )
+        assert f"den_auth: {str(cluster.den_auth)}" in status_output_string
+        assert f"resource_type: {cluster.RESOURCE_TYPE.lower()}" in status_output_string
+        assert f"ips: {str(cluster.ips)}" in status_output_string
+        assert "Serving " in status_output_string
+        assert (
+            "base_env (runhouse.resources.envs.env.Env):" in status_output_string
+            or "base_env (Env):" in status_output_string
+        )
+        assert "status_key2 (str)" in status_output_string
+        assert "creds" not in status_output_string
 
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")
@@ -302,28 +316,24 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_condensed_config_for_cluster(self, cluster):
-        import ast
-
-        return_codes = cluster.run_python(
-            ["import runhouse as rh", "print(rh.here)"], stream_logs=False
-        )
-        assert return_codes[0][0] == 0
-
-        on_cluster_config = ast.literal_eval(return_codes[0][1])
-        cluster_config = cluster.config()
+        remote_cluster_config = rh.function(cluster_config).to(cluster)
+        on_cluster_config = remote_cluster_config()
+        local_cluster_config = cluster.config()
 
         keys_to_skip = ["creds", "client_port", "server_host"]
         on_cluster_config = remove_config_keys(on_cluster_config, keys_to_skip)
-        cluster_config = remove_config_keys(cluster_config, keys_to_skip)
+        local_cluster_config = remove_config_keys(local_cluster_config, keys_to_skip)
 
-        if cluster_config.get("stable_internal_external_ips", False):
-            cluster_ips = cluster_config.pop("stable_internal_external_ips", None)[0]
+        if local_cluster_config.get("stable_internal_external_ips", False):
+            cluster_ips = local_cluster_config.pop(
+                "stable_internal_external_ips", None
+            )[0]
             on_cluster_ips = on_cluster_config.pop(
                 "stable_internal_external_ips", None
             )[0]
             assert tuple(cluster_ips) == tuple(on_cluster_ips)
 
-        assert on_cluster_config == cluster_config
+        assert on_cluster_config == local_cluster_config
 
     @pytest.mark.level("local")
     def test_sharing(self, cluster, friend_account_logged_in_docker_cluster_pk_ssh):

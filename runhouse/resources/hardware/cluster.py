@@ -294,15 +294,13 @@ class Cluster(Resource):
         if not self.is_up():
             # Don't store stale IPs
             self.ips = None
-            if not hasattr(self, "up"):
-                raise NotImplementedError(
-                    f"Cluster <{self.name}> does not have an up method."
-                )
             self.up()
         return self
 
     def up(self):
-        return self
+        raise NotImplementedError(
+            f"Cluster <{self.name}> does not have an up method. It must be brought up manually."
+        )
 
     def keep_warm(self):
         logger.info(
@@ -664,7 +662,7 @@ class Cluster(Resource):
             )
             self.run(
                 commands=[
-                    f"ray start --address={self.address}:{ray_port}",
+                    f"ray start --address={self.address}:{ray_port} --disable-usage-stats",
                 ],
                 node=host,
             )
@@ -956,7 +954,11 @@ class Cluster(Resource):
         )
         if not pwd:
             if up:
-                runner.run(["mkdir", "-p", dest], stream_logs=False)
+                runner.run(
+                    ["mkdir", "-p", dest],
+                    stream_logs=False,
+                    ssh_mode=SshMode.INTERACTIVE,
+                )
             else:
                 Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
@@ -1069,6 +1071,7 @@ class Cluster(Resource):
         require_outputs: bool = True,
         node: Optional[str] = None,
         run_name: Optional[str] = None,
+        _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
     ) -> list:
         """Run a list of shell commands on the cluster. If `run_name` is provided, the commands will be
         sent over to the cluster before being executed and a Run object will be created.
@@ -1090,6 +1093,7 @@ class Cluster(Resource):
                     require_outputs=require_outputs,
                     node=node,
                     run_name=run_name,
+                    _ssh_mode=_ssh_mode,
                 )
                 res_list.append(res)
             return res_list
@@ -1142,6 +1146,7 @@ class Cluster(Resource):
                 node,
                 port_forward,
                 require_outputs,
+                _ssh_mode=_ssh_mode,
             )
 
         # Create and save the Run locally
@@ -1170,6 +1175,7 @@ class Cluster(Resource):
         node: str = None,
         port_forward: int = None,
         require_outputs: bool = True,
+        _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
     ):
         from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
 
@@ -1195,11 +1201,23 @@ class Cluster(Resource):
             for command in commands:
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
                 logger.info(f"Running command on {self.name}: {command}")
+                ssh_mode = (
+                    SshMode.INTERACTIVE
+                    if _ssh_mode == "interactive"
+                    else SshMode.NON_INTERACTIVE
+                    if _ssh_mode == "non_interactive"
+                    else SshMode.LOGIN
+                    if _ssh_mode == "login"
+                    else None
+                )
+                if not ssh_mode:
+                    raise ValueError(f"Invalid SSH mode: {_ssh_mode}.")
                 ret_code = runner.run(
                     command,
                     require_outputs=require_outputs,
                     stream_logs=stream_logs,
                     port_forward=port_forward,
+                    ssh_mode=ssh_mode,
                 )
                 return_codes.append(ret_code)
         else:
