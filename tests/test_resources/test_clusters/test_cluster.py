@@ -137,6 +137,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_cluster_recreate(self, cluster):
+        # Create underlying ssh connection if not already
+        cluster.run(["echo hello"])
         num_open_tunnels = len(rh.globals.sky_ssh_runner_cache)
 
         # Create a new cluster object for the same remote cluster

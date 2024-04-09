@@ -349,6 +349,7 @@ class Secret(Resource):
         if system.on_this_cluster():
             new_secret.pin()
         else:
+            env = env or system.default_env
             system.put_resource(new_secret, env=env)
 
         return new_secret
