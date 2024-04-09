@@ -7,6 +7,8 @@ from pathlib import Path
 from random import randrange
 from typing import Any, Dict, Optional, Union
 
+import httpx
+
 import requests
 
 from runhouse.globals import rns_client
@@ -84,6 +86,8 @@ class HTTPClient:
             # Only verify with the specific cert path if the cert itself is self-signed, otherwise we use the default
             # setting of "True", which will verify the cluster's SSL certs
             self.verify = self.cert_path if self._certs_are_self_signed() else True
+
+        self.async_session = httpx.AsyncClient(auth=self.auth, verify=self.verify)
 
         self.log_formatter = ClusterLogsFormatter(self.system)
 
@@ -342,6 +346,7 @@ class HTTPClient:
             auth=self.auth,
             verify=self.verify,
         )
+
         if res.status_code != 200:
             raise ValueError(
                 f"Error calling {method_name} on server: {res.content.decode()}"
@@ -406,6 +411,125 @@ class HTTPClient:
             log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
         logging.info(log_str)
         return result
+
+    async def acall(
+        self,
+        key: str,
+        method_name: str,
+        data: Any = None,
+        serialization: Optional[str] = None,
+        resource_address=None,
+        run_name: Optional[str] = None,
+        stream_logs: bool = True,
+        remote: bool = False,
+        run_async=False,
+        save=False,
+    ):
+        """wrapper to temporarily support cluster's call signature"""
+        return await self.acall_module_method(
+            key,
+            method_name,
+            data=data,
+            serialization=serialization,
+            resource_address=resource_address or self.resource_address,
+            run_name=run_name,
+            stream_logs=stream_logs,
+            remote=remote,
+            run_async=run_async,
+            save=save,
+            system=self.system,
+        )
+
+    async def acall_module_method(
+        self,
+        key: str,
+        method_name: str,
+        data: Any = None,
+        serialization: Optional[str] = None,
+        resource_address=None,
+        run_name: Optional[str] = None,
+        stream_logs: bool = True,
+        remote: bool = False,
+        run_async=False,
+        save=False,
+        system=None,
+    ):
+        """
+        Client function to call the rpc for call_module_method
+        """
+        # Measure the time it takes to send the message
+        start = time.time()
+        logger.info(
+            f"{'Calling' if method_name else 'Getting'} {key}"
+            + (f".{method_name}" if method_name else "")
+        )
+        serialization = serialization or "pickle"
+        async with self.async_session.stream(
+            "POST",
+            self._formatted_url(f"{key}/{method_name}"),
+            json=CallParams(
+                data=serialize_data(data, serialization),
+                serialization=serialization,
+                run_name=run_name,
+                stream_logs=stream_logs,
+                save=save,
+                remote=remote,
+                run_async=run_async,
+            ).dict(),
+            headers=rns_client.request_headers(resource_address),
+        ) as res:
+            if res.status_code != 200:
+                raise ValueError(
+                    f"Error calling {method_name} on server: {res.content.decode()}"
+                )
+            error_str = f"Error calling {method_name} on {key} on server"
+
+            # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
+            # maybe a stream of results), so we need to separate these out.
+            result = None
+            async for response_json in res.aiter_lines():
+                resp = json.loads(response_json)
+                output_type = resp["output_type"]
+                result = handle_response(
+                    resp, output_type, error_str, log_formatter=self.log_formatter
+                )
+                # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
+                # slow, we can just set it explicitly.
+                from runhouse.resources.module import Module
+
+                if isinstance(result, Module):
+                    if (
+                        system
+                        and result.system
+                        and system.rns_address == result.system.rns_address
+                    ):
+                        result.system = system
+                elif output_type == OutputType.CONFIG:
+                    if (
+                        system
+                        and "system" in result
+                        and system.rns_address == result["system"]
+                    ):
+                        result["system"] = system
+                    result = Resource.from_config(result, dryrun=True)
+
+            end = time.time()
+
+            if (
+                hasattr(result, "system")
+                and system is not None
+                and result.system.rns_address == system.rns_address
+            ):
+                result.system = system
+
+            if method_name:
+                log_str = (
+                    f"Time to call {key}.{method_name}: {round(end - start, 2)} seconds"
+                )
+            else:
+                log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
+            logging.info(log_str)
+            return result
 
     def put_object(self, key: str, value: Any, env=None):
         return self.request_json(

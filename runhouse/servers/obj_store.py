@@ -1092,13 +1092,21 @@ class ObjStore:
 
         method_name = method_name or "__call__"
 
+        method_is_coroutine = False
         try:
             if isinstance(obj, Module):
                 # Force this to be fully local for Modules so we don't have any circular stuff calling into other
                 # envs or systems.
                 method = getattr(obj.local, method_name)
+                module_signature = obj.signature(rich=True)
+                method_is_coroutine = (
+                    method_name in module_signature
+                    and module_signature[method_name]["async"]
+                    and not module_signature[method_name]["gen"]
+                )
             else:
                 method = getattr(obj, method_name)
+                method_is_coroutine = inspect.iscoroutinefunction(method)
         except AttributeError:
             logger.debug(obj.__dict__)
             raise ValueError(f"Method {method_name} not found on module {obj}")
@@ -1121,6 +1129,16 @@ class ObjStore:
             )
 
             res = await self.arun_in_thread(method, *args, **kwargs)
+
+            # If this was a coroutine function (not a function returning a corotuine), we need to await it here,
+            # and not use the FutureModule
+
+            # Note that for async ops, we are using the single thread within our object store for the actual
+            # execution of the async function. This means if it is poorly written user code that is blocking,
+            # it will block the entire object store.
+            if method_is_coroutine:
+                res = await res
+
         else:
             if args and len(args) == 1:
                 # if there's an arg, this is a "set" call on the property
