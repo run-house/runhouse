@@ -75,7 +75,7 @@ class ProviderSecret(Secret):
         return config
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         """Create a ProviderSecret object from a config dictionary."""
         return ProviderSecret(**config, dryrun=dryrun)
 

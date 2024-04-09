@@ -23,7 +23,7 @@ class AzureSecret(ProviderSecret):
     _DEFAULT_ENV_VARS = {"subscription_id": "AZURE_SUBSCRIPTION_ID"}
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         return AzureSecret(**config, dryrun=dryrun)
 
     def _write_to_file(

@@ -121,10 +121,6 @@ class OnDemandCluster(Cluster):
             sky.autostop(self.name, mins, down=True)
             self._autostop_mins = mins
 
-    @staticmethod
-    def from_config(config: dict, dryrun=False):
-        return OnDemandCluster(**config, dryrun=dryrun)
-
     def config(self, condensed=True):
         config = super().config(condensed)
         self.save_attrs_to_config(

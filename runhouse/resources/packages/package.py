@@ -368,15 +368,19 @@ class Package(Resource):
         return new_package
 
     @staticmethod
-    def from_config(config: dict, dryrun=False):
+    def from_config(config: dict, dryrun=False, _resolve_children=True):
         if isinstance(config.get("install_target"), dict):
             config["install_target"] = Folder.from_config(
-                config["install_target"], dryrun=dryrun
+                config["install_target"],
+                dryrun=dryrun,
+                _resolve_children=_resolve_children,
             )
         if config.get("resource_subtype") == "GitPackage":
             from runhouse import GitPackage
 
-            return GitPackage.from_config(config, dryrun=dryrun)
+            return GitPackage.from_config(
+                config, dryrun=dryrun, _resolve_children=_resolve_children
+            )
         return Package(**config, dryrun=dryrun)
 
     @staticmethod

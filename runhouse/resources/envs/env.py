@@ -53,14 +53,18 @@ class Env(Resource):
         return self.name or "base"
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         """Create an Env object from a config dict"""
         config["reqs"] = [
-            Package.from_config(req, dryrun=True) if isinstance(req, dict) else req
+            Package.from_config(req, dryrun=True, _resolve_children=_resolve_children)
+            if isinstance(req, dict)
+            else req
             for req in config.get("reqs", [])
         ]
         config["working_dir"] = (
-            Package.from_config(config["working_dir"], dryrun=True)
+            Package.from_config(
+                config["working_dir"], dryrun=True, _resolve_children=_resolve_children
+            )
             if isinstance(config["working_dir"], dict)
             else config["working_dir"]
         )
