@@ -159,9 +159,10 @@ class Cluster(Resource):
             self._creds.save(folder=folder)
 
     @classmethod
-    def from_config(cls, config: dict, dryrun=False):
+    def from_config(cls, config: dict, dryrun=False, _resolve_children=True):
         resource_subtype = config.get("resource_subtype")
-        config = cls._check_for_child_configs(config)
+        if _resolve_children:
+            config = cls._check_for_child_configs(config)
 
         if resource_subtype == "Cluster":
             return Cluster(**config, dryrun=dryrun)

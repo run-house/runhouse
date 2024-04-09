@@ -51,10 +51,6 @@ class CondaEnv(Env):
             dryrun=dryrun,
         )
 
-    @staticmethod
-    def from_config(config: dict, dryrun: bool = True):
-        return CondaEnv(**config, dryrun=dryrun)
-
     def config(self, condensed=True):
         config = super().config(condensed)
         config.update({"conda_yaml": self.conda_yaml})

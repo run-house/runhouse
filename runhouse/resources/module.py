@@ -122,7 +122,7 @@ class Module(Resource):
         return config
 
     @classmethod
-    def from_config(cls, config: dict, dryrun=False):
+    def from_config(cls, config: dict, dryrun=False, _resolve_children=True):
         if config.get("pointers"):
             config.pop("resource_subtype", None)
             logger.debug(f"Constructing module from pointers {config['pointers']}")
@@ -177,7 +177,8 @@ class Module(Resource):
             # If this resource was put on a cluster with put_resource, the servlet will be populating the rest
             # of the class-specific attributes.
             new_module = module_cls.__new__(module_cls)
-            config = module_cls._check_for_child_configs(config)
+            if _resolve_children:
+                config = module_cls._check_for_child_configs(config)
             new_module.system = config.pop("system", None)
             new_module.env = config.pop("env", None)
             new_module.name = config.pop("name", None)

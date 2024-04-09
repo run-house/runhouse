@@ -12,5 +12,5 @@ class PineconeSecret(ApiKeySecret):
     _DEFAULT_ENV_VARS = {"api_key": "PINECONE_API_KEY"}
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         return PineconeSecret(**config, dryrun=dryrun)

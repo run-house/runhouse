@@ -129,7 +129,9 @@ class Folder(Resource):
 
             return AzureFolder.from_config(config, dryrun=dryrun)
         elif isinstance(config["system"], dict):
-            config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
+            config["system"] = Cluster.from_config(
+                config["system"], dryrun=dryrun, _resolve_children=_resolve_children
+            )
         return Folder(**config, dryrun=dryrun)
 
     @classmethod
