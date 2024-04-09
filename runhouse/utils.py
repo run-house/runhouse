@@ -2,6 +2,7 @@ import asyncio
 import contextvars
 import logging
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 
@@ -30,12 +31,21 @@ def run_with_logs(cmd: str, **kwargs) -> int:
         **kwargs
     )
 
+    out = ""
+    if stream_logs:
+        while True:
+            line = p.stdout.readline()
+            if line == "" and p.poll() is not None:
+                break
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            if require_outputs:
+                out += line
+
     stdout, stderr = p.communicate()
 
-    if stream_logs:
-        print(stdout)
-
     if require_outputs:
+        stdout = stdout or out
         return p.returncode, stdout, stderr
 
     return p.returncode
