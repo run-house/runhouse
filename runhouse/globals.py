@@ -1,3 +1,5 @@
+import atexit
+
 # Following design pattern for singleton variables from here:
 # https://docs.python.org/3/faq/programming.html#how-do-i-share-global-variables-across-modules
 import logging.config
@@ -16,6 +18,14 @@ logger = logging.getLogger(__name__)
 configs = Defaults()
 
 sky_ssh_runner_cache = {}
+
+
+def clean_up_ssh_connections():
+    for _, v in sky_ssh_runner_cache.items():
+        v.terminate()
+
+
+atexit.register(clean_up_ssh_connections)
 
 rns_client = RNSClient(configs=configs)
 

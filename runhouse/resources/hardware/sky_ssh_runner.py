@@ -68,8 +68,9 @@ class SkySSHRunner(SSHCommandRunner):
             docker_user,
             disable_control_master,
         )
-        self._tunnel_procs = []
+        self.tunnel_proc = None
         self.local_bind_port = local_bind_port
+        self.remote_bind_port = None
 
     def _ssh_base_command(
         self, *, ssh_mode: SshMode, port_forward: Optional[List[int]]
@@ -233,12 +234,19 @@ class SkySSHRunner(SSHCommandRunner):
         base_cmd = self._ssh_base_command(
             ssh_mode=SshMode.NON_INTERACTIVE, port_forward=[(local_port, remote_port)]
         )
-        command = " ".join(base_cmd + ["tail"])
-        logger.debug(f"Running command: {command}")
-        proc = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE)
+        command = " ".join(base_cmd)
+        logger.debug(f"Running forwarding command: {command}")
+        proc = subprocess.Popen(
+            shlex.split(command),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        # Wait for the ssh connection to start
+        time.sleep(1)
 
-        time.sleep(3)
-        self._tunnel_procs.append(proc)
+        # Set the tunnel process and ports to be cleaned up later
+        self.tunnel_proc = proc
         self.local_bind_port = local_port
         self.remote_bind_port = remote_port
 
@@ -247,13 +255,39 @@ class SkySSHRunner(SSHCommandRunner):
         return self.local_bind_port is not None and is_port_in_use(self.local_bind_port)
 
     def __del__(self):
-        for proc in self._tunnel_procs:
-            proc.kill()
+        self.terminate()
 
     def terminate(self):
-        for proc in self._tunnel_procs:
-            proc.terminate()
-        self._tunnel_procs = []
+        if self.tunnel_proc is not None:
+
+            # Process keeping tunnel alive can only be killed with EOF
+            self.tunnel_proc.stdin.close()
+            self.tunnel_proc.wait()
+
+            # Remove port forwarding
+            port_fwd_cmd = " ".join(
+                self._ssh_base_command(
+                    ssh_mode=SshMode.NON_INTERACTIVE,
+                    port_forward=[(self.local_bind_port, self.remote_bind_port)],
+                )
+            )
+            cancel_port_fwd = port_fwd_cmd.replace("-T", "-O cancel")
+            logger.debug(f"Running cancel command: {cancel_port_fwd}")
+            completed_cancel_cmd = subprocess.run(
+                shlex.split(cancel_port_fwd),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+            if completed_cancel_cmd.returncode != 0:
+                logger.warning(
+                    f"Failed to cancel port forwarding from {self.local_bind_port} to {self.remote_bind_port}. "
+                    f"Error: {completed_cancel_cmd.stderr}"
+                )
+
+            self.tunnel_proc = None
+            self.local_bind_port = None
+            self.remote_bind_port = None
 
     def rsync(
         self,
