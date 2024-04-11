@@ -83,5 +83,5 @@ class TestServlet:
             remote=False,
         )
         assert resp.output_type == "exception"
-        exception_data = deserialize_data(resp.data, "pickle")
-        assert isinstance(exception_data["error"], KeyError)
+        error = deserialize_data(resp.data["error"], "pickle")
+        assert isinstance(error, KeyError)

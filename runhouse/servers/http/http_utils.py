@@ -129,7 +129,7 @@ def serialize_data(data: Any, serialization: Optional[str]):
 
 
 def handle_exception_response(
-    exception: Exception, traceback, serialization="pickle", from_http_server=False
+    exception: Exception, traceback: str, serialization="pickle", from_http_server=False
 ):
     if not (
         isinstance(exception, RunhouseStopIteration)
@@ -168,13 +168,12 @@ def handle_exception_response(
         exception = StopIteration()
 
     exception_data = {
-        "error": exception,
+        "error": serialize_data(exception, serialization),
         "traceback": traceback,
     }
-
     return Response(
         output_type=OutputType.EXCEPTION,
-        data=serialize_data(exception_data, serialization),
+        data=exception_data,
         serialization=serialization,
     )
 
@@ -233,11 +232,30 @@ def handle_response(
     elif output_type == OutputType.SUCCESS:
         return
     elif output_type == OutputType.EXCEPTION:
-        exception_data = deserialize_data(
-            response_data["data"], response_data["serialization"]
-        )
-        fn_exception = exception_data["error"]
-        fn_traceback = exception_data["traceback"]
+        # Here for compatibility before we stopped serializing the traceback
+        if not isinstance(response_data["data"], dict):
+            exception_dict = deserialize_data(
+                response_data["data"], response_data["serialization"]
+            )
+            fn_exception = exception_dict["error"]
+            fn_traceback = exception_dict["traceback"]
+        else:
+            fn_traceback = response_data["data"]["traceback"]
+            fn_exception = None
+            try:
+                fn_exception = deserialize_data(
+                    response_data["data"]["error"], response_data["serialization"]
+                )
+            except RuntimeError as e:
+                if "RuntimeError: Failed to unpickle" in str(e):
+                    logger.error(
+                        f"{system_color}{err_str}: Failed to unpickle exception. Please check the logs for more "
+                        f"information.{reset_color}"
+                    )
+                    logger.error(
+                        f"{system_color}Traceback: {fn_traceback}{reset_color}"
+                    )
+                    raise e
         if not (
             isinstance(fn_exception, StopIteration)
             or isinstance(fn_exception, GeneratorExit)
