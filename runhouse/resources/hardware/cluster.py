@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
+from runhouse.utils import run_with_logs
 
 # Filter out DeprecationWarnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -1126,13 +1127,9 @@ class Cluster(Resource):
             for command in commands:
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
                 logger.info(f"Running command {location_str}: {command}")
-                ret_code = subprocess.run(
-                    command,
-                    shell=True,
-                    capture_output=not stream_logs,
-                    text=True,
-                    check=not require_outputs,
-                ).returncode
+                ret_code = run_with_logs(
+                    command, stream_logs=stream_logs, require_outputs=require_outputs
+                )
                 return_codes.append(ret_code)
             return return_codes
 
@@ -1197,7 +1194,7 @@ class Cluster(Resource):
         if not pwd:
             for command in commands:
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
-                logger.debug(f"Running command on {self.name}: {command}")
+                logger.info(f"Running command on {self.name}: {command}")
                 ret_code = runner.run(
                     command,
                     require_outputs=require_outputs,
@@ -1210,7 +1207,7 @@ class Cluster(Resource):
 
             for command in commands:
                 command = f"{cmd_prefix} {command}" if cmd_prefix else command
-                logger.debug(f"Running command on {self.name}: {command}")
+                logger.info(f"Running command on {self.name}: {command}")
                 # We need to quiet the SSH output here or it will print
                 # "Shared connection to ____ closed." at the end, which messes with the output.
                 ssh_command = runner.run(
