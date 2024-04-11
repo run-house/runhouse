@@ -51,16 +51,11 @@ send = function
 # Syntactic sugar
 fn = function
 
-_rh_here_stored = None
-
 
 def __getattr__(name):
-    global _rh_here_stored
     if name == "here":
         # If it's either the first time or the cluster was not initialized before, attempt to retrieve the cluster again
-        if _rh_here_stored is None or _rh_here_stored == "file":
-            _rh_here_stored = sync_function(get_local_cluster_object)()
-        return _rh_here_stored
+        return sync_function(get_local_cluster_object)()
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

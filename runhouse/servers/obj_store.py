@@ -41,7 +41,7 @@ class RunhouseStopIteration(Exception):
 
 
 class NoLocalObjStoreError(ObjStoreError):
-    def __init__(self):
+    def __init__(self, *args):
         super().__init__("No local object store exists; cannot perform operation.")
 
 
@@ -162,6 +162,11 @@ class ObjStore:
 
         # ClusterServlet essentially functions as a global state/metadata store
         # for all nodes connected to this Ray cluster.
+
+        # If the servlet name is already set, the obj_store has already been initialized
+        if self.servlet_name is not None:
+            return
+
         from runhouse.resources.hardware.ray_utils import kill_actors
 
         # Only if ray is not initialized do we attempt a setup process.
@@ -1465,7 +1470,7 @@ class ObjStore:
         else:
             resource.name = name
 
-        await self.aput(resource.name, resource)
+        await self.aput_local(resource.name, resource)
 
         # Return the name in case we had to set it
         return resource.name

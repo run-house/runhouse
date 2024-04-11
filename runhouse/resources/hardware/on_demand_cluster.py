@@ -317,7 +317,7 @@ class OnDemandCluster(Cluster):
             )
             self.run(
                 commands=[
-                    f"ray start --address={internal_head_ip}:{ray_port}",
+                    f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
                 ],
                 node=host,
             )

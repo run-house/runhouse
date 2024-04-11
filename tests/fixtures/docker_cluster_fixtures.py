@@ -167,7 +167,7 @@ def build_and_run_image(
         "".join([f"-p {port_fwd} " for port_fwd in port_fwds]).strip().split(" ")
     )
     run_cmd = (
-        ["docker", "run", "--name", container_name, "-d", "--rm", "--shm-size=4gb"]
+        ["docker", "run", "--name", container_name, "-d", "--rm", "--shm-size=5.04gb"]
         + port_fwds
         + [f"runhouse:{image_name}"]
     )

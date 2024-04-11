@@ -90,7 +90,8 @@ def login(
             download_config
             if download_config is not None
             else typer.confirm(
-                "Download your Runhouse config to your local .rh folder?"
+                "Download your Runhouse config to your local .rh folder?",
+                default=True,
             )
         )
         download_secrets = (
