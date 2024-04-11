@@ -271,12 +271,12 @@ class HTTPServer:
         except Exception as e:
             logger.exception(e)
             exception_data = {
-                "error": e,
+                "error": serialize_data(e, serialization),
                 "traceback": traceback.format_exc(),
             }
             return Response(
                 output_type=OutputType.EXCEPTION,
-                data=serialize_data(exception_data, serialization),
+                data=exception_data,
                 serialization=serialization,
             )
 
@@ -298,12 +298,12 @@ class HTTPServer:
         except Exception as e:
             logger.exception(e)
             exception_data = {
-                "error": e,
+                "error": serialize_data(e, serialization),
                 "traceback": traceback.format_exc(),
             }
             return Response(
                 output_type=OutputType.EXCEPTION,
-                data=serialize_data(exception_data, serialization),
+                data=exception_data,
                 serialization=serialization,
             )
 
@@ -472,12 +472,12 @@ class HTTPServer:
         except Exception as e:
             logger.exception(e)
             exception_data = {
-                "error": e,
+                "error": serialize_data(e, serialization),
                 "traceback": traceback.format_exc(),
             }
             return Response(
                 output_type=OutputType.EXCEPTION,
-                data=serialize_data(exception_data, serialization),
+                data=exception_data,
                 serialization=serialization,
             )
 
@@ -554,14 +554,14 @@ class HTTPServer:
             # working through an HTTP call stream_logs is False by default, so a normal HTTPException will be raised
             # above before entering this generator.
             exception_data = {
-                "error": e,
+                "error": serialize_data(e, serialization),
                 "traceback": traceback.format_exc(),
             }
             yield json.dumps(
                 jsonable_encoder(
                     Response(
                         output_type=OutputType.EXCEPTION,
-                        data=serialize_data(exception_data, serialization),
+                        data=exception_data,
                         serialization=serialization,
                     )
                 )
