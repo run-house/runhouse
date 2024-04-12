@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 from runhouse import globals
+from runhouse.resources.envs.utils import install_conda, run_setup_command
 from runhouse.resources.folders import Folder, folder
 from runhouse.resources.hardware.utils import _get_cluster_from
 from runhouse.resources.resource import Resource
-from runhouse.utils import install_conda, run_setup_command
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
 
@@ -78,7 +78,6 @@ class Package(Resource):
     def _install_cmd(self, cluster: "Cluster" = None):
         install_cmd = ""
         install_args = f" {self.install_args}" if self.install_args else ""
-        cuda_version_or_cpu = self._detect_cuda_version_or_cpu(cluster=cluster)
 
         if isinstance(self.install_target, Folder):
             # TODO [DG] Revisit for pip: Would be nice if we could use -e by default, but importlib on the rpc server
@@ -115,7 +114,6 @@ class Package(Resource):
                 install_cmd = self._requirements_txt_install_cmd(
                     path=reqs_path,
                     reqs=reqs,
-                    cuda_version_or_cpu=cuda_version_or_cpu,
                     args=install_args,
                     cluster=cluster,
                 )
@@ -123,7 +121,9 @@ class Package(Resource):
             install_cmd = self.install_target + install_args
 
         if self.install_method == "pip":
-            install_cmd = f"pip install {self._install_cmd_for_torch(install_cmd, cuda_version_or_cpu)}"
+            install_cmd = (
+                f"pip install {self._install_cmd_for_torch(install_cmd, cluster)}"
+            )
         elif self.install_method == "reqs":
             install_cmd = f"pip install {install_cmd}"
         elif self.install_method == "conda":
@@ -189,14 +189,14 @@ class Package(Resource):
     # ----------------------------------
     # Torch Install Helpers
     # ----------------------------------
-    def _requirements_txt_install_cmd(
-        self, path, reqs, cuda_version_or_cpu="", args="", cluster=None
-    ):
+    def _requirements_txt_install_cmd(self, path, reqs, args="", cluster=None):
         """Read requirements from file, append --index-url and --extra-index-url where relevant for torch packages,
         and return list of formatted packages."""
         # if torch extra index url is already defined by the user or torch isn't a req, directly pip install reqs file
         if not [req for req in reqs if "torch" in req]:
             return f"-r {path}" + args
+
+        cuda_version_or_cpu = self._detect_cuda_version_or_cpu(cluster=cluster)
         for req in reqs:
             if (
                 "--index-url" in req or "--extra-index-url" in req
@@ -208,7 +208,7 @@ class Package(Resource):
             f"-r {path} --extra-index-url {self._torch_index_url(cuda_version_or_cpu)}"
         )
 
-    def _install_cmd_for_torch(self, install_cmd, cuda_version_or_cpu):
+    def _install_cmd_for_torch(self, install_cmd, cluster=None):
         """Return the correct formatted pip install command for the torch package(s) provided."""
         if install_cmd.startswith("#"):
             return None
@@ -219,6 +219,7 @@ class Package(Resource):
 
         packages_to_install: list = self._packages_to_install_from_cmd(install_cmd)
         final_install_cmd = ""
+        cuda_version_or_cpu = self._detect_cuda_version_or_cpu(cluster=cluster)
         for package_install_cmd in packages_to_install:
             formatted_cmd = self._install_url_for_torch_package(
                 package_install_cmd, cuda_version_or_cpu
