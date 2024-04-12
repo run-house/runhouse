@@ -527,6 +527,15 @@ class StreamTee(object):
         for stream in self.outstreams:
             if message:
                 stream.write(message)
+                # We flush here to ensure that the logs are written to the file immediately
+                # see https://github.com/run-house/runhouse/pull/724
+                stream.flush()
+
+    def writelines(self, lines):
+        self.instream.writelines(lines)
+        for stream in self.outstreams:
+            stream.writelines(lines)
+            stream.flush()
 
     def flush(self):
         self.instream.flush()
