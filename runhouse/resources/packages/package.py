@@ -10,6 +10,7 @@ from runhouse.resources.envs.utils import install_conda, run_setup_command
 from runhouse.resources.folders import Folder, folder
 from runhouse.resources.hardware.utils import _get_cluster_from
 from runhouse.resources.resource import Resource
+from runhouse.utils import alive_bar_spinner_only, success_emoji
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
 
@@ -359,10 +360,17 @@ class Package(Resource):
                     # If we're on the target system, just make sure the package is in the Python path
                     sys.path.append(self.install_target.local_path)
                     return self
-            logger.info(
-                f"Copying package from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
-            )
-            new_folder = self.install_target._to_cluster(system, path=path, mount=mount)
+            with alive_bar_spinner_only(
+                title=f"Copying package from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
+            ) as bar:
+                new_folder = self.install_target._to_cluster(
+                    system, path=path, mount=mount
+                )
+                bar.title(
+                    success_emoji(
+                        f"Package copied to: {getattr(system, 'name', system)}"
+                    )
+                )
         else:  # to fs
             new_folder = self.install_target.to(system, path=path)
         new_folder.system = system

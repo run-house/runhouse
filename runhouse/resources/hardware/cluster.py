@@ -44,6 +44,7 @@ from runhouse.resources.hardware.utils import (
 from runhouse.resources.resource import Resource
 
 from runhouse.servers.http import HTTPClient
+from runhouse.utils import alive_bar_spinner_only, success_emoji
 
 logger = logging.getLogger(__name__)
 
@@ -651,9 +652,15 @@ class Cluster(Resource):
         if not self.client:
             try:
                 self.connect_server_client()
-                logger.debug(f"Checking server {self.name}")
-                self.client.check_server()
-                logger.info(f"Server {self.name} is up.")
+                with alive_bar_spinner_only(
+                    title=f"Checking Runhouse server on cluster {self.name} is up..."
+                ) as bar:
+                    self.client.check_server()
+                    bar.title(
+                        success_emoji(
+                            f"Confirmed Runhouse server on cluster {self.name} is up"
+                        )
+                    )
             except (
                 requests.exceptions.ConnectionError,
                 requests.exceptions.ReadTimeout,

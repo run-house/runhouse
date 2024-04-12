@@ -3,6 +3,9 @@ import contextvars
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 
+from alive_progress import alive_bar
+from rich.emoji import Emoji
+
 
 def _thread_coroutine(coroutine, context):
     # Copy contextvars from the parent thread to the new thread
@@ -44,3 +47,28 @@ def string_to_dict(dict_as_string):
     key = parts[0].strip()
     value = parts[1].strip()
     return key, value
+
+
+####################################################################################################
+# Styling utils
+####################################################################################################
+def success_emoji(text: str) -> str:
+    return f"{Emoji('white_check_mark')} {text}"
+
+
+def failure_emoji(text: str) -> str:
+    return f"{Emoji('cross_mark')} {text}"
+
+
+def alive_bar_spinner_only(*args, **kwargs):
+    return alive_bar(
+        bar=None,  # No actual bar
+        enrich_print=False,  # Print statements while the bar is running are unmodified
+        monitor=False,
+        stats=False,
+        monitor_end=True,
+        stats_end=False,
+        title_length=0,
+        *args,
+        **kwargs,
+    )
