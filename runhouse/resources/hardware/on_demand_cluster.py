@@ -113,6 +113,10 @@ class OnDemandCluster(Cluster):
         if self.on_this_cluster():
             raise ValueError("Cannot set autostop_mins live on the cluster.")
         else:
+            if self.run_python(["import skypilot"])[0] != 0:
+                raise ImportError(
+                    "Skypilot must be installed on the cluster in order to set autostop."
+                )
             self.client.set_settings({"autostop_mins": mins})
             sky.autostop(self.name, mins, down=True)
             self._autostop_mins = mins

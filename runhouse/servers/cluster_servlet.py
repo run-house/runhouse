@@ -30,7 +30,15 @@ class ClusterServlet:
         self._key_to_env_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache(cluster_config)
 
-        if self.cluster_config.get("resource_subtype", None) == "OnDemandCluster":
+        if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
+            if cluster_config.get("autostop_mins") > 0:
+                try:
+                    from sky.skylet import configs  # noqa
+                except ImportError:
+                    raise ImportError(
+                        "skypilot must be installed on the cluster environment to support cluster autostop. "
+                        "Install using cluster.run('pip install skypilot') or adding `skypilot` to the env requirements."
+                    )
             self._last_activity = time.time()
             self._last_register = None
             thread = threading.Thread(target=self.update_autostop, daemon=True)
