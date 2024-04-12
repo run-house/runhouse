@@ -143,9 +143,11 @@ class ObjStore:
         # TODO this had no effect when we did it below where we set CUDA_VISIBLE_DEVICES, so we may need to move that
         #  here and mirror the same behavior (setting it based on the detected gpus in the whole cluster may not work
         #  for multinode, but popping it may also break things, it needs to be tested).
-        num_threads = os.environ.pop("OMP_NUM_THREADS", None)
+        num_threads = os.environ.get("OMP_NUM_THREADS")
         if num_threads is not None and num_threads != "1":
             os.environ["OMP_NUM_THREADS"] = num_threads
+        else:
+            os.environ["OMP_NUM_THREADS"] = ""
 
     async def ainitialize(
         self,
