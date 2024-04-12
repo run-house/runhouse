@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 import runhouse as rh
@@ -6,7 +8,7 @@ import tests.test_resources.test_resource
 
 
 class TestPackage(tests.test_resources.test_resource.TestResource):
-    # TODO -- torch extra index url stuff, see original test_packages
+    # TODO: torch extra index url on cluster, s3 / file packages
 
     MAP_FIXTURES = {"resource": "package"}
 
@@ -51,6 +53,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
             "conda:numpy" "requirements.txt",
             "reqs:./",
             "local:./",
+            "pip:https://github.com/runhouse/runhouse.git",
         ],
     )
     def test_from_string(self, pkg_str):
@@ -126,3 +129,34 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     def test_git_install(self, cluster, git_package):
         git_package._install(cluster=cluster)
+
+    @pytest.mark.level("local")
+    def test_local_reqs_on_cluster(self, cluster, local_package):
+        remote_package = local_package.to(cluster)
+
+        assert isinstance(remote_package.install_target, rh.Folder)
+        assert remote_package.install_target.system == cluster
+
+    # --------- basic torch index-url testing ---------
+    @pytest.mark.level("unit")
+    def test_torch_pip_install_command(self):
+        pkg = rh.Package.from_string("torch")
+        assert (
+            pkg._install_cmd_for_torch("torch")
+            == f"torch --index-url {rh.Package.TORCH_INDEX_URLS.get('cpu')} --extra-index-url https://pypi.python.org/simple/"
+        )
+
+    @pytest.mark.level("unit")
+    def test_torch_reqs_install_command(self):
+        reqs_lines = ["torch", "accelerate"]
+        test_reqs_file = Path(__file__).parent / "requirements.txt"
+        with open(test_reqs_file, "w") as f:
+            f.writelines([line + "\n" for line in reqs_lines])
+
+        dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
+        assert (
+            dummy_pkg._requirements_txt_install_cmd(test_reqs_file, reqs_lines)
+            == f"-r {test_reqs_file} --extra-index-url {rh.Package.TORCH_INDEX_URLS.get('cpu')}"
+        )
+
+        test_reqs_file.unlink()
