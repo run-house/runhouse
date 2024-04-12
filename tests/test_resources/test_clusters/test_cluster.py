@@ -320,7 +320,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         on_cluster_config = remote_cluster_config()
         local_cluster_config = cluster.config()
 
-        keys_to_skip = ["creds", "client_port", "server_host"]
+        keys_to_skip = ["creds", "client_port", "server_host", "api_server_url"]
         on_cluster_config = remove_config_keys(on_cluster_config, keys_to_skip)
         local_cluster_config = remove_config_keys(local_cluster_config, keys_to_skip)
 

@@ -81,7 +81,6 @@ def validate_cluster_access(func):
                         "https://run.house/login to retrieve a token. If calling via HTTP, please "
                         "provide a valid token in the Authorization header.",
                     )
-
                 cluster_uri = (await obj_store.aget_cluster_config()).get("name")
                 cluster_access = await averify_cluster_access(cluster_uri, token)
                 if not cluster_access:
@@ -906,10 +905,18 @@ async def main():
         help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
     )
 
+    parser.add_argument(
+        "--api-server-url",
+        type=str,
+        default=rns_client.api_server_url,
+        help="URL of Runhouse Den",
+    )
+
     parse_args = parser.parse_args()
 
     conda_name = parse_args.conda_env
     restart_proxy = parse_args.restart_proxy
+    api_server_url = parse_args.api_server_url
 
     # The object store and the cluster servlet within it need to be
     # initialized in order to call `obj_store.get_cluster_config()`, which
@@ -935,6 +942,9 @@ async def main():
     # Handling args that could be specified in the
     # cluster_config.json or via CLI args
     ########################################
+
+    # Den URL
+    cluster_config["api_server_url"] = api_server_url
 
     # Server port
     if parse_args.port is not None and parse_args.port != cluster_config.get(

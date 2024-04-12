@@ -13,6 +13,7 @@ import runhouse as rh
 import yaml
 
 from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
+from runhouse.globals import rns_client
 
 from tests.conftest import init_args
 from tests.utils import friend_account
@@ -303,10 +304,16 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
     - Caddy set up on startup to forward Runhouse HTTP server to port 443
     - Telemetry enabled
     """
+    import os
 
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
+    api_server_url = request.config.getoption("--api-server-url")
+
+    if not api_server_url:
+        api_server_url = rns_client.api_server_url
+    os.environ["API_SERVER_URL"] = api_server_url
 
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 1
@@ -353,10 +360,16 @@ def docker_cluster_pk_ssh(request, test_rns_folder):
     - Nginx set up on startup to forward Runhouse HTTP server to port 443
     - Telemetry enabled
     """
+    import os
 
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
+    api_server_url = request.config.getoption("--api-server-url")
+
+    if not api_server_url:
+        api_server_url = rns_client.api_server_url
+    os.environ["API_SERVER_URL"] = api_server_url
 
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 2
@@ -437,10 +450,16 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
     - Caddy set up on startup to forward Runhouse HTTP Server to port 80
     - Telemetry enabled
     """
+    import os
 
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
+    api_server_url = request.config.getoption("--api-server-url")
+
+    if not api_server_url:
+        api_server_url = rns_client.api_server_url
+    os.environ["API_SERVER_URL"] = api_server_url
 
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 3
@@ -486,10 +505,16 @@ def docker_cluster_pwd_ssh_no_auth(request, test_rns_folder):
     - No Den Auth
     - No caddy/port forwarding set up
     """
+    import os
 
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
+    api_server_url = request.config.getoption("--api-server-url")
+
+    if not api_server_url:
+        api_server_url = rns_client.api_server_url
+    os.environ["API_SERVER_URL"] = api_server_url
 
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 4
@@ -527,10 +552,17 @@ def friend_account_logged_in_docker_cluster_pk_ssh(request, test_rns_folder):
     This fixture is not parameterized for every test; it is a separate cluster started with a test account
     (username: kitchen_tester) in order to test sharing resources with other users.
     """
+    import os
 
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
+    api_server_url = request.config.getoption("--api-server-url")
+
+    if not api_server_url:
+        api_server_url = rns_client.api_server_url
+    os.environ["API_SERVER_URL"] = api_server_url
+
     with friend_account():
         # Ports to use on the Docker VM such that they don't conflict
         local_ssh_port = BASE_LOCAL_SSH_PORT + 5

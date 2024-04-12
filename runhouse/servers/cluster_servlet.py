@@ -28,7 +28,7 @@ class ClusterServlet:
         )
         self._initialized_env_servlet_names: Set[str] = set()
         self._key_to_env_servlet_name: Dict[Any, str] = {}
-        self._auth_cache: AuthCache = AuthCache()
+        self._auth_cache: AuthCache = AuthCache(cluster_config)
 
         if self.cluster_config.get("resource_subtype", None) == "OnDemandCluster":
             self._last_activity = time.time()

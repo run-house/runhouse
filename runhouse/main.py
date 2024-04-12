@@ -296,6 +296,7 @@ def _start_server(
     domain=None,
     certs_address=None,
     use_local_telemetry=False,
+    api_server_url=None,
 ):
     ############################################
     # Build CLI commands to start the server
@@ -368,6 +369,13 @@ def _start_server(
     if use_local_telemetry_flag:
         logger.info("Configuring local telemetry on the cluster.")
         flags.append(use_local_telemetry_flag)
+
+    api_server_url_flag = (
+        f" --api-server-url {api_server_url}" if api_server_url else ""
+    )
+    if api_server_url_flag:
+        logger.info(f"Setting api_server url to {api_server_url}")
+        flags.append(api_server_url_flag)
 
     # Check if screen or nohup are available
     screen = screen and _check_if_command_exists("screen")
@@ -535,6 +543,10 @@ def restart(
         False,
         help="Whether to use local telemetry",
     ),
+    api_server_url: str = typer.Option(
+        default="https://api.run.house",
+        help="URL of Runhouse Den",
+    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
@@ -559,6 +571,7 @@ def restart(
         domain=domain,
         certs_address=certs_address,
         use_local_telemetry=use_local_telemetry,
+        api_server_url=api_server_url,
     )
 
 
