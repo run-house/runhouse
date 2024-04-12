@@ -2,9 +2,9 @@ import logging
 from pathlib import Path
 from typing import Union
 
-from runhouse.resources.folders import Folder, folder
+from runhouse.resources.envs.utils import run_setup_command
 
-from runhouse.utils import run_setup_command
+from runhouse.resources.folders import Folder, folder
 
 from .package import Package
 

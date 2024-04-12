@@ -5,12 +5,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.globals import obj_store
+
+from runhouse.resources.envs.utils import run_setup_command, run_with_logs
 from runhouse.resources.folders import Folder
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
-
-from runhouse.utils import run_setup_command, run_with_logs
 
 from .utils import _env_vars_from_file
 
