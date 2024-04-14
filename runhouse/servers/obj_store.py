@@ -45,7 +45,9 @@ class NoLocalObjStoreError(ObjStoreError):
         super().__init__("No local object store exists; cannot perform operation.")
 
 
-def get_cluster_servlet(create_if_not_exists: bool = False):
+def get_cluster_servlet(
+    create_if_not_exists: bool = False, runtime_env: Optional[Dict] = None
+):
     from runhouse.servers.cluster_servlet import ClusterServlet
 
     if not ray.is_initialized():
@@ -72,6 +74,7 @@ def get_cluster_servlet(create_if_not_exists: bool = False):
                 namespace="runhouse",
                 max_concurrency=1000,
                 resources={f"node:{current_ip}": 0.001},
+                runtime_env=runtime_env,
             )
             .remote()
         )
@@ -143,6 +146,7 @@ class ObjStore:
         setup_ray: RaySetupOption = RaySetupOption.GET_OR_FAIL,
         ray_address: str = "auto",
         setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
+        runtime_env: Optional[Dict] = None,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -186,7 +190,8 @@ class ObjStore:
             setup_cluster_servlet != ClusterServletSetupOption.GET_OR_FAIL
         )
         self.cluster_servlet = get_cluster_servlet(
-            create_if_not_exists=create_if_not_exists
+            create_if_not_exists=create_if_not_exists,
+            runtime_env=runtime_env,
         )
         if self.cluster_servlet is None:
             # TODO: logger.<method> is not printing correctly here when doing `runhouse start`.
@@ -194,8 +199,6 @@ class ObjStore:
             logging.warning(
                 "Warning, cluster servlet is not initialized. Object Store operations will not work."
             )
-
-        # TODO -- set the servlet name here to be the default env on the cluster
 
         # There are 3 operating modes of the KV store:
         # servlet_name is set, has_local_storage is True: This is an EnvServlet with a local KV store.
@@ -236,6 +239,7 @@ class ObjStore:
         setup_ray: RaySetupOption = RaySetupOption.GET_OR_FAIL,
         ray_address: str = "auto",
         setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
+        runtime_env: Optional[Dict] = None,
     ):
         return sync_function(self.ainitialize)(
             servlet_name,
@@ -243,6 +247,7 @@ class ObjStore:
             setup_ray,
             ray_address,
             setup_cluster_servlet,
+            runtime_env,
         )
 
     ##############################################
