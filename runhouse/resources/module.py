@@ -76,7 +76,7 @@ class Module(Resource):
                 self._env = (
                     self._system.default_env
                     if self._system
-                    else Env(name=Env.DEFAULT_NAME)
+                    else Env(name=Env.DEFAULT_NAME, working_dir="./")
                 )
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
@@ -428,7 +428,11 @@ class Module(Resource):
             _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
         )
         if not env:
-            if not self.env or (self.env and self.env.name == Env.DEFAULT_NAME):
+            if not self.env or (
+                self.env
+                and self.env.config()
+                == Env(name=Env.DEFAULT_NAME, working_dir="./").config()
+            ):
                 env = system.default_env if system else self.env
             else:
                 env = self.env

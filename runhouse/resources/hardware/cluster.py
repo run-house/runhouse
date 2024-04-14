@@ -118,9 +118,13 @@ class Cluster(Resource):
 
     @property
     def default_env(self):
-        from runhouse.resources.envs import env
+        from runhouse.resources.envs import Env
 
-        return self._default_env if self._default_env else env()
+        return (
+            self._default_env
+            if self._default_env
+            else Env(Env.DEFAULT_NAME, working_dir="./")
+        )
 
     @default_env.setter
     def default_env(self, env):
@@ -830,7 +834,12 @@ class Cluster(Resource):
             self._start_ray_workers(DEFAULT_RAY_PORT, env=self.default_env)
 
         if default_env:
+            from runhouse.resources.envs.utils import _process_env_vars
+
             self.put_resource(default_env)
+            env_vars = _process_env_vars(default_env.env_vars)
+            if env_vars:
+                self.call(default_env.name, "_set_env_vars", env_vars)
 
         return status_codes
 

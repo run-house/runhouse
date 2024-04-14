@@ -187,7 +187,16 @@ class ProviderSecret(Secret):
             )
 
         if env or self.env_vars:
-            env_key = env.name if isinstance(env, Env) else (env or "base_env")
+            env = (
+                system.default_env
+                if (
+                    not env
+                    or env.config()
+                    == Env(name=Env.DEFAULT_NAME, working_dir="./").config()
+                )
+                else env
+            )
+            env_key = env if isinstance(env, str) else env.name
             if not system.get(env_key):
                 env = env if isinstance(env, Env) else Env(name=env_key)
                 env_key = system.put_resource(env)

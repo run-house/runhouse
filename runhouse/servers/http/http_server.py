@@ -119,7 +119,7 @@ class HTTPServer:
         *args,
         **kwargs,
     ):
-        runtime_env = {"conda": conda_env} if conda_env else {}
+        runtime_env = {"conda": conda_env} if conda_env else None
 
         # If enable_local_span_collection flag is passed, setup the span exporter and related functionality
         if enable_local_span_collection:
@@ -185,7 +185,9 @@ class HTTPServer:
 
         if from_test:
             await obj_store.ainitialize(
-                default_env, setup_ray=RaySetupOption.TEST_PROCESS
+                default_env,
+                setup_ray=RaySetupOption.TEST_PROCESS,
+                runtime_env=runtime_env,
             )
 
         # TODO disabling due to latency, figure out what to do with this

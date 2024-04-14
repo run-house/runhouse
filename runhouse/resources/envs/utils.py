@@ -37,6 +37,13 @@ def _process_reqs(reqs):
     return preprocessed_reqs
 
 
+def _process_env_vars(env_vars):
+    processed_vars = (
+        _env_vars_from_file(env_vars) if isinstance(env_vars, str) else env_vars
+    )
+    return processed_vars
+
+
 def _get_env_from(env):
     if isinstance(env, Resource):
         return env

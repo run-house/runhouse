@@ -299,12 +299,9 @@ def _start_server(
     domain=None,
     certs_address=None,
     use_local_telemetry=False,
-<<<<<<< HEAD
     api_server_url=None,
-=======
     default_env=None,
     conda_env=None,
->>>>>>> adaa6415 (add default env)
 ):
     ############################################
     # Build CLI commands to start the server
