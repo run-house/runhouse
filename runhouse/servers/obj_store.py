@@ -273,7 +273,17 @@ class ObjStore:
         env_servlet = self.get_env_servlet(
             servlet_name, use_env_servlet_cache=use_env_servlet_cache
         )
-        return await ObjStore.acall_actor_method(env_servlet, method, *args, **kwargs)
+        try:
+            return await ObjStore.acall_actor_method(
+                env_servlet, method, *args, **kwargs
+            )
+        except (ray.exceptions.RayActorError, ray.exceptions.OutOfMemoryError) as e:
+            if isinstance(
+                e, ray.exceptions.OutOfMemoryError
+            ) or "died unexpectedly before finishing this task" in str(e):
+                await self.adelete_env_contents(servlet_name)
+
+            raise e
 
     @staticmethod
     async def acall_actor_method(
@@ -544,9 +554,11 @@ class ObjStore:
     ##############################################
     # Remove Env Servlet
     ##############################################
-    async def aremove_env_servlet_name(self, env_servlet_name: str):
+    async def aclear_all_references_to_env_servlet_name(self, env_servlet_name: str):
         return await self.acall_actor_method(
-            self.cluster_servlet, "aremove_env_servlet_name", env_servlet_name
+            self.cluster_servlet,
+            "aclear_all_references_to_env_servlet_name",
+            env_servlet_name,
         )
 
     ##############################################
@@ -887,18 +899,13 @@ class ObjStore:
 
     async def adelete_env_contents(self, env_name: Any):
 
-        # clear keys in the env servlet
-        deleted_keys = await self.akeys_for_env_servlet_name(env_name)
-        await self.aclear_for_env_servlet_name(env_name)
-
         # delete the env servlet actor and remove its references
         if env_name in self.env_servlet_cache:
             actor = self.env_servlet_cache[env_name]
             ray.kill(actor)
-
             del self.env_servlet_cache[env_name]
-        await self.aremove_env_servlet_name(env_name)
 
+        deleted_keys = await self.aclear_all_references_to_env_servlet_name(env_name)
         return deleted_keys
 
     def delete_env_contents(self, env_name: Any):

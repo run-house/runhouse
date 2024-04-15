@@ -199,5 +199,13 @@ class ClusterServlet:
     ##############################################
     # Remove Env Servlet
     ##############################################
-    async def aremove_env_servlet_name(self, env_servlet_name: str):
+    async def aclear_all_references_to_env_servlet_name(self, env_servlet_name: str):
         self._initialized_env_servlet_names.remove(env_servlet_name)
+        deleted_keys = [
+            key
+            for key, env in self._key_to_env_servlet_name.items()
+            if env == env_servlet_name
+        ]
+        for key in deleted_keys:
+            self._key_to_env_servlet_name.pop(key)
+        return deleted_keys
