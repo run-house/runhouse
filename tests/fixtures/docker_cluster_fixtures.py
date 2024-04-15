@@ -1,5 +1,6 @@
 import importlib
 import logging
+import os
 import shlex
 import subprocess
 import time
@@ -12,7 +13,13 @@ import pytest
 import runhouse as rh
 import yaml
 
-from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
+from runhouse.constants import (
+    DEFAULT_HTTP_PORT,
+    DEFAULT_HTTPS_PORT,
+    DEFAULT_SSH_PORT,
+    DEN_DOCKER_URL,
+)
+
 from runhouse.globals import rns_client
 
 from tests.conftest import init_args
@@ -23,6 +30,7 @@ BASE_LOCAL_SSH_PORT = 32320
 LOCAL_HTTPS_SERVER_PORT = 8443
 LOCAL_HTTP_SERVER_PORT = 8080
 DEFAULT_KEYPAIR_KEYPATH = "~/.ssh/sky-key"
+DEN_DOCKER_NETWORK_NAME = "rns_server_den_oss_network"
 
 
 def get_rh_parent_path():
@@ -80,6 +88,7 @@ def build_and_run_image(
     container_name: str,
     reuse_existing_container: bool,
     dir_name: str,
+    api_server_url: str,
     pwd_file=None,
     keypath=None,
     force_rebuild=False,
@@ -167,11 +176,36 @@ def build_and_run_image(
     port_fwds = (
         "".join([f"-p {port_fwd} " for port_fwd in port_fwds]).strip().split(" ")
     )
-    run_cmd = (
-        ["docker", "run", "--name", container_name, "-d", "--rm", "--shm-size=5.04gb"]
-        + port_fwds
-        + [f"runhouse:{image_name}"]
-    )
+    if api_server_url == DEN_DOCKER_URL:
+        run_cmd = (
+            [
+                "docker",
+                "run",
+                "--name",
+                container_name,
+                f"--network={DEN_DOCKER_NETWORK_NAME}",
+                "-d",
+                "--rm",
+                "--shm-size=5.04gb",
+            ]
+            + port_fwds
+            + [f"runhouse:{image_name}"]
+        )
+    else:
+        run_cmd = (
+            [
+                "docker",
+                "run",
+                "--name",
+                container_name,
+                "-d",
+                "--rm",
+                "--shm-size=5.04gb",
+            ]
+            + port_fwds
+            + [f"runhouse:{image_name}"]
+        )
+
     print(shlex.join(run_cmd))
     res = popen_shell_command(subprocess, run_cmd, cwd=str(rh_parent_path.parent))
     stdout, stderr = res.communicate()
@@ -227,6 +261,7 @@ def set_up_local_cluster(
     port_fwds: List[str],
     local_ssh_port: int,
     additional_cluster_init_args: Dict[str, Any],
+    api_server_url: str,
     logged_in: bool = False,
     keypath: str = None,
     pwd_file: str = None,
@@ -240,8 +275,8 @@ def set_up_local_cluster(
         pwd_file=pwd_file,
         force_rebuild=force_rebuild,
         port_fwds=port_fwds,
+        api_server_url=api_server_url,
     )
-
     cluster_init_args = dict(
         host="localhost",
         server_host="0.0.0.0",
@@ -270,6 +305,8 @@ def set_up_local_cluster(
     config["token"] = rh.configs.token
     config["username"] = rh.configs.username
 
+    # if restarting a server when running the tests in a den docker env (aka api_server_url = http://0.0.0.0:8000),
+    # putting resources in clusters with caddy causing errors.
     if rh_cluster._use_https:
         # If re-using fixtures make sure the crt file gets copied on to the cluster
         rh_cluster.restart_server()
@@ -304,7 +341,6 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
     - Caddy set up on startup to forward Runhouse HTTP server to port 443
     - Telemetry enabled
     """
-    import os
 
     # From pytest config
     detached = request.config.getoption("--detached")
@@ -343,6 +379,7 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
             "den_auth": True,
             "use_local_telemetry": True,
         },
+        api_server_url=api_server_url,
     )
 
     # Yield the cluster
@@ -398,6 +435,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
             "use_local_telemetry": True,
             "default_env": default_env,
         },
+        api_server_url=api_server_url,
     )
 
     # Yield the cluster
@@ -495,6 +533,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
             "den_auth": False,
             "use_local_telemetry": True,
         },
+        api_server_url=api_server_url,
     )
     # Yield the cluster
     yield local_cluster
@@ -543,6 +582,7 @@ def docker_cluster_pwd_ssh_no_auth(request, test_rns_folder):
             "server_connection_type": "ssh",
             "ssh_creds": {"ssh_user": SSH_USER, "password": pwd},
         },
+        api_server_url=api_server_url,
     )
     # Yield the cluster
     yield local_cluster
@@ -591,6 +631,7 @@ def friend_account_logged_in_docker_cluster_pk_ssh(request, test_rns_folder):
                 "den_auth": "den_auth" in request.keywords,
             },
             logged_in=True,
+            api_server_url=api_server_url,
         )
 
     yield local_cluster

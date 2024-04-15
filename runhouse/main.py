@@ -19,6 +19,8 @@ import runhouse.rns.login
 
 from runhouse import __version__, cluster, configs
 from runhouse.constants import (
+    DEN_DOCKER_URL,
+    DEN_LOCAL_URL,
     RAY_KILL_CMD,
     RAY_START_CMD,
     SERVER_LOGFILE,
@@ -375,11 +377,14 @@ def _start_server(
         logger.info("Configuring local telemetry on the cluster.")
         flags.append(use_local_telemetry_flag)
 
+    api_server_url_set = (
+        DEN_DOCKER_URL if api_server_url == DEN_LOCAL_URL else api_server_url
+    )
     api_server_url_flag = (
-        f" --api-server-url {api_server_url}" if api_server_url else ""
+        f" --api-server-url {api_server_url_set}" if api_server_url else ""
     )
     if api_server_url_flag:
-        logger.info(f"Setting api_server url to {api_server_url}")
+        logger.info(f"Setting api_server url to {api_server_url_set}")
         flags.append(api_server_url_flag)
 
     default_env_flag = (

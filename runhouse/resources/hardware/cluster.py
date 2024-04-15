@@ -30,6 +30,8 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
+    DEN_DOCKER_URL,
+    DEN_LOCAL_URL,
     LOCALHOST,
     RESERVED_SYSTEM_NAMES,
 )
@@ -231,7 +233,13 @@ class Cluster(Resource):
             creds = creds.replace("loaded_secret_", "")
 
         config["creds"] = creds
-        config["api_server_url"] = rns_client.api_server_url
+        api_server_url = rns_client.api_server_url
+        api_server_url_cluster = DEN_DOCKER_URL
+        config["api_server_url"] = (
+            api_server_url
+            if api_server_url != DEN_LOCAL_URL
+            else api_server_url_cluster
+        )
 
         if self._default_env:
             default_env = self._resource_string_for_subconfig(
@@ -604,9 +612,8 @@ class Cluster(Resource):
                 cert_path = self.cert_config.cert_path
 
             self.client_port = self.client_port or self.server_port
-
             self.client = HTTPClient(
-                host=self.server_address,
+                host=self.address,
                 port=self.client_port,
                 cert_path=cert_path,
                 use_https=self._use_https,
@@ -802,6 +809,12 @@ class Cluster(Resource):
         # Update the cluster config on the cluster
         self.save_config_to_cluster()
 
+        restart_api_server = (
+            rns_client.api_server_url
+            if rns_client.api_server_url != DEN_LOCAL_URL
+            else DEN_DOCKER_URL
+        )
+
         cmd = (
             CLI_RESTART_CMD
             + (" --restart-ray" if restart_ray else "")
@@ -813,8 +826,12 @@ class Cluster(Resource):
             + (f" --domain {domain}" if domain else "")
             + (" --use-local-telemetry" if use_local_telemetry else "")
             + f" --port {self.server_port}"
-            + f" --api-server-url {rns_client.api_server_url}"
-            + (f" --default-env-name {self.default_env.name}")
+            + f" --api-server-url {restart_api_server}"
+            + (
+                f" --default-env-name {self.default_env.name}"
+                if self.default_env
+                else ""
+            )
             + (
                 f" --conda-env {self.default_env.env_name}"
                 if self.default_env.config().get("resource_subtype", None) == "CondaEnv"
