@@ -246,16 +246,13 @@ def handle_response(
                 fn_exception = deserialize_data(
                     response_data["data"]["error"], response_data["serialization"]
                 )
-            except RuntimeError as e:
-                if "RuntimeError: Failed to unpickle" in str(e):
-                    logger.error(
-                        f"{system_color}{err_str}: Failed to unpickle exception. Please check the logs for more "
-                        f"information.{reset_color}"
-                    )
-                    logger.error(
-                        f"{system_color}Traceback: {fn_traceback}{reset_color}"
-                    )
-                    raise e
+            except Exception as e:
+                logger.error(
+                    f"{system_color}{err_str}: Failed to unpickle exception. Please check the logs for more "
+                    f"information.{reset_color}"
+                )
+                logger.error(f"{system_color}Traceback: {fn_traceback}{reset_color}")
+                raise e
         if not (
             isinstance(fn_exception, StopIteration)
             or isinstance(fn_exception, GeneratorExit)
