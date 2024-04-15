@@ -112,6 +112,9 @@ class Calculator:
         self._release_year = 2023
         self.owner = owner
 
+    async def asummer(self, a: int, b: int):
+        return a + b
+
     def summer(self, a: int, b: int):
         return a + b
 
@@ -136,6 +139,65 @@ class LotsOfAsync:
 
     async def async_returns_coroutine(self, a: int, b: int):
         return self.asum(a, b)
+
+
+def load_and_use_readonly_module(mod_name, cpu_count, size=3):
+    remote_df = rh.module(name=mod_name)
+    # Check that module is readonly and cluster is not set
+    assert isinstance(remote_df.system, str)
+    assert remote_df.access_level == "read"
+
+    assert remote_df.remote.size == size
+    assert len(remote_df.remote.df) == size
+    assert remote_df.remote._hidden_1 == "hidden"
+
+    results = []
+    # Capture stdout to check that it's working
+    out = ""
+    with rh.capture_stdout() as stdout:
+        for i, val in enumerate(remote_df.slow_iter()):
+            assert val
+            print(val)
+            results += [val]
+            out = out + str(stdout)
+    assert len(results) == 3
+
+    # Check that stdout was captured. Skip the last result because sometimes we
+    # don't catch it and it makes the test flaky.
+    for i in range(size - 1):
+        assert f"Hello from the cluster stdout! {i}" in out
+        assert f"Hello from the cluster logs! {i}" in out
+
+    print(remote_df.cpu_count())
+    assert remote_df.cpu_count() == os.cpu_count()
+    print(remote_df.cpu_count(local=False))
+    assert remote_df.cpu_count(local=False) == cpu_count
+
+    # Test setting and getting properties
+    df = remote_df.remote.df
+    assert isinstance(df, pd.DataFrame)
+    assert df.shape == (3, 3)
+    assert df.loc[0, 0] == 0
+    assert df.loc[2, 2] == 2
+
+    remote_df.size = 20
+    assert remote_df.remote.size == 20
+    remote_df.size = size  # reset to original value for second test
+
+
+async def load_and_use_calculator_module(mod_name):
+    remote_calc = rh.module(name=mod_name)
+
+    assert remote_calc.remote.model == "Casio"
+    assert remote_calc.remote._release_year == 2023
+
+    assert remote_calc.summer(2, 3) == 5
+    assert await remote_calc.asummer(2, 3) == 5
+    assert remote_calc.mult(3, 7) == 21
+
+    assert remote_calc.sub(33, 5) == 28
+
+    assert remote_calc.divider(16, 2) == 8
 
 
 @pytest.mark.moduletest
@@ -597,38 +659,89 @@ class TestModule:
             "mult",
         }
 
-    @pytest.mark.level("release")
-    def test_shared_readonly(
-        self,
-        ondemand_aws_https_cluster_with_auth,
-        friend_account_logged_in_docker_cluster_pk_ssh,
-    ):
+    @pytest.mark.level("local")
+    @pytest.mark.asyncio
+    async def test_share_module_read_only(self, cluster):
         from tests.utils import friend_account
 
-        if ondemand_aws_https_cluster_with_auth.address == "localhost":
-            pytest.skip("Skipping sharing test on local cluster")
+        remote_calc = rh.module(Calculator)().to(cluster, name="remote_calc_instance")
 
-        size = 3
-        remote_df = SlowPandas(size=size).to(
-            ondemand_aws_https_cluster_with_auth, name="remote_df"
-        )
-        remote_df.share(
+        remote_calc.share(
             users=["info@run.house"],
             access_level="read",
             notify_users=False,
         )
 
         with friend_account():
-            test_load_and_use_readonly_module(
-                mod_name=remote_df.rns_address, cpu_count=2, size=size
-            )
+            await load_and_use_calculator_module(mod_name=remote_calc.rns_address)
+
+    @pytest.mark.level("release")
+    @pytest.mark.asyncio
+    async def test_share_module_read_only_inter_cluster(
+        self,
+        ondemand_aws_https_cluster_with_auth,
+        friend_account_logged_in_docker_cluster_pk_ssh,
+    ):
+
+        # Make sure cluster is not shared
+        ondemand_aws_https_cluster_with_auth.revoke(users=["info@run.house"])
+
+        # Note that this module is already constructed before it is put on the cluster
+        remote_calc = (
+            rh.module(Calculator)()
+            .to(ondemand_aws_https_cluster_with_auth, name="remote_calc_instance")
+            .save()
+        )
+
+        test_fn_remote = rh.function(load_and_use_calculator_module).to(
+            friend_account_logged_in_docker_cluster_pk_ssh
+        )
+
+        remote_calc.revoke(users=["info@run.house"])
+
+        # Expect this to raise a ValueError
+        with pytest.raises(ValueError):
+            await test_fn_remote(remote_calc.rns_address)
+
+        remote_calc.share(
+            users=["info@run.house"],
+            access_level="read",
+            notify_users=False,
+        )
+
+        await test_fn_remote(remote_calc.rns_address)
+
+        remote_calc.revoke(users=["info@run.house"])
+
+        # Expect this to raise a ValueError
+        with pytest.raises(ValueError):
+            await test_fn_remote(remote_calc.rns_address)
+
+    @pytest.mark.level("release")
+    def test_share_module_with_generator_read_only_inter_cluster(
+        self,
+        ondemand_aws_https_cluster_with_auth,
+        friend_account_logged_in_docker_cluster_pk_ssh,
+    ):
+        # from tests.utils import friend_account
+
+        size = 3
+        remote_df = SlowPandas(size=size).to(
+            ondemand_aws_https_cluster_with_auth, name="remote_df_ondemand_cluster"
+        )
+
+        remote_df.share(
+            users=["info@run.house"],
+            access_level="read",
+            notify_users=False,
+        )
 
         cpu_count = int(
             ondemand_aws_https_cluster_with_auth.run_python(
                 ["import os; print(os.cpu_count())"]
             )[0][1]
         )
-        test_fn = rh.fn(test_load_and_use_readonly_module).to(
+        test_fn = rh.fn(load_and_use_readonly_module).to(
             friend_account_logged_in_docker_cluster_pk_ssh
         )
         test_fn(mod_name=remote_df.rns_address, cpu_count=cpu_count, size=size)
@@ -708,47 +821,3 @@ class TestModule:
         )
         assert future_module.__class__.__name__ == "FutureModule"
         assert await future_module == 5
-
-
-def test_load_and_use_readonly_module(mod_name, cpu_count, size=3):
-    remote_df = rh.module(name=mod_name)
-    # Check that module is readonly and cluster is not set
-    assert isinstance(remote_df.system, str)
-    assert remote_df.access_level == "read"
-
-    assert remote_df.remote.size == size
-    assert len(remote_df.remote.df) == size
-    assert remote_df.remote._hidden_1 == "hidden"
-
-    results = []
-    # Capture stdout to check that it's working
-    out = ""
-    with rh.capture_stdout() as stdout:
-        for i, val in enumerate(remote_df.slow_iter()):
-            assert val
-            print(val)
-            results += [val]
-            out = out + str(stdout)
-    assert len(results) == 3
-
-    # Check that stdout was captured. Skip the last result because sometimes we
-    # don't catch it and it makes the test flaky.
-    for i in range(size - 1):
-        assert f"Hello from the cluster stdout! {i}" in out
-        assert f"Hello from the cluster logs! {i}" in out
-
-    print(remote_df.cpu_count())
-    assert remote_df.cpu_count() == os.cpu_count()
-    print(remote_df.cpu_count(local=False))
-    assert remote_df.cpu_count(local=False) == cpu_count
-
-    # Test setting and getting properties
-    df = remote_df.remote.df
-    assert isinstance(df, pd.DataFrame)
-    assert df.shape == (3, 3)
-    assert df.loc[0, 0] == 0
-    assert df.loc[2, 2] == 2
-
-    remote_df.size = 20
-    assert remote_df.remote.size == 20
-    remote_df.size = size  # reset to original value for second test
