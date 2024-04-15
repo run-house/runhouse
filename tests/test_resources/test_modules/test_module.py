@@ -200,6 +200,21 @@ async def load_and_use_calculator_module(mod_name):
     assert remote_calc.divider(16, 2) == 8
 
 
+def construct_and_use_calculator_module(mod_name):
+    remote_calc_class = rh.module(name=mod_name)
+    remote_calc = remote_calc_class()
+
+    assert remote_calc.remote.model == "Casio"
+    assert remote_calc.remote._release_year == 2023
+
+    assert remote_calc.summer(2, 3) == 5
+    assert remote_calc.mult(3, 7) == 21
+    assert remote_calc.sub(33, 5) == 28
+    assert remote_calc.divider(16, 2) == 8
+
+    return remote_calc
+
+
 @pytest.mark.moduletest
 class TestModule:
 
@@ -745,6 +760,47 @@ class TestModule:
             friend_account_logged_in_docker_cluster_pk_ssh
         )
         test_fn(mod_name=remote_df.rns_address, cpu_count=cpu_count, size=size)
+
+    @pytest.mark.level("local")
+    @pytest.mark.asyncio
+    def test_construct_shared_module(
+        self,
+        cluster,
+    ):
+        from tests.utils import friend_account
+
+        remote_calc_unconstructed = (
+            rh.module(Calculator)
+            .to(cluster, name="remote_calculator_unconstructed")
+            .save()
+        )
+
+        cluster.revoke(
+            users=["info@run.house"],
+        )
+
+        remote_calc_unconstructed.share(
+            users=["info@run.house"],
+            access_level="read",
+            notify_users=False,
+        )
+
+        with pytest.raises(ValueError):
+            with friend_account():
+                construct_and_use_calculator_module(
+                    mod_name=remote_calc_unconstructed.rns_address
+                )
+
+        cluster.share(
+            users=["info@run.house"],
+            access_level="write",
+            notify_users=False,
+        )
+
+        with friend_account():
+            construct_and_use_calculator_module(
+                mod_name=remote_calc_unconstructed.rns_address
+            )
 
     @pytest.mark.level("unit")
     def test_openapi_spec_generation(self):
