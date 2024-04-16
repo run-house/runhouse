@@ -931,9 +931,10 @@ class ObjStore:
 
     async def aclear_local(self):
         if self.has_local_storage:
-            for k in list(self._kv_store.keys()):
-                # Pop handles removing from global obj store vs local one
-                await self.apop_local(k)
+            # Use asyncio gather to run all the deletes concurrently
+            await asyncio.gather(
+                *[self.apop_local(k) for k in list(self._kv_store.keys())]
+            )
 
     async def aclear(self):
         logger.warning("Clearing all keys from all envs in the object store!")
