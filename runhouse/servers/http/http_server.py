@@ -46,7 +46,6 @@ from runhouse.servers.http.http_utils import (
 )
 from runhouse.servers.obj_store import (
     ClusterServletSetupOption,
-    ObjStore,
     ObjStoreError,
     RaySetupOption,
 )
@@ -199,7 +198,7 @@ class HTTPServer:
         # TODO: We aren't sure _exactly_ where this is or isn't used.
         # There are a few spots where we do `env_name or "base"`, and
         # this allows that base env to be pre-initialized.
-        _ = ObjStore.get_env_servlet(
+        _ = obj_store.get_env_servlet(
             env_name="base",
             create=True,
             runtime_env=runtime_env,
@@ -679,7 +678,7 @@ class HTTPServer:
             if not env_name:
                 output = await obj_store.akeys()
             else:
-                output = await ObjStore.akeys_for_env_servlet_name(env_name)
+                output = await obj_store.akeys_for_env_servlet_name(env_name)
 
             # Expicitly tell the client not to attempt to deserialize the output
             return Response(

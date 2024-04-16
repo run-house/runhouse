@@ -32,4 +32,3 @@ rns_client = RNSClient(configs=configs)
 # Note: this initalizes a dummy global object. The obj_store must
 # be properly initialized by a servlet via initialize.
 obj_store = ObjStore()
-env_servlets = {}

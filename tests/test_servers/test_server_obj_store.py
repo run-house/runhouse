@@ -1,6 +1,6 @@
 import pytest
 
-from runhouse.servers.obj_store import ObjStore, ObjStoreError
+from runhouse.servers.obj_store import ObjStoreError
 
 from tests.utils import friend_account, get_ray_servlet_and_obj_store
 
@@ -341,7 +341,9 @@ class TestObjStore:
 
         # check that corresponding Ray actor is killed
         with pytest.raises(ObjStoreError):
-            ObjStore.get_env_servlet(env_name=env_to_delete, raise_ex_if_not_found=True)
+            obj_store.get_env_servlet(
+                env_name=env_to_delete, raise_ex_if_not_found=True
+            )
 
 
 @pytest.mark.servertest
