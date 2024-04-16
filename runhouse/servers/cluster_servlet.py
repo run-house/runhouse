@@ -4,7 +4,7 @@ import threading
 import time
 from typing import Any, Dict, List, Optional, Set, Union
 
-from runhouse.globals import configs, ObjStore, rns_client
+from runhouse.globals import configs, obj_store, rns_client
 from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.http.auth import AuthCache
@@ -76,10 +76,11 @@ class ClusterServlet:
         # Propagate the changes to all other process's obj_stores
         await asyncio.gather(
             *[
-                ObjStore.acall_actor_method(
-                    ObjStore.get_env_servlet(env_servlet_name),
+                obj_store.acall_env_servlet_method(
+                    env_servlet_name,
                     "aset_cluster_config",
                     cluster_config,
+                    use_env_servlet_cache=False,
                 )
                 for env_servlet_name in await self.aget_all_initialized_env_servlet_names()
             ]
@@ -98,11 +99,12 @@ class ClusterServlet:
         # Propagate the changes to all other process's obj_stores
         await asyncio.gather(
             *[
-                ObjStore.acall_actor_method(
-                    ObjStore.get_env_servlet(env_servlet_name),
+                obj_store.acall_env_servlet_method(
+                    env_servlet_name,
                     "aset_cluster_config_value",
                     key,
                     value,
+                    use_env_servlet_cache=False,
                 )
                 for env_servlet_name in await self.aget_all_initialized_env_servlet_names()
             ]

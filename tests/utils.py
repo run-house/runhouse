@@ -18,7 +18,7 @@ def get_ray_servlet_and_obj_store(env_name):
     test_obj_store = ObjStore()
     test_obj_store.initialize(env_name, setup_ray=RaySetupOption.GET_OR_FAIL)
 
-    servlet = ObjStore.get_env_servlet(
+    servlet = test_obj_store.get_env_servlet(
         env_name=env_name,
         create=True,
     )
