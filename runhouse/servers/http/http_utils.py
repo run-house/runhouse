@@ -170,6 +170,7 @@ def handle_exception_response(
     exception_data = {
         "error": serialize_data(exception, serialization),
         "traceback": traceback,
+        "exception_as_str": str(exception),
     }
     return Response(
         output_type=OutputType.EXCEPTION,
@@ -242,6 +243,7 @@ def handle_response(
         else:
             fn_traceback = response_data["data"]["traceback"]
             fn_exception = None
+            fn_exception_as_str = response_data["data"].get("exception_as_str", None)
             try:
                 fn_exception = deserialize_data(
                     response_data["data"]["error"], response_data["serialization"]
@@ -251,6 +253,10 @@ def handle_response(
                     f"{system_color}{err_str}: Failed to unpickle exception. Please check the logs for more "
                     f"information.{reset_color}"
                 )
+                if fn_exception_as_str:
+                    logger.error(
+                        f"{system_color}{err_str} Exception as string: {fn_exception_as_str}{reset_color}"
+                    )
                 logger.error(f"{system_color}Traceback: {fn_traceback}{reset_color}")
                 raise e
         if not (
