@@ -441,7 +441,10 @@ class Module(Resource):
         new_module.dryrun = True
 
         if isinstance(system, Cluster):
-            new_module.name = name or self.name or self.default_name()
+            new_name = name or self.name or self.default_name()
+            if self.rns_address:
+                new_name = f"{self._rns_folder}/{new_name}"
+            new_module.name = new_name
             # TODO dedup with _extract_state
             # Exclude anything already being sent in the config and private module attributes
             excluded_state_keys = list(new_module.config().keys()) + [
@@ -857,11 +860,11 @@ class Module(Resource):
         new_module.__dict__ = self.__dict__
         return new_module
 
-    def _save_sub_resources(self):
+    def _save_sub_resources(self, folder: str = None):
         if isinstance(self.system, Resource) and self.system.name:
-            self.system.save()
+            self.system.save(folder=folder)
         if isinstance(self.env, Resource) and self.env.name != Env.DEFAULT_NAME:
-            self.env.save()
+            self.env.save(folder=folder)
 
     def rename(self, name: str):
         """Rename the module."""
@@ -882,11 +885,7 @@ class Module(Resource):
                 old_key=old_name, new_key=self.rns_address or self.name
             )
 
-    def save(
-        self,
-        name: str = None,
-        overwrite: bool = True,
-    ):
+    def save(self, name: str = None, overwrite: bool = True, folder: str = None):
         """Register the resource and save to local working_dir config and RNS config store."""
         # Need to override Resource's save to handle key changes in the obj store
         # Also check that this is a Blob and not a File
@@ -907,7 +906,7 @@ class Module(Resource):
                     if isinstance(self.system, Cluster):
                         self.system.put_resource(self)
 
-        res = super().save(overwrite=overwrite)
+        res = super().save(overwrite=overwrite, folder=folder)
 
         if old_rns_address != self.rns_address:
             self.remote.name = self.rns_address

@@ -100,11 +100,7 @@ def set_load_from(load_from: List[str]):
     rns_client.load_from = load_from
 
 
-def save(
-    resource,
-    name: str = None,
-    overwrite: bool = True,
-):
+def save(resource, name: str = None, overwrite: bool = True, folder: str = None):
     """Register the resource, saving it to local working_dir config and/or RNS config store. Uses the resource's
     `self.config()` to generate the dict to save."""
 
@@ -118,7 +114,8 @@ def save(
         else:
             resource._name = name
     if not resource.rns_address:
-        resource._rns_folder = rns_client.current_folder
+        resource._rns_folder = folder or rns_client.current_folder
+
     rns_client.save_config(resource=resource, overwrite=overwrite)
 
 

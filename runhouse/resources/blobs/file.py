@@ -148,9 +148,9 @@ class File(Blob):
             return pickle.loads(data)
         return data
 
-    def _save_sub_resources(self):
+    def _save_sub_resources(self, folder: str = None):
         if isinstance(self.system, Cluster):
-            self.system.save()
+            self.system.save(folder=folder)
 
     def write(self, data, serialize: bool = True, mode: str = "wb"):
         """Save the underlying file to its specified fsspec URL.

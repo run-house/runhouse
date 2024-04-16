@@ -250,9 +250,11 @@ from tests.fixtures.on_demand_cluster_fixtures import (
 from tests.fixtures.resource_fixtures import (
     local_named_resource,  # noqa: F401
     named_resource,  # noqa: F401
+    named_resource_for_org,  # noqa: F401
     resource,  # noqa: F401
     saved_resource,  # noqa: F401
     saved_resource_pool,  # noqa: F401
+    test_org_rns_folder,  # noqa: F401
     test_rns_folder,  # noqa: F401
     unnamed_resource,  # noqa: F401
 )
@@ -363,11 +365,7 @@ from tests.test_resources.test_modules.test_tables.conftest import (
 ########## DEFAULT LEVELS ##########
 
 default_fixtures = {}
-default_fixtures[TestLevels.UNIT] = {
-    "cluster": [
-        "named_cluster",
-    ]
-}
+default_fixtures[TestLevels.UNIT] = {"cluster": ["named_cluster"]}
 default_fixtures[TestLevels.LOCAL] = {
     "cluster": [
         "docker_cluster_pk_ssh_no_auth",  # Represents private dev use case

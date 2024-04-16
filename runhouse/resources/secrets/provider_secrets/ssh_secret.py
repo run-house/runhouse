@@ -49,14 +49,20 @@ class SSHSecret(ProviderSecret):
         return SSHSecret(**config, dryrun=dryrun)
 
     def save(
-        self, name: str = None, save_values: bool = True, headers: Optional[Dict] = None
+        self,
+        name: str = None,
+        save_values: bool = True,
+        headers: Optional[Dict] = None,
+        folder: str = None,
     ):
         if name:
             self.name = name
         elif not self.name:
             self.name = f"ssh-{self.key}"
         return super().save(
-            save_values=save_values, headers=headers or rns_client.request_headers()
+            save_values=save_values,
+            headers=headers or rns_client.request_headers(),
+            folder=folder,
         )
 
     def _write_to_file(

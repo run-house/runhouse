@@ -46,3 +46,5 @@ RAY_START_CMD = f"ray start --head --port {DEFAULT_RAY_PORT} --disable-usage-sta
 # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
 # which runs on other ports but is required to preserve autostop and correct cluster status.
 RAY_KILL_CMD = 'pkill -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
+
+TEST_ORG = "test-org"
