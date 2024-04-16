@@ -241,8 +241,6 @@ class ObjStore:
         cuda_visible_devices = list(range(int(num_gpus)))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
 
-        self.thread_pool = ThreadPoolExecutor(max_workers=48)
-
     def initialize(
         self,
         servlet_name: Optional[str] = None,
@@ -1048,16 +1046,17 @@ class ObjStore:
 
             return sync_fn(*method_args, **method_kwargs)
 
-        return await asyncio.get_event_loop().run_in_executor(
-            self.thread_pool,
-            functools.partial(
-                _run_sync_fn_with_context,
-                context_to_set=contextvars.copy_context(),
-                sync_fn=method_to_run,
-                method_args=args,
-                method_kwargs=kwargs,
-            ),
-        )
+        with ThreadPoolExecutor() as executor:
+            return await asyncio.get_event_loop().run_in_executor(
+                executor,
+                functools.partial(
+                    _run_sync_fn_with_context,
+                    context_to_set=contextvars.copy_context(),
+                    sync_fn=method_to_run,
+                    method_args=args,
+                    method_kwargs=kwargs,
+                ),
+            )
 
     async def acall_local(
         self,
