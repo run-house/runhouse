@@ -1,18 +1,20 @@
-# Deploy Llama2 13B Chat Model Inference on AWS EC2
+# Deploy Llama3 8B Chat Model Inference on AWS EC2
 
-See a more [rich explanation](https://www.run.house/examples/llama2-chat-model-inference-aws-ec2)
+See a more [rich explanation](https://www.run.house/examples/llama3-8b-chat-model-inference-aws-ec2)
 of this example on our site.
 
 This example demonstrates how to deploy a
 [LLama2 13B model from Hugging Face](https://huggingface.co/meta-llama/Llama-2-13b-chat-hf)
 on AWS EC2 using Runhouse.
 
+Make sure to sign the waiver on the model page so that you can access it.
+
 ## Setup credentials and dependencies
 
 Optionally, set up a virtual environment:
 ```shell
-$ conda create -n llama-demo-apps python=3.8
-$ conda activate llama-demo-apps
+$ conda create -n llama3-rh python=3.9.15
+$ conda activate llama3-rh
 ```
 Install the few required dependencies:
 ```shell
