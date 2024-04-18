@@ -887,6 +887,9 @@ class Module(Resource):
     def _save_sub_resources(self, folder: str = None):
         if isinstance(self.system, Resource) and self.system.name:
             self.system.save(folder=folder)
+        # TODO: (default env) should we save the default env here? This can lead to a weird case where
+        # we share something in the default env with someone else, but they can't load down the env itself
+        # and are just passing around a string, like `rohinb2/base_env`.
         if isinstance(self.env, Resource) and self.env != Env(
             name=Env.DEFAULT_NAME, working_dir="./"
         ):
@@ -1209,6 +1212,14 @@ def _module_subclass_factory(cls, cls_pointers):
         if not new_module.dryrun and new_module.system:
             # We use system.put_resource here because the signatures for HTTPClient.put_resource and
             # obj_store.put_resource are different, but we should fix that.
+
+            # If the system is still a string, we know that the user has _no_ access to the Cluster
+            # If they were able to discover the cluster, their system string would be replaced by a Cluster object
+            # when _check_for_child_configs --> _get_cluster_from was called
+            if isinstance(new_module.system, str):
+                raise ValueError(
+                    "You must have access to the underlying cluster for this unconstructed Module in order to put a resource on it."
+                )
             new_module.system.put_resource(new_module, env=env)
             new_module.system.call(new_module.name, "_remote_init", *args, **kwargs)
         else:
