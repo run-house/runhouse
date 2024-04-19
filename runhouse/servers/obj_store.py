@@ -257,6 +257,10 @@ class ObjStore:
         env_servlet = self.get_env_servlet(
             servlet_name, use_env_servlet_cache=use_env_servlet_cache
         )
+        if env_servlet is None:
+            raise ObjStoreError(
+                f"Got None env_servlet for servlet_name {servlet_name}."
+            )
         try:
             return await ObjStore.acall_actor_method(
                 env_servlet, method, *args, **kwargs
