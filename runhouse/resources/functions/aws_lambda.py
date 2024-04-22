@@ -169,11 +169,11 @@ class LambdaFunction(Function):
         return LambdaFunction(**config, dryrun=dryrun).deploy()
 
     @classmethod
-    def from_name(cls, name, dryrun=False, alt_options=None):
+    def from_name(cls, name, dryrun=False, alt_options=None, _resolve_children=True):
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Could not find a Lambda called {name}.")
-        return cls.from_config(config)
+        return cls.from_config(config, _resolve_children=_resolve_children)
 
     @classmethod
     def from_handler_file(

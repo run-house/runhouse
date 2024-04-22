@@ -5,14 +5,15 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.globals import obj_store
-
-from runhouse.resources.envs.utils import run_setup_command, run_with_logs
+from runhouse.resources.envs.utils import (
+    _process_env_vars,
+    run_setup_command,
+    run_with_logs,
+)
 from runhouse.resources.folders import Folder
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
-
-from .utils import _env_vars_from_file
 
 
 logger = logging.getLogger(__name__)
@@ -205,12 +206,10 @@ class Env(Resource):
         new_env.secrets = self._secrets_to(system)
 
         if isinstance(system, Cluster):
+            if new_env.name == Env.DEFAULT_NAME:
+                new_env.name = system.default_env.name
             key = system.put_resource(new_env)
-            env_vars = (
-                _env_vars_from_file(self.env_vars)
-                if isinstance(self.env_vars, str)
-                else self.env_vars
-            )
+            env_vars = _process_env_vars(self.env_vars)
             if env_vars:
                 system.call(key, "_set_env_vars", env_vars)
             system.call(key, "install", force=force_install)

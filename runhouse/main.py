@@ -4,7 +4,7 @@ import subprocess
 import time
 import webbrowser
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import ray
 
@@ -147,6 +147,9 @@ def _print_status(config):
         console.print(config["name"])
 
     first_info_to_print = ["den_auth", "server_connection_type", "server_port"]
+
+    if config.get("default_env") and isinstance(config["default_env"], Dict):
+        config["default_env"] = config["default_env"]["name"]
 
     for info in config:
         if info in first_info_to_print:
@@ -297,6 +300,8 @@ def _start_server(
     certs_address=None,
     use_local_telemetry=False,
     api_server_url=None,
+    default_env=None,
+    conda_env=None,
 ):
     ############################################
     # Build CLI commands to start the server
@@ -376,6 +381,16 @@ def _start_server(
     if api_server_url_flag:
         logger.info(f"Setting api_server url to {api_server_url}")
         flags.append(api_server_url_flag)
+
+    default_env_flag = f" --default-env {default_env}" if default_env else ""
+    if default_env_flag:
+        logger.info(f"Starting server on default env: {default_env}")
+        flags.append(default_env_flag)
+
+    conda_env_flag = f" --conda-env {conda_env}" if conda_env else ""
+    if default_env_flag:
+        logger.info(f"Creating runtime env for conda env: {conda_env}")
+        flags.append(conda_env_flag)
 
     # Check if screen or nohup are available
     screen = screen and _check_if_command_exists("screen")
@@ -471,6 +486,10 @@ def start(
     use_local_telemetry: bool = typer.Option(
         False, help="Whether to use local telemetry"
     ),
+    default_env: str = typer.Option(None, help="Default env to start the server on."),
+    conda_env: str = typer.Option(
+        None, help="Name of conda env corresponding to default env if it is a CondaEnv."
+    ),
 ):
     """Start the HTTP or HTTPS server on the cluster."""
     _start_server(
@@ -487,6 +506,8 @@ def start(
         domain=domain,
         certs_address=certs_address,
         use_local_telemetry=use_local_telemetry,
+        default_env=default_env,
+        conda_env=conda_env,
     )
 
 
@@ -547,6 +568,10 @@ def restart(
         default="https://api.run.house",
         help="URL of Runhouse Den",
     ),
+    default_env: str = typer.Option(None, help="Default env to start the server on."),
+    conda_env: str = typer.Option(
+        None, help="Name of conda env corresponding to default env if it is a CondaEnv."
+    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
@@ -572,6 +597,8 @@ def restart(
         certs_address=certs_address,
         use_local_telemetry=use_local_telemetry,
         api_server_url=api_server_url,
+        default_env=default_env,
+        conda_env=conda_env,
     )
 
 

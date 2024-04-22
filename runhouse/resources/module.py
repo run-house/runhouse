@@ -72,7 +72,12 @@ class Module(Resource):
             # of rh.Module, and we need to do the factory constructor logic here.
 
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
-            self._env = self._env or Env(name=Env.DEFAULT_NAME)
+            if not self._env:
+                self._env = (
+                    self._system.default_env
+                    if self._system
+                    else Env(name=Env.DEFAULT_NAME, working_dir="./")
+                )
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
             self._env.working_dir = self._env.working_dir or "./"
@@ -152,8 +157,8 @@ class Module(Resource):
                         if isinstance(env, str)
                         else env["name"]
                         if isinstance(env, Dict)
-                        else "base_env"
-                        if env is not None
+                        else system.default_env.name
+                        if system.default_env
                         else None
                     )
                     if (system and _current_cluster == _get_cluster_from(system)) and (
@@ -422,7 +427,16 @@ class Module(Resource):
         system = (
             _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
         )
-        env = env or self.env
+        if not env:
+            if not self.env or (
+                self.env
+                and self.env.config()
+                == Env(name=Env.DEFAULT_NAME, working_dir="./").config()
+            ):
+                env = system.default_env if system else self.env
+            else:
+                env = self.env
+
         env = _get_env_from(env)
 
         if system:
