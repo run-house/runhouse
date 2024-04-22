@@ -83,7 +83,7 @@ class GitPackage(Package):
         super()._install(env, cluster=cluster)
 
     @staticmethod
-    def from_config(config: dict, dryrun=False):
+    def from_config(config: dict, dryrun=False, _resolve_children=True):
         return GitPackage(**config, dryrun=dryrun)
 
 

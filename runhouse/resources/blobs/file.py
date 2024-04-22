@@ -49,7 +49,7 @@ class File(Blob):
         return config
 
     @staticmethod
-    def from_config(config: dict, dryrun=False):
+    def from_config(config: dict, dryrun=False, _resolve_children=True):
         return Blob(**config, dryrun=dryrun)
 
     @property

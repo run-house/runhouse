@@ -139,7 +139,9 @@ class LambdaFunction(Function):
     # --------------------------------------
 
     @classmethod
-    def from_config(cls, config: dict, dryrun: bool = False):
+    def from_config(
+        cls, config: dict, dryrun: bool = False, _resolve_children: bool = True
+    ):
         """Create an AWS Lambda object from a config dictionary."""
 
         if "resource_subtype" in config.keys():
@@ -160,7 +162,9 @@ class LambdaFunction(Function):
                 name=Env.DEFAULT_NAME,
             )
         else:
-            config["env"] = Env.from_config(config["env"])
+            config["env"] = Env.from_config(
+                config["env"], _resolve_children=_resolve_children
+            )
 
         return LambdaFunction(**config, dryrun=dryrun).deploy()
 

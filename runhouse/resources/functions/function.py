@@ -39,12 +39,16 @@ class Function(Module):
     # ----------------- Constructor helper methods -----------------
 
     @classmethod
-    def from_config(cls, config: dict, dryrun: bool = False):
+    def from_config(cls, config: dict, dryrun: bool = False, _resolve_children=True):
         """Create a Function object from a config dictionary."""
         if isinstance(config["system"], dict):
-            config["system"] = Cluster.from_config(config["system"], dryrun=dryrun)
+            config["system"] = Cluster.from_config(
+                config["system"], dryrun=dryrun, _resolve_children=_resolve_children
+            )
         if isinstance(config["env"], dict):
-            config["env"] = Env.from_config(config["env"], dryrun=dryrun)
+            config["env"] = Env.from_config(
+                config["env"], dryrun=dryrun, _resolve_children=_resolve_children
+            )
 
         config.pop("resource_subtype", None)
         return Function(**config, dryrun=dryrun)

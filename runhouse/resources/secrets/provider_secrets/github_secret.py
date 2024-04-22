@@ -22,7 +22,7 @@ class GitHubSecret(ProviderSecret):
     _DEFAULT_CREDENTIALS_PATH = "~/.config/gh/hosts.yml"
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         return GitHubSecret(**config, dryrun=dryrun)
 
     def _write_to_file(

@@ -11,5 +11,5 @@ class OpenAISecret(ApiKeySecret):
     _DEFAULT_ENV_VARS = {"api_key": "OPENAI_API_KEY"}
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         return OpenAISecret(**config, dryrun=dryrun)
