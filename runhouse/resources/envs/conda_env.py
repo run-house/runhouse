@@ -1,14 +1,16 @@
 import logging
-import shlex
 import subprocess
-from pathlib import Path
 
+from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+import yaml
+
+from runhouse.constants import ENVS_DIR
 from runhouse.globals import obj_store
+from runhouse.resources.envs.utils import install_conda, run_setup_command
 
 from runhouse.resources.packages import Package
-from runhouse.utils import install_conda
 
 from .env import Env
 
@@ -62,50 +64,67 @@ class CondaEnv(Env):
     def env_name(self):
         return self.conda_yaml["name"]
 
-    def _create_conda_env(self, force=False):
-        path = "~/.rh/envs"
-        subprocess.run(f"mkdir -p {path}", shell=True)
+    def _create_conda_env(self, force: bool = False, cluster: "Cluster" = None):
+        yaml_path = Path(ENVS_DIR) / f"{self.env_name}.yml"
 
-        local_env_exists = f"\n{self.env_name} " in subprocess.check_output(
-            shlex.split("conda info --envs"), shell=False
-        ).decode("utf-8")
-        yaml_exists = (Path(path).expanduser() / f"{self.env_name}.yml").exists()
+        env_exists = (
+            f"\n{self.env_name} "
+            in run_setup_command("conda info --envs", cluster=cluster)[1]
+        )
+        run_setup_command(f"mkdir -p {ENVS_DIR}", cluster=cluster)
+        yaml_exists = (
+            (Path(ENVS_DIR).expanduser() / f"{self.env_name}.yml").exists()
+            if not cluster
+            else run_setup_command(f"ls {yaml_path}", cluster=cluster)[0] == 0
+        )
 
-        if force or not (yaml_exists and local_env_exists):
-            python_commands = "; ".join(
-                [
-                    "import yaml",
-                    "from pathlib import Path",
-                    f"path = Path('{path}').expanduser()",
-                    f"yaml.dump({self.conda_yaml}, open(path / '{self.env_name}.yml', 'w'))",
-                ]
-            )
-            subprocess.run(f'python -c "{python_commands}"', shell=True)
-
-            if not local_env_exists:
-                subprocess.run(
-                    f"conda env create -f {path}/{self.env_name}.yml", shell=True
+        if force or not (yaml_exists and env_exists):
+            # dump config into yaml file on cluster
+            if not cluster:
+                python_commands = "; ".join(
+                    [
+                        "import yaml",
+                        "from pathlib import Path",
+                        f"path = Path('{ENVS_DIR}').expanduser()",
+                        f"yaml.dump({self.conda_yaml}, open(path / '{self.env_name}.yml', 'w'))",
+                    ]
                 )
-                if f"\n{self.env_name} " not in subprocess.check_output(
-                    shlex.split("conda info --envs"), shell=False
-                ).decode("utf-8"):
-                    raise RuntimeError(
-                        f"conda env {self.env_name} not created properly."
-                    )
+                subprocess.run(f'python -c "{python_commands}"', shell=True)
+            else:
+                contents = yaml.dump(self.conda_yaml)
+                run_setup_command(f"echo $'{contents}' > {yaml_path}", cluster=cluster)
 
-    def install(self, force=False):
-        """Locally install packages and run setup commands."""
-        if not ["python" in dep for dep in self.conda_yaml["dependencies"]]:
-            base_python_version = (
-                subprocess.check_output(shlex.split("python --version"), shell=False)
-                .decode("utf-8")
-                .split()[1]
+            # create conda env from yaml file
+            run_setup_command(f"conda env create -f {yaml_path}", cluster=cluster)
+
+            env_exists = (
+                f"\n{self.env_name} "
+                in run_setup_command("conda info --envs", cluster=cluster)[1]
             )
+            if not env_exists:
+                raise RuntimeError(f"conda env {self.env_name} not created properly.")
+
+    def install(self, force: bool = False, cluster: "Cluster" = None):
+        """Locally install packages and run setup commands.
+
+        Args:
+            force (bool, optional): Whether to force re-install env if it has already been installed.
+                (default: ``False``)
+            cluster (bool, optional): If None, installs env locally. Otherwise installs remotely
+                on the cluster using SSH. (default: ``None``)
+        """
+        if not any(["python" in dep for dep in self.conda_yaml["dependencies"]]):
+            base_python_version = run_setup_command(
+                "python --version", cluster=cluster, stream_logs=False
+            )[1].split()[1]
             self.conda_yaml["dependencies"].append(f"python=={base_python_version}")
-        install_conda()
-        local_env_exists = f"\n{self.env_name} " in subprocess.check_output(
-            shlex.split("conda info --envs"), shell=False
-        ).decode("utf-8")
+        install_conda(cluster=cluster)
+        local_env_exists = (
+            f"\n{self.env_name} "
+            in run_setup_command(
+                "conda info --envs", cluster=cluster, stream_logs=False
+            )[1]
+        )
 
         # Hash the config_for_rns to check if we need to create/install the conda env
         env_config = self.config()
@@ -118,25 +137,12 @@ class CondaEnv(Env):
             return
         obj_store.installed_envs[install_hash] = self.name
 
-        self._create_conda_env()
+        self._create_conda_env(force=force, cluster=cluster)
 
-        if self.reqs:
-            for package in self.reqs:
-                if isinstance(package, str):
-                    pkg = Package.from_string(package)
-                elif hasattr(package, "_install"):
-                    pkg = package
-                else:
-                    raise ValueError(f"package {package} not recognized")
+        self._install_reqs(cluster=cluster)
+        self._run_setup_cmds(cluster=cluster)
 
-                logger.debug(f"Installing package: {str(pkg)}")
-                pkg._install(self)
-
-        return (
-            self._run_command([f"{self.setup_cmds.join(' && ')}"])
-            if self.setup_cmds
-            else None
-        )
+        return
 
     @property
     def _run_cmd(self):

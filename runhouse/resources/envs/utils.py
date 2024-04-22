@@ -1,10 +1,13 @@
+import logging
 import subprocess
+import sys
 
 from pathlib import Path
 from typing import Dict, List
 
 import yaml
 
+from runhouse.constants import CONDA_INSTALL_CMDS
 from runhouse.globals import rns_client
 from runhouse.resources.resource import Resource
 
@@ -86,7 +89,7 @@ def _get_conda_yaml(conda_env=None):
         for dep in conda_yaml["dependencies"]
         if isinstance(dep, Dict) and "pip" in dep
     ]:
-        conda_yaml["dependencies"].append({"pip": ["ray<=2.4.0,>=2.2.0"]})
+        conda_yaml["dependencies"].append({"pip": ["ray >= 2.2.0, <= 2.6.3, != 2.6.0"]})
     else:
         for dep in conda_yaml["dependencies"]:
             if (
@@ -94,7 +97,7 @@ def _get_conda_yaml(conda_env=None):
                 and "pip" in dep
                 and not [pip for pip in dep["pip"] if "ray" in pip]
             ):
-                dep["pip"].append("ray<=2.4.0,>=2.2.0")
+                dep["pip"].append("ray >= 2.2.0, <= 2.6.3, != 2.6.0")
                 continue
     return conda_yaml
 
@@ -110,3 +113,78 @@ def _env_vars_from_file(env_file):
     dotenv_path = find_dotenv(str(env_file), usecwd=True)
     env_vars = dotenv_values(dotenv_path)
     return dict(env_vars)
+
+
+# ------- Installation helpers -------
+
+
+def run_with_logs(cmd: str, **kwargs):
+    """Runs a command and prints the output to sys.stdout.
+    We can't just pipe to sys.stdout, and when in a `call` method
+    we overwrite sys.stdout with a multi-logger to a file and stdout.
+
+    Args:
+        cmd: The command to run.
+        kwargs: Keyword arguments to pass to subprocess.Popen.
+
+    Returns:
+        The returncode of the command.
+    """
+    require_outputs = kwargs.pop("require_outputs", False)
+    stream_logs = kwargs.pop("stream_logs", True)
+
+    p = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        shell=True,
+        **kwargs,
+    )
+
+    out = ""
+    if stream_logs:
+        while True:
+            line = p.stdout.readline()
+            if line == "" and p.poll() is not None:
+                break
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            if require_outputs:
+                out += line
+
+    stdout, stderr = p.communicate()
+
+    if require_outputs:
+        stdout = stdout or out
+        return p.returncode, stdout, stderr
+
+    return p.returncode
+
+
+def run_setup_command(cmd: str, cluster: "Cluster" = None, stream_logs: bool = False):
+    """
+    Helper function to run a command during possibly the cluster default env setup. If a cluster is provided,
+    run command on the cluster using SSH. If the cluster is not provided, run locally, as if already on the
+    cluster (rpc call).
+
+    Args:
+        cmd (str): Command to run on the
+        cluster (Optional[Cluster]): (default: None)
+        stream_logs (bool): (default: False)
+
+    Returns:
+       (status code, stdout)
+    """
+    if not cluster:
+        return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
+    return cluster._run_commands_with_ssh([cmd], stream_logs=stream_logs)[0]
+
+
+def install_conda(cluster: "Cluster" = None):
+    if run_setup_command("conda --version")[0] != 0:
+        logging.info("Conda is not installed. Installing...")
+        for cmd in CONDA_INSTALL_CMDS:
+            run_setup_command(cmd, stream_logs=True)
+        if run_setup_command("conda --version")[0] != 0:
+            raise RuntimeError("Could not install Conda.")

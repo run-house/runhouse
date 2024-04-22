@@ -1,7 +1,10 @@
 import logging
-import subprocess
 from pathlib import Path
 from typing import Union
+
+from runhouse.resources.envs.utils import run_setup_command
+
+from runhouse.resources.folders import Folder, folder
 
 from .package import Package
 
@@ -49,32 +52,34 @@ class GitPackage(Package):
             return f"GitPackage: {self.name}"
         return f"GitPackage: {self.git_url}@{self.revision}"
 
-    def _install(self, env: Union[str, "Env"] = None):
-        # Clone down the repo
-        if not Path(self.install_target).exists():
-            logging.info(f"Cloning: git clone {self.git_url}")
-            subprocess.run(
-                ["git", "clone", self.git_url],
-                cwd=Path(self.install_target).expanduser().parent,
-                check=True,
-            )
+    def _install(self, env: Union[str, "Env"] = None, cluster: "Cluster" = None):
+        if cluster and isinstance(self.install_target, str):
+            install_target = folder(path=self.install_target, system=cluster)
         else:
-            logging.info(f"Pulling: git -C {self.install_target} fetch {self.git_url}")
-            subprocess.run(
-                f"git -C {self.install_target} fetch {self.git_url}".split(" "),
-                check=True,
-                cwd=Path(self.install_target).expanduser().parent,
+            install_target = self.install_target
+
+        # Clone down the repo
+        if (cluster and not install_target.exists_in_system()) or (
+            not cluster and not Path(self.install_target).exists()
+        ):
+            logging.info(f"Cloning: git clone {self.git_url}")
+            run_setup_command(f"git clone {self.git_url}", cluster=cluster)
+        else:
+            install_path = (
+                install_target.path
+                if isinstance(install_target, Folder)
+                else install_target
             )
-        # Checkout the revision
+            run_setup_command(
+                f"git -C {install_path} fetch {self.git_url}", cluster=cluster
+            )
+
         if self.revision:
             logging.info(f"Checking out revision: git checkout {self.revision}")
-            subprocess.run(
-                ["git", "-C", self.install_target, "checkout", self.revision],
-                cwd=Path(self.install_target).expanduser().parent,
-                check=True,
-            )
+            run_setup_command(f"git -C {install_target} checkout {self.revision}")
+
         # Use super to install the package
-        super()._install(env)
+        super()._install(env, cluster=cluster)
 
     @staticmethod
     def from_config(config: dict, dryrun=False):
