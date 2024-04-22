@@ -27,6 +27,7 @@ class Package(Resource):
         "11.6": "https://download.pytorch.org/whl/cu116",
         "11.7": "https://download.pytorch.org/whl/cu117",
         "11.8": "https://download.pytorch.org/whl/cu118",
+        "12.1": "https://download.pytorch.org/whl/cu121",
         "cpu": "https://download.pytorch.org/whl/cpu",
     }
 

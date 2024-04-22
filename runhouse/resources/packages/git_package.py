@@ -52,6 +52,7 @@ class GitPackage(Package):
             return f"GitPackage: {self.name}"
         return f"GitPackage: {self.git_url}@{self.revision}"
 
+    # TODO for cluster
     def _install(self, env: Union[str, "Env"] = None, cluster: "Cluster" = None):
         if cluster and isinstance(self.install_target, str):
             install_target = folder(path=self.install_target, system=cluster)

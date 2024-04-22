@@ -284,6 +284,18 @@ from tests.fixtures.folder_fixtures import (  # usort: skip
     s3_folder,  # noqa: F401
 )
 
+# ----------------- Packages -----------------
+
+from tests.fixtures.package_fixtures import (
+    conda_package,  # noqa: F401
+    git_package,  # noqa: F401
+    local_package,  # noqa: F401
+    package,  # noqa: F401
+    pip_package,  # noqa: F401
+    reqs_package,  # noqa: F401
+    s3_package,  # noqa: F401
+)
+
 from tests.fixtures.secret_fixtures import (
     anthropic_secret,  # noqa: F401
     aws_secret,  # noqa: F401
@@ -327,14 +339,6 @@ from tests.test_resources.test_modules.test_blobs.conftest import (
     local_blob,  # noqa: F401
     local_file,  # noqa: F401
     s3_blob,  # noqa: F401
-)
-
-# ----------------- Packages -----------------
-
-from tests.test_resources.test_modules.test_folders.test_packages.conftest import (
-    local_package,  # noqa: F401
-    package,  # noqa: F401
-    s3_package,  # noqa: F401
 )
 
 # ----------------- Modules -----------------
