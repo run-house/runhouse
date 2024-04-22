@@ -191,8 +191,9 @@ class ProviderSecret(Secret):
                 system.default_env
                 if (
                     not env
-                    or env.config()
-                    == Env(name=Env.DEFAULT_NAME, working_dir="./").config()
+                    # TODO: Think about this, pretty sure we should be putting in the env if it was passed
+                    # or env.config()
+                    # == Env(name=Env.DEFAULT_NAME, working_dir="./").config()
                 )
                 else env
             )

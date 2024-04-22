@@ -123,7 +123,7 @@ class Cluster(Resource):
         return (
             self._default_env
             if self._default_env
-            else Env(Env.DEFAULT_NAME, working_dir="./")
+            else Env(name=Env.DEFAULT_NAME, working_dir="./")
         )
 
     @default_env.setter
@@ -131,13 +131,15 @@ class Cluster(Resource):
         self._default_env = _get_env_from(env)
         if self.is_up():
             self.check_server()
-            if not self.get(self._default_env.name):
-                self._sync_default_env_to_cluster()
-            self.put_resource(self._default_env)
+            self._default_env.to(self)
             self.save_config_to_cluster()
 
-    def save_config_to_cluster(self, node: str = None):
+            logger.info(
+                "The cluster default env has been updated. "
+                "Run `cluster.restart_server()` to restart the Runhouse server on the new default env."
+            )
 
+    def save_config_to_cluster(self, node: str = None):
         config = self.config(condensed=False)
         config.pop("creds")
         json_config = f"{json.dumps(config)}"
@@ -349,6 +351,8 @@ class Cluster(Resource):
         return self
 
     def _sync_default_env_to_cluster(self):
+        """Install and set up the default env requirements on the cluster. This does not put the env resource
+        on the cluster or initialize the servlet. It also does not set any env vars."""
         if not self._default_env:
             return
 

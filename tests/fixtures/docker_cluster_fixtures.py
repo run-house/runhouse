@@ -273,17 +273,17 @@ def set_up_local_cluster(
         # If re-using fixtures make sure the crt file gets copied on to the cluster
         rh_cluster.restart_server()
 
-    rh.env(
-        reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
-        working_dir=None,
-        setup_cmds=[
-            f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
-            f"echo '{yaml.safe_dump(config)}' > ~/.rh/config.yaml"
-        ]
-        if logged_in
-        else False,
-        name="base_env",
-    ).to(rh_cluster)
+    if rh_cluster.default_env.name == rh.Env.DEFAULT_NAME:
+        rh.env(
+            reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
+            working_dir=None,
+            setup_cmds=[
+                f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
+                f"echo '{yaml.safe_dump(config)}' > ~/.rh/config.yaml"
+            ]
+            if logged_in
+            else False,
+        ).to(rh_cluster)
 
     def cleanup():
         docker_client.containers.get(container_name).stop()
@@ -372,6 +372,11 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
 
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 2
+    default_env = rh.env(
+        reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
+        working_dir=None,
+        name="default_env",
+    )
 
     local_cluster, cleanup = set_up_local_cluster(
         image_name="keypair",
@@ -390,6 +395,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
             "name": f"{test_org_rns_folder}_docker_cluster_pk_ssh",
             "server_connection_type": "ssh",
             "use_local_telemetry": True,
+            "default_env": default_env,
         },
     )
 

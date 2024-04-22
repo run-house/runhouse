@@ -53,11 +53,21 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         # and add local clusters once conda docker container is set up
     }
     MINIMAL = {
-        "env": ["base_env", "named_env", "base_conda_env", "named_conda_env_from_dict"],
+        "env": [
+            "base_env",
+            "named_env",
+            "base_conda_env",
+            "named_conda_env_from_dict",
+        ],
         "cluster": ["ondemand_aws_cluster"],
     }
     RELEASE = {
-        "env": ["base_env", "named_env", "base_conda_env", "named_conda_env_from_dict"],
+        "env": [
+            "base_env",
+            "named_env",
+            "base_conda_env",
+            "named_conda_env_from_dict",
+        ],
         "cluster": [
             "ondemand_aws_cluster",
             "password_cluster",

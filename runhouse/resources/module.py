@@ -878,7 +878,9 @@ class Module(Resource):
     def _save_sub_resources(self, folder: str = None):
         if isinstance(self.system, Resource) and self.system.name:
             self.system.save(folder=folder)
-        if isinstance(self.env, Resource) and self.env.name != Env.DEFAULT_NAME:
+        if isinstance(self.env, Resource) and self.env != Env(
+            name=Env.DEFAULT_NAME, working_dir="./"
+        ):
             self.env.save(folder=folder)
 
     def rename(self, name: str):
