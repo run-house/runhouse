@@ -119,7 +119,7 @@ class Module(Resource):
         config["signature"] = self.signature(rich=True)
 
         # Only save the endpoint if it's present in _endpoint or externally accessible
-        config["endpoint"] = self.endpoint(external=True)
+        config["endpoint"] = self.endpoint(external=False)
 
         if self._openapi_spec:
             config["openapi_spec"] = self._openapi_spec
