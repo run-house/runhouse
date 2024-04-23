@@ -157,14 +157,18 @@ class Module(Resource):
                         if isinstance(env, str)
                         else env["name"]
                         if isinstance(env, Dict)
+                        else env.name
+                        if isinstance(env, Env)
                         else system.default_env.name
                         if system.default_env
                         else None
                     )
-                    if (system and _current_cluster == _get_cluster_from(system)) and (
-                        env_name
-                        and obj_store.cluster_servlet
-                        and obj_store.cluster_servlet.name == env_name
+
+                    # If we are on the same cluster, and in the env where the module lives, we should be able to
+                    # load the module from the pointers. So, we should just raise the exception if this is the case.
+                    if system.on_this_cluster() and (
+                        env_name == obj_store.servlet_name
+                        and obj_store.has_local_storage
                     ):
                         # Could not load Module locally from within the system where it lives
                         raise e
@@ -480,7 +484,7 @@ class Module(Resource):
                     if attr not in excluded_state_keys
                 }
             logger.info(
-                f"Sending module {new_module.name} to {system.name or 'local Runhouse daemon'}"
+                f"Sending module {new_module.name} of type {type(new_module)} to {system.name or 'local Runhouse daemon'}"
             )
             system.put_resource(new_module, state, dryrun=True)
 
