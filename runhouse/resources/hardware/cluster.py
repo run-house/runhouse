@@ -499,6 +499,7 @@ class Cluster(Resource):
 
         state = state or {}
         if self.on_this_cluster():
+            print(f"putting resource on this cluster {resource.__class__}")
             data = (resource.config(condensed=False), state, dryrun)
             return obj_store.put_resource(serialized_data=data, env_name=env_name)
         return self.client.put_resource(

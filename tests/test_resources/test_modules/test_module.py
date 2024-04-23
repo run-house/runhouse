@@ -138,6 +138,12 @@ class LotsOfAsync:
         return self.asum(a, b)
 
 
+class ConstructorModule:
+    def construct_module_on_cluster(self):
+        calc_module = rh.module(Calculator)()
+        assert calc_module.summer(2, 3) == 5
+
+
 @pytest.mark.moduletest
 class TestModule:
 
@@ -709,46 +715,11 @@ class TestModule:
         assert future_module.__class__.__name__ == "FutureModule"
         assert await future_module == 5
 
-
-def test_load_and_use_readonly_module(mod_name, cpu_count, size=3):
-    remote_df = rh.module(name=mod_name)
-    # Check that module is readonly and cluster is not set
-    assert isinstance(remote_df.system, str)
-    assert remote_df.access_level == "read"
-
-    assert remote_df.remote.size == size
-    assert len(remote_df.remote.df) == size
-    assert remote_df.remote._hidden_1 == "hidden"
-
-    results = []
-    # Capture stdout to check that it's working
-    out = ""
-    with rh.capture_stdout() as stdout:
-        for i, val in enumerate(remote_df.slow_iter()):
-            assert val
-            print(val)
-            results += [val]
-            out = out + str(stdout)
-    assert len(results) == 3
-
-    # Check that stdout was captured. Skip the last result because sometimes we
-    # don't catch it and it makes the test flaky.
-    for i in range(size - 1):
-        assert f"Hello from the cluster stdout! {i}" in out
-        assert f"Hello from the cluster logs! {i}" in out
-
-    print(remote_df.cpu_count())
-    assert remote_df.cpu_count() == os.cpu_count()
-    print(remote_df.cpu_count(local=False))
-    assert remote_df.cpu_count(local=False) == cpu_count
-
-    # Test setting and getting properties
-    df = remote_df.remote.df
-    assert isinstance(df, pd.DataFrame)
-    assert df.shape == (3, 3)
-    assert df.loc[0, 0] == 0
-    assert df.loc[2, 2] == 2
-
-    remote_df.size = 20
-    assert remote_df.remote.size == 20
-    remote_df.size = size  # reset to original value for second test
+    @pytest.mark.level("local")
+    def test_construct_module_on_cluster(self, cluster):
+        env = rh.env(
+            name="test_env",
+            reqs=["pandas", "numpy"],
+        )
+        remote_constructor_module = rh.module(ConstructorModule)().to(cluster, env=env)
+        remote_constructor_module.construct_module_on_cluster()

@@ -449,6 +449,7 @@ class Folder(Resource):
         return self._local_mount_path
 
     def _to_cluster(self, dest_cluster, path=None, mount=False):
+        print(f"{self.system} -> {dest_cluster}")
         """Copy the folder from a file or cluster source onto a destination cluster."""
         if not dest_cluster.address:
             raise ValueError("Cluster must be started before copying data to it.")

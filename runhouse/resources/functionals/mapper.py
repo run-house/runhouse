@@ -167,6 +167,7 @@ class Mapper(Module):
                 var.set(value)
 
             try:
+                print(f"Calling {method_name} on {replica.name} with args {argies}")
                 return getattr(replica, method_name)(*argies, **kwargies)
             except Exception as e:
                 logger.error(f"Error running {method_name} on {replica.name}: {e}")

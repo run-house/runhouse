@@ -1396,6 +1396,7 @@ class ObjStore:
     ) -> "Response":
         from runhouse.servers.http.http_utils import deserialize_data
 
+        print(f"put resource into {env_name}")
         if env_name is None and self.servlet_name is None:
             raise ObjStoreError("No env name provided and no servlet name set.")
 
@@ -1472,9 +1473,7 @@ class ObjStore:
         if provider:
             resource_config["provider"] = provider
 
-        logger.info(
-            f"Message received from client to construct resource: {resource_config}"
-        )
+        print(f"Message received from client to construct resource: {resource_config}")
 
         resource = Resource.from_config(config=resource_config, dryrun=dryrun)
 
