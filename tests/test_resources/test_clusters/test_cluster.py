@@ -68,8 +68,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     UNIT = {"cluster": ["named_cluster"]}
     LOCAL = {
         "cluster": [
-            "docker_cluster_pk_ssh_no_auth",
-            "docker_cluster_pk_ssh_den_auth",
+            "docker_cluster_pk_ssh_no_auth",  # Represents private dev use case
+            "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
+            "docker_cluster_pk_tls_den_auth",  # Represents public app use case
+            "docker_cluster_pk_http_exposed",  # Represents within VPC use case
             "docker_cluster_pwd_ssh_no_auth",
         ]
     }
@@ -320,7 +322,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         on_cluster_config = remote_cluster_config()
         local_cluster_config = cluster.config()
 
-        keys_to_skip = ["creds", "client_port", "server_host", "api_server_url"]
+        keys_to_skip = [
+            "creds",
+            "client_port",
+            "server_host",
+            "api_server_url",
+            "ssl_keyfile",
+            "ssl_certfile",
+        ]
         on_cluster_config = remove_config_keys(on_cluster_config, keys_to_skip)
         local_cluster_config = remove_config_keys(local_cluster_config, keys_to_skip)
 
