@@ -14,7 +14,12 @@ from pydantic import create_model
 
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs import _get_env_from, Env
-from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
+from runhouse.resources.hardware import (
+    _current_cluster,
+    _default_env_if_on_cluster,
+    _get_cluster_from,
+    Cluster,
+)
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
@@ -1324,7 +1329,12 @@ def module(
         )
 
     if not isinstance(env, Env):
-        env = _get_env_from(env) or Env(name=Env.DEFAULT_NAME)
+        env = _get_env_from(env)
+        if not env:
+            env = _get_env_from(_default_env_if_on_cluster())
+        if not env:
+            env = Env(name=Env.DEFAULT_NAME)
+
         env.working_dir = env.working_dir or "./"
 
     cls_pointers = Module._extract_pointers(cls, env.reqs)

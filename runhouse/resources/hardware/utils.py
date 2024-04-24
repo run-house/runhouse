@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict
 
 from runhouse.constants import CLUSTER_CONFIG_PATH, RESERVED_SYSTEM_NAMES
+from runhouse.resources.envs.utils import _get_env_from
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,11 @@ def _current_cluster(key="config"):
         return cluster_config[key]
     else:
         return None
+
+
+def _default_env_if_on_cluster():
+    config = _current_cluster()
+    return _get_env_from(config.get("default_env", None)) if config else None
 
 
 def _get_cluster_from(system, dryrun=False):
