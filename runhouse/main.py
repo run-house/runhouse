@@ -300,7 +300,7 @@ def _start_server(
     certs_address=None,
     use_local_telemetry=False,
     api_server_url=None,
-    default_env=None,
+    default_env_name=None,
     conda_env=None,
 ):
     ############################################
@@ -382,9 +382,11 @@ def _start_server(
         logger.info(f"Setting api_server url to {api_server_url}")
         flags.append(api_server_url_flag)
 
-    default_env_flag = f" --default-env {default_env}" if default_env else ""
+    default_env_flag = (
+        f" --default-env-name {default_env_name}" if default_env_name else ""
+    )
     if default_env_flag:
-        logger.info(f"Starting server on default env: {default_env}")
+        logger.info(f"Starting server in default env named: {default_env_name}")
         flags.append(default_env_flag)
 
     conda_env_flag = f" --conda-env {conda_env}" if conda_env else ""
@@ -486,7 +488,9 @@ def start(
     use_local_telemetry: bool = typer.Option(
         False, help="Whether to use local telemetry"
     ),
-    default_env: str = typer.Option(None, help="Default env to start the server on."),
+    default_env_name: str = typer.Option(
+        None, help="Default env to start the server on."
+    ),
     conda_env: str = typer.Option(
         None, help="Name of conda env corresponding to default env if it is a CondaEnv."
     ),
@@ -506,7 +510,7 @@ def start(
         domain=domain,
         certs_address=certs_address,
         use_local_telemetry=use_local_telemetry,
-        default_env=default_env,
+        default_env_name=default_env_name,
         conda_env=conda_env,
     )
 
@@ -568,7 +572,9 @@ def restart(
         default="https://api.run.house",
         help="URL of Runhouse Den",
     ),
-    default_env: str = typer.Option(None, help="Default env to start the server on."),
+    default_env_name: str = typer.Option(
+        None, help="Default env to start the server on."
+    ),
     conda_env: str = typer.Option(
         None, help="Name of conda env corresponding to default env if it is a CondaEnv."
     ),
@@ -597,7 +603,7 @@ def restart(
         certs_address=certs_address,
         use_local_telemetry=use_local_telemetry,
         api_server_url=api_server_url,
-        default_env=default_env,
+        default_env_name=default_env_name,
         conda_env=conda_env,
     )
 

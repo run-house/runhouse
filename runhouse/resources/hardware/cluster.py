@@ -751,9 +751,7 @@ class Cluster(Resource):
             self._sync_default_env_to_cluster()
 
         if resync_rh:
-            self._sync_runhouse_to_cluster(
-                _install_url=_rh_install_url, env=default_env
-            )
+            self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
             logger.debug("Finished syncing Runhouse to cluster.")
 
         https_flag = self._use_https
@@ -808,7 +806,7 @@ class Cluster(Resource):
             + (" --use-local-telemetry" if use_local_telemetry else "")
             + f" --port {self.server_port}"
             + f" --api-server-url {rns_client.api_server_url}"
-            + (f" --default-env {self.default_env.name}" if self.default_env else "")
+            + (f" --default-env-name {self.default_env.name}")
             + (
                 f" --conda-env {self.default_env.env_name}"
                 if self.default_env.config().get("resource_subtype", None) == "CondaEnv"
