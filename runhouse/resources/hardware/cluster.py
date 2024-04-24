@@ -501,6 +501,10 @@ class Cluster(Resource):
         else:
             env_name = env
 
+        # Env name could somehow be a full length `username/base_env`, trim it down to just the env name
+        if env_name:
+            env_name = env_name.split("/")[-1]
+
         state = state or {}
         if self.on_this_cluster():
             data = (resource.config(condensed=False), state, dryrun)
