@@ -13,6 +13,7 @@ import runhouse as rh
 import yaml
 
 from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
+from runhouse.globals import rns_client
 
 from tests.conftest import init_args
 from tests.utils import friend_account
