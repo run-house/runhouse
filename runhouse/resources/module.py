@@ -437,6 +437,8 @@ class Module(Resource):
             _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
         )
         if not env:
+            # TODO: (default env). Should we change the env to the system default env if the default name was
+            # used to create the module?
             if not self.env or (
                 self.env
                 and self.env.config()

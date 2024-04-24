@@ -187,16 +187,18 @@ class ProviderSecret(Secret):
             )
 
         if env or self.env_vars:
-            env = (
-                system.default_env
-                if (
-                    not env
-                    # TODO: Think about this, pretty sure we should be putting in the env if it was passed
-                    # or env.config()
-                    # == Env(name=Env.DEFAULT_NAME, working_dir="./").config()
-                )
-                else env
-            )
+            env = env if env else system.default_env
+            # TODO: (default env), pretty sure we should be putting in the env if it was passed, even if it's
+            # the default env. But if it's not passed, we should be using the default env.
+            # env = (
+            #     system.default_env
+            #     if (
+            #         not env
+            #         or env.config()
+            #         == Env(name=Env.DEFAULT_NAME, working_dir="./").config()
+            #     )
+            #     else env
+            # )
             env_key = env if isinstance(env, str) else env.name
             if not system.get(env_key):
                 env = env if isinstance(env, Env) else Env(name=env_key)

@@ -206,7 +206,7 @@ class Env(Resource):
         new_env.secrets = self._secrets_to(system)
 
         if isinstance(system, Cluster):
-            # TODO: Think about this. When sending an env that was unnamed to a cluster, should the remote env
+            # TODO: (default env). When sending an env that was unnamed to a cluster, should the remote env
             # be named the same as the local env? Or should it be named the same as the default env?
             # if new_env.name == Env.DEFAULT_NAME:
             #     new_env.name = system.default_env.name
