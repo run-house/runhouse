@@ -138,6 +138,12 @@ class LotsOfAsync:
         return self.asum(a, b)
 
 
+class ConstructorModule:
+    def construct_module_on_cluster(self):
+        calc_module = rh.module(Calculator)()
+        assert calc_module.summer(2, 3) == 5
+
+
 @pytest.mark.moduletest
 class TestModule:
 
@@ -708,6 +714,15 @@ class TestModule:
         )
         assert future_module.__class__.__name__ == "FutureModule"
         assert await future_module == 5
+
+    @pytest.mark.level("local")
+    def test_construct_module_on_cluster(self, cluster):
+        env = rh.env(
+            name="test_env",
+            reqs=["pandas", "numpy"],
+        )
+        remote_constructor_module = rh.module(ConstructorModule)().to(cluster, env=env)
+        remote_constructor_module.construct_module_on_cluster()
 
 
 def test_load_and_use_readonly_module(mod_name, cpu_count, size=3):
