@@ -48,20 +48,14 @@ def cert_config():
 
 @pytest.fixture(scope="function")
 def http_client(cluster, cert_config):
-    if cluster.server_connection_type in ["tls", "none"]:
-        addr = f"{cluster.endpoint()}:{cluster.client_port}"
-    else:
-        addr = cluster.endpoint()
+    addr = cluster.endpoint()
     with httpx.Client(base_url=addr, timeout=None, verify=False) as client:
         yield client
 
 
 @pytest_asyncio.fixture(scope="function")
 async def async_http_client(cluster, cert_config):
-    if cluster.server_connection_type in ["tls", "none"]:
-        addr = f"{cluster.endpoint()}:{cluster.client_port}"
-    else:
-        addr = cluster.endpoint()
+    addr = cluster.endpoint()
     async with httpx.AsyncClient(base_url=addr, timeout=None, verify=False) as client:
         yield client
 

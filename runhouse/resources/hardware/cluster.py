@@ -264,8 +264,12 @@ class Cluster(Resource):
                 if self.server_connection_type == ServerConnectionType.TLS
                 else "http"
             )
-            if self.server_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
-                return f"{url_base}://{self.server_address}:{self.server_port}"
+
+            # Client port gets set to the server port if it was not set.
+            # In the case of local, testing clusters, the client port will be set to something else
+            # since we need to port forward in order to hit localhost.
+            if self.client_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
+                return f"{url_base}://{self.server_address}:{self.client_port}"
             else:
                 return f"{url_base}://{self.server_address}"
 

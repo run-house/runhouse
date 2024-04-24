@@ -21,10 +21,7 @@ class TestTelemetry:
         assert cluster.is_up()  # Should be true for a Cluster object
 
         # Make a GET request to the /spans endpoint
-        if cluster.server_connection_type in ["tls", "none"]:
-            url = f"{cluster.endpoint()}:{cluster.client_port}/spans"
-        else:
-            url = f"{cluster.endpoint()}/spans"
+        url = f"{cluster.endpoint()}/spans"
         response = requests.get(
             url,
             verify=False,
