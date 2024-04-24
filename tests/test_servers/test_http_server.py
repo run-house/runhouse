@@ -180,10 +180,7 @@ class TestHTTPServerDocker:
         clus = remote_log_streaming_func.system
         data = {"args": [3], "kwargs": {}}
 
-        if clus.server_connection_type in ["tls", "none"]:
-            url = f"{clus.endpoint()}:{clus.client_port}/{module_name}/{method_name}"
-        else:
-            url = f"{clus.endpoint()}/{module_name}/{method_name}"
+        url = f"{clus.endpoint()}/{module_name}/{method_name}"
 
         with http_client.stream(
             "POST",

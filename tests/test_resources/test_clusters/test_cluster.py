@@ -160,10 +160,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert endpoint == f"http://{LOCALHOST}:{cluster.client_port}"
         else:
             url_base = "https" if cluster.server_connection_type == "tls" else "http"
-            if cluster.server_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
+            if cluster.client_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
                 assert (
                     endpoint
-                    == f"{url_base}://{cluster.server_address}:{cluster.server_port}"
+                    == f"{url_base}://{cluster.server_address}:{cluster.client_port}"
                 )
             else:
                 assert endpoint == f"{url_base}://{cluster.server_address}"

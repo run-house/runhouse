@@ -285,12 +285,7 @@ class TestFunction:
 
         # TODO: refactor in order to test the function.share() method.
         my_function = rh.function(fn=summer).to(cluster)
-        if cluster.server_connection_type in ["tls", "none"]:
-            my_function.set_endpoint(
-                f"{cluster.endpoint()}:{cluster.client_port}/{my_function.name}"
-            )
-        else:
-            my_function.set_endpoint(f"{cluster.endpoint()}/{my_function.name}")
+        my_function.set_endpoint(f"{cluster.endpoint()}/{my_function.name}")
         my_function.save(remote_func_name)
 
         my_function.share(
@@ -357,10 +352,7 @@ class TestFunction:
     def test_http_url(self, cluster):
         remote_sum = rh.function(summer).to(cluster).save("@/remote_function")
         ssh_creds = cluster.creds_values
-        if cluster.server_connection_type in ["tls", "none"]:
-            addr = f"{cluster.endpoint()}:{cluster.client_port}/{remote_sum.name}"
-        else:
-            addr = remote_sum.endpoint()
+        addr = remote_sum.endpoint()
         auth = (
             (ssh_creds.get("ssh_user"), ssh_creds.get("password"))
             if ssh_creds.get("password")
