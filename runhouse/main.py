@@ -439,7 +439,7 @@ def _start_server(
 
 @app.command()
 def start(
-    restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
+    restart_ray: bool = typer.Option(True, help="Restart the Ray runtime"),
     screen: bool = typer.Option(False, help="Start the server in a screen"),
     nohup: bool = typer.Option(
         False, help="Start the server in a nohup if screen is not available"
@@ -493,7 +493,7 @@ def start(
 @app.command()
 def restart(
     name: str = typer.Option(None, help="A *saved* remote cluster object to restart."),
-    restart_ray: bool = typer.Option(False, help="Restart the Ray runtime"),
+    restart_ray: bool = typer.Option(True, help="Restart the Ray runtime"),
     screen: bool = typer.Option(
         True,
         help="Start the server in a screen. Only relevant when restarting locally.",

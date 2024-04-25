@@ -676,7 +676,7 @@ class Cluster(Resource):
         self,
         _rh_install_url: str = None,
         resync_rh: bool = True,
-        restart_ray: bool = False,
+        restart_ray: bool = True,
         env: Union[str, "Env"] = None,
         restart_proxy: bool = False,
     ):
