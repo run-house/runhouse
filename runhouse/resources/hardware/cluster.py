@@ -738,7 +738,7 @@ class Cluster(Resource):
         self,
         _rh_install_url: str = None,
         resync_rh: bool = True,
-        restart_ray: bool = False,
+        restart_ray: bool = True,
         restart_proxy: bool = False,
     ):
         """Restart the RPC server.
