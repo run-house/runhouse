@@ -58,6 +58,7 @@ def _get_env_from(env):
         return Env.from_config(env)
     elif (
         isinstance(env, str)
+        # TODO: (default env) revisit this logic
         and Env.DEFAULT_NAME not in env
         and rns_client.exists(env, resource_type="env")
     ):
