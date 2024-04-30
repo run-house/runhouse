@@ -30,5 +30,5 @@ $ export HF_TOKEN=<your huggingface token>
 
 After that, you can just run the example:
 ```shell
-$ python parallel_embedding.py
+$ python parallel_hf_embedding_ec2.py
 ```
