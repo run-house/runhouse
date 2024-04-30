@@ -99,7 +99,6 @@ def test_env(logged_in=False):
         ]
         if logged_in
         else False,
-        name="base_env",
     )
 
 

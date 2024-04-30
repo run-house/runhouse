@@ -79,9 +79,7 @@ class Module(Resource):
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
             if not self._env:
                 self._env = (
-                    self._system.default_env
-                    if self._system
-                    else Env(name=Env.DEFAULT_NAME, working_dir="./")
+                    self._system.default_env if self._system else Env(working_dir="./")
                 )
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
@@ -163,7 +161,7 @@ class Module(Resource):
                         else env["name"]
                         if isinstance(env, Dict)
                         else env.name
-                        if isinstance(env, Env)
+                        if isinstance(env, Env) and env.name
                         else system.default_env.name
                         if system.default_env
                         else None
@@ -437,14 +435,8 @@ class Module(Resource):
             _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
         )
         if not env:
-            # TODO: (default env). Should we change the env to the system default env if the default name was
-            # used to create the module?
-            if not self.env or (
-                self.env
-                and self.env.config()
-                == Env(name=Env.DEFAULT_NAME, working_dir="./").config()
-            ):
-                env = system.default_env if system else self.env
+            if not self.env and system:
+                env = system.default_env
             else:
                 env = self.env
 
@@ -452,7 +444,7 @@ class Module(Resource):
 
         if system:
             system.check_server()
-            if env:
+            if isinstance(env, Env):
                 env = env.to(system, force_install=force_install)
 
         # We need to backup the system here so the __getstate__ method of the cluster
@@ -463,7 +455,11 @@ class Module(Resource):
         self.system = hw_backup
 
         new_module.system = system
-        new_module.env = env
+        new_module.env = (
+            system.default_env
+            if system and isinstance(env, Env) and not env.name
+            else env
+        )
         new_module.dryrun = True
 
         if isinstance(system, Cluster):
@@ -889,12 +885,7 @@ class Module(Resource):
     def _save_sub_resources(self, folder: str = None):
         if isinstance(self.system, Resource) and self.system.name:
             self.system.save(folder=folder)
-        # TODO: (default env) should we save the default env here? This can lead to a weird case where
-        # we share something in the default env with someone else, but they can't load down the env itself
-        # and are just passing around a string, like `rohinb2/base_env`.
-        if isinstance(self.env, Resource) and self.env != Env(
-            name=Env.DEFAULT_NAME, working_dir="./"
-        ):
+        if isinstance(self.env, Resource):
             self.env.save(folder=folder)
 
     def rename(self, name: str):
@@ -1346,7 +1337,7 @@ def module(
         if not env:
             env = _get_env_from(_default_env_if_on_cluster())
         if not env:
-            env = Env(name=Env.DEFAULT_NAME)
+            env = Env()
 
         env.working_dir = env.working_dir or "./"
 

@@ -61,8 +61,16 @@ def _current_cluster(key="config"):
 
 
 def _default_env_if_on_cluster():
+    from runhouse import Env
+
     config = _current_cluster()
-    return _get_env_from(config.get("default_env", None)) if config else None
+    return (
+        _get_env_from(
+            config.get("default_env", Env(name=Env.DEFAULT_NAME, working_dir="./"))
+        )
+        if config
+        else None
+    )
 
 
 def _get_cluster_from(system, dryrun=False):
