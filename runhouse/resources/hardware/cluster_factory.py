@@ -56,7 +56,9 @@ def cluster(
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
-        # TODO [CC]: Add default_env docstrings
+        default_env (Env or str, optional): Environment that the Runhouse server is started on in the cluster. Used to
+            specify an isolated environment (e.g. conda env) or any setup and requirements prior to starting the Runhouse
+            server. (Default: ``None``)
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
 
@@ -353,6 +355,9 @@ def ondemand_cluster(
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
+        default_env (Env or str, optional): Environment that the Runhouse server is started on in the cluster. Used to
+            specify an isolated environment (e.g. conda env) or any setup and requirements prior to starting the Runhouse
+            server. (Default: ``None``)
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
 
@@ -534,6 +539,9 @@ def sagemaker_cluster(
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``False``).
+        default_env (Env or str, optional): Environment that the Runhouse server is started on in the cluster. Used to
+            specify an isolated environment (e.g. conda env) or any setup and requirements prior to starting the Runhouse
+            server. (Default: ``None``)
         dryrun (bool): Whether to create the SageMakerCluster if it doesn't exist, or load a SageMakerCluster object
             as a dryrun.
             (Default: ``False``)
