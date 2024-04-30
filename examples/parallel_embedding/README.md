@@ -30,5 +30,5 @@ $ export HF_TOKEN=<your huggingface token>
 
 After that, you can just run the example:
 ```shell
-$ python llama3_ec2.py
+$ python parallel_embedding.py
 ```
