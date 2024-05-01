@@ -334,6 +334,13 @@ class ObjStore:
 
         # Otherwise, create it
         if create:
+            if (
+                type(resources.get("GPU", 0)) != int
+                or type(resources.get("CPU", 0)) != int
+            ):
+                raise ValueError(
+                    f"GPU and CPU resource specifications must be integers, got {resources} for env {env_name}."
+                )
             new_env_actor = (
                 ray.remote(EnvServlet)
                 .options(
