@@ -297,7 +297,7 @@ class OnDemandCluster(Cluster):
             return None
         return state[0]
 
-    def _start_ray_workers(self, ray_port):
+    def _start_ray_workers(self, ray_port, env):
         # Find the internal IP corresponding to the public_head_ip and the rest are workers
         internal_head_ip = None
         worker_ips = []
@@ -322,6 +322,7 @@ class OnDemandCluster(Cluster):
                     f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
                 ],
                 node=host,
+                env=env,
             )
         time.sleep(5)
 
