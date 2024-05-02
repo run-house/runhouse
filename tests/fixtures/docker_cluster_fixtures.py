@@ -351,6 +351,8 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
     # If we are running in detached mode, leave the container running, else clean it up
     if not detached:
         cleanup()
+    else:
+        local_cluster.delete_configs()
 
 
 @pytest.fixture(scope="session")
@@ -406,6 +408,8 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
     # If we are running in detached mode, leave the container running, else clean it up
     if not detached:
         cleanup()
+    else:
+        local_cluster.delete_configs()
 
 
 # These two clusters cannot be used in the same test together, they are are technically
@@ -502,6 +506,8 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
     # If we are running in detached mode, leave the container running, else clean it up
     if not detached:
         cleanup()
+    else:
+        local_cluster.delete_configs()
 
 
 @pytest.fixture(scope="session")
@@ -550,6 +556,8 @@ def docker_cluster_pwd_ssh_no_auth(request, test_rns_folder):
     # If we are running in detached mode, leave the container running, else clean it up
     if not detached:
         cleanup()
+    else:
+        local_cluster.delete_configs()
 
 
 @pytest.fixture(scope="session")
@@ -598,6 +606,8 @@ def friend_account_logged_in_docker_cluster_pk_ssh(request, test_rns_folder):
     # If we are running in detached mode, leave the container running, else clean it up
     if not detached:
         cleanup()
+    else:
+        local_cluster.delete_configs()
 
 
 @pytest.fixture(scope="session")
