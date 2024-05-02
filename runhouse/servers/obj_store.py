@@ -74,6 +74,7 @@ def get_cluster_servlet(
                 namespace="runhouse",
                 max_concurrency=1000,
                 resources={f"node:{current_ip}": 0.001},
+                num_cpus=0,
                 runtime_env=runtime_env,
             )
             .remote()
