@@ -1,4 +1,4 @@
-# Run several Hugging Face embedding models on AWS EC2 using Runhouse & Langchain
+# An embarrassingly parallel embedding task with Hugging Face models on AWS EC2
 
 This example demonstrates how to use Runhouse primitives to embed a large number of websites in parallel.
 We use a [BGE large model from Hugging Face](https://huggingface.co/BAAI/bge-large-en-v1.5) and load it via

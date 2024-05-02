@@ -1,4 +1,4 @@
-# # Run several Hugging Face embedding models on AWS EC2 using Runhouse & Langchain
+# # An embarrassingly parallel embedding task with Hugging Face models on AWS EC2
 
 # This example demonstrates how to use Runhouse primitives to embed a large number of websites in parallel.
 # We use a [BGE large model from Hugging Face](https://huggingface.co/BAAI/bge-large-en-v1.5) and load it via
@@ -93,19 +93,6 @@ def extract_urls(url, max_depth=1):
     )
 
 
-def partition_list(lst, num_chunks):
-    chunks = []
-    chunk_size = len(lst) // num_chunks
-    for i in range(0, len(lst), chunk_size):
-        chunks.append(lst[i : i + chunk_size])
-
-    if len(chunks) > num_chunks and len(chunks) > 1:
-        chunks[-2].extend(chunks[-1])
-        chunks = chunks[:-1]
-
-    return chunks
-
-
 # ## Setting up the URL Embedder
 #
 # Next, we define a class that will hold the model and the logic to extract a document from a URL and embed it.
@@ -121,7 +108,6 @@ class URLEmbedder:
 
     def initialize_model(self):
         if self.model is None:
-            print("Initializing model...")
             from langchain.embeddings import HuggingFaceBgeEmbeddings
 
             model_name = "BAAI/bge-large-en-v1.5"
@@ -135,7 +121,6 @@ class URLEmbedder:
                 model_kwargs=model_kwargs,
                 encode_kwargs=encode_kwargs,
             )
-            print("Model initialized.")
 
     def embed_docs(self, urls: List[str]):
         from langchain_community.document_loaders import WebBaseLoader
@@ -143,23 +128,24 @@ class URLEmbedder:
 
         self.initialize_model()
 
+        # Occasionally, the loader will fail to load the URLs, so we catch the exception and return None.
         loader = WebBaseLoader(
             web_paths=urls,
         )
-        print(f"Received {len(urls)} URLs. Loading as docs.")
         docs = loader.load()
-        print(f"Loaded {len(docs)} docs.")
 
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000, chunk_overlap=200
         )
         splits = text_splitter.split_documents(docs)
-        docs_as_str = [doc.page_content for doc in splits]
+        splits_as_str = [doc.page_content for doc in splits]
 
         # Time the actual embedding
         start_time = time.time()
-        embeddings = self.model.embed_documents(docs_as_str)
-        print(f"Time to embed {len(docs)} docs: {time.time() - start_time}")
+        embeddings = self.model.embed_documents(splits_as_str)
+        print(
+            f"Time to embed {len(splits_as_str)} text chunks: {time.time() - start_time}"
+        )
         return embeddings
 
 
@@ -182,25 +168,13 @@ if __name__ == "__main__":
 
     # We set up some parameters for our embedding task.
     num_replicas = 4  # Number of models to load side by side
-    num_parallel_tasks = 48  # Number of parallel calls to make to the replicas
-    max_urls_to_embed = 3000  # Max number of URLs to embed
-    url_to_recursively_embed = "https://js.langchain.com/docs/"
+    num_parallel_tasks = 128  # Number of parallel calls to make to the replicas
+    url_to_recursively_embed = "https://en.wikipedia.org/wiki/Poker"
 
-    # We recursively extract all children URLs from the given URL, up to a maximum depth of 2.
+    # We recursively extract all children URLs from the given URL.
     start_time = time.time()
     urls = extract_urls(url_to_recursively_embed, max_depth=2)
-    print(f"Extracted {len(urls)} URLs.")
-    if max_urls_to_embed > 0:
-        print(f"Trimming to max of {max_urls_to_embed} URLs.")
-        urls = urls[:max_urls_to_embed]
-
-    # We then partition the URLs into chunks to be embedded in parallel, these will be our arguments to the
-    # replicas when we call them in parallel.
-    partitioned = partition_list(urls, num_parallel_tasks)
-    print(
-        f"Partitioned into {num_parallel_tasks} splits of lengths: {[len(subset) for subset in partitioned]}"
-    )
-    print(f"Time to extract and partition URLs: {time.time() - start_time}")
+    print(f"Time to extract {len(urls)} URLs: {time.time() - start_time}")
 
     # Generally, when using Runhouse, you would initialize an env with `rh.env`, and send your module to
     # that env. Each env runs in a *separate process* on the cluster. In this case, we want to have 4 copies of the
@@ -243,18 +217,27 @@ if __name__ == "__main__":
 
     # Note again that we can call the `embed_docs` function on the
     # remote module exactly as if it were a local module.
+    # This function is simply a wrapper to use with the ThreadPoolExecutor.
     def call_on_replica(replica, urls):
         return replica.embed_docs(urls)
 
+    # This is standard Python code that uses the ThreadPoolExecutor to make `num_parallel_tasks` calls at once
+    # to the replicas. We then collect the results and print the total time taken.
     with concurrent.futures.ThreadPoolExecutor(
         max_workers=num_parallel_tasks
     ) as executor:
         futs = [
-            executor.submit(call_on_replica, replicas[i % num_replicas], partitioned[i])
-            for i in range(len(partitioned))
+            executor.submit(call_on_replica, replicas[i % num_replicas], [urls[i]])
+            for i in range(len(urls))
         ]
         for fut in concurrent.futures.as_completed(futs):
-            results.extend([fut.result()])
+            res = fut.result()
+            if res is not None:
+                results.extend(res)
+            else:
+                print("An embedding call failed.")
+
+    print(f"Received {len(results)} total embeddings.")
     print(
-        f"Time to embed {len(urls)} docs across {num_replicas} replicas with {num_parallel_tasks} calls: {time.time() - start_time}"
+        f"Embedded {len(urls)} docs across {num_replicas} replicas with {num_parallel_tasks} concurrent calls: {time.time() - start_time}"
     )
