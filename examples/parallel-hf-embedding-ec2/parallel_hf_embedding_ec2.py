@@ -46,25 +46,51 @@ import runhouse as rh
 from bs4 import BeautifulSoup
 
 # Then, we define some utility functions that we'll use for our embedding task.
-def extract_urls(url, max_depth=1, current_depth=1):
+def _extract_urls_helper(url, visited, original_url, max_depth=1, current_depth=1):
     """
     Extracts all URLs from a given URL, recursively up to a maximum depth.
     """
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
-    urls = []
-    # Filter out non-HTTP URL links
-    if url.startswith("http"):
+    if url in visited:
+        return []
+
+    visited.add(url)
+
+    if urlparse(url).netloc != urlparse(original_url).netloc:
+        return []
+
+    if "redirect" in url:
+        return []
+
+    urls = [url]
+
+    if current_depth <= max_depth:
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, "html.parser")
         for link in soup.find_all("a"):
             href = link.get("href")
             if href:
-                href = urljoin(url, href)
+                # Ignore links within the same page
+                if href.startswith("#"):
+                    continue
+
+                if not href.startswith("http"):
+                    href = urljoin(url, href)
+
                 parsed_href = urlparse(href)
                 if bool(parsed_href.scheme) and bool(parsed_href.netloc):
-                    urls.append(href)
-                    if current_depth < max_depth:
-                        urls.extend(extract_urls(href, max_depth, current_depth + 1))
+                    urls.extend(
+                        _extract_urls_helper(
+                            href, visited, original_url, max_depth, current_depth + 1
+                        )
+                    )
     return urls
+
+
+def extract_urls(url, max_depth=1):
+    visited = set()
+    return _extract_urls_helper(
+        url, visited, original_url=url, max_depth=max_depth, current_depth=1
+    )
 
 
 def partition_list(lst, num_chunks):
