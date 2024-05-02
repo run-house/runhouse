@@ -87,7 +87,7 @@ class HTTPClient:
             # setting of "True", which will verify the cluster's SSL certs
             self.verify = self.cert_path if self._certs_are_self_signed() else True
 
-        self.async_session = httpx.AsyncClient(auth=self.auth, verify=self.verify)
+        self.async_session = httpx.AsyncClient(auth=self.auth, verify=self.verify, timeout=None)
 
         self.log_formatter = ClusterLogsFormatter(self.system)
 
