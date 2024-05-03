@@ -8,27 +8,36 @@
 
 ## 👵 Welcome Home!
 
-Runhouse is the fastest way to build, run, and deploy production-quality AI apps and workflows on your own compute.
-Leverage simple, powerful APIs for the full lifecycle of AI development, through
-research→evaluation→production→updates→scaling→management, and across any infra.
+Runhouse gives your code the superpower of traversing remote infrastructure, so you
+can iterate and debug your ML apps and workflows locally in regular Python (no DSLs, yaml, or prescriptive
+dev environment) with full-scale compute and data (no sandbox). It's the fastest way to build, run,
+and deploy production-quality ML apps and workflows on your own infrastructure, and perhaps the only way to
+take production code and run it as-is locally (again, running on identical powerful infra) to iterate it further or
+debug.
 
-By automatically packaging your apps into scalable, secure, and observable services, Runhouse can also turn
-otherwise redundant AI activities into common reusable components across your team or company, which improves
-cost, velocity, and reproducibility.
+After you've sent a function or class to remote compute, Runhouse also allows you to persist, reuse, and share it as
+a service, turning otherwise redundant AI activities into common modular components across your team or company.
+This improves cost, velocity, and reproducibility - think 10 ML pipelines and researchers calling the same shared
+preprocessing, training, evaluation, or batch inference service, rather than each allocating their own compute
+resources and deploying slightly differing code. Or, imagine experimenting with a new preprocessing method in a
+notebook, but you can call every other stage of your ML workflow as the production services themselves.
 
 Highlights:
-* 👩‍🔬 Dispatch Python functions, classes, and data to remote infra (clusters, cloud VMs, etc.) instantly. No need to
-reach for a workflow orchestrator to run different chunks of code on various beefy boxes.
-* 👷‍♀️ Deploy Python functions or classes as production-quality services instantly, including HTTPS, auth, observability,
-scaling, custom domains, secrets, versioning, and more. No research-to-production gap.
-* 🐍 No DSL, decorators, yaml, CLI incantations, or boilerplate. Just your own Python.
-* 👩‍🎓 Extensive support for Ray, Kubernetes, AWS, GCP, Azure, local, on-prem, and more. When you want to shift or scale,
-just send your app to more powerful infra.
-* 👩‍🚀 Extreme reusability and portability. A single succinct script can stand up your app, dependencies, and infra.
-* 👩‍🍳 Arbitrarily nest applications to create complex workflows and services. Apps are decoupled so you can change,
-move, or scale any component without affecting the rest of your system.
+* 👩‍🔬 Dispatch Python functions, classes, and data to remote infra instantly, and call
+them eagerly as if they were local. Logs are streamed, iteration is fast.
+* 👷‍♀️ Share Python functions or classes as robust services, including HTTPS, auth, observability,
+scaling, custom domains, secrets, versioning, and more.
+* 🐍 No DSL, decorators, yaml, CLI incantations, or boilerplate. Just your own regular Python.
+* 🚀 Deploy anywhere you run Python. No special packaging or deployment process. Research and production code are
+identical.
+* 👩‍🎓 BYO-infra with extensive and growing support - Ray, Kubernetes, AWS, GCP, Azure, local, on-prem, and more.
+When you want to shift or scale, just send your code to more powerful infra.
+* 👩‍🚀 Extreme reproducibility and portability. A single succinct script can allocate the infra, set up dependencies,
+and serve your app.
+* 👩‍🍳 Nest applications to create complex workflows and services. Components are decoupled so you can change,
+shift, or scale any component without affecting the rest of your system.
 
-The Runhouse API is dead simple. Send your **apps** (functions and classes) into **environments** on compute
+The Runhouse API is dead simple. Send your **modules** (functions and classes) into **environments** on compute
 **infra**, like this:
 
 ```python
@@ -54,17 +63,17 @@ if __name__ == "__main__":
     print(remote_sd_generate.endpoint())
 ```
 
-With the above simple structure you can run, deploy, and share:
+With the above simple structure you can build, call, and share:
 * 🛠️ **AI primitives**: Preprocessing, training, fine-tuning, evaluation, inference
-* 🚀 **Higher-order services**: Multi-stage inference (e.g. RAG), e2e workflows
-* 🦺 **Controls and safety**: PII obfuscation, content moderation, drift detection
-* 📊 **Data services**: ETL, caching, data augmentation, data validation
+* 🚀 **Higher-order services**: Multi-step inference, e2e workflows, evaluation gauntlets, HPO
+* 🧪 **UAT endpoints**: Instant endpoints for client teams to test and integrate
+* 🦺 **Best-practice utilities**: PII obfuscation, content moderation, data augmentation
 
 
-## 🛋️ Share Apps and Resources with Runhouse Den
+## 🛋️ Sharing and Versioning with Runhouse Den
 
-You can unlock unique portability and sharing features by creating a
-[Runhouse Den account](https://www.run.house/dashboard).
+You can unlock unique accessibility and sharing features with
+[Runhouse Den](https://www.run.house/dashboard), a complimentary product to this repo.
 Log in from anywhere to save, share, and load resources:
 ```shell
 runhouse login
@@ -93,7 +102,7 @@ Please reach out (first name at run.house) if you don't see your favorite comput
   - Local - **Supported**
   - Single box - **Supported**
   - Ray cluster - **Supported**
-  - Kubernetes (K8S) - **Supported**
+  - Kubernetes - **Supported**
   - Amazon Web Services (AWS)
     - EC2 - **Supported**
     - EKS - **Supported**
@@ -116,9 +125,6 @@ Please reach out (first name at run.house) if you don't see your favorite comput
 [**📖 Docs**](https://www.run.house/docs):
 Detailed API references, basic API examples and walkthroughs, end-to-end tutorials, and high-level architecture overview.
 
-[**🎪 Funhouse**](https://github.com/run-house/funhouse): Standalone ML apps and examples to try with Runhouse, like image generation models, LLMs,
-launching Gradio spaces, and more!
-
 [**👩‍💻 Blog**](https://www.run.house/blog): Deep dives into Runhouse features, use cases, and the future of AI
 infra.
 
@@ -132,4 +138,4 @@ Message us on [Discord](https://discord.gg/RnhB6589Hs), email us (first name at 
 
 ## 👷‍♀️ Contributing
 
-We welcome contributions! Please check out [contributing](CONTRIBUTING.md) if you're interested.
+We welcome contributions! Please check out [contributing](CONTRIBUTING.md).
