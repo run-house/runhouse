@@ -177,6 +177,15 @@ class Cluster(Resource):
 
         return self
 
+    def delete_configs(self):
+        if self._creds:
+            logger.debug(
+                f"Attempting to delete creds associated with cluster {self.name}"
+            )
+            rns_client.delete_configs(self._creds)
+
+        super().delete_configs()
+
     def _save_sub_resources(self, folder: str = None):
         from runhouse.resources.envs import Env
         from runhouse.resources.secrets import Secret

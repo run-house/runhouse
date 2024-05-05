@@ -39,12 +39,16 @@ def saved_resource_pool():
 
 @pytest.fixture(scope="session")
 def test_rns_folder():
-    return f"testing-{uuid.uuid4()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    folder_path = f"testing-{uuid.uuid4()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    yield folder_path
+    rns_client.delete_configs(folder_path)
 
 
 @pytest.fixture(scope="session")
 def test_org_rns_folder(test_rns_folder):
-    return f"/{TEST_ORG}/{test_rns_folder}"
+    folder_path = f"/{TEST_ORG}/{test_rns_folder}"
+    yield folder_path
+    rns_client.delete_configs(folder_path)
 
 
 @pytest.fixture(scope="function")
