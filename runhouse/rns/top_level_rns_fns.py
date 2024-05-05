@@ -65,11 +65,14 @@ def load(name: str, instantiate: bool = True, dryrun: bool = False):
 
 
 async def get_local_cluster_object():
-    from runhouse.resources.envs import Env
+    from runhouse.resources.hardware import Cluster
 
     # By default, obj_store.initialize does not initialize Ray, and instead
     # attempts to connect to an existing cluster.
-    from runhouse.resources.hardware.utils import load_cluster_config_from_file
+    from runhouse.resources.hardware.utils import (
+        _unnamed_default_env_name,
+        load_cluster_config_from_file,
+    )
 
     # In case we are calling `rh.here` within the same Python process
     # as an initialized object store, keep the same name.
@@ -78,13 +81,16 @@ async def get_local_cluster_object():
     try:
         servlet_name = obj_store.servlet_name
         if not servlet_name:
-            default_env = load_cluster_config_from_file().get("default_env", None)
+            cluster_config = load_cluster_config_from_file()
+            default_env = cluster_config.get("default_env", None)
             if isinstance(default_env, str):
                 servlet_name = default_env
             elif isinstance(default_env, Dict):
-                servlet_name = default_env.get("name", Env.DEFAULT_NAME)
+                servlet_name = default_env.get(
+                    "name", _unnamed_default_env_name(cluster_config.get("name"))
+                )
             else:
-                servlet_name = Env.DEFAULT_NAME
+                servlet_name = Cluster.EMPTY_DEFAULT_ENV_NAME
 
         await obj_store.ainitialize(
             servlet_name=servlet_name,

@@ -1093,7 +1093,6 @@ class ObjStore:
 
         obj = self.get_local(key, default=KeyError)
 
-        from runhouse.resources.envs.env import Env
         from runhouse.resources.module import Module
         from runhouse.resources.resource import Resource
 
@@ -1112,7 +1111,7 @@ class ObjStore:
                 # Setting to None in the case of non-resource or no rns_address will force auth to only
                 # succeed if the user has WRITE or READ access to the cluster
                 resource_uri = obj.rns_address if hasattr(obj, "rns_address") else None
-                if key != Env.DEFAULT_NAME and not await self.ahas_resource_access(
+                if key != self.servlet_name and not await self.ahas_resource_access(
                     ctx.token, resource_uri
                 ):
                     # Do not validate access to the default Env

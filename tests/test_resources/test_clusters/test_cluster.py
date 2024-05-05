@@ -262,6 +262,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         status_output_string = status_output_string.encode("utf-8").decode(
             "unicode_escape"
         )
+        status_output_string = status_output_string.replace("\n", "")
         assert "Runhouse Daemon is running" in status_output_string
         assert f"server_port: {cluster.server_port}" in status_output_string
         assert (

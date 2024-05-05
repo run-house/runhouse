@@ -174,9 +174,9 @@ class HTTPServer:
                 return await call_next(request)
 
         if not default_env_name:
-            from runhouse.resources.envs import Env
+            from runhouse.resources.hardware import Cluster
 
-            default_env_name = Env.DEFAULT_NAME
+            default_env_name = Cluster.EMPTY_DEFAULT_ENV_NAME
 
         # Ray and ClusterServlet should already be
         # initialized by the start script (see below)
