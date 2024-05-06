@@ -5,7 +5,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict
 
-from runhouse.constants import CLUSTER_CONFIG_PATH, RESERVED_SYSTEM_NAMES
+from runhouse.constants import (
+    CLUSTER_CONFIG_PATH,
+    EMPTY_DEFAULT_ENV_NAME,
+    RESERVED_SYSTEM_NAMES,
+)
 from runhouse.resources.envs.utils import _get_env_from
 
 logger = logging.getLogger(__name__)
@@ -61,14 +65,14 @@ def _current_cluster(key="config"):
 
 
 def _default_env_if_on_cluster():
-    from runhouse import Cluster, Env
+    from runhouse import Env
 
     config = _current_cluster()
     return (
         _get_env_from(
             config.get(
                 "default_env",
-                Env(name=Cluster.EMPTY_DEFAULT_ENV_NAME, working_dir="./"),
+                Env(name=EMPTY_DEFAULT_ENV_NAME, working_dir="./"),
             )
         )
         if config

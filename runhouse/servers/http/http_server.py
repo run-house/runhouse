@@ -22,6 +22,7 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
+    EMPTY_DEFAULT_ENV_NAME,
     LOGGING_WAIT_TIME,
     RH_LOGFILE_PATH,
 )
@@ -173,10 +174,7 @@ class HTTPServer:
 
                 return await call_next(request)
 
-        if not default_env_name:
-            from runhouse.resources.hardware import Cluster
-
-            default_env_name = Cluster.EMPTY_DEFAULT_ENV_NAME
+        default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
 
         # Ray and ClusterServlet should already be
         # initialized by the start script (see below)
@@ -209,6 +207,15 @@ class HTTPServer:
             create=True,
             runtime_env=runtime_env,
         )
+
+        if default_env_name == EMPTY_DEFAULT_ENV_NAME:
+            from runhouse import env
+
+            default_env = env(name=default_env_name, working_dir="./")
+            data = (default_env.config(condensed=False), {}, False)
+            obj_store.put_resource(
+                serialized_data=data, serialization=None, env_name=default_env_name
+            )
 
     @classmethod
     def initialize(
@@ -918,7 +925,7 @@ async def main():
     parser.add_argument(
         "--default-env-name",
         type=str,
-        default="base",
+        default=None,
         help="Name of env where the HTTP server is started.",
     )
 

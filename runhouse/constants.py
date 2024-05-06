@@ -56,3 +56,5 @@ CONDA_INSTALL_CMDS = [
 ]
 
 TEST_ORG = "test-org"
+
+EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"

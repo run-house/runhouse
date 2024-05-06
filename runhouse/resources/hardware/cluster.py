@@ -30,6 +30,7 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
+    EMPTY_DEFAULT_ENV_NAME,
     LOCALHOST,
     RESERVED_SYSTEM_NAMES,
 )
@@ -52,7 +53,7 @@ class Cluster(Resource):
     REQUEST_TIMEOUT = 5  # seconds
 
     DEFAULT_SSH_PORT = 22
-    EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"
+    EMPTY_DEFAULT_ENV_NAME = EMPTY_DEFAULT_ENV_NAME
 
     def __init__(
         self,
@@ -128,7 +129,7 @@ class Cluster(Resource):
         return (
             self._default_env
             if self._default_env
-            else Env(name=self.EMPTY_DEFAULT_ENV_NAME, working_dir="./")
+            else Env(name=EMPTY_DEFAULT_ENV_NAME, working_dir="./")
         )
 
     @default_env.setter
@@ -503,18 +504,23 @@ class Cluster(Resource):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
         self.check_server()
 
+        if resource.RESOURCE_TYPE == "env" and not resource.name:
+            resource.name = self.default_env.name
+
         # Logic to get env_name from different ways env can be provided
         env = env or (
             resource.env
             if hasattr(resource, "env")
             else resource.name or resource.env_name
             if resource.RESOURCE_TYPE == "env"
-            else self._default_env
+            else self.default_env
         )
+        if resource.RESOURCE_TYPE == "env" and not resource.name:
+            resource.name = self.default_env.name
 
         if env and not isinstance(env, str):
             env = _get_env_from(env)
-            env_name = env.name or env.env_name
+            env_name = env.name or self.default_env.name
         else:
             env_name = env
 
@@ -1156,7 +1162,7 @@ class Cluster(Resource):
             # Move to the Caddy directory to ensure the daemon has access to the certs
             src = self.cert_config.DEFAULT_CLUSTER_DIR
             dest = self.cert_config.CADDY_CLUSTER_DIR
-            self.run(
+            self._run_commands_with_ssh(
                 [
                     f"sudo mkdir -p {dest}",
                     f"sudo mv {src}/* {dest}/",
@@ -1192,9 +1198,8 @@ class Cluster(Resource):
             commands = [commands]
 
         if isinstance(env, Env) and not env.name:
-            env.to(self)
             env = self._default_env
-        env = env or self._default_env
+        env = env or self.default_env
 
         if node == "all":
             res_list = []

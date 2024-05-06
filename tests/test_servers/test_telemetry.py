@@ -28,7 +28,7 @@ class TestTelemetry:
             headers=rh.globals.rns_client.request_headers(cluster.rns_address),
         )
 
-        if cluster.use_local_telemetry:
+        if cluster.use_local_telemetry or not rh.configs.get("disable_data_collection"):
             # Check the status code
             assert response.status_code == 200
 

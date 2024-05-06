@@ -2,6 +2,8 @@ import logging
 import sys
 from typing import Dict
 
+from runhouse.constants import EMPTY_DEFAULT_ENV_NAME
+
 from runhouse.globals import configs, obj_store, rns_client
 
 from runhouse.logger import LOGGING_CONFIG
@@ -65,8 +67,6 @@ def load(name: str, instantiate: bool = True, dryrun: bool = False):
 
 
 async def get_local_cluster_object():
-    from runhouse.resources.hardware import Cluster
-
     # By default, obj_store.initialize does not initialize Ray, and instead
     # attempts to connect to an existing cluster.
     from runhouse.resources.hardware.utils import (
@@ -90,7 +90,7 @@ async def get_local_cluster_object():
                     "name", _unnamed_default_env_name(cluster_config.get("name"))
                 )
             else:
-                servlet_name = Cluster.EMPTY_DEFAULT_ENV_NAME
+                servlet_name = EMPTY_DEFAULT_ENV_NAME
 
         await obj_store.ainitialize(
             servlet_name=servlet_name,

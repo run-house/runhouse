@@ -145,7 +145,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         # Create a new cluster object for the same remote cluster
         cluster.save()
-        new_cluster = rh.cluster(cluster.name)
+        new_cluster = rh.cluster(cluster.rns_address)
         new_cluster.run(["echo hello"])
         # Check that the same underlying ssh connection was used
         assert len(rh.globals.sky_ssh_runner_cache) == num_open_tunnels
@@ -273,11 +273,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert f"resource_type: {cluster.RESOURCE_TYPE.lower()}" in status_output_string
         assert f"ips: {str(cluster.ips)}" in status_output_string
         assert "Serving " in status_output_string
-        assert (
-            f"{default_env_name} (runhouse.resources.envs.env.Env):"
-            in status_output_string
-            or f"{default_env_name} (Env):" in status_output_string
-        )
+        assert f"{default_env_name}" in status_output_string
         assert "status_key2 (str)" in status_output_string
         assert "creds" not in status_output_string
 

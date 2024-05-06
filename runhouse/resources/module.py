@@ -435,7 +435,9 @@ class Module(Resource):
             _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
         )
         if not env:
-            if not self.env and system:
+            if (
+                not self.env or (isinstance(self.env, Env) and not self.env.name)
+            ) and system:
                 env = system.default_env
             else:
                 env = self.env

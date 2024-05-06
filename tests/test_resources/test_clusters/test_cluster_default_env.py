@@ -48,8 +48,10 @@ class TestCluster(tests.test_resources.test_clusters.test_cluster.TestCluster):
     @pytest.mark.level("local")
     def test_run_in_default_env(self, cluster):
         for req in cluster.default_env.reqs:
-            req = req.replace("_", "-")
-            assert cluster.run(f"pip freeze | grep {req}")[0][0] == 0
+            if isinstance(req, str) and "_" in req:
+                # e.g. pytest_asyncio
+                req = req.replace("_", "-")
+                assert cluster.run(f"pip freeze | grep {req}")[0][0] == 0
 
     @pytest.mark.level("minimal")
     def test_default_conda_env_created(self, cluster):

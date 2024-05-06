@@ -11,10 +11,14 @@ import pytest
 
 import runhouse as rh
 
-from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
+from runhouse.constants import (
+    DEFAULT_HTTP_PORT,
+    DEFAULT_HTTPS_PORT,
+    DEFAULT_SSH_PORT,
+    EMPTY_DEFAULT_ENV_NAME,
+)
 from runhouse.globals import rns_client
 
-from runhouse.resources.hardware.cluster import Cluster
 from tests.conftest import init_args
 from tests.utils import friend_account, test_env
 
@@ -274,7 +278,7 @@ def set_up_local_cluster(
         # If re-using fixtures make sure the crt file gets copied on to the cluster
         rh_cluster.restart_server()
 
-    if rh_cluster.default_env.name == Cluster.EMPTY_DEFAULT_ENV_NAME:
+    if rh_cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
         test_env(logged_in=logged_in).to(rh_cluster)
 
     def cleanup():
