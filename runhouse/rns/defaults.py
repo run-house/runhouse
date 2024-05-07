@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 class Defaults:
     """Class to handle defaults for Runhouse. Defaults are stored in a json file in the user's home directory."""
 
-    USER_ENDPOINT = "user/"
-    GROUP_ENDPOINT = "group/"
+    USER_ENDPOINT = "user"
+    GROUP_ENDPOINT = "group"
     CONFIG_PATH = Path("~/.rh/config.yaml").expanduser()
     # TODO [DG] default sub-dicts for various resources (e.g. defaults.get('cluster').get('resource_type'))
     BASE_DEFAULTS = {
@@ -150,7 +150,7 @@ class Defaults:
         endpoint = (
             self.USER_ENDPOINT
             if entity == "user"
-            else self.GROUP_ENDPOINT + f"/{entity}"
+            else f"{self.GROUP_ENDPOINT}/{entity}"
         )
         uri = f'{self.get("api_server_url")}/{endpoint}/config'
         resp = requests.put(
@@ -171,7 +171,7 @@ class Defaults:
         endpoint = (
             self.USER_ENDPOINT
             if entity == "user"
-            else self.GROUP_ENDPOINT + f"/{entity}"
+            else f"{self.GROUP_ENDPOINT}/{entity}"
         )
         headers = headers or self.request_headers
         uri = f'{self.get("api_server_url")}/{endpoint}'
