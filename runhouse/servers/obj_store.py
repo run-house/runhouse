@@ -1037,7 +1037,6 @@ class ObjStore:
             run_name=run_name,
             stream_logs=stream_logs,
             remote=remote,
-            ctx=dict(req_ctx.get()),
         )
 
     async def arun_in_thread(self, method_to_run, *args, **kwargs):
