@@ -168,3 +168,15 @@ def ipython():
 def delete(resource_or_name: str):
     """Delete the resource from the RNS or local config store."""
     rns_client.delete_configs(resource=resource_or_name)
+
+
+class TokenContextManager:
+    def __enter__(self):
+        configs._use_caller_token = True
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        configs._use_caller_token = False
+
+
+def as_caller():
+    return TokenContextManager()

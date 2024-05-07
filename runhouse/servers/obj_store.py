@@ -13,12 +13,11 @@ from typing import Any, Dict, List, Optional, Set, Union
 import ray
 
 import runhouse
+from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import ResourceVisibility
 from runhouse.utils import sync_function
 
 logger = logging.getLogger(__name__)
-
-req_ctx = contextvars.ContextVar("rh_ctx", default={})
 
 
 class RaySetupOption(str, Enum):

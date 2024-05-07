@@ -29,6 +29,7 @@ from runhouse.resources.secrets import provider_secret, ProviderSecret, Secret, 
 from runhouse.resources.tables import Table, table
 
 from runhouse.rns.top_level_rns_fns import (
+    as_caller,
     current_folder,
     exists,
     get_local_cluster_object,
