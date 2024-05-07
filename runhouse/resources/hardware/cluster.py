@@ -85,7 +85,7 @@ class Cluster(Resource):
 
         self.ips = ips
         self.client = None
-        self.den_auth = den_auth
+        self.den_auth = den_auth or False
         self.cert_config = TLSCertConfig(cert_path=ssl_certfile, key_path=ssl_keyfile)
 
         self.ssl_certfile = ssl_certfile
