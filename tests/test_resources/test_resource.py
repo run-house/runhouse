@@ -233,16 +233,8 @@ class TestResource:
 
     @pytest.mark.level("local")
     def test_sharing_and_loading_resource_for_org(self, named_resource_for_org):
-        # Should not be able to share a resource with a user not part of the org
-        resp = named_resource_for_org.share(
-            users=["team@run.house"], access_level="read"
-        )
-
-        # All elements in the returned tuple are empty
-        assert all(not users for users in resp)
-
         with pytest.raises(Exception):
-            # Friend account should not be able to load the resource without org membership
+            # Friend account should not be able to load the resource without org membership or explicit resource access
             with friend_account():
                 new_config = load_shared_resource_config(
                     named_resource_for_org.__class__.__name__,
@@ -282,16 +274,13 @@ class TestResource:
         )
         assert reloaded_func(1, 2) == 3
 
-        # Should not be able to share the function with a user who is not part of the org
-        resp = reloaded_func.share("team@run.house", access_level="read")
-        assert all(not users for users in resp)
-
         with pytest.raises(Exception):
             # Friend account does not have org access, should not be able to reload the function
+            # (unless also explicitly provided with resource access)
             with friend_account():
                 rh.function(name=resource_name)
 
-        # Friend account who is an org member should be able to reload the function
+        # Friend account who is an org member should be able to reload the function without explicitly been given access
         with friend_account_in_org():
             rh.function(name=resource_name)
 
