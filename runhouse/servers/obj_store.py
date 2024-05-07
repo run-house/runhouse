@@ -96,12 +96,10 @@ def context_wrapper(func):
 
             res = await func(self, *args, **kwargs)
         except Exception as e:
+            raise e
+        finally:
             if ctx_token:
                 self.unset_ctx(ctx_token)
-            raise e
-
-        if ctx_token:
-            self.unset_ctx(ctx_token)
 
         return res
 

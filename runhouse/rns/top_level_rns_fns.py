@@ -1,6 +1,6 @@
 import logging
 import sys
-from typing import Dict, List
+from typing import Dict
 
 from runhouse.globals import configs, obj_store, rns_client
 
@@ -103,14 +103,6 @@ async def get_local_cluster_object():
         return system
 
     return "file"
-
-
-def set_save_to(save_to: List[str]):
-    rns_client.save_to = save_to
-
-
-def set_load_from(load_from: List[str]):
-    rns_client.load_from = load_from
 
 
 def save(resource, name: str = None, overwrite: bool = True, folder: str = None):
