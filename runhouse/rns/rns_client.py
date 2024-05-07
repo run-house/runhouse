@@ -61,33 +61,7 @@ class RNSClient:
         self._index_base_folders(rns_base_folders)
         self._current_folder = None
 
-        self.refresh_defaults()
         self.session = requests.Session()
-
-    # TODO [DG] move the below into Defaults() so they never need to be refreshed?
-    def refresh_defaults(self):
-        use_local_configs = (
-            ["local"] if self._configs.get("use_local_configs", True) else []
-        )
-        use_rns = (
-            ["rns"]
-            if self._configs.get("use_rns", self._configs.token or False)
-            else []
-        )
-
-        self.save_to = use_local_configs + use_rns
-        self.load_from = use_local_configs + use_rns
-
-        if self.token is None:
-            self.save_to.pop(
-                self.save_to.index("rns")
-            ) if "rns" in self.save_to else self.save_to
-            self.load_from.pop(
-                self.load_from.index("rns")
-            ) if "rns" in self.load_from else self.load_from
-            logger.info(
-                "No auth token provided, so not using RNS API to save and load configs"
-            )
 
     @classmethod
     def find_parent_with_file(cls, dir_path, file, searched_dirs=None):
