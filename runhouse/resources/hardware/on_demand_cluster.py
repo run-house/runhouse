@@ -424,10 +424,10 @@ class OnDemandCluster(Cluster):
                 use_spot=self.use_spot,
             )
         )
-        if Path("~/.rh").expanduser().exists():
+        if Path("~/.rh/config.yaml").expanduser().exists():
             task.set_file_mounts(
                 {
-                    "~/.rh": "~/.rh",
+                    "~/.rh/config.yaml": "~/.rh/config.yaml",
                 }
             )
         sky.launch(
