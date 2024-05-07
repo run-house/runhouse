@@ -28,12 +28,6 @@ jobs:
 #      - name: Setup Runhouse
 #        uses: ./.github/workflows/setup_runhouse
 #
-#      - name: Setup ~/.rh/config.yaml
-#        uses: ./.github/workflows/setup_rh_config
-#        with:
-#          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
-#          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
-#
 #      - name: pytest -v --level unit -k "not den_auth"
 #        env:
 #          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}

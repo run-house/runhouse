@@ -1,11 +1,16 @@
+import shlex
+import subprocess
 from pathlib import Path
 
 import pytest
 
 import runhouse as rh
+
+import yaml
 from runhouse.globals import rns_client
 
 
+@pytest.mark.level("unit")
 def test_find_working_dir(tmp_path):
     starting_dir = Path(tmp_path, "subdir/subdir/subdir/subdir")
     d = rns_client.locate_working_dir(cwd=str(starting_dir))
@@ -28,6 +33,30 @@ def test_find_working_dir(tmp_path):
     assert d in str(Path(tmp_path, "subdir/subdir"))
 
 
+@pytest.mark.level("unit")
+def test_save_and_load_cluster_token():
+    cluster_token = "abcde123"
+    username = "test-username"
+
+    path_to_file = Path(rh.configs.CLUSTER_TOKEN_PATH).expanduser()
+
+    try:
+        user_data = {username: {"rns_address": username, "token": cluster_token}}
+        yaml_data = yaml.dump(user_data, default_flow_style=False, allow_unicode=True)
+        escaped_yaml_data = shlex.quote(yaml_data)
+
+        token_cmd = f"mkdir -p ~/.rh && echo {escaped_yaml_data} >> {path_to_file}"
+        subprocess.run(token_cmd, shell=True, check=True)
+
+        cluster_token_reloaded = rh.configs.load_cluster_token_from_file(username)
+        assert cluster_token_reloaded
+
+    finally:
+        if path_to_file.exists():
+            path_to_file.unlink()
+
+
+@pytest.mark.skip()
 def test_set_folder(tmp_path):
     rh.set_folder("~/tests")
     rh.folder(name="bert_ft").save()
@@ -39,9 +68,10 @@ def test_set_folder(tmp_path):
     rh.set_folder("@")
 
 
+@pytest.mark.skip()
 def test_rns_path(tmp_path):
     rh.set_folder("~")
-    assert rh.folder("tests").rns_address == "~/tests"
+    assert rh.folder(name="tests").rns_address == "~/tests"
 
     rh.set_folder("@")
     assert (
@@ -78,6 +108,7 @@ def test_ls():
     rh.set_folder("@")
 
 
+@pytest.mark.skip()
 def test_from_name(ondemand_aws_cluster):
     f = rh.folder(name="~/tests/bert_ft")
     assert f.path

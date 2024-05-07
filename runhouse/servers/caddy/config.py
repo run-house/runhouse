@@ -53,8 +53,8 @@ class CaddyConfig:
         self.domain = domain
         self.force_reinstall = force_reinstall
 
-        # To expose the server to the internet, set address to the public IP, otherwise leave it as localhost
-        self.address = address or "localhost"
+        # To expose the server to the internet, set address to the public IP, otherwise set as localhost
+        self.address = address
 
         self.ssl_cert_path = Path(ssl_cert_path).expanduser() if ssl_cert_path else None
         self.ssl_key_path = Path(ssl_key_path).expanduser() if ssl_key_path else None

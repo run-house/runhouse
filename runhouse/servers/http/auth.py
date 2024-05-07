@@ -3,7 +3,10 @@ from typing import Optional, Union
 
 from runhouse.globals import rns_client
 from runhouse.rns.utils.api import load_resp_content, ResourceAccess
-from runhouse.servers.http.http_utils import username_from_token
+from runhouse.servers.http.http_utils import (
+    get_username_from_cluster_token,
+    username_from_token,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +31,7 @@ class AuthCache:
         self, token: str, resource_uri: str, refresh_cache=True
     ) -> Union[str, None]:
         """Get the access level of a particular resource for a user"""
-        if token is None:
+        if token is None or resource_uri is None:
             return
 
         # Also add this user to the username cache
@@ -42,7 +45,10 @@ class AuthCache:
         else:
             resource_uri_to_send = resource_uri.replace("/", ":")
 
-        uri = f"{self.cluster_config.get('api_server_url')}/resource/{resource_uri_to_send}"
+        api_server_url = (
+            self.cluster_config.get("api_server_url") or rns_client.api_server_url
+        )
+        uri = f"{api_server_url}/resource/{resource_uri_to_send}"
         resp = rns_client.session.get(
             uri,
             headers={"Authorization": f"Bearer {token}"},
@@ -84,15 +90,12 @@ async def averify_cluster_access(
     from runhouse.globals import configs, obj_store
 
     # The logged-in user always has full access to the cluster. This is especially important if they flip on
-    # Den Auth without saving the cluster. We may need to generate a subtoken here to check.
-    if configs.token:
-        if configs.token == token:
-            return True
-        if (
-            cluster_uri
-            and rns_client.cluster_token(configs.token, cluster_uri) == token
-        ):
-            return True
+    # Den Auth without saving the cluster.
+    username = get_username_from_cluster_token(token)
+    cluster_token = configs.load_cluster_token_from_file(username=username)
+    if cluster_token:
+        # If cluster token is saved down in file: "cluster_owners.yaml"
+        return True
 
     cluster_access_level = await obj_store.aresource_access_level(token, cluster_uri)
 

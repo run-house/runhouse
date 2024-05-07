@@ -35,6 +35,8 @@ jobs:
       - name: Run all cluster unit tests tests
         env:
           TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          RH_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
+          RH_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest -v tests/test_resources/test_cluster.py --level unit
 
       - name: Teardown all test clusters

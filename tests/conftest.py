@@ -79,7 +79,7 @@ class TestLevels(str, enum.Enum):
     MAXIMAL = "maximal"
 
 
-DEFAULT_LEVEL = TestLevels.UNIT
+DEFAULT_LEVEL = TestLevels.LOCAL
 
 TEST_LEVEL_HIERARCHY = {
     TestLevels.UNIT: 0,

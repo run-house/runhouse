@@ -1,7 +1,6 @@
 import contextlib
 import copy
 import importlib
-import json
 import logging
 import re
 import subprocess
@@ -11,6 +10,8 @@ import time
 import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+
+import yaml
 
 from runhouse.resources.envs.utils import run_with_logs
 
@@ -25,7 +26,6 @@ import requests.exceptions
 from runhouse.constants import (
     CLI_RESTART_CMD,
     CLI_STOP_CMD,
-    CLUSTER_CONFIG_PATH,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
     DEFAULT_RAY_PORT,
@@ -33,7 +33,7 @@ from runhouse.constants import (
     LOCALHOST,
     RESERVED_SYSTEM_NAMES,
 )
-from runhouse.globals import obj_store, rns_client
+from runhouse.globals import configs, obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import _current_cluster, ServerConnectionType
 from runhouse.resources.resource import Resource
@@ -132,24 +132,11 @@ class Cluster(Resource):
         if self.is_up():
             self.check_server()
             self._default_env.to(self)
-            self.save_config_to_cluster()
 
             logger.info(
                 "The cluster default env has been updated. "
                 "Run `cluster.restart_server()` to restart the Runhouse server on the new default env."
             )
-
-    def save_config_to_cluster(self, node: str = None):
-        config = self.config(condensed=False)
-        config.pop("creds")
-        json_config = f"{json.dumps(config)}"
-
-        self.run(
-            [
-                f"mkdir -p ~/.rh; touch {CLUSTER_CONFIG_PATH}; echo '{json_config}' > {CLUSTER_CONFIG_PATH}"
-            ],
-            node=node or "all",
-        )
 
     def save(self, name: str = None, overwrite: bool = True, folder: str = None):
         """Overrides the default resource save() method in order to also update
@@ -362,6 +349,31 @@ class Cluster(Resource):
             f"cluster.keep_warm will have no effect on self-managed cluster {self.name}."
         )
         return self
+
+    def _add_cluster_owner(self):
+        """Write user token (including username and rns address) to the cluster in path: `~/.rh/cluster_owners.yaml.`"""
+        import shlex
+
+        cluster_token = rns_client.base_cluster_token
+        username = rns_client.username
+
+        path_to_file = str(Path(configs.CLUSTER_TOKEN_PATH))
+        return_codes = self.run([f"grep -q {username} {path_to_file}"])
+        if return_codes[0][0] == 0:
+            # username already added to the file
+            return
+
+        user_data = {
+            username: {"rns_address": self.rns_address, "token": cluster_token}
+        }
+
+        yaml_data = yaml.dump(user_data, default_flow_style=False, allow_unicode=True)
+        token_cmd = f"mkdir -p ~/.rh && echo {shlex.quote(yaml_data)} >> {path_to_file}"
+        self.run([token_cmd])
+
+        logger.debug(
+            f"Saved data to cluster owners file on server in path: {configs.CLUSTER_TOKEN_PATH}"
+        )
 
     def _sync_default_env_to_cluster(self):
         """Install and set up the default env requirements on the cluster. This does not put the env resource
@@ -746,6 +758,7 @@ class Cluster(Resource):
     def restart_server(
         self,
         _rh_install_url: str = None,
+        _set_owner: bool = True,
         resync_rh: bool = True,
         restart_ray: bool = True,
         restart_proxy: bool = False,
@@ -808,9 +821,6 @@ class Cluster(Resource):
                 )
                 cluster_cert_path = f"{base_caddy_dir}/{self.cert_config.CERT_NAME}"
 
-        # Update the cluster config on the cluster
-        self.save_config_to_cluster()
-
         cmd = (
             CLI_RESTART_CMD
             + (" --restart-ray" if restart_ray else "")
@@ -859,6 +869,11 @@ class Cluster(Resource):
             env_vars = _process_env_vars(default_env.env_vars)
             if env_vars:
                 self.call(default_env.name, "_set_env_vars", env_vars)
+
+        if _set_owner and rns_client.token and self.rns_address:
+            # If a Runhouse token is saved locally and rns address exists for the cluster, we can write down the
+            # user's hashed cluster token to the "cluster_owners" file on the cluster
+            self._add_cluster_owner()
 
         return status_codes
 
