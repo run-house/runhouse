@@ -264,6 +264,8 @@ class Cluster(Resource):
         if not (self.address or self.on_this_cluster()):
             return None
 
+        client_port = self.client_port or self.server_port
+
         if self.server_connection_type in [
             ServerConnectionType.NONE,
             ServerConnectionType.TLS,
@@ -277,8 +279,8 @@ class Cluster(Resource):
             # Client port gets set to the server port if it was not set.
             # In the case of local, testing clusters, the client port will be set to something else
             # since we need to port forward in order to hit localhost.
-            if self.client_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
-                return f"{url_base}://{self.server_address}:{self.client_port}"
+            if client_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
+                return f"{url_base}://{self.server_address}:{client_port}"
             else:
                 return f"{url_base}://{self.server_address}"
 
@@ -290,7 +292,7 @@ class Cluster(Resource):
             ServerConnectionType.AWS_SSM,
         ]:
             self.check_server()
-            return f"http://{LOCALHOST}:{self.client_port}"
+            return f"http://{LOCALHOST}:{client_port}"
 
     def _client(self, restart_server=True):
         if self.on_this_cluster():
