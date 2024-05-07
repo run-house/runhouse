@@ -525,6 +525,10 @@ class RNSClient:
             logger.debug(f"Saving new resource in Den for resource: {resource_uri}")
             # Resource does not yet exist, in which case we need to create from scratch
             post_uri = f"{self.api_server_url}/resource"
+            logger.info(
+                f"saving {resource_name}\n, uri is {post_uri}\n, payload is {payload}"
+            )
+            logger.info(f"json payload is {json.dumps(payload)}")
             resp = self.session.post(
                 post_uri,
                 data=json.dumps(payload),

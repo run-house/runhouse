@@ -13,6 +13,7 @@ ENV_NAME_OBJ_STORE = "test_obj_store"
 
 
 @pytest.mark.servertest
+@pytest.mark.servertestNoDockerCluster
 @pytest.mark.parametrize("obj_store", [ENV_NAME_OBJ_STORE], indirect=True)
 class TestObjStore:
     """Start object store in a local base env servlet"""
@@ -347,6 +348,7 @@ class TestObjStore:
 
 
 @pytest.mark.servertest
+@pytest.mark.servertestNoDockerCluster
 @pytest.mark.parametrize("obj_store", [ENV_NAME_OBJ_STORE], indirect=True)
 class TestAuthCacheObjStore:
     """Start object store in a local auth cache servlet"""

@@ -56,3 +56,6 @@ CONDA_INSTALL_CMDS = [
 ]
 
 TEST_ORG = "test-org"
+
+DEN_LOCAL_URL = "http://0.0.0.0:8000"
+DEN_DOCKER_URL = "http://den_rns"

@@ -583,6 +583,7 @@ class TestHTTPServerNoDocker:
 
 
 @pytest.mark.servertest
+@pytest.mark.servertestNoDockerCluster
 @pytest.mark.usefixtures("setup_cluster_config")
 class TestHTTPServerNoDockerDenAuthOnly:
     """
