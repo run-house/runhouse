@@ -61,11 +61,10 @@ variables, secrets, and working directory.
             secrets=["aws"],
     )
 
-If no environment name is provided, it defaults to ``"base_env"``, which
-corresponds to the base, catch-all environment on the cluster. If
-multiple “base_env” environments are sent to a cluster, the dependencies
-and variables will continue to be synced on top of the existing base
-environment.
+If no environment name is provided, when the environment is sent to a cluster,
+the dependencies and variables of the environment will be installed and synced
+on top of the cluster's default env. However, Without a name, the env resource
+itself can not be accessed and does not live in the cluster's object store.
 
 Conda Envs
 ~~~~~~~~~~
