@@ -3,7 +3,7 @@ import json
 import pytest
 
 import runhouse as rh
-from runhouse.constants import DEFAULT_SERVER_PORT
+from runhouse.constants import DEFAULT_SERVER_PORT, EMPTY_DEFAULT_ENV_NAME
 
 from runhouse.globals import rns_client
 
@@ -155,7 +155,7 @@ class TestHTTPClient:
 
         # Call the method under test
         method_name = "install"
-        module_name = rh.Cluster.EMPTY_DEFAULT_ENV_NAME
+        module_name = EMPTY_DEFAULT_ENV_NAME
         result = self.client.call(
             module_name, method_name, resource_address=self.local_cluster.rns_address
         )
@@ -256,7 +256,7 @@ class TestHTTPClient:
         mocker.patch("requests.Session.post", return_value=mock_response)
 
         cluster = self.client.call(
-            rh.Cluster.EMPTY_DEFAULT_ENV_NAME,
+            EMPTY_DEFAULT_ENV_NAME,
             "install",
             resource_address=local_cluster.rns_address,
         )

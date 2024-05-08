@@ -23,7 +23,12 @@ def _check_skip_test(folder, dest):
     dest_sys = (
         dest.system if not isinstance(dest.system, rh.Cluster) else dest.system.name
     )
-    systems_set = set([folder_sys, dest_sys])
+    systems_set = set()
+    for system in folder_sys, dest_sys:
+        system = (
+            "docker" if "docker" in system else "rh-cpu" if "cpu" in system else system
+        )
+        systems_set.add(system)
 
     # Not supported
     if systems_set == {"s3", "gs"}:
@@ -35,15 +40,15 @@ def _check_skip_test(folder, dest):
     if "rh-cpu" in systems_set:
         systems_set.remove("rh-cpu")
         if len(systems_set) > 0 and list(systems_set)[0] in [
-            "docker_cluster_pk_ssh",
+            "docker",
             "s3",
             "gs",
         ]:
             pytest.skip(
                 f"Cluster credentials for {list(systems_set)[0]} not set up properly."
             )
-    elif "docker_cluster_pk_ssh" in systems_set:
-        systems_set.remove("docker_cluster_pk_ssh")
+    elif "docker" in systems_set:
+        systems_set.remove("docker")
         if len(systems_set) > 0 and list(systems_set)[0] in ["rh-cpu", "s3", "gs"]:
             pytest.skip(
                 f"Docker cluster credentials for {list(systems_set)[0]} not set up properly."

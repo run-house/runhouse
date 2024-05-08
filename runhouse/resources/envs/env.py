@@ -208,12 +208,13 @@ class Env(Resource):
         new_env.secrets = self._secrets_to(system)
 
         if isinstance(system, Cluster):
-            env_vars = _process_env_vars(self.env_vars)
             key = (
                 system.put_resource(new_env)
                 if new_env.name
                 else system.default_env.name
             )
+
+            env_vars = _process_env_vars(self.env_vars)
             if env_vars:
                 system.call(key, "_set_env_vars", env_vars)
 
