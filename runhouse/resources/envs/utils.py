@@ -7,7 +7,7 @@ from typing import Dict, List
 
 import yaml
 
-from runhouse.constants import CONDA_INSTALL_CMDS
+from runhouse.constants import CONDA_INSTALL_CMDS, EMPTY_DEFAULT_ENV_NAME
 from runhouse.globals import rns_client
 from runhouse.resources.resource import Resource
 
@@ -56,8 +56,15 @@ def _get_env_from(env):
         return Env(reqs=env, working_dir="./")
     elif isinstance(env, Dict):
         return Env.from_config(env)
-    elif isinstance(env, str) and rns_client.exists(env, resource_type="env"):
-        return Env.from_name(env)
+    elif isinstance(env, str) and EMPTY_DEFAULT_ENV_NAME not in env:
+        try:
+            return (
+                Env.from_name(env)
+                if rns_client.exists(env, resource_type="env")
+                else env
+            )
+        except ValueError:
+            return env
     return env
 
 
