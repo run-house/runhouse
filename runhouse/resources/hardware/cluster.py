@@ -35,7 +35,11 @@ from runhouse.constants import (
 )
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
-from runhouse.resources.hardware.utils import _current_cluster, ServerConnectionType
+from runhouse.resources.hardware.utils import (
+    _current_cluster,
+    _unnamed_default_env_name,
+    ServerConnectionType,
+)
 from runhouse.resources.resource import Resource
 
 from runhouse.servers.http import HTTPClient
@@ -48,6 +52,7 @@ class Cluster(Resource):
     REQUEST_TIMEOUT = 5  # seconds
 
     DEFAULT_SSH_PORT = 22
+    EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"
 
     def __init__(
         self,
@@ -123,16 +128,14 @@ class Cluster(Resource):
         return (
             self._default_env
             if self._default_env
-            else Env(name=Env.DEFAULT_NAME, working_dir="./")
+            else Env(name=self.EMPTY_DEFAULT_ENV_NAME, working_dir="./")
         )
 
     @default_env.setter
     def default_env(self, env):
-        from runhouse.resources.envs import Env
-
         self._default_env = _get_env_from(env)
         if not self._default_env.name:
-            self._default_env.name = Env.DEFAULT_NAME
+            self._default_env.name = _unnamed_default_env_name(self.name)
 
         if self.is_up():
             self.check_server()
@@ -199,6 +202,8 @@ class Cluster(Resource):
             self._creds.save(folder=folder)
 
         if self._default_env and isinstance(self._default_env, Env):
+            if not self._default_env.name:
+                self._default_env.name = _unnamed_default_env_name(self.name)
             self._default_env.save()
 
     @classmethod
@@ -448,12 +453,8 @@ class Cluster(Resource):
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"])
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"], env="my_conda_env")
         """
-        from runhouse.resources.envs.env import Env
-
         self.check_server()
-        env = _get_env_from(env or self._default_env) or Env(
-            name=env or Env.DEFAULT_NAME
-        )
+        env = _get_env_from(env) if env else self.default_env
         env.reqs = env._reqs + reqs
         env.to(self)
 
