@@ -155,8 +155,13 @@ class ProviderSecret(Secret):
         Example:
             >>> secret.to(my_cluster, path=secret.path)
         """
+        from runhouse import Env
+
         system = _get_cluster_from(system)
         path = path or self.path
+
+        if not env or (env and isinstance(env, Env) and not env.name):
+            env = system.default_env
 
         if system.on_this_cluster():
             if not env and not path == self.path:
@@ -180,25 +185,13 @@ class ProviderSecret(Secret):
         elif values is False:
             new_secret._values = None
 
-        key = system.put_resource(new_secret)
+        key = system.put_resource(new_secret, env=env)
         if path:
             new_secret.path = self._file_to(
                 key=key, system=system, path=path, values=self.values
             )
 
         if env or self.env_vars:
-            env = env if env else system.default_env
-            # TODO: (default env), pretty sure we should be putting in the env if it was passed, even if it's
-            # the default env. But if it's not passed, we should be using the default env.
-            # env = (
-            #     system.default_env
-            #     if (
-            #         not env
-            #         or env.config()
-            #         == Env(name=Env.DEFAULT_NAME, working_dir="./").config()
-            #     )
-            #     else env
-            # )
             env_key = env if isinstance(env, str) else env.name
             if not system.get(env_key):
                 env = env if isinstance(env, Env) else Env(name=env_key)

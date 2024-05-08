@@ -251,7 +251,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_rh_status_cli_in_cluster(self, cluster):
-        cluster.put(key="status_key2", obj="status_value2", env="base_env")
+        default_env_name = cluster.default_env.name
+
+        cluster.put(key="status_key2", obj="status_value2")
         status_output_string = cluster.run(
             ["runhouse status"], _ssh_mode="non_interactive"
         )[0][1]
@@ -271,8 +273,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert f"ips: {str(cluster.ips)}" in status_output_string
         assert "Serving " in status_output_string
         assert (
-            "base_env (runhouse.resources.envs.env.Env):" in status_output_string
-            or "base_env (Env):" in status_output_string
+            f"{default_env_name} (runhouse.resources.envs.env.Env):"
+            in status_output_string
+            or f"{default_env_name} (Env):" in status_output_string
         )
         assert "status_key2 (str)" in status_output_string
         assert "creds" not in status_output_string
@@ -280,7 +283,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")
     def test_rh_status_cli_not_in_cluster(self, cluster):
-        cluster.put(key="status_key3", obj="status_value3", env="base_env")
+        # TODO -- check this base_env
+        cluster.put(key="status_key3", obj="status_value3")
         res = str(
             subprocess.check_output(["runhouse", "status", f"{cluster.name}"]), "utf-8"
         )

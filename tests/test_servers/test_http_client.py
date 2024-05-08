@@ -136,6 +136,7 @@ class TestHTTPClient:
 
     @pytest.mark.level("unit")
     def test_call_module_method(self, mocker):
+        from runhouse import Env
 
         response_sequence = [
             json.dumps({"output_type": "stdout", "data": "Log message"}),
@@ -156,7 +157,7 @@ class TestHTTPClient:
 
         # Call the method under test
         method_name = "install"
-        module_name = "base_env"
+        module_name = Env.DEFAULT_NAME
         result = self.client.call(
             module_name, method_name, resource_address=self.local_cluster.rns_address
         )
@@ -246,6 +247,8 @@ class TestHTTPClient:
 
     @pytest.mark.level("unit")
     def test_call_module_method_config(self, mocker, local_cluster):
+        from runhouse import Env
+
         test_data = self.local_cluster.config()
         mock_response = mocker.Mock()
         mock_response.status_code = 200
@@ -257,7 +260,7 @@ class TestHTTPClient:
         mocker.patch("requests.Session.post", return_value=mock_response)
 
         cluster = self.client.call(
-            "base_env", "install", resource_address=local_cluster.rns_address
+            Env.DEFAULT_NAME, "install", resource_address=local_cluster.rns_address
         )
         assert cluster.config() == test_data
 

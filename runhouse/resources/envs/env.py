@@ -142,9 +142,10 @@ class Env(Resource):
                 new_secrets.append(secret.to(system=system, env=self))
         return new_secrets
 
-    def _install_reqs(self, cluster: Cluster = None):
-        if self.reqs:
-            for package in self.reqs:
+    def _install_reqs(self, cluster: Cluster = None, reqs: List = None):
+        reqs = reqs or self.reqs
+        if reqs:
+            for package in reqs:
                 if isinstance(package, str):
                     pkg = Package.from_string(package)
                     if pkg.install_method in ["reqs", "local"] and cluster:
@@ -157,11 +158,13 @@ class Env(Resource):
                 logger.debug(f"Installing package: {str(pkg)}")
                 pkg._install(env=self, cluster=cluster)
 
-    def _run_setup_cmds(self, cluster: Cluster = None):
-        if not self.setup_cmds:
+    def _run_setup_cmds(self, cluster: Cluster = None, setup_cmds: List = None):
+        setup_cmds = setup_cmds or self.setup_cmds
+
+        if not setup_cmds:
             return
 
-        for cmd in self.setup_cmds:
+        for cmd in setup_cmds:
             cmd = f"{self._run_cmd} {cmd}" if self._run_cmd else cmd
             run_setup_command(cmd, cluster=cluster)
 
@@ -206,15 +209,20 @@ class Env(Resource):
         new_env.secrets = self._secrets_to(system)
 
         if isinstance(system, Cluster):
-            # TODO: (default env). When sending an env that was unnamed to a cluster, should the remote env
-            # be named the same as the local env? Or should it be named the same as the default env?
-            # if new_env.name == Env.DEFAULT_NAME:
-            #     new_env.name = system.default_env.name
-            key = system.put_resource(new_env)
             env_vars = _process_env_vars(self.env_vars)
+            key = (
+                system.put_resource(new_env)
+                if new_env.name
+                else system.default_env.name
+            )
             if env_vars:
                 system.call(key, "_set_env_vars", env_vars)
-            system.call(key, "install", force=force_install)
+
+            if new_env.name:
+                system.call(key, "install", force=force_install)
+            else:
+                system.call(key, "_install_reqs", reqs=new_env.reqs)
+                system.call(key, "_run_setup_cmds", setup_cmds=new_env.setup_cmds)
 
         return new_env
 

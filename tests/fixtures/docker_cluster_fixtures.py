@@ -10,13 +10,12 @@ from typing import Any, Dict, List
 import pytest
 
 import runhouse as rh
-import yaml
 
 from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
 from runhouse.globals import rns_client
 
 from tests.conftest import init_args
-from tests.utils import friend_account
+from tests.utils import friend_account, test_env
 
 SSH_USER = "rh-docker-user"
 BASE_LOCAL_SSH_PORT = 32320
@@ -275,16 +274,7 @@ def set_up_local_cluster(
         rh_cluster.restart_server()
 
     if rh_cluster.default_env.name == rh.Env.DEFAULT_NAME:
-        rh.env(
-            reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
-            working_dir=None,
-            setup_cmds=[
-                f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
-                f"echo '{yaml.safe_dump(config)}' > ~/.rh/config.yaml"
-            ]
-            if logged_in
-            else False,
-        ).to(rh_cluster)
+        test_env(logged_in=logged_in).to(rh_cluster)
 
     def cleanup():
         docker_client.containers.get(container_name).stop()

@@ -128,7 +128,12 @@ class Cluster(Resource):
 
     @default_env.setter
     def default_env(self, env):
+        from runhouse.resources.envs import Env
+
         self._default_env = _get_env_from(env)
+        if not self._default_env.name:
+            self._default_env.name = Env.DEFAULT_NAME
+
         if self.is_up():
             self.check_server()
             self._default_env.to(self)
@@ -854,10 +859,10 @@ class Cluster(Resource):
         if restart_ray and len(self.ips) > 1:
             self._start_ray_workers(DEFAULT_RAY_PORT, env=self.default_env)
 
+        self.put_resource(self.default_env)
         if default_env:
             from runhouse.resources.envs.utils import _process_env_vars
 
-            self.put_resource(default_env)
             env_vars = _process_env_vars(default_env.env_vars)
             if env_vars:
                 self.call(default_env.name, "_set_env_vars", env_vars)
@@ -1180,9 +1185,14 @@ class Cluster(Resource):
             >>> cpu.run(["python script.py"], run_name="my_exp")
             >>> cpu.run(["python script.py"], node="3.89.174.234")
         """
+        from runhouse.resources.envs import Env
+
         if isinstance(commands, str):
             commands = [commands]
 
+        if isinstance(env, Env) and not env.name:
+            env.to(self)
+            env = self._default_env
         env = env or self._default_env
 
         if node == "all":
@@ -1202,8 +1212,6 @@ class Cluster(Resource):
             return res_list
 
         # TODO [DG] suspend autostop while running
-
-        from runhouse.resources.envs import Env
 
         if env and not port_forward and not node:
             env_name = (
