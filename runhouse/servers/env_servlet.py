@@ -38,24 +38,23 @@ def error_handling_decorator(func):
         try:
             output = await func(*args, **kwargs)
             if serialization is None or serialization == "none":
-                obj_store.unset_ctx(ctx_token) if ctx_token else None
                 return output
             if output is not None:
                 serialized_data = serialize_data(output, serialization)
-                obj_store.unset_ctx(ctx_token) if ctx_token else None
                 return Response(
                     output_type=OutputType.RESULT_SERIALIZED,
                     data=serialized_data,
                     serialization=serialization,
                 )
             else:
-                obj_store.unset_ctx(ctx_token) if ctx_token else None
                 return Response(
                     output_type=OutputType.SUCCESS,
                 )
         except Exception as e:
-            obj_store.unset_ctx(ctx_token) if ctx_token else None
             return handle_exception_response(e, traceback.format_exc(), serialization)
+        finally:
+            if ctx_token:
+                obj_store.unset_ctx(ctx_token)
 
     return wrapper
 
