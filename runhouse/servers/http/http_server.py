@@ -95,11 +95,10 @@ def validate_cluster_access(func):
             else:
                 res = func(*args, **kwargs)
         except Exception as e:
+            raise e
+        finally:
             if ctx_token:
                 obj_store.unset_ctx(ctx_token)
-            raise e
-
-        obj_store.unset_ctx(ctx_token)
         return res
 
     return wrapper

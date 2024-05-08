@@ -119,8 +119,6 @@ def login(
 
     if download_config:
         configs.download_and_save_defaults()
-        # We need to fresh the RNSClient to use the newly loaded configs
-        rns_client.refresh_defaults()
     if upload_config:
         configs.load_defaults_from_file()
         configs.upload_defaults(defaults=configs.defaults_cache)
