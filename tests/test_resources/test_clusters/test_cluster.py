@@ -68,8 +68,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     UNIT = {"cluster": ["named_cluster"]}
     LOCAL = {
         "cluster": [
-            "docker_cluster_pk_ssh_no_auth",
-            "docker_cluster_pk_ssh_den_auth",
+            "docker_cluster_pk_ssh_no_auth",  # Represents private dev use case
+            "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
+            "docker_cluster_pk_tls_den_auth",  # Represents public app use case
+            "docker_cluster_pk_http_exposed",  # Represents within VPC use case
             "docker_cluster_pwd_ssh_no_auth",
         ]
     }
@@ -137,11 +139,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_cluster_recreate(self, cluster):
+        # Create underlying ssh connection if not already
+        cluster.run(["echo hello"])
         num_open_tunnels = len(rh.globals.sky_ssh_runner_cache)
 
         # Create a new cluster object for the same remote cluster
         cluster.save()
-        new_cluster = rh.cluster(cluster.name)
+        new_cluster = rh.cluster(cluster.rns_address)
         new_cluster.run(["echo hello"])
         # Check that the same underlying ssh connection was used
         assert len(rh.globals.sky_ssh_runner_cache) == num_open_tunnels
@@ -158,10 +162,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert endpoint == f"http://{LOCALHOST}:{cluster.client_port}"
         else:
             url_base = "https" if cluster.server_connection_type == "tls" else "http"
-            if cluster.server_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
+            if cluster.client_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
                 assert (
                     endpoint
-                    == f"{url_base}://{cluster.server_address}:{cluster.server_port}"
+                    == f"{url_base}://{cluster.server_address}:{cluster.client_port}"
                 )
             else:
                 assert endpoint == f"{url_base}://{cluster.server_address}"
@@ -247,7 +251,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_rh_status_cli_in_cluster(self, cluster):
-        cluster.put(key="status_key2", obj="status_value2", env="base_env")
+        default_env_name = cluster.default_env.name
+
+        cluster.put(key="status_key2", obj="status_value2")
         status_output_string = cluster.run(
             ["runhouse status"], _ssh_mode="non_interactive"
         )[0][1]
@@ -256,6 +262,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         status_output_string = status_output_string.encode("utf-8").decode(
             "unicode_escape"
         )
+        status_output_string = status_output_string.replace("\n", "")
         assert "Runhouse Daemon is running" in status_output_string
         assert f"server_port: {cluster.server_port}" in status_output_string
         assert (
@@ -266,17 +273,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert f"resource_type: {cluster.RESOURCE_TYPE.lower()}" in status_output_string
         assert f"ips: {str(cluster.ips)}" in status_output_string
         assert "Serving " in status_output_string
-        assert (
-            "base_env (runhouse.resources.envs.env.Env):" in status_output_string
-            or "base_env (Env):" in status_output_string
-        )
+        assert f"{default_env_name}" in status_output_string
         assert "status_key2 (str)" in status_output_string
         assert "creds" not in status_output_string
 
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")
     def test_rh_status_cli_not_in_cluster(self, cluster):
-        cluster.put(key="status_key3", obj="status_value3", env="base_env")
+        # TODO -- check this base_env
+        cluster.put(key="status_key3", obj="status_value3")
         res = str(
             subprocess.check_output(["runhouse", "status", f"{cluster.name}"]), "utf-8"
         )
@@ -318,7 +323,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         on_cluster_config = remote_cluster_config()
         local_cluster_config = cluster.config()
 
-        keys_to_skip = ["creds", "client_port", "server_host", "api_server_url"]
+        keys_to_skip = [
+            "creds",
+            "client_port",
+            "server_host",
+            "api_server_url",
+            "ssl_keyfile",
+            "ssl_certfile",
+        ]
         on_cluster_config = remove_config_keys(on_cluster_config, keys_to_skip)
         local_cluster_config = remove_config_keys(local_cluster_config, keys_to_skip)
 

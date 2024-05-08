@@ -93,7 +93,7 @@ class Secret(Resource):
         )
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children=True):
         """Create a Secret object from a config dictionary."""
         if "provider" in config:
             from runhouse.resources.secrets.provider_secrets.providers import (
@@ -102,9 +102,6 @@ class Secret(Resource):
 
             provider_class = _get_provider_class(config["provider"])
             return provider_class.from_config(config, dryrun=dryrun)
-        subtype = config.get("resource_subtype", None)
-        if subtype and subtype != "Secret":
-            return Resource.from_config(**config, dryrun=dryrun)
 
         # checks if the config is a of a shared secret
         current_user = configs.username
@@ -352,6 +349,7 @@ class Secret(Resource):
         if system.on_this_cluster():
             new_secret.pin()
         else:
+            env = env or system.default_env
             system.put_resource(new_secret, env=env)
 
         return new_secret

@@ -86,7 +86,7 @@ def env(
         env_vars=env_vars,
         working_dir=working_dir,
         secrets=secrets,
-        name=name or Env.DEFAULT_NAME,
+        name=name,
         compute=compute,
         dryrun=dryrun,
     )

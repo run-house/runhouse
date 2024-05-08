@@ -30,5 +30,5 @@ class SkySecret(SSHSecret):
         )
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         return SkySecret(**config, dryrun=dryrun)

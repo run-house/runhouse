@@ -10,12 +10,17 @@ from typing import Any, Dict, List
 import pytest
 
 import runhouse as rh
-import yaml
 
-from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
+from runhouse.constants import (
+    DEFAULT_HTTP_PORT,
+    DEFAULT_HTTPS_PORT,
+    DEFAULT_SSH_PORT,
+    EMPTY_DEFAULT_ENV_NAME,
+)
+from runhouse.globals import rns_client
 
 from tests.conftest import init_args
-from tests.utils import friend_account
+from tests.utils import friend_account, test_env
 
 SSH_USER = "rh-docker-user"
 BASE_LOCAL_SSH_PORT = 32320
@@ -273,17 +278,8 @@ def set_up_local_cluster(
         # If re-using fixtures make sure the crt file gets copied on to the cluster
         rh_cluster.restart_server()
 
-    rh.env(
-        reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
-        working_dir=None,
-        setup_cmds=[
-            f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
-            f"echo '{yaml.safe_dump(config)}' > ~/.rh/config.yaml"
-        ]
-        if logged_in
-        else False,
-        name="base_env",
-    ).to(rh_cluster)
+    if rh_cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
+        test_env(logged_in=logged_in).to(rh_cluster)
 
     def cleanup():
         docker_client.containers.get(container_name).stop()
@@ -350,6 +346,8 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
     # If we are running in detached mode, leave the container running, else clean it up
     if not detached:
         cleanup()
+    else:
+        local_cluster.delete_configs()
 
 
 @pytest.fixture(scope="session")
@@ -372,6 +370,11 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
 
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 2
+    default_env = rh.env(
+        reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
+        working_dir=None,
+        name="default_env",
+    )
 
     local_cluster, cleanup = set_up_local_cluster(
         image_name="keypair",
@@ -390,6 +393,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
             "name": f"{test_org_rns_folder}_docker_cluster_pk_ssh",
             "server_connection_type": "ssh",
             "use_local_telemetry": True,
+            "default_env": default_env,
         },
     )
 
@@ -399,6 +403,8 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
     # If we are running in detached mode, leave the container running, else clean it up
     if not detached:
         cleanup()
+    else:
+        local_cluster.delete_configs()
 
 
 # These two clusters cannot be used in the same test together, they are are technically
@@ -495,6 +501,8 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
     # If we are running in detached mode, leave the container running, else clean it up
     if not detached:
         cleanup()
+    else:
+        local_cluster.delete_configs()
 
 
 @pytest.fixture(scope="session")
@@ -543,6 +551,8 @@ def docker_cluster_pwd_ssh_no_auth(request, test_rns_folder):
     # If we are running in detached mode, leave the container running, else clean it up
     if not detached:
         cleanup()
+    else:
+        local_cluster.delete_configs()
 
 
 @pytest.fixture(scope="session")
@@ -591,6 +601,8 @@ def friend_account_logged_in_docker_cluster_pk_ssh(request, test_rns_folder):
     # If we are running in detached mode, leave the container running, else clean it up
     if not detached:
         cleanup()
+    else:
+        local_cluster.delete_configs()
 
 
 @pytest.fixture(scope="session")

@@ -12,9 +12,10 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from runhouse.resources.envs.utils import run_with_logs
+
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
-from runhouse.utils import run_with_logs
 
 # Filter out DeprecationWarnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -29,12 +30,17 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
+    EMPTY_DEFAULT_ENV_NAME,
     LOCALHOST,
     RESERVED_SYSTEM_NAMES,
 )
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs.utils import _get_env_from
-from runhouse.resources.hardware.utils import _current_cluster, ServerConnectionType
+from runhouse.resources.hardware.utils import (
+    _current_cluster,
+    _unnamed_default_env_name,
+    ServerConnectionType,
+)
 from runhouse.resources.resource import Resource
 
 from runhouse.servers.http import HTTPClient
@@ -47,6 +53,7 @@ class Cluster(Resource):
     REQUEST_TIMEOUT = 5  # seconds
 
     DEFAULT_SSH_PORT = 22
+    EMPTY_DEFAULT_ENV_NAME = EMPTY_DEFAULT_ENV_NAME
 
     def __init__(
         self,
@@ -54,6 +61,7 @@ class Cluster(Resource):
         name: Optional[str] = None,
         ips: List[str] = None,
         creds: "Secret" = None,
+        default_env: "Env" = None,
         server_host: str = None,
         server_port: int = None,
         ssh_port: int = None,
@@ -83,7 +91,7 @@ class Cluster(Resource):
 
         self.ips = ips
         self.client = None
-        self.den_auth = den_auth
+        self.den_auth = den_auth or False
         self.cert_config = TLSCertConfig(cert_path=ssl_certfile, key_path=ssl_keyfile)
 
         self.ssl_certfile = ssl_certfile
@@ -95,6 +103,8 @@ class Cluster(Resource):
         self.server_host = server_host
         self.domain = domain
         self.use_local_telemetry = use_local_telemetry
+
+        self._default_env = _get_env_from(default_env)
 
     @property
     def address(self):
@@ -112,8 +122,33 @@ class Cluster(Resource):
 
         return self._creds.values
 
-    def save_config_to_cluster(self, node: str = None):
+    @property
+    def default_env(self):
+        from runhouse.resources.envs import Env
 
+        return (
+            self._default_env
+            if self._default_env
+            else Env(name=EMPTY_DEFAULT_ENV_NAME, working_dir="./")
+        )
+
+    @default_env.setter
+    def default_env(self, env):
+        self._default_env = _get_env_from(env)
+        if not self._default_env.name:
+            self._default_env.name = _unnamed_default_env_name(self.name)
+
+        if self.is_up():
+            self.check_server()
+            self._default_env.to(self)
+            self.save_config_to_cluster()
+
+            logger.info(
+                "The cluster default env has been updated. "
+                "Run `cluster.restart_server()` to restart the Runhouse server on the new default env."
+            )
+
+    def save_config_to_cluster(self, node: str = None):
         config = self.config(condensed=False)
         config.pop("creds")
         json_config = f"{json.dumps(config)}"
@@ -151,16 +186,32 @@ class Cluster(Resource):
 
         return self
 
+    def delete_configs(self):
+        if self._creds:
+            logger.debug(
+                f"Attempting to delete creds associated with cluster {self.name}"
+            )
+            rns_client.delete_configs(self._creds)
+
+        super().delete_configs()
+
     def _save_sub_resources(self, folder: str = None):
+        from runhouse.resources.envs import Env
         from runhouse.resources.secrets import Secret
 
         if self._creds and isinstance(self._creds, Secret):
             self._creds.save(folder=folder)
 
+        if self._default_env and isinstance(self._default_env, Env):
+            if not self._default_env.name:
+                self._default_env.name = _unnamed_default_env_name(self.name)
+            self._default_env.save()
+
     @classmethod
-    def from_config(cls, config: dict, dryrun=False):
+    def from_config(cls, config: dict, dryrun=False, _resolve_children=True):
         resource_subtype = config.get("resource_subtype")
-        config = cls._check_for_child_configs(config)
+        if _resolve_children:
+            config = cls._check_for_child_configs(config)
 
         if resource_subtype == "Cluster":
             return Cluster(**config, dryrun=dryrun)
@@ -202,6 +253,12 @@ class Cluster(Resource):
         config["creds"] = creds
         config["api_server_url"] = rns_client.api_server_url
 
+        if self._default_env:
+            default_env = self._resource_string_for_subconfig(
+                self._default_env, condensed
+            )
+            config["default_env"] = default_env
+
         if self._use_custom_certs:
             config["ssl_certfile"] = self.cert_config.cert_path
             config["ssl_keyfile"] = self.cert_config.key_path
@@ -218,6 +275,8 @@ class Cluster(Resource):
         if not (self.address or self.on_this_cluster()):
             return None
 
+        client_port = self.client_port or self.server_port
+
         if self.server_connection_type in [
             ServerConnectionType.NONE,
             ServerConnectionType.TLS,
@@ -227,8 +286,12 @@ class Cluster(Resource):
                 if self.server_connection_type == ServerConnectionType.TLS
                 else "http"
             )
-            if self.server_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
-                return f"{url_base}://{self.server_address}:{self.server_port}"
+
+            # Client port gets set to the server port if it was not set.
+            # In the case of local, testing clusters, the client port will be set to something else
+            # since we need to port forward in order to hit localhost.
+            if client_port not in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]:
+                return f"{url_base}://{self.server_address}:{client_port}"
             else:
                 return f"{url_base}://{self.server_address}"
 
@@ -240,7 +303,7 @@ class Cluster(Resource):
             ServerConnectionType.AWS_SSM,
         ]:
             self.check_server()
-            return f"http://{LOCALHOST}:{self.client_port}"
+            return f"http://{LOCALHOST}:{client_port}"
 
     def _client(self, restart_server=True):
         if self.on_this_cluster():
@@ -313,12 +376,23 @@ class Cluster(Resource):
         )
         return self
 
+    def _sync_default_env_to_cluster(self):
+        """Install and set up the default env requirements on the cluster. This does not put the env resource
+        on the cluster or initialize the servlet. It also does not set any env vars."""
+        if not self._default_env:
+            return
+
+        logging.info(f"Syncing default env {self._default_env.name} to cluster")
+        self._default_env.install(cluster=self)
+
     def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
         if self.on_this_cluster():
             return
 
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
+
+        env = env or self.default_env
 
         local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
 
@@ -355,7 +429,10 @@ class Cluster(Resource):
 
         for node in self.ips:
             status_codes = self.run(
-                [rh_install_cmd], node=node, env=env, stream_logs=True
+                [rh_install_cmd],
+                node=node,
+                env=env,
+                stream_logs=True,
             )
 
             if status_codes[0][0] != 0:
@@ -377,10 +454,8 @@ class Cluster(Resource):
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"])
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"], env="my_conda_env")
         """
-        from runhouse.resources.envs.env import Env
-
         self.check_server()
-        env = _get_env_from(env) or Env(name=env or Env.DEFAULT_NAME)
+        env = _get_env_from(env) if env else self.default_env
         env.reqs = env._reqs + reqs
         env.to(self)
 
@@ -414,14 +489,14 @@ class Cluster(Resource):
     ):
         """Copy secrets from current environment onto the cluster"""
         self.check_server()
-        self.sync_secrets(provider_secrets, env=env)
+        self.sync_secrets(provider_secrets, env=env or self.default_env)
 
     def put(self, key: str, obj: Any, env=None):
         """Put the given object on the cluster's object store at the given key."""
         self.check_server()
         if self.on_this_cluster():
             return obj_store.put(key, obj, env=env)
-        return self.client.put_object(key, obj, env=env)
+        return self.client.put_object(key, obj, env=env or self.default_env.name)
 
     def put_resource(
         self, resource: Resource, state: Dict = None, dryrun: bool = False, env=None
@@ -429,20 +504,29 @@ class Cluster(Resource):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
         self.check_server()
 
+        if resource.RESOURCE_TYPE == "env" and not resource.name:
+            resource.name = self.default_env.name
+
         # Logic to get env_name from different ways env can be provided
         env = env or (
             resource.env
             if hasattr(resource, "env")
             else resource.name or resource.env_name
             if resource.RESOURCE_TYPE == "env"
-            else None
+            else self.default_env
         )
+        if resource.RESOURCE_TYPE == "env" and not resource.name:
+            resource.name = self.default_env.name
 
         if env and not isinstance(env, str):
             env = _get_env_from(env)
-            env_name = env.name or env.env_name
+            env_name = env.name or self.default_env.name
         else:
             env_name = env
+
+        # Env name could somehow be a full length `username/base_env`, trim it down to just the env name
+        if env_name:
+            env_name = env_name.split("/")[-1]
 
         state = state or {}
         if self.on_this_cluster():
@@ -657,7 +741,7 @@ class Cluster(Resource):
         and a domain is provided."""
         return self._use_https and not (self._use_caddy and self.domain is not None)
 
-    def _start_ray_workers(self, ray_port):
+    def _start_ray_workers(self, ray_port, env):
         for host in self.ips:
             if host == self.address:
                 # This is the master node, skip
@@ -670,6 +754,7 @@ class Cluster(Resource):
                     f"ray start --address={self.address}:{ray_port} --disable-usage-stats",
                 ],
                 node=host,
+                env=env,
             )
 
     def restart_server(
@@ -677,7 +762,6 @@ class Cluster(Resource):
         _rh_install_url: str = None,
         resync_rh: bool = True,
         restart_ray: bool = True,
-        env: Union[str, "Env"] = None,
         restart_proxy: bool = False,
     ):
         """Restart the RPC server.
@@ -692,6 +776,10 @@ class Cluster(Resource):
             >>> rh.cluster("rh-cpu").restart_server()
         """
         logger.info(f"Restarting Runhouse API server on {self.name}.")
+
+        default_env = _get_env_from(self._default_env) if self._default_env else None
+        if default_env:
+            self._sync_default_env_to_cluster()
 
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
@@ -749,9 +837,17 @@ class Cluster(Resource):
             + (" --use-local-telemetry" if use_local_telemetry else "")
             + f" --port {self.server_port}"
             + f" --api-server-url {rns_client.api_server_url}"
+            + (f" --default-env-name {self.default_env.name}")
+            + (
+                f" --conda-env {self.default_env.env_name}"
+                if self.default_env.config().get("resource_subtype", None) == "CondaEnv"
+                else ""
+            )
         )
 
-        status_codes = self.run(commands=[cmd], env=env)
+        status_codes = self.run(
+            commands=[cmd], env=self._default_env, node=self.address
+        )
         if not status_codes[0][0] == 0:
             raise ValueError(f"Failed to restart server {self.name}")
 
@@ -768,7 +864,15 @@ class Cluster(Resource):
             self.client.use_https = https_flag
 
         if restart_ray and len(self.ips) > 1:
-            self._start_ray_workers(DEFAULT_RAY_PORT)
+            self._start_ray_workers(DEFAULT_RAY_PORT, env=self.default_env)
+
+        self.put_resource(self.default_env)
+        if default_env:
+            from runhouse.resources.envs.utils import _process_env_vars
+
+            env_vars = _process_env_vars(default_env.env_vars)
+            if env_vars:
+                self.call(default_env.name, "_set_env_vars", env_vars)
 
         return status_codes
 
@@ -781,7 +885,7 @@ class Cluster(Resource):
         """
         cmd = CLI_STOP_CMD if stop_ray else f"{CLI_STOP_CMD} --no-stop-ray"
 
-        status_codes = self.run([cmd], env=env, stream_logs=False)
+        status_codes = self.run([cmd], env=env or self._default_env, stream_logs=False)
         assert status_codes[0][0] == 1
 
     @contextlib.contextmanager
@@ -1058,7 +1162,7 @@ class Cluster(Resource):
             # Move to the Caddy directory to ensure the daemon has access to the certs
             src = self.cert_config.DEFAULT_CLUSTER_DIR
             dest = self.cert_config.CADDY_CLUSTER_DIR
-            self.run(
+            self._run_commands_with_ssh(
                 [
                     f"sudo mkdir -p {dest}",
                     f"sudo mv {src}/* {dest}/",
@@ -1088,6 +1192,15 @@ class Cluster(Resource):
             >>> cpu.run(["python script.py"], run_name="my_exp")
             >>> cpu.run(["python script.py"], node="3.89.174.234")
         """
+        from runhouse.resources.envs import Env
+
+        if isinstance(commands, str):
+            commands = [commands]
+
+        if isinstance(env, Env) and not env.name:
+            env = self._default_env
+        env = env or self.default_env
+
         if node == "all":
             res_list = []
             for node in self.ips:
@@ -1106,15 +1219,13 @@ class Cluster(Resource):
 
         # TODO [DG] suspend autostop while running
 
-        from runhouse.resources.envs import Env
-
         if env and not port_forward and not node:
             env_name = (
                 env
                 if isinstance(env, str)
                 else env.name
                 if isinstance(env, Env)
-                else "base_env"
+                else None
             )
             return_codes = []
             for command in commands:
@@ -1176,8 +1287,8 @@ class Cluster(Resource):
     def _run_commands_with_ssh(
         self,
         commands: list,
-        cmd_prefix: str,
-        stream_logs: bool,
+        cmd_prefix: str = "",
+        stream_logs: bool = True,
         node: str = None,
         port_forward: int = None,
         require_outputs: bool = True,
@@ -1280,7 +1391,6 @@ class Cluster(Resource):
             Running Python commands with nested quotes can be finicky. If using nested quotes,
             try to wrap the outer quote with double quotes (") and the inner quotes with a single quote (').
         """
-        # If no node provided, assume the commands are to be run on the head node
         cmd_prefix = "python3 -c"
         command_str = "; ".join(commands)
         command_str_repr = (
@@ -1293,7 +1403,7 @@ class Cluster(Resource):
         # If invoking a run as part of the python commands also return the Run object
         return_codes = self.run(
             [formatted_command],
-            env=env,
+            env=env or self._default_env,
             stream_logs=stream_logs,
             node=node,
             port_forward=port_forward,
@@ -1319,6 +1429,7 @@ class Cluster(Resource):
         self.check_server()
         from runhouse.resources.secrets import Secret
 
+        env = env or self._default_env
         if isinstance(env, str):
             from runhouse.resources.envs import Env
 
@@ -1492,6 +1603,7 @@ class Cluster(Resource):
     @classmethod
     def _check_for_child_configs(cls, config: dict):
         """Overload by child resources to load any resources they hold internally."""
+        from runhouse.resources.envs.env import Env
         from runhouse.resources.secrets.secret import Secret
         from runhouse.resources.secrets.utils import load_config, setup_cluster_creds
 
@@ -1505,4 +1617,13 @@ class Cluster(Resource):
             else:
                 creds = setup_cluster_creds(creds, config["name"])
         config["creds"] = creds
+
+        default_env = config.pop("default_env", None)
+        if isinstance(default_env, str):
+            default_env = Env.from_name(default_env, _resolve_children=False)
+        elif isinstance(default_env, dict):
+            default_env = Env.from_config(default_env)
+        if default_env:
+            config["default_env"] = default_env
+
         return config

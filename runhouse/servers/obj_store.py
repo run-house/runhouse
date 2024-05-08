@@ -45,7 +45,9 @@ class NoLocalObjStoreError(ObjStoreError):
         super().__init__("No local object store exists; cannot perform operation.")
 
 
-def get_cluster_servlet(create_if_not_exists: bool = False):
+def get_cluster_servlet(
+    create_if_not_exists: bool = False, runtime_env: Optional[Dict] = None
+):
     from runhouse.servers.cluster_servlet import ClusterServlet
 
     if not ray.is_initialized():
@@ -72,6 +74,8 @@ def get_cluster_servlet(create_if_not_exists: bool = False):
                 namespace="runhouse",
                 max_concurrency=1000,
                 resources={f"node:{current_ip}": 0.001},
+                num_cpus=0,
+                runtime_env=runtime_env,
             )
             .remote()
         )
@@ -92,12 +96,10 @@ def context_wrapper(func):
 
             res = await func(self, *args, **kwargs)
         except Exception as e:
+            raise e
+        finally:
             if ctx_token:
                 self.unset_ctx(ctx_token)
-            raise e
-
-        if ctx_token:
-            self.unset_ctx(ctx_token)
 
         return res
 
@@ -143,6 +145,7 @@ class ObjStore:
         setup_ray: RaySetupOption = RaySetupOption.GET_OR_FAIL,
         ray_address: str = "auto",
         setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
+        runtime_env: Optional[Dict] = None,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -186,7 +189,8 @@ class ObjStore:
             setup_cluster_servlet != ClusterServletSetupOption.GET_OR_FAIL
         )
         self.cluster_servlet = get_cluster_servlet(
-            create_if_not_exists=create_if_not_exists
+            create_if_not_exists=create_if_not_exists,
+            runtime_env=runtime_env,
         )
         if self.cluster_servlet is None:
             # TODO: logger.<method> is not printing correctly here when doing `runhouse start`.
@@ -234,6 +238,7 @@ class ObjStore:
         setup_ray: RaySetupOption = RaySetupOption.GET_OR_FAIL,
         ray_address: str = "auto",
         setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
+        runtime_env: Optional[Dict] = None,
     ):
         return sync_function(self.ainitialize)(
             servlet_name,
@@ -241,6 +246,7 @@ class ObjStore:
             setup_ray,
             ray_address,
             setup_cluster_servlet,
+            runtime_env,
         )
 
     ##############################################
@@ -257,6 +263,10 @@ class ObjStore:
         env_servlet = self.get_env_servlet(
             servlet_name, use_env_servlet_cache=use_env_servlet_cache
         )
+        if env_servlet is None:
+            raise ObjStoreError(
+                f"Got None env_servlet for servlet_name {servlet_name}."
+            )
         try:
             return await ObjStore.acall_actor_method(
                 env_servlet, method, *args, **kwargs
@@ -323,6 +333,13 @@ class ObjStore:
 
         # Otherwise, create it
         if create:
+            if (
+                type(resources.get("GPU", 0)) != int
+                or type(resources.get("CPU", 0)) != int
+            ):
+                raise ValueError(
+                    f"GPU and CPU resource specifications must be integers, got {resources} for env {env_name}."
+                )
             new_env_actor = (
                 ray.remote(EnvServlet)
                 .options(
@@ -1076,7 +1093,6 @@ class ObjStore:
 
         obj = self.get_local(key, default=KeyError)
 
-        from runhouse.resources.envs.env import Env
         from runhouse.resources.module import Module
         from runhouse.resources.resource import Resource
 
@@ -1095,7 +1111,7 @@ class ObjStore:
                 # Setting to None in the case of non-resource or no rns_address will force auth to only
                 # succeed if the user has WRITE or READ access to the cluster
                 resource_uri = obj.rns_address if hasattr(obj, "rns_address") else None
-                if key != Env.DEFAULT_NAME and not await self.ahas_resource_access(
+                if key != self.servlet_name and not await self.ahas_resource_access(
                     ctx.token, resource_uri
                 ):
                     # Do not validate access to the default Env

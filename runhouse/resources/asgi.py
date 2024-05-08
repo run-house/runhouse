@@ -100,7 +100,7 @@ def asgi(
         return Asgi.from_name(name, dryrun)
 
     if not isinstance(env, Env):
-        env = _get_env_from(env) or Env(name=Env.DEFAULT_NAME)
+        env = _get_env_from(env) or Env()
         env.working_dir = env.working_dir or "./"
 
     callers_global_vars = inspect.currentframe().f_back.f_globals.items()

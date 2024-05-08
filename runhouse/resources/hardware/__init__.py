@@ -9,6 +9,7 @@ from .on_demand_cluster import OnDemandCluster
 from .sagemaker.sagemaker_cluster import SageMakerCluster
 from .utils import (
     _current_cluster,
+    _default_env_if_on_cluster,
     _get_cluster_from,
     cluster_config_file_exists,
     load_cluster_config_from_file,

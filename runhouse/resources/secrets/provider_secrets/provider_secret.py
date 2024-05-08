@@ -75,7 +75,7 @@ class ProviderSecret(Secret):
         return config
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         """Create a ProviderSecret object from a config dictionary."""
         return ProviderSecret(**config, dryrun=dryrun)
 
@@ -155,8 +155,13 @@ class ProviderSecret(Secret):
         Example:
             >>> secret.to(my_cluster, path=secret.path)
         """
+        from runhouse import Env
+
         system = _get_cluster_from(system)
         path = path or self.path
+
+        if not env or (env and isinstance(env, Env) and not env.name):
+            env = system.default_env
 
         if system.on_this_cluster():
             if not env and not path == self.path:
@@ -180,14 +185,14 @@ class ProviderSecret(Secret):
         elif values is False:
             new_secret._values = None
 
-        key = system.put_resource(new_secret)
+        key = system.put_resource(new_secret, env=env)
         if path:
             new_secret.path = self._file_to(
                 key=key, system=system, path=path, values=self.values
             )
 
         if env or self.env_vars:
-            env_key = env.name if isinstance(env, Env) else (env or "base_env")
+            env_key = env if isinstance(env, str) else env.name
             if not system.get(env_key):
                 env = env if isinstance(env, Env) else Env(name=env_key)
                 env_key = system.put_resource(env)

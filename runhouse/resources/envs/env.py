@@ -5,14 +5,15 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.globals import obj_store
+from runhouse.resources.envs.utils import (
+    _process_env_vars,
+    run_setup_command,
+    run_with_logs,
+)
 from runhouse.resources.folders import Folder
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
-
-from runhouse.utils import run_with_logs
-
-from .utils import _env_vars_from_file
 
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 class Env(Resource):
     RESOURCE_TYPE = "env"
-    DEFAULT_NAME = "base_env"
 
     def __init__(
         self,
@@ -53,14 +53,18 @@ class Env(Resource):
         return self.name or "base"
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         """Create an Env object from a config dict"""
         config["reqs"] = [
-            Package.from_config(req, dryrun=True) if isinstance(req, dict) else req
+            Package.from_config(req, dryrun=True, _resolve_children=_resolve_children)
+            if isinstance(req, dict)
+            else req
             for req in config.get("reqs", [])
         ]
         config["working_dir"] = (
-            Package.from_config(config["working_dir"], dryrun=True)
+            Package.from_config(
+                config["working_dir"], dryrun=True, _resolve_children=_resolve_children
+            )
             if isinstance(config["working_dir"], dict)
             else config["working_dir"]
         )
@@ -137,7 +141,33 @@ class Env(Resource):
                 new_secrets.append(secret.to(system=system, env=self))
         return new_secrets
 
-    def install(self, force=False):
+    def _install_reqs(self, cluster: Cluster = None, reqs: List = None):
+        reqs = reqs or self.reqs
+        if reqs:
+            for package in reqs:
+                if isinstance(package, str):
+                    pkg = Package.from_string(package)
+                    if pkg.install_method in ["reqs", "local"] and cluster:
+                        pkg = pkg.to(cluster)
+                elif hasattr(package, "_install"):
+                    pkg = package
+                else:
+                    raise ValueError(f"package {package} not recognized")
+
+                logger.debug(f"Installing package: {str(pkg)}")
+                pkg._install(env=self, cluster=cluster)
+
+    def _run_setup_cmds(self, cluster: Cluster = None, setup_cmds: List = None):
+        setup_cmds = setup_cmds or self.setup_cmds
+
+        if not setup_cmds:
+            return
+
+        for cmd in setup_cmds:
+            cmd = f"{self._run_cmd} {cmd}" if self._run_cmd else cmd
+            run_setup_command(cmd, cluster=cluster)
+
+    def install(self, force: bool = False, cluster: Cluster = None):
         """Locally install packages and run setup commands."""
         # Hash the config_for_rns to check if we need to install
         env_config = self.config()
@@ -150,19 +180,8 @@ class Env(Resource):
             return
         obj_store.installed_envs[install_hash] = self.name
 
-        for package in self.reqs:
-            if isinstance(package, str):
-                pkg = Package.from_string(package)
-            elif hasattr(package, "_install"):
-                pkg = package
-            else:
-                raise ValueError(f"package {package} not recognized")
-
-            logger.debug(f"Installing package: {str(pkg)}")
-            pkg._install(self)
-        if self.setup_cmds:
-            for cmd in self.setup_cmds:
-                self._run_command(cmd)
+        self._install_reqs(cluster=cluster)
+        self._run_setup_cmds(cluster=cluster)
 
     def _run_command(self, command: str, **kwargs):
         """Run command locally inside the environment"""
@@ -189,15 +208,21 @@ class Env(Resource):
         new_env.secrets = self._secrets_to(system)
 
         if isinstance(system, Cluster):
-            key = system.put_resource(new_env)
-            env_vars = (
-                _env_vars_from_file(self.env_vars)
-                if isinstance(self.env_vars, str)
-                else self.env_vars
+            key = (
+                system.put_resource(new_env)
+                if new_env.name
+                else system.default_env.name
             )
+
+            env_vars = _process_env_vars(self.env_vars)
             if env_vars:
                 system.call(key, "_set_env_vars", env_vars)
-            system.call(key, "install", force=force_install)
+
+            if new_env.name:
+                system.call(key, "install", force=force_install)
+            else:
+                system.call(key, "_install_reqs", reqs=new_env.reqs)
+                system.call(key, "_run_setup_cmds", setup_cmds=new_env.setup_cmds)
 
         return new_env
 

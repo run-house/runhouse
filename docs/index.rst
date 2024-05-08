@@ -46,6 +46,7 @@ Table of Contents
    :maxdepth: 1
    :caption: Other Topics
 
+   tutorials/async.rst
    architecture
    debugging-logging
    troubleshooting

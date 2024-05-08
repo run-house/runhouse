@@ -25,7 +25,7 @@ def env(request):
 
 
 @pytest.fixture(scope="function")
-def base_env():
+def unnamed_env():
     args = {"reqs": ["npm"]}
     env = rh.env(**args)
     init_args[id(env)] = args

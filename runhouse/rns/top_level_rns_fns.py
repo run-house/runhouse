@@ -1,6 +1,8 @@
 import logging
 import sys
-from typing import List
+from typing import Dict
+
+from runhouse.constants import EMPTY_DEFAULT_ENV_NAME
 
 from runhouse.globals import configs, obj_store, rns_client
 
@@ -67,14 +69,31 @@ def load(name: str, instantiate: bool = True, dryrun: bool = False):
 async def get_local_cluster_object():
     # By default, obj_store.initialize does not initialize Ray, and instead
     # attempts to connect to an existing cluster.
+    from runhouse.resources.hardware.utils import (
+        _unnamed_default_env_name,
+        load_cluster_config_from_file,
+    )
 
     # In case we are calling `rh.here` within the same Python process
     # as an initialized object store, keep the same name.
     # If it was not set, let's proxy requests to `base` since we're likely on the cluster
     # and want to easily read and write from the object store that the Server is using.
     try:
+        servlet_name = obj_store.servlet_name
+        if not servlet_name:
+            cluster_config = load_cluster_config_from_file()
+            default_env = cluster_config.get("default_env", None)
+            if isinstance(default_env, str):
+                servlet_name = default_env
+            elif isinstance(default_env, Dict):
+                servlet_name = default_env.get(
+                    "name", _unnamed_default_env_name(cluster_config.get("name"))
+                )
+            else:
+                servlet_name = EMPTY_DEFAULT_ENV_NAME
+
         await obj_store.ainitialize(
-            servlet_name=obj_store.servlet_name or "base",
+            servlet_name=servlet_name,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
         )
     except ConnectionError:
@@ -90,14 +109,6 @@ async def get_local_cluster_object():
         return system
 
     return "file"
-
-
-def set_save_to(save_to: List[str]):
-    rns_client.save_to = save_to
-
-
-def set_load_from(load_from: List[str]):
-    rns_client.load_from = load_from
 
 
 def save(resource, name: str = None, overwrite: bool = True, folder: str = None):

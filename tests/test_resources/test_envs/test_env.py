@@ -36,7 +36,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
     UNIT = {
         "env": [
-            "base_env",
+            "unnamed_env",
             "named_env",
             "base_conda_env",
             "named_conda_env_from_dict",
@@ -45,7 +45,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         ]
     }
     LOCAL = {
-        "env": ["base_env", "named_env"],
+        "env": ["unnamed_env", "named_env"],
         "cluster": [
             "docker_cluster_pk_ssh_no_auth",
         ]
@@ -53,11 +53,21 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         # and add local clusters once conda docker container is set up
     }
     MINIMAL = {
-        "env": ["base_env", "named_env", "base_conda_env", "named_conda_env_from_dict"],
+        "env": [
+            "unnamed_env",
+            "named_env",
+            "base_conda_env",
+            "named_conda_env_from_dict",
+        ],
         "cluster": ["ondemand_aws_cluster"],
     }
     RELEASE = {
-        "env": ["base_env", "named_env", "base_conda_env", "named_conda_env_from_dict"],
+        "env": [
+            "unnamed_env",
+            "named_env",
+            "base_conda_env",
+            "named_conda_env_from_dict",
+        ],
         "cluster": [
             "ondemand_aws_cluster",
             "password_cluster",
@@ -65,7 +75,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
     }
     MAXIMAL = {
         "env": [
-            "base_env",
+            "unnamed_env",
             "named_env",
             "base_conda_env",
             "named_conda_env_from_dict",
@@ -103,7 +113,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             assert env.working_dir == "./"
 
         if "name" not in args:
-            assert env.name == rh.Env.DEFAULT_NAME
+            assert not env.name
 
     @pytest.mark.level("unit")
     def test_env_conda_env_factories(self):

@@ -64,9 +64,9 @@ class Table(Resource):
         self.metadata = metadata or {}
 
     @staticmethod
-    def from_config(config: dict, dryrun=False):
-        if isinstance(config["system"], dict):
-            config["system"] = _get_cluster_from(config["system"], dryrun=dryrun)
+    def from_config(config: dict, dryrun=False, _resolve_children=True):
+        if _resolve_children:
+            config = Table._check_for_child_configs(config)
         return _load_table_subclass(config, dryrun=dryrun)
 
     def config(self, condensed=True):
@@ -83,6 +83,14 @@ class Table(Resource):
         )
         config.update(config)
 
+        return config
+
+    @classmethod
+    def _check_for_child_configs(cls, config: dict):
+        """Overload by child resources to load any resources they hold internally."""
+        system = config.get("system")
+        if isinstance(system, str) or isinstance(system, dict):
+            config["system"] = _get_cluster_from(system)
         return config
 
     @property

@@ -25,7 +25,7 @@ class GCPSecret(ProviderSecret):
     }
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         return GCPSecret(**config, dryrun=dryrun)
 
     def _write_to_file(

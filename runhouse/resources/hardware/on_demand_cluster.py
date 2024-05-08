@@ -41,6 +41,7 @@ class OnDemandCluster(Cluster):
         instance_type: str = None,
         num_instances: int = None,
         provider: str = None,
+        default_env: "Env" = None,
         dryrun=False,
         autostop_mins=None,
         use_spot=False,
@@ -66,6 +67,7 @@ class OnDemandCluster(Cluster):
         """
         super().__init__(
             name=name,
+            default_env=default_env,
             server_host=server_host,
             server_port=server_port,
             server_connection_type=server_connection_type,
@@ -113,13 +115,13 @@ class OnDemandCluster(Cluster):
         if self.on_this_cluster():
             raise ValueError("Cannot set autostop_mins live on the cluster.")
         else:
+            if self.run_python(["import skypilot"])[0] != 0:
+                raise ImportError(
+                    "Skypilot must be installed on the cluster in order to set autostop."
+                )
             self.client.set_settings({"autostop_mins": mins})
             sky.autostop(self.name, mins, down=True)
             self._autostop_mins = mins
-
-    @staticmethod
-    def from_config(config: dict, dryrun=False):
-        return OnDemandCluster(**config, dryrun=dryrun)
 
     def config(self, condensed=True):
         config = super().config(condensed)
@@ -295,7 +297,7 @@ class OnDemandCluster(Cluster):
             return None
         return state[0]
 
-    def _start_ray_workers(self, ray_port):
+    def _start_ray_workers(self, ray_port, env):
         # Find the internal IP corresponding to the public_head_ip and the rest are workers
         internal_head_ip = None
         worker_ips = []
@@ -320,6 +322,7 @@ class OnDemandCluster(Cluster):
                     f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
                 ],
                 node=host,
+                env=env,
             )
         time.sleep(5)
 
@@ -421,10 +424,10 @@ class OnDemandCluster(Cluster):
                 use_spot=self.use_spot,
             )
         )
-        if Path("~/.rh").expanduser().exists():
+        if Path("~/.rh/config.yaml").expanduser().exists():
             task.set_file_mounts(
                 {
-                    "~/.rh": "~/.rh",
+                    "~/.rh/config.yaml": "~/.rh/config.yaml",
                 }
             )
         sky.launch(

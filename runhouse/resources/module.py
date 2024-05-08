@@ -14,7 +14,12 @@ from pydantic import create_model
 
 from runhouse.globals import obj_store, rns_client
 from runhouse.resources.envs import _get_env_from, Env
-from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
+from runhouse.resources.hardware import (
+    _current_cluster,
+    _default_env_if_on_cluster,
+    _get_cluster_from,
+    Cluster,
+)
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
@@ -72,7 +77,10 @@ class Module(Resource):
             # of rh.Module, and we need to do the factory constructor logic here.
 
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
-            self._env = self._env or Env(name=Env.DEFAULT_NAME)
+            if not self._env:
+                self._env = (
+                    self._system.default_env if self._system else Env(working_dir="./")
+                )
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
             self._env.working_dir = self._env.working_dir or "./"
@@ -122,7 +130,7 @@ class Module(Resource):
         return config
 
     @classmethod
-    def from_config(cls, config: dict, dryrun=False):
+    def from_config(cls, config: dict, dryrun=False, _resolve_children=True):
         if config.get("pointers"):
             config.pop("resource_subtype", None)
             logger.debug(f"Constructing module from pointers {config['pointers']}")
@@ -152,14 +160,18 @@ class Module(Resource):
                         if isinstance(env, str)
                         else env["name"]
                         if isinstance(env, Dict)
-                        else "base_env"
-                        if env is not None
+                        else env.name
+                        if isinstance(env, Env) and env.name
+                        else system.default_env.name
+                        if system.default_env
                         else None
                     )
-                    if (system and _current_cluster == _get_cluster_from(system)) and (
-                        env_name
-                        and obj_store.cluster_servlet
-                        and obj_store.cluster_servlet.name == env_name
+
+                    # If we are on the same cluster, and in the env where the module lives, we should be able to
+                    # load the module from the pointers. So, we should just raise the exception if this is the case.
+                    if system.on_this_cluster() and (
+                        env_name == obj_store.servlet_name
+                        and obj_store.has_local_storage
                     ):
                         # Could not load Module locally from within the system where it lives
                         raise e
@@ -177,7 +189,8 @@ class Module(Resource):
             # If this resource was put on a cluster with put_resource, the servlet will be populating the rest
             # of the class-specific attributes.
             new_module = module_cls.__new__(module_cls)
-            config = module_cls._check_for_child_configs(config)
+            if _resolve_children:
+                config = module_cls._check_for_child_configs(config)
             new_module.system = config.pop("system", None)
             new_module.env = config.pop("env", None)
             new_module.name = config.pop("name", None)
@@ -415,18 +428,25 @@ class Module(Resource):
 
         if system == "file":
             raise ValueError(
-                f"Need an initialized local server in order to put {self} onto `rh.here`."
+                "Need an initialized local server in order to put a module onto `rh.here`. Please run `runhouse restart` first on your local machine."
             )
 
         system = (
             _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
         )
-        env = env or self.env
+        if not env:
+            if (
+                not self.env or (isinstance(self.env, Env) and not self.env.name)
+            ) and system:
+                env = system.default_env
+            else:
+                env = self.env
+
         env = _get_env_from(env)
 
         if system:
             system.check_server()
-            if env:
+            if isinstance(env, Env):
                 env = env.to(system, force_install=force_install)
 
         # We need to backup the system here so the __getstate__ method of the cluster
@@ -437,7 +457,11 @@ class Module(Resource):
         self.system = hw_backup
 
         new_module.system = system
-        new_module.env = env
+        new_module.env = (
+            system.default_env
+            if system and isinstance(env, Env) and not env.name
+            else env
+        )
         new_module.dryrun = True
 
         if isinstance(system, Cluster):
@@ -465,7 +489,7 @@ class Module(Resource):
                     if attr not in excluded_state_keys
                 }
             logger.info(
-                f"Sending module {new_module.name} to {system.name or 'local Runhouse daemon'}"
+                f"Sending module {new_module.name} of type {type(new_module)} to {system.name or 'local Runhouse daemon'}"
             )
             system.put_resource(new_module, state, dryrun=True)
 
@@ -863,7 +887,7 @@ class Module(Resource):
     def _save_sub_resources(self, folder: str = None):
         if isinstance(self.system, Resource) and self.system.name:
             self.system.save(folder=folder)
-        if isinstance(self.env, Resource) and self.env.name != Env.DEFAULT_NAME:
+        if isinstance(self.env, Resource):
             self.env.save(folder=folder)
 
     def rename(self, name: str):
@@ -1183,6 +1207,14 @@ def _module_subclass_factory(cls, cls_pointers):
         if not new_module.dryrun and new_module.system:
             # We use system.put_resource here because the signatures for HTTPClient.put_resource and
             # obj_store.put_resource are different, but we should fix that.
+
+            # If the system is still a string, we know that the user has _no_ access to the Cluster
+            # If they were able to discover the cluster, their system string would be replaced by a Cluster object
+            # when _check_for_child_configs --> _get_cluster_from was called
+            if isinstance(new_module.system, str):
+                raise ValueError(
+                    "You must have access to the underlying cluster for this unconstructed Module in order to put a resource on it."
+                )
             new_module.system.put_resource(new_module, env=env)
             new_module.system.call(new_module.name, "_remote_init", *args, **kwargs)
         else:
@@ -1303,7 +1335,12 @@ def module(
         )
 
     if not isinstance(env, Env):
-        env = _get_env_from(env) or Env(name=Env.DEFAULT_NAME)
+        env = _get_env_from(env)
+        if not env:
+            env = _get_env_from(_default_env_if_on_cluster())
+        if not env:
+            env = Env()
+
         env.working_dir = env.working_dir or "./"
 
     cls_pointers = Module._extract_pointers(cls, env.reqs)

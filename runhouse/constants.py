@@ -11,6 +11,8 @@ LOCAL_HOSTS: List[str] = ["localhost", LOCALHOST]
 LOGS_DIR = ".rh/logs"
 RH_LOGFILE_PATH = Path.home() / LOGS_DIR
 
+ENVS_DIR = "~/.rh/envs"
+
 MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
 
 CLI_RESTART_CMD = "runhouse restart"
@@ -47,4 +49,12 @@ RAY_START_CMD = f"ray start --head --port {DEFAULT_RAY_PORT} --disable-usage-sta
 # which runs on other ports but is required to preserve autostop and correct cluster status.
 RAY_KILL_CMD = 'pkill -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
 
+CONDA_INSTALL_CMDS = [
+    "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh",
+    "bash ~/miniconda.sh -b -p ~/miniconda",
+    "source $HOME/miniconda3/bin/activate",
+]
+
 TEST_ORG = "test-org"
+
+EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"

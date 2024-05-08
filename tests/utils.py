@@ -91,7 +91,7 @@ def friend_account_in_org():
 
 def test_env(logged_in=False):
     return rh.env(
-        reqs=["pytest", "httpx", "pytest_asyncio"],
+        reqs=["pytest", "httpx", "pytest_asyncio", "pandas"],
         working_dir=None,
         setup_cmds=[
             f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
@@ -99,7 +99,6 @@ def test_env(logged_in=False):
         ]
         if logged_in
         else False,
-        name="base_env",
     )
 
 

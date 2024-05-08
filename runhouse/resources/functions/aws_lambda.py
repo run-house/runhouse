@@ -139,7 +139,9 @@ class LambdaFunction(Function):
     # --------------------------------------
 
     @classmethod
-    def from_config(cls, config: dict, dryrun: bool = False):
+    def from_config(
+        cls, config: dict, dryrun: bool = False, _resolve_children: bool = True
+    ):
         """Create an AWS Lambda object from a config dictionary."""
 
         if "resource_subtype" in config.keys():
@@ -157,19 +159,20 @@ class LambdaFunction(Function):
             config["env"] = Env(
                 reqs=[],
                 env_vars={"HOME": LambdaFunction.HOME_DIR},
-                name=Env.DEFAULT_NAME,
             )
         else:
-            config["env"] = Env.from_config(config["env"])
+            config["env"] = Env.from_config(
+                config["env"], _resolve_children=_resolve_children
+            )
 
         return LambdaFunction(**config, dryrun=dryrun).deploy()
 
     @classmethod
-    def from_name(cls, name, dryrun=False, alt_options=None):
+    def from_name(cls, name, dryrun=False, alt_options=None, _resolve_children=True):
         config = rns_client.load_config(name=name)
         if not config:
             raise ValueError(f"Could not find a Lambda called {name}.")
-        return cls.from_config(config)
+        return cls.from_config(config, _resolve_children=_resolve_children)
 
     @classmethod
     def from_handler_file(
@@ -297,19 +300,16 @@ class LambdaFunction(Function):
         if env is not None and not isinstance(env, Env):
             original_env = copy.deepcopy(env)
             if isinstance(original_env, dict) and "env_vars" in original_env.keys():
-                env = _get_env_from(env["reqs"]) or Env(
-                    working_dir="./", name=Env.DEFAULT_NAME
-                )
+                env = _get_env_from(env["reqs"]) or Env(working_dir="./")
             elif isinstance(original_env, str):
                 env = _get_env_from(env)
             else:
-                env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
+                env = _get_env_from(env) or Env(working_dir="./")
 
         if env is None:
             env = Env(
                 reqs=[],
                 env_vars={"HOME": cls.HOME_DIR},
-                name=Env.DEFAULT_NAME,
                 working_dir="./",
             )
 

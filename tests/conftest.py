@@ -242,6 +242,7 @@ from tests.fixtures.on_demand_cluster_fixtures import (
     ondemand_aws_cluster,  # noqa: F401
     ondemand_aws_https_cluster_with_auth,  # noqa: F401
     ondemand_cluster,  # noqa: F401
+    ondemand_default_conda_env_cluster,  # noqa: F401
     ondemand_gcp_cluster,  # noqa: F401
     ondemand_k8s_cluster,  # noqa: F401
     v100_gpu_cluster,  # noqa: F401
@@ -284,6 +285,18 @@ from tests.fixtures.folder_fixtures import (  # usort: skip
     s3_folder,  # noqa: F401
 )
 
+# ----------------- Packages -----------------
+
+from tests.fixtures.package_fixtures import (
+    conda_package,  # noqa: F401
+    git_package,  # noqa: F401
+    local_package,  # noqa: F401
+    package,  # noqa: F401
+    pip_package,  # noqa: F401
+    reqs_package,  # noqa: F401
+    s3_package,  # noqa: F401
+)
+
 from tests.fixtures.secret_fixtures import (
     anthropic_secret,  # noqa: F401
     aws_secret,  # noqa: F401
@@ -308,11 +321,11 @@ from tests.fixtures.secret_fixtures import (
 
 from tests.test_resources.test_envs.conftest import (
     base_conda_env,  # noqa: F401
-    base_env,  # noqa: F401
     conda_env_from_local,  # noqa: F401
     conda_env_from_path,  # noqa: F401
     env,  # noqa: F401
     named_conda_env_from_dict,  # noqa: F401
+    unnamed_env,  # noqa: F401
 )
 
 # ----------------- Blobs -----------------
@@ -327,14 +340,6 @@ from tests.test_resources.test_modules.test_blobs.conftest import (
     local_blob,  # noqa: F401
     local_file,  # noqa: F401
     s3_blob,  # noqa: F401
-)
-
-# ----------------- Packages -----------------
-
-from tests.test_resources.test_modules.test_folders.test_packages.conftest import (
-    local_package,  # noqa: F401
-    package,  # noqa: F401
-    s3_package,  # noqa: F401
 )
 
 # ----------------- Modules -----------------
@@ -385,6 +390,7 @@ default_fixtures[TestLevels.RELEASE] = {
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_aws_https_cluster_with_auth",
+        "ondemand_default_conda_env_cluster",
         "password_cluster",
         "static_cpu_cluster",
     ]
@@ -396,7 +402,9 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "docker_cluster_pwd_ssh_no_auth",
         "ondemand_aws_cluster",
         "ondemand_gcp_cluster",
+        "ondemand_k8s_cluster",
         "ondemand_aws_https_cluster_with_auth",
+        "ondemand_default_conda_env_cluster",
         "password_cluster",
         "multinode_cpu_cluster",
         "static_cpu_cluster",

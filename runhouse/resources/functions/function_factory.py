@@ -66,7 +66,7 @@ def function(
         )
 
     if not isinstance(env, Env):
-        env = _get_env_from(env) or Env(working_dir="./", name=Env.DEFAULT_NAME)
+        env = _get_env_from(env) or Env(working_dir="./")
 
     fn_pointers = None
     if callable(fn):

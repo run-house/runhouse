@@ -44,7 +44,7 @@ class SSHSecret(ProviderSecret):
             self.path = str(Path(self._DEFAULT_CREDENTIALS_PATH) / self.key)
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         # try block if for the case we are trying to load a shared secret.
         return SSHSecret(**config, dryrun=dryrun)
 

@@ -22,6 +22,7 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
+    EMPTY_DEFAULT_ENV_NAME,
     LOGGING_WAIT_TIME,
     RH_LOGFILE_PATH,
 )
@@ -95,11 +96,10 @@ def validate_cluster_access(func):
             else:
                 res = func(*args, **kwargs)
         except Exception as e:
+            raise e
+        finally:
             if ctx_token:
                 obj_store.unset_ctx(ctx_token)
-            raise e
-
-        obj_store.unset_ctx(ctx_token)
         return res
 
     return wrapper
@@ -112,13 +112,14 @@ class HTTPServer:
     @classmethod
     async def ainitialize(
         cls,
+        default_env_name=None,
         conda_env=None,
         enable_local_span_collection=None,
         from_test: bool = False,
         *args,
         **kwargs,
     ):
-        runtime_env = {"conda": conda_env} if conda_env else {}
+        runtime_env = {"conda": conda_env} if conda_env else None
 
         # If enable_local_span_collection flag is passed, setup the span exporter and related functionality
         if enable_local_span_collection:
@@ -173,12 +174,18 @@ class HTTPServer:
 
                 return await call_next(request)
 
+        default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
+
         # Ray and ClusterServlet should already be
         # initialized by the start script (see below)
         # But if the HTTPServer was started standalone in a test,
         # We still want to make sure the cluster servlet is initialized
         if from_test:
-            await obj_store.ainitialize("base", setup_ray=RaySetupOption.TEST_PROCESS)
+            await obj_store.ainitialize(
+                default_env_name,
+                setup_ray=RaySetupOption.TEST_PROCESS,
+                runtime_env=runtime_env,
+            )
 
         # TODO disabling due to latency, figure out what to do with this
         # try:
@@ -194,19 +201,26 @@ class HTTPServer:
             except Exception as e:
                 logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
 
-        # We initialize a base env servlet where some things may run.
-        # TODO: We aren't sure _exactly_ where this is or isn't used.
-        # There are a few spots where we do `env_name or "base"`, and
-        # this allows that base env to be pre-initialized.
+        # We initialize a default env servlet where some things may run.
         _ = obj_store.get_env_servlet(
-            env_name="base",
+            env_name=default_env_name,
             create=True,
             runtime_env=runtime_env,
         )
 
+        if default_env_name == EMPTY_DEFAULT_ENV_NAME:
+            from runhouse import env
+
+            default_env = env(name=default_env_name, working_dir="./")
+            data = (default_env.config(condensed=False), {}, False)
+            obj_store.put_resource(
+                serialized_data=data, serialization=None, env_name=default_env_name
+            )
+
     @classmethod
     def initialize(
         cls,
+        default_env_name=None,
         conda_env=None,
         enable_local_span_collection=None,
         from_test: bool = False,
@@ -214,7 +228,12 @@ class HTTPServer:
         **kwargs,
     ):
         return sync_function(cls.ainitialize)(
-            conda_env, enable_local_span_collection, from_test, *args, **kwargs
+            default_env_name,
+            conda_env,
+            enable_local_span_collection,
+            from_test,
+            *args,
+            **kwargs,
         )
 
     @classmethod
@@ -575,7 +594,7 @@ class HTTPServer:
     @validate_cluster_access
     async def put_resource(request: Request, params: PutResourceParams):
         try:
-            env_name = params.env_name or "base"
+            env_name = params.env_name
             return await obj_store.aput_resource(
                 serialized_data=params.serialized_data,
                 serialization=params.serialization,
@@ -903,6 +922,12 @@ async def main():
         default=None,
         help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
     )
+    parser.add_argument(
+        "--default-env-name",
+        type=str,
+        default=None,
+        help="Name of env where the HTTP server is started.",
+    )
 
     parser.add_argument(
         "--api-server-url",
@@ -916,6 +941,7 @@ async def main():
     conda_name = parse_args.conda_env
     restart_proxy = parse_args.restart_proxy
     api_server_url = parse_args.api_server_url
+    default_env_name = parse_args.default_env_name
 
     # The object store and the cluster servlet within it need to be
     # initialized in order to call `obj_store.get_cluster_config()`, which
@@ -925,7 +951,7 @@ async def main():
     # We connect this to the "base" env, which we'll initialize later,
     # so writes to the obj_store within the server get proxied to the "base" env.
     await obj_store.ainitialize(
-        "base",
+        default_env_name,
         setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
     )
 
@@ -1107,6 +1133,7 @@ async def main():
     logger.info("Updated cluster config with parsed argument values.")
 
     await HTTPServer.ainitialize(
+        default_env_name=default_env_name,
         conda_env=conda_name,
         enable_local_span_collection=use_local_telemetry
         or configs.data_collection_enabled(),

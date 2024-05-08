@@ -4,7 +4,7 @@ import pytest
 
 import runhouse as rh
 
-from runhouse.constants import DEFAULT_HTTPS_PORT
+from runhouse.constants import DEFAULT_HTTPS_PORT, EMPTY_DEFAULT_ENV_NAME
 
 from tests.conftest import init_args
 from tests.utils import test_env
@@ -25,7 +25,8 @@ def setup_test_cluster(args, request):
         cluster.restart_server()
 
     cluster.save()
-    test_env().to(cluster)
+    if cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
+        test_env().to(cluster)
     return cluster
 
 
@@ -117,6 +118,22 @@ def multinode_cpu_cluster(request):
         "name": "rh-cpu-multinode",
         "num_instances": 2,
         "instance_type": "CPU:2+",
+    }
+    cluster = setup_test_cluster(args, request)
+    return cluster
+
+
+@pytest.fixture(scope="session")
+def ondemand_default_conda_env_cluster(request):
+    env_vars = {"var1": "val1", "var2": "val2"}
+    default_env = rh.conda_env(
+        name="default_env", reqs=test_env().reqs + ["skypilot"], env_vars=env_vars
+    )
+    args = {
+        "name": "default-env-cpu",
+        "instance_type": "CPU:2+",
+        "provider": "aws",
+        "default_env": default_env,
     }
     cluster = setup_test_cluster(args, request)
     return cluster

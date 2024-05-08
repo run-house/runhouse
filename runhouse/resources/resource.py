@@ -255,7 +255,7 @@ class Resource:
         return config
 
     @classmethod
-    def from_name(cls, name, dryrun=False, alt_options=None):
+    def from_name(cls, name, dryrun=False, alt_options=None, _resolve_children=True):
         """Load existing Resource via its name."""
         # TODO is this the right priority order?
         from runhouse.resources.hardware.utils import _current_cluster
@@ -272,16 +272,20 @@ class Resource:
         if not config:
             raise ValueError(f"Resource {name} not found.")
         config["name"] = name
-        config = cls._check_for_child_configs(config)
+
+        if _resolve_children:
+            config = cls._check_for_child_configs(config)
 
         # Add this resource's name to the resource artifact registry if part of a run
         rns_client.add_upstream_resource(name)
 
         # Uses child class's from_config
-        return cls.from_config(config=config, dryrun=dryrun)
+        return cls.from_config(
+            config=config, dryrun=dryrun, _resolve_children=_resolve_children
+        )
 
     @staticmethod
-    def from_config(config, dryrun=False):
+    def from_config(config, dryrun=False, _resolve_children=True):
         resource_type = config.pop("resource_type", None)
         dryrun = config.pop("dryrun", False) or dryrun
 
@@ -293,9 +297,15 @@ class Resource:
         )
         if not resource_class:
             raise TypeError(f"Could not find module associated with {resource_type}")
-        config = resource_class._check_for_child_configs(config)
 
-        loaded = resource_class.from_config(config=config, dryrun=dryrun)
+        if _resolve_children:
+            config = resource_class._check_for_child_configs(config)
+
+        loaded = resource_class.from_config(
+            config=config,
+            dryrun=dryrun,
+            _resolve_children=_resolve_children,
+        )
         if loaded.name:
             rns_client.add_upstream_resource(loaded.name)
         return loaded

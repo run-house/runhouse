@@ -22,7 +22,7 @@ class HuggingFaceSecret(ProviderSecret):
     _DEFAULT_ENV_VARS = {"token": "HF_TOKEN"}
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         return HuggingFaceSecret(**config, dryrun=dryrun)
 
     def _write_to_file(
