@@ -1,4 +1,4 @@
-# # An embarrassingly parallel embedding task with Hugging Face models on AWS EC2
+# # Embarrassingly parallel GPU Jobs: Batch Embeddings
 
 # This example demonstrates how to use Runhouse primitives to embed a large number of websites in parallel.
 # We use a [BGE large model from Hugging Face](https://huggingface.co/BAAI/bge-large-en-v1.5) and load it via
@@ -36,7 +36,6 @@ from typing import List
 from urllib.parse import urljoin, urlparse
 
 import requests
-
 import runhouse as rh
 import torch
 from bs4 import BeautifulSoup
@@ -207,7 +206,7 @@ async def main():
     # a blocking network call to the server. This allows us to use `asyncio` logic locally to run all the functions
     # in parallel.
     #
-    # We also pass stream_logs=False, which means we won't get the stdout/stderr of the remote
+    # We also pass `stream_logs=False`, which means we won't get the stdout/stderr of the remote
     # function on our local machine. In this case, we're running a large batch job, and don't want to slow down
     # our work by spamming our local machine with logs.
     semaphore = asyncio.Semaphore(max_concurrency_per_replica * num_replicas)
