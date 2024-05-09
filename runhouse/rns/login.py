@@ -83,12 +83,14 @@ def login(
             )
             token = getpass("Token: ")
 
-        if not configs.CONFIG_PATH.exists():
+        rh_config_exists = configs.CONFIG_PATH.exists()
+        if not rh_config_exists:
             upload_config = False
 
+        # download the config automatically if no config.yaml exists
         download_config = (
             download_config
-            if download_config is not None
+            if download_config is not None or not rh_config_exists
             else typer.confirm(
                 "Download your Runhouse config to your local .rh folder?",
                 default=True,

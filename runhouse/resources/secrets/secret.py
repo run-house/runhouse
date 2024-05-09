@@ -173,11 +173,16 @@ class Secret(Resource):
         secrets = {}
         for name in names:
             path = os.path.expanduser(f"~/.rh/secrets/{name}.json")
-            with open(path, "r") as f:
-                config = json.load(f)
-            if config["name"].startswith("~") or config["name"].startswith("^"):
-                config["name"] = config["name"][2:]
-            secrets[name] = Secret.from_config(config)
+            try:
+                with open(path, "r") as f:
+                    config = json.load(f)
+                if config["name"].startswith("~") or config["name"].startswith("^"):
+                    config["name"] = config["name"][2:]
+                secrets[name] = Secret.from_config(config)
+            except json.JSONDecodeError:
+                # Ignore any empty / corrupted files
+                continue
+
         return secrets
 
     @classmethod
