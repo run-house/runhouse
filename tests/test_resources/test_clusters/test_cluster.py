@@ -15,7 +15,12 @@ from runhouse.constants import (
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
-from tests.utils import friend_account_in_org, get_random_str, remove_config_keys
+from tests.utils import (
+    friend_account,
+    friend_account_in_org,
+    get_random_str,
+    remove_config_keys,
+)
 
 """ TODO:
 1) In subclasses, test factory methods create same type as parent
@@ -60,6 +65,13 @@ def cluster_keys(cluster):
 
 def cluster_config():
     return rh.here.config()
+
+
+def assume_caller_and_get_token():
+    token_default = rh.configs.token
+    with rh.as_caller():
+        token_as_caller = rh.configs.token
+    return token_default, token_as_caller
 
 
 class TestCluster(tests.test_resources.test_resource.TestResource):
@@ -450,3 +462,25 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         # Restore the state?
         cluster.save(name=old_name)
+
+    @pytest.mark.level("local")
+    def test_caller_token_propagated(self, cluster):
+        remote_assume_caller_and_get_token = rh.function(
+            assume_caller_and_get_token
+        ).to(cluster)
+
+        remote_assume_caller_and_get_token.share(
+            users=["info@run.house"], notify_users=False
+        )
+
+        with friend_account():
+            unassumed_token, assumed_token = remote_assume_caller_and_get_token()
+            # "Local token" is the token the cluster accesses in rh.configs.token; this is what will be used
+            # in subsequent rns_client calls
+            assert assumed_token == rh.globals.rns_client.cluster_token(
+                rh.configs.token, cluster.rns_address
+            )
+            assert unassumed_token != rh.configs.token
+
+        # The clusters are all logged out
+        assert unassumed_token is None

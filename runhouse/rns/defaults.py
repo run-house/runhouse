@@ -1,3 +1,4 @@
+import contextvars
 import copy
 import json
 import logging
@@ -12,6 +13,8 @@ import yaml
 from runhouse.rns.utils.api import read_resp_data, to_bool
 
 logger = logging.getLogger(__name__)
+
+req_ctx = contextvars.ContextVar("rh_ctx", default={})
 
 
 class Defaults:
@@ -41,21 +44,30 @@ class Defaults:
         self._default_folder = None
         self._defaults_cache = defaultdict(dict)
         self._simulate_logged_out = False
+        self._use_caller_token = False
 
     @property
     def token(self):
         if self._simulate_logged_out:
             return None
 
-        # This is not to "cache" the token, but rather to allow us to manually override it in python
+        # The token can be manually overriden in Python when we are logging in a test user and such
         if self._token:
             return self._token
+
+        if self._use_caller_token:
+            req_ctx_obj = req_ctx.get()
+            if req_ctx_obj:
+                return req_ctx_obj.token
+
+        # If nothing was set in req_ctx, we default to the environment variable
         if os.environ.get("RH_TOKEN"):
-            self._token = os.environ.get("RH_TOKEN")
-            return self._token
+            return os.environ.get("RH_TOKEN")
+
+        # Finally, we check the defaults cache, which is loaded from the config.yaml file
         if "token" in self.defaults_cache:
-            self._token = self.defaults_cache["token"]
-            return self._token
+            return self.defaults_cache["token"]
+
         return None
 
     @token.setter
