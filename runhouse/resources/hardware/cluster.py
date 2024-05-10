@@ -845,9 +845,18 @@ class Cluster(Resource):
             )
         )
 
-        status_codes = self.run(
-            commands=[cmd], env=self._default_env, node=self.address
-        )
+        if self.on_this_cluster():
+            status_codes = self.run(
+                commands=[cmd], env=self._default_env, node=self.address
+            )
+        else:
+            status_codes = self._run_commands_with_ssh(
+                commands=[cmd],
+                cmd_prefix=self._default_env._run_cmd if self._default_env else "",
+                env_vars=self._default_env.env_vars if self._default_env else {},
+                node=self.address,
+            )
+
         if not status_codes[0][0] == 0:
             raise ValueError(f"Failed to restart server {self.name}")
 
@@ -1258,11 +1267,11 @@ class Cluster(Resource):
             # If not creating a Run then just run the commands via SSH and return
             return self._run_commands_with_ssh(
                 commands,
-                cmd_prefix,
-                stream_logs,
-                node,
-                port_forward,
-                require_outputs,
+                cmd_prefix=cmd_prefix,
+                stream_logs=stream_logs,
+                node=node,
+                port_forward=port_forward,
+                require_outputs=require_outputs,
                 _ssh_mode=_ssh_mode,
             )
 
@@ -1272,11 +1281,11 @@ class Cluster(Resource):
         with run(name=run_name, cmds=commands, overwrite=True) as r:
             return_codes = self._run_commands_with_ssh(
                 commands,
-                cmd_prefix,
-                stream_logs,
-                node,
-                port_forward,
-                require_outputs,
+                cmd_prefix=cmd_prefix,
+                stream_logs=stream_logs,
+                node=node,
+                port_forward=port_forward,
+                require_outputs=require_outputs,
             )
 
         # Register the completed Run
@@ -1287,6 +1296,7 @@ class Cluster(Resource):
     def _run_commands_with_ssh(
         self,
         commands: list,
+        env_vars: Dict = {},
         cmd_prefix: str = "",
         stream_logs: bool = True,
         node: str = None,
@@ -1314,10 +1324,20 @@ class Cluster(Resource):
             port=self.ssh_port,
         )
 
-        if not pwd:
-            for command in commands:
-                command = f"{cmd_prefix} {command}" if cmd_prefix else command
-                logger.info(f"Running command on {self.name}: {command}")
+        env_var_prefix = (
+            " ".join(f"{key}={val}" for key, val in env_vars.items())
+            if env_vars
+            else ""
+        )
+
+        for command in commands:
+            command = f"{cmd_prefix} {command}" if cmd_prefix else command
+            logger.info(f"Running command on {self.name}: {command}")
+
+            # set env vars after log statement
+            command = f"{env_var_prefix} {command}" if env_var_prefix else command
+
+            if not pwd:
                 ssh_mode = (
                     SshMode.INTERACTIVE
                     if _ssh_mode == "interactive"
@@ -1337,12 +1357,9 @@ class Cluster(Resource):
                     ssh_mode=ssh_mode,
                 )
                 return_codes.append(ret_code)
-        else:
-            import pexpect
+            else:
+                import pexpect
 
-            for command in commands:
-                command = f"{cmd_prefix} {command}" if cmd_prefix else command
-                logger.info(f"Running command on {self.name}: {command}")
                 # We need to quiet the SSH output here or it will print
                 # "Shared connection to ____ closed." at the end, which messes with the output.
                 ssh_command = runner.run(

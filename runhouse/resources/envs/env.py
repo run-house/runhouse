@@ -165,7 +165,9 @@ class Env(Resource):
 
         for cmd in setup_cmds:
             cmd = f"{self._run_cmd} {cmd}" if self._run_cmd else cmd
-            run_setup_command(cmd, cluster=cluster)
+            run_setup_command(
+                cmd, cluster=cluster, env_vars=_process_env_vars(self.env_vars)
+            )
 
     def install(self, force: bool = False, cluster: Cluster = None):
         """Locally install packages and run setup commands."""

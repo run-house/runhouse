@@ -172,7 +172,12 @@ def run_with_logs(cmd: str, **kwargs):
     return p.returncode
 
 
-def run_setup_command(cmd: str, cluster: "Cluster" = None, stream_logs: bool = False):
+def run_setup_command(
+    cmd: str,
+    cluster: "Cluster" = None,
+    env_vars: Dict = None,
+    stream_logs: bool = False,
+):
     """
     Helper function to run a command during possibly the cluster default env setup. If a cluster is provided,
     run command on the cluster using SSH. If the cluster is not provided, run locally, as if already on the
@@ -188,7 +193,9 @@ def run_setup_command(cmd: str, cluster: "Cluster" = None, stream_logs: bool = F
     """
     if not cluster:
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
-    return cluster._run_commands_with_ssh([cmd], stream_logs=stream_logs)[0]
+    return cluster._run_commands_with_ssh(
+        [cmd], stream_logs=stream_logs, env_vars=env_vars
+    )[0]
 
 
 def install_conda(cluster: "Cluster" = None):
