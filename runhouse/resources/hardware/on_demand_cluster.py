@@ -424,12 +424,6 @@ class OnDemandCluster(Cluster):
                 use_spot=self.use_spot,
             )
         )
-        if Path("~/.rh/config.yaml").expanduser().exists():
-            task.set_file_mounts(
-                {
-                    "~/.rh/config.yaml": "~/.rh/config.yaml",
-                }
-            )
         sky.launch(
             task,
             cluster_name=self.name,
@@ -439,6 +433,19 @@ class OnDemandCluster(Cluster):
 
         self._update_from_sky_status()
         self.restart_server()
+
+        # Save a limited version of the local ~/.rh config to the cluster with the user's hashed token
+        user_config = yaml.safe_dump(
+            {
+                "token": rns_client.cluster_token(
+                    rns_client.token, rns_client.username
+                ),
+                "username": rns_client.username,
+                "default_folder": rns_client.default_folder,
+            }
+        )
+        self.run([f"echo '{user_config}' > ~/.rh/config.yaml"])
+        logger.debug("Saved user config to cluster")
 
         return self
 
