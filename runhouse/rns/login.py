@@ -86,6 +86,7 @@ def login(
         rh_config_exists = configs.CONFIG_PATH.exists()
         if not rh_config_exists:
             upload_config = False
+            download_secrets = False
 
         # download the config automatically if no config.yaml exists
         download_config = (
