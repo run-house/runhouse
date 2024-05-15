@@ -28,7 +28,7 @@ class TestCluster(tests.test_resources.test_clusters.test_cluster.TestCluster):
     @pytest.mark.level("local")
     def test_default_env_in_status(self, cluster):
         res = cluster.status()
-        assert cluster.default_env.name in res.get("envs")
+        assert cluster.default_env.name in res.get("cluster_config").get("envs")
 
     @pytest.mark.level("local")
     def test_put_in_default_env(self, cluster):

@@ -37,3 +37,10 @@ def sync_function(coroutine_func):
             return future.result()
 
     return wrapper
+
+
+def string_to_dict(dict_as_string):
+    parts = dict_as_string.split(":")
+    key = parts[0].strip()
+    value = parts[1].strip()
+    return key, value

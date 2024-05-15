@@ -58,3 +58,7 @@ CONDA_INSTALL_CMDS = [
 TEST_ORG = "test-org"
 
 EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"
+
+# cluster status constants
+DOUBLE_SPACE_UNICODE = "\u00A0\u00A0"
+BULLET_UNICODE = "\u2022"

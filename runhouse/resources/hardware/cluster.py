@@ -697,10 +697,13 @@ class Cluster(Resource):
         try:
             self.check_server()
             if self.on_this_cluster():
-                return obj_store.status()
-            return self.client.status(
-                resource_address=resource_address or self.rns_address
-            )
+                status = obj_store.status()
+            else:
+                status = self.client.status(
+                    resource_address=resource_address or self.rns_address
+                )
+            return status
+
         except ValueError as e:
             raise e
 
