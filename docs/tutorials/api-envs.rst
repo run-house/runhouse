@@ -120,7 +120,7 @@ vars/secrets synced over, and cached on the cluster.
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2024-02-28 21:24:52.915177 | Writing out function to /Users/caroline/Documents/runhouse/notebooks/docs/np_sum_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
+    INFO | 2024-02-28 21:24:52.915177 | Because this function is defined in a notebook, writing it out to /Users/caroline/Documents/runhouse/notebooks/docs/np_sum_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
     INFO | 2024-02-28 21:25:03.923658 | SSH tunnel on to server's port 32300 via server's ssh port 22 already created with the cluster.
     INFO | 2024-02-28 21:25:04.162828 | Server rh-cluster is up.
     INFO | 2024-02-28 21:25:04.166104 | Copying package from file:///Users/caroline/Documents/runhouse/notebooks to: rh-cluster
