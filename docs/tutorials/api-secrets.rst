@@ -415,7 +415,7 @@ them as part of a ``rh.env()``.
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2023-12-20 17:43:16.529605 | Writing out function to /Users/caroline/Documents/runhouse/runhouse/docs/notebooks/api/_get_env_var_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
+    INFO | 2023-12-20 17:43:16.529605 | Because this function is defined in a notebook, writing it out to a file to make it importable. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body). Functions defined in Python files can be used normally.
     INFO | 2023-12-20 17:43:16.540215 | Setting up Function on cluster.
     INFO | 2023-12-20 17:43:16.543037 | Copying package from file:///Users/caroline/Documents/runhouse/runhouse to: example-cluster
     INFO | 2023-12-20 17:43:16.544655 | Running command: ssh -T -i ~/.ssh/sky-key -o Port=22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes -o ControlMaster=auto -o ControlPath=/tmp/skypilot_ssh_caroline/41014bb4d3/%C -o ControlPersist=300s ubuntu@44.201.245.202 'bash --login -c -i '"'"'true && source ~/.bashrc && export OMP_NUM_THREADS=1 PYTHONWARNINGS=ignore && (mkdir -p ~/runhouse/)'"'"' 2>&1'
@@ -541,7 +541,7 @@ from function and system calls running in the environment.
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2023-12-20 17:48:29.631094 | Writing out function to /Users/caroline/Documents/runhouse/runhouse/docs/notebooks/api/_get_env_var_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
+    INFO | 2023-12-20 17:48:29.631094 | Because this function is defined in a notebook, writing it out to a file to make it importable. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body). Functions defined in Python files can be used normally.
     INFO | 2023-12-20 17:48:29.662722 | Setting up Function on cluster.
     INFO | 2023-12-20 17:48:29.664560 | Copying package from file:///Users/caroline/Documents/runhouse/runhouse to: example-cluster
     INFO | 2023-12-20 17:48:29.665912 | Running command: ssh -T -i ~/.ssh/sky-key -o Port=22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes -o ControlMaster=auto -o ControlPath=/tmp/skypilot_ssh_caroline/41014bb4d3/%C -o ControlPersist=300s ubuntu@44.201.245.202 'bash --login -c -i '"'"'true && source ~/.bashrc && export OMP_NUM_THREADS=1 PYTHONWARNINGS=ignore && (mkdir -p ~/runhouse/)'"'"' 2>&1'

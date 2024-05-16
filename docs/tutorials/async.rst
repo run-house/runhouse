@@ -73,7 +73,7 @@ function:
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2024-04-30 18:50:35.023995 | Writing out function to /Users/rohinbhasin/work/notebooks/docs/async_test_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
+    INFO | 2024-04-30 18:50:35.023995 | Because this function is defined in a notebook, writing it out to a file to make it importable. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body). Functions defined in Python files can be used normally.
     INFO | 2024-04-30 18:50:35.060478 | Sending module async_test of type <class 'runhouse.resources.functions.function.Function'> to local Runhouse daemon
 
 
@@ -130,7 +130,7 @@ of this:
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2024-04-30 18:57:00.533012 | Writing out function to /Users/rohinbhasin/work/notebooks/docs/synchronous_sleep_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
+    INFO | 2024-04-30 18:57:00.533012 | Because this function is defined in a notebook, writing it out to a file to make it importable. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body). Functions defined in Python files can be used normally.
     INFO | 2024-04-30 18:57:00.577673 | Sending module synchronous_sleep of type <class 'runhouse.resources.functions.function.Function'> to local Runhouse daemon
 
 
