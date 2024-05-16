@@ -110,8 +110,9 @@ def cluster(
             if c:
                 c.set_connection_defaults()
                 return c
-        except ValueError:
-            pass
+        except ValueError as e:
+            if not alt_options:
+                raise e
 
     if ssh_creds:
         from runhouse.resources.secrets.utils import setup_cluster_creds
@@ -430,8 +431,9 @@ def ondemand_cluster(
             if c:
                 c.set_connection_defaults()
                 return c
-        except ValueError:
-            pass
+        except ValueError as e:
+            if not alt_options:
+                raise e
 
     c = OnDemandCluster(
         instance_type=instance_type,
@@ -625,8 +627,9 @@ def sagemaker_cluster(
             if c:
                 c.set_connection_defaults()
                 return c
-        except ValueError:
-            pass
+        except ValueError as e:
+            if not alt_options:
+                raise e
 
     if name in RESERVED_SYSTEM_NAMES:
         raise ValueError(
