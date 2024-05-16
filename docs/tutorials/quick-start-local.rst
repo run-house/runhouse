@@ -84,7 +84,7 @@ API. Wrap the function with ``rh.function``, and then use
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2024-02-26 22:14:53.460361 | Writing out function to /Users/caroline/Documents/runhouse/notebooks/docs/get_pid_fn.py. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body).
+    INFO | 2024-02-26 22:14:53.460361 | Because this function is defined in a notebook, writing it out to a file to make it importable. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body). Functions defined in Python files can be used normally.
     INFO | 2024-02-26 22:14:53.523591 | Sending module get_pid to local Runhouse daemon
 
 
