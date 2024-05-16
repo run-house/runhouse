@@ -338,7 +338,8 @@ def ondemand_cluster(
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
             or ``-1`` to keep cluster up indefinitely.
         use_spot (bool, optional): Whether or not to use spot instance.
-        image_id (str, optional): Custom image ID for the cluster.
+        image_id (str, optional): Custom image ID for the cluster. If using a docker image, please use the following
+            string format: "docker:<registry>/<image>:<tag>".
         region (str, optional): The region to use for the cluster.
         memory (int or str, optional): Amount of memory to use for the cluster, e.g. "16" or "16+".
         disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. "100" or "100+".

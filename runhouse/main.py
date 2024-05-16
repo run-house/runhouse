@@ -626,7 +626,7 @@ def _start_server(
     try:
         # Open and read the lines of the server logfile so we only print the most recent lines after starting
         f = None
-        if screen and Path(SERVER_LOGFILE).exists():
+        if (screen or nohup) and Path(SERVER_LOGFILE).exists():
             f = open(SERVER_LOGFILE, "r")
             f.readlines()  # Discard these, they're from the previous times the server was started
 
@@ -646,7 +646,7 @@ def _start_server(
 
         server_started_str = "Uvicorn running on"
         # Read and print the server logs until the
-        if screen:
+        if screen or nohup:
             while not Path(SERVER_LOGFILE).exists():
                 time.sleep(1)
             f = f or open(SERVER_LOGFILE, "r")

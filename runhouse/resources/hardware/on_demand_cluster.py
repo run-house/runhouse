@@ -98,6 +98,7 @@ class OnDemandCluster(Cluster):
         self.stable_internal_external_ips = kwargs.get(
             "stable_internal_external_ips", None
         )
+        self._docker_user = None
 
         # Checks if state info is in local sky db, populates if so.
         if not dryrun and not self.ips and not self.creds_values:
@@ -122,6 +123,22 @@ class OnDemandCluster(Cluster):
                 )
             self.client.set_settings({"autostop_mins": mins})
             sky.autostop(self.name, mins, down=True)
+
+    @property
+    def docker_user(self) -> str:
+        if self._docker_user:
+            return self._docker_user
+
+        if not self.image_id:
+            return None
+
+        from runhouse.resources.hardware.sky_ssh_runner import get_docker_user
+
+        if not self._creds:
+            return
+        self._docker_user = get_docker_user(self, self._creds.values)
+
+        return self._docker_user
 
     def config(self, condensed=True):
         config = super().config(condensed)
@@ -546,10 +563,13 @@ class OnDemandCluster(Cluster):
                 ip=node or self.address,
                 ssh_user=ssh_user,
                 port=self.ssh_port,
-                ssh_private_key=sky_key,
+                ssh_private_key=str(sky_key),
+                docker_user=self.docker_user,
             )
-            subprocess.run(
-                runner._ssh_base_command(
-                    ssh_mode=SshMode.INTERACTIVE, port_forward=None
-                )
+            cmd = runner.run(
+                cmd="bash --rcfile <(echo '. ~/.bashrc; conda deactivate')",
+                ssh_mode=SshMode.INTERACTIVE,
+                port_forward=None,
+                return_cmd=True,
             )
+            subprocess.run(cmd, shell=True)

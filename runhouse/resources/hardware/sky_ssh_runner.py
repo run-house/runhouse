@@ -7,7 +7,7 @@ import subprocess
 import time
 from typing import Dict, List, Optional, Tuple, Union
 
-from runhouse.constants import LOCALHOST
+from runhouse.constants import DEFAULT_DOCKER_CONTAINER_NAME, LOCALHOST
 
 from runhouse.globals import sky_ssh_runner_cache
 
@@ -45,6 +45,32 @@ def is_port_in_use(port: int) -> bool:
         return s.connect_ex(("localhost", port)) == 0
 
 
+def get_docker_user(cluster: "Cluster", ssh_creds: Dict) -> str:
+    """Find docker container username."""
+    runner = SkySSHRunner(
+        ip=cluster.address,
+        ssh_user=ssh_creds.get("ssh_user", None),
+        port=cluster.ssh_port,
+        ssh_private_key=ssh_creds.get("ssh_private_key", None),
+        ssh_control_name=ssh_creds.get(
+            "ssh_control_name", f"{cluster.address}:{cluster.ssh_port}"
+        ),
+    )
+    container_name = DEFAULT_DOCKER_CONTAINER_NAME
+    whoami_returncode, whoami_stdout, whoami_stderr = runner.run(
+        f"sudo docker exec {container_name} whoami",
+        stream_logs=False,
+        require_outputs=True,
+    )
+    assert whoami_returncode == 0, (
+        f"Failed to get docker container user. Return "
+        f"code: {whoami_returncode}, Error: {whoami_stderr}"
+    )
+    docker_user = whoami_stdout.strip()
+    logger.debug(f"Docker container user: {docker_user}")
+    return docker_user
+
+
 class SkySSHRunner(SSHCommandRunner):
     def __init__(
         self,
@@ -68,6 +94,9 @@ class SkySSHRunner(SSHCommandRunner):
             docker_user,
             disable_control_master,
         )
+
+        # RH modified
+        self.docker_user = docker_user
         self.tunnel_proc = None
         self.local_bind_port = local_bind_port
         self.remote_bind_port = None
@@ -90,7 +119,7 @@ class SkySSHRunner(SSHCommandRunner):
                     local, remote = fwd, fwd
                 else:
                     local, remote = fwd
-                logger.info(f"Forwarding port {local} to port {remote} on localhost.")
+                logger.debug(f"Forwarding port {local} to port {remote} on localhost.")
                 ssh += ["-L", f"{local}:localhost:{remote}"]
         if self._docker_ssh_proxy_command is not None:
             docker_ssh_proxy_command = self._docker_ssh_proxy_command(ssh)
@@ -178,6 +207,8 @@ class SkySSHRunner(SSHCommandRunner):
             # Need this `-i` option to make sure `source ~/.bashrc` work.
             "-i",
         ]
+
+        cmd = f"conda deactivate && {cmd}" if self.docker_user else cmd
 
         command += [
             shlex.quote(
@@ -271,6 +302,14 @@ class SkySSHRunner(SSHCommandRunner):
                     port_forward=[(self.local_bind_port, self.remote_bind_port)],
                 )
             )
+
+            self.tunnel_proc = None
+            self.local_bind_port = None
+            self.remote_bind_port = None
+
+            if "ControlMaster" not in port_fwd_cmd:
+                return
+
             cancel_port_fwd = port_fwd_cmd.replace("-T", "-O cancel")
             logger.debug(f"Running cancel command: {cancel_port_fwd}")
             completed_cancel_cmd = subprocess.run(
@@ -284,10 +323,6 @@ class SkySSHRunner(SSHCommandRunner):
                     f"Failed to cancel port forwarding from {self.local_bind_port} to {self.remote_bind_port}. "
                     f"Error: {completed_cancel_cmd.stderr}"
                 )
-
-            self.tunnel_proc = None
-            self.local_bind_port = None
-            self.remote_bind_port = None
 
     def rsync(
         self,
@@ -434,6 +469,7 @@ def ssh_tunnel(
     ssh_port: int = 22,
     remote_port: Optional[int] = None,
     num_ports_to_try: int = 0,
+    docker_user: Optional[str] = None,
 ) -> SkySSHRunner:
     """Initialize an ssh tunnel from a remote server to localhost
 
@@ -465,7 +501,12 @@ def ssh_tunnel(
     remote_port = remote_port or local_port
 
     tunnel = get_existing_sky_ssh_runner(address, ssh_port)
-    if tunnel and tunnel.ip == address and tunnel.remote_bind_port == remote_port:
+    tunnel_address = address if not docker_user else "localhost"
+    if (
+        tunnel
+        and tunnel.ip == tunnel_address
+        and tunnel.remote_bind_port == remote_port
+    ):
         logger.info(
             f"SSH tunnel on to server's port {remote_port} "
             f"via server's ssh port {ssh_port} already created with the cluster."
@@ -495,6 +536,7 @@ def ssh_tunnel(
         ssh_private_key=ssh_creds.get("ssh_private_key"),
         ssh_proxy_command=ssh_creds.get("ssh_proxy_command"),
         ssh_control_name=ssh_control_name,
+        docker_user=docker_user,
         port=ssh_port,
     )
     runner.tunnel(local_port, remote_port)
