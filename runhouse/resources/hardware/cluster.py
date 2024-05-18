@@ -846,6 +846,7 @@ class Cluster(Resource):
                 if self.default_env.config().get("resource_subtype", None) == "CondaEnv"
                 else ""
             )
+            + " --from-python"
         )
 
         if self.on_this_cluster():
