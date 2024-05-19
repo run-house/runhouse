@@ -1,11 +1,11 @@
-# Fine Tune Llama3 with LoRA on AWS EC2
+# Fine Tune Llama3 with Torchtune on AWS EC2
 
 See a more [rich explanation](https://www.run.house/examples/llama3-fine-tuning-with-lora)
 of this example on our site.
 
 This example demonstrates how to fine tune a model using
-[Llama3](https://huggingface.co/NousResearch/Meta-Llama-3-8B) and
-[LoRA](https://huggingface.co/docs/peft/main/en/conceptual_guides/lora) on AWS EC2 using Runhouse.
+[Llama3](https://huggingface.co/meta-llama/Meta-Llama-3-8B) and
+[LoRA with Torchtune](https://pytorch.org/torchtune/stable/tutorials/llama3.html) on AWS EC2 using Runhouse.
 
 ## Setup credentials and dependencies
 
