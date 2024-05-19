@@ -1,8 +1,8 @@
 # # Fine Tune Llama3 with LoRA on AWS EC2
 
 # This example demonstrates fine tune a model using
-# [Llama3](https://huggingface.co/NousResearch/Meta-Llama-3-8B) and
-# [LoRA](https://huggingface.co/docs/peft/main/en/conceptual_guides/lora) on AWS EC2 using Runhouse.
+# [Llama3](https://huggingface.co/meta-llama/Meta-Llama-3-8B) and
+# [LoRA with Torchtune](https://pytorch.org/torchtune/stable/tutorials/llama3.html) on AWS EC2 using Runhouse.
 #
 # ## Setup credentials and dependencies
 #
@@ -21,8 +21,11 @@
 #
 # ## Setting up a model class
 #
-# We import runhouse, the only required library we need locally:
+# We import runhouse, the only required library we need to install locally:
+from pathlib import Path
+
 import runhouse as rh
+
 
 # Next, we define a class that will hold the various methods needed to fine tune the model.
 # You'll notice this class inherits from `rh.Module`.
@@ -35,189 +38,156 @@ import runhouse as rh
 class FineTuner(rh.Module):
     def __init__(
         self,
-        dataset_name="scooterman/guanaco-llama3-1k",
-        base_model_name="NousResearch/Meta-Llama-3-8B",
-        fine_tuned_model_name="llama-3-8b-enhanced",
+        base_model_name="meta-llama/Meta-Llama-3-8B",
+        output_dir="~/results",
+        generate_config="~/custom_generation_config.yaml",
         **model_kwargs,
     ):
         super().__init__()
-        self.dataset_name = dataset_name
         self.base_model_name = base_model_name
-        self.fine_tuned_model_name = fine_tuned_model_name
         self.model_kwargs = model_kwargs
+        self.output_dir = output_dir
+        self.generate_config = generate_config
 
+        self.model = None
         self.tokenizer = None
-        self.base_model = None
-        self.fine_tuned_model = None
-        self.pipeline = None
+
+    @property
+    def checkpoint_dir(self):
+        return str(Path(f"{self.base_checkpoint_dir}/original").expanduser())
+
+    @property
+    def base_checkpoint_dir(self):
+        return str(Path(self.output_dir).expanduser())
+
+    @property
+    def path_to_config(self):
+        return Path(self.generate_config).expanduser()
 
     def load_base_model(self):
-        import torch
-        from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+        import subprocess
 
-        # configure the model for efficient training
-        quant_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_use_double_quant=False,
-        )
-
-        # load the base model with the quantization configuration
-        self.base_model = AutoModelForCausalLM.from_pretrained(
-            self.base_model_name,
-            quantization_config=quant_config,
-            device_map={"": 0},
-            **self.model_kwargs,
-        )
-
-        self.base_model.config.use_cache = False
-        self.base_model.config.pretraining_tp = 1
-
-    def load_tokenizer(self):
-        from transformers import AutoTokenizer
-
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            self.base_model_name, trust_remote_code=True
-        )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.tokenizer.padding_side = "right"
-
-    def load_pipeline(self, **pipeline_kwargs):
-        from transformers import pipeline
-
-        default_pipeline_params = {
-            "task": "text-generation",
-            "model": self.fine_tuned_model,
-            "tokenizer": self.tokenizer,
-            "max_new_tokens": 256,
-            "do_sample": True,
-            "temperature": 0.3,
-            "top_p": 0.9,
-        }
-
-        if pipeline_kwargs:
-            default_pipeline_params.update(pipeline_kwargs)
-
-        self.pipeline = pipeline(**default_pipeline_params)
-
-    def load_dataset(self):
-        from datasets import load_dataset
-
-        return load_dataset(self.dataset_name, split="train")
-
-    def load_fine_tuned_model(self):
-        import gc
-
-        import torch
-        from peft import AutoPeftModelForCausalLM
-
-        if not self.new_model_exists():
+        path_to_token = Path("~/.cache/huggingface/token").expanduser()
+        if not path_to_token.exists():
             raise FileNotFoundError(
-                "No fine tuned model found on the cluster. "
-                "Call the `tune` method to run the fine tuning."
+                f"Hugging Face token not found in path: {path_to_token}."
             )
 
-        gc.collect()
-        torch.cuda.empty_cache()
+        with open(path_to_token, "r") as f:
+            hf_token = f.read().strip()
 
-        self.fine_tuned_model = AutoPeftModelForCausalLM.from_pretrained(
-            self.fine_tuned_model_name,
-            device_map={"": "cuda:0"},
-            torch_dtype=torch.bfloat16,
-        )
-        self.fine_tuned_model = self.fine_tuned_model.merge_and_unload()
+        download_cmd = [
+            "tune",
+            "download",
+            self.base_model_name,
+            "--output-dir",
+            self.base_checkpoint_dir,
+            "--hf-token",
+            hf_token,
+        ]
 
-    def new_model_exists(self):
-        from pathlib import Path
-
-        return Path(f"~/{self.fine_tuned_model_name}").expanduser().exists()
-
-    def training_params(self):
-        from transformers import TrainingArguments
-
-        return TrainingArguments(
-            output_dir="./results_modified",
-            num_train_epochs=1,
-            per_device_train_batch_size=4,
-            gradient_accumulation_steps=1,
-            optim="paged_adamw_32bit",
-            save_steps=25,
-            logging_steps=25,
-            learning_rate=2e-4,
-            weight_decay=0.001,
-            fp16=False,
-            bf16=False,
-            max_grad_norm=0.3,
-            max_steps=-1,
-            warmup_ratio=0.03,
-            group_by_length=True,
-            lr_scheduler_type="constant",
-            report_to="tensorboard",
-        )
-
-    def sft_trainer(self, training_data, peft_parameters, train_params):
-        from trl import SFTTrainer
-
-        # Set up the SFTTrainer with the model, training data, and parameters to learn from the new dataset
-        return SFTTrainer(
-            model=self.base_model,
-            train_dataset=training_data,
-            peft_config=peft_parameters,
-            dataset_text_field="text",
-            tokenizer=self.tokenizer,
-            args=train_params,
-        )
+        try:
+            subprocess.run(download_cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            raise e
 
     def tune(self):
-        import gc
-
-        import torch
-        from peft import LoraConfig
-
-        if self.new_model_exists():
-            return
-
-        # Load the training data, tokenizer and model to be used by the trainer
-        training_data = self.load_dataset()
-
-        if self.tokenizer is None:
-            self.load_tokenizer()
-
-        if self.base_model is None:
+        if not Path(self.checkpoint_dir).exists():
             self.load_base_model()
 
-        # Use LoRA to update a small subset of the model's parameters
-        peft_parameters = LoraConfig(
-            lora_alpha=16, lora_dropout=0.1, r=8, bias="none", task_type="CAUSAL_LM"
-        )
+        if not Path(self.path_to_config).expanduser().exists():
+            self.save_eval_config()
 
-        train_params = self.training_params()
-        trainer = self.sft_trainer(training_data, peft_parameters, train_params)
+        if not Path(self.base_checkpoint_dir).exists():
+            import subprocess
 
-        # Force clean the pytorch cache
-        gc.collect()
+            command = [
+                "tune",
+                "run",
+                "lora_finetune_single_device",
+                "--config",
+                "llama3/8B_lora_single_device",
+                f"checkpointer.checkpoint_dir={self.checkpoint_dir}",
+                f"tokenizer.path={self.checkpoint_dir}/tokenizer.model",
+                f"checkpointer.output_dir={self.checkpoint_dir}",
+            ]
+
+            result = subprocess.run(command, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError(f"Fine-tuning failed: {result.stderr}")
+
+    def save_eval_config(self):
+        import yaml
+
+        config_data = {
+            "model": {"_component_": "torchtune.models.llama3.llama3_8b"},
+            "checkpointer": {
+                "_component_": "torchtune.utils.FullModelMetaCheckpointer",
+                "checkpoint_dir": self.checkpoint_dir,
+                "checkpoint_files": ["consolidated.00.pth"],
+                "output_dir": self.checkpoint_dir,
+                "model_type": "LLAMA3",
+            },
+            "device": "cuda",
+            "dtype": "bf16",
+            "seed": 1234,
+            "tokenizer": {
+                "_component_": "torchtune.models.llama3.llama3_tokenizer",
+                "path": f"{self.checkpoint_dir}/tokenizer.model",
+            },
+            "prompt": "Hello, my name is",
+            "max_new_tokens": 300,
+            "temperature": 0.6,
+            "top_k": 300,
+            "quantizer": None,
+        }
+
+        with open(self.path_to_config, "w") as file:
+            yaml.dump(config_data, file, default_flow_style=False)
+
+    def generate(self, prompt: str, max_generated_tokens: int = 300):
+        import torch
+        from omegaconf import OmegaConf
+        from torchtune.models.llama3 import llama3_8b, llama3_tokenizer
+        from torchtune.utils import generate
+
+        if not self.path_to_config.exists():
+            raise FileNotFoundError(
+                f"Config file not found at {self.path_to_config}. Please run `tune` first."
+            )
+
+        config = OmegaConf.load(self.path_to_config)
+
+        # Free up GPU memory
         torch.cuda.empty_cache()
 
-        trainer.train()
+        if self.model is None:
+            # Load the tokenizer and model
+            self.tokenizer = llama3_tokenizer(path=config.tokenizer.path)
+            self.model = llama3_8b()
 
-        # Save the fine-tuned model's weights and tokenizer files on the cluster
-        trainer.model.save_pretrained(self.fine_tuned_model_name)
-        trainer.tokenizer.save_pretrained(self.fine_tuned_model_name)
+            # Move model to device using mixed precision if possible
+            with torch.cuda.amp.autocast():
+                self.model.to(config.device)
 
-    def generate(self, query: str, **pipeline_kwargs):
-        if self.fine_tuned_model is None:
-            # Load the fine-tuned model saved on the cluster
-            self.load_fine_tuned_model()
+        encoded_prompt = (
+            torch.tensor(self.tokenizer.encode(prompt, add_bos=True, add_eos=False))
+            .unsqueeze(0)
+            .to(config.device)
+        )
 
-        if self.tokenizer is None:
-            self.load_tokenizer()
+        # Use mixed precision
+        with torch.cuda.amp.autocast():
+            # Generate the tokens
+            generated_tokens = generate(
+                model=self.model,
+                prompt=encoded_prompt,
+                max_generated_tokens=max_generated_tokens,
+                **self.model_kwargs,
+            )
 
-        if self.pipeline is None or pipeline_kwargs:
-            self.load_pipeline(**pipeline_kwargs)
-
-        output = self.pipeline(query)
-        return output[0]["generated_text"].split("\n")[1]
+        res = self.tokenizer.decode(generated_tokens[0].tolist())
+        return res
 
 
 # ## Setting up Runhouse primitives
@@ -239,27 +209,20 @@ if __name__ == "__main__":
 
     # For AWS (single A100s not available, base A10G may have insufficient CPU RAM)
     cluster = rh.cluster(
-        name="rh-a10x-llama3", instance_type="g5.4xlarge", provider="aws"
+        name="rh-a10x-torchtune", instance_type="g5.4xlarge", provider="aws"
     ).up_if_not()
 
     # Next, we define the environment for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
+    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token onto the cluster, which
+    # is needed for loading the model.
     #
     # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
     env = rh.env(
-        name="ft_env2",
-        reqs=[
-            "torch",
-            "tensorboard",
-            "scipy",
-            "peft==0.4.0",
-            "bitsandbytes==0.40.2",
-            "transformers==4.31.0",
-            "trl==0.4.7",
-            "accelerate",
-        ],
+        name="ft_env",
+        reqs=["torchtune", "omegaconf"],
         working_dir="./",
+        secrets=["huggingface"],
     )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
@@ -269,7 +232,7 @@ if __name__ == "__main__":
     #
     # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
     # set up on the remote machine before the module is run.
-    fine_tuner_remote = FineTuner().get_or_to(cluster, env=env, name="ft_model2")
+    fine_tuner_remote = FineTuner().to(cluster, env=env, name="ft_model")
 
     # ## Fine-tuning the model on the cluster
     #
@@ -279,14 +242,10 @@ if __name__ == "__main__":
     # `self.model`.
     # Once the model is fine-tuned, we save this new model on the cluster and use it to generate our text predictions.
     #
-    # :::note{.info title="Note"}
-    # For this example we are using a [small subset](https://huggingface.co/datasets/scooterman/guanaco-llama3-1k)
-    # of 1,000 samples that are already compatible with the model's prompt format.
-    # :::
     fine_tuner_remote.tune()
 
     # ## Generate Text
-    # Now that we have fine-tuned our model, we can generate text by calling the `generate` method with our query:
-    query = "Give me a brief description of Randy Jackson"
-    generated_text = fine_tuner_remote.generate(query)
+    # Now that we have fine-tuned our model, we can generate text by calling the `generate` method with our prompt:
+    prompt = "Hello, my name is"
+    generated_text = fine_tuner_remote.generate(prompt)
     print(generated_text)
