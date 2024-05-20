@@ -5,6 +5,7 @@ from typing import List
 
 RESERVED_SYSTEM_NAMES: List[str] = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
 CLUSTER_CONFIG_PATH: str = "~/.rh/cluster_config.json"
+CONFIG_YAML_PATH: str = "~/.rh/config.yaml"
 LOCALHOST: str = "127.0.0.1"
 LOCAL_HOSTS: List[str] = ["localhost", LOCALHOST]
 
@@ -62,3 +63,7 @@ EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"
 # cluster status constants
 DOUBLE_SPACE_UNICODE = "\u00A0\u00A0"
 BULLET_UNICODE = "\u2022"
+DEFAULT_STATUS_CHECK_INTERVAL = 120
+# post status to den thread will start running 2 min after cluster servlet setup.
+# This delay enables the cluster setup to finish before running the post status job,
+STATUS_CHECK_DELAY = 120

@@ -30,6 +30,7 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
+    DEFAULT_STATUS_CHECK_INTERVAL,
     EMPTY_DEFAULT_ENV_NAME,
     LOCALHOST,
     RESERVED_SYSTEM_NAMES,
@@ -148,9 +149,14 @@ class Cluster(Resource):
                 "Run `cluster.restart_server()` to restart the Runhouse server on the new default env."
             )
 
-    def save_config_to_cluster(self, node: str = None):
+    def save_config_to_cluster(
+        self,
+        node: str = None,
+        den_status_ping_interval: Optional[int] = DEFAULT_STATUS_CHECK_INTERVAL,
+    ):
         config = self.config(condensed=False)
         config.pop("creds")
+        config["den_status_ping_interval"] = den_status_ping_interval
         json_config = f"{json.dumps(config)}"
 
         self.run(
@@ -761,6 +767,7 @@ class Cluster(Resource):
         resync_rh: bool = True,
         restart_ray: bool = True,
         restart_proxy: bool = False,
+        den_status_ping_interval: Optional[int] = DEFAULT_STATUS_CHECK_INTERVAL,
     ):
         """Restart the RPC server.
 
@@ -821,7 +828,7 @@ class Cluster(Resource):
                 cluster_cert_path = f"{base_caddy_dir}/{self.cert_config.CERT_NAME}"
 
         # Update the cluster config on the cluster
-        self.save_config_to_cluster()
+        self.save_config_to_cluster(den_status_ping_interval=den_status_ping_interval)
 
         cmd = (
             CLI_RESTART_CMD
@@ -835,6 +842,7 @@ class Cluster(Resource):
             + (" --use-local-telemetry" if use_local_telemetry else "")
             + f" --port {self.server_port}"
             + f" --api-server-url {rns_client.api_server_url}"
+            + f" --den-status-ping-interval {den_status_ping_interval}"
             + (f" --default-env-name {self.default_env.name}")
             + (
                 f" --conda-env {self.default_env.env_name}"
