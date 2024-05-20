@@ -23,6 +23,7 @@ import runhouse.rns.login
 from runhouse import __version__, cluster, Cluster, configs
 from runhouse.constants import (
     BULLET_UNICODE,
+    DEFAULT_STATUS_CHECK_INTERVAL,
     DOUBLE_SPACE_UNICODE,
     RAY_KILL_CMD,
     RAY_START_CMD,
@@ -249,7 +250,9 @@ def _print_envs_info(envs: Dict, envs_info: Dict, current_cluster: Cluster):
     first_envs_to_print = first_envs_to_print + [
         env_name
         for env_name in envs
-        if (len(envs[env_name]) <= 1 and env_name != default_env_name)
+        if (
+            len(envs[env_name]) <= 1 and env_name != default_env_name and envs[env_name]
+        )
     ]
 
     # Now, print the envs.
@@ -260,7 +263,7 @@ def _print_envs_info(envs: Dict, envs_info: Dict, current_cluster: Cluster):
     envs_to_print = first_envs_to_print + [
         env_name
         for env_name in envs
-        if env_name not in first_envs_to_print + [default_env_name]
+        if env_name not in first_envs_to_print + [default_env_name] and envs[env_name]
     ]
 
     for env_name in envs_to_print:
@@ -410,6 +413,7 @@ def status(
             )
             raise typer.Exit(1)
 
+    # case we are inside the cluster
     if cluster_or_local != "file":
         # If we are on the cluster load status directly from the object store
         cluster_status: dict = obj_store.status()
@@ -493,6 +497,7 @@ def _start_server(
     api_server_url=None,
     default_env_name=None,
     conda_env=None,
+    den_status_ping_interval=None,
 ):
     ############################################
     # Build CLI commands to start the server
@@ -584,6 +589,17 @@ def _start_server(
     if default_env_flag:
         logger.info(f"Creating runtime env for conda env: {conda_env}")
         flags.append(conda_env_flag)
+
+    den_status_ping_interval_flag = (
+        f" --den-status-ping-interval {den_status_ping_interval}"
+        if den_status_ping_interval
+        else ""
+    )
+    if den_status_ping_interval_flag:
+        logger.info(
+            f"Setting ping den wth cluster status interval to {den_status_ping_interval} seconds"
+        )
+        flags.append(den_status_ping_interval_flag)
 
     # Check if screen or nohup are available
     screen = screen and _check_if_command_exists("screen")
@@ -685,6 +701,11 @@ def start(
     conda_env: str = typer.Option(
         None, help="Name of conda env corresponding to default env if it is a CondaEnv."
     ),
+    den_status_ping_interval: int = typer.Option(
+        DEFAULT_STATUS_CHECK_INTERVAL,
+        help="The time interval in seconds, that will pass between two cluster-status posts to Den. Relevant only to "
+        "Den users.",
+    ),
 ):
     """Start the HTTP or HTTPS server on the cluster."""
     _start_server(
@@ -703,6 +724,7 @@ def start(
         use_local_telemetry=use_local_telemetry,
         default_env_name=default_env_name,
         conda_env=conda_env,
+        den_status_ping_interval=den_status_ping_interval,
     )
 
 
@@ -769,11 +791,20 @@ def restart(
     conda_env: str = typer.Option(
         None, help="Name of conda env corresponding to default env if it is a CondaEnv."
     ),
+    den_status_ping_interval: int = typer.Option(
+        DEFAULT_STATUS_CHECK_INTERVAL,
+        help="The time interval in seconds, that will pass between consecutive cluster status checks to Den. "
+        "Relevant if cluster is saved in Den.",
+    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
         c = cluster(name=name)
-        c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
+        c.restart_server(
+            resync_rh=resync_rh,
+            restart_ray=restart_ray,
+            den_status_ping_interval=den_status_ping_interval,
+        )
         return
 
     _start_server(
@@ -796,6 +827,7 @@ def restart(
         api_server_url=api_server_url,
         default_env_name=default_env_name,
         conda_env=conda_env,
+        den_status_ping_interval=den_status_ping_interval,
     )
 
 

@@ -8,14 +8,17 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from functools import wraps
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
 
 import runhouse
+from runhouse.constants import CONFIG_YAML_PATH
 from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import ResourceVisibility
 from runhouse.utils import sync_function
+
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +200,16 @@ class ObjStore:
             logging.warning(
                 "Warning, cluster servlet is not initialized. Object Store operations will not work."
             )
+
+        owner_has_den_token = Path(CONFIG_YAML_PATH).expanduser().exists()
+
+        if owner_has_den_token:
+            # setting the current obj_store in the associated cluster_servlet,
+            # so the cluster servlet will be able to post status to den
+            await self.acall_actor_method(self.cluster_servlet, "set_obj_store", self)
+
+            # adding the thread which will post the cluster status to den
+            await self.acall_actor_method(self.cluster_servlet, "schedule_post_status")
 
         # There are 3 operating modes of the KV store:
         # servlet_name is set, has_local_storage is True: This is an EnvServlet with a local KV store.
@@ -1744,35 +1757,38 @@ class ObjStore:
         cluster_servlets = {}
         cluster_envs_env_utilization_data = {}
         for env in await self.aget_all_initialized_env_servlet_names():
-            (
-                env_memory_usage,
-                node_name,
-                total_memory,
-                env_servlet_pid,
-                env_actor_info,
-                node_ip,
-            ) = self._get_env_cpu_usage(env_name=env, cluster_config=config_cluster)
-
-            (
-                objects_in_env_modified,
-                env_utilization_data,
-            ) = await self.acall_actor_method(
-                self.get_env_servlet(env),
-                method="astatus_local",
-                env_servlet_pid=env_servlet_pid,
-            )
-            env_utilization_data.update(
-                {
-                    "node_id": env_actor_info.get("NODE_ID"),
-                    "node_ip": node_ip,
-                    "node_name": node_name,
-                    "pid": env_servlet_pid,
-                    "actor_id": env_actor_info.get("ACTOR_ID"),
-                    "env_memory_usage": env_memory_usage,
-                }
-            )
-            cluster_servlets[env] = objects_in_env_modified
-            cluster_envs_env_utilization_data[env] = env_utilization_data
+            try:
+                (
+                    env_memory_usage,
+                    node_name,
+                    total_memory,
+                    env_servlet_pid,
+                    env_actor_info,
+                    node_ip,
+                ) = self._get_env_cpu_usage(env_name=env, cluster_config=config_cluster)
+                (
+                    objects_in_env_modified,
+                    env_utilization_data,
+                ) = await self.acall_actor_method(
+                    self.get_env_servlet(env),
+                    method="astatus_local",
+                    env_servlet_pid=env_servlet_pid,
+                )
+                env_utilization_data.update(
+                    {
+                        "node_id": env_actor_info.get("NODE_ID"),
+                        "node_ip": node_ip,
+                        "node_name": node_name,
+                        "pid": env_servlet_pid,
+                        "actor_id": env_actor_info.get("ACTOR_ID"),
+                        "env_memory_usage": env_memory_usage,
+                    }
+                )
+                cluster_servlets[env] = objects_in_env_modified
+                cluster_envs_env_utilization_data[env] = env_utilization_data
+            except ObjStoreError:
+                cluster_servlets[env] = []
+                cluster_envs_env_utilization_data[env] = {}
         config_cluster["envs"] = cluster_servlets
         config_cluster["server_pid"] = self._get_server_pid()
 

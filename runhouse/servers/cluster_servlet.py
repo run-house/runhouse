@@ -1,8 +1,13 @@
 import asyncio
+import json
 import logging
 import threading
 import time
 from typing import Any, Dict, List, Optional, Set, Union
+
+import requests
+
+from runhouse.constants import DEFAULT_STATUS_CHECK_INTERVAL, STATUS_CHECK_DELAY
 
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.resources.hardware import load_cluster_config_from_file
@@ -10,6 +15,10 @@ from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.http.auth import AuthCache
 
 logger = logging.getLogger(__name__)
+
+
+class ClusterServletError(Exception):
+    pass
 
 
 class ClusterServlet:
@@ -41,8 +50,10 @@ class ClusterServlet:
                     )
             self._last_activity = time.time()
             self._last_register = None
-            thread = threading.Thread(target=self.update_autostop, daemon=True)
-            thread.start()
+            autostop_thread = threading.Thread(target=self.update_autostop, daemon=True)
+            autostop_thread.start()
+
+        self.obj_store = None
 
     ##############################################
     # Cluster autostop
@@ -217,3 +228,79 @@ class ClusterServlet:
         for key in deleted_keys:
             self._key_to_env_servlet_name.pop(key)
         return deleted_keys
+
+    ##############################################
+    # Cluster status functions
+    ##############################################
+
+    async def asend_status_info_to_den(self):
+        while True:
+            logger.info("Sending cluster status to Den")
+            interval_size = (await self.aget_cluster_config()).get(
+                "den_status_ping_interval"
+            )
+            try:
+                status = await self.astatus()
+                status_data = {
+                    "status": "running",
+                    "resource_type": status.get("cluster_config").get("resource_type"),
+                    "data": status,
+                }
+                cluster_uri = rns_client.format_rns_address(
+                    status.get("cluster_config").get("name")
+                )
+                api_server_url = status.get("cluster_config").get(
+                    "api_server_url", rns_client.api_server_url
+                )
+                post_status_data_resp = requests.post(
+                    f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+                    data=json.dumps(status_data),
+                    headers=rns_client.request_headers(),
+                )
+                if post_status_data_resp.status_code != 200:
+                    logger.error(
+                        f"({post_status_data_resp.status_code}) Failed to send cluster status to Den: {post_status_data_resp.text}"
+                    )
+                else:
+                    logger.info(
+                        f"Successfully updated cluster status in Den. Next ping to den in {round(DEFAULT_STATUS_CHECK_INTERVAL / 60, 2)} minutes."
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Failed to post cluster status to den: {e}. Please check cluster logs for more info."
+                )
+                logger.info(
+                    "Temporarily increasing the interval between two status pings to den. Next ping will be in an hour."
+                )
+                await asyncio.sleep(3600)
+            finally:
+
+                await asyncio.sleep(interval_size)
+
+    def send_status_info_to_den_sync(self):
+        asyncio.run(self.asend_status_info_to_den())
+
+    def schedule_post_status(self):
+        # adding post status to den thread
+        logger.debug("adding send_status_info_to_den_sync to thread pool")
+        # delay the start of post_status_thread, so we'll finish the cluster startup properly
+        post_status_thread = threading.Timer(
+            STATUS_CHECK_DELAY, self.send_status_info_to_den_sync
+        )
+        logger.debug("starting send_status_info_to_den_sync thread")
+
+        post_status_thread.start()
+
+    def set_obj_store(self, associated_obj_store):
+        self.obj_store = associated_obj_store
+
+    async def astatus(self):
+        if not self.obj_store:
+            logger.error(
+                "The relevant obj-store is not associated with the cluster servlet, therefore can't get cluster status."
+                " Setting the obj_store can be done using cluster_servlet.set_obj_store(associated_obj_store)."
+            )
+            raise ClusterServletError(
+                "Can't find the obj_store associated with current ClusterServlet."
+            )
+        return await self.obj_store.astatus()

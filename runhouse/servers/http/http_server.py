@@ -22,6 +22,7 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
+    DEFAULT_STATUS_CHECK_INTERVAL,
     EMPTY_DEFAULT_ENV_NAME,
     LOGGING_WAIT_TIME,
     RH_LOGFILE_PATH,
@@ -935,6 +936,13 @@ async def main():
         type=str,
         default=rns_client.api_server_url,
         help="URL of Runhouse Den",
+    )
+
+    parser.add_argument(
+        "--den-status-ping-interval",
+        type=int,
+        default=DEFAULT_STATUS_CHECK_INTERVAL,
+        help="Interval between two posts of the cluster status to Den",
     )
 
     parse_args = parser.parse_args()
