@@ -1,4 +1,3 @@
-import asyncio
 import enum
 import subprocess
 
@@ -195,20 +194,6 @@ def logged_in_account():
         raise ValueError(
             "The friend test account should not be active while running logged-in tests."
         )
-
-
-# Have to override the event_loop fixture to make it session scoped
-# The cluster keeps a client, which holds an AsyncClient, which holds an event loop,
-# but the event loop is closed after one test is run. This causes the next test to fail saying the
-# event loop is closed. This is a workaround to keep the event loop open for the entire session.
-@pytest.fixture(scope="session")
-def event_loop():
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 # https://docs.pytest.org/en/6.2.x/fixture.html#conftest-py-sharing-fixtures-across-multiple-files

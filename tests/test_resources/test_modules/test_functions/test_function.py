@@ -123,7 +123,7 @@ class TestFunction:
         assert not rh.exists(remote_func_name)
 
     @pytest.mark.level("local")
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_async_function(self, cluster):
         remote_sum = rh.function(async_summer).to(cluster)
         res = await remote_sum(1, 5)
@@ -161,7 +161,7 @@ class TestFunction:
         assert len(results) == 5
 
     @pytest.mark.level("local")
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_async_generator(self, cluster):
         remote_slow_generator = rh.function(async_slow_generator).to(cluster)
         results = []
@@ -598,7 +598,7 @@ class TestFunction:
         pass
 
     @pytest.mark.level("local")
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_run_async_permutations(self, cluster):
         async_summer_remote = rh.function(async_summer).to(cluster)
         summer_remote = rh.function(summer).to(cluster)
@@ -614,7 +614,7 @@ class TestFunction:
         assert summer_remote(2, 3, run_async=False) == 5
 
     @pytest.mark.level("local")
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_returns_coroutine(self, cluster):
         returns_coroutine_remote = rh.function(returns_coroutine).to(cluster)
         async_returns_coroutine_remote = rh.function(async_returns_coroutine).to(
