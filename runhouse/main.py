@@ -40,7 +40,6 @@ from runhouse.resources.hardware.ray_utils import (
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
-state = {"verbose": False}
 
 # For printing with typer
 console = Console()
@@ -822,12 +821,16 @@ def stop(
         subprocess.run(RAY_KILL_CMD, shell=True)
 
 
-@app.callback()
-def main(verbose: bool = False):
+@app.callback(invoke_without_command=True, help="Runhouse CLI")
+def main(
+    version: bool = typer.Option(
+        None, "--version", "-v", help="Show the version and exit."
+    )
+):
     """
     Runhouse CLI
     """
-    if verbose:
-        name = "runhouse"
-        console.print(f"{name}=={__version__}", style="bold green")
-        state["verbose"] = True
+    if version:
+        print(f"{__version__}")
+    else:
+        subprocess.run("runhouse --help", shell=True)
