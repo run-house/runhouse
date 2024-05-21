@@ -21,7 +21,9 @@ runs:
       run: |
         pip install -e $GITHUB_WORKSPACE
 
+    # https://github.com/docker/docker-py/issues/3113
     - name: Install python packages & dependencies for unit and local tests
       shell: bash
       run:
         pip install -r tests/requirements.txt
+        pip install --force-reinstall 'requests<2.29.0' 'urllib3<2.0'
