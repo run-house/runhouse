@@ -28,7 +28,7 @@ class TestCluster(tests.test_resources.test_clusters.test_cluster.TestCluster):
     @pytest.mark.level("local")
     def test_default_env_in_status(self, cluster):
         res = cluster.status()
-        assert cluster.default_env.name in res.get("cluster_config").get("envs")
+        assert cluster.default_env.name in res.get("env_resource_mapping")
 
     @pytest.mark.level("local")
     def test_put_in_default_env(self, cluster):
@@ -70,7 +70,7 @@ class TestCluster(tests.test_resources.test_clusters.test_cluster.TestCluster):
         # check cluster attr set, and  new env exists on the system
         assert new_env.env_name in cluster.run("conda info --envs")[0][1]
         assert cluster.default_env.name == new_env.name
-        assert new_env.name in cluster.status().get("envs")
+        assert new_env.name in cluster.status().get("env_resource_mapping")
 
         # check that env defaults to new default env for run/put
         assert cluster.run("pip freeze | grep diffusers")[0][0] == 0

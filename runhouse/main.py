@@ -166,12 +166,12 @@ def _print_cluster_config(cluster_config: Dict):
     """
     Helping function to the `_print_status` which prints the relevant info from the cluster config.
     """
+    # TODO [SB]: need to modify printing format (colour palette etc).
     if "name" in cluster_config.keys():
         console.print(cluster_config.get("name"))
 
     top_level_config = [
         "server_port",
-        "server_pid",
         "den_auth",
         "server_connection_type",
     ]
@@ -194,41 +194,45 @@ def _print_cluster_config(cluster_config: Dict):
         cluster_config["default_env"] = cluster_config["default_env"]["name"]
 
     for key in top_level_config:
-        console.print(f"{BULLET_UNICODE} {key}: {cluster_config[key]}")
+        console.print(
+            f"{BULLET_UNICODE} {key.replace('_', ' ')}: {cluster_config[key]}"
+        )
 
-    console.print("\u2022 backend config:")
+    console.print(f"{BULLET_UNICODE} backend config:")
     for key in backend_config:
         if key == "autostop_mins" and cluster_config[key] == -1:
             console.print(
-                f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key}: autostop disabled"
+                f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: autostop disabled"
             )
         else:
             console.print(
-                f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key}: {cluster_config[key]}"
+                f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: {cluster_config[key]}"
             )
 
 
-def _print_envs_info(envs: Dict, envs_info: Dict, current_cluster: Cluster):
+def _print_envs_info(
+    env_resource_mapping: Dict, env_servlet_processes: Dict, current_cluster: Cluster
+):
     """
     Prints info about the envs in the current_cluster.
     Prints the resources in each env, and the CPU and GPU usage of the env (if exists).
 
-    :param envs: Dict of envs in each cluster, and the resources associated with them.
-    :param envs_info: Dict of cpu and gpu info of the envs.
+    :param env_resource_mapping: Dict of envs in each cluster, and the resources associated with them.
+    :param env_servlet_processes: Dict of cpu and gpu info of the envs.
     :param current_cluster: The cluster whose status we are printing.
     """
     # Print headline
     envs_in_cluster_headline = "Serving 🍦 :"
     console.print(envs_in_cluster_headline, style="bold")
 
-    if len(envs) == 0:
+    if len(env_resource_mapping) == 0:
         console.print("This cluster has no environment nor resources.")
 
     first_envs_to_print = []
 
     # First: if the default env does not have resources, print it.
     default_env_name = current_cluster.default_env.name
-    if len(envs[default_env_name]) <= 1:
+    if len(env_resource_mapping[default_env_name]) <= 1:
         # case where the default env doesn't hve any other resources, apart from the default env itself.
         console.print(
             f"{BULLET_UNICODE} {default_env_name} (runhouse.Env)",
@@ -240,7 +244,7 @@ def _print_envs_info(envs: Dict, envs_info: Dict, current_cluster: Cluster):
         )
 
     else:
-        # case where the default env have other resources. We make sure that our of all the envs which have reosirces,
+        # case where the default env have other resources. We make sure that our of all the envs which have resources,
         # the default_env will be printed first.
         first_envs_to_print = [default_env_name]
 
@@ -248,9 +252,11 @@ def _print_envs_info(envs: Dict, envs_info: Dict, current_cluster: Cluster):
     # (the only resource they have is a runhouse.env, which is the env itself).
     first_envs_to_print = first_envs_to_print + [
         env_name
-        for env_name in envs
+        for env_name in env_resource_mapping
         if (
-            len(envs[env_name]) <= 1 and env_name != default_env_name and envs[env_name]
+            len(env_resource_mapping[env_name]) <= 1
+            and env_name != default_env_name
+            and env_resource_mapping[env_name]
         )
     ]
 
@@ -261,13 +267,14 @@ def _print_envs_info(envs: Dict, envs_info: Dict, current_cluster: Cluster):
 
     envs_to_print = first_envs_to_print + [
         env_name
-        for env_name in envs
-        if env_name not in first_envs_to_print + [default_env_name] and envs[env_name]
+        for env_name in env_resource_mapping
+        if env_name not in first_envs_to_print + [default_env_name]
+        and env_resource_mapping[env_name]
     ]
 
     for env_name in envs_to_print:
-        resources_in_env = envs[env_name]
-        env_process_info = envs_info[env_name]
+        resources_in_env = env_resource_mapping[env_name]
+        env_process_info = env_servlet_processes[env_name]
         current_env = [
             resource for resource in resources_in_env if resource["name"] == env_name
         ]
@@ -350,16 +357,16 @@ def _print_envs_info(envs: Dict, envs_info: Dict, current_cluster: Cluster):
                 )
 
 
-def _print_status(config: dict, current_cluster: Cluster):
+def _print_status(status_data: dict, current_cluster: Cluster):
     """
     Prints the status of the cluster to the console
     :param config: cluster's  config
     :return: cluster's  config
     """
 
-    cluster_config = config.get("cluster_config")
-    envs = cluster_config.pop("envs", [])
-    envs_info = config.pop("env_servlet_actors", [])
+    cluster_config = status_data.get("cluster_config")
+    env_resource_mapping = status_data.get("env_resource_mapping")
+    env_servlet_processes = status_data.get("env_servlet_processes")
 
     # print headline
     daemon_headline_txt = (
@@ -367,13 +374,16 @@ def _print_status(config: dict, current_cluster: Cluster):
     )
     console.print(daemon_headline_txt, style="bold royal_blue1")
 
+    print(f'Runhouse v{status_data.get("runhouse_version")}')
+    console.print(f'server pid: {status_data.get("server_pid")}')
+
     # Print relevant info from cluster config.
     _print_cluster_config(cluster_config)
 
     # print the environments in the cluster, and the resources associated with each environment.
-    _print_envs_info(envs, envs_info, current_cluster)
+    _print_envs_info(env_resource_mapping, env_servlet_processes, current_cluster)
 
-    return config
+    return status_data
 
 
 @app.command()
@@ -415,7 +425,7 @@ def status(
     # case we are inside the cluster
     if cluster_or_local != "file":
         # If we are on the cluster load status directly from the object store
-        cluster_status: dict = obj_store.status()
+        cluster_status: dict = dict(obj_store.status())
         cluster_config = copy.deepcopy(cluster_status.get("cluster_config"))
         current_cluster: Cluster = Cluster.from_config(cluster_config)
         return _print_status(cluster_status, current_cluster)
@@ -704,8 +714,8 @@ def start(
     ),
     den_status_ping_interval: int = typer.Option(
         DEFAULT_STATUS_CHECK_INTERVAL,
-        help="The time interval in seconds, that will pass between two cluster-status posts to Den. Relevant only to "
-        "Den users.",
+        help="The time interval in seconds, that will pass between consecutive cluster status checks which are saved "
+        "in Den. Relevant if cluster is saved in Den.",
     ),
 ):
     """Start the HTTP or HTTPS server on the cluster."""

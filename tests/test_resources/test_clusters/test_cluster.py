@@ -207,7 +207,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert r.status_code == 200
         status_data = r.json()
         assert status_data["cluster_config"]["resource_type"] == "cluster"
-        assert status_data["env_servlet_actors"]
+        assert status_data["env_servlet_processes"]
         assert status_data["system_cpu_usage"]
         assert status_data["system_memory_usage"]
         assert status_data["system_disk_usage"]
@@ -274,6 +274,20 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         else:
             cluster.put(key="status_key1", obj="status_value1", env="numpy_env")
         cluster_data = cluster.status()
+
+        expected_cluster_status_data_keys = [
+            "env_servlet_processes",
+            "env_resource_mapping",
+            "server_pid",
+            "runhouse_version",
+            "cluster_config",
+        ]
+
+        actual_cluster_status_data_keys = list(cluster_data.keys())
+
+        for key in expected_cluster_status_data_keys:
+            assert key in actual_cluster_status_data_keys
+
         res = cluster_data.get("cluster_config")
 
         # test cluster config info
@@ -285,30 +299,28 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert res.get("ips") == cluster.ips
 
         if "multinode" in cluster.name:
-            assert "worker_env" in res.get("envs")
-            assert {"name": "status_key1", "resource_type": "str"} in res.get("envs")[
-                "worker_env"
-            ]
+            assert "worker_env" in cluster_data.get("env_resource_mapping")
+            assert {"name": "status_key1", "resource_type": "str"} in cluster_data.get(
+                "env_resource_mapping"
+            )["worker_env"]
         else:
-            assert "numpy_env" in res.get("envs")
-            assert {"name": "status_key1", "resource_type": "str"} in res.get("envs")[
-                "numpy_env"
-            ]
+            assert "numpy_env" in cluster_data.get("env_resource_mapping")
+            assert {"name": "status_key1", "resource_type": "str"} in cluster_data.get(
+                "env_resource_mapping"
+            )["numpy_env"]
 
         # test memory usage info
         expected_env_servlet_keys = [
-            "actor_id",
             "env_gpu_usage",
             "env_memory_usage",
-            "node_id",
             "node_ip",
             "node_name",
             "pid",
         ]
-        envs_names = list(res.get("envs").keys())
+        envs_names = list(cluster_data.get("env_resource_mapping").keys())
         envs_names.sort()
-        assert "env_servlet_actors" in cluster_data.keys()
-        env_servlets_info = cluster_data.get("env_servlet_actors")
+        assert "env_servlet_processes" in cluster_data.keys()
+        env_servlets_info = cluster_data.get("env_servlet_processes")
         env_actors_keys = list(env_servlets_info.keys())
         env_actors_keys.sort()
         assert envs_names == env_actors_keys
@@ -362,14 +374,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         status_output_string = status_output_string.replace("\n", "")
         assert "Runhouse Daemon is running" in status_output_string
-        assert f"server_port: {cluster.server_port}" in status_output_string
+        assert f"Runhouse v{rh.__version__}" in status_output_string
+        assert f"server port: {cluster.server_port}" in status_output_string
         assert (
-            f"server_connection_type: {cluster.server_connection_type}"
+            f"server connection type: {cluster.server_connection_type}"
             in status_output_string
         )
-        assert f"den_auth: {str(cluster.den_auth)}" in status_output_string
+        assert f"den auth: {str(cluster.den_auth)}" in status_output_string
         assert (
-            f"resource_subtype: {cluster.config().get('resource_subtype')}"
+            f"resource subtype: {cluster.config().get('resource_subtype')}"
             in status_output_string
         )
         assert f"ips: {str(cluster.ips)}" in status_output_string
@@ -425,15 +438,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             subprocess.check_output(["runhouse", "status", f"{cluster.name}"]), "utf-8"
         )
         assert "😈 Runhouse Daemon is running 🏃" in res
-        assert f"server_port: {cluster.server_port}" in res
-        assert f"server_connection_type: {cluster.server_connection_type}" in res
-        assert f"den_auth: {str(cluster.den_auth)}" in res
-        assert f"resource_subtype: {cluster.RESOURCE_TYPE.capitalize()}" in res
+        assert f"server port: {cluster.server_port}" in res
+        assert f"server connection_type: {cluster.server_connection_type}" in res
+        assert f"den auth: {str(cluster.den_auth)}" in res
+        assert f"resource subtype: {cluster.RESOURCE_TYPE.capitalize()}" in res
         assert f"ips: {str(cluster.ips)}" in res
         assert "Serving 🍦 :" in res
         assert f"{default_env_name} (runhouse.Env)" in res
         assert "status_key3 (str)" in res
-        assert "ssh_certs" not in res
+        assert "ssh certs" not in res
 
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")

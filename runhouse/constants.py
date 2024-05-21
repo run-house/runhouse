@@ -63,7 +63,8 @@ EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"
 # cluster status constants
 DOUBLE_SPACE_UNICODE = "\u00A0\u00A0"
 BULLET_UNICODE = "\u2022"
-DEFAULT_STATUS_CHECK_INTERVAL = 120
+DEFAULT_STATUS_CHECK_INTERVAL = -1  # -1 means that the ping to den is off.
+INCREASED_STATUS_CHECK_INTERVAL = 3600
 # post status to den thread will start running 2 min after cluster servlet setup.
 # This delay enables the cluster setup to finish before running the post status job,
 STATUS_CHECK_DELAY = 120

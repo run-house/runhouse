@@ -19,7 +19,6 @@ from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import ResourceVisibility
 from runhouse.utils import sync_function
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -201,12 +200,19 @@ class ObjStore:
                 "Warning, cluster servlet is not initialized. Object Store operations will not work."
             )
 
-        owner_has_den_token = Path(CONFIG_YAML_PATH).expanduser().exists()
+        config_yaml_exists = Path(CONFIG_YAML_PATH).expanduser().exists()
 
-        if owner_has_den_token:
-            # setting the current obj_store in the associated cluster_servlet,
-            # so the cluster servlet will be able to post status to den
-            await self.acall_actor_method(self.cluster_servlet, "set_obj_store", self)
+        # if den_status_ping_interval == -1 that means that sending status to den DB periodically if off.
+
+        den_status_ping_interval = (
+            await self.acall_actor_method(self.cluster_servlet, "aget_cluster_config")
+        ).get("den_status_ping_interval")
+
+        check_status_periodically = (
+            den_status_ping_interval > 0 if den_status_ping_interval else False
+        )
+
+        if config_yaml_exists and check_status_periodically:
 
             # adding the thread which will post the cluster status to den
             await self.acall_actor_method(self.cluster_servlet, "schedule_post_status")
@@ -1532,282 +1538,8 @@ class ObjStore:
                     )
         return objects_in_env_modified
 
-    def _parse_env_actor_info(self, env_actor: list, servlet_property: str):
-        for line_of_info in env_actor:
-            # checking if it is the columns names line.
-            if "NAME" in line_of_info:
-                env_properties = line_of_info.split()
-            # checking if this is the line containing the unique property of the servlet
-            if servlet_property in line_of_info:
-                env_raw_info = line_of_info.split()[1:]
-                # removing element in index 0, this is the row index in the table,
-                # it does not contain unique info about the env.
-        env_actor_info = {
-            env_properties[i]: env_raw_info[i] for i in range(len(env_properties))
-        }
-        return env_actor_info
-
-    def _get_env_cpu_usage(
-        self,
-        env_name: str,
-        cluster_config: Dict,
-    ):
-        import subprocess
-
-        import psutil
-
-        from runhouse.utils import string_to_dict
-
-        if env_name:
-            env_actor = (
-                subprocess.check_output(
-                    [
-                        "ray",
-                        "list",
-                        "actors",
-                        "-f",
-                        "state=ALIVE",
-                        "-f",
-                        f"name={env_name}",
-                    ]
-                )
-                .decode("utf-8")
-                .split("\n")
-            )
-
-            total_memory = psutil.virtual_memory().total
-            node_name = (
-                ""  # will be set later. if not set here, an error will be raised.
-            )
-
-            # getting in "real" info about the env from env_actor.
-            # The info about the env is described in a table.
-            # The columns are different properties of the env, and the rows are the envs (=ray actors)
-            env_actor_info = self._parse_env_actor_info(env_actor, env_name)
-
-            env_node_info = (
-                subprocess.check_output(
-                    ["ray", "get", "nodes", env_actor_info.get("NODE_ID")]
-                )
-                .decode("utf-8")
-                .split("\n")
-            )
-
-            env_node_info = {
-                string_to_dict(node_property)[0]: string_to_dict(node_property)[1]
-                for node_property in env_node_info
-                if ":" in node_property
-            }
-
-            node_ip = env_node_info.get("node_ip")
-            env_servlet_pid = int(env_actor_info.get("PID"))
-            if not cluster_config.get("resource_subtype") == "Cluster":
-                stable_internal_external_ips = cluster_config.get(
-                    "stable_internal_external_ips"
-                )
-                for ips_set in stable_internal_external_ips:
-                    internal_ip, external_ip = ips_set[0], ips_set[1]
-                    if internal_ip == node_ip:
-                        # head ip == cluster address == cluster.ips[0]
-                        if ips_set[1] == cluster_config.get("ips")[0]:
-                            node_name = f"head ({external_ip})"
-                        else:
-                            node_name = f"worker_{stable_internal_external_ips.index(ips_set)} ({external_ip}"
-            else:
-                # a case it is a BYO cluster, assume that first ip in the ips list is the head.
-                ips = cluster_config.get("ips")
-                if len(ips) == 1 or node_ip == ips[0]:
-                    node_name = f"head ({node_ip})"
-                else:
-                    node_name = f"worker_{ips.index(node_ip)} ({node_ip})"
-
-            try:
-                env_servlet_process = psutil.Process(pid=env_servlet_pid)
-                memory_size_bytes = env_servlet_process.memory_full_info().uss
-                cpu_usage_percent = env_servlet_process.cpu_percent(interval=1)
-                env_memory_usage = {
-                    "memory_size_bytes": memory_size_bytes,
-                    "cpu_usage_percent": cpu_usage_percent,
-                    "memory_percent_from_cluster": (memory_size_bytes / total_memory)
-                    * 100,
-                    "total_cluster_memory": total_memory,
-                    "env_memory_info": psutil.virtual_memory(),
-                }
-            except psutil.NoSuchProcess:
-                env_memory_usage = {}
-
-            return (
-                env_memory_usage,
-                node_name,
-                total_memory,
-                env_servlet_pid,
-                env_actor_info,
-                node_ip,
-            )
-
-    def _get_env_gpu_usage(self, env_servlet_pid):
-        import subprocess
-
-        import runhouse as rh
-
-        # check it the cluster uses GPU or not
-        if rh.Package._detect_cuda_version_or_cpu() == "cpu":
-            return {}
-
-        try:
-            gpu_general_info = (
-                subprocess.run(
-                    [
-                        "nvidia-smi",
-                        "--query-gpu=utilization.gpu,memory.total,count",
-                        "--format=csv,noheader,nounits",
-                    ],
-                    stdout=subprocess.PIPE,
-                )
-                .stdout.decode("utf-8")
-                .strip()
-                .split(", ")
-            )
-            gpu_util_percent = float(gpu_general_info[0])
-            total_gpu_memory = int(gpu_general_info[1]) * (1024**2)  # in bytes
-            num_of_gpus = int(gpu_general_info[2])
-            used_gpu_memory = 0  # in bytes
-
-            env_gpu_usage = (
-                subprocess.run(
-                    [
-                        "nvidia-smi",
-                        "--query-compute-apps=pid,gpu_uuid,used_memory",
-                        "--format=csv,nounits",
-                    ],
-                    stdout=subprocess.PIPE,
-                )
-                .stdout.decode("utf-8")
-                .strip()
-                .split("\n")
-            )
-            for i in range(1, len(env_gpu_usage)):
-                single_env_gpu_info = env_gpu_usage[i].strip().split(", ")
-                if int(single_env_gpu_info[0]) == env_servlet_pid:
-                    used_gpu_memory = used_gpu_memory + int(single_env_gpu_info[-1]) * (
-                        1024**2
-                    )
-            if used_gpu_memory > 0:
-                env_gpu_usage = {
-                    "used_gpu_memory": used_gpu_memory,
-                    "gpu_util_percent": gpu_util_percent / num_of_gpus,
-                    "total_gpu_memory": total_gpu_memory,
-                }
-            else:
-                env_gpu_usage = {}
-        except subprocess.CalledProcessError:
-            env_gpu_usage = {}
-
-        return env_gpu_usage
-
-    def status_local(self, env_servlet_pid):
-
-        # The objects in env can be of any type, and not only runhouse resources,
-        # therefore we need to distinguish them when creating the list of the resources in each env.
-        objects_in_env_modified = self._get_objects_in_env()
-
-        # Try loading GPU data (if relevant)
-        env_gpu_usage = self._get_env_gpu_usage(env_servlet_pid)
-
-        env_utilization_data = {
-            "env_gpu_usage": env_gpu_usage,
-        }
-
-        return objects_in_env_modified, env_utilization_data
-
-    def _get_server_pid(self):
-        import subprocess
-
-        cli_list_cluster_actor = (
-            subprocess.check_output(
-                [
-                    "ray",
-                    "list",
-                    "actors",
-                    "-f",
-                    "state=ALIVE",
-                    "-f" "class_name=ClusterServlet",
-                ]
-            )
-            .decode("utf-8")
-            .split("\n")
-        )
-        # The info about the actor is at index 9 of 'cli_list_cluster_actor' list.
-        # The info about the actor is in a form of a table, where the PID is at index 7 of the table record
-        # which describes the cluster_servlet.
-        server_pid = self._parse_env_actor_info(
-            cli_list_cluster_actor, "ClusterServlet"
-        ).get("PID")
-        return server_pid
-
     async def astatus(self):
-        import psutil
-
-        config_cluster = self.get_cluster_config()
-
-        # poping out creds because we don't want to show them in the status
-        config_cluster.pop("creds", None)
-
-        # getting cluster servlets (envs) and their related objects
-        cluster_servlets = {}
-        cluster_envs_env_utilization_data = {}
-        for env in await self.aget_all_initialized_env_servlet_names():
-            try:
-                (
-                    env_memory_usage,
-                    node_name,
-                    total_memory,
-                    env_servlet_pid,
-                    env_actor_info,
-                    node_ip,
-                ) = self._get_env_cpu_usage(env_name=env, cluster_config=config_cluster)
-                (
-                    objects_in_env_modified,
-                    env_utilization_data,
-                ) = await self.acall_actor_method(
-                    self.get_env_servlet(env),
-                    method="astatus_local",
-                    env_servlet_pid=env_servlet_pid,
-                )
-                env_utilization_data.update(
-                    {
-                        "node_id": env_actor_info.get("NODE_ID"),
-                        "node_ip": node_ip,
-                        "node_name": node_name,
-                        "pid": env_servlet_pid,
-                        "actor_id": env_actor_info.get("ACTOR_ID"),
-                        "env_memory_usage": env_memory_usage,
-                    }
-                )
-                cluster_servlets[env] = objects_in_env_modified
-                cluster_envs_env_utilization_data[env] = env_utilization_data
-            except ObjStoreError:
-                cluster_servlets[env] = []
-                cluster_envs_env_utilization_data[env] = {}
-        config_cluster["envs"] = cluster_servlets
-        config_cluster["server_pid"] = self._get_server_pid()
-
-        # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
-        cpu_usage = psutil.cpu_percent(interval=1)
-
-        # Fields: `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
-        memory_usage = psutil.virtual_memory()._asdict()
-
-        # Fields: `total`, `used`, `free`, `percent`
-        disk_usage = psutil.disk_usage("/")._asdict()
-
-        return {
-            "cluster_config": config_cluster,
-            "env_servlet_actors": cluster_envs_env_utilization_data,
-            "system_cpu_usage": cpu_usage,
-            "system_memory_usage": memory_usage,
-            "system_disk_usage": disk_usage,
-        }
+        return await self.acall_actor_method(self.cluster_servlet, "status")
 
     def status(self):
         return sync_function(self.astatus)()

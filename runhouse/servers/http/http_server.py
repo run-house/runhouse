@@ -947,7 +947,8 @@ async def main():
         "--den-status-ping-interval",
         type=int,
         default=DEFAULT_STATUS_CHECK_INTERVAL,
-        help="Interval between two posts of the cluster status to Den",
+        help="The time interval in seconds, that will pass between consecutive cluster status checks to Den. "
+        "Relevant if cluster is saved in Den.",
     )
 
     parse_args = parser.parse_args()
