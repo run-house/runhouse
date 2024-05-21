@@ -15,6 +15,8 @@ from runhouse.servers.http.http_utils import (
 )
 from runhouse.servers.obj_store import ClusterServletSetupOption
 
+from runhouse.utils import get_node_ip
+
 logger = logging.getLogger(__name__)
 
 
@@ -177,5 +179,137 @@ class EnvServlet:
     async def aclear_local(self):
         return await obj_store.aclear_local()
 
-    async def astatus_local(self, env_servlet_pid):
-        return obj_store.status_local(env_servlet_pid)
+    def _get_env_cpu_usage(self):
+
+        import psutil
+
+        from runhouse.utils import get_pid
+
+        cluster_config = obj_store.cluster_config
+
+        total_memory = psutil.virtual_memory().total
+        node_ip = get_node_ip()
+        env_servlet_pid = get_pid()
+
+        if not cluster_config.get("resource_subtype") == "Cluster":
+            stable_internal_external_ips = cluster_config.get(
+                "stable_internal_external_ips"
+            )
+            for ips_set in stable_internal_external_ips:
+                internal_ip, external_ip = ips_set[0], ips_set[1]
+                if internal_ip == node_ip:
+                    # head ip equals to cluster address equals to cluster.ips[0]
+                    if ips_set[1] == cluster_config.get("ips")[0]:
+                        node_name = f"head ({external_ip})"
+                    else:
+                        node_name = f"worker_{stable_internal_external_ips.index(ips_set)} ({external_ip}"
+        else:
+            # a case it is a BYO cluster, assume that first ip in the ips list is the head.
+            ips = cluster_config.get("ips")
+            if len(ips) == 1 or node_ip == ips[0]:
+                node_name = f"head ({node_ip})"
+            else:
+                node_name = f"worker_{ips.index(node_ip)} ({node_ip})"
+
+        try:
+            env_servlet_process = psutil.Process(pid=env_servlet_pid)
+            memory_size_bytes = env_servlet_process.memory_full_info().uss
+            cpu_usage_percent = env_servlet_process.cpu_percent(interval=1)
+            env_memory_usage = {
+                "memory_size_bytes": memory_size_bytes,
+                "cpu_usage_percent": cpu_usage_percent,
+                "memory_percent_from_cluster": (memory_size_bytes / total_memory) * 100,
+                "total_cluster_memory": total_memory,
+                "env_memory_info": psutil.virtual_memory(),
+            }
+        except psutil.NoSuchProcess:
+            env_memory_usage = {}
+
+        return (env_memory_usage, node_name, total_memory, env_servlet_pid, node_ip)
+
+    def _get_env_gpu_usage(self, env_servlet_pid):
+        import subprocess
+
+        import runhouse as rh
+
+        # check it the cluster uses GPU or not
+        if rh.Package._detect_cuda_version_or_cpu() == "cpu":
+            return {}
+
+        try:
+            gpu_general_info = (
+                subprocess.run(
+                    [
+                        "nvidia-smi",
+                        "--query-gpu=utilization.gpu,memory.total,count",
+                        "--format=csv,noheader,nounits",
+                    ],
+                    stdout=subprocess.PIPE,
+                )
+                .stdout.decode("utf-8")
+                .strip()
+                .split(", ")
+            )
+            gpu_util_percent = float(gpu_general_info[0])
+            total_gpu_memory = int(gpu_general_info[1]) * (1024**2)  # in bytes
+            num_of_gpus = int(gpu_general_info[2])
+            used_gpu_memory = 0  # in bytes
+
+            env_gpu_usage = (
+                subprocess.run(
+                    [
+                        "nvidia-smi",
+                        "--query-compute-apps=pid,gpu_uuid,used_memory",
+                        "--format=csv,nounits",
+                    ],
+                    stdout=subprocess.PIPE,
+                )
+                .stdout.decode("utf-8")
+                .strip()
+                .split("\n")
+            )
+            for i in range(1, len(env_gpu_usage)):
+                single_env_gpu_info = env_gpu_usage[i].strip().split(", ")
+                if int(single_env_gpu_info[0]) == env_servlet_pid:
+                    used_gpu_memory = used_gpu_memory + int(single_env_gpu_info[-1]) * (
+                        1024**2
+                    )
+            if used_gpu_memory > 0:
+                env_gpu_usage = {
+                    "used_gpu_memory": used_gpu_memory,
+                    "gpu_util_percent": gpu_util_percent / num_of_gpus,
+                    "total_gpu_memory": total_gpu_memory,
+                }
+            else:
+                env_gpu_usage = {}
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to get GPU usage for {self.env_name}: {e}")
+            env_gpu_usage = {}
+
+        return env_gpu_usage
+
+    def status_local(self):
+        # The objects in env can be of any type, and not only runhouse resources,
+        # therefore we need to distinguish them when creating the list of the resources in each env.
+        objects_in_env_modified = obj_store._get_objects_in_env()
+
+        (
+            env_memory_usage,
+            node_name,
+            total_memory,
+            env_servlet_pid,
+            node_ip,
+        ) = self._get_env_cpu_usage()
+
+        # Try loading GPU data (if relevant)
+        env_gpu_usage = self._get_env_gpu_usage(env_servlet_pid)
+
+        env_utilization_data = {
+            "env_gpu_usage": env_gpu_usage,
+            "node_ip": node_ip,
+            "node_name": node_name,
+            "pid": env_servlet_pid,
+            "env_memory_usage": env_memory_usage,
+        }
+
+        return objects_in_env_modified, env_utilization_data

@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import json
 import logging
 import threading
@@ -7,12 +8,17 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 import requests
 
-from runhouse.constants import DEFAULT_STATUS_CHECK_INTERVAL, STATUS_CHECK_DELAY
+import runhouse
+
+from runhouse.constants import STATUS_CHECK_DELAY
 
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.http.auth import AuthCache
+
+from runhouse.servers.obj_store import ObjStoreError
+from runhouse.utils import sync_function
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +269,7 @@ class ClusterServlet:
                     )
                 else:
                     logger.info(
-                        f"Successfully updated cluster status in Den. Next ping to den in {round(DEFAULT_STATUS_CHECK_INTERVAL / 60, 2)} minutes."
+                        f"Successfully updated cluster status in Den. Next ping to den in {round(interval_size / 60, 2)} minutes."
                     )
             except Exception as e:
                 logger.error(
@@ -294,7 +300,8 @@ class ClusterServlet:
     def set_obj_store(self, associated_obj_store):
         self.obj_store = associated_obj_store
 
-    async def astatus(self):
+    # TODO [SB]: remove this method in PR 806
+    async def astatus_cluster_servlet(self):
         if not self.obj_store:
             logger.error(
                 "The relevant obj-store is not associated with the cluster servlet, therefore can't get cluster status."
@@ -304,3 +311,53 @@ class ClusterServlet:
                 "Can't find the obj_store associated with current ClusterServlet."
             )
         return await self.obj_store.astatus()
+
+    async def astatus(self):
+        import psutil
+
+        from runhouse.utils import get_pid
+
+        config_cluster = copy.deepcopy(self.cluster_config)
+
+        # poping out creds because we don't want to show them in the status
+        config_cluster.pop("creds", None)
+
+        # getting cluster servlets (envs) and their related objects
+        cluster_servlets = {}
+        cluster_envs_env_utilization_data = {}
+        for env in self._initialized_env_servlet_names:
+            try:
+                (
+                    objects_in_env_modified,
+                    env_utilization_data,
+                ) = await obj_store.acall_actor_method(
+                    obj_store.get_env_servlet(env), method="status_local"
+                )
+                cluster_servlets[env] = objects_in_env_modified
+                cluster_envs_env_utilization_data[env] = env_utilization_data
+            except ObjStoreError:
+                cluster_servlets[env] = []
+                cluster_envs_env_utilization_data[env] = {}
+        config_cluster["envs"] = cluster_servlets
+        config_cluster["server_pid"] = get_pid()
+        config_cluster["runhouse_version"] = runhouse.__version__
+
+        # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
+        cpu_usage = psutil.cpu_percent(interval=1)
+
+        # Fields: `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
+        memory_usage = psutil.virtual_memory()._asdict()
+
+        # Fields: `total`, `used`, `free`, `percent`
+        disk_usage = psutil.disk_usage("/")._asdict()
+
+        return {
+            "cluster_config": config_cluster,
+            "env_servlet_actors": cluster_envs_env_utilization_data,
+            "system_cpu_usage": cpu_usage,
+            "system_memory_usage": memory_usage,
+            "system_disk_usage": disk_usage,
+        }
+
+    def status(self):
+        return sync_function(self.astatus)()

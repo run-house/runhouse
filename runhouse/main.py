@@ -167,8 +167,11 @@ def _print_cluster_config(cluster_config: Dict):
     """
     Helping function to the `_print_status` which prints the relevant info from the cluster config.
     """
+    # TODO [SB]: need to modify printing format (colour palette etc).
     if "name" in cluster_config.keys():
         console.print(cluster_config.get("name"))
+
+    print(f'Runhouse v{cluster_config.get("runhouse_version")}')
 
     top_level_config = [
         "server_port",
