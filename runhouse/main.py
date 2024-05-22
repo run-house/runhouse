@@ -823,14 +823,15 @@ def stop(
 
 @app.callback(invoke_without_command=True, help="Runhouse CLI")
 def main(
+    ctx: typer.Context,
     version: bool = typer.Option(
         None, "--version", "-v", help="Show the version and exit."
-    )
+    ),
 ):
     """
     Runhouse CLI
     """
     if version:
         print(f"{__version__}")
-    else:
+    elif ctx.invoked_subcommand is None:
         subprocess.run("runhouse --help", shell=True)
