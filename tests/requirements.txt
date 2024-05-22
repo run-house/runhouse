@@ -16,3 +16,6 @@ openapi-core
 
 # packages for minimal+ tests
 skypilot
+
+# requests must be lowered
+requests<2.32.0
