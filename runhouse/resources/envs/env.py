@@ -135,10 +135,7 @@ class Env(Resource):
         for secret in self.secrets:
             if isinstance(secret, str):
                 secret = Secret.from_name(secret)
-            if hasattr(secret, "path") and secret.path:
-                new_secrets.append(secret.to(system=system))
-            else:
-                new_secrets.append(secret.to(system=system, env=self))
+            new_secrets.append(secret.to(system=system, env=self))
         return new_secrets
 
     def _install_reqs(self, cluster: Cluster = None, reqs: List = None):
@@ -207,7 +204,6 @@ class Env(Resource):
         system = _get_cluster_from(system)
         new_env = copy.deepcopy(self)
         new_env.reqs, new_env.working_dir = self._reqs_to(system, path, mount)
-        new_env.secrets = self._secrets_to(system)
 
         if isinstance(system, Cluster):
             key = (
@@ -225,6 +221,9 @@ class Env(Resource):
             else:
                 system.call(key, "_install_reqs", reqs=new_env.reqs)
                 system.call(key, "_run_setup_cmds", setup_cmds=new_env.setup_cmds)
+
+            # Secrets are resources that go in the env, so put them in after the env is created
+            new_env.secrets = self._secrets_to(system)
 
         return new_env
 
