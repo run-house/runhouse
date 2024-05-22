@@ -56,7 +56,7 @@ def saved_resource(resource, saved_resource_pool, test_rns_folder):
     if not resource.name:
         pytest.skip("Resource must have a name to be saved")
 
-    folder = None
+    top_level_folder = None
     if resource.name not in saved_resource_pool:
         # Create a variant of the resource under a different name so we don't conflict with other tests or
         # or other runs of the test.
@@ -64,13 +64,28 @@ def saved_resource(resource, saved_resource_pool, test_rns_folder):
         if not resource.rns_address or resource.rns_address[:2] != "~/":
             # No need to vary the name for local resources
             # Put resource copies in a folder together so it's easier to clean up
-            folder = (
-                rns_client.current_folder
-                if resource.name not in RESOURCES_SAVED_TO_ORG
-                else f"/{TEST_ORG}"
+            saved_to_org = resource.name in RESOURCES_SAVED_TO_ORG
+            has_rns_address = resource.rns_address is not None
+            test_org_resource = has_rns_address and resource.rns_address.startswith(
+                f"/{TEST_ORG}"
             )
-            resource_copy.name = f"{folder}/{test_rns_folder}/{resource.name}"
-        saved_resource_pool[resource.name] = resource_copy.save(folder=folder)
+
+            top_level_folder = (
+                f"/{TEST_ORG}"
+                if saved_to_org or test_org_resource
+                else rns_client.current_folder
+            )
+
+            resource_copy.name = f"{top_level_folder}/{test_rns_folder}/{resource.name}"
+            if test_org_resource:
+                from tests.utils import friend_account_in_org
+
+                with friend_account_in_org():
+                    # Need org access in order to save the resource to the org
+                    saved_resource = resource_copy.save(folder=top_level_folder)
+            else:
+                saved_resource = resource_copy.save(folder=top_level_folder)
+            saved_resource_pool[resource.name] = saved_resource
     return saved_resource_pool[resource.name]
 
 
@@ -83,9 +98,9 @@ def unnamed_resource():
 
 
 @pytest.fixture(scope="session")
-def named_resource_for_org():
+def named_resource_for_org(test_org_rns_folder):
     # Resource saved for an org (as opposed to the current user based on the local rh config)
-    args = {"name": f"/{TEST_ORG}/{RESOURCE_NAME}"}
+    args = {"name": f"{test_org_rns_folder}/{RESOURCE_NAME}"}
     r = Resource(**args)
     init_args[id(r)] = args
     return r
