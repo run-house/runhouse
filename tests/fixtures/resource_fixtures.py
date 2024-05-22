@@ -83,9 +83,9 @@ def unnamed_resource():
 
 
 @pytest.fixture(scope="session")
-def named_resource_for_org():
+def named_resource_for_org(test_org_rns_folder):
     # Resource saved for an org (as opposed to the current user based on the local rh config)
-    args = {"name": f"/{TEST_ORG}/{RESOURCE_NAME}"}
+    args = {"name": f"{test_org_rns_folder}/{RESOURCE_NAME}"}
     r = Resource(**args)
     init_args[id(r)] = args
     return r
