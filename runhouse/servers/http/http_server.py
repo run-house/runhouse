@@ -929,12 +929,17 @@ async def main():
         default=None,
         help="Name of env where the HTTP server is started.",
     )
-
     parser.add_argument(
         "--api-server-url",
         type=str,
         default=rns_client.api_server_url,
         help="URL of Runhouse Den",
+    )
+    parser.add_argument(
+        "--from-python",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Whether HTTP server is called from Python rather than CLI.",
     )
 
     parse_args = parser.parse_args()
@@ -943,6 +948,14 @@ async def main():
     restart_proxy = parse_args.restart_proxy
     api_server_url = parse_args.api_server_url
     default_env_name = parse_args.default_env_name
+
+    if not hasattr(parse_args, "from_python") and not default_env_name:
+        # detect default env if called from runhouse cli (start/restart) and cluster_config exists
+        from runhouse.resources.hardware.utils import load_cluster_config_from_file
+
+        cluster_config = load_cluster_config_from_file()
+        if cluster_config.get("default_env"):
+            default_env_name = cluster_config.get("default_env")["name"]
 
     # The object store and the cluster servlet within it need to be
     # initialized in order to call `obj_store.get_cluster_config()`, which
@@ -1200,6 +1213,13 @@ async def main():
         + f"on host={host} and use_https={use_https} and port_arg={daemon_port}"
     )
 
+    cluster = None
+    if not hasattr(parse_args, "from_python") and default_env_name:
+        from runhouse.resources.hardware import Cluster
+
+        cluster = Cluster.from_config(cluster_config)
+        cluster._sync_default_env_to_cluster()
+
     # Only launch uvicorn with certs if HTTPS is enabled and not using Caddy
     uvicorn_cert = parsed_ssl_certfile if not use_caddy and use_https else None
     uvicorn_key = parsed_ssl_keyfile if not use_caddy and use_https else None
@@ -1214,6 +1234,15 @@ async def main():
     )
     server = uvicorn.Server(config)
     await server.serve()
+
+    if cluster:
+        cluster.put_resource(cluster.default_env)
+
+        from runhouse.resources.envs.utils import _process_env_vars
+
+        env_vars = _process_env_vars(cluster.default_env.env_vars)
+        if env_vars:
+            cluster.call(cluster.default_env.name, "_set_env_vars", env_vars)
 
 
 if __name__ == "__main__":

@@ -102,6 +102,7 @@ class Package(Resource):
                         install_target = self.to(cluster).install_target
                     else:
                         install_target = self.install_target
+
                     if not install_target.exists_in_system():
                         return None
                     elif "requirements.txt" not in install_target.ls(full_paths=False):
