@@ -432,6 +432,14 @@ class OnDemandCluster(Cluster):
         )
 
         self._update_from_sky_status()
+
+        if self.domain:
+            logger.info(
+                f"Cluster has been launched with the custom domain '{self.domain}'. "
+                "Please add an A record to your DNS provider to point this domain to the cluster's "
+                f"public IP address ({self.address}) to ensure successful requests."
+            )
+
         self.restart_server()
 
         # Save a limited version of the local ~/.rh config to the cluster with the user's hashed token
