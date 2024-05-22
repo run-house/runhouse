@@ -308,3 +308,9 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
         res = cluster.run([cmd], env=env)
         assert res[0][0] == 0
+
+    @pytest.mark.level("local")
+    def test_env_to_with_provider_secret(self, cluster):
+        os.environ["HF_TOKEN"] = "test_hf_token"
+        env = rh.env(name="hf_env", secrets=["huggingface"])
+        env.to(cluster)
