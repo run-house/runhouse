@@ -596,17 +596,12 @@ class Cluster(Resource):
             )
             self.client_port = self._rpc_tunnel.local_bind_port
 
-            ssh_user = self.creds_values.get("ssh_user")
-            password = self.creds_values.get("password")
-            auth = (ssh_user, password) if ssh_user and password else None
-
             # Connecting to localhost because it's tunneled into the server at the specified port.
             # As long as the tunnel was initialized,
             # self.client_port has been set to the correct port
             self.client = HTTPClient(
                 host=LOCALHOST,
                 port=self.client_port,
-                auth=auth,
                 resource_address=self.rns_address,
                 system=self,
             )
