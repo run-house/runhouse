@@ -28,6 +28,7 @@ from runhouse.servers.http.http_utils import (
     RenameObjectParams,
     serialize_data,
 )
+from runhouse.utils import alive_bar_spinner_only, success_emoji
 
 logger = logging.getLogger(__name__)
 
@@ -327,91 +328,87 @@ class HTTPClient:
         Client function to call the rpc for call_module_method
         """
         # Measure the time it takes to send the message
-        start = time.time()
-        logger.info(
-            f"{'Calling' if method_name else 'Getting'} {key}"
-            + (f".{method_name}" if method_name else "")
-        )
-        serialization = serialization or "pickle"
-        res = retry_with_exponential_backoff(session.post)(
-            self._formatted_url(f"{key}/{method_name}"),
-            json=CallParams(
-                data=serialize_data(data, serialization),
-                serialization=serialization,
-                run_name=run_name,
-                stream_logs=stream_logs,
-                save=save,
-                remote=remote,
-            ).dict(),
-            stream=True,
-            headers=rns_client.request_headers(resource_address),
-            auth=self.auth,
-            verify=self.verify,
-        )
-
-        if res.status_code != 200:
-            raise ValueError(
-                f"Error calling {method_name} on server: {res.content.decode()}"
-            )
-        error_str = f"Error calling {method_name} on {key} on server"
-
-        # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
-        # maybe a stream of results), so we need to separate these out.
-        result = None
-        res_iter = res.iter_lines(chunk_size=None)
-        # We need to manually iterate through res_iter so we can try/except to bypass a ChunkedEncodingError bug
-        while True:
-            try:
-                responses_json = next(res_iter)
-            except requests.exceptions.ChunkedEncodingError:
-                # Some silly bug in urllib3, see https://github.com/psf/requests/issues/4248
-                continue
-            except StopIteration:
-                break
-            except StopAsyncIteration:
-                break
-
-            resp = json.loads(responses_json)
-            output_type = resp["output_type"]
-            result = handle_response(
-                resp, output_type, error_str, log_formatter=self.log_formatter
-            )
-            # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
-            # slow, we can just set it explicitly.
-            from runhouse.resources.module import Module
-
-            if isinstance(result, Module):
-                if (
-                    system
-                    and result.system
-                    and system.rns_address == result.system.rns_address
-                ):
-                    result.system = system
-            elif output_type == OutputType.CONFIG:
-                if (
-                    system
-                    and "system" in result
-                    and system.rns_address == result["system"]
-                ):
-                    result["system"] = system
-                result = Resource.from_config(result, dryrun=True)
-
-        end = time.time()
-
-        if (
-            hasattr(result, "system")
-            and system is not None
-            and result.system.rns_address == system.rns_address
-        ):
-            result.system = system
-
         if method_name:
-            log_str = (
-                f"Time to call {key}.{method_name}: {round(end - start, 2)} seconds"
-            )
+            log_str = f"Calling {key}.{method_name}"
         else:
-            log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
-        logging.info(log_str)
+            log_str = f"Getting {key}"
+        with alive_bar_spinner_only(title=log_str) as bar:
+            serialization = serialization or "pickle"
+            res = retry_with_exponential_backoff(session.post)(
+                self._formatted_url(f"{key}/{method_name}"),
+                json=CallParams(
+                    data=serialize_data(data, serialization),
+                    serialization=serialization,
+                    run_name=run_name,
+                    stream_logs=stream_logs,
+                    save=save,
+                    remote=remote,
+                ).dict(),
+                stream=True,
+                headers=rns_client.request_headers(resource_address),
+                auth=self.auth,
+                verify=self.verify,
+            )
+
+            if res.status_code != 200:
+                raise ValueError(
+                    f"Error calling {method_name} on server: {res.content.decode()}"
+                )
+            error_str = f"Error calling {method_name} on {key} on server"
+
+            # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
+            # maybe a stream of results), so we need to separate these out.
+            result = None
+            res_iter = res.iter_lines(chunk_size=None)
+            # We need to manually iterate through res_iter so we can try/except to bypass a ChunkedEncodingError bug
+            while True:
+                try:
+                    responses_json = next(res_iter)
+                except requests.exceptions.ChunkedEncodingError:
+                    # Some silly bug in urllib3, see https://github.com/psf/requests/issues/4248
+                    continue
+                except StopIteration:
+                    break
+                except StopAsyncIteration:
+                    break
+
+                resp = json.loads(responses_json)
+                output_type = resp["output_type"]
+                result = handle_response(
+                    resp, output_type, error_str, log_formatter=self.log_formatter
+                )
+                # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
+                # slow, we can just set it explicitly.
+                from runhouse.resources.module import Module
+
+                if isinstance(result, Module):
+                    if (
+                        system
+                        and result.system
+                        and system.rns_address == result.system.rns_address
+                    ):
+                        result.system = system
+                elif output_type == OutputType.CONFIG:
+                    if (
+                        system
+                        and "system" in result
+                        and system.rns_address == result["system"]
+                    ):
+                        result["system"] = system
+                    result = Resource.from_config(result, dryrun=True)
+
+            if (
+                hasattr(result, "system")
+                and system is not None
+                and result.system.rns_address == system.rns_address
+            ):
+                result.system = system
+
+            if method_name:
+                log_str = f"Completed call {key}.{method_name}"
+            else:
+                log_str = f"Completed get {key}"
+            bar.title(success_emoji(log_str))
         return result
 
     async def acall(
@@ -460,77 +457,73 @@ class HTTPClient:
         Client function to call the rpc for call_module_method
         """
         # Measure the time it takes to send the message
-        start = time.time()
-        logger.info(
-            f"{'Calling' if method_name else 'Getting'} {key}"
-            + (f".{method_name}" if method_name else "")
-        )
-        serialization = serialization or "pickle"
-        async with self.async_session.stream(
-            "POST",
-            self._formatted_url(f"{key}/{method_name}"),
-            json=CallParams(
-                data=serialize_data(data, serialization),
-                serialization=serialization,
-                run_name=run_name,
-                stream_logs=stream_logs,
-                save=save,
-                remote=remote,
-                run_async=run_async,
-            ).dict(),
-            headers=rns_client.request_headers(resource_address),
-        ) as res:
-            if res.status_code != 200:
-                raise ValueError(
-                    f"Error calling {method_name} on server: {res.content.decode()}"
-                )
-            error_str = f"Error calling {method_name} on {key} on server"
+        if method_name:
+            log_str = f"Calling {key}.{method_name}"
+        else:
+            log_str = f"Getting {key}"
+        with alive_bar_spinner_only(title=log_str) as bar:
+            serialization = serialization or "pickle"
+            async with self.async_session.stream(
+                "POST",
+                self._formatted_url(f"{key}/{method_name}"),
+                json=CallParams(
+                    data=serialize_data(data, serialization),
+                    serialization=serialization,
+                    run_name=run_name,
+                    stream_logs=stream_logs,
+                    save=save,
+                    remote=remote,
+                    run_async=run_async,
+                ).dict(),
+                headers=rns_client.request_headers(resource_address),
+            ) as res:
+                if res.status_code != 200:
+                    raise ValueError(
+                        f"Error calling {method_name} on server: {res.content.decode()}"
+                    )
+                error_str = f"Error calling {method_name} on {key} on server"
 
-            # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
-            # maybe a stream of results), so we need to separate these out.
-            result = None
-            async for response_json in res.aiter_lines():
-                resp = json.loads(response_json)
-                output_type = resp["output_type"]
-                result = handle_response(
-                    resp, output_type, error_str, log_formatter=self.log_formatter
-                )
-                # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
-                # slow, we can just set it explicitly.
-                from runhouse.resources.module import Module
+                # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
+                # maybe a stream of results), so we need to separate these out.
+                result = None
+                async for response_json in res.aiter_lines():
+                    resp = json.loads(response_json)
+                    output_type = resp["output_type"]
+                    result = handle_response(
+                        resp, output_type, error_str, log_formatter=self.log_formatter
+                    )
+                    # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
+                    # slow, we can just set it explicitly.
+                    from runhouse.resources.module import Module
 
-                if isinstance(result, Module):
-                    if (
-                        system
-                        and result.system
-                        and system.rns_address == result.system.rns_address
-                    ):
-                        result.system = system
-                elif output_type == OutputType.CONFIG:
-                    if (
-                        system
-                        and "system" in result
-                        and system.rns_address == result["system"]
-                    ):
-                        result["system"] = system
-                    result = Resource.from_config(result, dryrun=True)
+                    if isinstance(result, Module):
+                        if (
+                            system
+                            and result.system
+                            and system.rns_address == result.system.rns_address
+                        ):
+                            result.system = system
+                    elif output_type == OutputType.CONFIG:
+                        if (
+                            system
+                            and "system" in result
+                            and system.rns_address == result["system"]
+                        ):
+                            result["system"] = system
+                        result = Resource.from_config(result, dryrun=True)
 
-            end = time.time()
+                if (
+                    hasattr(result, "system")
+                    and system is not None
+                    and result.system.rns_address == system.rns_address
+                ):
+                    result.system = system
 
-            if (
-                hasattr(result, "system")
-                and system is not None
-                and result.system.rns_address == system.rns_address
-            ):
-                result.system = system
-
-            if method_name:
-                log_str = (
-                    f"Time to call {key}.{method_name}: {round(end - start, 2)} seconds"
-                )
-            else:
-                log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
-            logging.info(log_str)
+                if method_name:
+                    log_str = f"Completed call {key}.{method_name}"
+                else:
+                    log_str = f"Completed get {key}"
+                bar.title(success_emoji(log_str))
             return result
 
     def put_object(self, key: str, value: Any, env=None):

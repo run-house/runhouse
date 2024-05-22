@@ -22,7 +22,7 @@ from runhouse.resources.hardware.sky.command_runner import (
     SSHCommandRunner,
     SshMode,
 )
-
+from runhouse.utils import alive_bar_spinner_only, success_emoji
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ class SkySSHRunner(SSHCommandRunner):
                     local, remote = fwd, fwd
                 else:
                     local, remote = fwd
-                logger.info(f"Forwarding port {local} to port {remote} on localhost.")
+                logger.debug(f"Forwarding port {local} to port {remote} on localhost.")
                 ssh += ["-L", f"{local}:localhost:{remote}"]
         if self._docker_ssh_proxy_command is not None:
             docker_ssh_proxy_command = self._docker_ssh_proxy_command(ssh)
@@ -472,39 +472,43 @@ def ssh_tunnel(
         )
         return tunnel
 
-    while is_port_in_use(local_port):
-        if num_ports_to_try < 0:
-            raise Exception(
-                f"Failed to create find open port after {num_ports_to_try} attempts"
-            )
+    with alive_bar_spinner_only(title="Creating ssh tunnel to remote host...") as bar:
+        while is_port_in_use(local_port):
+            if num_ports_to_try < 0:
+                raise Exception(
+                    f"Failed to create find open port after {num_ports_to_try} attempts"
+                )
 
-        logger.info(f"Port {local_port} is already in use. Trying next port.")
-        local_port += 1
-        num_ports_to_try -= 1
+            logger.info(f"Port {local_port} is already in use. Trying next port.")
+            local_port += 1
+            num_ports_to_try -= 1
 
-    # Start a tunnel using self.run in a thread, instead of ssh_tunnel
-    ssh_credentials = copy.copy(ssh_creds)
+        # Start a tunnel using self.run in a thread, instead of ssh_tunnel
+        ssh_credentials = copy.copy(ssh_creds)
 
-    # Host could be a proxy specified in credentials or is the provided address
-    host = ssh_credentials.pop("ssh_host", address)
-    ssh_control_name = ssh_credentials.pop("ssh_control_name", f"{address}:{ssh_port}")
+        # Host could be a proxy specified in credentials or is the provided address
+        host = ssh_credentials.pop("ssh_host", address)
+        ssh_control_name = ssh_credentials.pop(
+            "ssh_control_name", f"{address}:{ssh_port}"
+        )
 
-    runner = SkySSHRunner(
-        ip=host,
-        ssh_user=ssh_creds.get("ssh_user"),
-        ssh_private_key=ssh_creds.get("ssh_private_key"),
-        ssh_proxy_command=ssh_creds.get("ssh_proxy_command"),
-        ssh_control_name=ssh_control_name,
-        port=ssh_port,
-    )
-    runner.tunnel(local_port, remote_port)
+        runner = SkySSHRunner(
+            ip=host,
+            ssh_user=ssh_creds.get("ssh_user"),
+            ssh_private_key=ssh_creds.get("ssh_private_key"),
+            ssh_proxy_command=ssh_creds.get("ssh_proxy_command"),
+            ssh_control_name=ssh_control_name,
+            port=ssh_port,
+        )
+        runner.tunnel(local_port, remote_port)
 
-    logger.debug(
-        f"Successfully bound "
-        f"{LOCALHOST}:{remote_port} via ssh port {ssh_port} "
-        f"on remote server {address} "
-        f"to {LOCALHOST}:{local_port} on local machine."
-    )
+        logger.info(
+            f"Successfully bound "
+            f"{LOCALHOST}:{remote_port} via ssh port {ssh_port} "
+            f"on remote server {address} "
+            f"to {LOCALHOST}:{local_port} on local machine."
+        )
+        bar.title(success_emoji(f"SSH tunnel to {address} created successfully "))
 
     cache_existing_sky_ssh_runner(address, ssh_port, runner)
     return runner

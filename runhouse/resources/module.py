@@ -28,6 +28,7 @@ from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import CallParams
+from runhouse.utils import alive_bar_spinner_only, success_emoji
 
 logger = logging.getLogger(__name__)
 
@@ -497,10 +498,15 @@ class Module(Resource):
                     for attr, val in self.__dict__.items()
                     if attr not in excluded_state_keys
                 }
-            logger.info(
-                f"Sending module {new_module.name} of type {type(new_module)} to {system.name or 'local Runhouse daemon'}"
-            )
-            system.put_resource(new_module, state, dryrun=True)
+            with alive_bar_spinner_only(
+                title=f"Sending module {new_module.name} of type {type(new_module)} to {system.name or 'local Runhouse daemon'}"
+            ) as bar:
+                system.put_resource(new_module, state, dryrun=True)
+                bar.title(
+                    success_emoji(
+                        f"Sending module {new_module.name} of type {type(new_module)} to {system.name or 'local Runhouse daemon'}"
+                    )
+                )
 
         return new_module
 
