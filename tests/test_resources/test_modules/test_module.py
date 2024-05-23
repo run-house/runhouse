@@ -230,10 +230,6 @@ class TestModule:
     def test_call_module_method(self, cluster):
         cluster.put("numpy_pkg", Package.from_string("numpy"))
 
-        # Test for method
-        res = cluster.call("numpy_pkg", "_detect_cuda_version_or_cpu", stream_logs=True)
-        assert res == "cpu"
-
         # Test for property
         res = cluster.call("numpy_pkg", "config", stream_logs=True)
         numpy_config = Package.from_string("numpy").config()

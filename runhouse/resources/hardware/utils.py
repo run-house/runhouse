@@ -10,7 +10,7 @@ from runhouse.constants import (
     EMPTY_DEFAULT_ENV_NAME,
     RESERVED_SYSTEM_NAMES,
 )
-from runhouse.resources.envs.utils import _get_env_from
+from runhouse.resources.envs.utils import _get_env_from, run_setup_command
 
 logger = logging.getLogger(__name__)
 
@@ -106,3 +106,19 @@ def _get_cluster_from(system, dryrun=False):
 
 def _unnamed_default_env_name(cluster_name):
     return f"{cluster_name}_default_env"
+
+
+def detect_cuda_version_or_cpu(cluster: "Cluster" = None):
+    """Return the CUDA version on the cluster. If we are on a CPU-only cluster return 'cpu'.
+
+    Note: A cpu-only machine may have the CUDA toolkit installed, which means nvcc will still return
+    a valid version. Also check if the NVIDIA driver is installed to confirm we are on a GPU."""
+
+    status_codes = run_setup_command("nvcc --version", cluster=cluster)
+    if not status_codes[0] == 0:
+        return "cpu"
+    cuda_version = status_codes[1].split("release ")[1].split(",")[0]
+
+    if run_setup_command("nvidia-smi", cluster=cluster)[0] == 0:
+        return cuda_version
+    return "cpu"

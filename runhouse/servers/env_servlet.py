@@ -230,10 +230,10 @@ class EnvServlet:
     def _get_env_gpu_usage(self, env_servlet_pid: int):
         import subprocess
 
-        import runhouse as rh
+        from runhouse.resources.hardware.utils import detect_cuda_version_or_cpu
 
         # check it the cluster uses GPU or not
-        if rh.Package._detect_cuda_version_or_cpu() == "cpu":
+        if detect_cuda_version_or_cpu() == "cpu":
             return {}
 
         try:

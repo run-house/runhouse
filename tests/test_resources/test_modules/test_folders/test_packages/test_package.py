@@ -44,7 +44,10 @@ def test_package_file_system_to_cluster(cluster, s3_package):
 def test_getting_cuda_version_on_clusters(request, ondemand_cluster):
     """Gets the cuda version on the cluster and asserts it is the expected version"""
     return_codes: list = ondemand_cluster.run_python(
-        ["import runhouse as rh", "print(rh.Package._detect_cuda_version_or_cpu())"]
+        [
+            "from runhouse.resources.hardware.utils import detect_cuda_version_or_cpu",
+            "print(detect_cuda_version_or_cpu())",
+        ]
     )
     cuda_version_or_cpu = return_codes[0][1].strip().split("\n")[-1]
     print(f"{ondemand_cluster.name}: {cuda_version_or_cpu}")

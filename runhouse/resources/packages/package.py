@@ -8,7 +8,11 @@ from typing import Dict, Optional, Union
 from runhouse import globals
 from runhouse.resources.envs.utils import install_conda, run_setup_command
 from runhouse.resources.folders import Folder, folder
-from runhouse.resources.hardware.utils import _get_cluster_from
+from runhouse.resources.hardware.cluster import Cluster
+from runhouse.resources.hardware.utils import (
+    _get_cluster_from,
+    detect_cuda_version_or_cpu,
+)
 from runhouse.resources.resource import Resource
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
@@ -200,7 +204,7 @@ class Package(Resource):
         if not [req for req in reqs if "torch" in req]:
             return f"-r {path}" + args
 
-        cuda_version_or_cpu = self._detect_cuda_version_or_cpu(cluster=cluster)
+        cuda_version_or_cpu = detect_cuda_version_or_cpu(cluster=cluster)
         for req in reqs:
             if (
                 "--index-url" in req or "--extra-index-url" in req
@@ -223,7 +227,7 @@ class Package(Resource):
 
         packages_to_install: list = self._packages_to_install_from_cmd(install_cmd)
         final_install_cmd = ""
-        cuda_version_or_cpu = self._detect_cuda_version_or_cpu(cluster=cluster)
+        cuda_version_or_cpu = detect_cuda_version_or_cpu(cluster=cluster)
         for package_install_cmd in packages_to_install:
             formatted_cmd = self._install_url_for_torch_package(
                 package_install_cmd, cuda_version_or_cpu
@@ -254,22 +258,6 @@ class Package(Resource):
 
     def _torch_index_url(self, cuda_version_or_cpu: str):
         return self.TORCH_INDEX_URLS.get(cuda_version_or_cpu)
-
-    @staticmethod
-    def _detect_cuda_version_or_cpu(cluster: "Cluster" = None):
-        """Return the CUDA version on the cluster. If we are on a CPU-only cluster return 'cpu'.
-
-        Note: A cpu-only machine may have the CUDA toolkit installed, which means nvcc will still return
-        a valid version. Also check if the NVIDIA driver is installed to confirm we are on a GPU."""
-
-        status_codes = run_setup_command("nvcc --version", cluster=cluster)
-        if not status_codes[0] == 0:
-            return "cpu"
-        cuda_version = status_codes[1].split("release ")[1].split(",")[0]
-
-        if run_setup_command("nvidia-smi", cluster=cluster)[0] == 0:
-            return cuda_version
-        return "cpu"
 
     @staticmethod
     def _packages_to_install_from_cmd(install_cmd: str):
