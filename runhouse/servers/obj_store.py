@@ -13,7 +13,6 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
 
-import runhouse
 from runhouse.constants import CONFIG_YAML_PATH
 from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import ResourceVisibility
@@ -1513,9 +1512,9 @@ class ObjStore:
     ##############################################
     # Cluster info methods
     ##############################################
-    def _get_objects_in_env(self):
-        objects_in_env_modified = []
-        if self.has_local_storage:
+    def keys_with_type(self):
+        keys_with_type = []
+        if self.has_local_storage and self.servlet_name is not None:
             for k, v in self._kv_store.items():
                 cls = type(v)
                 py_module = cls.__module__
@@ -1524,15 +1523,9 @@ class ObjStore:
                     if py_module == "builtins"
                     else (py_module + "." + cls.__qualname__)
                 )
-                if isinstance(v, runhouse.Resource):
-                    objects_in_env_modified.append(
-                        {"name": k, "resource_type": cls_name}
-                    )
-                else:
-                    objects_in_env_modified.append(
-                        {"name": k, "resource_type": cls_name}
-                    )
-        return objects_in_env_modified
+
+                keys_with_type.append({"name": k, "resource_type": cls_name})
+        return keys_with_type
 
     async def astatus(self):
         return await self.acall_actor_method(self.cluster_servlet, "status")

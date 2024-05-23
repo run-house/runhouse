@@ -32,6 +32,7 @@ class ClusterServletError(Exception):
     pass
 
 
+# This is a copy of the Pydantic model that we use to validate in Den
 class ResourceStatusData(BaseModel):
     cluster_config: dict
     env_resource_mapping: Dict[str, List[Dict[str, Any]]]
@@ -314,19 +315,23 @@ class ClusterServlet:
 
         post_status_thread.start()
 
-    async def _cluster_status_helper(self, env_servlet_name):
+    async def _status_for_env_servlet(self, env_servlet_name):
         try:
             (
-                objects_in_env_modified,
-                env_utilization_data,
-            ) = await obj_store.acall_actor_method(
-                obj_store.get_env_servlet(env_servlet_name), method="status_local"
+                objects_in_env_servlet,
+                env_servlet_utilization_data,
+            ) = await obj_store.acall_env_servlet_method(
+                env_servlet_name, method="status_local"
             )
+
             return {
                 "env_servlet_name": env_servlet_name,
-                "objects_in_env_modified": objects_in_env_modified,
-                "env_utilization_data": env_utilization_data,
+                "objects_in_env_servlet": objects_in_env_servlet,
+                "env_servlet_utilization_data": env_servlet_utilization_data,
             }
+
+        # Need to catch the exception here because we're running this in a gather,
+        # and need to know which env servlet failed
         except ObjStoreError as e:
             return {"env_servlet_name": env_servlet_name, "Exception": e}
 
@@ -337,30 +342,40 @@ class ClusterServlet:
 
         config_cluster = copy.deepcopy(self.cluster_config)
 
-        # poping out creds because we don't want to show them in the status
+        # Popping out creds because we don't want to show them in the status
         config_cluster.pop("creds", None)
 
-        # getting cluster servlets (envs) and their related objects
-        cluster_servlets = {}
-        cluster_envs_env_utilization_data = {}
-        get_env_servlets_status_tasks = [
-            self._cluster_status_helper(env_servlet_name)
-            for env_servlet_name in self._initialized_env_servlet_names
-        ]
+        # Getting data from each env servlet about the objects it contains and the utilization data
+        env_resource_mapping = {}
+        env_servlet_utilization_data = {}
         env_servlets_status = await asyncio.gather(
-            *get_env_servlets_status_tasks, return_exceptions=True
+            *[
+                self._status_for_env_servlet(env_servlet_name)
+                for env_servlet_name in self._initialized_env_servlet_names
+            ],
+            return_exceptions=True,
         )
+
+        # Store the data for the appropriate env servlet name
         for env_status in env_servlets_status:
             env_servlet_name = env_status.get("env_servlet_name")
+
+            # Nothing if there was an exception
             if "Exception" in env_status.keys():
-                cluster_servlets[env_servlet_name] = []
-                cluster_envs_env_utilization_data[env_servlet_name] = {}
-            else:
-                cluster_servlets[env_servlet_name] = env_status.get(
-                    "objects_in_env_modified"
+                e = env_status.get("Exception")
+                logger.warning(
+                    f"Exception {str(e)} in status for env servlet {env_servlet_name}"
                 )
-                cluster_envs_env_utilization_data[env_servlet_name] = env_status.get(
-                    "env_utilization_data"
+                env_resource_mapping[env_servlet_name] = []
+                env_servlet_utilization_data[env_servlet_name] = {}
+
+            # Otherwise, store what was in the env and the utilization data
+            else:
+                env_resource_mapping[env_servlet_name] = env_status.get(
+                    "objects_in_env_servlet"
+                )
+                env_servlet_utilization_data[env_servlet_name] = env_status.get(
+                    "env_servlet_utilization_data"
                 )
 
         # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
@@ -376,8 +391,8 @@ class ClusterServlet:
             "cluster_config": config_cluster,
             "runhouse_version": runhouse.__version__,
             "server_pid": get_pid(),
-            "env_resource_mapping": cluster_servlets,
-            "env_servlet_processes": cluster_envs_env_utilization_data,
+            "env_resource_mapping": env_resource_mapping,
+            "env_servlet_processes": env_servlet_utilization_data,
             "system_cpu_usage": cpu_usage,
             "system_memory_usage": memory_usage,
             "system_disk_usage": disk_usage,
