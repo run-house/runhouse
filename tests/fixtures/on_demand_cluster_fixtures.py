@@ -17,7 +17,7 @@ def restart_server(request):
     return request.config.getoption("--restart-server")
 
 
-def setup_test_cluster(args, request):
+def setup_test_cluster(args, request, create_env=False):
     cluster = rh.ondemand_cluster(**args)
     init_args[id(cluster)] = args
     if not cluster.is_up():
@@ -27,7 +27,7 @@ def setup_test_cluster(args, request):
 
     cluster.save()
 
-    if cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
+    if create_env or cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
         test_env().to(cluster)
     return cluster
 
@@ -49,8 +49,15 @@ def ondemand_cluster(request):
 
 @pytest.fixture(scope="session")
 def ondemand_aws_cluster(request):
-    args = {"name": "aws-cpu", "instance_type": "CPU:2+", "provider": "aws"}
-    cluster = setup_test_cluster(args, request)
+    args = {
+        "name": "aws-cpu",
+        "instance_type": "CPU:2+",
+        "provider": "aws",
+        "image_id": "docker:nvcr.io/nvidia/pytorch:23.10-py3",
+        "region": "us-east-2",
+        "default_env": rh.env(reqs=["skypilot"], working_dir=None),
+    }
+    cluster = setup_test_cluster(args, request, create_env=True)
     return cluster
 
 

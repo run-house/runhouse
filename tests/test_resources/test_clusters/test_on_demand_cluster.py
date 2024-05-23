@@ -42,6 +42,16 @@ def set_autostop_from_on_cluster_via_cluster_keep_warm():
     rh.here.keep_warm()
 
 
+def torch_exists():
+    try:
+        import torch
+
+        torch.rand(4)
+        return True
+    except ImportError:
+        return False
+
+
 class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCluster):
 
     MAP_FIXTURES = {"resource": "cluster"}
@@ -155,3 +165,13 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         # cluster.status()
         # # Check that last active is within the last second, so we know the activity wasn't just from the call itself
         # assert get_last_active() > time.time() - 1
+
+    @pytest.mark.level("release")
+    def test_docker_container_reqs(self, ondemand_aws_cluster):
+        ret_code = ondemand_aws_cluster.run("pip freeze | grep torch")[0][0]
+        assert ret_code == 0
+
+    @pytest.mark.level("release")
+    def test_fn_to_docker_container(self, ondemand_aws_cluster):
+        remote_torch_exists = rh.function(torch_exists).to(ondemand_aws_cluster)
+        assert remote_torch_exists()

@@ -264,7 +264,8 @@ class Defaults:
 
     def delete_provider(self, provider: str):
         """Remove a specific provider from the config secrets."""
-        self.defaults_cache.get("secrets", {}).pop(provider, None)
+        if self.defaults_cache.get("secrets"):
+            self.defaults_cache.get("secrets").pop(provider, None)
         self.save_defaults()
 
     def delete_defaults(self, config_path: Optional[str] = None):
