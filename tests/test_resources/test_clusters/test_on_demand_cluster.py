@@ -2,6 +2,7 @@ import asyncio
 import time
 
 import pytest
+import runhouse as rh
 
 import runhouse as rh
 
@@ -40,6 +41,14 @@ def set_autostop_from_on_cluster_via_cluster_obj(mins):
 
 def set_autostop_from_on_cluster_via_cluster_keep_warm():
     rh.here.keep_warm()
+
+def torch_exists():
+    try:
+        import torch  # noqa
+
+        return True
+    except ImportError:
+        return False
 
 
 class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCluster):
