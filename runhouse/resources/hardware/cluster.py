@@ -105,6 +105,8 @@ class Cluster(Resource):
         self.use_local_telemetry = use_local_telemetry
 
         self._default_env = _get_env_from(default_env)
+        if self._default_env and not self._default_env.name:
+            self._default_env.name = _unnamed_default_env_name(self.name)
 
     @property
     def address(self):
