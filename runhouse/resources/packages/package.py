@@ -85,13 +85,12 @@ class Package(Resource):
             #  isn't finding the package right after its installed.
             # if (Path(local_path) / 'setup.py').exists():
             #     install_cmd = f'-e {local_path}' + install_args
+            path = self.install_target.local_path
             if self.install_method in ["pip", "conda"]:
                 install_cmd = f"{path}" + install_args
             elif self.install_method == "reqs":
                 if not cluster:
-                    path = self.install_target.local_path
                     reqs_path = f"{path}/requirements.txt"
-
                     if not Path(reqs_path).expanduser().exists():
                         return None
 
