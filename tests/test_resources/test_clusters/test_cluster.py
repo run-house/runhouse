@@ -625,3 +625,55 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         # The clusters are all logged out
         assert unassumed_token is None
+
+    @pytest.mark.level("local")
+    def test_send_status_to_db(self, cluster):
+        import json
+
+        if not cluster.den_auth:
+            pytest.skip(
+                "This test checking pinging cluster status to den, this could be done only on clusters "
+                "with den_auth that can be saved to den."
+            )
+
+        cluster.save()
+
+        status = cluster.status()
+        status_data = {
+            "status": "running",
+            "resource_type": status.get("cluster_config").get("resource_type"),
+            "data": dict(status),
+        }
+        cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
+        headers = rh.globals.rns_client.request_headers()
+        api_server_url = rh.globals.rns_client.api_server_url
+        post_status_data_resp = requests.post(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            data=json.dumps(status_data),
+            headers=headers,
+        )
+        assert post_status_data_resp.status_code in [200, 422]
+        get_status_data_resp = requests.get(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            headers=headers,
+        )
+        assert get_status_data_resp.status_code == 200
+        get_status_data = get_status_data_resp.json()["data"]
+        assert get_status_data["resource_type"] == status.get("cluster_config").get(
+            "resource_type"
+        )
+        assert get_status_data["status"] == "running"
+        assert get_status_data["data"] == dict(status)
+
+        status_data["status"] = "terminated"
+        post_status_data_resp = requests.post(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            data=json.dumps(status_data),
+            headers=headers,
+        )
+        assert post_status_data_resp.status_code == 200
+        get_status_data_resp = requests.get(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            headers=headers,
+        )
+        assert get_status_data_resp.json()["data"]["status"] == "terminated"

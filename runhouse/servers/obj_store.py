@@ -202,17 +202,13 @@ class ObjStore:
 
         config_yaml_exists = Path(CONFIG_YAML_PATH).expanduser().exists()
 
-        # if den_status_ping_interval == -1 that means that sending status to den DB periodically if off.
+        # if den_auth == True that means that sending status to den DB periodically if off.
 
-        den_status_ping_interval = (
+        den_auth = (
             await self.acall_actor_method(self.cluster_servlet, "aget_cluster_config")
-        ).get("den_status_ping_interval")
+        ).get("den_auth")
 
-        check_status_periodically = (
-            den_status_ping_interval > 0 if den_status_ping_interval else False
-        )
-
-        if config_yaml_exists and check_status_periodically:
+        if config_yaml_exists and den_auth:
 
             # adding the thread which will post the cluster status to den
             await self.acall_actor_method(self.cluster_servlet, "schedule_post_status")

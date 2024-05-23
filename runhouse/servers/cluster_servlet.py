@@ -257,9 +257,7 @@ class ClusterServlet:
         while True:
             logger.info("Sending cluster status to Den")
             try:
-                interval_size = (await self.aget_cluster_config()).get(
-                    "den_status_ping_interval"
-                )
+                interval_size = DEFAULT_STATUS_CHECK_INTERVAL
                 if interval_size == -1:
                     break
                 status: ResourceStatusData = await self.astatus()
@@ -296,9 +294,6 @@ class ClusterServlet:
                     f"Next status check will be in {round(INCREASED_STATUS_CHECK_INTERVAL / 60, 2)} minutes. "
                     f"For changing the interval size, please restart the server with a new interval size value. "
                     f"If a value is not provided, interval size will be set to {DEFAULT_STATUS_CHECK_INTERVAL}"
-                )
-                await self.aset_cluster_config_value(
-                    "den_status_ping_interval", INCREASED_STATUS_CHECK_INTERVAL
                 )
                 await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
             finally:
