@@ -14,7 +14,8 @@ RH_LOGFILE_PATH = Path.home() / LOGS_DIR
 
 ENVS_DIR = "~/.rh/envs"
 
-MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
+GIGABYTE = 1024**3
+MAX_MESSAGE_LENGTH = 1 * GIGABYTE
 
 CLI_RESTART_CMD = "runhouse restart"
 CLI_STOP_CMD = "runhouse stop"
@@ -60,11 +61,11 @@ TEST_ORG = "test-org"
 
 EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"
 
-# cluster status constants
+# Constants for the status check
 DOUBLE_SPACE_UNICODE = "\u00A0\u00A0"
 BULLET_UNICODE = "\u2022"
-DEFAULT_STATUS_CHECK_INTERVAL = 120  # two minutes
-INCREASED_STATUS_CHECK_INTERVAL = 3600
-# post status to den thread will start running 2 min after cluster servlet setup.
-# This delay enables the cluster setup to finish before running the post status job,
-STATUS_CHECK_DELAY = 120
+MINUTE = 60
+HOUR = 3600
+DEFAULT_STATUS_CHECK_INTERVAL = 2 * MINUTE
+INCREASED_STATUS_CHECK_INTERVAL = 1 * HOUR
+STATUS_CHECK_DELAY = 2 * MINUTE
