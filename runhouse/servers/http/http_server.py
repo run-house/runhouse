@@ -22,6 +22,7 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
+    DEFAULT_STATUS_CHECK_INTERVAL,
     EMPTY_DEFAULT_ENV_NAME,
     LOGGING_WAIT_TIME,
     RH_LOGFILE_PATH,
@@ -940,6 +941,14 @@ async def main():
         action="store_true",
         default=argparse.SUPPRESS,
         help="Whether HTTP server is called from Python rather than CLI.",
+    )
+
+    parser.add_argument(
+        "--den-status-ping-interval",
+        type=int,
+        default=DEFAULT_STATUS_CHECK_INTERVAL,
+        help="The time interval in seconds, that will pass between consecutive cluster status checks to Den. "
+        "Relevant if cluster is saved in Den.",
     )
 
     parse_args = parser.parse_args()

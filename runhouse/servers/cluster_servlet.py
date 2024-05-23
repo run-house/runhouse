@@ -1,15 +1,46 @@
 import asyncio
+import copy
+import json
 import logging
 import threading
 import time
 from typing import Any, Dict, List, Optional, Set, Union
+
+import requests
+from pydantic import BaseModel
+
+import runhouse
+
+from runhouse.constants import (
+    DEFAULT_STATUS_CHECK_INTERVAL,
+    INCREASED_STATUS_CHECK_INTERVAL,
+    STATUS_CHECK_DELAY,
+)
 
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.http.auth import AuthCache
 
+from runhouse.servers.obj_store import ObjStoreError
+from runhouse.utils import sync_function
+
 logger = logging.getLogger(__name__)
+
+
+class ClusterServletError(Exception):
+    pass
+
+
+class ResourceStatusData(BaseModel):
+    cluster_config: dict
+    env_resource_mapping: Dict[str, List[Dict[str, Any]]]
+    system_cpu_usage: float
+    system_memory_usage: Dict[str, Any]
+    system_disk_usage: Dict[str, Any]
+    env_servlet_processes: Dict[str, Dict[str, Any]]
+    server_pid: int
+    runhouse_version: str
 
 
 class ClusterServlet:
@@ -41,8 +72,8 @@ class ClusterServlet:
                     )
             self._last_activity = time.time()
             self._last_register = None
-            thread = threading.Thread(target=self.update_autostop, daemon=True)
-            thread.start()
+            autostop_thread = threading.Thread(target=self.update_autostop, daemon=True)
+            autostop_thread.start()
 
     ##############################################
     # Cluster autostop
@@ -217,3 +248,147 @@ class ClusterServlet:
         for key in deleted_keys:
             self._key_to_env_servlet_name.pop(key)
         return deleted_keys
+
+    ##############################################
+    # Cluster status functions
+    ##############################################
+
+    async def asend_status_info_to_den(self):
+        while True:
+            logger.info("Sending cluster status to Den")
+            try:
+                interval_size = (await self.aget_cluster_config()).get(
+                    "den_status_ping_interval"
+                )
+                if interval_size == -1:
+                    break
+                status: ResourceStatusData = await self.astatus()
+                status_data = {
+                    "status": "running",
+                    "resource_type": status.cluster_config.get("resource_type"),
+                    "data": dict(status),
+                }
+                cluster_uri = rns_client.format_rns_address(
+                    (await self.aget_cluster_config()).get("name")
+                )
+                api_server_url = status.cluster_config.get(
+                    "api_server_url", rns_client.api_server_url
+                )
+                post_status_data_resp = requests.post(
+                    f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+                    data=json.dumps(status_data),
+                    headers=rns_client.request_headers(),
+                )
+                if post_status_data_resp.status_code != 200:
+                    logger.error(
+                        f"({post_status_data_resp.status_code}) Failed to send cluster status check to Den: {post_status_data_resp.text}"
+                    )
+                else:
+                    logger.info(
+                        f"Successfully updated cluster status in Den. Next status check will be in {round(interval_size / 60, 2)} minutes."
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Cluster status check has failed: {e}. Please check cluster logs for more info."
+                )
+                logger.warning(
+                    f"Temporarily increasing the interval between two consecutive status checks. "
+                    f"Next status check will be in {round(INCREASED_STATUS_CHECK_INTERVAL / 60, 2)} minutes. "
+                    f"For changing the interval size, please restart the server with a new interval size value. "
+                    f"If a value is not provided, interval size will be set to {DEFAULT_STATUS_CHECK_INTERVAL}"
+                )
+                await self.aset_cluster_config_value(
+                    "den_status_ping_interval", INCREASED_STATUS_CHECK_INTERVAL
+                )
+                await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
+            finally:
+
+                await asyncio.sleep(interval_size)
+
+    def send_status_info_to_den(self):
+        asyncio.run(self.asend_status_info_to_den())
+
+    def schedule_post_status(self):
+        # adding post status to den thread
+        logger.debug("adding send_status_info_to_den to thread pool")
+        # delay the start of post_status_thread, so we'll finish the cluster startup properly
+        post_status_thread = threading.Timer(
+            STATUS_CHECK_DELAY, self.send_status_info_to_den
+        )
+        logger.debug("starting send_status_info_to_den thread")
+
+        post_status_thread.start()
+
+    async def _cluster_status_helper(self, env_servlet_name):
+        try:
+            (
+                objects_in_env_modified,
+                env_utilization_data,
+            ) = await obj_store.acall_actor_method(
+                obj_store.get_env_servlet(env_servlet_name), method="status_local"
+            )
+            return {
+                "env_servlet_name": env_servlet_name,
+                "objects_in_env_modified": objects_in_env_modified,
+                "env_utilization_data": env_utilization_data,
+            }
+        except ObjStoreError as e:
+            return {"env_servlet_name": env_servlet_name, "Exception": e}
+
+    async def astatus(self):
+        import psutil
+
+        from runhouse.utils import get_pid
+
+        config_cluster = copy.deepcopy(self.cluster_config)
+
+        # poping out creds because we don't want to show them in the status
+        config_cluster.pop("creds", None)
+
+        # getting cluster servlets (envs) and their related objects
+        cluster_servlets = {}
+        cluster_envs_env_utilization_data = {}
+        get_env_servlets_status_tasks = [
+            self._cluster_status_helper(env_servlet_name)
+            for env_servlet_name in self._initialized_env_servlet_names
+        ]
+        env_servlets_status = await asyncio.gather(
+            *get_env_servlets_status_tasks, return_exceptions=True
+        )
+        for env_status in env_servlets_status:
+            env_servlet_name = env_status.get("env_servlet_name")
+            if "Exception" in env_status.keys():
+                cluster_servlets[env_servlet_name] = []
+                cluster_envs_env_utilization_data[env_servlet_name] = {}
+            else:
+                cluster_servlets[env_servlet_name] = env_status.get(
+                    "objects_in_env_modified"
+                )
+                cluster_envs_env_utilization_data[env_servlet_name] = env_status.get(
+                    "env_utilization_data"
+                )
+
+        # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
+        cpu_usage = psutil.cpu_percent(interval=1)
+
+        # Fields: `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
+        memory_usage = psutil.virtual_memory()._asdict()
+
+        # Fields: `total`, `used`, `free`, `percent`
+        disk_usage = psutil.disk_usage("/")._asdict()
+
+        status_data = {
+            "cluster_config": config_cluster,
+            "runhouse_version": runhouse.__version__,
+            "server_pid": get_pid(),
+            "env_resource_mapping": cluster_servlets,
+            "env_servlet_processes": cluster_envs_env_utilization_data,
+            "system_cpu_usage": cpu_usage,
+            "system_memory_usage": memory_usage,
+            "system_disk_usage": disk_usage,
+        }
+        status_data = ResourceStatusData(**status_data)
+        return status_data
+
+    def status(self):
+        return sync_function(self.astatus)()

@@ -39,8 +39,13 @@ def sync_function(coroutine_func):
     return wrapper
 
 
-def string_to_dict(dict_as_string):
-    parts = dict_as_string.split(":")
-    key = parts[0].strip()
-    value = parts[1].strip()
-    return key, value
+def get_pid():
+    import os
+
+    return os.getpid()
+
+
+def get_node_ip():
+    import socket
+
+    return socket.gethostbyname(socket.gethostname())
