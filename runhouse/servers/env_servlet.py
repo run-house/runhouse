@@ -289,9 +289,7 @@ class EnvServlet:
         return env_gpu_usage
 
     def status_local(self):
-        # The objects in env can be of any type, and not only runhouse resources,
-        # therefore we need to distinguish them when creating the list of the resources in each env.
-        objects_in_env_modified = obj_store._get_objects_in_env()
+        objects_in_env_servlet = obj_store.keys_with_type()
 
         (
             env_memory_usage,
@@ -304,7 +302,7 @@ class EnvServlet:
         # Try loading GPU data (if relevant)
         env_gpu_usage = self._get_env_gpu_usage(int(env_servlet_pid))
 
-        env_utilization_data = {
+        env_servlet_utilization_data = {
             "env_gpu_usage": env_gpu_usage,
             "node_ip": node_ip,
             "node_name": node_name,
@@ -312,4 +310,4 @@ class EnvServlet:
             "env_memory_usage": env_memory_usage,
         }
 
-        return objects_in_env_modified, env_utilization_data
+        return objects_in_env_servlet, env_servlet_utilization_data
