@@ -15,7 +15,7 @@ from runhouse.servers.http.http_utils import (
 )
 from runhouse.servers.obj_store import ClusterServletSetupOption
 
-from runhouse.utils import get_node_ip
+from runhouse.utils import arun_in_thread, get_node_ip
 
 logger = logging.getLogger(__name__)
 
@@ -288,7 +288,7 @@ class EnvServlet:
 
         return env_gpu_usage
 
-    def status_local(self):
+    def _status_local_helper(self):
         objects_in_env_servlet = obj_store.keys_with_type()
 
         (
@@ -311,3 +311,6 @@ class EnvServlet:
         }
 
         return objects_in_env_servlet, env_servlet_utilization_data
+
+    async def astatus_local(self):
+        return await arun_in_thread(self._status_local_helper)

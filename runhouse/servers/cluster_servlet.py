@@ -22,7 +22,6 @@ from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.http.auth import AuthCache
 
-from runhouse.servers.obj_store import ObjStoreError
 from runhouse.utils import sync_function
 
 logger = logging.getLogger(__name__)
@@ -75,6 +74,13 @@ class ClusterServlet:
             self._last_register = None
             autostop_thread = threading.Thread(target=self.update_autostop, daemon=True)
             autostop_thread.start()
+
+        if self.cluster_config and self.cluster_config.get("den_auth", False):
+            logger.debug("Creating send_status_info_to_den thread.")
+            post_status_thread = threading.Thread(
+                target=self.send_status_info_to_den, daemon=True
+            )
+            post_status_thread.start()
 
     ##############################################
     # Cluster autostop
@@ -255,8 +261,10 @@ class ClusterServlet:
     ##############################################
 
     async def asend_status_info_to_den(self):
+        # Delay the start of post_status_thread, so we'll finish the cluster startup properly
+        await asyncio.sleep(STATUS_CHECK_DELAY)
         while True:
-            logger.info("Sending cluster status to Den")
+            logger.info("Sending cluster status to Den.")
             try:
                 interval_size = DEFAULT_STATUS_CHECK_INTERVAL
                 if interval_size == -1:
@@ -304,24 +312,13 @@ class ClusterServlet:
     def send_status_info_to_den(self):
         asyncio.run(self.asend_status_info_to_den())
 
-    def schedule_post_status(self):
-        # adding post status to den thread
-        logger.debug("adding send_status_info_to_den to thread pool")
-        # delay the start of post_status_thread, so we'll finish the cluster startup properly
-        post_status_thread = threading.Timer(
-            STATUS_CHECK_DELAY, self.send_status_info_to_den
-        )
-        logger.debug("starting send_status_info_to_den thread")
-
-        post_status_thread.start()
-
     async def _status_for_env_servlet(self, env_servlet_name):
         try:
             (
                 objects_in_env_servlet,
                 env_servlet_utilization_data,
             ) = await obj_store.acall_env_servlet_method(
-                env_servlet_name, method="status_local"
+                env_servlet_name, method="astatus_local"
             )
 
             return {
@@ -332,7 +329,7 @@ class ClusterServlet:
 
         # Need to catch the exception here because we're running this in a gather,
         # and need to know which env servlet failed
-        except ObjStoreError as e:
+        except Exception as e:
             return {"env_servlet_name": env_servlet_name, "Exception": e}
 
     async def astatus(self):
@@ -353,7 +350,6 @@ class ClusterServlet:
                 self._status_for_env_servlet(env_servlet_name)
                 for env_servlet_name in self._initialized_env_servlet_names
             ],
-            return_exceptions=True,
         )
 
         # Store the data for the appropriate env servlet name
