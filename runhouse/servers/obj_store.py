@@ -1,22 +1,17 @@
 import asyncio
-import contextvars
-import functools
 import inspect
 import logging
 import os
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from functools import wraps
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
 
-from runhouse.constants import CONFIG_YAML_PATH
 from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import ResourceVisibility
-from runhouse.utils import sync_function
+from runhouse.utils import arun_in_thread, sync_function
 
 logger = logging.getLogger(__name__)
 
@@ -198,19 +193,6 @@ class ObjStore:
             logging.warning(
                 "Warning, cluster servlet is not initialized. Object Store operations will not work."
             )
-
-        config_yaml_exists = Path(CONFIG_YAML_PATH).expanduser().exists()
-
-        # if den_auth == True that means that sending status to den DB periodically if off.
-
-        den_auth = (
-            await self.acall_actor_method(self.cluster_servlet, "aget_cluster_config")
-        ).get("den_auth")
-
-        if config_yaml_exists and den_auth:
-
-            # adding the thread which will post the cluster status to den
-            await self.acall_actor_method(self.cluster_servlet, "schedule_post_status")
 
         # There are 3 operating modes of the KV store:
         # servlet_name is set, has_local_storage is True: This is an EnvServlet with a local KV store.
@@ -1053,27 +1035,6 @@ class ObjStore:
             ctx=dict(req_ctx.get()),
         )
 
-    async def arun_in_thread(self, method_to_run, *args, **kwargs):
-        def _run_sync_fn_with_context(
-            context_to_set, sync_fn, method_args, method_kwargs
-        ):
-            for var, value in context_to_set.items():
-                var.set(value)
-
-            return sync_fn(*method_args, **method_kwargs)
-
-        with ThreadPoolExecutor() as executor:
-            return await asyncio.get_event_loop().run_in_executor(
-                executor,
-                functools.partial(
-                    _run_sync_fn_with_context,
-                    context_to_set=contextvars.copy_context(),
-                    sync_fn=method_to_run,
-                    method_args=args,
-                    method_kwargs=kwargs,
-                ),
-            )
-
     async def acall_local(
         self,
         key: str,
@@ -1180,7 +1141,7 @@ class ObjStore:
                 f"{self.servlet_name} env: Calling method {method_name} on module {key}"
             )
 
-            res = await self.arun_in_thread(method, *args, **kwargs)
+            res = await arun_in_thread(method, *args, **kwargs)
 
             # If this was a coroutine function (not a function returning a corotuine), we need to await it here,
             # and not use the FutureModule
