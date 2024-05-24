@@ -64,7 +64,7 @@ class ClusterServlet:
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
             if cluster_config.get("autostop_mins") > 0:
                 try:
-                    from sky.skylet import configs  # noqa
+                    from sky.skylet import configs as sky_configs  # noqa
                 except ImportError:
                     raise ImportError(
                         "skypilot must be installed on the cluster environment to support cluster autostop. "
