@@ -30,6 +30,16 @@ class ServerConnectionType(str, Enum):
     AWS_SSM = "aws_ssm"
 
 
+class ResourceServerStatus(str, Enum):
+    running = "running"
+    terminated = "terminated"
+    unauthorized = "unauthorized"
+    unknown = "unknown"
+    internal_server_error = "internal_server_error"
+    server_down = "server_down"
+    invalid_url = "invalid_url"
+
+
 def cluster_config_file_exists() -> bool:
     return Path(CLUSTER_CONFIG_PATH).expanduser().exists()
 

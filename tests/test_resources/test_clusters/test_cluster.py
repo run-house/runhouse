@@ -16,6 +16,8 @@ from runhouse.constants import (
     SERVER_LOGFILE_PATH,
 )
 
+from runhouse.resources.hardware.utils import ResourceServerStatus
+
 import tests.test_resources.test_resource
 from tests.conftest import init_args
 from tests.test_resources.test_envs.test_env import _get_env_var_value
@@ -667,6 +669,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_send_status_to_db(self, cluster):
         import json
 
+        # TODO [SB]: remove the den_auth check once we will get status of clusters without den_auth as well.
         if not cluster.den_auth:
             pytest.skip(
                 "This test checking pinging cluster status to den, this could be done only on clusters "
@@ -677,7 +680,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         status = cluster.status()
         status_data = {
-            "status": "running",
+            "status": ResourceServerStatus.running,
             "resource_type": status.get("cluster_config").get("resource_type"),
             "data": dict(status),
         }
@@ -699,10 +702,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert get_status_data["resource_type"] == status.get("cluster_config").get(
             "resource_type"
         )
-        assert get_status_data["status"] == "running"
+        assert get_status_data["status"] == ResourceServerStatus.running
         assert get_status_data["data"] == dict(status)
 
-        status_data["status"] = "terminated"
+        status_data["status"] = ResourceServerStatus.terminated
         post_status_data_resp = requests.post(
             f"{api_server_url}/resource/{cluster_uri}/cluster/status",
             data=json.dumps(status_data),
@@ -713,10 +716,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             f"{api_server_url}/resource/{cluster_uri}/cluster/status",
             headers=headers,
         )
-        assert get_status_data_resp.json()["data"][0]["status"] == "terminated"
+        assert (
+            get_status_data_resp.json()["data"][0]["status"]
+            == ResourceServerStatus.terminated
+        )
 
     @pytest.mark.level("minimal")
     def test_status_scheduler_basic_flow(self, cluster):
+        # TODO [SB]: remove the den_auth check once we will get status of clusters without den_ayth as well.
         if not cluster.den_auth:
             pytest.skip(
                 "This test checking pinging cluster status to den, this could be done only on clusters "
@@ -747,7 +754,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
 
         assert get_status_data_resp.status_code == 200
-        assert get_status_data_resp.json()["data"][0]["status"] == "running"
+        assert (
+            get_status_data_resp.json()["data"][0]["status"]
+            == ResourceServerStatus.running
+        )
 
     ####################################################################################################
     # Default env tests
