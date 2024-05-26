@@ -30,6 +30,7 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
+    DEFAULT_STATUS_CHECK_INTERVAL,
     EMPTY_DEFAULT_ENV_NAME,
     LOCALHOST,
     RESERVED_SYSTEM_NAMES,
@@ -150,9 +151,21 @@ class Cluster(Resource):
                 "Run `cluster.restart_server()` to restart the Runhouse server on the new default env."
             )
 
-    def save_config_to_cluster(self, node: str = None):
+    def save_config_to_cluster(
+        self,
+        node: str = None,
+        status_check_interval: int = DEFAULT_STATUS_CHECK_INTERVAL,
+    ):
         config = self.config(condensed=False)
+
+        # popping creds, because we don't want the secret reds will be saved on the cluster.
         config.pop("creds")
+
+        # if the cluster has den authorization, the cluster status will be checked periodically.
+        # Saving the time interval between consecutive status checks to cluster_config.
+        if self.den_auth:
+            config["status_check_interval"] = status_check_interval
+
         json_config = f"{json.dumps(config)}"
 
         self.run(
@@ -1645,3 +1658,30 @@ class Cluster(Resource):
             config["default_env"] = default_env
 
         return config
+
+    def _disable_status_check(self):
+        """
+        Stopping sending status to Den.
+        """
+        if not self.den_auth:
+            logger.error(
+                "Cluster must have Den authorization to disable periodic status checks. "
+                "Make sure you have a Den account, and you've created your cluster with den_auth = True."
+            )
+            return
+        self.save_config_to_cluster(status_check_interval=-1)
+
+    def _enable_or_update_status_check(
+        self, new_interval: int = DEFAULT_STATUS_CHECK_INTERVAL
+    ):
+        """
+        Enables a periodic status check or updates the interval between to consecutive cluster status checks.
+        :param new_interval: int, the new interval size.
+        """
+        if not self.den_auth:
+            logger.error(
+                "Cluster must have Den authorization to change periodic status checks interval size. "
+                "Make sure you have a Den account, and you've created your cluster with den_auth = True."
+            )
+            return
+        self.save_config_to_cluster(status_check_interval=new_interval)

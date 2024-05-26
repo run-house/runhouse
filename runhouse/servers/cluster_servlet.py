@@ -4,6 +4,7 @@ import json
 import logging
 import threading
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
 import requests
@@ -12,6 +13,7 @@ from pydantic import BaseModel
 import runhouse
 
 from runhouse.constants import (
+    CLUSTER_CONFIG_PATH,
     DEFAULT_STATUS_CHECK_INTERVAL,
     INCREASED_STATUS_CHECK_INTERVAL,
     STATUS_CHECK_DELAY,
@@ -117,6 +119,26 @@ class ClusterServlet:
     ##############################################
     async def aget_cluster_config(self) -> Dict[str, Any]:
         return self.cluster_config
+
+    async def aupdate_status_check_interval_in_cluster_config(self):
+        cluster_path = Path(CLUSTER_CONFIG_PATH).expanduser()
+        with open(cluster_path) as cluster_local_config:
+            local_config = json.load(cluster_local_config)
+            local_interval = local_config.get("status_check_interval")
+            servlet_interval = self.cluster_config.get("status_check_interval")
+            if (
+                servlet_interval
+                and local_interval
+                and local_interval != servlet_interval
+            ):
+                await self.aset_cluster_config(local_config)
+                if local_interval > 0:
+                    logger.info(
+                        f"Updated cluster_config with new status check interval: {round(local_interval/60, 2)} minutes."
+                    )
+                return True
+            else:
+                return False
 
     async def aset_cluster_config(self, cluster_config: Dict[str, Any]):
         self.cluster_config = cluster_config
@@ -266,10 +288,33 @@ class ClusterServlet:
         # Delay the start of post_status_thread, so we'll finish the cluster startup properly
         await asyncio.sleep(STATUS_CHECK_DELAY)
         while True:
-            logger.info("Sending cluster status to Den.")
+            logger.info("Trying to send cluster status to Den.")
             try:
-                interval_size = DEFAULT_STATUS_CHECK_INTERVAL
+                is_config_updated = (
+                    await self.aupdate_status_check_interval_in_cluster_config()
+                )
+                interval_size = (await self.aget_cluster_config()).get(
+                    "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
+                )
+                den_auth = (await self.aget_cluster_config()).get(
+                    "den_auth", DEFAULT_STATUS_CHECK_INTERVAL
+                )
                 if interval_size == -1:
+                    if is_config_updated:
+                        logger.info(
+                            f"Disabled periodic cluster status check. For enabling it, please run "
+                            f"cluster.restart_server(). If you want to set up an interval size that is not the "
+                            f"default value {round(DEFAULT_STATUS_CHECK_INTERVAL/60,2)} please run "
+                            f"cluster._enable_or_update_status_check(interval_size) after restarting the server."
+                        )
+                    break
+                if not den_auth:
+                    logger.info(
+                        f"Disabled periodic cluster status check because den_auth is disabled. For enabling it, please run "
+                        f"cluster.restart_server() and make sure that den_auth is enabled. If you want to set up an interval size that is not the "
+                        f"default value {round(DEFAULT_STATUS_CHECK_INTERVAL / 60, 2)} please run "
+                        f"cluster._enable_or_update_status_check(interval_size) after restarting the server."
+                    )
                     break
                 status: ResourceStatusData = await self.astatus()
                 status_data = {
@@ -303,12 +348,11 @@ class ClusterServlet:
                 logger.warning(
                     f"Temporarily increasing the interval between two consecutive status checks. "
                     f"Next status check will be in {round(INCREASED_STATUS_CHECK_INTERVAL / 60, 2)} minutes. "
-                    f"For changing the interval size, please restart the server with a new interval size value. "
+                    f"For changing the interval size, please run cluster._enable_or_update_status_check(new_interval). "
                     f"If a value is not provided, interval size will be set to {DEFAULT_STATUS_CHECK_INTERVAL}"
                 )
                 await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
             finally:
-
                 await asyncio.sleep(interval_size)
 
     def send_status_info_to_den(self):
