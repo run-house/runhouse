@@ -131,6 +131,7 @@ class Mapper(Module):
             >>> mapper.map(*output_paths, method="save_data")
         """
         # Don't stream logs by default unless the mapper is remote (i.e. mediating the mapping)
+        print(f"length of arg list {len(list(zip(*args)))}")
         return self.starmap(
             arg_list=zip(*args), method=method, retries=retries, **kwargs
         )
