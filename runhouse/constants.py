@@ -69,8 +69,8 @@ HOUR = 3600
 DEFAULT_STATUS_CHECK_INTERVAL = 2 * MINUTE
 
 # Constants Surfacing Logs to Den
-DEFAULT_STATUS_LOG_LENGTH = 20
-DEFAULT_LOG_SEND_INTERVAL = 2 * MINUTE
+DEFAULT_SURFACED_LOG_LENGTH = 20
+DEFAULT_LOG_SURFACING_INTERVAL = 2 * MINUTE
 MAX_SURFACED_LOG_LENGTH = 100  # max length of logs that will be surfaced for free
 
 # Constants for schedulers
