@@ -377,7 +377,6 @@ class ClusterServlet:
     def _get_logs(self):
         with open(SERVER_LOGFILE) as log_file:
             log_lines = log_file.readlines()
-
         cleaned_log_lines = [ColoredFormatter.format_log(line) for line in log_lines]
         return " ".join(cleaned_log_lines)
 
