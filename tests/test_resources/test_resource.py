@@ -203,7 +203,7 @@ class TestResource:
         resource_class_name = saved_resource.config().get("resource_type").capitalize()
         config = saved_resource.config()
 
-        with friend_account_in_org():
+        with friend_account():
             new_config = load_shared_resource_config(
                 resource_class_name, saved_resource.rns_address
             )

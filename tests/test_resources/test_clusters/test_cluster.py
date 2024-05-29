@@ -519,7 +519,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             )
 
         cluster.share(
-            users=["support@run.house"],
+            users=["info@run.house"],
             access_level="read",
             notify_users=False,
         )
@@ -528,7 +528,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         resource_class_name = cluster.config().get("resource_type").capitalize()
         config = cluster.config()
 
-        with friend_account_in_org():
+        with friend_account():
             curr_config = load_shared_resource_config(
                 resource_class_name, cluster.rns_address
             )
