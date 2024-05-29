@@ -14,9 +14,12 @@ import runhouse
 
 from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
+    DEFAULT_LOG_SEND_INTERVAL,
     DEFAULT_STATUS_CHECK_INTERVAL,
-    INCREASED_STATUS_CHECK_INTERVAL,
-    STATUS_CHECK_DELAY,
+    DEFAULT_STATUS_LOG_LENGTH,
+    INCREASED_INTERVAL,
+    SCHEDULERS_DELAY,
+    SERVER_LOGFILE,
 )
 
 from runhouse.globals import configs, obj_store, rns_client
@@ -85,6 +88,12 @@ class ClusterServlet:
                 target=self.send_status_info_to_den, daemon=True
             )
             post_status_thread.start()
+
+            logger.debug("Creating send_logs_to_den thread.")
+            send_logs_thread = threading.Thread(
+                target=self.send_cluster_logs_to_den, daemon=True
+            )
+            send_logs_thread.start()
 
     ##############################################
     # Cluster autostop
@@ -286,7 +295,7 @@ class ClusterServlet:
 
     async def asend_status_info_to_den(self):
         # Delay the start of post_status_thread, so we'll finish the cluster startup properly
-        await asyncio.sleep(STATUS_CHECK_DELAY)
+        await asyncio.sleep(SCHEDULERS_DELAY)
         while True:
             logger.info("Trying to send cluster status to Den.")
             try:
@@ -347,11 +356,11 @@ class ClusterServlet:
                 )
                 logger.warning(
                     f"Temporarily increasing the interval between two consecutive status checks. "
-                    f"Next status check will be in {round(INCREASED_STATUS_CHECK_INTERVAL / 60, 2)} minutes. "
+                    f"Next status check will be in {round(INCREASED_INTERVAL / 60, 2)} minutes. "
                     f"For changing the interval size, please run cluster._enable_or_update_status_check(new_interval). "
                     f"If a value is not provided, interval size will be set to {DEFAULT_STATUS_CHECK_INTERVAL}"
                 )
-                await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
+                await asyncio.sleep(INCREASED_INTERVAL)
             finally:
                 await asyncio.sleep(interval_size)
 
@@ -444,3 +453,62 @@ class ClusterServlet:
 
     def status(self):
         return sync_function(self.astatus)()
+
+    ##############################################
+    # Surface cluster logs to Den
+    ##############################################
+    def _get_logs(self, num_of_lines: int):
+        with open(SERVER_LOGFILE) as log_file:
+            log_lines = log_file.readlines()
+            if num_of_lines >= len(log_lines):
+                return " ".join(log_lines)
+            return " ".join(log_lines[-num_of_lines:])
+
+    async def asend_cluster_logs_to_den(
+        self, num_of_lines: int = DEFAULT_STATUS_LOG_LENGTH
+    ):
+        # Delay the start of post_logs_thread, so we'll finish the cluster startup properly
+        await asyncio.sleep(SCHEDULERS_DELAY)
+
+        while True:
+            logger.info("Trying to send cluster logs to Den")
+            try:
+                interval_size = DEFAULT_LOG_SEND_INTERVAL
+                latest_logs = self._get_logs(num_of_lines=num_of_lines)
+                s3_file_name = ""
+                logs_data = {"file_name": s3_file_name, "logs": latest_logs}
+                cluster_config = await self.aget_cluster_config()
+                cluster_uri = rns_client.format_rns_address(cluster_config.get("name"))
+                api_server_url = cluster_config.get(
+                    "api_server_url", rns_client.api_server_url
+                )
+
+                post_logs_resp = requests.post(
+                    f"{api_server_url}/resource/{cluster_uri}/logs",
+                    data=json.dumps(logs_data),
+                    headers=rns_client.request_headers(),
+                )
+
+                if post_logs_resp.status_code != 200:
+                    logger.error(
+                        f"({post_logs_resp.status_code}) Failed to send cluster logs to Den: {post_logs_resp.text}"
+                    )
+                else:
+                    logger.info(
+                        f"Successfully sent cluster logs to Den. Next status check will be in {round(interval_size / 60, 2)} minutes."
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Sending cluster logs to den has failed: {e}. Please check cluster logs for more info."
+                )
+                logger.warning(
+                    f"Temporarily increasing the interval between two consecutive log retrievals."
+                    f"Next log retrieval will be in {round(INCREASED_INTERVAL / 60, 2)} minutes. "
+                    f"For changing the interval size, please run cluster.restart_server(). "
+                    f"Interval size will be set to {interval_size}"
+                )
+            finally:
+                await asyncio.sleep(interval_size)
+
+    def send_cluster_logs_to_den(self):
+        asyncio.run(self.asend_cluster_logs_to_den())
