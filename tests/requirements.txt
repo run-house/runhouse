@@ -12,7 +12,7 @@ docker
 s3fs
 pandas
 pyarrow
-openapi-core
+openapi-core==0.19.1
 
 # packages for minimal+ tests
 skypilot
