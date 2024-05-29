@@ -43,6 +43,7 @@ class AuthCache:
             resource_uri_to_send = resource_uri.replace("/", ":")
 
         uri = f"{self.cluster_config.get('api_server_url')}/resource/{resource_uri_to_send}"
+
         resp = rns_client.session.get(
             uri,
             headers={"Authorization": f"Bearer {token}"},
