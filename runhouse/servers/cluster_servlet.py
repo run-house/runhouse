@@ -12,9 +12,9 @@ import runhouse
 
 from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
-    DEFAULT_LOG_SEND_INTERVAL,
+    DEFAULT_LOG_SURFACING_INTERVAL,
     DEFAULT_STATUS_CHECK_INTERVAL,
-    DEFAULT_STATUS_LOG_LENGTH,
+    DEFAULT_SURFACED_LOG_LENGTH,
     INCREASED_INTERVAL,
     SCHEDULERS_DELAY,
     SERVER_LOGFILE,
@@ -413,7 +413,7 @@ class ClusterServlet:
             return " ".join(log_lines[-num_of_lines:])
 
     async def asend_cluster_logs_to_den(
-        self, num_of_lines: int = DEFAULT_STATUS_LOG_LENGTH
+        self, num_of_lines: int = DEFAULT_SURFACED_LOG_LENGTH
     ):
         # Delay the start of post_logs_thread, so we'll finish the cluster startup properly
         await asyncio.sleep(SCHEDULERS_DELAY)
@@ -421,9 +421,9 @@ class ClusterServlet:
         while True:
             logger.info("Trying to send cluster logs to Den")
             try:
-                interval_size = DEFAULT_LOG_SEND_INTERVAL
+                interval_size = DEFAULT_LOG_SURFACING_INTERVAL
                 latest_logs = self._get_logs(num_of_lines=num_of_lines)
-                s3_file_name = ""
+                s3_file_name = "server.log"
                 logs_data = {"file_name": s3_file_name, "logs": latest_logs}
                 cluster_config = await self.aget_cluster_config()
                 cluster_uri = rns_client.format_rns_address(cluster_config.get("name"))
