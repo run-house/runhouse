@@ -163,6 +163,9 @@ class Package(Resource):
                 else:
                     path = self.to(cluster).install_target.path
 
+                if not path:
+                    return
+
                 if self.install_method == "reqs" and install_cmd:
                     logging.info(
                         f"pip installing {path}/requirements.txt with: {install_cmd}"
