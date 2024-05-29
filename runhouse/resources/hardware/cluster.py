@@ -153,20 +153,12 @@ class Cluster(Resource):
                 "Run `cluster.restart_server()` to restart the Runhouse server on the new default env."
             )
 
-    def save_config_to_cluster(
-        self,
-        node: str = None,
-        status_check_interval: int = DEFAULT_STATUS_CHECK_INTERVAL,
-    ):
-        config = self.config(condensed=False)
+    def save_config_to_cluster(self, node: str = None, config: dict = None):
+        if not config:
+            config = self.config(condensed=False)
 
-        # popping creds, because we don't want the secret reds will be saved on the cluster.
-        config.pop("creds")
-
-        # if the cluster has den authorization, the cluster status will be checked periodically.
-        # Saving the time interval between consecutive status checks to cluster_config.
-        if self.den_auth:
-            config["status_check_interval"] = status_check_interval
+        # popping creds (if exist), because we don't want the secret reds will be saved on the cluster.
+        config.pop("creds", None)
 
         json_config = f"{json.dumps(config)}"
 
@@ -176,6 +168,36 @@ class Cluster(Resource):
             ],
             node=node or "all",
         )
+
+    def update_cluster_in_cluster(self, items_to_update: Union[dict, list[dict]]):
+        """
+        Update specific items on the cluster config saved on the cluster.
+        :param items_to_update: The item(s) to be updated in the config. If only one item should be updated, pass
+        it as a dictionary. e.g: {"den_status_ping_interval": -1}. If fre items need to be updated, pass them as list
+        of dictionaries, e.g: [{"den_status_ping_interval": -1}, {log_length_in_den: 30}]
+        """
+        current_config_on_cluster = self.run([f"cat {CLUSTER_CONFIG_PATH}"])
+        if current_config_on_cluster[0][0] != 0:
+            logger.warning(
+                "Could not get the cluster config saved on the cluster, therefore it was not "
+                "updated with the provided item(s)."
+            )
+            return
+        current_config_on_cluster = json.loads(current_config_on_cluster[0][1])
+        if isinstance(items_to_update, dict):
+            for k, v in items_to_update.items():
+                if self.den_auth and k == "status_check_interval":
+                    current_config_on_cluster[k] = v
+                else:
+                    current_config_on_cluster[k] = v
+        else:
+            for item in items_to_update:
+                for k, v in item.items():
+                    if self.den_auth and k == "status_check_interval":
+                        current_config_on_cluster[k] = v
+                    else:
+                        current_config_on_cluster[k] = v
+        self.save_config_to_cluster(config=current_config_on_cluster)
 
     def save(self, name: str = None, overwrite: bool = True, folder: str = None):
         """Overrides the default resource save() method in order to also update
@@ -1674,7 +1696,7 @@ class Cluster(Resource):
                 "Make sure you have a Den account, and you've created your cluster with den_auth = True."
             )
             return
-        self.save_config_to_cluster(status_check_interval=-1)
+        self.update_cluster_in_cluster(items_to_update={"status_check_interval": -1})
 
     def _enable_or_update_status_check(
         self, new_interval: int = DEFAULT_STATUS_CHECK_INTERVAL
@@ -1689,7 +1711,9 @@ class Cluster(Resource):
                 "Make sure you have a Den account, and you've created your cluster with den_auth = True."
             )
             return
-        self.save_config_to_cluster(status_check_interval=new_interval)
+        self.update_cluster_in_cluster(
+            items_to_update={"status_check_interval": new_interval}
+        )
 
     ##############################################
     # Surface cluster logs to Den methods
