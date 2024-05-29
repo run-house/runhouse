@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 from typing import List
-
+import re
 
 class ColoredFormatter:
     COLORS = {
@@ -19,6 +19,12 @@ class ColoredFormatter:
     @classmethod
     def get_color(cls, color: str):
         return cls.COLORS.get(color, "")
+
+    # TODO: This method is a temp solution, until we'll update logging architecture. Remove once logging is cleaned up.
+    @classmethod
+    def format_log(cls, text):
+        ansi_escape = re.compile(r"(?:\x1B[@-_][0-?]*[ -/]*[@-~])")
+        return ansi_escape.sub("", text)
 
 
 class ClusterLogsFormatter:
