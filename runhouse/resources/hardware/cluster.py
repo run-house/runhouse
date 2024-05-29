@@ -220,7 +220,7 @@ class Cluster(Resource):
         if self._default_env and isinstance(self._default_env, Env):
             if not self._default_env.name:
                 self._default_env.name = _unnamed_default_env_name(self.name)
-            self._default_env.save()
+            self._default_env.save(folder=folder)
 
     @classmethod
     def from_config(cls, config: dict, dryrun=False, _resolve_children=True):
@@ -1614,13 +1614,23 @@ class Cluster(Resource):
         logger.info(
             "Sharing cluster credentials, which enables the recipient to SSH into the cluster."
         )
-        self._creds.share(
-            users=users,
-            access_level=access_level,
-            visibility=visibility,
-            notify_users=notify_users,
-            headers=headers,
-        )
+        if self._creds:
+            self._creds.share(
+                users=users,
+                access_level=access_level,
+                visibility=visibility,
+                notify_users=notify_users,
+                headers=headers,
+            )
+
+        if self._default_env:
+            self._default_env.share(
+                users=users,
+                access_level=access_level,
+                visibility=visibility,
+                notify_users=notify_users,
+                headers=headers,
+            )
 
         # share cluster
         return super().share(
