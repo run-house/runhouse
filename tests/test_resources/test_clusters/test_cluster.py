@@ -623,8 +623,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             )
             assert unassumed_token != rh.configs.token
 
-        # The clusters are all logged out
-        assert unassumed_token is None
+        # Docker clusters are logged out, ondemand clusters are logged in
+        output = cluster.run("sed -n 's/.*token: *//p' ~/.rh/config.yaml")
+        # No config file
+        if output[0][0] == 2:
+            assert unassumed_token is None
+        elif output[0][0] == 0:
+            assert unassumed_token == output[0][1].strip()
 
     @pytest.mark.level("local")
     def test_send_status_to_db(self, cluster):
