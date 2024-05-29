@@ -387,7 +387,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         assert f"ips: {str(cluster.ips)}" in status_output_string
         assert "Serving " in status_output_string
-        assert f"{default_env_name} (runhouse.Env)" in status_output_string
+        assert (
+            f"{default_env_name} (runhouse.Env)" in status_output_string
+            or f"{default_env_name} (runhouse.CondaEnv)" in status_output_string
+        )
         assert "status_key2 (str)" in status_output_string
         assert "creds" not in status_output_string
 
