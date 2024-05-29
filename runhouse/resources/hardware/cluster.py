@@ -33,8 +33,10 @@ from runhouse.constants import (
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
     DEFAULT_STATUS_CHECK_INTERVAL,
+    DEFAULT_STATUS_LOG_LENGTH,
     EMPTY_DEFAULT_ENV_NAME,
     LOCALHOST,
+    MAX_SURFACED_LOG_LENGTH,
     RESERVED_SYSTEM_NAMES,
 )
 from runhouse.globals import obj_store, rns_client
@@ -1692,6 +1694,9 @@ class Cluster(Resource):
 
         return config
 
+    ##############################################
+    # Send Cluster status to Den methods
+    ##############################################
     def _disable_status_check(self):
         """
         Stopping sending status to Den.
@@ -1718,3 +1723,23 @@ class Cluster(Resource):
             )
             return
         self.save_config_to_cluster(status_check_interval=new_interval)
+
+    ##############################################
+    # Surface cluster logs to Den methods
+    ##############################################
+
+    def _disable_log_surface(self):
+        # TODO [SB]: implement.
+        pass
+
+    def _enable_or_update_log_surface(
+        self, num_of_lines: int = DEFAULT_STATUS_LOG_LENGTH
+    ):
+        if num_of_lines > MAX_SURFACED_LOG_LENGTH:
+            logger.warning(
+                f"Your pricing model doesn't all to set log length to {num_of_lines} lines. "
+                f"Setting to maximum length of {MAX_SURFACED_LOG_LENGTH} lines"
+            )
+            num_of_lines = MAX_SURFACED_LOG_LENGTH
+
+        # TODO [SB]: save the log_len to config cluster.
