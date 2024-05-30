@@ -281,23 +281,23 @@ class Package(Resource):
         install_cmd: str, env: Union[str, "Env"] = "", cluster: "Cluster" = None
     ):
         """Run pip install."""
+        install_cmd = (
+            f"python3 -m {install_cmd}"
+            if cluster or env
+            else f"{sys.executable} -m {install_cmd}"
+        )
+
         if env:
             from runhouse.resources.envs.utils import _get_env_from
 
             env = _get_env_from(env)
             install_cmd = f"{env._run_cmd} {install_cmd}"
-            run_setup_command(install_cmd, cluster=cluster)
-        else:
-            cmd = (
-                f"python3 -m {install_cmd}"
-                if cluster
-                else f"{sys.executable} -m {install_cmd}"
+
+        retcode = run_setup_command(install_cmd, cluster=cluster)[0]
+        if retcode != 0:
+            raise RuntimeError(
+                "Pip install failed, check that the package exists and is available for your platform."
             )
-            retcode = run_setup_command(cmd, cluster=cluster)[0]
-            if retcode != 0:
-                raise RuntimeError(
-                    "Pip install failed, check that the package exists and is available for your platform."
-                )
 
     @staticmethod
     def _conda_install(
