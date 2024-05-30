@@ -17,7 +17,7 @@ def restart_server(request):
     return request.config.getoption("--restart-server")
 
 
-def setup_test_cluster(args, request, create_env=True):
+def setup_test_cluster(args, request):
     cluster = rh.ondemand_cluster(**args)
     init_args[id(cluster)] = args
     if not cluster.is_up():
@@ -27,10 +27,7 @@ def setup_test_cluster(args, request, create_env=True):
 
     cluster.save()
 
-    # checking if to create_env or not for the status tests. Default val of create_env is True,
-    # meaning env will be created if the other part of the condition match.
-    # Therefore it will not affect all other tests (which don't tests status)
-    if create_env and cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
+    if cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
         test_env().to(cluster)
     return cluster
 
@@ -124,8 +121,7 @@ def multinode_cpu_cluster(request):
         "num_instances": NUM_OF_INSTANCES,
         "instance_type": "CPU:2+",
     }
-    create_env = False
-    cluster = setup_test_cluster(args, request, create_env)
+    cluster = setup_test_cluster(args, request)
     env = rh.env(name="worker_env", compute={"CPU": 2}).to(cluster)
     assert env
     return cluster
@@ -138,8 +134,7 @@ def multinode_gpu_cluster(request):
         "num_instances": NUM_OF_INSTANCES,
         "instance_type": "g5.xlarge",
     }
-    create_env = False
-    cluster = setup_test_cluster(args, request, create_env)
+    cluster = setup_test_cluster(args, request)
     env = rh.env(name="worker_env", compute={"GPU": 1, "CPU": 4}).to(cluster)
     assert env
     return cluster
