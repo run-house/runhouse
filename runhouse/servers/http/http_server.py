@@ -1096,11 +1096,15 @@ async def main():
             f"cluster_config.json: {cluster_config.get('ips', [None])[0]}. Prioritizing CLI provided certs_address."
         )
 
-    certs_addresses = parse_args.certs_address or cluster_config.get("ips", [None])
+    certs_addresses = parse_args.certs_address or cluster_config.get("ips", None)
+
+    # We don't want to unset multiple addresses if they were set in the cluster config
     if certs_addresses is not None:
         cluster_config["ips"] = certs_addresses
     else:
         cluster_config["ips"] = ["0.0.0.0"]
+
+    certs_address = certs_addresses[0] if certs_addresses else None
 
     config_conn = cluster_config.get("server_connection_type")
 
@@ -1187,14 +1191,14 @@ async def main():
     # proxy to forward requests from port 80 (HTTP) or 443 (HTTPS) to the app's port.
     if use_caddy:
         logger.debug("Using Caddy as a reverse proxy")
-        if certs_addresses is None and domain is None:
+        if certs_address is None and domain is None:
             raise ValueError(
                 "Must provide the server address or domain to configure Caddy. No address or domain found in the "
                 "server start command (--certs-address or --domain) or in the cluster config YAML saved on the cluster."
             )
 
         cc = CaddyConfig(
-            address=certs_addresses,
+            address=certs_address,
             domain=domain,
             rh_server_port=daemon_port,
             ssl_key_path=parsed_ssl_keyfile,
