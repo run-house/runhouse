@@ -1407,6 +1407,7 @@ class Cluster(Resource):
                     stream_logs=stream_logs,
                     port_forward=port_forward,
                     ssh_mode=ssh_mode,
+                    quiet_ssh=True,
                 )
                 return_codes.append(ret_code)
             else:

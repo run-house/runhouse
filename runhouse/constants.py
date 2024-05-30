@@ -62,6 +62,11 @@ TEST_ORG = "test-org"
 
 EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"
 DEFAULT_DOCKER_CONTAINER_NAME = "sky_container"
+DOCKER_LOGIN_ENV_VARS = {
+    "SKYPILOT_DOCKER_USERNAME",
+    "SKYPILOT_DOCKER_PASSWORD",
+    "SKYPILOT_DOCKER_SERVER",
+}
 
 # Constants for the status check
 DOUBLE_SPACE_UNICODE = "\u00A0\u00A0"
