@@ -55,7 +55,6 @@ def static_cpu_cluster():
     init_args[id(c)] = args
 
     test_env().to(c)
-    c.sync_secrets(["ssh"])
 
     return c
 
@@ -91,6 +90,5 @@ def password_cluster():
     init_args[id(c)] = args
 
     test_env().to(c)
-    c.sync_secrets(["ssh"])
 
     return c
