@@ -331,6 +331,10 @@ class OnDemandCluster(Cluster):
             handle = cluster_dict["handle"]
             self.address = handle.head_ip
             self.stable_internal_external_ips = handle.stable_internal_external_ips
+            if self.stable_internal_external_ips is None or self.address is None:
+                raise ValueError(
+                    "Sky's cluster status does not have the necessary information to connect to the cluster. Please check if the cluster is up via `sky status`. Consider bringing down the cluster with `sky down` if you are still having issues."
+                )
             yaml_path = handle.cluster_yaml
             if Path(yaml_path).exists():
                 ssh_values = backend_utils.ssh_credential_from_yaml(yaml_path)
