@@ -566,10 +566,11 @@ class OnDemandCluster(Cluster):
                 ssh_private_key=str(sky_key),
                 docker_user=self.docker_user,
             )
-            cmd = runner.run(
-                cmd="bash --rcfile <(echo '. ~/.bashrc; conda deactivate')",
-                ssh_mode=SshMode.INTERACTIVE,
-                port_forward=None,
-                return_cmd=True,
+            ssh_command = runner._ssh_base_command(
+                ssh_mode=SshMode.INTERACTIVE, port_forward=None
+            )
+            subprocess.run(
+                " ".join(ssh_command),
+                shell=True,
             )
             subprocess.run(cmd, shell=True)
