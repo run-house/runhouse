@@ -85,7 +85,7 @@ class Cluster(Resource):
         .. note::
             To build a cluster, please use the factory method :func:`cluster`.
         """
-        super().__init__(name=name, dryrun=dryrun)
+        super().__init__(name=name, dryrun=dryrun, **kwargs)
 
         self._rpc_tunnel = None
         self._creds = creds

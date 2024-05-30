@@ -62,6 +62,9 @@ class Resource:
                 name = name[len("/builtins/") :]
             if name[0] == "^" and name != "^":
                 name = name[1:]
+            owner = kwargs.get("owner", None)
+            if owner and "/" not in name:
+                name = f'/{owner.get("username")}/{name}'
             self._name, self._rns_folder = rns_client.split_rns_name_and_path(
                 rns_client.resolve_rns_path(name)
             )
