@@ -269,10 +269,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_rh_status_pythonic(self, cluster):
-        if "multinode" in cluster.name:
-            cluster.put(key="status_key1", obj="status_value1", env="worker_env")
-        else:
-            cluster.put(key="status_key1", obj="status_value1", env="numpy_env")
+        rh.env(reqs=["pytest"], name="worker_env").to(cluster)
+        cluster.put(key="status_key1", obj="status_value1", env="worker_env")
+
         cluster_data = cluster.status()
 
         expected_cluster_status_data_keys = [
@@ -298,16 +297,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert res.get("resource_type") == cluster.RESOURCE_TYPE
         assert res.get("ips") == cluster.ips
 
-        if "multinode" in cluster.name:
-            assert "worker_env" in cluster_data.get("env_resource_mapping")
-            assert {"name": "status_key1", "resource_type": "str"} in cluster_data.get(
-                "env_resource_mapping"
-            )["worker_env"]
-        else:
-            assert "numpy_env" in cluster_data.get("env_resource_mapping")
-            assert {"name": "status_key1", "resource_type": "str"} in cluster_data.get(
-                "env_resource_mapping"
-            )["numpy_env"]
+        assert "worker_env" in cluster_data.get("env_resource_mapping")
+        assert {"name": "status_key1", "resource_type": "str"} in cluster_data.get(
+            "env_resource_mapping"
+        )["worker_env"]
 
         # test memory usage info
         expected_env_servlet_keys = [
