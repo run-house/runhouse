@@ -6,6 +6,8 @@ import pytest
 
 import runhouse as rh
 
+from tests.utils import get_pid_and_ray_node
+
 REMOTE_FUNC_NAME = "@/remote_function"
 
 logger = logging.getLogger(__name__)
@@ -42,15 +44,6 @@ def multiproc_np_sum(inputs):
 
 def getpid(a=0):
     return os.getpid() + a
-
-
-def get_pid_and_ray_node(a=0):
-    import ray
-
-    return (
-        os.getpid(),
-        ray.runtime_context.RuntimeContext(ray.worker.global_worker).get_node_id(),
-    )
 
 
 def sleep_and_return(secs):

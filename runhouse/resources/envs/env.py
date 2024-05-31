@@ -190,7 +190,12 @@ class Env(Resource):
         return run_with_logs(command, **kwargs)
 
     def to(
-        self, system: Union[str, Cluster], path=None, mount=False, force_install=False
+        self,
+        system: Union[str, Cluster],
+        node_idx=None,
+        path=None,
+        mount=False,
+        force_install=False,
     ):
         """
         Send environment to the system (Cluster or file system).
@@ -206,6 +211,17 @@ class Env(Resource):
         new_env.reqs, new_env.working_dir = self._reqs_to(system, path, mount)
 
         if isinstance(system, Cluster):
+            if node_idx is not None:
+                if node_idx >= len(system.ips):
+                    raise ValueError(
+                        f"Cluster {system.name} has only {len(system.ips)} nodes. Requested node index {node_idx} is out of bounds."
+                    )
+
+                if new_env.compute is None:
+                    new_env.compute = {}
+
+                new_env.compute["node_idx"] = node_idx
+
             key = (
                 system.put_resource(new_env)
                 if new_env.name

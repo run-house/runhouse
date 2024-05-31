@@ -1,5 +1,6 @@
 import contextlib
 import importlib
+import os
 import uuid
 from pathlib import Path
 
@@ -24,6 +25,15 @@ def get_ray_servlet_and_obj_store(env_name):
     )
 
     return servlet, test_obj_store
+
+
+def get_pid_and_ray_node(a=0):
+    import ray
+
+    return (
+        os.getpid(),
+        ray.runtime_context.RuntimeContext(ray.worker.global_worker).get_node_id(),
+    )
 
 
 def get_random_str(length: int = 8):

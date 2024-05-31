@@ -244,6 +244,23 @@ class ObjStore:
             runtime_env,
         )
 
+    def get_internal_ips(self):
+        """Get list of internal IPs of all nodes in the cluster."""
+        cluster_config = self.get_cluster_config()
+        if "stable_internal_external_ips" in cluster_config:
+            return [
+                internal_ip
+                for internal_ip, external_ip in cluster_config[
+                    "stable_internal_external_ips"
+                ]
+            ]
+        else:
+            if not ray.is_initialized():
+                raise ConnectionError("Ray is not initialized.")
+
+            cluster_nodes = ray.nodes()
+            return [node["NodeManagerAddress"] for node in cluster_nodes]
+
     ##############################################
     # Generic helpers
     ##############################################
@@ -314,7 +331,26 @@ class ObjStore:
             # ValueError: Failed to look up actor with name ...
             pass
 
-        if resources:
+        # Otherwise, create it
+        if create:
+            if resources is None:
+                resources = {}
+
+            if "node_idx" in resources and ("CPU" in resources or "GPU" in resources):
+                raise ValueError(
+                    "Cannot specify both node_idx and CPU/GPU resources for an env."
+                )
+
+            # Replace node_idx with actual node IP in Ray resources request
+            node_idx = resources.pop("node_idx", None)
+            if node_idx is not None:
+                cluster_ips = self.get_internal_ips()
+                if node_idx >= len(cluster_ips):
+                    raise ValueError(
+                        f"Node index {node_idx} is out of bounds for cluster with {len(cluster_ips)} nodes."
+                    )
+                resources[f"node:{cluster_ips[node_idx]}"] = 0.001
+
             # Check if requested resources are available
             available_resources = ray.available_resources()
             for k, v in resources.items():
@@ -323,18 +359,7 @@ class ObjStore:
                         f"Requested resource {k}={v} is not available on the cluster. "
                         f"Available resources: {available_resources}"
                     )
-        else:
-            resources = {}
 
-        # Otherwise, create it
-        if create:
-            if (
-                type(resources.get("GPU", 0)) != int
-                or type(resources.get("CPU", 0)) != int
-            ):
-                raise ValueError(
-                    f"GPU and CPU resource specifications must be integers, got {resources} for env {env_name}."
-                )
             new_env_actor = (
                 ray.remote(EnvServlet)
                 .options(
@@ -343,7 +368,8 @@ class ObjStore:
                     runtime_env=kwargs["runtime_env"]
                     if "runtime_env" in kwargs
                     else None,
-                    num_cpus=resources.pop("CPU", None),
+                    # Default to 0 CPUs if not specified, Ray will default it to 1
+                    num_cpus=resources.pop("CPU", 0),
                     num_gpus=resources.pop("GPU", None),
                     resources=resources,
                     lifetime="detached",
