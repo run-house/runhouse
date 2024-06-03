@@ -27,7 +27,7 @@ from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.http.auth import AuthCache
 
-from runhouse.utils import sync_function
+from runhouse.utils import get_current_timestamp_for_name, sync_function
 
 logger = logging.getLogger(__name__)
 
@@ -473,10 +473,14 @@ class ClusterServlet:
         while True:
             logger.info("Trying to send cluster logs to Den")
             try:
+
+                current_timestamp = get_current_timestamp_for_name()
                 interval_size = DEFAULT_LOG_SURFACING_INTERVAL
+
                 latest_logs = self._get_logs(num_of_lines=num_of_lines)
-                s3_file_name = "server.log"
+                s3_file_name = f"{current_timestamp}_server.log"
                 logs_data = {"file_name": s3_file_name, "logs": latest_logs}
+
                 cluster_config = await self.aget_cluster_config()
                 cluster_uri = rns_client.format_rns_address(cluster_config.get("name"))
                 api_server_url = cluster_config.get(

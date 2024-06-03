@@ -69,3 +69,20 @@ async def arun_in_thread(method_to_run, *args, **kwargs):
                 method_kwargs=kwargs,
             ),
         )
+
+
+def get_current_timestamp_for_name():
+    """
+    Gets the current time, and parse it, so it could fit nicely as part of a name of a file / log etc.
+    :return: str, in the following format YYYY_MM_DD_HH_MM_SS (utc time)
+    """
+    from datetime import datetime, timezone
+
+    time_now = (
+        str(datetime.now(timezone.utc))
+        .split(".")[0]
+        .replace("-", "_")
+        .replace(" ", "_")
+        .replace(":", "_")
+    )
+    return time_now
