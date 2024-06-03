@@ -3,9 +3,9 @@ import copy
 import json
 import logging
 import threading
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
+
 import requests
 
 import runhouse
@@ -16,9 +16,10 @@ from runhouse.constants import (
     DEFAULT_STATUS_CHECK_INTERVAL,
     DEFAULT_SURFACED_LOG_LENGTH,
     INCREASED_INTERVAL,
+    INCREASED_STATUS_CHECK_INTERVAL,
+    S3_LOGS_FILE_NAME,
     SCHEDULERS_DELAY,
     SERVER_LOGFILE,
-    INCREASED_STATUS_CHECK_INTERVAL
 )
 
 from runhouse.globals import configs, obj_store, rns_client
@@ -423,8 +424,8 @@ class ClusterServlet:
             try:
                 interval_size = DEFAULT_LOG_SURFACING_INTERVAL
                 latest_logs = self._get_logs(num_of_lines=num_of_lines)
-                s3_file_name = "server.log"
-                logs_data = {"file_name": s3_file_name, "logs": latest_logs}
+                logs_data = {"file_name": S3_LOGS_FILE_NAME, "logs": latest_logs}
+
                 cluster_config = await self.aget_cluster_config()
                 cluster_uri = rns_client.format_rns_address(cluster_config.get("name"))
                 api_server_url = cluster_config.get(

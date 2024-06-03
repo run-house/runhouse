@@ -175,7 +175,9 @@ class Cluster(Resource):
             node=node or "all",
         )
 
-    def update_cluster_in_cluster(self, items_to_update: Union[dict, list[dict]]):
+    def update_cluster_config_on_cluster(
+        self, items_to_update: Union[dict, list[dict]]
+    ):
         """
         Update specific items on the cluster config saved on the cluster.
         :param items_to_update: The item(s) to be updated in the config. If only one item should be updated, pass
@@ -1733,7 +1735,9 @@ class Cluster(Resource):
                 "Make sure you have a Den account, and you've created your cluster with den_auth = True."
             )
             return
-        self.update_cluster_in_cluster(items_to_update={"status_check_interval": -1})
+        self.update_cluster_config_on_cluster(
+            items_to_update={"status_check_interval": -1}
+        )
 
     def _enable_or_update_status_check(
         self, new_interval: int = DEFAULT_STATUS_CHECK_INTERVAL
@@ -1748,7 +1752,7 @@ class Cluster(Resource):
                 "Make sure you have a Den account, and you've created your cluster with den_auth = True."
             )
             return
-        self.update_cluster_in_cluster(
+        self.update_cluster_config_on_cluster(
             items_to_update={"status_check_interval": new_interval}
         )
 
@@ -1756,17 +1760,17 @@ class Cluster(Resource):
     # Surface cluster logs to Den methods
     ##############################################
 
-    def _disable_log_surface(self):
+    def _disable_log_surface_to_den(self):
         # TODO [SB]: implement.
         pass
 
-    def _enable_or_update_log_surface(
+    def _enable_or_update_log_surface_to_den(
         self, num_of_lines: int = DEFAULT_SURFACED_LOG_LENGTH
     ):
         if num_of_lines > MAX_SURFACED_LOG_LENGTH:
             logger.warning(
                 f"Your pricing model doesn't all to set log length to {num_of_lines} lines. "
-                f"Setting to maximum length of {MAX_SURFACED_LOG_LENGTH} lines"
+                f"Setting to maximum length of {MAX_SURFACED_LOG_LENGTH} lines."
             )
             num_of_lines = MAX_SURFACED_LOG_LENGTH
 
