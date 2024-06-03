@@ -1,9 +1,10 @@
 import asyncio
 import copy
+import json
 import logging
 import threading
-import json
 from typing import Any, Dict, List, Optional, Set, Union
+
 import requests
 
 import runhouse
@@ -12,19 +13,19 @@ from runhouse.constants import (
     DEFAULT_LOG_SURFACING_INTERVAL,
     DEFAULT_STATUS_CHECK_INTERVAL,
     INCREASED_INTERVAL,
+    INCREASED_STATUS_CHECK_INTERVAL,
     S3_LOGS_FILE_NAME,
     SCHEDULERS_DELAY,
     SERVER_LOGFILE,
-    INCREASED_STATUS_CHECK_INTERVAL
 )
 
 from runhouse.globals import configs, obj_store, rns_client
+from runhouse.logger import ColoredFormatter
 from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.autostop_helper import AutostopHelper
 from runhouse.servers.http.auth import AuthCache
-from runhouse.logger import ColoredFormatter
 
 from runhouse.utils import sync_function
 
@@ -369,7 +370,6 @@ class ClusterServlet:
 
     def status(self):
         return sync_function(self.astatus)()
-
 
     ##############################################
     # Surface cluster logs to Den

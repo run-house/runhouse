@@ -6,8 +6,8 @@ import requests
 
 import runhouse as rh
 from runhouse.constants import SERVER_LOGFILE_PATH
-from runhouse.logger import ColoredFormatter
 from runhouse.globals import rns_client
+from runhouse.logger import ColoredFormatter
 from runhouse.resources.hardware.utils import ResourceServerStatus
 
 import tests.test_resources.test_clusters.test_cluster

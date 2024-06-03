@@ -31,11 +31,9 @@ from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
-    DEFAULT_LOG_SURFACING_INTERVAL,
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
     DEFAULT_STATUS_CHECK_INTERVAL,
-    DEFAULT_SURFACED_LOG_LENGTH,
     EMPTY_DEFAULT_ENV_NAME,
     LOCALHOST,
     RESERVED_SYSTEM_NAMES,
@@ -1721,6 +1719,7 @@ class Cluster(Resource):
             return
         self.check_server()
         self.client.set_settings({"status_check_interval": -1})
+
     def _enable_or_update_status_check(
         self, new_interval: int = DEFAULT_STATUS_CHECK_INTERVAL
     ):
