@@ -3,9 +3,9 @@ import copy
 import json
 import logging
 import threading
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
+
 import requests
 
 import runhouse
@@ -14,11 +14,11 @@ from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
     DEFAULT_LOG_SURFACING_INTERVAL,
     DEFAULT_STATUS_CHECK_INTERVAL,
-    DEFAULT_SURFACED_LOG_LENGTH,
     INCREASED_INTERVAL,
+    INCREASED_STATUS_CHECK_INTERVAL,
+    S3_LOGS_FILE_NAME,
     SCHEDULERS_DELAY,
     SERVER_LOGFILE,
-    INCREASED_STATUS_CHECK_INTERVAL
 )
 
 from runhouse.globals import configs, obj_store, rns_client
@@ -65,11 +65,11 @@ class ClusterServlet:
         )
         post_status_thread.start()
 
-            logger.debug("Creating send_logs_to_den thread.")
-            send_logs_thread = threading.Thread(
-                target=self.send_cluster_logs_to_den, daemon=True
-            )
-            send_logs_thread.start()
+        logger.debug("Creating send_logs_to_den thread.")
+        send_logs_thread = threading.Thread(
+            target=self.send_cluster_logs_to_den, daemon=True
+        )
+        send_logs_thread.start()
 
     ##############################################
     # Cluster config state storage methods
@@ -390,16 +390,12 @@ class ClusterServlet:
     ##############################################
     # Surface cluster logs to Den
     ##############################################
-    def _get_logs(self, num_of_lines: int):
+    def _get_logs(self):
         with open(SERVER_LOGFILE) as log_file:
             log_lines = log_file.readlines()
-            if num_of_lines >= len(log_lines):
-                return " ".join(log_lines)
-            return " ".join(log_lines[-num_of_lines:])
+            return " ".join(log_lines)
 
-    async def asend_cluster_logs_to_den(
-        self, num_of_lines: int = DEFAULT_SURFACED_LOG_LENGTH
-    ):
+    async def asend_cluster_logs_to_den(self):
         # Delay the start of post_logs_thread, so we'll finish the cluster startup properly
         await asyncio.sleep(SCHEDULERS_DELAY)
 
@@ -407,9 +403,9 @@ class ClusterServlet:
             logger.info("Trying to send cluster logs to Den")
             try:
                 interval_size = DEFAULT_LOG_SURFACING_INTERVAL
-                latest_logs = self._get_logs(num_of_lines=num_of_lines)
-                s3_file_name = "server.log"
-                logs_data = {"file_name": s3_file_name, "logs": latest_logs}
+                latest_logs = self._get_logs()
+                logs_data = {"file_name": S3_LOGS_FILE_NAME, "logs": latest_logs}
+
                 cluster_config = await self.aget_cluster_config()
                 cluster_uri = rns_client.format_rns_address(cluster_config.get("name"))
                 api_server_url = cluster_config.get(
