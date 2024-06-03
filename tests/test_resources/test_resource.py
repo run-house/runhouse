@@ -2,6 +2,7 @@ import json
 
 import pytest
 import runhouse as rh
+from flaky import flaky
 from runhouse.constants import TEST_ORG
 
 from tests.conftest import init_args
@@ -95,6 +96,8 @@ class TestResource:
         assert new_resource.dryrun == resource.dryrun
         # TODO allow resource subclass tests to extend set of properties to test
 
+    # TODO: (flaky) Test fails sometimes specifically for provider_secrets.
+    @flaky(max_runs=3, min_passes=1)
     @pytest.mark.level("local")
     def test_save_and_load(self, saved_resource):
         if TEST_ORG in saved_resource.rns_address:

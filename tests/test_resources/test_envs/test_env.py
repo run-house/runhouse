@@ -6,6 +6,7 @@ from typing import Dict
 import pytest
 
 import runhouse as rh
+from flaky import flaky
 
 import tests.test_resources.test_resource
 
@@ -244,6 +245,8 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
         _uninstall_env(env, cluster)
 
+    # TODO: (flaky) Test fails on "named_env" fixture sometimes with error on HF_TOKEN.
+    @flaky(max_runs=3, min_passes=1)
     @pytest.mark.level("local")
     def test_secrets_env(self, env, cluster):
         path_secret = rh.provider_secret(

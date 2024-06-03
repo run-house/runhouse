@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 import runhouse as rh
+from flaky import flaky
 from runhouse import Package
 from runhouse.constants import TEST_ORG
 
@@ -536,6 +537,8 @@ class TestModule:
             == 4
         )
 
+    # TODO: (flaky) Test fails sometimes with "No Runhouse token provided" error.
+    @flaky(max_runs=3, min_passes=1)
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
     def test_get_or_to(self, cluster, env):
