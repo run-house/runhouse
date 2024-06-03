@@ -1,4 +1,5 @@
 import subprocess
+import time
 
 import pandas as pd
 import pytest
@@ -11,6 +12,7 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_PORT,
     LOCALHOST,
+    SERVER_LOGFILE_PATH,
 )
 
 import tests.test_resources.test_resource
@@ -678,3 +680,34 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             headers=headers,
         )
         assert get_status_data_resp.json()["data"]["status"] == "terminated"
+
+    @pytest.mark.level("minimal")
+    def test_status_scheduler_basic_flow(self, cluster):
+        if not cluster.den_auth:
+            pytest.skip(
+                "This test checking pinging cluster status to den, this could be done only on clusters "
+                "with den_auth that can be saved to den."
+            )
+        if not cluster.config().get("resource_subtype") == "OnDemandCluster":
+            pytest.skip(
+                "This test checking pinging cluster status to den, this could be done only on OnDemand clusters."
+            )
+
+        cluster.save()
+        # the scheduler start running in a delay of 2 min, so the cluster startup will finish properly.
+        # Therefore, the test needs to sleep for a while.
+        time.sleep(120)
+        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"])[0][1]
+        assert "Trying to send cluster status to Den." in cluster_logs
+
+        cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
+        headers = rh.globals.rns_client.request_headers()
+        api_server_url = rh.globals.rns_client.api_server_url
+
+        get_status_data_resp = requests.get(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            headers=headers,
+        )
+
+        assert get_status_data_resp.status_code == 200
+        assert get_status_data_resp.json()["data"]["status"] == "running"
