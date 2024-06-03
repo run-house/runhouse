@@ -12,6 +12,8 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import yaml
+
 from runhouse.resources.envs.utils import run_with_logs
 
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
@@ -770,6 +772,17 @@ class Cluster(Resource):
                 env=env,
             )
 
+    def _run_cli_commands_on_cluster(self, commands: list[str]):
+        if self.on_this_cluster():
+            return self.run(commands=commands, env=self._default_env, node=self.address)
+        else:
+            return self._run_commands_with_ssh(
+                commands=commands,
+                cmd_prefix=self._default_env._run_cmd if self._default_env else "",
+                env_vars=self._default_env.env_vars if self._default_env else {},
+                node=self.address,
+            )
+
     def restart_server(
         self,
         _rh_install_url: str = None,
@@ -838,6 +851,33 @@ class Cluster(Resource):
         # Update the cluster config on the cluster
         self.save_config_to_cluster()
 
+        # Save a limited version of the local ~/.rh config to the cluster with the user's hashed token,
+        # if such does not exist on the cluster
+
+        check_config_yaml_cmd = ["cat ~/.rh/config.yaml"]
+        check_config_yaml_res = self._run_cli_commands_on_cluster(
+            commands=check_config_yaml_cmd
+        )
+
+        no_config_yaml_on_cluster = (
+            "No such file or directory" in check_config_yaml_res[0][1]
+            and check_config_yaml_res[0][0] == 1
+        )
+        if no_config_yaml_on_cluster:
+            user_config = yaml.safe_dump(
+                {
+                    "token": rns_client.cluster_token(
+                        rns_client.token, rns_client.username
+                    ),
+                    "username": rns_client.username,
+                    "default_folder": rns_client.default_folder,
+                }
+            )
+
+            create_config_yaml_cmd = [f"echo '{user_config}' > ~/.rh/config.yaml"]
+            self._run_cli_commands_on_cluster(commands=create_config_yaml_cmd)
+            logger.debug("Saved user config to cluster")
+
         cmd = (
             CLI_RESTART_CMD
             + (" --restart-ray" if restart_ray else "")
@@ -859,17 +899,18 @@ class Cluster(Resource):
             + " --from-python"
         )
 
-        if self.on_this_cluster():
-            status_codes = self.run(
-                commands=[cmd], env=self._default_env, node=self.address
-            )
-        else:
-            status_codes = self._run_commands_with_ssh(
-                commands=[cmd],
-                cmd_prefix=self._default_env._run_cmd if self._default_env else "",
-                env_vars=self._default_env.env_vars if self._default_env else {},
-                node=self.address,
-            )
+        status_codes = self._run_cli_commands_on_cluster(commands=[cmd])
+        # if self.on_this_cluster():
+        #     status_codes = self.run(
+        #         commands=[cmd], env=self._default_env, node=self.address
+        #     )
+        # else:
+        #     status_codes = self._run_commands_with_ssh(
+        #         commands=[cmd],
+        #         cmd_prefix=self._default_env._run_cmd if self._default_env else "",
+        #         env_vars=self._default_env.env_vars if self._default_env else {},
+        #         node=self.address,
+        #     )
 
         if not status_codes[0][0] == 0:
             raise ValueError(f"Failed to restart server {self.name}")
