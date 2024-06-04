@@ -1,4 +1,7 @@
+import pytest
+
 import tests.test_resources.test_clusters.test_cluster
+from tests.utils import friend_account
 
 
 class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCluster):
@@ -36,3 +39,23 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             "multinode_gpu_cluster",
         ]
     }
+
+    @pytest.mark.level("minimal")
+    def test_restart_does_not_change_config_yaml(self, cluster):
+        assert cluster.up_if_not()
+        config_yaml_res = cluster.run("cat ~/.rh/config.yaml")
+        assert config_yaml_res[0][0] == 0
+        config_yaml_content = config_yaml_res[0][1]
+
+        cluster.share(
+            users=["info@run.house"],
+            access_level="read",
+            notify_users=False,
+        )
+
+        with friend_account():
+            cluster.restart_server()
+            config_yaml_res_after_restart = cluster.run("cat ~/.rh/config.yaml")
+            assert config_yaml_res_after_restart[0][0] == 0
+            config_yaml_content_after_restart = config_yaml_res[0][1]
+            assert config_yaml_content_after_restart == config_yaml_content
