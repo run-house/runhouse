@@ -863,7 +863,7 @@ class Cluster(Resource):
             "No such file or directory" in check_config_yaml_res[0][1]
             and check_config_yaml_res[0][0] == 1
         )
-        if no_config_yaml_on_cluster:
+        if no_config_yaml_on_cluster and rns_client.token:
             user_config = yaml.safe_dump(
                 {
                     "token": rns_client.cluster_token(
@@ -900,17 +900,6 @@ class Cluster(Resource):
         )
 
         status_codes = self._run_cli_commands_on_cluster(commands=[cmd])
-        # if self.on_this_cluster():
-        #     status_codes = self.run(
-        #         commands=[cmd], env=self._default_env, node=self.address
-        #     )
-        # else:
-        #     status_codes = self._run_commands_with_ssh(
-        #         commands=[cmd],
-        #         cmd_prefix=self._default_env._run_cmd if self._default_env else "",
-        #         env_vars=self._default_env.env_vars if self._default_env else {},
-        #         node=self.address,
-        #     )
 
         if not status_codes[0][0] == 0:
             raise ValueError(f"Failed to restart server {self.name}")
