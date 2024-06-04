@@ -122,8 +122,6 @@ def multinode_cpu_cluster(request):
         "instance_type": "CPU:2+",
     }
     cluster = setup_test_cluster(args, request)
-    env = rh.env(name="worker_env", compute={"CPU": 2}).to(cluster)
-    assert env
     return cluster
 
 
@@ -135,8 +133,6 @@ def multinode_gpu_cluster(request):
         "instance_type": "g5.xlarge",
     }
     cluster = setup_test_cluster(args, request)
-    env = rh.env(name="worker_env", compute={"GPU": 1, "CPU": 4}).to(cluster)
-    assert env
     return cluster
 
 
