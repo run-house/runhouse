@@ -255,7 +255,7 @@ class HTTPServer:
         await obj_store.adisable_den_auth()
 
     @classmethod
-    async def disable_den_auth(cls):
+    def disable_den_auth(cls):
         return sync_function(HTTPServer.adisable_den_auth)()
 
     @staticmethod
