@@ -12,6 +12,8 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import yaml
+
 from runhouse.resources.envs.utils import run_with_logs
 
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
@@ -837,6 +839,21 @@ class Cluster(Resource):
 
         # Update the cluster config on the cluster
         self.save_config_to_cluster()
+
+        # Save user config to cluster, if available
+        if rns_client.token:
+            # Save a limited version of the local ~/.rh config to the cluster with the user's hashed token
+            user_config = yaml.safe_dump(
+                {
+                    "token": rns_client.cluster_token(
+                        rns_client.token, rns_client.username
+                    ),
+                    "username": rns_client.username,
+                    "default_folder": rns_client.default_folder,
+                }
+            )
+            self.run([f"echo '{user_config}' > ~/.rh/config.yaml"])
+            logger.debug("Saved user config to cluster")
 
         cmd = (
             CLI_RESTART_CMD
