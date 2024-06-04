@@ -79,7 +79,7 @@ class ClusterServlet:
 
         # Only send for clusters that have den_auth enabled and if we are logged in with a user's token
         # to authenticate the request
-        if self.cluster_config.get("den_auth", False) and configs.token:
+        if self.cluster_config.get("den_auth", False):
             logger.debug("Creating send_status_info_to_den thread.")
             post_status_thread = threading.Thread(
                 target=self.send_status_info_to_den, daemon=True
