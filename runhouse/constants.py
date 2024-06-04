@@ -6,6 +6,7 @@ from typing import List
 RESERVED_SYSTEM_NAMES: List[str] = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
 CLUSTER_CONFIG_PATH: str = "~/.rh/cluster_config.json"
 CONFIG_YAML_PATH: str = "~/.rh/config.yaml"
+SERVER_LOGFILE_PATH = "~/.rh/server.log"
 LOCALHOST: str = "127.0.0.1"
 LOCAL_HOSTS: List[str] = ["localhost", LOCALHOST]
 
