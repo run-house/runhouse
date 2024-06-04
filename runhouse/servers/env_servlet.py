@@ -289,7 +289,7 @@ class EnvServlet:
         return env_gpu_usage
 
     def _status_local_helper(self):
-        objects_in_env_servlet = obj_store.keys_with_type()
+        objects_in_env_servlet = obj_store.keys_with_info()
 
         (
             env_memory_usage,
