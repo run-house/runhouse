@@ -111,6 +111,17 @@ def context_wrapper(func):
     return wrapper
 
 
+def env_servlet_only_method(func):
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        if not self.has_local_storage or self.servlet_name is None:
+            raise NoLocalObjStoreError()
+
+        return await func(self, *args, **kwargs)
+
+    return wrapper
+
+
 class ObjStore:
     """Class to handle internal IPC and storage for Runhouse.
 
@@ -603,11 +614,9 @@ class ObjStore:
     def keys_for_env_servlet_name(self, env_servlet_name: str) -> List[Any]:
         return sync_function(self.akeys_for_env_servlet_name)(env_servlet_name)
 
+    @env_servlet_only_method
     def keys_local(self) -> List[Any]:
-        if self.has_local_storage:
-            return list(self._kv_store.keys())
-        else:
-            return []
+        return list(self._kv_store.keys())
 
     async def akeys(self) -> List[Any]:
         # Return keys across the cluster, not only in this process
@@ -636,12 +645,10 @@ class ObjStore:
             serialization=serialization,
         )
 
+    @env_servlet_only_method
     async def aput_local(self, key: Any, value: Any):
-        if self.has_local_storage:
-            self._kv_store[key] = value
-            await self._aput_env_servlet_name_for_key(key, self.servlet_name)
-        else:
-            raise NoLocalObjStoreError()
+        self._kv_store[key] = value
+        await self._aput_env_servlet_name_for_key(key, self.servlet_name)
 
     async def aput(
         self,
@@ -725,25 +732,21 @@ class ObjStore:
             env_servlet_name, key, default, serialization, remote
         )
 
+    @env_servlet_only_method
     def get_local(self, key: Any, default: Optional[Any] = None, remote: bool = False):
-        if self.has_local_storage:
-            try:
-                res = self._kv_store[key]
-                if remote:
-                    if hasattr(res, "config"):
-                        return res.config()
-                    else:
-                        raise ValueError(
-                            f"Cannot return remote for non-Resource object of type {type(res)}."
-                        )
-                return res
-            except KeyError as e:
-                if default == KeyError:
-                    raise e
-                return default
-        else:
+        try:
+            res = self._kv_store[key]
+            if remote:
+                if hasattr(res, "config"):
+                    return res.config()
+                else:
+                    raise ValueError(
+                        f"Cannot return remote for non-Resource object of type {type(res)}."
+                    )
+            return res
+        except KeyError as e:
             if default == KeyError:
-                raise KeyError(f"No local store exists; key {key} not found.")
+                raise e
             return default
 
     async def aget(
@@ -820,11 +823,9 @@ class ObjStore:
             env_servlet_name, "acontains_local", key
         )
 
+    @env_servlet_only_method
     def contains_local(self, key: Any):
-        if self.has_local_storage:
-            return key in self._kv_store
-        else:
-            return False
+        return key in self._kv_store
 
     async def acontains(self, key: Any):
         if self.contains_local(key):
@@ -862,31 +863,26 @@ class ObjStore:
             *args,
         )
 
+    @env_servlet_only_method
     async def apop_local(self, key: Any, *args) -> Any:
-        if self.has_local_storage:
-            try:
-                res = self._kv_store.pop(key)
-            except KeyError as key_err:
-                # Return the default if it was provided, else raise the error as expected
-                if args:
-                    return args[0]
-                else:
-                    raise key_err
-
-            # If the key was found in this env, we also need to pop it
-            # from the global env for key cache.
-            env_name = await self._apop_env_servlet_name_for_key(key, None)
-            if env_name and env_name != self.servlet_name:
-                raise ObjStoreError(
-                    "The key was popped from this env, but the global env for key cache says it's in another one."
-                )
-
-            return res
-        else:
+        try:
+            res = self._kv_store.pop(key)
+        except KeyError as key_err:
+            # Return the default if it was provided, else raise the error as expected
             if args:
                 return args[0]
             else:
-                raise KeyError(f"No local store exists; key {key} not found.")
+                raise key_err
+
+        # If the key was found in this env, we also need to pop it
+        # from the global env for key cache.
+        env_name = await self._apop_env_servlet_name_for_key(key, None)
+        if env_name and env_name != self.servlet_name:
+            raise ObjStoreError(
+                "The key was popped from this env, but the global env for key cache says it's in another one."
+            )
+
+        return res
 
     async def apop(
         self, key: Any, serialization: Optional[str] = "pickle", *args
@@ -895,6 +891,8 @@ class ObjStore:
             return await self.apop_local(key)
         except KeyError as e:
             key_err = e
+        except NoLocalObjStoreError:
+            pass
 
         # The key was not found in this env
         # So, we check the global key to env cache to see if it's elsewhere
@@ -927,6 +925,7 @@ class ObjStore:
             env_servlet_name, "adelete_local", key
         )
 
+    @env_servlet_only_method
     async def adelete_local(self, key: Any):
         await self.apop_local(key)
 
@@ -981,12 +980,10 @@ class ObjStore:
     async def aclear_for_env_servlet_name(self, env_servlet_name: str):
         return await self.acall_env_servlet_method(env_servlet_name, "aclear_local")
 
+    @env_servlet_only_method
     async def aclear_local(self):
-        if self.has_local_storage:
-            # Use asyncio gather to run all the deletes concurrently
-            await asyncio.gather(
-                *[self.apop_local(k) for k in list(self._kv_store.keys())]
-            )
+        # Use asyncio gather to run all the deletes concurrently
+        await asyncio.gather(*[self.apop_local(k) for k in list(self._kv_store.keys())])
 
     async def aclear(self):
         logger.warning("Clearing all keys from all envs in the object store!")
@@ -1012,10 +1009,8 @@ class ObjStore:
             new_key,
         )
 
+    @env_servlet_only_method
     async def arename_local(self, old_key: Any, new_key: Any):
-        if self.servlet_name is None or not self.has_local_storage:
-            raise NoLocalObjStoreError()
-
         obj = await self.apop(old_key)
         if obj is not None and hasattr(obj, "rns_address"):
             # Note - we set the obj.name here so the new_key is correctly turned into an rns_address, whether its
@@ -1072,6 +1067,7 @@ class ObjStore:
             ctx=dict(req_ctx.get()),
         )
 
+    @env_servlet_only_method
     async def acall_local(
         self,
         key: str,
@@ -1087,9 +1083,6 @@ class ObjStore:
         Handles calls on properties, methods, coroutines, and generators.
 
         """
-        if self.servlet_name is None or not self.has_local_storage:
-            raise NoLocalObjStoreError()
-
         from runhouse.resources.provenance import run
 
         log_ctx = None
@@ -1500,6 +1493,7 @@ class ObjStore:
             serialized_data, serialization, env_name
         )
 
+    @env_servlet_only_method
     async def aput_resource_local(
         self,
         resource_config: Dict[str, Any],
@@ -1549,10 +1543,8 @@ class ObjStore:
     ##############################################
     # Cluster info methods
     ##############################################
+    @env_servlet_only_method
     def keys_with_info(self):
-        if not self.has_local_storage or self.servlet_name is None:
-            raise NoLocalObjStoreError()
-
         # Need to copy to avoid race conditions
         current_active_function_calls = copy.copy(self.active_function_calls)
 
