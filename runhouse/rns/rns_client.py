@@ -244,7 +244,7 @@ class RNSClient:
         return {"Authorization": f"Bearer {hashed_token}"}
 
     def cluster_token(self, den_token: str, resource_address: str):
-        if "/" in resource_address:
+        if resource_address and "/" in resource_address:
             # If provided as a full rns address, extract the top level directory
             resource_address = self.base_folder(resource_address)
 
