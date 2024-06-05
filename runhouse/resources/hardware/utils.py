@@ -1,3 +1,4 @@
+import copy
 import json
 
 import logging
@@ -122,3 +123,10 @@ def detect_cuda_version_or_cpu(cluster: "Cluster" = None):
     if run_setup_command("nvidia-smi", cluster=cluster)[0] == 0:
         return cuda_version
     return "cpu"
+
+
+def remove_chars_from_str(old_str: str, chars_to_remove):
+    new_str = copy.deepcopy(old_str)
+    for old, new in chars_to_remove.items():
+        new_str = new_str.replace(old, new)
+    return new_str

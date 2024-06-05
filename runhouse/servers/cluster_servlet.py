@@ -24,6 +24,7 @@ from runhouse.constants import (
 
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.resources.hardware import load_cluster_config_from_file
+from runhouse.resources.hardware.utils import remove_chars_from_str
 from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.autostop_servlet import AutostopServlet
@@ -85,7 +86,7 @@ class ClusterServlet:
             )
             post_status_thread.start()
 
-            logger.debug("Creating send_logs_to_den thread.")
+            logger.info("Creating periodic_log_surfacing thread.")
             send_logs_thread = threading.Thread(
                 target=self.send_cluster_logs_to_den, daemon=True
             )
@@ -270,7 +271,10 @@ class ClusterServlet:
         await asyncio.sleep(SCHEDULERS_DELAY)
         while True:
             try:
-                await self.aupdate_status_check_interval_in_cluster_config()
+
+                await self.async_local_and_servlet_cluster_configs(
+                    values_to_sync=["status_check_interval"]
+                )
 
                 cluster_config = await self.aget_cluster_config()
                 interval_size = cluster_config.get(
@@ -416,8 +420,19 @@ class ClusterServlet:
         with open(SERVER_LOGFILE) as log_file:
             log_lines = log_file.readlines()
             if num_of_lines >= len(log_lines):
-                return " ".join(log_lines)
-            return " ".join(log_lines[-num_of_lines:])
+                log_lines = "".join(log_lines)
+            else:
+                log_lines = "".join(log_lines[-num_of_lines:])
+            chars_to_remove_from_logs = {
+                "": "",
+                "[2m[36m": "",
+                " (EnvServlet": "(EnvServlet",
+                " INFO": "INFO",
+                ")INFO": " INFO",
+                "[0m": "",
+            }
+            logs = remove_chars_from_str(log_lines, chars_to_remove_from_logs)
+            return logs
 
     async def asend_cluster_logs_to_den(self):
         # Delay the start of post_logs_thread, so we'll finish the cluster startup properly
@@ -443,13 +458,12 @@ class ClusterServlet:
                 )
 
                 den_auth = (await self.aget_cluster_config()).get("den_auth")
-
                 # check if the scheduler needs to stop running.
                 if interval_size == -1 or num_of_lines == 0:
                     if is_config_updated:
                         logger.info(
                             f"Disabled cluster logs surfacing. For enabling it, please run "
-                            f"cluster.restart_server()\n. If you want to set the interval size and/or the log tail "
+                            f"cluster.restart_server().\n If you want to set the interval size and/or the log tail "
                             f"length to values that are not the default ones "
                             f"({round(DEFAULT_LOG_SURFACING_INTERVAL / 60, 2)} minutes, {DEFAULT_SURFACED_LOG_LENGTH} "
                             f"lines), please run cluster._enable_or_update_log_surface_to_den(num_of_lines, interval_size) "
