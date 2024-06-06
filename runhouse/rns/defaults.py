@@ -236,7 +236,9 @@ class Defaults:
 
     def set_nested(self, key: str, value: Any, config_path: Optional[str] = None):
         """Set a config key that has multiple key/value pairs"""
-        self.defaults_cache.setdefault(key, {}).update(value)
+        if not self.defaults_cache.get(key):
+            self.defaults_cache.setdefault(key, {})
+        self.defaults_cache[key].update(value)
         self.save_defaults(config_path=config_path)
 
     def set_many(self, key_value_pairs: Dict, config_path: Optional[str] = None):

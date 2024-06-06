@@ -162,6 +162,7 @@ class Package(Resource):
                     path = self.install_target.path
                 else:
                     path = self.to(cluster).install_target.path
+                    install_cmd = self._install_cmd(cluster=cluster)
 
                 if not path:
                     return
