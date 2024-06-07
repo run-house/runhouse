@@ -1,5 +1,5 @@
-# # Deploy Llama2 7B Model with TGI on AWS Inferentia2
-# This example demonstrates how to deploy Llama2 7B with
+# # Deploy Llama 2 7B Model with TGI on AWS Inferentia2
+# This example demonstrates how to deploy Llama 2 7B with
 # [TGI](https://github.com/huggingface/optimum-neuron/tree/main/text-generation-inference) on AWS Inferentia2
 # using Runhouse, specifically with the [AWS Neuron SDK](https://awsdocs-neuron.readthedocs-hosted.com/en/latest/).
 # It will launch and set up the hardware, deploy the TGI container, and show multiple ways to run inference with
@@ -8,10 +8,10 @@
 # ## Setup credentials and dependencies
 # Install the required dependencies:
 # ```shell
-# $ pip install -r requirements.txt
+# $ pip install runhouse[aws]
 # ```
 #
-# We'll be using [Llama2](https://huggingface.co/aws-neuron/Llama-2-7b-hf-neuron-budget), which is a gated
+# We'll be using [Llama 2](https://huggingface.co/aws-neuron/Llama-2-7b-hf-neuron-budget), which is a gated
 # model and requires a Hugging Face token in order to access it.
 #
 # To set up your Hugging Face token, run the following command in your local terminal:

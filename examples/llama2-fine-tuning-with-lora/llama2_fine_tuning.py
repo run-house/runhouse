@@ -1,15 +1,15 @@
-# # Fine Tune Llama2 with LoRA on AWS EC2
+# # Fine Tune Llama 2 with LoRA on AWS EC2
 
 # This example demonstrates fine tune a model using
-# [Llama2](https://huggingface.co/NousResearch/Llama-2-7b-chat-hf) and
+# [Llama 2](https://huggingface.co/NousResearch/Llama-2-7b-chat-hf) and
 # [LoRA](https://huggingface.co/docs/peft/main/en/conceptual_guides/lora) on AWS EC2 using Runhouse.
 #
 # ## Setup credentials and dependencies
 #
 # ```
-# Install the few required dependencies:
+# Install the required dependencies:
 # ```shell
-# $ pip install -r requirements.txt
+# $ pip install runhouse[aws]
 # ```
 #
 # We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to

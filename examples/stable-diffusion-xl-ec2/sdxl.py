@@ -11,9 +11,9 @@
 # $ conda create -n rh-sdxl python=3.9.15
 # $ conda activate rh-sdxl
 # ```
-# Install the few required dependencies:
+# Install the required dependencies:
 # ```shell
-# $ pip install -r requirements.txt
+# $ pip install runhouse[aws] Pillow
 # ```
 #
 # We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
@@ -22,7 +22,7 @@
 # $ aws configure
 # $ sky check
 # ```
-# We'll be downloading the Llama2 model from Hugging Face, so we need to set up our Hugging Face token:
+# We'll be downloading the Stable Diffusion model from Hugging Face, so we need to set up our Hugging Face token:
 # ```shell
 # $ export HF_TOKEN=<your huggingface token>
 # ```
@@ -143,7 +143,7 @@ if __name__ == "__main__":
             "transformers==4.31.0",
             "accelerate==0.21.0",
         ],
-        secrets=["huggingface"],  # Needed to download Llama2
+        secrets=["huggingface"],  # Needed to download model
         env_vars={"NEURON_RT_NUM_CORES": "2"},
     )
 

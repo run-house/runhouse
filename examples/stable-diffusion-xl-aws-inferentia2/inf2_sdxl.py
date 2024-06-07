@@ -15,9 +15,9 @@
 # $ conda create -n rh-inf2 python=3.9.15
 # $ conda activate rh-inf2
 # ```
-# Install the few required dependencies:
+# Install the required dependencies:
 # ```shell
-# $ pip install -r requirements.txt
+# $ pip install runhouse[aws] Pillow
 # ```
 #
 # We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
@@ -26,7 +26,7 @@
 # $ aws configure
 # $ sky check
 # ```
-# We'll be downloading the Llama2 model from Hugging Face, so we need to set up our Hugging Face token:
+# We'll be downloading the Stable Diffusion model from Hugging Face, so we need to set up our Hugging Face token:
 # ```shell
 # $ export HF_TOKEN=<your huggingface token>
 # ```
@@ -179,7 +179,7 @@ if __name__ == "__main__":
             "optimum-neuron==0.0.20",
             "diffusers==0.27.2",
         ],
-        secrets=["huggingface"],  # Needed to download Llama2
+        secrets=["huggingface"],  # Needed to download model
         env_vars={"NEURON_RT_NUM_CORES": "2"},
     )
 

@@ -10,11 +10,10 @@
 # ```shell
 # $ conda create -n parallel-embed python=3.9.15
 # $ conda activate parallel-embed
-#
 # ```
-# Install the few required dependencies:
+# Install the required dependencies:
 # ```shell
-# $ pip install -r requirements.txt
+# $ pip install runhouse[aws] bs4
 # ```
 #
 # We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
