@@ -5,11 +5,13 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Dict, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import dotenv
+import httpx
 
 import requests
+from pydantic import BaseModel
 
 from runhouse.rns.utils.api import (
     generate_uuid,
@@ -20,6 +22,17 @@ from runhouse.rns.utils.api import (
 )
 
 logger = logging.getLogger(__name__)
+
+# This is a copy of the Pydantic model that we use to validate in Den
+class ResourceStatusData(BaseModel):
+    cluster_config: dict
+    env_resource_mapping: Dict[str, List[Dict[str, Any]]]
+    system_cpu_usage: float
+    system_memory_usage: Dict[str, Any]
+    system_disk_usage: Dict[str, Any]
+    env_servlet_processes: Dict[str, Dict[str, Any]]
+    server_pid: int
+    runhouse_version: str
 
 
 class RNSClient:
@@ -659,3 +672,26 @@ class RNSClient:
         return folder(name=name_or_path, path=folder_url).resources(
             full_paths=full_paths
         )
+
+    async def send_status(self, status: ResourceStatusData, cluster_rns_address: str):
+        status_data = {
+            "status": "running",
+            "resource_type": status.cluster_config.get("resource_type"),
+            "data": dict(status),
+        }
+        cluster_uri = self.format_rns_address(cluster_rns_address)
+        api_server_url = status.cluster_config.get(
+            "api_server_url", self.api_server_url
+        )
+        client = httpx.AsyncClient()
+        resp = await client.post(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            data=json.dumps(status_data),
+            headers=self.request_headers(),
+        )
+        if resp.status_code != 200:
+            logger.error(
+                f"Received [{resp.status_code}]: Failed to send cluster status info to Den: {resp.text}."
+            )
+        else:
+            logger.info("Successfully sent cluster status info to Den.")
