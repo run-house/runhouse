@@ -298,9 +298,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert res.get("ips") == cluster.ips
 
         assert "worker_env" in cluster_data.get("env_resource_mapping")
-        assert {"name": "status_key1", "resource_type": "str"} in cluster_data.get(
-            "env_resource_mapping"
-        )["worker_env"]
+        assert {
+            "name": "status_key1",
+            "resource_type": "str",
+            "active_function_calls": [],
+        } in cluster_data.get("env_resource_mapping")["worker_env"]
 
         # test memory usage info
         expected_env_servlet_keys = [
