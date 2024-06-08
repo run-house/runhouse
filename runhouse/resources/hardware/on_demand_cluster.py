@@ -241,6 +241,9 @@ class OnDemandCluster(Cluster):
                         f"default: {DEFAULT_HTTP_PORT}."
                     )
 
+        if self.den_auth:
+            self.save()
+
     # ----------------- Launch/Lifecycle Methods -----------------
 
     def is_up(self) -> bool:

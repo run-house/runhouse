@@ -191,9 +191,6 @@ def cluster(
     )
     c.set_connection_defaults(**kwargs)
 
-    if den_auth:
-        c.save()
-
     return c
 
 
@@ -460,9 +457,6 @@ def ondemand_cluster(
     )
     c.set_connection_defaults()
 
-    if den_auth:
-        c.save()
-
     return c
 
 
@@ -662,8 +656,5 @@ def sagemaker_cluster(
         **kwargs,
     )
     sm.set_connection_defaults()
-
-    if den_auth:
-        sm.save()
 
     return sm

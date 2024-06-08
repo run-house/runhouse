@@ -1621,6 +1621,9 @@ class Cluster(Resource):
                 f"{RESERVED_SYSTEM_NAMES}."
             )
 
+        if self.den_auth:
+            self.save()
+
     def share(
         self,
         users: Union[str, List[str]] = None,

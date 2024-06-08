@@ -395,6 +395,9 @@ class SageMakerCluster(Cluster):
                 "SageMaker Cluster currently requires a server host of `localhost` or `127.0.0.1`"
             )
 
+        if self.den_auth:
+            self.save()
+
     # -------------------------------------------------------
     # Cluster State & Lifecycle Methods
     # -------------------------------------------------------
