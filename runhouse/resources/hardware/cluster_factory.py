@@ -109,6 +109,8 @@ def cluster(
             c = Cluster.from_name(name, dryrun, alt_options=alt_options)
             if c:
                 c.set_connection_defaults()
+                if den_auth:
+                    c.save()
                 return c
         except ValueError as e:
             if not alt_options:
@@ -430,6 +432,8 @@ def ondemand_cluster(
             c = Cluster.from_name(name, dryrun, alt_options=alt_options)
             if c:
                 c.set_connection_defaults()
+                if den_auth:
+                    c.save()
                 return c
         except ValueError as e:
             if not alt_options:
