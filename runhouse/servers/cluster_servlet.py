@@ -22,7 +22,9 @@ from runhouse.constants import (
 )
 
 from runhouse.globals import configs, obj_store, rns_client
+from runhouse.logger import ColoredFormatter
 from runhouse.resources.hardware import load_cluster_config_from_file
+
 from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.autostop_helper import AutostopHelper
@@ -393,7 +395,9 @@ class ClusterServlet:
     def _get_logs(self):
         with open(SERVER_LOGFILE) as log_file:
             log_lines = log_file.readlines()
-            return " ".join(log_lines)
+
+        cleaned_log_lines = [ColoredFormatter.format_log(line) for line in log_lines]
+        return " ".join(cleaned_log_lines)
 
     async def asend_cluster_logs_to_den(self):
         # Delay the start of post_logs_thread, so we'll finish the cluster startup properly
@@ -418,9 +422,16 @@ class ClusterServlet:
                     headers=rns_client.request_headers(),
                 )
 
+                post_logs_resp_json = post_logs_resp.json()
+
                 if post_logs_resp.status_code != 200:
+                    post_logs_error = (
+                        post_logs_resp_json.get("detail")
+                        if post_logs_resp_json.get("detail")
+                        else ""
+                    )
                     logger.error(
-                        f"({post_logs_resp.status_code}) Failed to send cluster logs to Den: {post_logs_resp.text}"
+                        f"({post_logs_resp.status_code}) Failed to send cluster logs to Den: {post_logs_error}"
                     )
                 else:
                     logger.info(

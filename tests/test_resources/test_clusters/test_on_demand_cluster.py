@@ -2,8 +2,11 @@ import asyncio
 import time
 
 import pytest
+import requests
 
 import runhouse as rh
+from runhouse.constants import SERVER_LOGFILE_PATH
+from runhouse.logger import ColoredFormatter
 
 import tests.test_resources.test_clusters.test_cluster
 from tests.utils import friend_account
@@ -155,3 +158,37 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         # cluster.status()
         # # Check that last active is within the last second, so we know the activity wasn't just from the call itself
         # assert get_last_active() > time.time() - 1
+
+    @pytest.mark.level("minimal")
+    def test_logs_surfacing_scheduler_basic_flow(self, cluster):
+        if not cluster.den_auth:
+            pytest.skip(
+                "This test checking pinging cluster status to den, this could be done only on clusters "
+                "with den_auth that can be saved to den."
+            )
+
+        time.sleep(120)
+        cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
+        headers = rh.globals.rns_client.request_headers()
+        api_server_url = rh.globals.rns_client.api_server_url
+
+        get_status_data_resp = requests.get(
+            f"{api_server_url}/resource/{cluster_uri}/logs",
+            headers=headers,
+        )
+
+        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"])[0][1].split(
+            "\n"
+        )  # create list of lines
+        cluster_logs = [
+            ColoredFormatter.format_log(log) for log in cluster_logs
+        ]  # clean log formatting
+        cluster_logs = "\n".join(cluster_logs)  # make logs list into one string
+
+        assert "Trying to send cluster logs to Den" in cluster_logs
+
+        assert get_status_data_resp.status_code == 200
+        cluster_logs_from_s3 = get_status_data_resp.json()["data"][0][1:].replace(
+            "\n ", "\n"
+        )
+        assert cluster_logs_from_s3 in cluster_logs
