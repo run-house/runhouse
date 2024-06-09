@@ -1761,12 +1761,64 @@ class Cluster(Resource):
     ##############################################
 
     def _disable_log_surface_to_den(self):
-        # TODO [SB]: implement.
-        pass
+        if not self.den_auth:
+            logger.error(
+                "To change log surfacing setup on a cluster, it must have Den authorization. "
+                "Make sure you have a Den account, and you've created your cluster with den_auth = True."
+            )
+            return
+        self.update_cluster_config_on_cluster(
+            items_to_update=[
+                {"surfaced_logs_length": 0},
+                {"logs_surfacing_interval": -1},
+            ]
+        )
 
     def _enable_or_update_log_surface_to_den(
-        self, num_of_lines: int = DEFAULT_SURFACED_LOG_LENGTH
+        self,
+        num_of_lines: int = None,
+        logs_surfacing_interval: int = None,
     ):
+        if not self.den_auth:
+            logger.error(
+                "To change log surfacing setup on a cluster, it must have Den authorization. "
+                "Make sure you have a Den account, and you've created your cluster with den_auth = True."
+            )
+            return
+        if not self.is_up():
+            logger.error("Cluster is not up, can not change log surfacing settings.")
+            return
+
+        cluster_config_on_cluster = None
+
+        if not num_of_lines or not logs_surfacing_interval:
+            cluster_config_on_cluster = self.run([f"cat {CLUSTER_CONFIG_PATH}"])
+            if cluster_config_on_cluster[0][0] != 0:
+                # TODO: change the warning msg to contain the error er got from the self.run execution.
+                logger.warning(
+                    "Could not get the cluster config saved on the cluster, therefore it was not "
+                    "updated with the provided item(s)."
+                )
+                return
+            cluster_config_on_cluster = json.loads(cluster_config_on_cluster[0][1])
+
+        # making sure that if the user want to update only the logs tail length or the time interval,
+        # the other settings will not be changed.
+        if not num_of_lines:
+            num_of_lines = (
+                cluster_config_on_cluster.get("surfaced_logs_length")
+                if cluster_config_on_cluster
+                else DEFAULT_SURFACED_LOG_LENGTH
+            )
+
+        if not logs_surfacing_interval:
+            logs_surfacing_interval = (
+                cluster_config_on_cluster.get("logs_surfacing_interval")
+                if cluster_config_on_cluster
+                else DEFAULT_LOG_SURFACING_INTERVAL
+            )
+
+        # The case when the user provides a tail length that is longer than the allowed length
         if num_of_lines > MAX_SURFACED_LOG_LENGTH:
             logger.warning(
                 f"Your pricing model doesn't all to set log length to {num_of_lines} lines. "
@@ -1774,4 +1826,9 @@ class Cluster(Resource):
             )
             num_of_lines = MAX_SURFACED_LOG_LENGTH
 
-        # TODO [SB]: save the log_len to config cluster.
+        self.update_cluster_config_on_cluster(
+            items_to_update=[
+                {"surfaced_logs_length": num_of_lines},
+                {"logs_surfacing_interval": logs_surfacing_interval},
+            ]
+        )

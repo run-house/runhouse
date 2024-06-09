@@ -97,25 +97,31 @@ class ClusterServlet:
     async def aget_cluster_config(self) -> Dict[str, Any]:
         return self.cluster_config
 
-    async def aupdate_status_check_interval_in_cluster_config(self):
+    async def async_local_and_servlet_cluster_configs(self, values_to_sync: list[str]):
         cluster_path = Path(CLUSTER_CONFIG_PATH).expanduser()
         with open(cluster_path) as cluster_local_config:
             local_config = json.load(cluster_local_config)
-            local_interval = local_config.get("status_check_interval")
-            servlet_interval = self.cluster_config.get("status_check_interval")
-            if (
-                servlet_interval
-                and local_interval
-                and local_interval != servlet_interval
-            ):
+            is_synced = False
+            for item in values_to_sync:
+                local_cluster_value = local_config.get(item)
+                servlet_cluster_value = self.cluster_config.get(item)
+                if (
+                    local_cluster_value
+                    and servlet_cluster_value
+                    and local_cluster_value != servlet_cluster_value
+                ):
+                    if item == "status_check_interval" and servlet_cluster_value > 0:
+                        logger.info(
+                            f"Updated cluster_config with new status check interval: {round(servlet_cluster_value/60, 2)} minutes."
+                        )
+                    if item == "logs_surfacing_interval" and servlet_cluster_value > 0:
+                        logger.info(
+                            f"Updated cluster_config with new logs surfacing interval: {round(servlet_cluster_value/60, 2)} minutes."
+                        )
+                    is_synced = True
+            if is_synced:
                 await self.aset_cluster_config(local_config)
-                if local_interval > 0:
-                    logger.info(
-                        f"Updated cluster_config with new status check interval: {round(local_interval/60, 2)} minutes."
-                    )
-                return True
-            else:
-                return False
+            return is_synced
 
     async def aset_cluster_config(self, cluster_config: Dict[str, Any]):
         self.cluster_config = cluster_config
@@ -413,9 +419,7 @@ class ClusterServlet:
                 return " ".join(log_lines)
             return " ".join(log_lines[-num_of_lines:])
 
-    async def asend_cluster_logs_to_den(
-        self, num_of_lines: int = DEFAULT_SURFACED_LOG_LENGTH
-    ):
+    async def asend_cluster_logs_to_den(self):
         # Delay the start of post_logs_thread, so we'll finish the cluster startup properly
         await asyncio.sleep(SCHEDULERS_DELAY)
 
@@ -423,10 +427,47 @@ class ClusterServlet:
             logger.info("Trying to send cluster logs to Den")
             try:
                 interval_size = DEFAULT_LOG_SURFACING_INTERVAL
+
+                cluster_config = await self.aget_cluster_config()
+
+                is_config_updated = await self.async_local_and_servlet_cluster_configs(
+                    ["logs_surfacing_interval", "surfaced_logs_length"]
+                )
+
+                interval_size = (await self.aget_cluster_config()).get(
+                    "logs_surfacing_interval", DEFAULT_STATUS_CHECK_INTERVAL
+                )
+
+                num_of_lines = (await self.aget_cluster_config()).get(
+                    "surfaced_logs_length", DEFAULT_STATUS_CHECK_INTERVAL
+                )
+
+                den_auth = (await self.aget_cluster_config()).get("den_auth")
+
+                # check if the scheduler needs to stop running.
+                if interval_size == -1 or num_of_lines == 0:
+                    if is_config_updated:
+                        logger.info(
+                            f"Disabled cluster logs surfacing. For enabling it, please run "
+                            f"cluster.restart_server()\n. If you want to set the interval size and/or the log tail "
+                            f"length to values that are not the default ones "
+                            f"({round(DEFAULT_LOG_SURFACING_INTERVAL / 60, 2)} minutes, {DEFAULT_SURFACED_LOG_LENGTH} "
+                            f"lines), please run cluster._enable_or_update_log_surface_to_den(num_of_lines, interval_size) "
+                            f"after restarting the server."
+                        )
+                    break
+                if not den_auth:
+                    logger.info(
+                        f"Disabled cluster logs surfacing because den_auth is disabled. For enabling it, please run "
+                        f"cluster.restart_server() and make sure that den_auth is enabled. If you want to set up an interval size that is not the "
+                        f"default value {round(DEFAULT_LOG_SURFACING_INTERVAL / 60, 2)}, or save more logs lines than {DEFAULT_SURFACED_LOG_LENGTH}, please run "
+                        f"cluster._enable_or_update_log_surface_to_den(num_of_lines, interval_size) after restarting the server."
+                    )
+                    break
+
                 latest_logs = self._get_logs(num_of_lines=num_of_lines)
                 logs_data = {"file_name": S3_LOGS_FILE_NAME, "logs": latest_logs}
 
-                cluster_config = await self.aget_cluster_config()
                 cluster_uri = rns_client.format_rns_address(cluster_config.get("name"))
                 api_server_url = cluster_config.get(
                     "api_server_url", rns_client.api_server_url
