@@ -74,7 +74,9 @@ STATUS_CHECK_DELAY = 1 * MINUTE
 # Constants Surfacing Logs to Den
 DEFAULT_SURFACED_LOG_LENGTH = 400
 DEFAULT_LOG_SURFACING_INTERVAL = 3 * MINUTE
-MAX_SURFACED_LOG_LENGTH = 100  # max length of logs that will be surfaced for free
+MAX_SURFACED_LOG_LENGTH = (
+    DEFAULT_SURFACED_LOG_LENGTH * 2
+)  # max length of logs that will be surfaced for free
 S3_LOGS_FILE_NAME = "server.log"
 
 # Constants for schedulers
