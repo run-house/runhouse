@@ -49,6 +49,11 @@ logger = logging.getLogger(__name__)
 @app.command()
 def login(
     token: Optional[str] = typer.Argument(None, help="Your Runhouse API token"),
+    sync_secrets: Optional[bool] = typer.Option(
+        False,
+        "--sync-secrets",
+        help="Whether to sync secrets. You will be prompted whether to upload local secrets or download saved secrets",
+    ),
     yes: Optional[bool] = typer.Option(
         False, "--yes", "-y", help="Sets any confirmations to 'yes' automatically."
     ),
@@ -67,7 +72,11 @@ def login(
         )
         if yes
         else runhouse.rns.login.login(
-            token=token, interactive=True, ret_token=True, from_cli=True
+            token=token,
+            interactive=True,
+            ret_token=True,
+            from_cli=True,
+            sync_secrets=sync_secrets,
         )
     )
 
