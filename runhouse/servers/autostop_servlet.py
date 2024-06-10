@@ -28,5 +28,6 @@ class AutostopServlet:
         if autostop_mins > 0 and (
             self._last_register is None or self._last_register < self._last_activity
         ):
+            print("Updating autostop_last_active_time in sky_configs.")
             sky_configs.set_config("autostop_last_active_time", self._last_activity)
             self._last_register = self._last_activity
