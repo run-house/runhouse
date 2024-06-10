@@ -6,7 +6,6 @@
 #
 # ## Setup credentials and dependencies
 #
-# ```
 # Install the required dependencies:
 # ```shell
 # $ pip install runhouse[aws]
