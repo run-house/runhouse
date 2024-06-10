@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import requests
 
@@ -146,7 +146,6 @@ def login(
         configs.set("default_folder", defaults["default_folder"])
 
     if download_secrets:
-        _convert_secrets_resource()
         _login_download_secrets(from_cli=from_cli)
     if upload_secrets:
         _login_upload_secrets(interactive=interactive)
@@ -233,38 +232,6 @@ def _login_upload_secrets(interactive: bool, headers: Optional[Dict] = None):
         logger.info(f"Uploading secrets for {list(local_secrets)} to Vault.")
         for _, secret in local_secrets.items():
             secret.save(save_values=True)
-
-
-def _convert_secrets_resource(names: List[str] = None, headers: Optional[Dict] = None):
-    # Convert vault-only secrets to a resource to maintain backwards compatibility,
-    # following secrets resource revamp
-    from runhouse import provider_secret, Secret
-    from runhouse.resources.secrets.utils import _load_vault_secret
-
-    headers = headers or rns_client.request_headers()
-
-    secrets = names or Secret.vault_secrets(headers=headers)
-
-    for name in secrets:
-        # TODO: check here to make sure that it exists in vault otherwise doesn't really make sense
-        try:
-            resource_uri = rns_client.resource_uri(f"{rns_client.username}/{name}")
-            resp = requests.get(
-                f"{rns_client.api_server_url}/resource/{resource_uri}",
-                headers=headers,
-            )
-            if resp.status_code != 200:  # not associated with a resource
-                try:
-                    # check if it was previously saved by just the name
-                    values = _load_vault_secret(name, headers=headers)
-                    secret = provider_secret(name, values=values)
-                    secret.save()
-                except Exception:
-                    continue
-
-        except AttributeError:
-            logger.warning(f"Was not able to load down secrets for {name}.")
-            continue
 
 
 def logout(
