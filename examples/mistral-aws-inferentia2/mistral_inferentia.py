@@ -6,7 +6,7 @@
 # ## Setup credentials and dependencies
 # Install the required dependencies:
 # ```shell
-# $ pip install -r requirements.txt
+# $ pip install runhouse[aws]
 # ```
 #
 # We'll be launching an AWS Inferentia instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we

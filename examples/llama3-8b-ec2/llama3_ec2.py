@@ -1,7 +1,7 @@
-# # Deploy Llama3 8B Chat Model Inference on AWS EC2
+# # Deploy Llama 3 8B Chat Model Inference on AWS EC2
 
 # This example demonstrates how to deploy a
-# [LLama3 8B model from Hugging Face](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)
+# [LLama 3 8B model from Hugging Face](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)
 # on AWS EC2 using Runhouse.
 #
 # Make sure to sign the waiver on the model page so that you can access it.
@@ -10,12 +10,12 @@
 #
 # Optionally, set up a virtual environment:
 # ```shell
-# $ conda create -n llama3-rh
+# $ conda create -n llama3-rh python=3.9.15
 # $ conda activate llama3-rh
 # ```
-# Install the few required dependencies:
+# Install the required dependencies:
 # ```shell
-# $ pip install -r requirements.txt
+# $ pip install runhouse[aws] torch
 # ```
 #
 # We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
@@ -24,7 +24,7 @@
 # $ aws configure
 # $ sky check
 # ```
-# We'll be downloading the Llama3 model from Hugging Face, so we need to set up our Hugging Face token:
+# We'll be downloading the Llama 3 model from Hugging Face, so we need to set up our Hugging Face token:
 # ```shell
 # $ export HF_TOKEN=<your huggingface token>
 # ```
@@ -125,7 +125,7 @@ if __name__ == "__main__":
             "safetensors",
             "scipy",
         ],
-        secrets=["huggingface"],  # Needed to download Llama3 from HuggingFace
+        secrets=["huggingface"],  # Needed to download Llama 3 from HuggingFace
         name="llama3inference",
         working_dir="./",
     )
