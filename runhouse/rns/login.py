@@ -26,6 +26,7 @@ def login(
     ret_token: bool = False,
     interactive: bool = None,
     from_cli: bool = False,
+    sync_secrets: bool = False,
 ):
     """Login to Runhouse. Validates token provided, with options to upload or download stored secrets or config between
     local environment and Runhouse / Vault.
@@ -97,23 +98,30 @@ def login(
                 default=True,
             )
         )
-        download_secrets = (
-            download_secrets
-            if download_secrets is not None
-            else typer.confirm(
-                "Download secrets from Vault to your local Runhouse environment?"
-            )
-        )
         upload_config = (
             upload_config
             if upload_config is not None
             else typer.confirm("Upload your local .rh config to Runhouse?")
         )
-        upload_secrets = (
-            upload_secrets
-            if upload_secrets is not None
-            else typer.confirm("Upload your local enabled provider secrets to Vault?")
-        )
+
+        if sync_secrets:
+            from runhouse import Secret
+
+            if Secret.vault_secrets(rns_client.request_headers()):
+                download_secrets = (
+                    download_secrets
+                    if download_secrets is not None
+                    else typer.confirm(
+                        "Download secrets from Vault to your local Runhouse environment?"
+                    )
+                )
+            upload_secrets = (
+                upload_secrets
+                if upload_secrets is not None
+                else typer.confirm(
+                    "Upload your local enabled provider secrets to Vault?"
+                )
+            )
 
     if token:
         # Note, this is to explicitly add it to the config file, as opposed to setting in python
@@ -159,7 +167,14 @@ def _login_download_secrets(headers: Optional[str] = None, from_cli=False):
             if not (hasattr(secret, "path") or hasattr(secret, "env_vars")):
                 continue
 
-            download_path = secret.path or secret._DEFAULT_CREDENTIALS_PATH
+            download_path = (
+                secret.path
+                if secret.path
+                else f"{secret._DEFAULT_CREDENTIALS_PATH}/{name}"
+                if hasattr(secret, "provider") and secret.provider == "ssh"
+                else secret._DEFAULT_CREDENTIALS_PATH
+            )
+
             if download_path and not secret.env_vars:
                 logger.info(f"Loading down secrets for {name} into {download_path}")
                 secret.write(path=download_path)
@@ -233,7 +248,7 @@ def _convert_secrets_resource(names: List[str] = None, headers: Optional[Dict] =
     for name in secrets:
         # TODO: check here to make sure that it exists in vault otherwise doesn't really make sense
         try:
-            resource_uri = rns_client.resource_uri(name)
+            resource_uri = rns_client.resource_uri(f"{rns_client.username}/{name}")
             resp = requests.get(
                 f"{rns_client.api_server_url}/resource/{resource_uri}",
                 headers=headers,
