@@ -47,7 +47,6 @@ import torch
 class HFChatModel(rh.Module):
     def __init__(self, model_id="meta-llama/Meta-Llama-3-8B-Instruct", **model_kwargs):
         super().__init__()
-        # TODO: Model kwargs ignored right now!
         self.model_id, self.model_kwargs = model_id, model_kwargs
         self.pipeline = None
 
