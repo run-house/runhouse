@@ -9,7 +9,7 @@
 # ## Setup credentials and dependencies
 # Install the required dependencies:
 # ```shell
-# $ pip install openai runhouse[aws]
+# $ pip install openai "runhouse[aws]"
 # ```
 #
 # We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to make

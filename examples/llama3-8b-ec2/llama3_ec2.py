@@ -15,7 +15,7 @@
 # ```
 # Install the required dependencies:
 # ```shell
-# $ pip install runhouse[aws] torch
+# $ pip install "runhouse[aws]" torch
 # ```
 #
 # We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to

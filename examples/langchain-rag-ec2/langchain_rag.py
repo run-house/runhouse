@@ -12,7 +12,7 @@
 # ```
 # Install Runhouse, the only library needed to run this script locally:
 # ```shell
-# $ pip install runhouse[aws]
+# $ pip install "runhouse[aws]"
 # ```
 
 # We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
