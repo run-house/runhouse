@@ -8,7 +8,7 @@
 # ## Setup credentials and dependencies
 # Install the required dependencies:
 # ```shell
-# $ pip install runhouse[aws]
+# $ pip install "runhouse[aws]"
 # ```
 #
 # We'll be using [Llama 2](https://huggingface.co/aws-neuron/Llama-2-7b-hf-neuron-budget), which is a gated
