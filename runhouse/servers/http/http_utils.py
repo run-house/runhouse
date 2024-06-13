@@ -28,6 +28,7 @@ class ServerSettings(BaseModel):
     den_auth: Optional[bool] = None
     flush_auth_cache: Optional[bool] = None
     autostop_mins: Optional[int] = None
+    status_check_interval: Optional[int] = None
 
 
 class CallParams(BaseModel):

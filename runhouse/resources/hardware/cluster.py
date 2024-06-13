@@ -1702,7 +1702,14 @@ class Cluster(Resource):
                 "Make sure you have a Den account, and you've created your cluster with den_auth = True."
             )
             return
-        self.save_config_to_cluster(status_check_interval=-1)
+        if self.client:
+            self.client.set_settings({"status_check_interval": -1})
+            logger.info("Successfully updated status check settings.")
+        else:
+            logger.error(
+                "Cluster does not http client, can't update status_check_interval in cluster settings."
+            )
+        # self.save_config_to_cluster(status_check_interval=-1)
 
     def _enable_or_update_status_check(
         self, new_interval: int = DEFAULT_STATUS_CHECK_INTERVAL
@@ -1717,4 +1724,11 @@ class Cluster(Resource):
                 "Make sure you have a Den account, and you've created your cluster with den_auth = True."
             )
             return
-        self.save_config_to_cluster(status_check_interval=new_interval)
+        if self.client:
+            self.client.set_settings({"status_check_interval": new_interval})
+            logger.info("Successfully updated status check settings.")
+        else:
+            logger.error(
+                "Cluster does not http client, can't update status_check_interval in cluster settings."
+            )
+        # self.save_config_to_cluster(status_check_interval=new_interval)

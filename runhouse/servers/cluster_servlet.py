@@ -251,7 +251,7 @@ class ClusterServlet:
         await asyncio.sleep(STATUS_CHECK_DELAY)
         while True:
             try:
-                await self.aupdate_status_check_interval_in_cluster_config()
+                # await self.aupdate_status_check_interval_in_cluster_config()
 
                 cluster_config = await self.aget_cluster_config()
                 interval_size = cluster_config.get(
