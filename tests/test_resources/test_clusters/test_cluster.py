@@ -663,7 +663,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             headers=headers,
         )
         assert get_status_data_resp.status_code == 200
-        get_status_data = get_status_data_resp.json()["data"]
+        get_status_data = get_status_data_resp.json()["data"][0]
         assert get_status_data["resource_type"] == status.get("cluster_config").get(
             "resource_type"
         )
@@ -681,7 +681,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             f"{api_server_url}/resource/{cluster_uri}/cluster/status",
             headers=headers,
         )
-        assert get_status_data_resp.json()["data"]["status"] == "terminated"
+        assert get_status_data_resp.json()["data"][0]["status"] == "terminated"
 
     @pytest.mark.level("minimal")
     def test_status_scheduler_basic_flow(self, cluster):
@@ -715,4 +715,4 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
 
         assert get_status_data_resp.status_code == 200
-        assert get_status_data_resp.json()["data"]["status"] == "running"
+        assert get_status_data_resp.json()["data"][0]["status"] == "running"
