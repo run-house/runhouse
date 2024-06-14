@@ -18,15 +18,8 @@ class AutostopServlet:
         autostop_lib.set_autostop(value, None, True)
 
     def update_autostop_in_sky_config(self):
-        import pickle
+        from sky.skylet.autostop_lib import set_last_active_time_to_now
 
-        from sky.skylet import configs as sky_configs
-
-        autostop_mins = pickle.loads(
-            sky_configs.get_config("autostop_config")
-        ).autostop_idle_minutes
-        if autostop_mins > 0 and (
-            self._last_register is None or self._last_register < self._last_activity
-        ):
-            sky_configs.set_config("autostop_last_active_time", self._last_activity)
+        if self._last_register is None or self._last_register < self._last_activity:
+            set_last_active_time_to_now()
             self._last_register = self._last_activity
