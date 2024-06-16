@@ -19,7 +19,7 @@ from runhouse.globals import configs, obj_store, rns_client
 from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
-from runhouse.servers.autostop_servlet import AutostopServlet
+from runhouse.servers.autostop_helper import AutostopHelper
 from runhouse.servers.http.auth import AuthCache
 
 from runhouse.utils import sync_function
@@ -48,25 +48,10 @@ class ClusterServlet:
         self._initialized_env_servlet_names: Set[str] = set()
         self._key_to_env_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache(cluster_config)
-        self.autostop_servlet = None
+        self.autostop_helper = None
 
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
-            import ray
-
-            current_ip = ray.get_runtime_context().worker.node_ip_address
-            self.autostop_servlet = (
-                ray.remote(AutostopServlet)
-                .options(
-                    name="autostop_servlet",
-                    get_if_exists=True,
-                    lifetime="detached",
-                    namespace="runhouse",
-                    max_concurrency=1000,
-                    resources={f"node:{current_ip}": 0.001},
-                    num_cpus=0,
-                )
-                .remote()
-            )
+            self.autostop_helper = AutostopHelper()
 
         logger.info("Creating periodic_status_check thread.")
         post_status_thread = threading.Thread(
@@ -119,8 +104,8 @@ class ClusterServlet:
         return self.cluster_config
 
     async def aset_cluster_config_value(self, key: str, value: Any):
-        if self.autostop_servlet and key == "autostop_mins" and value > -1:
-            await self.autostop_servlet.set_auto_stop.remote(value)
+        if self.autostop_helper and key == "autostop_mins":
+            await self.autostop_helper.set_autostop(value)
         self.cluster_config[key] = value
 
         # Propagate the changes to all other process's obj_stores
@@ -206,8 +191,8 @@ class ClusterServlet:
         return self._key_to_env_servlet_name
 
     async def aget_env_servlet_name_for_key(self, key: Any) -> str:
-        if self.autostop_servlet:
-            await self.autostop_servlet.set_last_active_time_to_now.remote()
+        if self.autostop_helper:
+            await self.autostop_helper.set_last_active_time_to_now()
         return self._key_to_env_servlet_name.get(key, None)
 
     async def aput_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
@@ -257,7 +242,7 @@ class ClusterServlet:
 
                 # Only if one of these is true, do we actually need to get the status from each EnvServlet
                 should_send_status_to_den = den_auth and interval_size != -1
-                should_update_autostop = self.autostop_servlet is not None
+                should_update_autostop = self.autostop_helper is not None
                 if should_send_status_to_den or should_update_autostop:
                     logger.info(
                         "Performing cluster status check: potentially sending to Den or updating autostop."
@@ -273,8 +258,12 @@ class ClusterServlet:
                             for resources in status.env_resource_mapping.values()
                         )
                         if function_running:
-                            await self.autostop_servlet.set_last_active_time_to_now.remote()
-                        await self.autostop_servlet.update_autostop_in_sky_config.remote()
+                            await self.autostop_helper.set_last_active_time_to_now()
+                        # We do this separately from the set_last_active_time_to_now call above because
+                        # function_running will only reflect activity from functions which happen to be running during
+                        # the status check. We still need to attempt to register activity for functions which have
+                        # been called and completed.
+                        await self.autostop_helper.register_activity_if_needed()
 
                     if should_send_status_to_den:
                         cluster_rns_address = cluster_config.get("name")
