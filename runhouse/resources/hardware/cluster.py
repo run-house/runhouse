@@ -160,17 +160,11 @@ class Cluster(Resource):
     def save_config_to_cluster(
         self,
         node: str = None,
-        status_check_interval: int = DEFAULT_STATUS_CHECK_INTERVAL,
     ):
         config = self.config(condensed=False)
 
         # popping creds, because we don't want the secret reds will be saved on the cluster.
         config.pop("creds")
-
-        # if the cluster has den authorization, the cluster status will be checked periodically.
-        # Saving the time interval between consecutive status checks to cluster_config.
-        if self.den_auth:
-            config["status_check_interval"] = status_check_interval
 
         json_config = f"{json.dumps(config)}"
 
@@ -1721,7 +1715,8 @@ class Cluster(Resource):
                 "Make sure you have a Den account, and you've created your cluster with den_auth = True."
             )
             return
-        self.save_config_to_cluster(status_check_interval=-1)
+        self.check_server()
+        self.client.set_settings({"status_check_interval": -1})
 
     def _enable_or_update_status_check(
         self, new_interval: int = DEFAULT_STATUS_CHECK_INTERVAL
@@ -1736,4 +1731,5 @@ class Cluster(Resource):
                 "Make sure you have a Den account, and you've created your cluster with den_auth = True."
             )
             return
-        self.save_config_to_cluster(status_check_interval=new_interval)
+        self.check_server()
+        self.client.set_settings({"status_check_interval": new_interval})

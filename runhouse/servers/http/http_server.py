@@ -339,6 +339,11 @@ class HTTPServer:
         if message.autostop_mins:
             obj_store.set_cluster_config_value("autostop_mins", message.autostop_mins)
 
+        if message.status_check_interval:
+            obj_store.set_cluster_config_value(
+                "status_check_interval", message.status_check_interval
+            )
+
         return Response(output_type=OutputType.SUCCESS)
 
     @staticmethod
