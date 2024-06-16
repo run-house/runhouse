@@ -22,7 +22,7 @@ from runhouse.constants import (
     LOCAL_HOSTS,
 )
 
-from runhouse.globals import configs, rns_client
+from runhouse.globals import configs, obj_store, rns_client
 from runhouse.resources.hardware.utils import ServerConnectionType
 
 from .cluster import Cluster
@@ -112,8 +112,9 @@ class OnDemandCluster(Cluster):
     def autostop_mins(self, mins):
         self.check_server()
 
+        self._autostop_mins = mins
         if self.on_this_cluster():
-            raise ValueError("Cannot set autostop_mins live on the cluster.")
+            obj_store.set_cluster_config_value("autostop_mins", mins)
         else:
             if self.run_python(["import skypilot"])[0] != 0:
                 raise ImportError(
@@ -121,7 +122,6 @@ class OnDemandCluster(Cluster):
                 )
             self.client.set_settings({"autostop_mins": mins})
             sky.autostop(self.name, mins, down=True)
-            self._autostop_mins = mins
 
     def config(self, condensed=True):
         config = super().config(condensed)
@@ -448,14 +448,14 @@ class OnDemandCluster(Cluster):
 
         return self
 
-    def keep_warm(self, autostop_mins: int = -1):
+    def keep_warm(self, mins: int = -1):
         """Keep the cluster warm for given number of minutes after inactivity.
 
         Args:
-            autostop_mins (int): Amount of time (in min) to keep the cluster warm after inactivity.
+            mins (int): Amount of time (in min) to keep the cluster warm after inactivity.
                 If set to -1, keep cluster warm indefinitely. (Default: `-1`)
         """
-        self.autostop_mins = autostop_mins
+        self.autostop_mins = mins
         return self
 
     def teardown(self):

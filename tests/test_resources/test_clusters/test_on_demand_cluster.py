@@ -1,7 +1,45 @@
+import asyncio
+import time
+
 import pytest
+
+import runhouse as rh
 
 import tests.test_resources.test_clusters.test_cluster
 from tests.utils import friend_account
+
+
+def set_autostop_from_on_cluster_via_ah(mins):
+    ah = rh.servers.autostop_helper.AutostopHelper()
+
+    asyncio.run(ah.set_autostop(mins))
+
+
+def get_auotstop_from_on_cluster():
+    ah = rh.servers.autostop_helper.AutostopHelper()
+
+    return asyncio.run(ah.get_autostop())
+
+
+def get_last_active_time_from_on_cluster():
+    ah = rh.servers.autostop_helper.AutostopHelper()
+
+    return asyncio.run(ah.get_last_active_time())
+
+
+def register_activity_from_on_cluster():
+    ah = rh.servers.autostop_helper.AutostopHelper()
+
+    asyncio.run(ah.set_last_active_time_to_now())
+    asyncio.run(ah.register_activity_if_needed())
+
+
+def set_autostop_from_on_cluster_via_cluster_obj(mins):
+    rh.here.autostop_mins = mins
+
+
+def set_autostop_from_on_cluster_via_cluster_keep_warm():
+    rh.here.keep_warm()
 
 
 class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCluster):
@@ -59,3 +97,61 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             assert config_yaml_res_after_restart[0][0] == 0
             config_yaml_content_after_restart = config_yaml_res[0][1]
             assert config_yaml_content_after_restart == config_yaml_content
+
+    @pytest.mark.level("minimal")
+    def test_autostop(self, cluster):
+        rh.env(
+            working_dir="local:./", reqs=["pytest", "pandas"], name="autostop_env"
+        ).to(cluster)
+        get_autostop = rh.fn(get_auotstop_from_on_cluster).to(
+            cluster, env="autostop_env"
+        )
+        # First check that the autostop is set to whatever the cluster set it to
+        assert get_autostop() == cluster.autostop_mins
+        original_autostop = cluster.autostop_mins
+
+        set_autostop = rh.fn(set_autostop_from_on_cluster_via_ah).to(
+            cluster, env="autostop_env"
+        )
+        set_autostop(5)
+        assert get_autostop() == 5
+
+        register_activity = rh.fn(register_activity_from_on_cluster).to(
+            cluster, env="autostop_env"
+        )
+        get_last_active = rh.fn(get_last_active_time_from_on_cluster).to(
+            cluster, env="autostop_env"
+        )
+
+        register_activity()
+        # Check that last active is within the last 2 seconds
+        assert get_last_active() > time.time() - 2
+
+        set_autostop_via_cluster_keep_warm = rh.fn(
+            set_autostop_from_on_cluster_via_cluster_keep_warm
+        ).to(cluster, env="autostop_env")
+        set_autostop_via_cluster_keep_warm()
+        assert get_autostop() == -1
+
+        set_autostop_via_cluster_obj = rh.fn(
+            set_autostop_from_on_cluster_via_cluster_obj
+        ).to(cluster, env="autostop_env")
+        # reset the autostop to the original value
+        set_autostop_via_cluster_obj(original_autostop)
+        assert get_autostop() == original_autostop
+
+        # TODO add a way to manually trigger the status loop to check that activity
+        #  is actually registered after a call
+        # cluster.call("autostop_env", "config")
+        # cluster.status()
+        # assert get_last_active() > time.time() - 2
+
+        # TODO add a way to manually trigger the status loop to check that activity
+        #  is actually registered during a long running function
+        # from .test_cluster import sleep_fn
+        # sleep_remote = rh.fn(sleep_fn).to(cluster, env="autostop_env")
+        # Thread(target=sleep_remote, args=(3,)).start()
+        # time.sleep(2)
+        # cluster.status()
+        # # Check that last active is within the last second, so we know the activity wasn't just from the call itself
+        # assert get_last_active() > time.time() - 1
