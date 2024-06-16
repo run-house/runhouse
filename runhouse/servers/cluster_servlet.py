@@ -64,19 +64,15 @@ class ClusterServlet:
                     max_concurrency=1000,
                     resources={f"node:{current_ip}": 0.001},
                     num_cpus=0,
-                    runtime_env={"env_vars": {"VIRTUAL_ENV": "skypilot-runtime"}},
                 )
                 .remote()
             )
 
-        # Only send for clusters that have den_auth enabled and if we are logged in with a user's token
-        # to authenticate the request
-        if self.cluster_config.get("den_auth", False):
-            logger.info("Creating periodic_status_check thread.")
-            post_status_thread = threading.Thread(
-                target=self.periodic_status_check, daemon=True
-            )
-            post_status_thread.start()
+        logger.info("Creating periodic_status_check thread.")
+        post_status_thread = threading.Thread(
+            target=self.periodic_status_check, daemon=True
+        )
+        post_status_thread.start()
 
     ##############################################
     # Cluster config state storage methods
