@@ -1,5 +1,6 @@
 import subprocess
 import time
+from threading import Thread
 
 import pandas as pd
 import pytest
@@ -74,6 +75,12 @@ def assume_caller_and_get_token():
     with rh.as_caller():
         token_as_caller = rh.configs.token
     return token_default, token_as_caller
+
+
+def sleep_fn(secs):
+    import time
+
+    time.sleep(secs)
 
 
 class TestCluster(tests.test_resources.test_resource.TestResource):
@@ -271,9 +278,17 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_rh_status_pythonic(self, cluster):
-        rh.env(reqs=["pytest"], name="worker_env").to(cluster)
+        sleep_remote = rh.function(sleep_fn).to(
+            cluster, env=rh.env(reqs=["pytest", "pandas"], name="worker_env")
+        )
         cluster.put(key="status_key1", obj="status_value1", env="worker_env")
+        # Run these in a separate thread so that the main thread can continue
+        call_threads = [Thread(target=sleep_remote, args=[3]) for _ in range(3)]
+        for call_thread in call_threads:
+            call_thread.start()
 
+        # Wait a second so the calls can start
+        time.sleep(1)
         cluster_data = cluster.status()
 
         expected_cluster_status_data_keys = [
@@ -305,6 +320,26 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "resource_type": "str",
             "active_function_calls": [],
         } in cluster_data.get("env_resource_mapping")["worker_env"]
+        sleep_calls = cluster_data.get("env_resource_mapping")["worker_env"][1][
+            "active_function_calls"
+        ]
+        assert len(sleep_calls) == 3
+        assert sleep_calls[0]["key"] == "sleep_fn"
+        assert sleep_calls[0]["method_name"] == "call"
+        assert sleep_calls[0]["request_id"]
+        assert sleep_calls[0]["start_time"]
+
+        # wait for threads to finish
+        for call_thread in call_threads:
+            call_thread.join()
+        updated_status = cluster.status()
+        # Check that the sleep calls are no longer active
+        assert (
+            updated_status.get("env_resource_mapping")["worker_env"][1][
+                "active_function_calls"
+            ]
+            == []
+        )
 
         # test memory usage info
         expected_env_servlet_keys = [
