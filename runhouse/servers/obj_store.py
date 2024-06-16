@@ -1102,6 +1102,50 @@ class ObjStore:
             )
             log_ctx.__enter__()
 
+        # Use a finally to track the active functions so that it is always removed
+        request_id = req_ctx.get().request_id
+
+        # There can be many function calls in one request_id, since request_id is tied to a call from the
+        # client to the server.
+        # We store with this func_call_id so we can easily pop the active call info out after the function
+        # concludes. In theory we could use a tuple of (key, start_time, etc), but it doesn't accomplish much
+        func_call_id = uuid.uuid4()
+        self.active_function_calls[func_call_id] = ActiveFunctionCallInfo(
+            key=key,
+            method_name=method_name,
+            request_id=request_id,
+            start_time=time.time(),
+        )
+        try:
+            res = await self._acall_local_helper(
+                key,
+                method_name,
+                *args,
+                run_name=run_name,
+                stream_logs=stream_logs,
+                remote=remote,
+                **kwargs,
+            )
+        finally:
+            del self.active_function_calls[func_call_id]
+            if log_ctx:
+                log_ctx.__exit__(None, None, None)
+
+        return res
+
+    async def _acall_local_helper(
+        self,
+        key: str,
+        method_name: Optional[str] = None,
+        *args,
+        run_name: Optional[str] = None,
+        stream_logs: bool = False,
+        remote: bool = False,
+        **kwargs,
+    ):
+        """acall_local primarily sets up the logging and tracking for the function call, then calls
+        _acall_local_helper to actually do the work. This is so we can have a finally block in acall_local to clean up
+        the active function calls tracking."""
         obj = self.get_local(key, default=KeyError)
 
         from runhouse.resources.module import Module
@@ -1236,8 +1280,6 @@ class ObjStore:
             )
             fut = self._construct_call_retrievable(res, run_name, laziness_type)
             await self.aput_local(run_name, fut)
-            if log_ctx:
-                log_ctx.__exit__(None, None, None)
             return fut
 
         from runhouse.resources.resource import Resource
@@ -1258,9 +1300,6 @@ class ObjStore:
                 await self.aput_local(res.name, res)
                 # If remote is True and the result is a resource, we return just the config
                 res = res.config()
-
-        if log_ctx:
-            log_ctx.__exit__(None, None, None)
 
         return res
 
@@ -1313,32 +1352,15 @@ class ObjStore:
                 "kwargs", {}
             )
 
-            # Use a finally to track the active functions so that it is always removed
-            request_id = req_ctx.get().request_id
-
-            # There can be many function calls in one request_id, since request_id is tied to a call from the
-            # client to the server.
-            # We store with this func_call_id so we can easily pop the active call info out after the function
-            # concludes. In theory we could use a tuple of (key, start_time, etc), but it doesn't accomplish much
-            func_call_id = uuid.uuid4()
-            self.active_function_calls[func_call_id] = ActiveFunctionCallInfo(
-                key=key,
-                method_name=method_name,
-                request_id=request_id,
-                start_time=time.time(),
+            res = await self.acall_local(
+                key,
+                method_name,
+                run_name=run_name,
+                stream_logs=stream_logs,
+                remote=remote,
+                *args,
+                **kwargs,
             )
-            try:
-                res = await self.acall_local(
-                    key,
-                    method_name,
-                    run_name=run_name,
-                    stream_logs=stream_logs,
-                    remote=remote,
-                    *args,
-                    **kwargs,
-                )
-            finally:
-                del self.active_function_calls[func_call_id]
         else:
             res = await self.acall_for_env_servlet_name(
                 env_servlet_name_containing_key,
@@ -1531,21 +1553,10 @@ class ObjStore:
         if not self.has_local_storage or self.servlet_name is None:
             raise NoLocalObjStoreError()
 
-        # Need to copy to avoid race conditions here, and build a new dict that maps keys to all the info we need
+        # Need to copy to avoid race conditions
         current_active_function_calls = copy.copy(self.active_function_calls)
-        current_active_function_calls_by_key = {}
-        for _, active_function_call_info in current_active_function_calls.items():
-            if (
-                active_function_call_info.key
-                not in current_active_function_calls_by_key
-            ):
-                current_active_function_calls_by_key[active_function_call_info.key] = []
 
-            current_active_function_calls_by_key[active_function_call_info.key].append(
-                active_function_call_info
-            )
-
-        keys_with_info = []
+        keys_and_info = []
         for k, v in self._kv_store.items():
             cls = type(v)
             py_module = cls.__module__
@@ -1555,17 +1566,21 @@ class ObjStore:
                 else (py_module + "." + cls.__qualname__)
             )
 
-            keys_with_info.append(
+            active_fn_calls = [
+                call_info.dict()
+                for call_info in current_active_function_calls.values()
+                if call_info.key == k
+            ]
+
+            keys_and_info.append(
                 {
                     "name": k,
                     "resource_type": cls_name,
-                    "active_function_calls": current_active_function_calls_by_key.get(
-                        k, []
-                    ),
+                    "active_function_calls": active_fn_calls,
                 }
             )
 
-        return keys_with_info
+        return keys_and_info
 
     async def astatus(self):
         return await self.acall_actor_method(self.cluster_servlet, "status")
