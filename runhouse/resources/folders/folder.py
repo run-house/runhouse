@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Callable, Dict, Optional, Union, List
+from typing import Callable, Dict, List, Optional, Union
 
 import fsspec
 
