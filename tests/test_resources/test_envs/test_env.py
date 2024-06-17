@@ -70,7 +70,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         ],
         "cluster": [
             "ondemand_aws_cluster",
-            "password_cluster",
+            "static_cpu_cluster",
         ],
     }
     MAXIMAL = {
@@ -88,7 +88,6 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             "ondemand_k8s_cluster",
             "ondemand_aws_https_cluster_with_auth",
             "static_cpu_cluster",
-            "password_cluster",
             "multinode_cpu_cluster",
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pwd_ssh_no_auth",

@@ -30,7 +30,6 @@ RELEASE = {
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "password_cluster",
         "static_cpu_cluster",
     ]
 }
@@ -42,7 +41,6 @@ MAXIMAL = {
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "password_cluster",
         "multinode_cpu_cluster",
         "static_cpu_cluster",
     ]
