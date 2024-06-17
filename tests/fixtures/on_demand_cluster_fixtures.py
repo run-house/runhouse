@@ -72,7 +72,19 @@ def ondemand_aws_https_cluster_with_auth(request):
 
 @pytest.fixture(scope="session")
 def ondemand_gcp_cluster(request):
-    args = {"name": "gcp-cpu", "instance_type": "CPU:2+", "provider": "gcp"}
+    """
+    Note: Also used to test conda default env.
+    """
+    env_vars = {"var1": "val1", "var2": "val2"}
+    default_env = rh.conda_env(
+        name="default_env", reqs=test_env().reqs, env_vars=env_vars
+    )
+    args = {
+        "name": "gcp-cpu",
+        "instance_type": "CPU:2+",
+        "provider": "gcp",
+        "default_env": default_env,
+    }
     cluster = setup_test_cluster(args, request)
     return cluster
 
@@ -131,22 +143,6 @@ def multinode_gpu_cluster(request):
         "name": "rh-gpu-multinode",
         "num_instances": NUM_OF_INSTANCES,
         "instance_type": "g5.xlarge",
-    }
-    cluster = setup_test_cluster(args, request)
-    return cluster
-
-
-@pytest.fixture(scope="session")
-def ondemand_default_conda_env_cluster(request):
-    env_vars = {"var1": "val1", "var2": "val2"}
-    default_env = rh.conda_env(
-        name="default_env", reqs=test_env().reqs + ["skypilot"], env_vars=env_vars
-    )
-    args = {
-        "name": "default-env-cpu",
-        "instance_type": "CPU:2+",
-        "provider": "aws",
-        "default_env": default_env,
     }
     cluster = setup_test_cluster(args, request)
     return cluster
