@@ -203,8 +203,8 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         _uninstall_env(env, cluster)
 
     @pytest.mark.level("local")
-    def test_env_vars_file(self, env, cluster):
-        env_file = ".env"
+    def test_env_vars_file(self, env, cluster, tmp_path):
+        env_file = str(tmp_path / ".env")
         contents = [
             "# comment",
             "",

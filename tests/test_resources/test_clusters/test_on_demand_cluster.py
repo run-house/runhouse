@@ -52,14 +52,15 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         "cluster": [
             "ondemand_aws_cluster",
             "ondemand_gcp_cluster",
+            "ondemand_k8s_cluster",
         ]
     }
     RELEASE = {
         "cluster": [
             "ondemand_aws_cluster",
             "ondemand_gcp_cluster",
-            # "ondemand_k8s_cluster",  # tested in test_kubernetes_cluster.py
             "ondemand_aws_https_cluster_with_auth",
+            "ondemand_k8s_cluster",
         ]
     }
     MAXIMAL = {
