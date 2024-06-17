@@ -108,7 +108,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     RELEASE = {
         "cluster": [
             "static_cpu_cluster",
-            "password_cluster",
         ]
     }
     MAXIMAL = {
@@ -117,7 +116,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pk_ssh_den_auth",
             "docker_cluster_pwd_ssh_no_auth",
             "static_cpu_cluster",
-            "password_cluster",
             "multinode_cpu_cluster",
         ]
     }
