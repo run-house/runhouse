@@ -243,7 +243,6 @@ from tests.fixtures.on_demand_cluster_fixtures import (
     ondemand_aws_cluster,  # noqa: F401
     ondemand_aws_https_cluster_with_auth,  # noqa: F401
     ondemand_cluster,  # noqa: F401
-    ondemand_default_conda_env_cluster,  # noqa: F401
     ondemand_gcp_cluster,  # noqa: F401
     ondemand_k8s_cluster,  # noqa: F401
     v100_gpu_cluster,  # noqa: F401
@@ -391,7 +390,6 @@ default_fixtures[TestLevels.RELEASE] = {
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "ondemand_default_conda_env_cluster",
         "password_cluster",
         "static_cpu_cluster",
     ]
@@ -405,7 +403,6 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "ondemand_default_conda_env_cluster",
         "password_cluster",
         "multinode_cpu_cluster",
         "static_cpu_cluster",
