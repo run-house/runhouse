@@ -131,7 +131,7 @@ class Secret(Resource):
         raise ValueError(f"Could not locate secret {name}")
 
     @classmethod
-    def builtin_providers(cls, as_str: bool = False) -> list:
+    def builtin_providers(cls, as_str: bool = False) -> List:
         """Return list of all Runhouse providers (as class objects) supported out of the box."""
         from runhouse.resources.secrets.provider_secrets.providers import (
             _str_to_provider_class,

@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Dict, Optional, Union, List
 
 import fsspec
 
@@ -638,7 +638,7 @@ class Folder(Resource):
             # e.g.: 'ssh:///home/ubuntu/.cache/runhouse/tables/dede71ef83ce45ffa8cb27d746f97ee8'
             return f"{self._fs_str}://{self.path}"
 
-    def ls(self, full_paths: bool = True, sort: bool = False) -> list:
+    def ls(self, full_paths: bool = True, sort: bool = False) -> List:
         """List the contents of the folder.
 
         Args:

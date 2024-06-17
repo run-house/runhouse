@@ -772,7 +772,7 @@ class Cluster(Resource):
                 env=env,
             )
 
-    def _run_cli_commands_on_cluster_helper(self, commands: list[str]):
+    def _run_cli_commands_on_cluster_helper(self, commands: List[str]):
         if self.on_this_cluster():
             return self.run(commands=commands, env=self._default_env, node=self.address)
         else:
@@ -1228,7 +1228,7 @@ class Cluster(Resource):
         node: Optional[str] = None,
         run_name: Optional[str] = None,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
-    ) -> list:
+    ) -> List:
         """Run a list of shell commands on the cluster. If `run_name` is provided, the commands will be
         sent over to the cluster before being executed and a Run object will be created.
 
