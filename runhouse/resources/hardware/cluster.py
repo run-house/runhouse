@@ -781,6 +781,7 @@ class Cluster(Resource):
                 cmd_prefix=self._default_env._run_cmd if self._default_env else "",
                 env_vars=self._default_env.env_vars if self._default_env else {},
                 node=self.address,
+                require_outputs=False,
             )
 
     def restart_server(
@@ -865,11 +866,17 @@ class Cluster(Resource):
                 }
             )
 
-            create_config_yaml_cmd = [
-                f"if [ ! -f ~/.rh/config.yaml ] ; then echo '{user_config}' > ~/.rh/config.yaml ; else echo 'Did not change config.yaml' ; fi"
-            ]
-            self._run_cli_commands_on_cluster_helper(commands=create_config_yaml_cmd)
-            logger.debug("Saved user config to cluster")
+            if (
+                self._run_cli_commands_on_cluster_helper(["[ -f ~/.rh/config.yaml ]"])[
+                    0
+                ]
+                == 0
+            ):
+                logger.debug("Did not change config.yaml")
+            else:
+                command = f"echo '{user_config}' > ~/.rh/config.yaml"
+                self._run_cli_commands_on_cluster_helper([command])
+                logger.debug("Saved user config to cluster")
 
         restart_cmd = (
             CLI_RESTART_CMD
@@ -894,7 +901,7 @@ class Cluster(Resource):
 
         status_codes = self._run_cli_commands_on_cluster_helper(commands=[restart_cmd])
 
-        if not status_codes[0][0] == 0:
+        if not status_codes[0] == 0:
             raise ValueError(f"Failed to restart server {self.name}")
 
         if https_flag:
@@ -1419,9 +1426,12 @@ class Cluster(Resource):
                 # Filter color characters from ssh.before, as otherwise sometimes random color characters
                 # will be printed to the console.
                 ssh.before = re.sub(r"\x1b\[[0-9;]*m", "", ssh.before)
-                return_codes.append(
-                    [ssh.exitstatus, ssh.before.strip(), ssh.signalstatus]
-                )
+                if require_outputs:
+                    return_codes.append(
+                        [ssh.exitstatus, ssh.before.strip(), ssh.signalstatus]
+                    )
+                else:
+                    return_codes.append(ssh.exitstatus)
 
         return return_codes
 
