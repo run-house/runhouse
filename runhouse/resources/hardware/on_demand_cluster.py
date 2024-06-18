@@ -19,6 +19,7 @@ from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_PORT,
+    DOCKER_LOGIN_ENV_VARS,
     LOCAL_HOSTS,
 )
 
@@ -445,6 +446,15 @@ class OnDemandCluster(Cluster):
                 use_spot=self.use_spot,
             )
         )
+        if self.image_id:
+            import os
+
+            docker_env_vars = {}
+            for env_var in DOCKER_LOGIN_ENV_VARS:
+                if os.getenv(env_var):
+                    docker_env_vars[env_var] = os.getenv(env_var)
+            if docker_env_vars:
+                task.update_envs(docker_env_vars)
         sky.launch(
             task,
             cluster_name=self.name,
