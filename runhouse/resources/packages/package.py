@@ -336,8 +336,21 @@ class Package(Resource):
                 "`install_target` must be a Folder in order to copy the package to a system."
             )
 
+        if (
+            isinstance(self.install_target.system, str)
+            and not self.install_target.system == "file"
+        ):
+            self.install_target.system = _get_cluster_from(self.install_target.system)
+
+        install_system_name = (
+            self.install_target.system.name
+            if isinstance(self.install_target.system, Cluster)
+            else self.install_target.system
+        )
         system = _get_cluster_from(system)
-        if self.install_target.system == system:
+        system_name = system.name if isinstance(system, Cluster) else system
+
+        if system_name == install_system_name:
             return self
 
         if isinstance(system, Resource):
