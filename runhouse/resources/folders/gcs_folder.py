@@ -1,10 +1,9 @@
-import logging
 import subprocess
 from typing import Optional
 
-from .folder import Folder
+from runhouse.logger import logger
 
-logger = logging.getLogger(__name__)
+from .folder import Folder
 
 
 class GCSFolder(Folder):

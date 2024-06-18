@@ -6,12 +6,9 @@ from runhouse.constants import EMPTY_DEFAULT_ENV_NAME
 
 from runhouse.globals import configs, obj_store, rns_client
 
-from runhouse.logger import LOGGING_CONFIG
-
 from runhouse.servers.obj_store import ClusterServletSetupOption
 
 # Configure the logger once
-logging.config.dictConfig(LOGGING_CONFIG)
 logging.getLogger("numexpr").setLevel(logging.WARNING)
 
 

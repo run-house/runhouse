@@ -1,4 +1,3 @@
-import logging
 import os
 import subprocess
 import warnings
@@ -6,14 +5,14 @@ import warnings
 from typing import Dict, List, Optional, Union
 
 from runhouse.constants import DEFAULT_SERVER_PORT, LOCAL_HOSTS, RESERVED_SYSTEM_NAMES
+
+from runhouse.logger import logger
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import relative_ssh_path
 
 from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
 from .sagemaker.sagemaker_cluster import SageMakerCluster
-
-logger = logging.getLogger(__name__)
 
 
 # Cluster factory method

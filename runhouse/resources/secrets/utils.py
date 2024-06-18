@@ -1,13 +1,13 @@
 import json
-import logging
 import os
 from pathlib import Path
 from typing import Dict, Optional, Union
 
 from runhouse.globals import rns_client
+
+from runhouse.logger import logger
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
 
-logger = logging.getLogger(__name__)
 
 USER_ENDPOINT = "user/secret"
 

@@ -1,5 +1,3 @@
-import logging
-
 import pprint
 import sys
 from enum import Enum
@@ -7,6 +5,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 from runhouse.globals import obj_store, rns_client
+
+from runhouse.logger import logger
 from runhouse.rns.top_level_rns_fns import (
     resolve_rns_path,
     save,
@@ -18,8 +18,6 @@ from runhouse.rns.utils.api import (
     ResourceAccess,
     ResourceVisibility,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class Resource:

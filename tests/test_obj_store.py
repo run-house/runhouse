@@ -1,4 +1,3 @@
-import logging
 import time
 
 import numpy as np
@@ -14,7 +13,8 @@ from tests.test_resources.test_modules.test_functions.test_function import (
 TEMP_FILE = "my_file.txt"
 TEMP_FOLDER = "~/runhouse-tests"
 
-logger = logging.getLogger(__name__)
+from runhouse.logger import logger
+
 
 UNIT = {"cluster": []}
 LOCAL = {

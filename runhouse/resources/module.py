@@ -2,7 +2,6 @@ import asyncio
 import copy
 import importlib
 import inspect
-import logging
 import site
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -14,6 +13,7 @@ from apispec import APISpec
 from pydantic import create_model
 
 from runhouse.globals import obj_store, rns_client
+from runhouse.logger import logger
 from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.hardware import (
     _current_cluster,
@@ -29,7 +29,6 @@ from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import CallParams
 from runhouse.utils import get_module_import_info, locate_working_dir
 
-logger = logging.getLogger(__name__)
 
 # These are attributes that the Module's __getattribute__ logic should not intercept to run remotely
 # and values that shouldn't be passed as state in put_resource

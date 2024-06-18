@@ -2,7 +2,6 @@ import configparser
 import contextlib
 import getpass
 import importlib
-import logging
 import os
 import pty
 import re
@@ -33,12 +32,13 @@ except ImportError:
 from runhouse.constants import LOCAL_HOSTS
 
 from runhouse.globals import configs, rns_client
+
+from runhouse.logger import logger
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import is_jsonable, relative_ssh_path, resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 
-logger = logging.getLogger(__name__)
 
 ####################################################################################################
 # Caching mechanisms for SSHTunnelForwarder

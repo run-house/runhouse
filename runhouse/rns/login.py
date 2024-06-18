@@ -1,4 +1,3 @@
-import logging
 import os
 from typing import Dict, Optional
 
@@ -8,7 +7,7 @@ import typer
 
 from runhouse.globals import configs, rns_client
 
-logger = logging.getLogger(__name__)
+from runhouse.logger import logger
 
 
 def is_interactive():

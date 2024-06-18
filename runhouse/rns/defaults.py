@@ -10,9 +10,10 @@ from typing import Any, Dict, Optional
 import requests
 import yaml
 
+from runhouse.logger import logger
+
 from runhouse.rns.utils.api import read_resp_data, to_bool
 
-logger = logging.getLogger(__name__)
 
 req_ctx = contextvars.ContextVar("rh_ctx", default={})
 

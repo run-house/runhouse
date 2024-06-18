@@ -39,6 +39,8 @@ from runhouse.constants import (
     RESERVED_SYSTEM_NAMES,
 )
 from runhouse.globals import obj_store, rns_client
+
+from runhouse.logger import logger
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
     _current_cluster,
@@ -48,8 +50,6 @@ from runhouse.resources.hardware.utils import (
 from runhouse.resources.resource import Resource
 
 from runhouse.servers.http import HTTPClient
-
-logger = logging.getLogger(__name__)
 
 
 class Cluster(Resource):
@@ -901,6 +901,7 @@ class Cluster(Resource):
                 else ""
             )
             + " --from-python"
+            + f" --log-level {logging.getLevelName(logging.root.level)}"
         )
 
         status_codes = self._run_cli_commands_on_cluster_helper(commands=[restart_cmd])

@@ -4,13 +4,13 @@ from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 
 from runhouse import globals
+
+from runhouse.logger import logger
 from runhouse.resources.envs import Env
 from runhouse.resources.hardware import Cluster
 from runhouse.resources.module import Module
 
 from runhouse.resources.resource import Resource
-
-logger = logging.getLogger(__name__)
 
 
 class Function(Module):

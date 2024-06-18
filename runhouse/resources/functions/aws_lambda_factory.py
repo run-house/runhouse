@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
@@ -7,7 +6,6 @@ from runhouse.resources.functions.aws_lambda import LambdaFunction
 from runhouse.resources.functions.function import Function
 from runhouse.utils import extract_module_path
 
-logger = logging.getLogger(__name__)
 
 CRED_PATH = f"{Path.home()}/.aws/credentials"
 DEFAULT_PY_VERSION = "python3.9"

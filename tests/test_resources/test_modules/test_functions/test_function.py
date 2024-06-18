@@ -1,4 +1,3 @@
-import logging
 import multiprocessing
 import os
 import time
@@ -9,9 +8,9 @@ import requests
 import runhouse as rh
 from runhouse.globals import rns_client
 
-from tests.utils import friend_account
+from runhouse.logger import logger
 
-logger = logging.getLogger(__name__)
+from tests.utils import friend_account
 
 
 def get_remote_func_name(test_folder):

@@ -1,8 +1,6 @@
-import logging
+from runhouse.logger import logger
 
 from .table import Table
-
-logger = logging.getLogger(__name__)
 
 
 class DaskTable(Table):

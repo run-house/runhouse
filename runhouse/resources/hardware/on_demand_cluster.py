@@ -1,6 +1,5 @@
 import contextlib
 import json
-import logging
 import subprocess
 import time
 import warnings
@@ -27,11 +26,11 @@ from runhouse.constants import (
 )
 
 from runhouse.globals import configs, obj_store, rns_client
+
+from runhouse.logger import logger
 from runhouse.resources.hardware.utils import ResourceServerStatus, ServerConnectionType
 
 from .cluster import Cluster
-
-logger = logging.getLogger(__name__)
 
 
 class OnDemandCluster(Cluster):
