@@ -443,13 +443,8 @@ class Module(Resource):
         system = (
             _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
         )
-        if not env:
-            if (
-                not self.env or (isinstance(self.env, Env) and not self.env.name)
-            ) and system:
-                env = system.default_env
-            else:
-                env = self.env
+
+        env = self.env if not env else env
 
         env = _get_env_from(env)
 
@@ -457,6 +452,9 @@ class Module(Resource):
             system.check_server()
             if isinstance(env, Env):
                 env = env.to(system, force_install=force_install)
+
+            if isinstance(env, Env) and not env.name:
+                env = system.default_env
 
         # We need to backup the system here so the __getstate__ method of the cluster
         # doesn't wipe the client of this function's cluster when deepcopy copies it.

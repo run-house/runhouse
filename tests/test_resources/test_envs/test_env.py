@@ -30,6 +30,12 @@ def np_summer(a, b):
     return int(np.sum([a, b]))
 
 
+def torch_import():
+    import torch
+
+    return str(torch.__version__)
+
+
 @pytest.mark.envtest
 class TestEnv(tests.test_resources.test_resource.TestResource):
     MAP_FIXTURES = {"resource": "env"}
@@ -313,3 +319,8 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         os.environ["HF_TOKEN"] = "test_hf_token"
         env = rh.env(name="hf_env", secrets=["huggingface"])
         env.to(cluster)
+
+    @pytest.mark.level("local")
+    def test_env_in_function_factory(self, cluster):
+        remote_function = rh.function(torch_import, env=["torch"]).to(system=cluster)
+        assert remote_function() is not None
