@@ -245,9 +245,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_delete_env(self, cluster):
-        env1 = rh.env(reqs=[], working_dir="./", name="env1").to(cluster)
-        env2 = rh.env(reqs=[], working_dir="./", name="env2").to(cluster)
-        env3 = rh.env(reqs=[], working_dir="./", name="env3")
+        env1 = rh.env(reqs=["pytest"], name="env1").to(cluster)
+        env2 = rh.env(reqs=["pytest"], name="env2").to(cluster)
+        env3 = rh.env(reqs=["pytest"], name="env3")
 
         cluster.put("k1", "v1", env=env1.name)
         cluster.put("k2", "v2", env=env2.name)

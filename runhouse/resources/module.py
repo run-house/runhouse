@@ -80,12 +80,9 @@ class Module(Resource):
 
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
             if not self._env:
-                self._env = (
-                    self._system.default_env if self._system else Env(working_dir="./")
-                )
+                self._env = self._system.default_env if self._system else Env()
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
-            self._env.working_dir = self._env.working_dir or "./"
             pointers, req_to_add = Module._extract_pointers(
                 self.__class__, reqs=self._env.reqs
             )
@@ -1332,8 +1329,6 @@ def module(
             env = _get_env_from(_default_env_if_on_cluster())
         if not env:
             env = Env()
-
-        env.working_dir = env.working_dir or "./"
 
     cls_pointers, working_dir_to_add = Module._extract_pointers(cls, env.reqs)
     if working_dir_to_add is not None:

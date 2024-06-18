@@ -209,9 +209,9 @@ class HTTPServer:
         )
 
         if default_env_name == EMPTY_DEFAULT_ENV_NAME:
-            from runhouse import env
+            from runhouse.resources.envs import Env
 
-            default_env = env(name=default_env_name, working_dir="./")
+            default_env = Env(name=default_env_name)
             data = (default_env.config(condensed=False), {}, False)
             obj_store.put_resource(
                 serialized_data=data, serialization=None, env_name=default_env_name

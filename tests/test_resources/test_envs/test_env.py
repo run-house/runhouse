@@ -114,9 +114,6 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             assert isinstance(env.conda_yaml, Dict)
             assert set(["dependencies", "name"]).issubset(set(env.conda_yaml.keys()))
 
-        if "working_dir" not in args:
-            assert env.working_dir == "./"
-
         if "name" not in args:
             assert not env.name
 

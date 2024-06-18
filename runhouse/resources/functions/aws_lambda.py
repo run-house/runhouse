@@ -310,7 +310,6 @@ class LambdaFunction(Function):
             env = Env(
                 reqs=[],
                 env_vars={"HOME": cls.HOME_DIR},
-                working_dir="./",
             )
 
         if isinstance(env, Env) and "HOME" not in env.env_vars.keys():
