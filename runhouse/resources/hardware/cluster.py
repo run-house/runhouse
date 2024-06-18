@@ -128,6 +128,10 @@ class Cluster(Resource):
         return self._creds.values
 
     @property
+    def docker_user(self) -> Optional[str]:
+        return None
+
+    @property
     def default_env(self):
         from runhouse.resources.envs import Env
 
@@ -727,6 +731,7 @@ class Cluster(Resource):
         return ssh_tunnel(
             address=self.address,
             ssh_creds=self.creds_values,
+            docker_user=self.docker_user,
             local_port=local_port,
             ssh_port=self.ssh_port,
             remote_port=remote_port,
@@ -1114,6 +1119,7 @@ class Cluster(Resource):
             **ssh_credentials,
             ssh_control_name=ssh_control_name,
             port=self.ssh_port,
+            docker_user=self.docker_user,
         )
         if not pwd:
             if up:
@@ -1188,6 +1194,7 @@ class Cluster(Resource):
             ssh_user=creds["ssh_user"],
             port=self.ssh_port,
             ssh_private_key=creds["ssh_private_key"],
+            docker_user=self.docker_user,
         )
         subprocess.run(
             runner._ssh_base_command(ssh_mode=SshMode.INTERACTIVE, port_forward=None)
@@ -1366,6 +1373,7 @@ class Cluster(Resource):
             **ssh_credentials,
             ssh_control_name=ssh_control_name,
             port=self.ssh_port,
+            docker_user=self.docker_user,
         )
 
         env_var_prefix = (
