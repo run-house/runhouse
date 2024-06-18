@@ -70,7 +70,9 @@ def function(
 
     fn_pointers = None
     if callable(fn):
-        fn_pointers = Function._extract_pointers(fn, reqs=env.reqs)
+        fn_pointers, req_to_add = Function._extract_pointers(fn, reqs=env.reqs)
+        if req_to_add:
+            env.reqs = [req_to_add] + env.reqs
         if fn_pointers[1] == "notebook":
             fn_pointers = Function._handle_nb_fn(
                 fn,
