@@ -20,6 +20,7 @@ from runhouse.rns.utils.api import (
     remove_null_values_from_dict,
     ResourceAccess,
 )
+from runhouse.utils import locate_working_dir
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ class RNSClient:
         self._configs = configs
         self._prev_folders = []
 
-        self.rh_directory = str(Path(self.locate_working_dir()) / "rh")
+        self.rh_directory = str(Path(locate_working_dir()) / "rh")
         self.rh_builtins_directory = str(
             Path(importlib.util.find_spec("runhouse").origin).parent / "builtins"
         )
@@ -75,48 +76,6 @@ class RNSClient:
         self._current_folder = None
 
         self.session = requests.Session()
-
-    @classmethod
-    def find_parent_with_file(cls, dir_path, file, searched_dirs=None):
-        if Path(dir_path) == Path.home() or dir_path == Path("/"):
-            return None
-        if Path(dir_path, file).exists():
-            return str(dir_path)
-        else:
-            if searched_dirs is None:
-                searched_dirs = {
-                    dir_path,
-                }
-            else:
-                searched_dirs.add(dir_path)
-            parent_path = Path(dir_path).parent
-            if parent_path in searched_dirs:
-                return None
-            return cls.find_parent_with_file(
-                parent_path, file, searched_dirs=searched_dirs
-            )
-
-    @classmethod
-    def locate_working_dir(cls, cwd=os.getcwd()):
-        # Search for working_dir by looking up directory tree, in the following order:
-        # 1. Upward directory with rh/ subdirectory
-        # 2. Root git directory
-        # 3. Upward directory with requirements.txt
-        # 4. User's cwd
-
-        for search_target in [
-            ".git",
-            "setup.py",
-            "setup.cfg",
-            "pyproject.toml",
-            "rh",
-            "requirements.txt",
-        ]:
-            dir_with_target = cls.find_parent_with_file(cwd, search_target)
-            if dir_with_target is not None:
-                return dir_with_target
-        else:
-            return cwd
 
     @property
     def default_folder(self):

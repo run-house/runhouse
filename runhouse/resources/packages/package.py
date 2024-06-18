@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional, Union
 
-from runhouse import globals
 from runhouse.resources.envs.utils import install_conda, run_setup_command
 from runhouse.resources.folders import Folder, folder
 from runhouse.resources.hardware.cluster import Cluster
@@ -14,6 +13,8 @@ from runhouse.resources.hardware.utils import (
     detect_cuda_version_or_cpu,
 )
 from runhouse.resources.resource import Resource
+from runhouse.utils import locate_working_dir
+
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
 
@@ -421,7 +422,7 @@ class Package(Resource):
         abs_target = (
             Path(rel_target).expanduser()
             if Path(rel_target).expanduser().is_absolute()
-            else Path(globals.rns_client.locate_working_dir()) / rel_target
+            else Path(locate_working_dir()) / rel_target
         )
         if abs_target.exists():
             target = Folder(

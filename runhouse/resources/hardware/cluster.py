@@ -18,6 +18,7 @@ from runhouse.resources.envs.utils import run_with_logs
 
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
+from runhouse.utils import locate_working_dir
 
 # Filter out DeprecationWarnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -1553,7 +1554,7 @@ class Cluster(Resource):
                 from runhouse.resources.packages.package import Package
 
                 if sync_package_on_close == "./":
-                    sync_package_on_close = rns_client.locate_working_dir()
+                    sync_package_on_close = locate_working_dir()
                 pkg = Package.from_string("local:" + sync_package_on_close)
                 self._rsync(source=f"~/{pkg.name}", dest=pkg.local_path, up=False)
             if not persist:

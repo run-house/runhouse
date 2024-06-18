@@ -10,6 +10,7 @@ import yaml
 from runhouse.constants import CONDA_INSTALL_CMDS, EMPTY_DEFAULT_ENV_NAME
 from runhouse.globals import rns_client
 from runhouse.resources.resource import Resource
+from runhouse.utils import locate_working_dir
 
 
 def _process_reqs(reqs):
@@ -26,10 +27,7 @@ def _process_reqs(reqs):
             else:
                 # if package refers to a local path package
                 path = Path(package.split(":")[-1]).expanduser()
-                if (
-                    path.is_absolute()
-                    or (rns_client.locate_working_dir() / path).exists()
-                ):
+                if path.is_absolute() or (locate_working_dir() / path).exists():
                     package = Package.from_string(package)
         elif isinstance(package, dict):
             package = Package.from_config(package)

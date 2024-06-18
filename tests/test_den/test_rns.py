@@ -3,28 +3,29 @@ from pathlib import Path
 import pytest
 
 import runhouse as rh
-from runhouse.globals import rns_client
+from runhouse.utils import locate_working_dir
 
 
+@pytest.mark.level("unit")
 def test_find_working_dir(tmp_path):
     starting_dir = Path(tmp_path, "subdir/subdir/subdir/subdir")
-    d = rns_client.locate_working_dir(cwd=str(starting_dir))
+    d = locate_working_dir(str(starting_dir))
     assert d in str(starting_dir)
 
     Path(tmp_path, "subdir/rh").mkdir(parents=True)
-    d = rns_client.locate_working_dir(str(starting_dir))
+    d = locate_working_dir(str(starting_dir))
     assert d == str(Path(tmp_path, "subdir"))
 
     Path(tmp_path, "subdir/rh").rmdir()
 
     Path(tmp_path, "subdir/subdir/.git").mkdir(exist_ok=True, parents=True)
-    d = rns_client.locate_working_dir(str(starting_dir))
+    d = locate_working_dir(str(starting_dir))
     assert d in str(Path(tmp_path, "subdir/subdir"))
 
     Path(tmp_path, "subdir/subdir/.git").rmdir()
 
     Path(tmp_path, "subdir/subdir/requirements.txt").write_text("....")
-    d = rns_client.locate_working_dir(str(starting_dir))
+    d = locate_working_dir(str(starting_dir))
     assert d in str(Path(tmp_path, "subdir/subdir"))
 
 
