@@ -1,5 +1,5 @@
-Docker Runtime Env for On-Demand Clusters
-=========================================
+Docker Runtime Env
+==================
 
 Runhouse integrates with
 `SkyPilot <https://skypilot.readthedocs.io/en/latest/docs/index.html>`__
