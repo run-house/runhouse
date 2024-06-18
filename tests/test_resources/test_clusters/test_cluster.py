@@ -794,6 +794,22 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert isinstance(cluster.get(cluster.default_env.name), rh.CondaEnv)
 
     @pytest.mark.level("local")
+    def test_default_env_var_run(self, cluster):
+        env_vars = cluster.default_env.env_vars
+        if not env_vars:
+            pytest.skip("No env vars in default env")
+
+        assert env_vars
+        for var in env_vars.keys():
+            res = cluster.run([f"echo ${var}"], env=cluster.default_env)
+            assert res[0][0] == 0
+            assert env_vars[var] in res[0][1]
+
+        get_env_var_cpu = rh.function(_get_env_var_value).to(system=cluster)
+        for var in env_vars.keys():
+            assert get_env_var_cpu(var) == env_vars[var]
+
+    @pytest.mark.level("release")
     def test_switch_default_env(self, cluster):
         # test setting a new default env, w/o restarting the runhouse server
         test_env = cluster.default_env
@@ -815,19 +831,3 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # set it back
         cluster.default_env = test_env
         cluster.delete(new_env.name)
-
-    @pytest.mark.level("local")
-    def test_default_env_var_run(self, cluster):
-        env_vars = cluster.default_env.env_vars
-        if not env_vars:
-            pytest.skip("No env vars in default env")
-
-        assert env_vars
-        for var in env_vars.keys():
-            res = cluster.run([f"echo ${var}"], env=cluster.default_env)
-            assert res[0][0] == 0
-            assert env_vars[var] in res[0][1]
-
-        get_env_var_cpu = rh.function(_get_env_var_value).to(system=cluster)
-        for var in env_vars.keys():
-            assert get_env_var_cpu(var) == env_vars[var]
