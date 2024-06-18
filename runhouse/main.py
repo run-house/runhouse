@@ -604,7 +604,7 @@ def _start_server(
         flags.append(default_env_flag)
 
     conda_env_flag = f" --conda-env {conda_env}" if conda_env else ""
-    if default_env_flag:
+    if conda_env_flag:
         logger.info(f"Creating runtime env for conda env: {conda_env}")
         flags.append(conda_env_flag)
 
