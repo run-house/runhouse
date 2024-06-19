@@ -1,15 +1,12 @@
 import asyncio
 import copy
-import json
 import logging
 import threading
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
 import runhouse
 
 from runhouse.constants import (
-    CLUSTER_CONFIG_PATH,
     DEFAULT_STATUS_CHECK_INTERVAL,
     INCREASED_STATUS_CHECK_INTERVAL,
     STATUS_CHECK_DELAY,
@@ -64,26 +61,6 @@ class ClusterServlet:
     ##############################################
     async def aget_cluster_config(self) -> Dict[str, Any]:
         return self.cluster_config
-
-    async def aupdate_status_check_interval_in_cluster_config(self):
-        cluster_path = Path(CLUSTER_CONFIG_PATH).expanduser()
-        with open(cluster_path) as cluster_local_config:
-            local_config = json.load(cluster_local_config)
-            local_interval = local_config.get("status_check_interval")
-            servlet_interval = self.cluster_config.get("status_check_interval")
-            if (
-                servlet_interval
-                and local_interval
-                and local_interval != servlet_interval
-            ):
-                await self.aset_cluster_config(local_config)
-                if local_interval > 0:
-                    logger.info(
-                        f"Updated cluster_config with new status check interval: {round(local_interval/60, 2)} minutes."
-                    )
-                return True
-            else:
-                return False
 
     async def aset_cluster_config(self, cluster_config: Dict[str, Any]):
         self.cluster_config = cluster_config
@@ -232,7 +209,6 @@ class ClusterServlet:
         await asyncio.sleep(STATUS_CHECK_DELAY)
         while True:
             try:
-                await self.aupdate_status_check_interval_in_cluster_config()
 
                 cluster_config = await self.aget_cluster_config()
                 interval_size = cluster_config.get(
@@ -280,6 +256,13 @@ class ClusterServlet:
                 )
                 await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
             else:
+                # make sure that the thread will go to sleep, even if the interval size == -1
+                # (meaning that sending status to den is disabled).
+                interval_size = (
+                    DEFAULT_STATUS_CHECK_INTERVAL
+                    if interval_size == -1
+                    else interval_size
+                )
                 await asyncio.sleep(interval_size)
 
     def periodic_status_check(self):

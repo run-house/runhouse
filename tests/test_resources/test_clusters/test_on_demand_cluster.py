@@ -2,8 +2,10 @@ import asyncio
 import time
 
 import pytest
+import requests
 
 import runhouse as rh
+from runhouse.constants import SERVER_LOGFILE_PATH
 
 import tests.test_resources.test_clusters.test_cluster
 from tests.utils import friend_account
@@ -175,3 +177,33 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
     def test_fn_to_docker_container(self, ondemand_aws_cluster):
         remote_torch_exists = rh.function(torch_exists).to(ondemand_aws_cluster)
         assert remote_torch_exists()
+
+    @pytest.mark.level("minimal")
+    def test_status_scheduler_basic_flow(self, cluster):
+        if not cluster.den_auth:
+            pytest.skip(
+                "This test checking pinging cluster status to den, this could be done only on clusters "
+                "with den_auth that can be saved to den."
+            )
+
+        cluster.save()
+        # the scheduler start running in a delay of 1 min, so the cluster startup will finish properly.
+        # Therefore, the test needs to sleep for a while.
+        time.sleep(60)
+        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"])[0][1]
+        assert (
+            "Performing cluster status check: potentially sending to Den or updating autostop."
+            in cluster_logs
+        )
+
+        cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
+        headers = rh.globals.rns_client.request_headers()
+        api_server_url = rh.globals.rns_client.api_server_url
+
+        get_status_data_resp = requests.get(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            headers=headers,
+        )
+
+        assert get_status_data_resp.status_code == 200
+        assert get_status_data_resp.json()["data"][0]["status"] == "running"
