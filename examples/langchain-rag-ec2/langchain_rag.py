@@ -1,6 +1,6 @@
-# # Deploy a Langchain RAG as a service on AWS EC2
+# # Deploy a LangChain RAG as a service on AWS EC2
 
-# This is an example of easily deploying [Langchain's Quickstart RAG app](https://python.langchain.com/docs/use_cases/question_answering/quickstart)
+# This is an example of easily deploying [LangChain's Quickstart RAG app](https://python.langchain.com/docs/use_cases/question_answering/quickstart)
 # as a service on AWS EC2 using Runhouse.
 
 # ## Setup credentials and dependencies
@@ -36,7 +36,7 @@ from typing import List
 
 import runhouse as rh
 
-# Next, we define a class that will hold the Langchain App and allow us to send requests to it.
+# Next, we define a class that will hold the LangChain app and allow us to send requests to it.
 # You'll notice this class inherits from `rh.Module`.
 # This is a Runhouse class that allows you to
 # run code in your class on a remote machine.

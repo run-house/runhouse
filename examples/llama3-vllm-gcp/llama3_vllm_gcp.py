@@ -15,7 +15,7 @@
 # ```
 # Install the required dependencies:
 # ```shell
-# $ pip install "runhouse[gcp] asyncio"
+# $ pip install "runhouse[gcp]" asyncio
 # ```
 #
 # We'll be launching a GCP instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
