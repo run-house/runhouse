@@ -5,6 +5,7 @@ pytest_asyncio
 datasets
 dask
 tqdm
+flaky
 
 # packages for local and unit tests
 boto3
