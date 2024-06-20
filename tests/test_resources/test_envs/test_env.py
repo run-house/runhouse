@@ -30,10 +30,10 @@ def np_summer(a, b):
     return int(np.sum([a, b]))
 
 
-def torch_import():
-    import torch
+def scipy_import():
+    import scipy
 
-    return str(torch.__version__)
+    return str(scipy.__version__)
 
 
 @pytest.mark.envtest
@@ -322,5 +322,5 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_env_in_function_factory(self, cluster):
-        remote_function = rh.function(torch_import, env=["torch"]).to(system=cluster)
+        remote_function = rh.function(scipy_import, env=["scipy"]).to(system=cluster)
         assert remote_function() is not None
