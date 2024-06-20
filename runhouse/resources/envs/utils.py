@@ -194,8 +194,7 @@ def run_setup_command(
     if not cluster:
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
     elif cluster.on_this_cluster():
-        cmd_prefix = cluster.default_env._run_cmd
-        cmd = f"{cmd_prefix} {cmd}" if cmd_prefix else cmd
+        cmd = cluster.default_env._full_command(cmd)
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
 
     return cluster._run_commands_with_ssh(

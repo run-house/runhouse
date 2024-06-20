@@ -295,7 +295,7 @@ class Package(Resource):
             from runhouse.resources.envs.utils import _get_env_from
 
             env = _get_env_from(env)
-            install_cmd = f"{env._run_cmd} {install_cmd}"
+            install_cmd = env._full_command(install_cmd)
 
         retcode = run_setup_command(install_cmd, cluster=cluster)[0]
         if retcode != 0:
@@ -313,7 +313,7 @@ class Package(Resource):
                 from runhouse.resources.envs import Env
 
                 env = Env.from_name(env)
-            install_cmd = f"{env._run_cmd} {install_cmd}"
+            install_cmd = env.full_command(install_cmd)
 
         install_conda()
 
