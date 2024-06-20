@@ -1045,8 +1045,9 @@ class Module(Resource):
             ):
                 local_path = Path(req.install_target.local_path)
             elif isinstance(req, str):
-                if req.split(":")[0] in ["local", "reqs", "pip"]:
-                    req = req.split(":")[1]
+                install_method, new_req = Package.split_req_install_method(req)
+                if install_method in ["local", "reqs", "pip"]:
+                    req = new_req
 
                 if Path(req).expanduser().resolve().exists():
                     # Relative paths are relative to the working directory in Folders/Packages!

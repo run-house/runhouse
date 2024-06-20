@@ -26,7 +26,7 @@ def _process_reqs(reqs):
                 package = rns_client.load_config(package)
             else:
                 # if package refers to a local path package
-                path = Path(package.split(":")[-1]).expanduser()
+                path = Path(Package.split_req_install_method(package)[1]).expanduser()
                 if path.is_absolute() or (locate_working_dir() / path).exists():
                     package = Package.from_string(package)
         elif isinstance(package, dict):
