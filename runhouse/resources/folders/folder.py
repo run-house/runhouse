@@ -73,15 +73,13 @@ class Folder(Resource):
             self.system = system or self.DEFAULT_FS
 
         # TODO [DG] Should we ever be allowing this to be None?
-        self._path = (
-            self.default_path(self.rns_address, system)
-            if path is None
-            else path
-            if system != "file"
-            else path
-            if Path(path).expanduser().is_absolute()
-            else str(Path(locate_working_dir()) / path)
-        )
+        if path is None:
+            self._path = self.default_path(self.rns_address, system)
+        else:
+            if system != "file":
+                self._path = path
+            else:
+                self._path = self._path_absolute_to_rh_workdir(path)
         self.data_config = data_config or {}
 
         self.local_mount = local_mount
@@ -625,6 +623,14 @@ class Folder(Resource):
             return str(Path(path).relative_to(rh_workdir))
         except ValueError:
             return path
+
+    @staticmethod
+    def _path_absolute_to_rh_workdir(path):
+        return (
+            path
+            if Path(path).expanduser().is_absolute()
+            else str(Path(locate_working_dir()) / path)
+        )
 
     @property
     def fsspec_url(self):
