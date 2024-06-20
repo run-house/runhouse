@@ -31,6 +31,7 @@ from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
+    DEFAULT_LOG_LEVEL,
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
     DEFAULT_STATUS_CHECK_INTERVAL,
@@ -794,6 +795,7 @@ class Cluster(Resource):
         resync_rh: bool = True,
         restart_ray: bool = True,
         restart_proxy: bool = False,
+        logs_level: str = None,
     ):
         """Restart the RPC server.
 
@@ -882,6 +884,11 @@ class Cluster(Resource):
                 self._run_cli_commands_on_cluster_helper([command])
                 logger.debug("Saved user config to cluster")
 
+        allowed_log_levels = logging._nameToLevel.keys()
+        if not logs_level or logs_level not in allowed_log_levels:
+            logs_level = DEFAULT_LOG_LEVEL
+        logger.info(f"Setting cluster log level to: {logs_level}")
+
         restart_cmd = (
             CLI_RESTART_CMD
             + (" --restart-ray" if restart_ray else "")
@@ -901,7 +908,7 @@ class Cluster(Resource):
                 else ""
             )
             + " --from-python"
-            + f" --log-level {logging.getLevelName(logging.root.level)}"
+            + f" --log-level {logs_level}"
         )
 
         status_codes = self._run_cli_commands_on_cluster_helper(commands=[restart_cmd])

@@ -815,7 +815,9 @@ def restart(
     """Restart the HTTP server on the cluster."""
     if name:
         c = cluster(name=name)
-        c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
+        c.restart_server(
+            resync_rh=resync_rh, restart_ray=restart_ray, logs_level=log_level
+        )
         return
 
     _start_server(
