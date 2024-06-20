@@ -28,6 +28,7 @@ from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import CallParams
+from runhouse.utils import locate_working_dir
 
 logger = logging.getLogger(__name__)
 
@@ -1052,7 +1053,7 @@ class Module(Resource):
                     local_path = (
                         Path(req).expanduser()
                         if Path(req).expanduser().is_absolute()
-                        else Path(rns_client.locate_working_dir()) / req
+                        else Path(locate_working_dir()) / req
                     )
 
             if local_path:

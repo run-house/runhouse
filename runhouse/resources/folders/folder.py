@@ -17,6 +17,7 @@ from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Clu
 from runhouse.resources.resource import Resource
 from runhouse.rns.top_level_rns_fns import exists
 from runhouse.rns.utils.api import generate_uuid
+from runhouse.utils import locate_working_dir
 
 fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
 # SSHFileSystem is not yet builtin.
@@ -79,7 +80,7 @@ class Folder(Resource):
             if system != "file"
             else path
             if Path(path).expanduser().is_absolute()
-            else str(Path(rns_client.locate_working_dir()) / path)
+            else str(Path(locate_working_dir()) / path)
         )
         self.data_config = data_config or {}
 
@@ -619,7 +620,7 @@ class Folder(Resource):
 
     @staticmethod
     def _path_relative_to_rh_workdir(path):
-        rh_workdir = Path(rns_client.locate_working_dir())
+        rh_workdir = Path(locate_working_dir())
         try:
             return str(Path(path).relative_to(rh_workdir))
         except ValueError:

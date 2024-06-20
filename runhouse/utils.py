@@ -1,7 +1,50 @@
 import asyncio
 import contextvars
 import functools
+import os
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+
+def _find_directory_containing_any_file(dir_path, files, searched_dirs=None):
+    if Path(dir_path) == Path.home() or dir_path == Path("/"):
+        return None
+
+    if any(Path(dir_path, file).exists() for file in files):
+        return str(dir_path)
+
+    searched_dirs.add(dir_path)
+    parent_path = Path(dir_path).parent
+    if parent_path in searched_dirs:
+        return None
+    return _find_directory_containing_any_file(
+        parent_path, files, searched_dirs=searched_dirs
+    )
+
+
+def locate_working_dir(start_dir=None):
+    if start_dir is None:
+        start_dir = os.getcwd()
+
+    # Search first for anything that represents a Python package
+    target_files = [
+        ".git",
+        "setup.py",
+        "setup.cfg",
+        "pyproject.toml",
+        "requirements.txt",
+    ]
+
+    dir_with_target = _find_directory_containing_any_file(
+        start_dir, target_files, searched_dirs=set()
+    )
+
+    if dir_with_target is None:
+        dir_with_target = _find_directory_containing_any_file(
+            start_dir, ["rh"], searched_dirs=set()
+        )
+
+    return dir_with_target if dir_with_target is not None else start_dir
 
 
 def _thread_coroutine(coroutine, context):
