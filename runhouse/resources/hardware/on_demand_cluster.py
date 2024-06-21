@@ -426,6 +426,11 @@ class OnDemandCluster(Cluster):
             )
 
         task = sky.Task(num_nodes=self.num_instances)
+        if self._default_env and self._default_env.env_vars:
+            from runhouse.resources.envs.utils import _process_env_vars
+
+            env_vars = _process_env_vars(self._default_env.env_vars)
+            task.update_envs(env_vars)
         cloud_provider = (
             sky.clouds.CLOUD_REGISTRY.from_str(self.provider)
             if self.provider != "cheapest"
