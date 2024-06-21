@@ -66,8 +66,8 @@ class Env(Resource):
             Package.from_config(
                 config["working_dir"], dryrun=True, _resolve_children=_resolve_children
             )
-            if isinstance(config["working_dir"], dict)
-            else config["working_dir"]
+            if isinstance(config.get("working_dir"), dict)
+            else config.get("working_dir")
         )
 
         resource_subtype = config.get("resource_subtype")

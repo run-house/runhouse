@@ -49,13 +49,16 @@ def ondemand_cluster(request):
 
 @pytest.fixture(scope="session")
 def ondemand_aws_cluster(request):
+    """
+    Note: Also used to test docker and default env with alternate Ray version.
+    """
     args = {
         "name": "aws-cpu",
         "instance_type": "CPU:2+",
         "provider": "aws",
         "image_id": "docker:nvcr.io/nvidia/pytorch:23.10-py3",
         "region": "us-east-2",
-        "default_env": rh.env(reqs=["skypilot"], working_dir=None),
+        "default_env": rh.env(reqs=["ray==2.30.0"], working_dir=None),
     }
     cluster = setup_test_cluster(args, request, create_env=True)
     return cluster
@@ -84,7 +87,10 @@ def ondemand_gcp_cluster(request):
     """
     env_vars = {"var1": "val1", "var2": "val2"}
     default_env = rh.conda_env(
-        name="default_env", reqs=test_env().reqs, env_vars=env_vars
+        name="default_env",
+        reqs=test_env().reqs + ["ray==2.30.0"],
+        env_vars=env_vars,
+        conda_env={"dependencies": ["python=3.11"], "name": "default_env"},
     )
     args = {
         "name": "gcp-cpu",
