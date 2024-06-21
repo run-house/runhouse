@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+import shlex
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -161,7 +162,7 @@ class Env(Resource):
             return
 
         for cmd in setup_cmds:
-            cmd = f"{self._run_cmd} {cmd}" if self._run_cmd else cmd
+            cmd = self._full_command(cmd)
             run_setup_command(
                 cmd, cluster=cluster, env_vars=_process_env_vars(self.env_vars)
             )
@@ -182,10 +183,14 @@ class Env(Resource):
         self._install_reqs(cluster=cluster)
         self._run_setup_cmds(cluster=cluster)
 
+    def _full_command(self, command: str):
+        if self._run_cmd:
+            return f"{self._run_cmd} $SHELL -c {shlex.quote(command)}"
+        return command
+
     def _run_command(self, command: str, **kwargs):
         """Run command locally inside the environment"""
-        if self._run_cmd:
-            command = f"{self._run_cmd} {command}"
+        command = self._full_command(command)
         logging.info(f"Running command in {self.name}: {command}")
         return run_with_logs(command, **kwargs)
 
