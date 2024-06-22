@@ -125,6 +125,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     GPU_CLUSTER_NAMES = ["rh-v100", "rh-k80", "rh-a10x", "rh-gpu-multinode"]
 
     @pytest.mark.level("unit")
+    @pytest.mark.clustertest
     def test_cluster_factory_and_properties(self, cluster):
         assert isinstance(cluster, rh.Cluster)
         args = init_args[id(cluster)]
@@ -154,6 +155,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert cluster.cert_config.cert_path == args["ssl_certfile"]
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_docker_cluster_fixture_is_logged_out(self, docker_cluster_pk_ssh_no_auth):
         save_resource_and_return_config_cluster = rh.function(
             save_resource_and_return_config,
@@ -169,6 +171,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_cluster_recreate(self, cluster):
         # Create underlying ssh connection if not already
         cluster.run(["echo hello"])
@@ -182,6 +185,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert len(rh.globals.sky_ssh_runner_cache) == num_open_tunnels
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_cluster_endpoint(self, cluster):
         if not cluster.address:
             assert cluster.endpoint() is None
@@ -218,6 +222,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert not status_data.get("system_gpu_data")
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_cluster_objects(self, cluster):
         k1 = get_random_str()
         k2 = get_random_str()
@@ -238,6 +243,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert cluster.get(k3) == "v3"
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_cluster_delete_env(self, cluster):
         env1 = rh.env(reqs=[], working_dir="./", name="env1").to(cluster)
         env2 = rh.env(reqs=[], working_dir="./", name="env2").to(cluster)
@@ -264,6 +270,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert cluster.get("k1")
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     @pytest.mark.skip(reason="TODO")
     def test_rh_here_objects(self, cluster):
         save_test_table_remote = rh.function(test_table_to_rh_here, system=cluster)
@@ -272,6 +279,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert isinstance(cluster.get("test_table"), rh.Table)
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_condensed_config_for_cluster(self, cluster):
         remote_cluster_config = rh.function(cluster_config).to(cluster)
         on_cluster_config = remote_cluster_config()
@@ -300,6 +308,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert on_cluster_config == local_cluster_config
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_sharing(self, cluster, friend_account_logged_in_docker_cluster_pk_ssh):
         # Skip this test for ondemand clusters, because making
         # it compatible with ondemand_cluster requires changes
@@ -349,6 +358,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert new_config == config
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_access_to_shared_cluster(self, cluster):
         # TODO: Remove this by doing some CI-specific logic.
         if cluster.__class__.__name__ == "OnDemandCluster":
@@ -384,6 +394,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert shared_cluster.run(["echo hello"])[0][0] == 0
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_changing_name_and_saving_in_between(self, cluster):
         remote_summer = rh.function(summer).to(cluster)
         assert remote_summer(3, 4) == 7
@@ -406,6 +417,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         cluster.save(name=old_name)
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_caller_token_propagated(self, cluster):
         remote_assume_caller_and_get_token = rh.function(
             assume_caller_and_get_token
@@ -437,6 +449,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     ####################################################################################################
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_rh_status_pythonic(self, cluster):
         sleep_remote = rh.function(sleep_fn).to(
             cluster, env=rh.env(reqs=["pytest", "pandas"], name="worker_env")
@@ -526,6 +539,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                 assert env_servlet_info.get("env_gpu_usage")
 
     @pytest.mark.level("maximal")
+    @pytest.mark.clustertest
     def test_rh_status_pythonic_gpu(self, cluster):
         if cluster.name in self.GPU_CLUSTER_NAMES:
             from tests.test_tutorials import sd_generate
@@ -600,6 +614,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert status_output_string.count("GPU: ") >= 1
 
     @pytest.mark.level("maximal")
+    @pytest.mark.clustertest
     def test_rh_status_cli_in_gpu_cluster(self, cluster):
         if cluster.name in self.GPU_CLUSTER_NAMES:
             from tests.test_tutorials import sd_generate
@@ -624,6 +639,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     # TODO: once fixed, extend this tests for gpu clusters as well.
     def test_rh_status_cli_not_in_cluster(self, cluster):
         default_env_name = cluster.default_env.name
@@ -645,6 +661,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     # TODO: once fixed, extend this tests for gpu clusters as well.
     def test_rh_status_stopped(self, cluster):
         try:
@@ -666,6 +683,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             cluster.run(["runhouse restart"])
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_send_status_to_db(self, cluster):
         import json
 
@@ -722,6 +740,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
 
     @pytest.mark.level("minimal")
+    @pytest.mark.clustertest
     def test_status_scheduler_basic_flow(self, cluster):
         # TODO [SB]: remove the den_auth check once we will get status of clusters without den_ayth as well.
         if not cluster.den_auth:
@@ -764,11 +783,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     ####################################################################################################
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_default_env_in_status(self, cluster):
         res = cluster.status()
         assert cluster.default_env.name in res.get("env_resource_mapping")
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_put_in_default_env(self, cluster):
         k1 = get_random_str()
         cluster.put(k1, "v1")
@@ -777,6 +798,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         cluster.delete(k1)
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_fn_to_default_env(self, cluster):
         remote_summer = rh.function(summer).to(cluster)
 
@@ -788,6 +810,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert fn() == "success"
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_run_in_default_env(self, cluster):
         for req in cluster.default_env.reqs:
             if isinstance(req, str) and "_" in req:
@@ -796,6 +819,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                 assert cluster.run(f"pip freeze | grep {req}")[0][0] == 0
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_default_conda_env_created(self, cluster):
         if not isinstance(cluster.default_env, rh.CondaEnv):
             pytest.skip("Default env is not a CondaEnv")
@@ -804,6 +828,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert isinstance(cluster.get(cluster.default_env.name), rh.CondaEnv)
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_default_env_var_run(self, cluster):
         env_vars = cluster.default_env.env_vars
         if not env_vars:
@@ -820,6 +845,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert get_env_var_cpu(var) == env_vars[var]
 
     @pytest.mark.level("release")
+    @pytest.mark.clustertest
     def test_switch_default_env(self, cluster):
         # test setting a new default env, w/o restarting the runhouse server
         test_env = cluster.default_env
