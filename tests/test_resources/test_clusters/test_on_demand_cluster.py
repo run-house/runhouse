@@ -6,6 +6,8 @@ import requests
 
 import runhouse as rh
 from runhouse.constants import SERVER_LOGFILE_PATH
+from runhouse.globals import rns_client
+from runhouse.resources.hardware.utils import ResourceServerStatus
 
 import tests.test_resources.test_clusters.test_cluster
 from tests.utils import friend_account
@@ -207,3 +209,28 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
         assert get_status_data_resp.status_code == 200
         assert get_status_data_resp.json()["data"][0]["status"] == "running"
+
+    @pytest.mark.level("minimal")
+    def test_set_status_after_teardown(self, cluster):
+        if not cluster.den_auth:
+            pytest.skip(
+                "This test checking pinging cluster status to den, this could be done only on clusters "
+                "with den_auth that can be saved to den."
+            )
+        # TODO [SB]: remove the den_auth check once we will get status of clusters without den_auth as well.
+        assert cluster.is_up()
+        cluster_config = cluster.config()
+        cluster_uri = rns_client.format_rns_address(cluster.rns_address)
+        api_server_url = cluster_config.get("api_server_url", rns_client.api_server_url)
+        cluster.teardown()
+        get_status_data_resp = requests.get(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            headers=rns_client.request_headers(),
+        )
+
+        assert get_status_data_resp.status_code == 200
+        # For UI displaying purposes, the cluster/status endpoint returns cluster status history.
+        # The latest status info is the first element in the list returned by the endpoint.
+        get_status_data = get_status_data_resp.json()["data"][0]
+        assert get_status_data["resource_type"] == cluster_config.get("resource_type")
+        assert get_status_data["status"] == ResourceServerStatus.terminated

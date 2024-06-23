@@ -633,8 +633,10 @@ class RNSClient:
         )
 
     async def send_status(self, status: ResourceStatusData, cluster_rns_address: str):
+        from runhouse.resources.hardware.utils import ResourceServerStatus
+
         status_data = {
-            "status": "running",
+            "status": ResourceServerStatus.running,
             "resource_type": status.cluster_config.get("resource_type"),
             "data": dict(status),
         }

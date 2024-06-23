@@ -18,6 +18,7 @@ from runhouse.constants import (
     EMPTY_DEFAULT_ENV_NAME,
 )
 from runhouse.globals import rns_client
+from runhouse.resources.hardware.utils import ResourceServerStatus
 
 from tests.conftest import init_args
 from tests.utils import friend_account, test_env
@@ -104,7 +105,7 @@ def build_and_run_image(
         all=True,
         filters={
             "ancestor": f"runhouse:{image_name}",
-            "status": "running",
+            "status": ResourceServerStatus.running,
             "name": container_name,
         },
     )

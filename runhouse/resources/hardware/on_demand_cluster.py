@@ -1,10 +1,13 @@
 import contextlib
+import json
 import logging
 import subprocess
 import time
 import warnings
 from pathlib import Path
 from typing import Any, Dict
+
+import requests
 
 import rich.errors
 import yaml
@@ -24,7 +27,7 @@ from runhouse.constants import (
 )
 
 from runhouse.globals import configs, obj_store, rns_client
-from runhouse.resources.hardware.utils import ServerConnectionType
+from runhouse.resources.hardware.utils import ResourceServerStatus, ServerConnectionType
 
 from .cluster import Cluster
 
@@ -491,6 +494,36 @@ class OnDemandCluster(Cluster):
         Example:
             >>> rh.ondemand_cluster("rh-cpu").teardown()
         """
+        # TODO [SB]: remove the den_auth check once we will get status of clusters without den_auth as well.
+        warning_msg = "Failed to update Den with cluster terminated status."
+        if self.den_auth:
+            try:
+                cluster_status_data = self.status()
+                status_data = {
+                    "status": ResourceServerStatus.terminated,
+                    "resource_type": self.__class__.__base__.__name__.lower(),
+                    "data": cluster_status_data,
+                }
+                cluster_uri = rns_client.format_rns_address(self.rns_address)
+                api_server_url = cluster_status_data.get("cluster_config").get(
+                    "api_server_url", rns_client.api_server_url
+                )
+                post_status_data_resp = requests.post(
+                    f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+                    data=json.dumps(status_data),
+                    headers=rns_client.request_headers(),
+                )
+                if post_status_data_resp.status_code != 200:
+                    post_status_data_resp = post_status_data_resp.json()
+                    warning_msg = (
+                        warning_msg
+                        + f' Got {post_status_data_resp.status_code}: {post_status_data_resp.json()["detail"]}'
+                    )
+                    logger.warning(warning_msg)
+            except Exception as e:
+                warning_msg = warning_msg + f" Got {e}"
+                logger.warning(warning_msg)
+
         # Stream logs
         sky.down(self.name)
         self.address = None
