@@ -1704,6 +1704,9 @@ class Cluster(Resource):
 
         return config
 
+    ##############################################
+    # Send Cluster status to Den methods
+    ##############################################
     def _disable_status_check(self):
         """
         Stopping sending status to Den.
