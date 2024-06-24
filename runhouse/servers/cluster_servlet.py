@@ -1,26 +1,19 @@
 import asyncio
 import copy
-import json
 import logging
 import threading
 from typing import Any, Dict, List, Optional, Set, Union
 
-import requests
-
 import runhouse
 
 from runhouse.constants import (
-    DEFAULT_LOG_SURFACING_INTERVAL,
     DEFAULT_STATUS_CHECK_INTERVAL,
     INCREASED_INTERVAL,
     INCREASED_STATUS_CHECK_INTERVAL,
-    S3_LOGS_FILE_NAME,
     SCHEDULERS_DELAY,
-    SERVER_LOGFILE,
 )
 
 from runhouse.globals import configs, obj_store, rns_client
-from runhouse.logger import ColoredFormatter
 from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
@@ -58,17 +51,11 @@ class ClusterServlet:
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
             self.autostop_helper = AutostopHelper()
 
-        logger.info("Creating periodic_status_check thread.")
-        post_status_thread = threading.Thread(
-            target=self.periodic_status_check, daemon=True
+        logger.info("Creating periodic_cluster_checks thread.")
+        cluster_checks_thread = threading.Thread(
+            target=self.periodic_cluster_checks, daemon=True
         )
-        post_status_thread.start()
-
-        logger.debug("Creating send_logs_to_den thread.")
-        send_logs_thread = threading.Thread(
-            target=self.send_cluster_logs_to_den, daemon=True
-        )
-        send_logs_thread.start()
+        cluster_checks_thread.start()
 
     ##############################################
     # Cluster config state storage methods
@@ -218,7 +205,7 @@ class ClusterServlet:
     # Cluster status functions
     ##############################################
 
-    async def aperiodic_status_check(self):
+    async def aperiodic_cluster_checks(self):
         # Delay the start of post_status_thread, so we'll finish the cluster startup properly
         await asyncio.sleep(SCHEDULERS_DELAY)
         while True:
@@ -231,11 +218,11 @@ class ClusterServlet:
                 den_auth = cluster_config.get("den_auth", False)
 
                 # Only if one of these is true, do we actually need to get the status from each EnvServlet
-                should_send_status_to_den = den_auth and interval_size != -1
+                should_send_status_and_logs_to_den = den_auth and interval_size != -1
                 should_update_autostop = self.autostop_helper is not None
-                if should_send_status_to_den or should_update_autostop:
+                if should_send_status_and_logs_to_den or should_update_autostop:
                     logger.info(
-                        "Performing cluster status check: potentially sending to Den or updating autostop."
+                        "Performing cluster checks: potentially sending to Den, surfacing logs to Den or updating autostop."
                     )
                     status: ResourceStatusData = await self.astatus()
 
@@ -255,9 +242,37 @@ class ClusterServlet:
                         # been called and completed.
                         await self.autostop_helper.register_activity_if_needed()
 
-                    if should_send_status_to_den:
+                    if should_send_status_and_logs_to_den:
                         cluster_rns_address = cluster_config.get("name")
-                        await rns_client.send_status(status, cluster_rns_address)
+                        cluster_uri = rns_client.format_rns_address(cluster_rns_address)
+                        api_server_url = status.cluster_config.get(
+                            "api_server_url", rns_client.api_server_url
+                        )
+
+                        sent_status = await rns_client.send_status(
+                            status=status,
+                            cluster_uri=cluster_uri,
+                            api_server_url=api_server_url,
+                        )
+
+                        if sent_status != 200:
+                            logger.error(
+                                f"{sent_status}: Error in sending cluster status to Den. Check cluster logs for more info."
+                            )
+                        else:
+                            logger.info("Successfully sent cluster status to Den.")
+
+                        sent_logs = await rns_client.send_cluster_logs_to_den(
+                            cluster_uri=cluster_uri, api_server_url=api_server_url
+                        )
+
+                        if sent_logs != 200:
+                            logger.error(
+                                f"{sent_logs}: Error in sending cluster logs to Den. Check cluster logs for more info."
+                            )
+                        else:
+                            logger.info("Successfully sent cluster logs to Den.")
+
             except Exception as e:
                 logger.error(
                     f"Cluster status check has failed: {e}. Please check cluster logs for more info."
@@ -279,10 +294,10 @@ class ClusterServlet:
                 )
                 await asyncio.sleep(interval_size)
 
-    def periodic_status_check(self):
+    def periodic_cluster_checks(self):
         # This is only ever called once in its own thread, so we can do asyncio.run here instead of
         # sync_function.
-        asyncio.run(self.aperiodic_status_check())
+        asyncio.run(self.aperiodic_cluster_checks())
 
     async def _status_for_env_servlet(self, env_servlet_name):
         try:
@@ -370,66 +385,3 @@ class ClusterServlet:
 
     def status(self):
         return sync_function(self.astatus)()
-
-    ##############################################
-    # Surface cluster logs to Den
-    ##############################################
-    def _get_logs(self):
-        with open(SERVER_LOGFILE) as log_file:
-            log_lines = log_file.readlines()
-        cleaned_log_lines = [ColoredFormatter.format_log(line) for line in log_lines]
-        return " ".join(cleaned_log_lines)
-
-    async def asend_cluster_logs_to_den(self):
-        # Delay the start of post_logs_thread, so we'll finish the cluster startup properly
-        await asyncio.sleep(SCHEDULERS_DELAY)
-
-        while True:
-            logger.info("Trying to send cluster logs to Den")
-            try:
-                interval_size = DEFAULT_LOG_SURFACING_INTERVAL
-                latest_logs = self._get_logs()
-                logs_data = {"file_name": S3_LOGS_FILE_NAME, "logs": latest_logs}
-
-                cluster_config = await self.aget_cluster_config()
-                cluster_uri = rns_client.format_rns_address(cluster_config.get("name"))
-                api_server_url = cluster_config.get(
-                    "api_server_url", rns_client.api_server_url
-                )
-
-                post_logs_resp = requests.post(
-                    f"{api_server_url}/resource/{cluster_uri}/logs",
-                    data=json.dumps(logs_data),
-                    headers=rns_client.request_headers(),
-                )
-
-                post_logs_resp_json = post_logs_resp.json()
-
-                if post_logs_resp.status_code != 200:
-                    post_logs_error = (
-                        post_logs_resp_json.get("detail")
-                        if post_logs_resp_json.get("detail")
-                        else ""
-                    )
-                    logger.error(
-                        f"({post_logs_resp.status_code}) Failed to send cluster logs to Den: {post_logs_error}"
-                    )
-                else:
-                    logger.info(
-                        f"Successfully sent cluster logs to Den. Next status check will be in {round(interval_size / 60, 2)} minutes."
-                    )
-            except Exception as e:
-                logger.error(
-                    f"Sending cluster logs to den has failed: {e}. Please check cluster logs for more info."
-                )
-                logger.warning(
-                    f"Temporarily increasing the interval between two consecutive log retrievals."
-                    f"Next log retrieval will be in {round(INCREASED_INTERVAL / 60, 2)} minutes. "
-                    f"For changing the interval size, please run cluster.restart_server(). "
-                    f"Interval size will be set to {interval_size}"
-                )
-            finally:
-                await asyncio.sleep(interval_size)
-
-    def send_cluster_logs_to_den(self):
-        asyncio.run(self.asend_cluster_logs_to_den())
