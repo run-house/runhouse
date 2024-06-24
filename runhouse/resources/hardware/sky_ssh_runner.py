@@ -303,26 +303,24 @@ class SkySSHRunner(SSHCommandRunner):
                 )
             )
 
+            if "ControlMaster" in port_fwd_cmd:
+                cancel_port_fwd = port_fwd_cmd.replace("-T", "-O cancel")
+                logger.debug(f"Running cancel command: {cancel_port_fwd}")
+                completed_cancel_cmd = subprocess.run(
+                    shlex.split(cancel_port_fwd),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+
+                if completed_cancel_cmd.returncode != 0:
+                    logger.warning(
+                        f"Failed to cancel port forwarding from {self.local_bind_port} to {self.remote_bind_port}. "
+                        f"Error: {completed_cancel_cmd.stderr}"
+                    )
+
             self.tunnel_proc = None
             self.local_bind_port = None
             self.remote_bind_port = None
-
-            if "ControlMaster" not in port_fwd_cmd:
-                return
-
-            cancel_port_fwd = port_fwd_cmd.replace("-T", "-O cancel")
-            logger.debug(f"Running cancel command: {cancel_port_fwd}")
-            completed_cancel_cmd = subprocess.run(
-                shlex.split(cancel_port_fwd),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-            if completed_cancel_cmd.returncode != 0:
-                logger.warning(
-                    f"Failed to cancel port forwarding from {self.local_bind_port} to {self.remote_bind_port}. "
-                    f"Error: {completed_cancel_cmd.stderr}"
-                )
 
     def rsync(
         self,
