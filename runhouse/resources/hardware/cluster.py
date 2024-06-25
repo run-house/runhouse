@@ -1350,6 +1350,12 @@ class Cluster(Resource):
     ):
         from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
 
+        if isinstance(commands, str):
+            commands = [commands]
+
+        # If no address provided explicitly use the head node address
+        node = node or self.address
+
         return_codes = []
 
         ssh_credentials = copy.copy(self.creds_values)
