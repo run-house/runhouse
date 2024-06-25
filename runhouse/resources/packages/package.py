@@ -418,6 +418,8 @@ class Package(Resource):
         target_and_args = specifier
         if Package.split_req_install_method(target_and_args)[0] in INSTALL_METHODS:
             target_and_args = Package.split_req_install_method(target_and_args)[1]
+
+        # Handles a case like "torch --index-url https://download.pytorch.org/whl/cu113"
         rel_target, args = (
             target_and_args.split(" ", 1)
             if " " in target_and_args

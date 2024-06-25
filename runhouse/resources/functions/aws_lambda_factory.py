@@ -5,6 +5,7 @@ from typing import Callable, Dict, List, Optional, Union
 from runhouse.resources.envs import Env
 from runhouse.resources.functions.aws_lambda import LambdaFunction
 from runhouse.resources.functions.function import Function
+from runhouse.utils import extract_module_path
 
 logger = logging.getLogger(__name__)
 
@@ -88,8 +89,12 @@ def aws_lambda_fn(
 
     # extract function pointers, path to code and arg names from callable function.
     handler_function_name = fn.__name__
-    fn_pointers = Function._extract_pointers(fn, reqs=[] if env is None else env.reqs)
-    paths_to_code = [Function._extract_module_path(fn)]
+    fn_pointers, req_to_add = Function._extract_pointers(
+        fn, reqs=[] if env is None else env.reqs
+    )
+    if req_to_add and env is not None:
+        env.reqs = [req_to_add] + env.reqs
+    paths_to_code = [extract_module_path(fn)]
     if name is None:
         name = fn.__name__
 

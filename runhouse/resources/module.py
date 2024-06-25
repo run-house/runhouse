@@ -3,7 +3,6 @@ import copy
 import importlib
 import inspect
 import logging
-import os
 import site
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -28,7 +27,7 @@ from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import CallParams
-from runhouse.utils import locate_working_dir
+from runhouse.utils import get_module_import_info, locate_working_dir
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +86,11 @@ class Module(Resource):
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
             self._env.working_dir = self._env.working_dir or "./"
-            pointers = Module._extract_pointers(self.__class__, reqs=self._env.reqs)
+            pointers, req_to_add = Module._extract_pointers(
+                self.__class__, reqs=self._env.reqs
+            )
+            if req_to_add:
+                self._env.reqs = [req_to_add] + self._env.reqs
         self._pointers = pointers
         self._endpoint = endpoint
         self._signature = signature
@@ -954,19 +957,6 @@ class Module(Resource):
         return super().share(*args, **kwargs, visibility=visibility)
 
     @staticmethod
-    def _extract_module_path(raw_cls_or_fn: Union[Type, Callable]):
-        py_module = inspect.getmodule(raw_cls_or_fn)
-
-        # Need to resolve in case just filename is given
-        module_path = (
-            str(Path(inspect.getfile(py_module)).resolve())
-            if hasattr(py_module, "__file__")
-            else None
-        )
-
-        return module_path
-
-    @staticmethod
     def _is_running_in_notebook(module_path: Union[str, None]) -> bool:
         """Returns True if running in a notebook, False otherwise"""
 
@@ -991,50 +981,10 @@ class Module(Resource):
             raise TypeError(
                 f"Expected Type or Callable but received {type(raw_cls_or_fn)}"
             )
-        # Background on all these dunders: https://docs.python.org/3/reference/import.html
-        py_module = inspect.getmodule(raw_cls_or_fn)
 
-        # Need to resolve in case just filename is given
-        module_path = Module._extract_module_path(raw_cls_or_fn)
+        root_path, module_name, cls_or_fn_name = get_module_import_info(raw_cls_or_fn)
 
-        if Module._is_running_in_notebook(module_path):
-            # The only time __file__ wouldn't be present is if the function is defined in an interactive
-            # interpreter or a notebook. We can't import on the server in that case, so we need to cloudpickle
-            # the fn to send it over. The __call__ function will serialize the function if we return it this way.
-            # This is a short-term hack.
-            # return None, "notebook", raw_fn.__name__
-            root_path = os.getcwd()
-            module_name = "notebook"
-            cls_or_fn_name = raw_cls_or_fn.__name__
-        else:
-            root_path = os.path.dirname(module_path)
-            module_name = inspect.getmodulename(module_path)
-            # TODO __qualname__ doesn't work when fn is aliased funnily, like torch.sum
-            cls_or_fn_name = getattr(
-                raw_cls_or_fn, "__qualname__", raw_cls_or_fn.__name__
-            )
-
-            # Adapted from https://github.com/modal-labs/modal-client/blob/main/modal/_function_utils.py#L94
-            if getattr(py_module, "__package__", None):
-                module_path = os.path.abspath(py_module.__file__)
-                package_paths = [
-                    os.path.abspath(p)
-                    for p in __import__(py_module.__package__).__path__
-                ]
-                base_dirs = [
-                    base_dir
-                    for base_dir in package_paths
-                    if os.path.commonpath((base_dir, module_path)) == base_dir
-                ]
-
-                if len(base_dirs) != 1:
-                    logger.debug(f"Module files: {module_path}")
-                    logger.debug(f"Package paths: {package_paths}")
-                    logger.debug(f"Base dirs: {base_dirs}")
-                    raise Exception("Wasn't able to find the package directory!")
-                root_path = os.path.dirname(base_dirs[0])
-                module_name = py_module.__spec__.name
-
+        # First, check if the module is already included in one of the directories in reqs
         remote_import_path = None
         for req in reqs:
             local_path = None
@@ -1050,6 +1000,7 @@ class Module(Resource):
                     req = new_req
 
                 if Path(req).expanduser().resolve().exists():
+                    # TODO: Relative paths in envs shouldn't even really be a thing I think, maybe we deprecate
                     # Relative paths are relative to the working directory in Folders/Packages!
                     local_path = (
                         Path(req).expanduser()
@@ -1067,7 +1018,22 @@ class Module(Resource):
                 except ValueError:  # Not a subdirectory
                     pass
 
-        return remote_import_path, module_name, cls_or_fn_name
+        working_dir_containing_module = None
+        if not remote_import_path:
+            # If the module is not in one of the directories in reqs, we just use the full path,
+            # then we'll create a new "req" containing the Module
+            # TODO: should this "req" be a Package? I'll just start with a string for now
+            working_dir_containing_module = Path(locate_working_dir(root_path))
+            remote_import_path = str(
+                working_dir_containing_module.name
+                / Path(root_path).relative_to(working_dir_containing_module)
+            )
+
+        return (
+            remote_import_path,
+            module_name,
+            cls_or_fn_name,
+        ), str(working_dir_containing_module)
 
     def openapi_spec(self, spec_name: Optional[str] = None):
         """Generate an OpenAPI spec for the module.
@@ -1369,7 +1335,10 @@ def module(
 
         env.working_dir = env.working_dir or "./"
 
-    cls_pointers = Module._extract_pointers(cls, env.reqs)
+    cls_pointers, working_dir_to_add = Module._extract_pointers(cls, env.reqs)
+    if working_dir_to_add is not None:
+        env.reqs = [str(working_dir_to_add)] + env.reqs
+
     name = name or (
         cls_pointers[2] if cls_pointers else _generate_default_name(prefix="module")
     )
