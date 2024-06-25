@@ -1227,7 +1227,6 @@ class Cluster(Resource):
         port_forward: Union[None, int, Tuple[int, int]] = None,
         require_outputs: bool = True,
         node: Optional[str] = None,
-        run_name: Optional[str] = None,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
     ) -> List:
         """Run a list of shell commands on the cluster. If `run_name` is provided, the commands will be
@@ -1236,7 +1235,7 @@ class Cluster(Resource):
         Example:
             >>> cpu.run(["pip install numpy"])
             >>> cpu.run(["pip install numpy"], env="my_conda_env"])
-            >>> cpu.run(["python script.py"], run_name="my_exp")
+            >>> cpu.run(["python script.py"])
             >>> cpu.run(["python script.py"], node="3.89.174.234")
         """
         from runhouse.resources.envs import Env
@@ -1258,7 +1257,6 @@ class Cluster(Resource):
                     port_forward=port_forward,
                     require_outputs=require_outputs,
                     node=node,
-                    run_name=run_name,
                     _ssh_mode=_ssh_mode,
                 )
                 res_list.append(res)
@@ -1301,34 +1299,17 @@ class Cluster(Resource):
             return return_codes
 
         full_commands = [env._full_command(cmd) for cmd in commands]
-        if not run_name:
-            # If not creating a Run then just run the commands via SSH and return
-            return self._run_commands_with_ssh(
-                full_commands,
-                cmd_prefix="",
-                stream_logs=stream_logs,
-                node=node,
-                port_forward=port_forward,
-                require_outputs=require_outputs,
-                _ssh_mode=_ssh_mode,
-            )
 
         # Create and save the Run locally
-        from runhouse.resources.provenance import run
+        return_codes = self._run_commands_with_ssh(
+            full_commands,
+            cmd_prefix="",
+            stream_logs=stream_logs,
+            node=node,
+            port_forward=port_forward,
+            require_outputs=require_outputs,
+        )
 
-        with run(name=run_name, cmds=commands, overwrite=True) as r:
-            return_codes = self._run_commands_with_ssh(
-                full_commands,
-                cmd_prefix="",
-                stream_logs=stream_logs,
-                node=node,
-                port_forward=port_forward,
-                require_outputs=require_outputs,
-            )
-
-        # Register the completed Run
-        r._register_cmd_run_completion(return_codes)
-        logger.debug(f"Saved Run to path: {r.folder.path}")
         return return_codes
 
     def _run_commands_with_ssh(
@@ -1441,7 +1422,6 @@ class Cluster(Resource):
         stream_logs: bool = True,
         node: str = None,
         port_forward: Optional[int] = None,
-        run_name: Optional[str] = None,
     ):
         """Run a list of python commands on the cluster, or a specific cluster node if its IP is provided.
 
@@ -1470,7 +1450,6 @@ class Cluster(Resource):
             stream_logs=stream_logs,
             node=node,
             port_forward=port_forward,
-            run_name=run_name,
         )
 
         return return_codes
