@@ -1,7 +1,10 @@
-# # Deploy Llama 7B Model with TGI on AWS EC2
+# # Deploy Llama 3 8B with TGI on AWS EC2
 
-# This example demonstrates how to deploy a [Llama 7B model](https://huggingface.co/meta-llama/Llama-2-7b-chat-hf)
-# using Hugging Face [TGI](https://huggingface.co/docs/text-generation-inference/messages_api) on AWS EC2 using Runhouse.
+# This example demonstrates how to deploy a Meta Llama 3 8B model from Hugging Face
+# with [TGI](https://huggingface.co/docs/text-generation-inference/messages_api) on AWS EC2 using Runhouse.
+#
+# Make sure to sign the waiver on the [Hugging Face model page](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)
+# so that you can access it.
 #
 # ## Setup credentials and dependencies
 # Install the required dependencies:
@@ -17,7 +20,7 @@
 # ```
 #
 # ## Setting up a model class
-# We import runhouse, the only required library to have installed locally:
+# We import built-in packages and runhouse, the only required library to have installed locally:
 
 import time
 from pathlib import Path
@@ -35,10 +38,11 @@ import runhouse as rh
 class TGIInference(rh.Module):
     def __init__(
         self,
-        model_id="meta-llama/Llama-2-7b-chat-hf",
+        model_id="meta-llama/Meta-Llama-3-8B-Instruct",
         image_uri="ghcr.io/huggingface/text-generation-inference:latest",
         max_input_length=2048,
         max_total_tokens=4096,
+        container_port=8080,
         **model_kwargs,
     ):
         super().__init__()
@@ -50,7 +54,7 @@ class TGIInference(rh.Module):
         self.max_total_tokens = max_total_tokens
         self.model_kwargs = model_kwargs
 
-        self.container_port = 8080
+        self.container_port = container_port
         self.container_name = "text-generation-service"
 
     def _load_docker_client(self):
@@ -131,29 +135,14 @@ class TGIInference(rh.Module):
                 print(f"Failed to load model within {timeout} seconds. Exiting.")
                 break
 
-    def restart_container(self):
-        if self.docker_client is None:
-            self._load_docker_client()
-
-        try:
-            container = self.docker_client.containers.get(self.container_name)
-            container.stop()
-            container.remove()
-        except Exception as e:
-            raise RuntimeError(f"Failed to stop or remove container: {e}")
-
-        # Deploy a new container
-        self.deploy()
-
 
 # ## Setting up Runhouse primitives
 #
 # Now, we define the main function that will run locally when we run this script, and set up
 # our Runhouse module on a remote cluster. First, we create a cluster with the desired instance type and provider.
-# Our `instance_type` here is defined as `g5.4xlarge`, which is
-# an [AWS instance type on EC2](https://aws.amazon.com/ec2/instance-types/g5/) with a GPU.
+# Our `instance_type` here is defined as `A10G:1`, which will launch an appropriate
+# an [G5 instance on EC2](https://aws.amazon.com/ec2/instance-types/g5/) with the NVIDIA A10G GPU.
 #
-# For this model we'll need a GPU and at least 16GB of RAM
 # We also open port 8080, which is the port that the TGI model will be running on.
 #
 # Learn more about clusters in the [Runhouse docs](/docs/tutorials/api-clusters).
@@ -164,12 +153,14 @@ class TGIInference(rh.Module):
 # improve readability.
 # :::
 if __name__ == "__main__":
-    port = 8080
+    port = 8080  # Set to 8080 for http
     cluster = rh.cluster(
-        name="rh-g5-4xlarge",
-        instance_type="g5.4xlarge",
+        name="rh-a10",
+        instance_type="A10G:1",
+        memory="32+",
         provider="aws",
-        open_ports=[port],
+        autostop_mins=30,  # Number of minutes to keep the cluster up after inactivity, -1 for indefinite
+        open_ports=[port],  # Expose HTTP port to public
     ).up_if_not()
 
     # Next, we define the environment for our module. This includes the required dependencies that need
@@ -194,20 +185,11 @@ if __name__ == "__main__":
     #
     # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
     # set up on the remote machine before the module is run.
-    remote_tgi_model = TGIInference().get_or_to(cluster, env=env, name="tgi-inference")
+    remote_tgi_model = TGIInference(container_port=port).get_or_to(
+        cluster, env=env, name="tgi-inference"
+    )
 
-    # ## Sharing an inference endpoint
-    # We can publish this module for others to use:
-    # ```python
-    # remote_tgi_model.share(visibility="public")
-    # ```
-
-    # Alternatively we can share with specific users:
-    # ```python
-    # remote_tgi_model.share(["user1@gmail.com", "user2@gmail.com"], access_level="read")
-    # ```
-
-    # Note: For more info on fine-grained access controls, see the
+    # Note: For more info on access controls, see the
     # [Runhouse docs on sharing](https://www.run.house/docs/tutorials/quick-start-den#sharing).
 
     # ## Deploying the model
@@ -218,7 +200,7 @@ if __name__ == "__main__":
     remote_tgi_model.deploy()
 
     # ## Sending a prompt to the model
-    prompt_message = "What is Deep Learning?"
+    prompt_message = "The brightest known star is"
 
     # We'll use the Messages API to send the prompt to the model.
     # See [here](https://huggingface.co/docs/text-generation-inference/messages_api#streaming) for more info
@@ -242,7 +224,10 @@ if __name__ == "__main__":
     }
 
     response = requests.post(
-        f"http://{cluster.address}:{port}/generate", headers=headers, json=data
+        f"http://{cluster.address}:{port}/generate",
+        headers=headers,
+        json=data,
+        verify=False,
     )
     print(response.json())
 
