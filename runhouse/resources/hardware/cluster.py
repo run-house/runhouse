@@ -1253,8 +1253,14 @@ class Cluster(Resource):
         """
         from runhouse.resources.envs import Env
 
+        # Validate and update inputs
         if isinstance(commands, str):
             commands = [commands]
+
+        if env is not None and node is not None:
+            raise ValueError(
+                "Cannot specify both env and node. An env is already on just one node."
+            )
 
         if isinstance(env, Env) and not env.name:
             env = self._default_env
