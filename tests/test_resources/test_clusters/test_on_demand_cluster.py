@@ -195,7 +195,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         time.sleep(60)
         cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"])[0][1]
         assert (
-            "Performing cluster status check: potentially sending to Den or updating autostop."
+            "Performing cluster checks: potentially sending to Den, surfacing logs to Den or updating autostop."
             in cluster_logs
         )
 
@@ -262,7 +262,10 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         ]  # clean log formatting
         cluster_logs = "\n".join(cluster_logs)  # make logs list into one string
 
-        assert "Trying to send cluster logs to Den" in cluster_logs
+        assert (
+            "Performing cluster checks: potentially sending to Den, surfacing logs to Den or updating autostop."
+            in cluster_logs
+        )
 
         assert get_status_data_resp.status_code == 200
         cluster_logs_from_s3 = get_status_data_resp.json()["data"][0][1:].replace(

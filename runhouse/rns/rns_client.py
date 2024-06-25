@@ -13,6 +13,10 @@ import httpx
 import requests
 from pydantic import BaseModel
 
+from runhouse.constants import S3_LOGS_FILE_NAME, SERVER_LOGFILE
+
+from runhouse.logger import ColoredFormatter
+
 from runhouse.rns.utils.api import (
     generate_uuid,
     load_resp_content,
@@ -20,9 +24,11 @@ from runhouse.rns.utils.api import (
     remove_null_values_from_dict,
     ResourceAccess,
 )
+
 from runhouse.utils import locate_working_dir
 
 logger = logging.getLogger(__name__)
+
 
 # This is a copy of the Pydantic model that we use to validate in Den
 class ResourceStatusData(BaseModel):
@@ -632,7 +638,9 @@ class RNSClient:
             full_paths=full_paths
         )
 
-    async def send_status(self, status: ResourceStatusData, cluster_rns_address: str):
+    async def send_status(
+        self, status: ResourceStatusData, cluster_uri: str, api_server_url: str
+    ):
         from runhouse.resources.hardware.utils import ResourceServerStatus
 
         status_data = {
@@ -640,19 +648,37 @@ class RNSClient:
             "resource_type": status.cluster_config.get("resource_type"),
             "data": dict(status),
         }
-        cluster_uri = self.format_rns_address(cluster_rns_address)
-        api_server_url = status.cluster_config.get(
-            "api_server_url", self.api_server_url
-        )
         client = httpx.AsyncClient()
         resp = await client.post(
             f"{api_server_url}/resource/{cluster_uri}/cluster/status",
             data=json.dumps(status_data),
             headers=self.request_headers(),
         )
-        if resp.status_code != 200:
-            logger.error(
-                f"Received [{resp.status_code}]: Failed to send cluster status info to Den: {resp.text}."
+        return resp.status_code
+
+    ##############################################
+    # Surface cluster logs to Den
+    ##############################################
+    def _get_logs(self):
+        with open(SERVER_LOGFILE) as log_file:
+            log_lines = log_file.readlines()
+        cleaned_log_lines = [ColoredFormatter.format_log(line) for line in log_lines]
+        return " ".join(cleaned_log_lines)
+
+    async def send_cluster_logs_to_den(self, cluster_uri: str, api_server_url: str):
+
+        try:
+            latest_logs = self._get_logs()
+            logs_data = {"file_name": S3_LOGS_FILE_NAME, "logs": latest_logs}
+
+            post_logs_resp = requests.post(
+                f"{api_server_url}/resource/{cluster_uri}/logs",
+                data=json.dumps(logs_data),
+                headers=self.request_headers(),
             )
-        else:
-            logger.info("Successfully sent cluster status info to Den.")
+            return post_logs_resp.status_code
+        except Exception as e:
+            logger.error(
+                f"Sending cluster logs to den has failed: {e}. Please check cluster logs for more info."
+            )
+            return -1
