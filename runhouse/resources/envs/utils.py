@@ -51,7 +51,7 @@ def _get_env_from(env):
     if isinstance(env, List):
         if len(env) == 0:
             return Env(reqs=env, working_dir=None)
-        return Env(reqs=env, working_dir="./")
+        return Env(reqs=env)
     elif isinstance(env, Dict):
         return Env.from_config(env)
     elif isinstance(env, str) and EMPTY_DEFAULT_ENV_NAME not in env:

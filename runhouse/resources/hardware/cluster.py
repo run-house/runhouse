@@ -137,9 +137,7 @@ class Cluster(Resource):
         from runhouse.resources.envs import Env
 
         return (
-            self._default_env
-            if self._default_env
-            else Env(name=EMPTY_DEFAULT_ENV_NAME, working_dir="./")
+            self._default_env if self._default_env else Env(name=EMPTY_DEFAULT_ENV_NAME)
         )
 
     @default_env.setter
@@ -604,6 +602,14 @@ class Cluster(Resource):
             ServerConnectionType.SSH,
             ServerConnectionType.AWS_SSM,
         ]:
+            # For a password cluster, the 'ssh_tunnel' command assumes a Control Master is already set up with
+            # an authenticated password.
+            # TODO: I wonder if this authentication ever goes dry, and our SSH tunnel would need to be
+            # re-established, would require a password, and then fail. We should really figure out how to
+            # authenticate with a password in the SSH tunnel command. But, this is a fine hack for now.
+            if self.creds_values.get("password") is not None:
+                self._run_commands_with_ssh(["Initiating password connection."])
+
             # Case 1: Server connection requires SSH tunnel, but we don't have one up yet
             self._rpc_tunnel = self.ssh_tunnel(
                 local_port=self.server_port,
