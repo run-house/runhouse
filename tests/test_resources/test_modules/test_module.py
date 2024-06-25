@@ -2,7 +2,10 @@ import inspect
 import json
 import logging
 import os
+import site
 import time
+
+from importlib import reload as importlib_reload
 
 import numpy as np
 import pandas as pd
@@ -901,3 +904,19 @@ class TestModule:
         )
         remote_constructor_module = rh.module(ConstructorModule)().to(cluster, env=env)
         remote_constructor_module.construct_module_on_cluster()
+
+    @pytest.mark.level("local")
+    def test_import_editable_package(
+        self, cluster, tmp_path, installed_editable_package
+    ):
+
+        importlib_reload(site)
+
+        # Test that the editable package can be imported and used
+        from test_fake_package import editable_package_function
+
+        assert editable_package_function() == "Hello from the editable package!"
+
+        # Now send this to the remote cluster and test that it can still be imported and used
+        remote_editable_package_fn = rh.function(editable_package_function).to(cluster)
+        assert remote_editable_package_fn() == "Hello from the editable package!"
