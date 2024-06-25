@@ -215,10 +215,11 @@ class ClusterServlet:
                 interval_size = cluster_config.get(
                     "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
                 )
-                den_auth = cluster_config.get("den_auth", False)
 
                 # Only if one of these is true, do we actually need to get the status from each EnvServlet
-                should_send_status_and_logs_to_den = den_auth and interval_size != -1
+                should_send_status_and_logs_to_den = (
+                    configs.token is not None and interval_size != -1
+                )
                 should_update_autostop = self.autostop_helper is not None
                 if should_send_status_and_logs_to_den or should_update_autostop:
                     logger.info(
