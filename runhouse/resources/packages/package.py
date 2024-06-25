@@ -376,6 +376,12 @@ class Package(Resource):
         return new_package
 
     @staticmethod
+    def split_req_install_method(req_str: str):
+        """Split a requirements string into a install method and the rest of the string."""
+        splat = req_str.split(":", 1)
+        return (splat[0], splat[1]) if len(splat) > 1 else ("", splat[0])
+
+    @staticmethod
     def from_config(config: dict, dryrun=False, _resolve_children=True):
         if isinstance(config.get("install_target"), dict):
             config["install_target"] = Folder.from_config(
@@ -410,8 +416,8 @@ class Package(Resource):
             )
 
         target_and_args = specifier
-        if specifier.split(":")[0] in INSTALL_METHODS:
-            target_and_args = specifier.split(":", 1)[1]
+        if Package.split_req_install_method(target_and_args)[0] in INSTALL_METHODS:
+            target_and_args = Package.split_req_install_method(target_and_args)[1]
         rel_target, args = (
             target_and_args.split(" ", 1)
             if " " in target_and_args
@@ -456,7 +462,7 @@ class Package(Resource):
             )
         elif specifier.startswith("rh:"):
             # Calling the factory method below
-            return package(name=specifier[3:], dryrun=dryrun)
+            return package(name=specifier[len("rh:") :], dryrun=dryrun)
         else:
             if Path(specifier).resolve().exists():
                 return Package(
