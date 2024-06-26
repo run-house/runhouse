@@ -4,7 +4,7 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, Optional, Set, Union
 
 import dotenv
 import httpx
@@ -30,7 +30,6 @@ from runhouse.utils import locate_working_dir
 # This is a copy of the Pydantic model that we use to validate in Den
 class ResourceStatusData(BaseModel):
     cluster_config: dict
-    env_resource_mapping: Dict[str, List[Dict[str, Any]]]
     system_cpu_usage: float
     system_memory_usage: Dict[str, Any]
     system_disk_usage: Dict[str, Any]
@@ -640,10 +639,13 @@ class RNSClient:
     ):
         from runhouse.resources.hardware.utils import ResourceServerStatus
 
+        resource_info = dict(status)
+        env_servlet_processes = dict(resource_info.pop("env_servlet_processes"))
         status_data = {
             "status": ResourceServerStatus.running,
             "resource_type": status.cluster_config.get("resource_type"),
-            "data": dict(status),
+            "resource_info": resource_info,
+            "env_servlet_processes": env_servlet_processes,
         }
         client = httpx.AsyncClient()
         resp = await client.post(
