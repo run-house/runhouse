@@ -1565,7 +1565,7 @@ class ObjStore:
         # Need to copy to avoid race conditions
         current_active_function_calls = copy.copy(self.active_function_calls)
 
-        keys_and_info = []
+        keys_and_info = {}
         for k, v in self._kv_store.items():
             cls = type(v)
             py_module = cls.__module__
@@ -1581,13 +1581,10 @@ class ObjStore:
                 if call_info.key == k
             ]
 
-            keys_and_info.append(
-                {
-                    "name": k,
-                    "resource_type": cls_name,
-                    "active_function_calls": active_fn_calls,
-                }
-            )
+            keys_and_info[k] = {
+                "resource_type": cls_name,
+                "active_function_calls": active_fn_calls,
+            }
 
         return keys_and_info
 
