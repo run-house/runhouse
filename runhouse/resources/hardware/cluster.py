@@ -664,39 +664,37 @@ class Cluster(Resource):
             )
 
         if not self.client:
-            try:
+            self.connect_server_client()
+
+        try:
+            self.client.check_server()
+            logger.debug(f"Server {self.name} is up.")
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.ReadTimeout,
+            requests.exceptions.ChunkedEncodingError,
+        ):
+            if not self.is_up():
+                raise ConnectionError(
+                    "Cluster not detected to be up. Use `cluster.up_if_not()` to launch an ondemand cluster."
+                )
+            elif restart_server:
+                logger.info("Runhouse API server not detected, restarting server.")
                 self.connect_server_client()
-                logger.debug(f"Checking server {self.name}")
-                self.client.check_server()
-                logger.info(f"Server {self.name} is up.")
-            except (
-                requests.exceptions.ConnectionError,
-                requests.exceptions.ReadTimeout,
-                requests.exceptions.ChunkedEncodingError,
-            ):
-                if not self.is_up():
-                    raise ConnectionError(
-                        "Cluster not detected to be up. Use `cluster.up_if_not()` to launch an ondemand cluster."
-                    )
-                elif restart_server:
-                    logger.info(
-                        f"Server {self.name} is up, but the Runhouse API server may not be up."
-                    )
-                    self.restart_server()
-                    for i in range(5):
-                        logger.info(f"Checking server {self.name} again [{i + 1}/5].")
-                        try:
-                            self.client.check_server()
-                            logger.info(f"Server {self.name} is up.")
-                            return
-                        except (
-                            requests.exceptions.ConnectionError,
-                            requests.exceptions.ReadTimeout,
-                        ) as error:
-                            if i == 5:
-                                logger.error(error)
-                            time.sleep(5)
-                raise ValueError(f"Could not connect to server {self.name}")
+                self.restart_server()
+                for i in range(5):
+                    logger.info(f"Checking server {self.name} again [{i + 1}/5].")
+                    try:
+                        self.client.check_server()
+                        logger.info(f"Server {self.name} is up.")
+                        return
+                    except (
+                        requests.exceptions.ConnectionError,
+                        requests.exceptions.ReadTimeout,
+                    ) as error:
+                        logger.info(error) if i != 5 else logger.error(error)
+                        time.sleep(5)
+            raise ValueError(f"Could not connect to server {self.name}")
 
         return
 
