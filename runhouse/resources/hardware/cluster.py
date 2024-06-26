@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import yaml
 
 from runhouse.resources.envs.utils import run_with_logs
-
+from runhouse.resources.hardware.utils import detect_cuda_version_or_cpu
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import locate_working_dir, run_command_with_password_login
@@ -277,6 +277,8 @@ class Cluster(Resource):
             config["ssl_certfile"] = self.cert_config.cert_path
             config["ssl_keyfile"] = self.cert_config.key_path
 
+        cpu_or_cuda = detect_cuda_version_or_cpu(self)
+        config["process_unit"] = cpu_or_cuda.upper() if cpu_or_cuda == "cpu" else "GPU"
         return config
 
     def endpoint(self, external=False):
