@@ -1,6 +1,6 @@
 # # Fine-Tune Llama 3 with LoRA on AWS EC2
 
-# This example demonstrates fine-tune a Meta Llama 3 model with
+# This example demonstrates how to fine-tune a Meta Llama 3 model with
 # [LoRA](https://huggingface.co/docs/peft/main/en/conceptual_guides/lora) on AWS EC2 using Runhouse. See also our
 # related post for [Llama 2 fine-tuning](https://www.run.house/examples/llama2-fine-tuning-with-lora).
 #
@@ -227,7 +227,7 @@ class FineTuner(rh.Module):
 
 # ## Define Runhouse primitives
 #
-# Now, we define code that will run locally when we run this script, and set up
+# Now, we define code that will run locally when we run this script and set up
 # our Runhouse module on a remote cluster. First, we create a cluster with the desired instance type and provider.
 # Our `instance_type` here is defined as `A10G:1`, which is the accelerator type and count that we need. We could
 # alternatively specify a specific AWS instance type, such as `p3.2xlarge` or `g4dn.xlarge`.
@@ -269,7 +269,7 @@ if __name__ == "__main__":
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
-    # by the name `ft_env` if it was already put on the cluster. If we want to update the module each
+    # by the name `llama3-medical-model` if it was already put on the cluster. If we want to update the Module each
     # time we run this script, we can use `to` instead of `get_or_to`.
     #
     # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
@@ -280,11 +280,11 @@ if __name__ == "__main__":
 
     # ## Fine-tune the model on the cluster
     #
-    # We can call the `tune` method on the model class instance if it were running locally.
+    # We can call the `tune` method on the model class instance as if it were running locally.
     # This will run the function on the remote cluster and return the response to our local machine automatically.
     # Further calls will also run on the remote machine, and maintain state that was updated between calls, like
-    # `self.model`.
-    # Once the model is fine-tuned, we save this new model on the cluster and use it to generate our text predictions.
+    # `self.fine_tuned_model`.
+    # Once the base model is fine-tuned, we save this new model on the cluster and use it to generate our text predictions.
     #
     # :::note{.info title="Note"}
     # For this example we are using a [small subset](https://huggingface.co/datasets/Shekswess/medical_llama3_instruct_dataset_short)
