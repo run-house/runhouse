@@ -1,6 +1,5 @@
 import json
 
-import logging
 from enum import Enum
 from pathlib import Path
 from typing import Dict
@@ -11,8 +10,6 @@ from runhouse.constants import (
     RESERVED_SYSTEM_NAMES,
 )
 from runhouse.resources.envs.utils import _get_env_from, run_setup_command
-
-logger = logging.getLogger(__name__)
 
 
 class ServerConnectionType(str, Enum):

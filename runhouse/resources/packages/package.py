@@ -1,5 +1,4 @@
 import copy
-import logging
 import re
 import sys
 from pathlib import Path
@@ -18,7 +17,7 @@ from runhouse.utils import locate_working_dir
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
 
-logger = logging.getLogger(__name__)
+from runhouse.logger import logger
 
 
 class Package(Resource):
@@ -148,7 +147,7 @@ class Package(Resource):
             cluster (Optional[Cluster]): If provided, will install package on cluster using SSH.
         """
 
-        logging.info(f"Installing {str(self)} with method {self.install_method}.")
+        logger.info(f"Installing {str(self)} with method {self.install_method}.")
         install_cmd = self._install_cmd(cluster=cluster)
 
         if self.install_method == "pip":
@@ -169,12 +168,12 @@ class Package(Resource):
                     return
 
                 if self.install_method == "reqs" and install_cmd:
-                    logging.info(
+                    logger.info(
                         f"pip installing {path}/requirements.txt with: {install_cmd}"
                     )
                     self._pip_install(install_cmd, env, cluster=cluster)
                 else:
-                    logging.info(f"{path}/requirements.txt not found, skipping")
+                    logger.info(f"{path}/requirements.txt not found, skipping")
 
                 sys.path.append(path) if not cluster else run_setup_command(
                     f"export PATH=$PATH;{path}", cluster=cluster

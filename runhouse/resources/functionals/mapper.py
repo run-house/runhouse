@@ -1,6 +1,5 @@
 import concurrent.futures
 import contextvars
-import logging
 from typing import Callable, List, Optional, Union
 
 try:
@@ -11,13 +10,12 @@ except ImportError:
         return args[0]
 
 
+from runhouse.logger import logger
 from runhouse.resources.envs.env import Env
 from runhouse.resources.functions import function, Function
 from runhouse.resources.hardware.cluster import Cluster
 
 from runhouse.resources.module import Module
-
-logger = logging.getLogger(__name__)
 
 
 class Mapper(Module):

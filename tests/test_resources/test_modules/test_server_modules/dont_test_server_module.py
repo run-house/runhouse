@@ -1,5 +1,3 @@
-import logging
-
 import pytest
 import requests
 import runhouse as rh
@@ -8,7 +6,6 @@ from tests.test_resources.test_modules.test_server_modules.assets.sample_fastapi
     app,
 )
 
-logger = logging.getLogger(__name__)
 
 """
 Resources:

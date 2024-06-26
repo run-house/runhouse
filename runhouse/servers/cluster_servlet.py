@@ -1,19 +1,26 @@
 import asyncio
 import copy
-import logging
+import json
 import threading
 from typing import Any, Dict, List, Optional, Set, Union
+
+import requests
 
 import runhouse
 
 from runhouse.constants import (
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_LOG_SURFACING_INTERVAL,
     DEFAULT_STATUS_CHECK_INTERVAL,
     INCREASED_INTERVAL,
     INCREASED_STATUS_CHECK_INTERVAL,
+    S3_LOGS_FILE_NAME,
     SCHEDULERS_DELAY,
+    SERVER_LOGFILE,
 )
 
 from runhouse.globals import configs, obj_store, rns_client
+from runhouse.logger import ColoredFormatter, logger
 from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
@@ -21,8 +28,6 @@ from runhouse.servers.autostop_helper import AutostopHelper
 from runhouse.servers.http.auth import AuthCache
 
 from runhouse.utils import sync_function
-
-logger = logging.getLogger(__name__)
 
 
 class ClusterServletError(Exception):
@@ -33,7 +38,6 @@ class ClusterServlet:
     async def __init__(
         self, cluster_config: Optional[Dict[str, Any]] = None, *args, **kwargs
     ):
-
         # We do this here instead of at the start of the HTTP Server startup
         # because someone can be running `HTTPServer()` standalone in a test
         # and still want an initialized cluster config in the servlet.
@@ -47,6 +51,9 @@ class ClusterServlet:
         self._key_to_env_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache(cluster_config)
         self.autostop_helper = None
+
+        logger.setLevel(kwargs.get("logs_level", DEFAULT_LOG_LEVEL))
+        self.logger = logger
 
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
             self.autostop_helper = AutostopHelper()
@@ -275,10 +282,10 @@ class ClusterServlet:
                             logger.info("Successfully sent cluster logs to Den.")
 
             except Exception as e:
-                logger.error(
+                self.logger.error(
                     f"Cluster status check has failed: {e}. Please check cluster logs for more info."
                 )
-                logger.warning(
+                self.logger.warning(
                     f"Temporarily increasing the interval between two consecutive status checks. "
                     f"Next status check will be in {round(INCREASED_INTERVAL / 60, 2)} minutes. "
                     f"For changing the interval size, please run cluster._enable_or_update_status_check(new_interval). "
@@ -347,7 +354,7 @@ class ClusterServlet:
             # Nothing if there was an exception
             if "Exception" in env_status.keys():
                 e = env_status.get("Exception")
-                logger.warning(
+                self.logger.warning(
                     f"Exception {str(e)} in status for env servlet {env_servlet_name}"
                 )
                 env_resource_mapping[env_servlet_name] = []
@@ -386,3 +393,66 @@ class ClusterServlet:
 
     def status(self):
         return sync_function(self.astatus)()
+
+    ##############################################
+    # Surface cluster logs to Den
+    ##############################################
+    def _get_logs(self):
+        with open(SERVER_LOGFILE) as log_file:
+            log_lines = log_file.readlines()
+        cleaned_log_lines = [ColoredFormatter.format_log(line) for line in log_lines]
+        return " ".join(cleaned_log_lines)
+
+    async def asend_cluster_logs_to_den(self):
+        # Delay the start of post_logs_thread, so we'll finish the cluster startup properly
+        await asyncio.sleep(SCHEDULERS_DELAY)
+
+        while True:
+            self.logger.info("Trying to send cluster logs to Den")
+            try:
+                interval_size = DEFAULT_LOG_SURFACING_INTERVAL
+                latest_logs = self._get_logs()
+                logs_data = {"file_name": S3_LOGS_FILE_NAME, "logs": latest_logs}
+
+                cluster_config = await self.aget_cluster_config()
+                cluster_uri = rns_client.format_rns_address(cluster_config.get("name"))
+                api_server_url = cluster_config.get(
+                    "api_server_url", rns_client.api_server_url
+                )
+
+                post_logs_resp = requests.post(
+                    f"{api_server_url}/resource/{cluster_uri}/logs",
+                    data=json.dumps(logs_data),
+                    headers=rns_client.request_headers(),
+                )
+
+                post_logs_resp_json = post_logs_resp.json()
+
+                if post_logs_resp.status_code != 200:
+                    post_logs_error = (
+                        post_logs_resp_json.get("detail")
+                        if post_logs_resp_json.get("detail")
+                        else ""
+                    )
+                    self.logger.error(
+                        f"({post_logs_resp.status_code}) Failed to send cluster logs to Den: {post_logs_error}"
+                    )
+                else:
+                    self.logger.info(
+                        f"Successfully sent cluster logs to Den. Next status check will be in {round(interval_size / 60, 2)} minutes."
+                    )
+            except Exception as e:
+                self.logger.error(
+                    f"Sending cluster logs to den has failed: {e}. Please check cluster logs for more info."
+                )
+                self.logger.warning(
+                    f"Temporarily increasing the interval between two consecutive log retrievals."
+                    f"Next log retrieval will be in {round(INCREASED_INTERVAL / 60, 2)} minutes. "
+                    f"For changing the interval size, please run cluster.restart_server(). "
+                    f"Interval size will be set to {interval_size}"
+                )
+            finally:
+                await asyncio.sleep(interval_size)
+
+    def send_cluster_logs_to_den(self):
+        asyncio.run(self.asend_cluster_logs_to_den())

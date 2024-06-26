@@ -1,4 +1,3 @@
-import logging
 import re
 from pathlib import Path
 from typing import Callable, List, Optional, Union
@@ -7,8 +6,6 @@ from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.functions.function import Function
 from runhouse.resources.hardware import Cluster
 from runhouse.resources.packages import git_package
-
-logger = logging.getLogger(__name__)
 
 
 def function(

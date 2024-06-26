@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.globals import obj_store
+
+from runhouse.logger import logger
 from runhouse.resources.envs.utils import (
     _process_env_vars,
     run_setup_command,
@@ -15,9 +17,6 @@ from runhouse.resources.folders import Folder
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
-
-
-logger = logging.getLogger(__name__)
 
 
 class Env(Resource):

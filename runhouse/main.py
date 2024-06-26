@@ -23,6 +23,7 @@ import runhouse.rns.login
 from runhouse import __version__, cluster, Cluster, configs
 from runhouse.constants import (
     BULLET_UNICODE,
+    DEFAULT_LOG_LEVEL,
     DOUBLE_SPACE_UNICODE,
     RAY_KILL_CMD,
     RAY_START_CMD,
@@ -33,6 +34,7 @@ from runhouse.constants import (
     START_SCREEN_CMD,
 )
 from runhouse.globals import obj_store, rns_client
+from runhouse.logger import logger
 from runhouse.resources.hardware.ray_utils import (
     check_for_existing_ray_instance,
     kill_actors,
@@ -43,7 +45,6 @@ app = typer.Typer(add_completion=False)
 
 # For printing with typer
 console = Console()
-logger = logging.getLogger(__name__)
 
 
 @app.command()
@@ -516,6 +517,7 @@ def _start_server(
     default_env_name=None,
     conda_env=None,
     from_python=None,
+    log_level=None,
 ):
     ############################################
     # Build CLI commands to start the server
@@ -609,6 +611,12 @@ def _start_server(
         flags.append(conda_env_flag)
 
     flags.append(" --from-python" if from_python else "")
+
+    flags.append(
+        f" --log-level {log_level}"
+        if log_level
+        else f" --log-level {DEFAULT_LOG_LEVEL}"
+    )
 
     # Check if screen or nohup are available
     screen = screen and _check_if_command_exists("screen")
@@ -798,11 +806,18 @@ def restart(
         False,
         help="Whether HTTP server started from inside a Python call rather than CLI.",
     ),
+    log_level: str = typer.Option(
+        default=DEFAULT_LOG_LEVEL,
+        help="Minimum log level for logs to be printed",
+        callback=lambda value: value.upper(),
+    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
         c = cluster(name=name)
-        c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
+        c.restart_server(
+            resync_rh=resync_rh, restart_ray=restart_ray, logs_level=log_level
+        )
         return
 
     _start_server(
@@ -826,6 +841,7 @@ def restart(
         default_env_name=default_env_name,
         conda_env=conda_env,
         from_python=from_python,
+        log_level=log_level,
     )
 
 

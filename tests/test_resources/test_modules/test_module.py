@@ -1,6 +1,5 @@
 import inspect
 import json
-import logging
 import os
 import site
 import time
@@ -15,7 +14,8 @@ import runhouse as rh
 from runhouse import Package
 from runhouse.constants import TEST_ORG
 
-logger = logging.getLogger(__name__)
+from runhouse.logger import logger
+
 
 """ Tests for runhouse.Module. Structure:
     - Test call_module_method rpc, with various envs

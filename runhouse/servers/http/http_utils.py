@@ -1,6 +1,5 @@
 import codecs
 import json
-import logging
 import re
 import sys
 from typing import Any, Dict, List, Optional, Union
@@ -12,10 +11,8 @@ from pydantic import BaseModel
 from ray import cloudpickle as pickle
 from ray.exceptions import RayTaskError
 
-from runhouse.logger import ClusterLogsFormatter
+from runhouse.logger import ClusterLogsFormatter, logger
 from runhouse.servers.obj_store import RunhouseStopIteration
-
-logger = logging.getLogger(__name__)
 
 
 class RequestContext(BaseModel):

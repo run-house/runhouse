@@ -1,5 +1,4 @@
 import copy
-import logging
 import os
 import pathlib
 import shlex
@@ -10,6 +9,8 @@ from typing import Dict, List, Optional, Tuple, Union
 from runhouse.constants import DEFAULT_DOCKER_CONTAINER_NAME, LOCALHOST
 
 from runhouse.globals import sky_ssh_runner_cache
+
+from runhouse.logger import logger
 
 from runhouse.resources.hardware.sky import common_utils, log_lib, subprocess_utils
 
@@ -22,9 +23,6 @@ from runhouse.resources.hardware.sky.command_runner import (
     SSHCommandRunner,
     SshMode,
 )
-
-
-logger = logging.getLogger(__name__)
 
 
 # Get rid of the constant "Found credentials in shared credentials file: ~/.aws/credentials" message

@@ -1,5 +1,4 @@
 import copy
-import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -16,7 +15,7 @@ from runhouse.resources.resource import Resource
 
 PREFETCH_KWARG = "prefetch_batches" if ray.__version__ >= "2.4.0" else "prefetch_blocks"
 
-logger = logging.getLogger(__name__)
+from runhouse.logger import logger
 
 
 class Table(Resource):

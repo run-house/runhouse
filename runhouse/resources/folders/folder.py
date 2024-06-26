@@ -1,5 +1,4 @@
 import copy
-import logging
 import os
 import shlex
 import shutil
@@ -23,7 +22,8 @@ fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
 # SSHFileSystem is not yet builtin.
 # Line above suggested by fsspec devs: https://github.com/fsspec/filesystem_spec/issues/1071
 
-logger = logging.getLogger(__name__)
+from runhouse.logger import logger
+
 
 PROVIDER_FS_LOOKUP = {
     "aws": "s3",

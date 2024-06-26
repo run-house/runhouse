@@ -1,8 +1,7 @@
-import logging
 import shlex
 import subprocess
 
-logger = logging.getLogger(__name__)
+from runhouse.logger import logger
 
 
 class AutostopHelper:

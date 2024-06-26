@@ -1,7 +1,6 @@
 import hashlib
 import importlib
 import json
-import logging
 import os
 import shutil
 from pathlib import Path
@@ -15,7 +14,7 @@ from pydantic import BaseModel
 
 from runhouse.constants import S3_LOGS_FILE_NAME, SERVER_LOGFILE
 
-from runhouse.logger import ColoredFormatter
+from runhouse.logger import ColoredFormatter, logger
 
 from runhouse.rns.utils.api import (
     generate_uuid,
@@ -26,8 +25,6 @@ from runhouse.rns.utils.api import (
 )
 
 from runhouse.utils import locate_working_dir
-
-logger = logging.getLogger(__name__)
 
 
 # This is a copy of the Pydantic model that we use to validate in Den

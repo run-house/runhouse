@@ -4,7 +4,6 @@ import copy
 import importlib
 import inspect
 import json
-import logging
 import time
 import warnings
 import zipfile
@@ -18,11 +17,12 @@ except ImportError:
     pass
 
 from runhouse.globals import rns_client
+
+from runhouse.logger import logger
 from runhouse.resources.envs import _get_env_from, Env
 
 from runhouse.resources.functions.function import Function
 
-logger = logging.getLogger(__name__)
 
 CRED_PATH = f"{Path.home()}/.aws/credentials"
 LOG_GROUP_PREFIX = "/aws/lambda/"

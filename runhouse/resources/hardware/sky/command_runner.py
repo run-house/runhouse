@@ -21,7 +21,8 @@ from runhouse.resources.hardware.sky import (
 
 ##### RH modification #####
 import logging
-logger = logging.getLogger(__name__)
+from runhouse.logger import logger
+
 ##### RH modification #####
 
 

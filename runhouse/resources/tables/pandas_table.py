@@ -1,10 +1,6 @@
-import logging
-
 from runhouse.rns.utils.api import generate_uuid
 
 from .table import Table
-
-logger = logging.getLogger(__name__)
 
 
 class PandasTable(Table):

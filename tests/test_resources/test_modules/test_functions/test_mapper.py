@@ -1,4 +1,3 @@
-import logging
 import multiprocessing
 import os
 
@@ -9,8 +8,6 @@ import runhouse as rh
 from tests.utils import get_pid_and_ray_node
 
 REMOTE_FUNC_NAME = "@/remote_function"
-
-logger = logging.getLogger(__name__)
 
 
 def summer(a, b):
