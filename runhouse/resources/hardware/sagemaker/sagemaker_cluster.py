@@ -430,38 +430,39 @@ class SageMakerCluster(Cluster):
             self.up_if_not()
 
         if not self.client:
-            try:
-                self.connect_server_client()
+            self.connect_server_client()
+
+        try:
+            logger.info(
+                f"Checking server {self.name} with instance ID: {self.instance_id}"
+            )
+
+            self.client.check_server()
+            logger.debug(f"Server {self.instance_id} is up.")
+        except:
+            if restart_server:
                 logger.info(
-                    f"Checking server {self.name} with instance ID: {self.instance_id}"
+                    f"Server {self.instance_id} is up, but the API server may not be up."
                 )
+                self.run(
+                    [
+                        "sudo apt-get install screen -y "
+                        "&& sudo apt-get install rsync -y"
+                    ]
+                )
+                # Restart the server inside the base conda env
+                self.restart_server(
+                    resync_rh=True,
+                    restart_ray=True,
+                    env=None,
+                )
+                logger.info(f"Checking server {self.instance_id} again.")
 
                 self.client.check_server()
-                logger.info(f"Server {self.instance_id} is up.")
-            except:
-                if restart_server:
-                    logger.info(
-                        f"Server {self.instance_id} is up, but the API server may not be up."
-                    )
-                    self.run(
-                        [
-                            "sudo apt-get install screen -y "
-                            "&& sudo apt-get install rsync -y"
-                        ]
-                    )
-                    # Restart the server inside the base conda env
-                    self.restart_server(
-                        resync_rh=True,
-                        restart_ray=True,
-                        env=None,
-                    )
-                    logger.info(f"Checking server {self.instance_id} again.")
-
-                    self.client.check_server()
-                else:
-                    raise ValueError(
-                        f"Could not connect to SageMaker instance {self.instance_id}"
-                    )
+            else:
+                raise ValueError(
+                    f"Could not connect to SageMaker instance {self.instance_id}"
+                )
 
     def up(self):
         """Up the cluster.
