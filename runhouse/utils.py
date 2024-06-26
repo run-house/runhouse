@@ -13,6 +13,10 @@ import pexpect
 
 logger = logging.getLogger(__name__)
 
+####################################################################################################
+# Module discovery and import logic
+####################################################################################################
+
 
 def _find_directory_containing_any_file(dir_path, files, searched_dirs=None):
     if Path(dir_path) == Path.home() or dir_path == Path("/"):
@@ -118,6 +122,11 @@ def get_module_import_info(raw_cls_or_fn: Union[Type, Callable]):
     return root_path, module_name, cls_or_fn_name
 
 
+####################################################################################################
+# Run command with password
+####################################################################################################
+
+
 def run_command_with_password_login(
     command: str, password: str, stream_logs: bool = True
 ):
@@ -134,6 +143,11 @@ def run_command_with_password_login(
     command_run.close()
 
     return command_run
+
+
+####################################################################################################
+# Async helpers
+####################################################################################################
 
 
 def _thread_coroutine(coroutine, context):
@@ -171,18 +185,6 @@ def sync_function(coroutine_func):
     return wrapper
 
 
-def get_pid():
-    import os
-
-    return os.getpid()
-
-
-def get_node_ip():
-    import socket
-
-    return socket.gethostbyname(socket.gethostname())
-
-
 async def arun_in_thread(method_to_run, *args, **kwargs):
     def _run_sync_fn_with_context(context_to_set, sync_fn, method_args, method_kwargs):
         for var, value in context_to_set.items():
@@ -201,3 +203,20 @@ async def arun_in_thread(method_to_run, *args, **kwargs):
                 method_kwargs=kwargs,
             ),
         )
+
+
+####################################################################################################
+# Misc helpers
+####################################################################################################
+
+
+def get_pid():
+    import os
+
+    return os.getpid()
+
+
+def get_node_ip():
+    import socket
+
+    return socket.gethostbyname(socket.gethostname())
