@@ -392,6 +392,7 @@ class ClusterServlet:
             "system_disk_usage": disk_usage,
         }
         status_data = ResourceStatusData(**status_data)
+        logger.info(f"updated status data: {status_data}")
         return status_data
 
     def status(self):
