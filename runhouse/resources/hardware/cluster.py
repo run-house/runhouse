@@ -5,7 +5,6 @@ import json
 import logging
 import re
 import subprocess
-import sys
 import threading
 import time
 import warnings
@@ -18,7 +17,7 @@ from runhouse.resources.envs.utils import run_with_logs
 
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
-from runhouse.utils import locate_working_dir
+from runhouse.utils import locate_working_dir, run_command_with_password_login
 
 # Filter out DeprecationWarnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -1147,8 +1146,6 @@ class Cluster(Resource):
             )
 
         else:
-            import pexpect
-
             if up:
                 ssh_command = runner.run(
                     ["mkdir", "-p", dest],
@@ -1156,14 +1153,7 @@ class Cluster(Resource):
                     return_cmd=True,
                     ssh_mode=SshMode.INTERACTIVE,
                 )
-                ssh = pexpect.spawn(ssh_command, encoding="utf-8", timeout=None)
-                ssh.logfile_read = sys.stdout
-                # If CommandRunner uses the control path, the password may not be requested
-                next_line = ssh.expect(["assword:", pexpect.EOF])
-                if next_line == 0:
-                    ssh.sendline(pwd)
-                    ssh.expect(pexpect.EOF)
-                ssh.close()
+                run_command_with_password_login(ssh_command, pwd, stream_logs=True)
             else:
                 Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
@@ -1175,17 +1165,7 @@ class Cluster(Resource):
                 stream_logs=stream_logs,
                 return_cmd=True,
             )
-            ssh = pexpect.spawn(rsync_cmd, encoding="utf-8", timeout=None)
-            if stream_logs:
-                # FYI This will print a ton of of stuff to stdout
-                ssh.logfile_read = sys.stdout
-
-            # If CommandRunner uses the control path, the password may not be requested
-            next_line = ssh.expect(["assword:", pexpect.EOF])
-            if next_line == 0:
-                ssh.sendline(pwd)
-                ssh.expect(pexpect.EOF)
-            ssh.close()
+            run_command_with_password_login(rsync_cmd, pwd, stream_logs)
 
     def ssh(self):
         """SSH into the cluster
@@ -1424,8 +1404,6 @@ class Cluster(Resource):
                 )
                 return_codes.append(ret_code)
             else:
-                import pexpect
-
                 # We need to quiet the SSH output here or it will print
                 # "Shared connection to ____ closed." at the end, which messes with the output.
                 ssh_command = runner.run(
@@ -1437,23 +1415,22 @@ class Cluster(Resource):
                     ssh_mode=SshMode.INTERACTIVE,
                     quiet_ssh=True,
                 )
-                ssh = pexpect.spawn(ssh_command, encoding="utf-8", timeout=None)
-                if stream_logs:
-                    ssh.logfile_read = sys.stdout
-                next_line = ssh.expect(["assword:", pexpect.EOF])
-                if next_line == 0:
-                    ssh.sendline(pwd)
-                    ssh.expect(pexpect.EOF)
-                ssh.close()
+                command_run = run_command_with_password_login(
+                    ssh_command, pwd, stream_logs
+                )
                 # Filter color characters from ssh.before, as otherwise sometimes random color characters
                 # will be printed to the console.
-                ssh.before = re.sub(r"\x1b\[[0-9;]*m", "", ssh.before)
+                command_run.before = re.sub(r"\x1b\[[0-9;]*m", "", command_run.before)
                 if require_outputs:
                     return_codes.append(
-                        [ssh.exitstatus, ssh.before.strip(), ssh.signalstatus]
+                        [
+                            command_run.exitstatus,
+                            command_run.before.strip(),
+                            command_run.signalstatus,
+                        ]
                     )
                 else:
-                    return_codes.append(ssh.exitstatus)
+                    return_codes.append(command_run.exitstatus)
 
         return return_codes
 

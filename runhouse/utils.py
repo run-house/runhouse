@@ -4,9 +4,12 @@ import functools
 import inspect
 import logging
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Type, Union
+
+import pexpect
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +116,24 @@ def get_module_import_info(raw_cls_or_fn: Union[Type, Callable]):
             module_name = py_module.__spec__.name
 
     return root_path, module_name, cls_or_fn_name
+
+
+def run_command_with_password_login(
+    command: str, password: str, stream_logs: bool = True
+):
+    command_run = pexpect.spawn(command, encoding="utf-8", timeout=None)
+    if stream_logs:
+        # FYI This will print a ton of of stuff to stdout
+        command_run.logfile_read = sys.stdout
+
+    # If CommandRunner uses the control path, the password may not be requested
+    next_line = command_run.expect(["assword:", pexpect.EOF])
+    if next_line == 0:
+        command_run.sendline(password)
+        command_run.expect(pexpect.EOF)
+    command_run.close()
+
+    return command_run
 
 
 def _thread_coroutine(coroutine, context):
