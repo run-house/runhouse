@@ -93,6 +93,15 @@ def import_env():
     return "success"
 
 
+def run_in_no_env(cmd):
+    return rh.here.run(cmd)
+
+
+def run_node_all(cmd):
+    # This forces `cluster.run` to use ssh instead of calling an env run
+    return rh.here.run(cmd, node="all")
+
+
 class TestCluster(tests.test_resources.test_resource.TestResource):
     MAP_FIXTURES = {"resource": "cluster"}
 
@@ -843,6 +852,22 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         get_env_var_cpu = rh.function(_get_env_var_value).to(system=cluster)
         for var in env_vars.keys():
             assert get_env_var_cpu(var) == env_vars[var]
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_run_within_cluster(self, cluster):
+        remote_run = rh.function(run_in_no_env).to(cluster)
+        res = remote_run("echo hello")
+        assert res[0][0] == 0
+        assert res[0][1] == "hello\n"
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_run_within_cluster_node_all(self, cluster):
+        remote_run = rh.function(run_node_all).to(cluster)
+        # Can't run on a node that is on the cluster
+        with pytest.raises(Exception):
+            remote_run("echo hello")[0]
 
     @pytest.mark.level("release")
     @pytest.mark.clustertest
