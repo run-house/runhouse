@@ -1238,6 +1238,11 @@ class Cluster(Resource):
         """
         from runhouse.resources.envs import Env
 
+        if self.on_this_cluster() and node:
+            raise ValueError(
+                "Cannot specify a node when running from within the cluster."
+            )
+
         if isinstance(commands, str):
             commands = [commands]
 
