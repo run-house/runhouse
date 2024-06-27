@@ -362,7 +362,7 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").is_up()
         """
-        return self.on_this_cluster() or self.address is not None
+        return self.on_this_cluster() or (self.address and self._ping())
 
     def up_if_not(self):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
@@ -1012,7 +1012,7 @@ class Cluster(Resource):
         Example:
             >>> connected = cluster.is_connected()
         """
-        return self.client is not None
+        return self._rpc_tunnel and self._rpc_tunnel.tunnel_is_up()
 
     def disconnect(self):
         """Disconnect the RPC tunnel.
@@ -1179,11 +1179,13 @@ class Cluster(Resource):
         )
 
     def _ping(self, timeout=5):
-        ssh_call = threading.Thread(target=lambda: self.run(['echo "hello"']))
+        ssh_call = threading.Thread(
+            target=lambda: self._run_commands_with_ssh(['echo "hello"'], stream_logs=False)
+        )
         ssh_call.start()
         ssh_call.join(timeout=timeout)
         if ssh_call.is_alive():
-            raise TimeoutError("SSH call timed out")
+            return False
         return True
 
     def _copy_certs_to_cluster(self):
