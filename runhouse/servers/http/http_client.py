@@ -59,7 +59,7 @@ class HTTPClient:
     Client for cluster RPCs
     """
 
-    CHECK_TIMEOUT_SEC = 10
+    CHECK_TIMEOUT_SEC = 5
 
     def __init__(
         self,
