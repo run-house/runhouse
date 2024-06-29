@@ -412,7 +412,7 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_module_from_subclass_async(self, cluster, env):
         remote_df = SlowPandas(size=3).to(cluster, env)
         assert remote_df.system == cluster
@@ -503,7 +503,7 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_fetch_class_and_properties(self, cluster, env):
         RemoteCalc = rh.module(cls=Calculator).to(cluster)
         owner = "Runhouse"
@@ -617,7 +617,7 @@ class TestModule:
 
     @pytest.mark.parametrize("env", [None])
     @pytest.mark.level("local")
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_set_async(self, cluster, env):
         RemoteCalc = rh.module(Calculator).to(cluster)
         my_remote_calc = RemoteCalc(owner="Runhouse", name="Runhouse_remote_dev")
@@ -686,7 +686,7 @@ class TestModule:
     # easily.
     @pytest.mark.level("local")
     @pytest.mark.skip("Doesn't work with local clusters.")
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_share_module_read_only(self, cluster):
         from tests.utils import friend_account
 
@@ -702,7 +702,7 @@ class TestModule:
             await load_and_use_calculator_module(mod_name=remote_calc.rns_address)
 
     @pytest.mark.level("release")
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_share_module_read_only_inter_cluster(
         self,
         ondemand_aws_https_cluster_with_auth,
@@ -847,7 +847,7 @@ class TestModule:
         assert "pyarrow" in str(err.value)
 
     @pytest.mark.level("local")
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_run_async_permutations(self, cluster):
         lots_of_async_remote = rh.module(LotsOfAsync).to(cluster)
         calculator_remote = rh.module(Calculator).to(cluster)
@@ -866,7 +866,7 @@ class TestModule:
         assert calculator_remote_instance.summer(2, 3, run_async=False) == 5
 
     @pytest.mark.level("local")
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_returns_coroutine(self, cluster):
         lots_of_async_remote = rh.module(LotsOfAsync).to(cluster)
         lots_of_async_remote_instance = lots_of_async_remote()
