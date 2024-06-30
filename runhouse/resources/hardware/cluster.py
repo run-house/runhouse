@@ -1222,7 +1222,6 @@ class Cluster(Resource):
         commands: List[str],
         env: Union["Env", str] = None,
         stream_logs: bool = True,
-        port_forward: Union[None, int, Tuple[int, int]] = None,
         require_outputs: bool = True,
         node: Optional[str] = None,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
@@ -1252,7 +1251,7 @@ class Cluster(Resource):
         env = _get_env_from(env)
 
         # If node is not specified, then we just use normal logic, knowing that we are likely on the head node
-        if not node and not port_forward:
+        if not node:
             env_name = (
                 env
                 if isinstance(env, str)
@@ -1281,7 +1280,6 @@ class Cluster(Resource):
                         commands=commands,
                         env=env,
                         stream_logs=stream_logs,
-                        port_forward=port_forward,
                         require_outputs=require_outputs,
                         node=node,
                         _ssh_mode=_ssh_mode,
@@ -1298,7 +1296,6 @@ class Cluster(Resource):
                     cmd_prefix="",
                     stream_logs=stream_logs,
                     node=node,
-                    port_forward=port_forward,
                     require_outputs=require_outputs,
                 )
 
@@ -1311,7 +1308,6 @@ class Cluster(Resource):
         cmd_prefix: str = "",
         stream_logs: bool = True,
         node: str = None,
-        port_forward: int = None,
         require_outputs: bool = True,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
     ):
@@ -1371,7 +1367,6 @@ class Cluster(Resource):
                     command,
                     require_outputs=require_outputs,
                     stream_logs=stream_logs,
-                    port_forward=port_forward,
                     ssh_mode=ssh_mode,
                     quiet_ssh=True,
                 )
@@ -1383,7 +1378,6 @@ class Cluster(Resource):
                     command,
                     require_outputs=require_outputs,
                     stream_logs=stream_logs,
-                    port_forward=port_forward,
                     return_cmd=True,
                     ssh_mode=SshMode.INTERACTIVE,
                     quiet_ssh=True,
@@ -1413,7 +1407,6 @@ class Cluster(Resource):
         env: Union["Env", str] = None,
         stream_logs: bool = True,
         node: str = None,
-        port_forward: Optional[int] = None,
     ):
         """Run a list of python commands on the cluster, or a specific cluster node if its IP is provided.
 
@@ -1441,7 +1434,6 @@ class Cluster(Resource):
             env=env or self._default_env,
             stream_logs=stream_logs,
             node=node,
-            port_forward=port_forward,
         )
 
         return return_codes
