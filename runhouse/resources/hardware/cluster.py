@@ -13,8 +13,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
-from runhouse.resources.envs.utils import run_with_logs
-
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import locate_working_dir, run_command_with_password_login
@@ -1246,25 +1244,10 @@ class Cluster(Resource):
         if isinstance(env, Env) and not env.name:
             env = self._default_env
         env = env or self.default_env
+        env = _get_env_from(env)
 
-        if node == "all":
-            res_list = []
-            for node in self.ips:
-                res = self.run(
-                    commands=commands,
-                    env=env,
-                    stream_logs=stream_logs,
-                    port_forward=port_forward,
-                    require_outputs=require_outputs,
-                    node=node,
-                    _ssh_mode=_ssh_mode,
-                )
-                res_list.append(res)
-            return res_list
-
-        # TODO [DG] suspend autostop while running
-
-        if env and not port_forward and not node:
+        # If node is not specified, then we just use normal logic, knowing that we are likely on the head node
+        if not node and not port_forward:
             env_name = (
                 env
                 if isinstance(env, str)
@@ -1284,33 +1267,37 @@ class Cluster(Resource):
                 return_codes.append(ret_code)
             return return_codes
 
-        env = _get_env_from(env)
+        # Node is specified, so we do everything via ssh
+        else:
+            if node == "all":
+                res_list = []
+                for node in self.ips:
+                    res = self.run(
+                        commands=commands,
+                        env=env,
+                        stream_logs=stream_logs,
+                        port_forward=port_forward,
+                        require_outputs=require_outputs,
+                        node=node,
+                        _ssh_mode=_ssh_mode,
+                    )
+                    res_list.append(res)
+                return res_list
 
-        if self.on_this_cluster():
-            return_codes = []
-            location_str = "locally" if not self.name else f"on {self.name}"
-            for command in commands:
-                command = env._full_command(command)
-                logger.info(f"Running command {location_str}: {command}")
-                ret_code = run_with_logs(
-                    command, stream_logs=stream_logs, require_outputs=require_outputs
+            else:
+
+                full_commands = [env._full_command(cmd) for cmd in commands]
+
+                return_codes = self._run_commands_with_ssh(
+                    full_commands,
+                    cmd_prefix="",
+                    stream_logs=stream_logs,
+                    node=node,
+                    port_forward=port_forward,
+                    require_outputs=require_outputs,
                 )
-                return_codes.append(ret_code)
-            return return_codes
 
-        full_commands = [env._full_command(cmd) for cmd in commands]
-
-        # Create and save the Run locally
-        return_codes = self._run_commands_with_ssh(
-            full_commands,
-            cmd_prefix="",
-            stream_logs=stream_logs,
-            node=node,
-            port_forward=port_forward,
-            require_outputs=require_outputs,
-        )
-
-        return return_codes
+                return return_codes
 
     def _run_commands_with_ssh(
         self,
