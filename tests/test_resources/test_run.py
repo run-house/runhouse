@@ -258,6 +258,7 @@ def test_delete_fn_run_from_rns(submitted_run):
 # ------------------------- CLI RUN ------------ ----------------------
 
 
+@pytest.mark.skip("Run stuff is deprecated.")
 def test_create_cli_python_command_run(ondemand_aws_cluster):
     # Run python commands on the specified system. Save the run results to the .rh/logs/<run_name> folder of the system.
     return_codes = ondemand_aws_cluster.run_python(
@@ -268,7 +269,6 @@ def test_create_cli_python_command_run(ondemand_aws_cluster):
             "logging.info(f'File path: {local_blob.path}')",
             "local_blob.rm()",
         ],
-        run_name=CLI_RUN_NAME,
         stream_logs=True,
     )
     pprint(return_codes)
@@ -277,10 +277,11 @@ def test_create_cli_python_command_run(ondemand_aws_cluster):
     assert "File path" in return_codes[0][1].strip()
 
 
+@pytest.mark.skip("Run stuff is deprecated.")
 def test_create_cli_command_run(ondemand_aws_cluster):
     """Run CLI command on the specified system.
     Saves the Run locally to the rh/<run_name> folder of the local file system."""
-    return_codes = ondemand_aws_cluster.run(["python --version"], run_name=CLI_RUN_NAME)
+    return_codes = ondemand_aws_cluster.run(["python --version"])
 
     assert return_codes[0][0] == 0, "Failed to run CLI command"
     assert return_codes[0][1].strip() == "Python 3.10.6"
