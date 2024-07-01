@@ -51,7 +51,7 @@ RAY_START_CMD = f"ray start --head --port {DEFAULT_RAY_PORT} --disable-usage-sta
 # --autoscaling-config=~/ray_bootstrap_config.yaml
 # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
 # which runs on other ports but is required to preserve autostop and correct cluster status.
-RAY_KILL_CMD = 'pkill -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
+RAY_KILL_CMD = 'pkill -9 -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
 
 CONDA_INSTALL_CMDS = [
     "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh",
