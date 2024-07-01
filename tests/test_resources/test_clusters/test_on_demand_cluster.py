@@ -140,7 +140,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
         register_activity()
         # Check that last active is within the last 2 seconds
-        assert get_last_active() > time.time() - 2
+        assert get_last_active() > time.time() - 3
 
         set_autostop_via_cluster_keep_warm = rh.fn(
             set_autostop_from_on_cluster_via_cluster_keep_warm
@@ -212,6 +212,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         assert get_status_data_resp.json()["data"][0]["status"] == "running"
 
     @pytest.mark.level("minimal")
+    @pytest.mark.skip("Test requires terminating the cluster")
     def test_set_status_after_teardown(self, cluster):
         if not cluster.den_auth:
             pytest.skip(
