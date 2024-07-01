@@ -658,15 +658,10 @@ class Cluster(Resource):
 
         # For OnDemandCluster, this initial check doesn't trigger a sky.status, which is slow.
         # If cluster simply doesn't have an address we likely need to up it.
-        if not self.address and not self.is_up():
-            if not hasattr(self, "up"):
-                raise ValueError(
-                    "Cluster must have a host address (i.e. be up) or have a reup_cluster method "
-                    "(e.g. OnDemandCluster)."
-                )
-            # If this is a OnDemandCluster, before we up the cluster, run a sky.status to see if the cluster
-            # is already up but doesn't have an address assigned yet.
-            self.up_if_not()
+        if not self.address:
+            raise ConnectionError(
+                "Unable to connect to cluster: Cluster does not have an address, is it up?"
+            )
 
         if not self.client:
             try:
@@ -679,10 +674,10 @@ class Cluster(Resource):
                 requests.exceptions.ReadTimeout,
                 requests.exceptions.ChunkedEncodingError,
             ):
-                # It's possible that the cluster went down while we were trying to install packages.
                 if not self.is_up():
-                    logger.info(f"Server {self.name} is down.")
-                    self.up_if_not()
+                    raise ConnectionError(
+                        "Cluster not detected to be up. Use `cluster.up_if_not()` to launch an ondemand cluster."
+                    )
                 elif restart_server:
                     logger.info(
                         f"Server {self.name} is up, but the Runhouse API server may not be up."
