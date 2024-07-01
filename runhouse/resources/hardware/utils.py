@@ -79,7 +79,7 @@ def _default_env_if_on_cluster():
         _get_env_from(
             config.get(
                 "default_env",
-                Env(name=EMPTY_DEFAULT_ENV_NAME, working_dir="./"),
+                Env(name=EMPTY_DEFAULT_ENV_NAME),
             )
         )
         if config
