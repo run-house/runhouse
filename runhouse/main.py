@@ -217,23 +217,25 @@ def _print_cluster_config(cluster_config: Dict):
             )
 
 
-def _print_envs_info(
-    env_resource_mapping: Dict, env_servlet_processes: Dict, current_cluster: Cluster
-):
+def _print_envs_info(env_servlet_processes: Dict, current_cluster: Cluster):
     """
     Prints info about the envs in the current_cluster.
     Prints the resources in each env, and the CPU and GPU usage of the env (if exists).
 
-    :param env_resource_mapping: Dict of envs in each cluster, and the resources associated with them.
     :param env_servlet_processes: Dict of cpu and gpu info of the envs.
     :param current_cluster: The cluster whose status we are printing.
     """
     # Print headline
     envs_in_cluster_headline = "Serving 🍦 :"
-    console.print(envs_in_cluster_headline, style="bold")
+    print(envs_in_cluster_headline)
+
+    env_resource_mapping = {
+        env: env_servlet_processes[env]["env_resource_mapping"]
+        for env in env_servlet_processes
+    }
 
     if len(env_resource_mapping) == 0:
-        console.print("This cluster has no environment nor resources.")
+        print("This cluster has no environment nor resources.")
 
     first_envs_to_print = []
 
@@ -241,11 +243,8 @@ def _print_envs_info(
     default_env_name = current_cluster.default_env.name
     if len(env_resource_mapping[default_env_name]) <= 1:
         # case where the default env doesn't hve any other resources, apart from the default env itself.
-        console.print(
-            f"{BULLET_UNICODE} {default_env_name} (runhouse.Env)",
-            style="italic bold",
-        )
-        console.print(
+        print(f"{BULLET_UNICODE} {default_env_name} (runhouse.Env)")
+        print(
             f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if such provided. No "
             "resources were found."
         )
@@ -282,39 +281,33 @@ def _print_envs_info(
     for env_name in envs_to_print:
         resources_in_env = env_resource_mapping[env_name]
         env_process_info = env_servlet_processes[env_name]
-        current_env = [
-            resource for resource in resources_in_env if resource["name"] == env_name
-        ]
 
         # sometimes the env itself is not a resource (key) inside the env's servlet.
-        if len(current_env) == 0:
-            env_name_print = _resource_name_to_rns(env_name)
+        if len(resources_in_env) == 0:
             env_type = "runhouse.Env"
         else:
-            current_env = current_env[0]
-            env_name_print = _resource_name_to_rns(current_env["name"])
-            env_type = _adjust_resource_type(current_env["resource_type"])
+            env_type = _adjust_resource_type(
+                resources_in_env[env_name]["resource_type"]
+            )
 
-        env_name_txt = f"{BULLET_UNICODE} {env_name_print} ({env_type}) | pid: {env_process_info['pid']} | node: {env_process_info['node_name']}"
-        console.print(env_name_txt, style="italic bold")
+        env_name_txt = f"{BULLET_UNICODE} {env_name} ({env_type}) | pid: {env_process_info['pid']} | node: {env_process_info['node_name']}"
+        print(env_name_txt)
 
         # Print CPU info
-        env_cpu_info = env_process_info.get("env_memory_usage")
+        env_cpu_info = env_process_info.get("env_cpu_usage")
         if env_cpu_info:
 
             # convert bytes to GB
             memory_usage_gb = round(
-                int(env_cpu_info["memory_size_bytes"]) / (1024**3),
+                int(env_cpu_info["used"]) / (1024**3),
                 2,
             )
-            total_cluster_memory = math.ceil(
-                int(env_cpu_info["total_cluster_memory"]) / (1024**3)
-            )
+            total_cluster_memory = math.ceil(int(env_cpu_info["total"]) / (1024**3))
             cpu_memory_usage_percent = round(
-                float(env_cpu_info["memory_percent_from_cluster"]),
+                float(env_cpu_info["used"] / env_cpu_info["total"]),
                 2,
             )
-            cpu_usage_percent = round(float(env_cpu_info["cpu_usage_percent"]), 2)
+            cpu_usage_percent = round(float(env_cpu_info["percent"]), 2)
 
             cpu_usage_summery = f"{DOUBLE_SPACE_UNICODE}CPU: {cpu_usage_percent}% | Memory: {memory_usage_gb} / {total_cluster_memory} Gb ({cpu_memory_usage_percent}%)"
 
@@ -323,7 +316,7 @@ def _print_envs_info(
                 f"{DOUBLE_SPACE_UNICODE}CPU: This process did not use CPU memory."
             )
 
-        console.print(cpu_usage_summery)
+        print(cpu_usage_summery)
 
         # Print GPU info
         env_gpu_info = env_process_info.get("env_gpu_usage")
@@ -331,37 +324,37 @@ def _print_envs_info(
         # sometimes the cluster has no GPU, therefore the env_gpu_info is an empty dictionary.
         if env_gpu_info:
             # get the gpu usage info, and convert it to GB.
-            total_gpu_memory = math.ceil(
-                float(env_gpu_info.get("total_gpu_memory")) / (1024**3)
-            )
-            gpu_util_percent = round(float(env_gpu_info.get("gpu_util_percent")), 2)
-            used_gpu_memory = round(
-                float(env_gpu_info.get("used_gpu_memory")) / (1024**3), 2
-            )
+            total_gpu_memory = math.ceil(float(env_gpu_info.get("total")) / (1024**3))
+            gpu_util_percent = round(float(env_gpu_info.get("percent")), 2)
+            used_gpu_memory = round(float(env_gpu_info.get("used")) / (1024**3), 2)
             gpu_memory_usage_percent = round(
                 float(used_gpu_memory / total_gpu_memory) * 100, 2
             )
             gpu_usage_summery = f"{DOUBLE_SPACE_UNICODE}GPU: {gpu_util_percent}% | Memory: {used_gpu_memory} / {total_gpu_memory} Gb ({gpu_memory_usage_percent}%)"
-            console.print(gpu_usage_summery)
+            print(gpu_usage_summery)
 
         resources_in_env = [
-            resource for resource in resources_in_env if resource is not current_env
+            {resource: resources_in_env[resource]}
+            for resource in resources_in_env
+            if resource is not env_name
         ]
 
         if len(resources_in_env) == 0:
             # No resources were found in the env, only the associated installed python reqs were installed.
-            console.print(
+            print(
                 f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if such provided. No resources were "
                 "found."
             )
 
         else:
             for resource in resources_in_env:
-                resource_name = _resource_name_to_rns(resource["name"])
-                resource_type = _adjust_resource_type(resource["resource_type"])
-                console.print(
-                    f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {resource_name} ({resource_type})"
-                )
+                for resource_name, resource_info in resource.items():
+                    resource_type = _adjust_resource_type(
+                        resource_info["resource_type"]
+                    )
+                    print(
+                        f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {resource_name} ({resource_type})"
+                    )
 
 
 def _print_status(status_data: dict, current_cluster: Cluster):
@@ -372,7 +365,6 @@ def _print_status(status_data: dict, current_cluster: Cluster):
     """
 
     cluster_config = status_data.get("cluster_config")
-    env_resource_mapping = status_data.get("env_resource_mapping")
     env_servlet_processes = status_data.get("env_servlet_processes")
 
     if "name" in cluster_config.keys():
@@ -391,7 +383,7 @@ def _print_status(status_data: dict, current_cluster: Cluster):
     _print_cluster_config(cluster_config)
 
     # print the environments in the cluster, and the resources associated with each environment.
-    _print_envs_info(env_resource_mapping, env_servlet_processes, current_cluster)
+    _print_envs_info(env_servlet_processes, current_cluster)
 
     return status_data
 
