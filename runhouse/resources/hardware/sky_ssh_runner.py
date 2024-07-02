@@ -298,7 +298,6 @@ class SkySSHRunner(SSHCommandRunner):
 
             # Process keeping tunnel alive can only be killed with EOF
             self.tunnel_proc.stdin.close()
-            self.tunnel_proc.wait()
 
             # Remove port forwarding
             port_fwd_cmd = " ".join(
