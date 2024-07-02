@@ -606,7 +606,7 @@ class Cluster(Resource):
             # re-established, would require a password, and then fail. We should really figure out how to
             # authenticate with a password in the SSH tunnel command. But, this is a fine hack for now.
             if self.creds_values.get("password") is not None:
-                self._run_commands_with_ssh(["Initiating password connection."])
+                self._run_commands_with_ssh(["echo 'Initiating password connection.'"])
 
             # Case 1: Server connection requires SSH tunnel, but we don't have one up yet
             self._rpc_tunnel = self.ssh_tunnel(

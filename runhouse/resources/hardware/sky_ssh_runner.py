@@ -6,7 +6,7 @@ import subprocess
 import time
 from typing import Dict, List, Optional, Tuple, Union
 
-from runhouse.constants import DEFAULT_DOCKER_CONTAINER_NAME, LOCALHOST
+from runhouse.constants import DEFAULT_DOCKER_CONTAINER_NAME, LOCALHOST, TUNNEL_TIMEOUT
 
 from runhouse.globals import sky_ssh_runner_cache
 
@@ -264,15 +264,22 @@ class SkySSHRunner(SSHCommandRunner):
             ssh_mode=SshMode.NON_INTERACTIVE, port_forward=[(local_port, remote_port)]
         )
         command = " ".join(base_cmd)
-        logger.debug(f"Running forwarding command: {command}")
+        logger.info(f"Running forwarding command: {command}")
         proc = subprocess.Popen(
             shlex.split(command),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        # Wait for the ssh connection to start
-        time.sleep(1)
+        # Wait until tunnel is formed by trying to create a socket in a loop
+
+        start_time = time.time()
+        while not is_port_in_use(local_port):
+            time.sleep(0.1)
+            if time.time() - start_time > TUNNEL_TIMEOUT:
+                raise ConnectionError(
+                    f"Failed to create tunnel from {local_port} to {remote_port} on {self.ip}"
+                )
 
         # Set the tunnel process and ports to be cleaned up later
         self.tunnel_proc = proc
