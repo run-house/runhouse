@@ -239,8 +239,9 @@ class Resource:
                     return rns_client.resolve_rns_path(val["name"])
                 else:
                     return val
-            else:
-                return val
+            elif isinstance(val, list):
+                val = [str(item) if isinstance(item, int) else item for item in val]
+            return val
 
         for key, value in alt_options.items():
             if key in config:
