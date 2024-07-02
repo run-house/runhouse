@@ -20,7 +20,6 @@ from runhouse.utils import locate_working_dir, run_command_with_password_login
 # Filter out DeprecationWarnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-import requests.exceptions
 
 from runhouse.constants import (
     CLI_RESTART_CMD,
@@ -652,49 +651,42 @@ class Cluster(Resource):
                 system=self,
             )
 
-    def check_server(self, restart_server=True):
-        if self.on_this_cluster():
-            return
-
-        # For OnDemandCluster, this initial check doesn't trigger a sky.status, which is slow.
-        # If cluster simply doesn't have an address we likely need to up it.
-        if not self.address:
-            raise ConnectionError(
-                "Unable to connect to cluster: Cluster does not have an address, is it up?"
-            )
-
-        if not self.client:
+    def check_client_server(self, reconnect: bool = False, raise_error: bool = False):
+        if reconnect or not self.client:
             self.connect_server_client()
 
         try:
             self.client.check_server()
             logger.debug(f"Server {self.name} is up.")
-        except (
-            requests.exceptions.ConnectionError,
-            requests.exceptions.ReadTimeout,
-            requests.exceptions.ChunkedEncodingError,
-        ):
-            if not self.is_up():
-                raise ConnectionError(
-                    "Cluster not detected to be up. Use `cluster.up_if_not()` to launch an ondemand cluster."
-                )
-            elif restart_server:
-                logger.info("Runhouse API server not detected, restarting server.")
-                self.connect_server_client()
-                self.restart_server()
-                for i in range(5):
-                    logger.info(f"Checking server {self.name} again [{i + 1}/5].")
-                    try:
-                        self.client.check_server()
-                        logger.info(f"Server {self.name} is up.")
-                        return
-                    except (
-                        requests.exceptions.ConnectionError,
-                        requests.exceptions.ReadTimeout,
-                    ) as error:
-                        logger.info(error) if i != 5 else logger.error(error)
-                        time.sleep(5)
-            raise ValueError(f"Could not connect to server {self.name}")
+            return True
+        except Exception as e:
+            if raise_error:
+                raise ConnectionError(f"Could not connect to server {self.name}: {e}")
+            return False
+
+    def check_server(self, restart_server=True):
+        if self.on_this_cluster():
+            return
+
+        if not self.address:
+            raise ConnectionError(
+                "Unable to connect to cluster: Cluster does not have an address, is it up?"
+            )
+
+        if self.client and self.check_client_server():
+            return True
+
+        if not self.is_up():
+            raise ConnectionError(
+                "Cluster not detected to be up. Use `cluster.up_if_not()` to launch an ondemand cluster."
+            )
+
+        for i in range(5):
+            if self.check_client_server(reconnect=True, raise_error=(i == 4)):
+                return True
+            logger.info(f"Runhouse API server not detected, restarting server {i+1}/5.")
+            self.restart_server()
+            time.sleep(2)
 
         return
 
@@ -1180,7 +1172,9 @@ class Cluster(Resource):
 
     def _ping(self, timeout=5):
         ssh_call = threading.Thread(
-            target=lambda: self._run_commands_with_ssh(['echo "hello"'], stream_logs=False)
+            target=lambda: self._run_commands_with_ssh(
+                ['echo "hello"'], stream_logs=False
+            )
         )
         ssh_call.start()
         ssh_call.join(timeout=timeout)
