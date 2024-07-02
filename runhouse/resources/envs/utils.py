@@ -201,9 +201,9 @@ def run_setup_command(
 
 
 def install_conda(cluster: "Cluster" = None):
-    if run_setup_command("conda --version")[0] != 0:
+    if run_setup_command("conda --version", cluster=cluster)[0] != 0:
         logging.info("Conda is not installed. Installing...")
         for cmd in CONDA_INSTALL_CMDS:
-            run_setup_command(cmd, stream_logs=True)
-        if run_setup_command("conda --version")[0] != 0:
+            run_setup_command(cmd, cluster=cluster, stream_logs=True)
+        if run_setup_command("conda --version", cluster=cluster)[0] != 0:
             raise RuntimeError("Could not install Conda.")
