@@ -15,7 +15,7 @@ from runhouse.resources.resource import Resource
 from runhouse.utils import locate_working_dir
 
 
-INSTALL_METHODS = {"local", "reqs", "pip", "conda"}
+INSTALL_METHODS = {"local", "reqs", "pip", "conda", "rh"}
 
 from runhouse.logger import logger
 
@@ -414,9 +414,7 @@ class Package(Resource):
                 git_url=url, install_method=install_method, dryrun=dryrun
             )
 
-        target_and_args = specifier
-        if Package.split_req_install_method(target_and_args)[0] in INSTALL_METHODS:
-            target_and_args = Package.split_req_install_method(target_and_args)[1]
+        install_method, target_and_args = Package.split_req_install_method(specifier)
 
         # Handles a case like "torch --index-url https://download.pytorch.org/whl/cu113"
         rel_target, args = (
@@ -438,47 +436,33 @@ class Package(Resource):
         else:
             target = rel_target
 
-        if specifier.startswith("local:"):
-            return Package(install_target=target, install_method="local", dryrun=dryrun)
-        elif specifier.startswith("reqs:"):
+        # If install method is not provided, we need to infer it
+        if not install_method:
+            if Path(specifier).resolve().exists():
+                install_method = "reqs"
+            else:
+                install_method = "pip"
+
+        # "Local" install method is a special case where we just copy a local folder and add to path
+        if install_method == "local":
+            return Package(
+                install_target=target, install_method=install_method, dryrun=dryrun
+            )
+
+        elif install_method in ["reqs", "pip", "conda"]:
             return Package(
                 install_target=target,
                 install_args=args,
-                install_method="reqs",
+                install_method=install_method,
                 dryrun=dryrun,
             )
-        elif specifier.startswith("pip:"):
-            return Package(
-                install_target=target,
-                install_args=args,
-                install_method="pip",
-                dryrun=dryrun,
-            )
-        elif specifier.startswith("conda:"):
-            return Package(
-                install_target=target,
-                install_args=args,
-                install_method="conda",
-                dryrun=dryrun,
-            )
-        elif specifier.startswith("rh:"):
+        elif install_method == "rh":
             # Calling the factory method below
             return package(name=specifier[len("rh:") :], dryrun=dryrun)
         else:
-            if Path(specifier).resolve().exists():
-                return Package(
-                    install_target=target,
-                    install_args=args,
-                    install_method="reqs",
-                    dryrun=dryrun,
-                )
-            else:
-                return Package(
-                    install_target=target,
-                    install_args=args,
-                    install_method="pip",
-                    dryrun=dryrun,
-                )
+            raise ValueError(
+                f"Unknown install method {install_method}. Must be one of {INSTALL_METHODS}"
+            )
 
 
 def package(
