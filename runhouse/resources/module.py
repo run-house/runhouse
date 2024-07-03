@@ -978,25 +978,15 @@ class Module(Resource):
         # First, check if the module is already included in one of the directories in reqs
         local_path = None
         for req in reqs:
+            if isinstance(req, str):
+                req = Package.from_string(req)
+
             if (
                 isinstance(req, Package)
                 and not isinstance(req.install_target, str)
                 and req.install_target.is_local()
             ):
                 local_path = Path(req.install_target.local_path)
-            elif isinstance(req, str):
-                install_method, new_req = Package.split_req_install_method(req)
-                if install_method in ["local", "reqs", "pip"]:
-                    req = new_req
-
-                if Path(req).expanduser().resolve().exists():
-                    # TODO: Relative paths in envs shouldn't even really be a thing I think, maybe we deprecate
-                    # Relative paths are relative to the working directory in Folders/Packages!
-                    local_path = (
-                        Path(req).expanduser()
-                        if Path(req).expanduser().is_absolute()
-                        else Path(locate_working_dir()) / req
-                    )
 
             if local_path:
                 try:
