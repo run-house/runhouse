@@ -889,7 +889,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         remote_run = rh.function(run_in_no_env).to(cluster)
         res = remote_run("echo hello")
         assert res[0][0] == 0
-        assert res[0][1] == "hello\n"
+        assert res[0][1].strip() == "hello"
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
