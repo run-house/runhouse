@@ -1,6 +1,5 @@
 import logging
 import subprocess
-import sys
 
 from pathlib import Path
 from typing import Dict, List
@@ -10,7 +9,7 @@ import yaml
 from runhouse.constants import CONDA_INSTALL_CMDS, EMPTY_DEFAULT_ENV_NAME
 from runhouse.globals import rns_client
 from runhouse.resources.resource import Resource
-from runhouse.utils import locate_working_dir
+from runhouse.utils import locate_working_dir, run_with_logs
 
 
 def _process_reqs(reqs):
@@ -124,52 +123,6 @@ def _env_vars_from_file(env_file):
 
 
 # ------- Installation helpers -------
-
-
-def run_with_logs(cmd: str, **kwargs):
-    """Runs a command and prints the output to sys.stdout.
-    We can't just pipe to sys.stdout, and when in a `call` method
-    we overwrite sys.stdout with a multi-logger to a file and stdout.
-
-    Args:
-        cmd: The command to run.
-        kwargs: Keyword arguments to pass to subprocess.Popen.
-
-    Returns:
-        The returncode of the command.
-    """
-    require_outputs = kwargs.pop("require_outputs", False)
-    stream_logs = kwargs.pop("stream_logs", True)
-
-    p = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        shell=True,
-        **kwargs,
-    )
-
-    out = ""
-    if stream_logs:
-        while True:
-            line = p.stdout.readline()
-            if line == "" and p.poll() is not None:
-                break
-            sys.stdout.write(line)
-            sys.stdout.flush()
-            if require_outputs:
-                out += line
-
-    stdout, stderr = p.communicate()
-
-    if require_outputs:
-        stdout = stdout or out
-        return p.returncode, stdout, stderr
-
-    return p.returncode
-
-
 def run_setup_command(
     cmd: str,
     cluster: "Cluster" = None,
