@@ -575,6 +575,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             pytest.skip(f"{cluster.name} is not a GPU cluster, skipping")
 
     @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_rh_status_cli_in_cluster(self, cluster):
         default_env_name = cluster.default_env.name
 
