@@ -109,6 +109,8 @@ def function(
         env.reqs = [repo_package] + env.reqs
 
     new_function = Function(fn_pointers=fn_pointers, name=name, dryrun=dryrun, env=env)
+    if callable(fn):
+        new_function._raw_cls = fn
 
     if load_secrets and not dryrun:
         new_function.send_secrets()

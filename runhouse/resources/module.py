@@ -62,6 +62,7 @@ class Module(Resource):
         env: Optional[Env] = None,
         dryrun: bool = False,
         provenance: Optional[dict] = None,
+        raw_cls: Optional[Type] = None,
         **kwargs,
     ):
         """
@@ -93,6 +94,7 @@ class Module(Resource):
         self._dumb_signature_cache = None
         self._resolve = False
         self._openapi_spec = None
+        self._raw_cls = raw_cls
 
     def config(self, condensed=True):
         if not self.system:
@@ -446,7 +448,22 @@ class Module(Resource):
 
         env = self.env if not env else env
 
-        env = _get_env_from(env)
+        if not isinstance(env, Env):
+            env = _get_env_from(env)
+            if not env:
+                env = _get_env_from(_default_env_if_on_cluster())
+            if not env:
+                env = Env()
+
+        if self._raw_cls:
+            cls_pointers, working_dir_to_add = Module._extract_pointers(
+                self._raw_cls, env.reqs
+            )
+
+            if working_dir_to_add is not None:
+                env.reqs = [str(working_dir_to_add)] + env.reqs
+
+            self._pointers = cls_pointers
 
         if system:
             system.check_server()
@@ -486,6 +503,7 @@ class Module(Resource):
                 "_env",
                 "_pointers",
                 "_resolve",
+                "_raw_cls",
             ]
             state = {}
             # We only send over state for instances, not classes
@@ -1157,6 +1175,7 @@ def _module_subclass_factory(cls, cls_pointers):
         signature=None,
         name=None,
         provenance=None,
+        raw_cls=None,
         **kwargs,
     ):
         # args and kwargs are passed to the cls's __init__ method if this is being called on a cluster. They
@@ -1170,6 +1189,7 @@ def _module_subclass_factory(cls, cls_pointers):
             env=env,
             dryrun=dryrun,
             provenance=provenance,
+            raw_cls=raw_cls,
         )
         # This allows a class which is already on the cluster to construct an instance of itself with a factory
         # method, e.g. my_module = MyModuleCls.factory_constructor(*args, **kwargs)
@@ -1345,6 +1365,7 @@ def module(
         dryrun=dryrun,
         pointers=cls_pointers,
         name=name,
+        raw_cls=cls,
     )
 
 
