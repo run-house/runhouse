@@ -918,3 +918,30 @@ class TestModule:
         # Now send this to the remote cluster and test that it can still be imported and used
         remote_editable_package_fn = rh.function(editable_package_function).to(cluster)
         assert remote_editable_package_fn() == "Hello from the editable package!"
+
+        cluster.delete("editable_package_function")
+        cluster.run("pip uninstall -y test_fake_package")
+
+    @pytest.mark.level("local")
+    def test_import_editable_package_from_new_env(
+        self, cluster, installed_editable_package_copy
+    ):
+        importlib_reload(site)
+
+        # Test that the editable package can be imported and used
+        from test_fake_package_copy import TestModuleFromPackage
+
+        assert (
+            TestModuleFromPackage.hello_world()
+            == "Hello from the editable package module!"
+        )
+
+        # Now send this to the remote cluster and test that it can still be imported and used
+        env = rh.env(name="fresh_env", reqs=["numpy"])
+        remote_editable_package_module = rh.module(TestModuleFromPackage).to(
+            cluster, env=env
+        )
+        assert (
+            remote_editable_package_module.hello_world()
+            == "Hello from the editable package module!"
+        )
