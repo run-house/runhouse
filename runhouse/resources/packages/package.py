@@ -80,62 +80,103 @@ class Package(Resource):
             return f"Package: {self.install_target.path}"
         return f"Package: {self.install_target}"
 
-    def _install_cmd(self, cluster: "Cluster" = None):
-        install_cmd = ""
+    @staticmethod
+    def _prepend_python_executable(
+        install_cmd: str, env: Union[str, "Env"] = None, cluster: "Cluster" = None
+    ):
+        return (
+            f"python3 -m {install_cmd}"
+            if cluster or env
+            else f"{sys.executable} -m {install_cmd}"
+        )
+
+    @staticmethod
+    def _prepend_env_command(install_cmd: str, env: Union[str, "Env"] = None):
+        if env:
+            from runhouse.resources.envs.utils import _get_env_from
+
+            env = _get_env_from(env)
+            install_cmd = env._full_command(install_cmd)
+
+        return install_cmd
+
+    def _pip_install_cmd(
+        self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
+    ):
         install_args = f" {self.install_args}" if self.install_args else ""
-
         if isinstance(self.install_target, Folder):
-            # TODO [DG] Revisit for pip: Would be nice if we could use -e by default, but importlib on the rpc server
-            #  isn't finding the package right after its installed.
-            # if (Path(local_path) / 'setup.py').exists():
-            #     install_cmd = f'-e {local_path}' + install_args
-            path = self.install_target.local_path
-            if self.install_method in ["pip", "conda"]:
-                install_cmd = f"{path}" + install_args
-            elif self.install_method == "reqs":
-                if not cluster:
-                    reqs_path = f"{path}/requirements.txt"
-                    if not Path(reqs_path).expanduser().exists():
-                        return None
-
-                    with open(reqs_path) as f:
-                        reqs = f.readlines()
-                else:
-                    if not self.install_target.system == cluster:
-                        install_target = self.to(cluster).install_target
-                    else:
-                        install_target = self.install_target
-
-                    if not install_target.exists_in_system():
-                        return None
-                    elif "requirements.txt" not in install_target.ls(full_paths=False):
-                        return None
-
-                    reqs = (
-                        install_target.get("requirements.txt", mode="r")
-                        .strip("\n")
-                        .split("\n")
-                    )
-                    reqs_path = f"{install_target.path}/requirements.txt"
-
-                install_cmd = self._requirements_txt_install_cmd(
-                    path=reqs_path,
-                    reqs=reqs,
-                    args=install_args,
-                    cluster=cluster,
-                )
+            install_cmd = f"{self.install_target.local_path}" + install_args
         else:
             install_cmd = self.install_target + install_args
 
-        if self.install_method == "pip":
-            install_cmd = (
-                f"pip install {self._install_cmd_for_torch(install_cmd, cluster)}"
-            )
-        elif self.install_method == "reqs":
-            install_cmd = f"pip install {install_cmd}"
-        elif self.install_method == "conda":
-            install_cmd = f"conda install -y {install_cmd}"
+        install_cmd = f"pip install {self._install_cmd_for_torch(install_cmd, cluster)}"
+        install_cmd = self._prepend_python_executable(
+            install_cmd, cluster=cluster, env=env
+        )
+        install_cmd = self._prepend_env_command(install_cmd, env=env)
+        return install_cmd
 
+    def _conda_install_cmd(
+        self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
+    ):
+        install_args = f" {self.install_args}" if self.install_args else ""
+        if isinstance(self.install_target, Folder):
+            install_cmd = f"{self.install_target.local_path}" + install_args
+        else:
+            install_cmd = self.install_target + install_args
+
+        install_cmd = f"conda install -y {install_cmd}"
+        install_cmd = self._prepend_env_command(install_cmd, env=env)
+        install_conda(cluster=cluster)
+        return install_cmd
+
+    def _reqs_install_cmd(
+        self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
+    ):
+        install_args = f" {self.install_args}" if self.install_args else ""
+        if not isinstance(self.install_target, Folder):
+            install_cmd = self.install_target + install_args
+        else:
+            path = self.install_target.local_path
+
+            # Read reqs_path and reqs from local if not cluster
+            if not cluster:
+                reqs_path = f"{path}/requirements.txt"
+                if not Path(reqs_path).expanduser().exists():
+                    return None
+
+                with open(reqs_path) as f:
+                    reqs_list = f.readlines()
+
+            # Otherwise, make sure the target folder is on the cluster,
+            # and read reqs from the cluster
+            else:
+                if not self.install_target.system == cluster:
+                    install_target = self.to(cluster).install_target
+                else:
+                    install_target = self.install_target
+
+                if not install_target.exists_in_system():
+                    return None
+                elif "requirements.txt" not in install_target.ls(full_paths=False):
+                    return None
+
+                reqs_list = (
+                    install_target.get("requirements.txt", mode="r")
+                    .strip("\n")
+                    .split("\n")
+                )
+                reqs_path = f"{install_target.path}/requirements.txt"
+
+            install_cmd = self._reqs_install_cmd_for_torch(
+                reqs_path, reqs_list, install_args, cluster=cluster
+            )
+
+        install_cmd = f"pip install {install_cmd}"
+        install_cmd = self._prepend_python_executable(
+            install_cmd, env=env, cluster=cluster
+        )
+        install_cmd = self._prepend_env_command(install_cmd, env=env)
         return install_cmd
 
     def _install(self, env: Union[str, "Env"] = None, cluster: "Cluster" = None):
@@ -148,12 +189,24 @@ class Package(Resource):
         """
 
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
-        install_cmd = self._install_cmd(cluster=cluster)
 
         if self.install_method == "pip":
-            self._pip_install(install_cmd, env, cluster=cluster)
+            install_cmd = self._pip_install_cmd(env=env, cluster=cluster)
+            logger.info(f"Running via install_method pip: {install_cmd}")
+            retcode = run_setup_command(install_cmd, cluster=cluster)[0]
+            if retcode != 0:
+                raise RuntimeError(
+                    f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
+                )
         elif self.install_method == "conda":
-            self._conda_install(install_cmd, env, cluster=cluster)
+            install_cmd = self._conda_install_cmd(env=env, cluster=cluster)
+            logger.info(f"Running via install_method conda: {install_cmd}")
+            retcode = run_setup_command(install_cmd, cluster=cluster)[0]
+            if retcode != 0:
+                raise RuntimeError(
+                    f"Conda install {install_cmd} failed, check that the package exists and is "
+                    "available for your platform."
+                )
         elif self.install_method in ["reqs", "local"]:
             if isinstance(self.install_target, Folder):
                 if not cluster:
@@ -162,36 +215,40 @@ class Package(Resource):
                     path = self.install_target.path
                 else:
                     path = self.to(cluster).install_target.path
-                    install_cmd = self._install_cmd(cluster=cluster)
 
                 if not path:
                     return
 
-                if self.install_method == "reqs" and install_cmd:
-                    logger.info(
-                        f"pip installing {path}/requirements.txt with: {install_cmd}"
-                    )
-                    self._pip_install(install_cmd, env, cluster=cluster)
-                else:
-                    logger.info(f"{path}/requirements.txt not found, skipping")
+                if self.install_method == "reqs":
+                    install_cmd = self._reqs_install_cmd(env=env, cluster=cluster)
+                    if install_cmd:
+                        logger.info(f"Running via install_method reqs: {install_cmd}")
+                        retcode = run_setup_command(install_cmd, cluster=cluster)[0]
+                        if retcode != 0:
+                            raise RuntimeError(
+                                f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
+                            )
+                    else:
+                        logger.info(
+                            f"{path}/requirements.txt not found, skipping reqs install"
+                        )
 
                 sys.path.append(path) if not cluster else run_setup_command(
                     f"export PATH=$PATH;{path}", cluster=cluster
                 )
-            elif (
-                not cluster
-                and Path(self.install_target).resolve().expanduser().exists()
-            ):
-                sys.path.append(str(Path(self.install_target).resolve().expanduser()))
+            elif not cluster:
+                if Path(self.install_target).resolve().expanduser().exists():
+                    sys.path.append(
+                        str(Path(self.install_target).resolve().expanduser())
+                    )
+                else:
+                    raise ValueError(
+                        f"install_target {self.install_target} must be a Folder or a path to a directory for install_method {self.install_method}"
+                    )
             else:
                 raise ValueError(
-                    f"install_target must be a Folder or a path to a directory for "
-                    f"install_method {self.install_method}"
+                    f"If cluster is provided, install_target must be a Folder for install_method {self.install_method}"
                 )
-        # elif self.install_method == 'unpickle':
-        #     # unpickle the functions and make them importable
-        #     with self.get('functions.pickle') as f:
-        #         sys.modules[self.name] = pickle.load(f)
         else:
             raise ValueError(
                 f"Unknown install_method {self.install_method}. Try using cluster.run() or to install instead."
@@ -200,24 +257,24 @@ class Package(Resource):
     # ----------------------------------
     # Torch Install Helpers
     # ----------------------------------
-    def _requirements_txt_install_cmd(self, path, reqs, args="", cluster=None):
+    def _reqs_install_cmd_for_torch(
+        self, reqs_path, reqs_list, install_args="", cluster=None
+    ):
         """Read requirements from file, append --index-url and --extra-index-url where relevant for torch packages,
         and return list of formatted packages."""
         # if torch extra index url is already defined by the user or torch isn't a req, directly pip install reqs file
-        if not [req for req in reqs if "torch" in req]:
-            return f"-r {path}" + args
+        if not any("torch" in req for req in reqs_list):
+            return f"-r {reqs_path}" + install_args
 
         cuda_version_or_cpu = detect_cuda_version_or_cpu(cluster=cluster)
-        for req in reqs:
+        for req in reqs_list:
             if (
                 "--index-url" in req or "--extra-index-url" in req
             ) and "pytorch.org" in req:
-                return f"-r {path}" + args
+                return f"-r {reqs_path}" + install_args
 
         # add extra-index-url for torch if not found
-        return (
-            f"-r {path} --extra-index-url {self._torch_index_url(cuda_version_or_cpu)}"
-        )
+        return f"-r {reqs_path} --extra-index-url {self._torch_index_url(cuda_version_or_cpu)}"
 
     def _install_cmd_for_torch(self, install_cmd, cluster=None):
         """Return the correct formatted pip install command for the torch package(s) provided."""
@@ -284,19 +341,6 @@ class Package(Resource):
     def _pip_install(
         install_cmd: str, env: Union[str, "Env"] = "", cluster: "Cluster" = None
     ):
-        """Run pip install."""
-        install_cmd = (
-            f"python3 -m {install_cmd}"
-            if cluster or env
-            else f"{sys.executable} -m {install_cmd}"
-        )
-
-        if env:
-            from runhouse.resources.envs.utils import _get_env_from
-
-            env = _get_env_from(env)
-            install_cmd = env._full_command(install_cmd)
-
         retcode = run_setup_command(install_cmd, cluster=cluster)[0]
         if retcode != 0:
             raise RuntimeError(
@@ -307,16 +351,6 @@ class Package(Resource):
     def _conda_install(
         install_cmd: str, env: Union[str, "Env"] = "", cluster: "Cluster" = None
     ):
-        """Run conda install."""
-        if env:
-            if isinstance(env, str):
-                from runhouse.resources.envs import Env
-
-                env = Env.from_name(env)
-            install_cmd = env.full_command(install_cmd)
-
-        install_conda()
-
         retcode = run_setup_command(install_cmd, cluster=cluster)[0]
         if retcode != 0:
             raise RuntimeError(
