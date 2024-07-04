@@ -971,19 +971,13 @@ class Module(Resource):
             return False
 
     @staticmethod
-    def _extract_pointers(raw_cls_or_fn: Union[Type, Callable], reqs: List[str]):
-        """Get the path to the module, module name, and function name to be able to import it on the server"""
-        if not (isinstance(raw_cls_or_fn, type) or isinstance(raw_cls_or_fn, Callable)):
-            raise TypeError(
-                f"Expected Type or Callable but received {type(raw_cls_or_fn)}"
-            )
-
-        root_path, module_name, cls_or_fn_name = get_module_import_info(raw_cls_or_fn)
-
+    def _find_req_containing_module_root_path(
+        root_path: str, reqs: List[str]
+    ) -> Optional[str]:
+        """Find the req containing the module root path"""
         # First, check if the module is already included in one of the directories in reqs
-        remote_import_path = None
+        local_path = None
         for req in reqs:
-            local_path = None
             if (
                 isinstance(req, Package)
                 and not isinstance(req.install_target, str)
@@ -1007,29 +1001,47 @@ class Module(Resource):
             if local_path:
                 try:
                     # Module path relative to package
-                    remote_import_path = str(
-                        local_path.name / Path(root_path).relative_to(local_path)
-                    )
+                    Path(root_path).relative_to(local_path)
                     break
                 except ValueError:  # Not a subdirectory
+                    local_path = None
                     pass
 
-        working_dir_containing_module = None
-        if not remote_import_path:
+        return local_path
+
+    @staticmethod
+    def _extract_pointers(raw_cls_or_fn: Union[Type, Callable], reqs: List[str]):
+        """Get the path to the module, module name, and function name to be able to import it on the server"""
+        if not (isinstance(raw_cls_or_fn, type) or isinstance(raw_cls_or_fn, Callable)):
+            raise TypeError(
+                f"Expected Type or Callable but received {type(raw_cls_or_fn)}"
+            )
+
+        root_path, module_name, cls_or_fn_name = get_module_import_info(raw_cls_or_fn)
+
+        local_path_containing_module = Module._find_req_containing_module_root_path(
+            root_path, reqs
+        )
+
+        if not local_path_containing_module:
             # If the module is not in one of the directories in reqs, we just use the full path,
             # then we'll create a new "req" containing the Module
             # TODO: should this "req" be a Package? I'll just start with a string for now
-            working_dir_containing_module = Path(locate_working_dir(root_path))
-            remote_import_path = str(
-                working_dir_containing_module.name
-                / Path(root_path).relative_to(working_dir_containing_module)
-            )
+            local_path_containing_module = Path(locate_working_dir(root_path))
+            req_to_add = str(local_path_containing_module)
+        else:
+            req_to_add = None
+
+        remote_import_path = str(
+            local_path_containing_module.name
+            / Path(root_path).relative_to(local_path_containing_module)
+        )
 
         return (
             remote_import_path,
             module_name,
             cls_or_fn_name,
-        ), str(working_dir_containing_module)
+        ), req_to_add
 
     def openapi_spec(self, spec_name: Optional[str] = None):
         """Generate an OpenAPI spec for the module.
