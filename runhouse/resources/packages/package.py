@@ -1,4 +1,5 @@
 import copy
+import importlib.metadata as metadata
 import re
 import sys
 from pathlib import Path
@@ -79,6 +80,13 @@ class Package(Resource):
             #     return f'Package: {self.install_target.name}'
             return f"Package: {self.install_target.path}"
         return f"Package: {self.install_target}"
+
+    @staticmethod
+    def _find_locally_installed_version(package_name: str):
+        try:
+            return metadata.version(package_name)
+        except metadata.PackageNotFoundError:
+            return None
 
     @staticmethod
     def _prepend_python_executable(
@@ -476,6 +484,14 @@ class Package(Resource):
                 install_method = "reqs"
             else:
                 install_method = "pip"
+
+        # If we are just defaulting to pip, attempt to install the same version of the package
+        # that is already installed locally
+        # Check if the target is only letters, nothing else. This means its a string like 'numpy'.
+        if install_method == "pip" and target.isalpha():
+            locally_installed_version = Package._find_locally_installed_version(target)
+            if locally_installed_version:
+                target = f"{target}=={locally_installed_version}"
 
         # "Local" install method is a special case where we just copy a local folder and add to path
         if install_method == "local":
