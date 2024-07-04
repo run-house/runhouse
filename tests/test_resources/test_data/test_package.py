@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 import pytest
@@ -67,32 +68,38 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     # --------- test install command ---------
     @pytest.mark.level("unit")
     def test_pip_install_cmd(self, pip_package):
-        assert pip_package._install_cmd() == f"pip install {pip_package.install_target}"
+        assert (
+            pip_package._pip_install_cmd()
+            == f"{sys.executable} -m pip install {pip_package.install_target}"
+        )
 
     @pytest.mark.level("unit")
     def test_conda_install_cmd(self, conda_package):
         assert (
-            conda_package._install_cmd()
+            conda_package._conda_install_cmd()
             == f"conda install -y {conda_package.install_target}"
         )
 
     @pytest.mark.level("unit")
     def test_reqs_install_cmd(self, reqs_package):
         assert (
-            reqs_package._install_cmd()
-            == f"pip install -r {reqs_package.install_target.local_path}/requirements.txt"
+            reqs_package._reqs_install_cmd()
+            == f"{sys.executable} -m pip install -r {reqs_package.install_target.local_path}/requirements.txt"
         )
 
     @pytest.mark.level("unit")
     def test_git_install_cmd(self, git_package):
-        assert git_package._install_cmd() == f"pip install {git_package.install_target}"
+        assert (
+            git_package._pip_install_cmd()
+            == f"{sys.executable} -m pip install {git_package.install_target}"
+        )
 
     # --------- test install on cluster ---------
     @pytest.mark.level("local")
     def test_pip_install(self, cluster, pip_package):
         assert (
-            pip_package._install_cmd(cluster)
-            == f"pip install {pip_package.install_target}"
+            pip_package._pip_install_cmd(cluster=cluster)
+            == f"python3 -m pip install {pip_package.install_target}"
         )
 
         # install through remote ssh
@@ -105,7 +112,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("release")
     def test_conda_install(self, cluster, conda_package):
         assert (
-            conda_package._install_cmd(cluster)
+            conda_package._conda_install_cmd(cluster=cluster)
             == f"conda install -y {conda_package.install_target}"
         )
 
@@ -120,10 +127,10 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     def test_remote_reqs_install(self, cluster, reqs_package):
         path = reqs_package.to(cluster).install_target.path
 
-        assert reqs_package._install_cmd(cluster=cluster) in [
-            None,
-            f"pip install -r {path}/requirements.txt",
-        ]
+        assert (
+            reqs_package._reqs_install_cmd(cluster=cluster)
+            == f"python3 -m pip install -r {path}/requirements.txt"
+        )
         reqs_package._install(cluster=cluster)
 
     @pytest.mark.level("local")
@@ -155,8 +162,8 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
 
         dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
         assert (
-            dummy_pkg._requirements_txt_install_cmd(test_reqs_file, reqs_lines)
-            == f"-r {test_reqs_file} --extra-index-url {rh.Package.TORCH_INDEX_URLS.get('cpu')}"
+            f"-r {test_reqs_file} --extra-index-url {rh.Package.TORCH_INDEX_URLS.get('cpu')}"
+            in dummy_pkg._reqs_install_cmd_for_torch(test_reqs_file, reqs_lines)
         )
 
         test_reqs_file.unlink()
