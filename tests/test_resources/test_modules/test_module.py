@@ -906,9 +906,7 @@ class TestModule:
         remote_constructor_module.construct_module_on_cluster()
 
     @pytest.mark.level("local")
-    def test_import_editable_package(
-        self, cluster, tmp_path, installed_editable_package
-    ):
+    def test_import_editable_package(self, cluster, installed_editable_package):
 
         importlib_reload(site)
 
