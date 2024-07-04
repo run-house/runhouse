@@ -111,8 +111,7 @@ class Env(Resource):
         for req in self.reqs:
             if isinstance(req, str):
                 new_req = Package.from_string(req)
-                if isinstance(new_req.install_target, Folder):
-                    req = new_req
+                req = new_req
 
             if isinstance(req, Package) and isinstance(req.install_target, Folder):
                 req = (
