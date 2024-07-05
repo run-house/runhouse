@@ -268,8 +268,17 @@ class Resource:
             config = cls._compare_config_with_alt_options(config, alt_options)
             if not config:
                 return None
+
         if not config:
-            raise ValueError(f"Resource {name} not found.")
+            from runhouse import OnDemandCluster
+
+            logger.debug(f"Resource {name} not found in Den")
+
+            # Check if the resource is a cluster that we can load from the local Sky DB
+            config = OnDemandCluster._load_from_local(name)
+            if not config:
+                raise ValueError(f"Resource {name} not found.")
+
         config["name"] = name
 
         if _resolve_children:

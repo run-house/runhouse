@@ -119,9 +119,6 @@ def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluste
     try:
         c = cluster(name=cluster_name)
     except ValueError:
-        logger.error(
-            f"Could not load cluster called {cluster_name} from Den. Please save it to Den, and rerun."
-        )
         raise typer.Exit(1)
 
     if not c.is_shared:

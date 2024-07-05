@@ -615,3 +615,25 @@ class OnDemandCluster(Cluster):
                 return_cmd=True,
             )
             subprocess.run(cmd, shell=True)
+
+    @classmethod
+    def _load_from_local(cls, name: str):
+        """Try loading the cluster from data stored in the local Sky DB"""
+        state = sky.status(cluster_names=[name.split("/")[-1]], refresh=True)
+
+        if len(state) == 0:
+            logger.debug(f"No resource with name {name} found locally")
+            return
+
+        resource_handle = state[0].get("handle", {})
+
+        # Create the Runhouse cluster config using the local Sky DB
+        config = {
+            "name": name,
+            "address": resource_handle.head_ip,
+            "ssh_user": resource_handle.ssh_user or "ubuntu",
+            "ssh_private_key": cls.DEFAULT_KEYFILE,
+            "resource_subtype": "OnDemandCluster",
+        }
+
+        return config
