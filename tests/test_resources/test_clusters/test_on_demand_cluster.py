@@ -183,11 +183,6 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
     @pytest.mark.level("minimal")
     def test_status_scheduler_basic_flow(self, cluster):
-        if not cluster.den_auth:
-            pytest.skip(
-                "This test checking pinging cluster status to den, this could be done only on clusters "
-                "with den_auth that can be saved to den."
-            )
 
         cluster.save()
         # the scheduler start running in a delay of 1 min, so the cluster startup will finish properly.
@@ -214,12 +209,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
     @pytest.mark.level("minimal")
     @pytest.mark.skip("Test requires terminating the cluster")
     def test_set_status_after_teardown(self, cluster):
-        if not cluster.den_auth:
-            pytest.skip(
-                "This test checking pinging cluster status to den, this could be done only on clusters "
-                "with den_auth that can be saved to den."
-            )
-        # TODO [SB]: remove the den_auth check once we will get status of clusters without den_auth as well.
+
         assert cluster.is_up()
         cluster_config = cluster.config()
         cluster_uri = rns_client.format_rns_address(cluster.rns_address)
@@ -239,11 +229,6 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
     @pytest.mark.level("minimal")
     def test_logs_surfacing_scheduler_basic_flow(self, cluster):
-        if not cluster.den_auth:
-            pytest.skip(
-                "This test checking pinging cluster status to den, this could be done only on clusters "
-                "with den_auth that can be saved to den."
-            )
 
         time.sleep(120)
         cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
