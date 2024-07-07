@@ -22,6 +22,7 @@ from runhouse.constants import (
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import ColoredFormatter, logger
 from runhouse.resources.hardware import load_cluster_config_from_file
+from runhouse.resources.hardware.utils import detect_cuda_version_or_cpu
 from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.autostop_helper import AutostopHelper
@@ -71,6 +72,9 @@ class ClusterServlet:
         return self.cluster_config
 
     async def aset_cluster_config(self, cluster_config: Dict[str, Any]):
+        if "has_cuda" not in cluster_config.keys():
+            cluster_config["has_cuda"] = detect_cuda_version_or_cpu() != "cpu"
+
         self.cluster_config = cluster_config
 
         # Propagate the changes to all other process's obj_stores
@@ -237,10 +241,17 @@ class ClusterServlet:
                     if should_update_autostop:
                         function_running = any(
                             any(
-                                len(resource_info["active_function_calls"]) > 0
-                                for resource_info in resources
+                                len(
+                                    resource["env_resource_mapping"][resource_name].get(
+                                        "active_function_calls", []
+                                    )
+                                )
+                                > 0
+                                for resource_name in resource[
+                                    "env_resource_mapping"
+                                ].keys()
                             )
-                            for resources in status.env_resource_mapping.values()
+                            for resource in status.env_servlet_processes.values()
                         )
                         if function_running:
                             await self.autostop_helper.set_last_active_time_to_now()
@@ -338,7 +349,6 @@ class ClusterServlet:
         config_cluster.pop("creds", None)
 
         # Getting data from each env servlet about the objects it contains and the utilization data
-        env_resource_mapping = {}
         env_servlet_utilization_data = {}
         env_servlets_status = await asyncio.gather(
             *[
@@ -357,17 +367,15 @@ class ClusterServlet:
                 self.logger.warning(
                     f"Exception {str(e)} in status for env servlet {env_servlet_name}"
                 )
-                env_resource_mapping[env_servlet_name] = []
                 env_servlet_utilization_data[env_servlet_name] = {}
 
             # Otherwise, store what was in the env and the utilization data
             else:
-                env_resource_mapping[env_servlet_name] = env_status.get(
+                env_memory_info = env_status.get("env_servlet_utilization_data")
+                env_memory_info["env_resource_mapping"] = env_status.get(
                     "objects_in_env_servlet"
                 )
-                env_servlet_utilization_data[env_servlet_name] = env_status.get(
-                    "env_servlet_utilization_data"
-                )
+                env_servlet_utilization_data[env_servlet_name] = env_memory_info
 
         # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
         cpu_usage = psutil.cpu_percent(interval=1)
@@ -382,7 +390,6 @@ class ClusterServlet:
             "cluster_config": config_cluster,
             "runhouse_version": runhouse.__version__,
             "server_pid": get_pid(),
-            "env_resource_mapping": env_resource_mapping,
             "env_servlet_processes": env_servlet_utilization_data,
             "system_cpu_usage": cpu_usage,
             "system_memory_usage": memory_usage,

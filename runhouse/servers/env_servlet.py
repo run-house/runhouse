@@ -183,13 +183,13 @@ class EnvServlet:
     async def aclear_local(self):
         return await obj_store.aclear_local()
 
-    def _get_env_cpu_usage(self):
+    def _get_env_cpu_usage(self, cluster_config: dict = None):
 
         import psutil
 
         from runhouse.utils import get_pid
 
-        cluster_config = obj_store.cluster_config
+        cluster_config = cluster_config or obj_store.cluster_config
 
         total_memory = psutil.virtual_memory().total
         node_ip = get_node_ip()
@@ -220,11 +220,9 @@ class EnvServlet:
             memory_size_bytes = env_servlet_process.memory_full_info().uss
             cpu_usage_percent = env_servlet_process.cpu_percent(interval=1)
             env_memory_usage = {
-                "memory_size_bytes": memory_size_bytes,
-                "cpu_usage_percent": cpu_usage_percent,
-                "memory_percent_from_cluster": (memory_size_bytes / total_memory) * 100,
-                "total_cluster_memory": total_memory,
-                "env_memory_info": psutil.virtual_memory(),
+                "used": memory_size_bytes,
+                "percent": cpu_usage_percent,
+                "total": total_memory,
             }
         except psutil.NoSuchProcess:
             env_memory_usage = {}
@@ -233,12 +231,6 @@ class EnvServlet:
 
     def _get_env_gpu_usage(self, env_servlet_pid: int):
         import subprocess
-
-        from runhouse.resources.hardware.utils import detect_cuda_version_or_cpu
-
-        # check it the cluster uses GPU or not
-        if detect_cuda_version_or_cpu() == "cpu":
-            return {}
 
         try:
             gpu_general_info = (
@@ -280,9 +272,9 @@ class EnvServlet:
                     )
             if used_gpu_memory > 0:
                 env_gpu_usage = {
-                    "used_gpu_memory": used_gpu_memory,
-                    "gpu_util_percent": gpu_util_percent / num_of_gpus,
-                    "total_gpu_memory": total_gpu_memory,
+                    "used": used_gpu_memory,
+                    "percent": gpu_util_percent / num_of_gpus,
+                    "total": total_gpu_memory,
                 }
             else:
                 env_gpu_usage = {}
@@ -294,6 +286,7 @@ class EnvServlet:
 
     def _status_local_helper(self):
         objects_in_env_servlet = obj_store.keys_with_info()
+        cluster_config = obj_store.cluster_config
 
         (
             env_memory_usage,
@@ -301,17 +294,21 @@ class EnvServlet:
             total_memory,
             env_servlet_pid,
             node_ip,
-        ) = self._get_env_cpu_usage()
+        ) = self._get_env_cpu_usage(cluster_config)
 
         # Try loading GPU data (if relevant)
-        env_gpu_usage = self._get_env_gpu_usage(int(env_servlet_pid))
+        env_gpu_usage = (
+            self._get_env_gpu_usage(int(env_servlet_pid))
+            if cluster_config.get("has_cuda", False)
+            else {}
+        )
 
         env_servlet_utilization_data = {
             "env_gpu_usage": env_gpu_usage,
             "node_ip": node_ip,
             "node_name": node_name,
             "pid": env_servlet_pid,
-            "env_memory_usage": env_memory_usage,
+            "env_cpu_usage": env_memory_usage,
         }
 
         return objects_in_env_servlet, env_servlet_utilization_data
