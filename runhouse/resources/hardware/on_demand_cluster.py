@@ -111,6 +111,20 @@ class OnDemandCluster(Cluster):
             self._update_from_sky_status(dryrun=False)
 
     @property
+    def client(self):
+        if not self._http_client:
+            if not self.address:
+                # Try loading in from local Sky DB
+                self._update_from_sky_status(dryrun=True)
+                if not self.address:
+                    raise ValueError(
+                        f"Could not determine address for ondemand cluster <{self.name}>. "
+                        "Up the cluster with `cluster.up_if_not`."
+                    )
+            self.connect_server_client()
+        return self._http_client
+
+    @property
     def autostop_mins(self):
         return self._autostop_mins
 
