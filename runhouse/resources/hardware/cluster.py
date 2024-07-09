@@ -91,7 +91,7 @@ class Cluster(Resource):
         self._creds = creds
 
         self.ips = ips
-        self.client = None
+        self._http_client = None
         self.den_auth = den_auth or False
         self.cert_config = TLSCertConfig(cert_path=ssl_certfile, key_path=ssl_keyfile)
 
@@ -116,6 +116,10 @@ class Cluster(Resource):
     def address(self, addr):
         self.ips = self.ips or [None]
         self.ips[0] = addr
+
+    @property
+    def client(self):
+        return self._http_client
 
     @property
     def creds_values(self) -> Dict:
@@ -616,7 +620,7 @@ class Cluster(Resource):
             # Connecting to localhost because it's tunneled into the server at the specified port.
             # As long as the tunnel was initialized,
             # self.client_port has been set to the correct port
-            self.client = HTTPClient(
+            self._http_client = HTTPClient(
                 host=LOCALHOST,
                 port=self.client_port,
                 resource_address=self.rns_address,
@@ -640,7 +644,7 @@ class Cluster(Resource):
 
             self.client_port = self.client_port or self.server_port
 
-            self.client = HTTPClient(
+            self._http_client = HTTPClient(
                 host=self.server_address,
                 port=self.client_port,
                 cert_path=cert_path,
@@ -1028,7 +1032,7 @@ class Cluster(Resource):
     def __getstate__(self):
         """Delete non-serializable elements (e.g. thread locks) before pickling."""
         state = self.__dict__.copy()
-        state["client"] = None
+        state["_http_client"] = None
         state["_rpc_tunnel"] = None
         return state
 
