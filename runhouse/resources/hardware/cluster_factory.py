@@ -312,6 +312,7 @@ def ondemand_cluster(
     memory: Union[int, str, None] = None,
     disk_size: Union[int, str, None] = None,
     open_ports: Union[int, str, List[int], None] = None,
+    sky_kwargs: Dict = None,
     server_port: int = None,
     server_host: int = None,
     server_connection_type: Union[ServerConnectionType, str] = None,
@@ -345,6 +346,14 @@ def ondemand_cluster(
         disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. "100" or "100+".
         open_ports (int or str or List[int], optional): Ports to open in the cluster's security group. Note
             that you are responsible for ensuring that the applications listening on these ports are secure.
+        sky_kwargs (dict, optional): Additional keyword arguments to pass to the SkyPilot `Resource` or
+            `launch` APIs. Should be a dict of the form
+            `{"resources": {<resources_kwargs>}, "launch": {<launch_kwargs>}}`, where resources_kwargs and
+            launch_kwargs will be passed to the SkyPilot Resources API
+            (See `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/reference/api.html#resources>`_)
+            and `launch` API (See
+            `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/reference/api.html#sky-launch>`_), respectively.
+            Any arguments which duplicate those passed to the `ondemand_cluster` factory method will raise an error.
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
         server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
