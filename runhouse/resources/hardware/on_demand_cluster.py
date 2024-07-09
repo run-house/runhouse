@@ -140,7 +140,7 @@ class OnDemandCluster(Cluster):
                 raise ImportError(
                     "Skypilot must be installed on the cluster in order to set autostop."
                 )
-            self.client.set_settings({"autostop_mins": mins})
+            self.call_client_method("set_settings", {"autostop_mins": mins})
             sky.autostop(self.name, mins, down=True)
 
     @property
