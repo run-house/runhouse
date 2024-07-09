@@ -200,7 +200,7 @@ class Cluster(Resource):
         if on_this_cluster:
             obj_store.set_cluster_config_value("name", self.rns_address)
         elif self.client:
-            self.client.set_cluster_name(self.rns_address)
+            self.call_client_method("set_cluster_name", self.rns_address)
 
         return self
 
@@ -600,10 +600,7 @@ class Cluster(Resource):
 
     # ----------------- RPC Methods ----------------- #
 
-    def connect_server_client(self, force_reconnect=False):
-        if not self.address:
-            raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
-
+    def connect_tunnel(self, force_reconnect=False):
         if self._rpc_tunnel and force_reconnect:
             self._rpc_tunnel.terminate()
             self._rpc_tunnel = None
