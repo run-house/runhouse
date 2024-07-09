@@ -59,6 +59,7 @@ def ondemand_aws_cluster(request):
         "image_id": "docker:nvcr.io/nvidia/pytorch:23.10-py3",
         "region": "us-east-2",
         "default_env": rh.env(reqs=["ray==2.30.0"], working_dir=None),
+        "sky_kwargs": {"launch": {"retry_until_up": True}},
     }
     cluster = setup_test_cluster(args, request, create_env=True)
     return cluster
