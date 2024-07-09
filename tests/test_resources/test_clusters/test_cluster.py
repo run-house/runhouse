@@ -724,13 +724,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_send_status_to_db(self, cluster):
         import json
 
-        # TODO [SB]: remove the den_auth check once we will get status of clusters without den_auth as well.
-        if not cluster.den_auth:
-            pytest.skip(
-                "This test checking pinging cluster status to den, this could be done only on clusters "
-                "with den_auth that can be saved to den."
-            )
-
         cluster.save()
 
         status = cluster.status()
@@ -793,12 +786,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("minimal")
     @pytest.mark.clustertest
     def test_status_scheduler_basic_flow(self, cluster):
-        # TODO [SB]: remove the den_auth check once we will get status of clusters without den_ayth as well.
-        if not cluster.den_auth:
-            pytest.skip(
-                "This test checking pinging cluster status to den, this could be done only on clusters "
-                "with den_auth that can be saved to den."
-            )
+
         if not cluster.config().get("resource_subtype") == "OnDemandCluster":
             pytest.skip(
                 "This test checking pinging cluster status to den, this could be done only on OnDemand clusters."
