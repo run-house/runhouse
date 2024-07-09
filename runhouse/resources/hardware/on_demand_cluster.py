@@ -58,6 +58,7 @@ class OnDemandCluster(Cluster):
         domain: str = None,
         den_auth: bool = False,
         region=None,
+        sky_kwargs: Dict = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -95,6 +96,7 @@ class OnDemandCluster(Cluster):
         self.region = region
         self.memory = memory
         self.disk_size = disk_size
+        self.sky_kwargs = sky_kwargs or {}
 
         self.stable_internal_external_ips = kwargs.get(
             "stable_internal_external_ips", None
@@ -154,6 +156,9 @@ class OnDemandCluster(Cluster):
                 "image_id",
                 "region",
                 "stable_internal_external_ips",
+                "memory",
+                "disk_size",
+                "sky_kwargs",
             ],
         )
         config["autostop_mins"] = self._autostop_mins
@@ -431,36 +436,48 @@ class OnDemandCluster(Cluster):
             if self.provider != "cheapest"
             else None
         )
-        task.set_resources(
-            sky.Resources(
-                # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
-                cloud=cloud_provider,
-                instance_type=self.get_instance_type(),
-                accelerators=self.accelerators(),
-                cpus=self.num_cpus(),
-                memory=self.memory,
-                region=self.region or configs.get("default_region"),
-                disk_size=self.disk_size,
-                ports=self.open_ports,
-                image_id=self.image_id,
-                use_spot=self.use_spot,
+        try:
+            task.set_resources(
+                sky.Resources(
+                    # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
+                    cloud=cloud_provider,
+                    instance_type=self.get_instance_type(),
+                    accelerators=self.accelerators(),
+                    cpus=self.num_cpus(),
+                    memory=self.memory,
+                    region=self.region or configs.get("default_region"),
+                    disk_size=self.disk_size,
+                    ports=self.open_ports,
+                    image_id=self.image_id,
+                    use_spot=self.use_spot,
+                    **self.sky_kwargs.get("resources", {}),
+                )
             )
-        )
-        if self.image_id:
-            import os
+            if self.image_id:
+                import os
 
-            docker_env_vars = {}
-            for env_var in DOCKER_LOGIN_ENV_VARS:
-                if os.getenv(env_var):
-                    docker_env_vars[env_var] = os.getenv(env_var)
-            if docker_env_vars:
-                task.update_envs(docker_env_vars)
-        sky.launch(
-            task,
-            cluster_name=self.name,
-            idle_minutes_to_autostop=self._autostop_mins,
-            down=True,
-        )
+                docker_env_vars = {}
+                for env_var in DOCKER_LOGIN_ENV_VARS:
+                    if os.getenv(env_var):
+                        docker_env_vars[env_var] = os.getenv(env_var)
+                if docker_env_vars:
+                    task.update_envs(docker_env_vars)
+            sky.launch(
+                task,
+                cluster_name=self.name,
+                idle_minutes_to_autostop=self._autostop_mins,
+                down=True,
+                **self.sky_kwargs.get("launch", {}),
+            )
+        # Make sure no args are passed both in sky_kwargs and as explicit args
+        except TypeError as e:
+            if "got multiple values for keyword argument" in str(e):
+                raise TypeError(
+                    f"{str(e)}. If argument is in `sky_kwargs`, it may need to be passed directly through the "
+                    f"ondemand_cluster constructor (see `ondemand_cluster docs "
+                    f"<https://www.run.house/docs/api/python/cluster#runhouse.ondemand_cluster>`_)."
+                )
+            raise e
 
         self._update_from_sky_status()
 
