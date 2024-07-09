@@ -33,7 +33,7 @@ class ResourceServerStatus(str, Enum):
     unauthorized = "unauthorized"
     unknown = "unknown"
     internal_server_error = "internal_server_error"
-    server_down = "server_down"
+    runhouse_daemon_down = "runhouse_daemon_down"
     invalid_url = "invalid_url"
 
 

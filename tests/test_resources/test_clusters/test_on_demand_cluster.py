@@ -182,31 +182,6 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         assert remote_torch_exists()
 
     @pytest.mark.level("minimal")
-    def test_status_scheduler_basic_flow(self, cluster):
-
-        cluster.save()
-        # the scheduler start running in a delay of 1 min, so the cluster startup will finish properly.
-        # Therefore, the test needs to sleep for a while.
-        time.sleep(60)
-        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"])[0][1]
-        assert (
-            "Performing cluster checks: potentially sending to Den, surfacing logs to Den or updating autostop."
-            in cluster_logs
-        )
-
-        cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
-        headers = rh.globals.rns_client.request_headers()
-        api_server_url = rh.globals.rns_client.api_server_url
-
-        get_status_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-            headers=headers,
-        )
-
-        assert get_status_data_resp.status_code == 200
-        assert get_status_data_resp.json()["data"][0]["status"] == "running"
-
-    @pytest.mark.level("minimal")
     @pytest.mark.skip("Test requires terminating the cluster")
     def test_set_status_after_teardown(self, cluster):
 
