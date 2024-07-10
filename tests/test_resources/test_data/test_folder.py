@@ -123,19 +123,6 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         fs_str = fs_str_cluster(cluster_folder)
         assert fs_str == "file"
 
-    @pytest.mark.level("unit")
-    def test_github_folder(self, tmp_path):
-        gh_folder = rh.folder(
-            path="/", system="github", data_config={"org": "pytorch", "repo": "rfcs"}
-        )
-        assert gh_folder.ls()
-
-        gh_to_local = gh_folder.to(
-            system="file", path=tmp_path / "torchrfcs", data_config={}
-        )
-        assert (tmp_path / "torchrfcs").exists()
-        assert "RFC-0000-template.md" in gh_to_local.ls(full_paths=False)
-
     ##### S3 Folder Tests #####
     @pytest.mark.level("minimal")
     def test_create_and_save_data_to_s3_folder(self):

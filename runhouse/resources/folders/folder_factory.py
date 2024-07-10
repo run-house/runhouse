@@ -1,9 +1,6 @@
+import warnings
 from pathlib import Path
 from typing import Dict, Optional, Union
-
-import fsspec
-
-from runhouse.logger import logger
 
 from runhouse.resources.folders.folder import Folder
 from runhouse.resources.hardware.utils import _get_cluster_from
@@ -24,7 +21,7 @@ def folder(
         name (Optional[str]): Name to give the folder, to be re-used later on.
         path (Optional[str or Path]): Path (or path) that the folder is located at.
         system (Optional[str or Cluster]): File system or cluster name. If providing a file system this must be one of:
-            [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
+            [``file``, ``s3``, ``gs``].
             We are working to add additional file system support.
         dryrun (bool): Whether to create the Folder if it doesn't exist, or load a Folder object as a dryrun.
             (Default: ``False``)
@@ -76,22 +73,10 @@ def folder(
             dryrun=dryrun,
         )
     elif system == "azure":
-        from .azure_folder import AzureFolder
+        warnings.warn("Azure folders are not currently supported.")
 
-        return AzureFolder(
-            system=system,
-            path=path,
-            data_config=data_config,
-            local_mount=local_mount,
-            name=name,
-            dryrun=dryrun,
-        )
-
-    if system in fsspec.available_protocols():
-        if system not in [Folder.DEFAULT_FS, "github", "sftp", "ssh"]:
-            logger.warning(
-                f"fsspec file system {system} not officially supported. Use at your own risk."
-            )
+    if system == Folder.DEFAULT_FS:
+        # Create the base Folder to interact with the local filesystem
         return Folder(
             system=system,
             path=path,
@@ -103,6 +88,7 @@ def folder(
 
     cluster_system = _get_cluster_from(system, dryrun=dryrun)
     if isinstance(cluster_system, Resource):
+
         return Folder(
             system=cluster_system,
             path=path,
@@ -113,7 +99,6 @@ def folder(
         )
 
     raise ValueError(
-        f"File system {system} not found. Have you installed the "
-        f"necessary packages for this fsspec protocol? (e.g. s3fs for s3). If the file system "
+        f"File system '{system}' not currently supported. If the file system "
         f"is a cluster (ex: /my-user/rh-cpu), make sure the cluster config has been saved."
     )

@@ -1,6 +1,5 @@
 python-dotenv
 fastapi
-fsspec<=2023.5.0
 pexpect
 pyopenssl>=23.3.0
 ray[default] >= 2.2.0, != 2.6.0
