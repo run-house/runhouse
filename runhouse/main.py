@@ -409,7 +409,8 @@ def status(
             )
             raise typer.Exit(1)
         try:
-            current_cluster.check_server(restart_server=False)
+            if current_cluster._http_client:
+                current_cluster._http_client.check_server()
         except requests.exceptions.ConnectionError:
             console.print(
                 f"Could not connect to the server on cluster {cluster_name}. Check that the server is up with "

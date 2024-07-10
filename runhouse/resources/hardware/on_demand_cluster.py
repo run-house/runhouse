@@ -130,8 +130,6 @@ class OnDemandCluster(Cluster):
 
     @autostop_mins.setter
     def autostop_mins(self, mins):
-        self.check_server()
-
         self._autostop_mins = mins
         if self.on_this_cluster():
             obj_store.set_cluster_config_value("autostop_mins", mins)
@@ -182,7 +180,7 @@ class OnDemandCluster(Cluster):
 
     def endpoint(self, external=False):
         try:
-            self.check_server()
+            self.client.check_server()
         except ValueError:
             return None
 
