@@ -460,6 +460,7 @@ def ondemand_cluster(
         memory=memory,
         disk_size=disk_size,
         open_ports=open_ports,
+        sky_kwargs=sky_kwargs,
         server_host=server_host,
         server_port=server_port,
         server_connection_type=server_connection_type,
