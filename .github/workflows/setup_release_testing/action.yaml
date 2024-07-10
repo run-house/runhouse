@@ -1,0 +1,57 @@
+name: Setup Release Testing
+
+description: Reusable steps for prepping release testing
+
+inputs:
+  DEV_AWS_ACCESS_KEY:
+    description: 'AWS Access Key ID'
+    required: true
+  DEV_AWS_SECRET_KEY:
+    description: 'AWS Secret Access Key'
+    required: true
+  TEST_TOKEN:
+    description: 'Test Token'
+    required: true
+  TEST_USERNAME:
+    description: 'Test Username'
+    required: true
+  API_SERVER_URL:
+    description: 'API Server URL'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Check out repository code
+      uses: actions/checkout@v3
+
+    - name: Configure aws
+      run: |
+        aws configure set aws_access_key_id ${{ inputs.DEV_AWS_ACCESS_KEY }}
+        aws configure set aws_secret_access_key ${{ inputs.DEV_AWS_SECRET_KEY }}
+        aws configure set default.region us-east-1
+      shell: bash
+
+    - name: Install & check skypilot configuration
+      run: |
+        python -m pip install --upgrade pip
+        pip install skypilot[aws]
+        sky check
+        sky status
+      shell: bash
+
+    - name: Install python packages & dependencies
+      run: |
+        pip install runhouse[aws]
+        pip install -r tests/requirements.txt scipy pyarrow
+      shell: bash
+
+    - name: Setup Runhouse
+      uses: ./.github/workflows/setup_runhouse
+
+    - name: Setup ~/.rh/config.yaml
+      uses: ./.github/workflows/setup_rh_config
+      with:
+        username: ${{ inputs.TEST_TOKEN }}
+        token: ${{ inputs.TEST_USERNAME }}
+        api_server_url: ${{ inputs.API_SERVER_URL }}
