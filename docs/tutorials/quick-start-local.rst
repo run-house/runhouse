@@ -46,7 +46,6 @@ and details of the server. For printing cluster's status outside the cluser, its
     • server connection type: ssh
     • backend config:
       • resource subtype: OnDemandCluster
-      • use local telemetry: False
       • domain: None
       • server host: 0.0.0.0
       • ips: ['52.207.212.159']
@@ -77,7 +76,6 @@ and details of the server. For printing cluster's status outside the cluser, its
     • server connection type: ssh
     • backend config:
       • resource subtype: OnDemandCluster
-      • use local telemetry: False
       • domain: None
       • server host: 0.0.0.0
       • ips: ['35.171.157.49']

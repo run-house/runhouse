@@ -1,12 +1,6 @@
 python-dotenv
 fastapi
 fsspec<=2023.5.0
-opentelemetry-api
-opentelemetry-exporter-otlp-proto-http
-opentelemetry-instrumentation
-opentelemetry-instrumentation-fastapi
-opentelemetry-instrumentation-requests
-opentelemetry-sdk
 pexpect
 pyopenssl>=23.3.0
 ray[default] >= 2.2.0, != 2.6.0

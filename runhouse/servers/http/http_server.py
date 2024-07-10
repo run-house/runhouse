@@ -114,7 +114,6 @@ class HTTPServer:
         cls,
         default_env_name=None,
         conda_env=None,
-        enable_local_span_collection=None,
         from_test: bool = False,
         *args,
         **kwargs,
@@ -124,59 +123,6 @@ class HTTPServer:
         if log_level != DEFAULT_LOG_LEVEL:
             logger.info(f"setting logs level to {log_level}")
         runtime_env = {"conda": conda_env} if conda_env else None
-
-        # If enable_local_span_collection flag is passed, setup the span exporter and related functionality
-        if enable_local_span_collection:
-            from opentelemetry import trace
-            from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-            from opentelemetry.instrumentation.requests import RequestsInstrumentor
-            from opentelemetry.sdk.resources import Resource
-            from opentelemetry.sdk.trace import TracerProvider
-            from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-            from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
-                InMemorySpanExporter,
-            )
-
-            trace.set_tracer_provider(
-                TracerProvider(
-                    resource=Resource.create(
-                        {"service.name": "runhouse-in-memory-service"}
-                    )
-                )
-            )
-            global memory_exporter
-            memory_exporter = InMemorySpanExporter()
-            trace.get_tracer_provider().add_span_processor(
-                SimpleSpanProcessor(memory_exporter)
-            )
-            # Instrument the app object
-            FastAPIInstrumentor.instrument_app(app)
-
-            # Instrument the requests library
-            RequestsInstrumentor().instrument()
-
-            @app.get("/spans")
-            @validate_cluster_access
-            def get_spans(request: Request):
-                return {
-                    "spans": [
-                        span.to_json() for span in memory_exporter.get_finished_spans()
-                    ]
-                }
-
-            @app.middleware("http")
-            async def _add_username_to_span(request: Request, call_next):
-                from opentelemetry import trace
-
-                span = trace.get_current_span()
-
-                token = get_token_from_request(request)
-                username = await obj_store.aget_username(token)
-                if username:
-                    # Set the username as a span attribute
-                    span.set_attribute("username", username)
-
-                return await call_next(request)
 
         default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
 
@@ -198,13 +144,6 @@ class HTTPServer:
         #     self._collect_cluster_stats()
         # except Exception as e:
         #     logger.error(f"Failed to collect cluster stats: {str(e)}")
-
-        if enable_local_span_collection:
-            try:
-                # Collect telemetry stats for the cluster
-                HTTPServer._collect_telemetry_stats()
-            except Exception as e:
-                logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
 
         # We initialize a default env servlet where some things may run.
         _ = obj_store.get_env_servlet(
@@ -228,7 +167,6 @@ class HTTPServer:
         cls,
         default_env_name=None,
         conda_env=None,
-        enable_local_span_collection=None,
         from_test: bool = False,
         *args,
         **kwargs,
@@ -236,7 +174,6 @@ class HTTPServer:
         return sync_function(cls.ainitialize)(
             default_env_name,
             conda_env,
-            enable_local_span_collection,
             from_test,
             *args,
             **kwargs,
@@ -743,64 +680,6 @@ class HTTPServer:
         )
 
     @staticmethod
-    def _collect_telemetry_stats():
-        """Collect telemetry stats and send them to the Runhouse hosted OpenTelemetry collector"""
-        from opentelemetry import trace
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-            OTLPSpanExporter,
-        )
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-        from opentelemetry.instrumentation.requests import RequestsInstrumentor
-        from opentelemetry.sdk.resources import Resource
-        from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
-        telemetry_collector_address = configs.get("telemetry_collector_address")
-
-        logger.info(f"Preparing to send telemetry to {telemetry_collector_address}")
-
-        # Set the tracer provider and the exporter
-        import runhouse
-
-        service_version = runhouse.__version__
-        if telemetry_collector_address == "https://api-dev.run.house:14318":
-            service_name = "runhouse-service-dev"
-            deployment_env = "dev"
-        else:
-            service_name = "runhouse-service-prod"
-            deployment_env = "prod"
-        trace.set_tracer_provider(
-            TracerProvider(
-                resource=Resource.create(
-                    {
-                        "service.namespace": "Runhouse_OSS",
-                        "service.name": service_name,
-                        "service.version": service_version,
-                        "deployment.environment": deployment_env,
-                    }
-                )
-            )
-        )
-        otlp_exporter = OTLPSpanExporter(
-            endpoint=telemetry_collector_address + "/v1/traces",
-        )
-
-        # Add the exporter to the tracer provider
-        trace.get_tracer_provider().add_span_processor(
-            BatchSpanProcessor(otlp_exporter)
-        )
-
-        logger.info(
-            f"Successfully added telemetry exporter {telemetry_collector_address}"
-        )
-
-        # Instrument the app object
-        FastAPIInstrumentor.instrument_app(app)
-
-        # Instrument the requests library
-        RequestsInstrumentor().instrument()
-
-    @staticmethod
     def _cluster_status_report():
         import ray._private.usage.usage_lib as ray_usage_lib
         from ray._raylet import GcsClient
@@ -880,12 +759,6 @@ async def main():
     )
     parser.add_argument(
         "--conda-env", type=str, default=None, help="Conda env to run server in"
-    )
-    parser.add_argument(
-        "--use-local-telemetry",
-        action="store_true",  # if providing --use-local-telemetry will be set to True
-        default=argparse.SUPPRESS,  # If user didn't specify, attribute will not be present (not False)
-        help="Enable local telemetry",
     )
     parser.add_argument(
         "--use-https",
@@ -1036,23 +909,6 @@ async def main():
     if den_auth:
         await obj_store.aenable_den_auth()
 
-    # Telemetry enabled
-    if hasattr(
-        parse_args, "use_local_telemetry"
-    ) and parse_args.use_local_telemetry != cluster_config.get(
-        "use_local_telemetry", False
-    ):
-        logger.warning(
-            f"CLI provided use_local_telemetry: {parse_args.use_local_telemetry} is different from the "
-            f"use_local_telemetry specified in cluster_config.json: "
-            f"{cluster_config.get('use_local_telemetry')}. Prioritizing CLI provided use_local_telemetry."
-        )
-
-    use_local_telemetry = getattr(
-        parse_args, "use_local_telemetry", False
-    ) or cluster_config.get("use_local_telemetry", False)
-    cluster_config["use_local_telemetry"] = use_local_telemetry
-
     domain = parse_args.domain or cluster_config.get("domain", None)
     cluster_config["domain"] = domain
 
@@ -1170,8 +1026,6 @@ async def main():
     await HTTPServer.ainitialize(
         default_env_name=default_env_name,
         conda_env=conda_name,
-        enable_local_span_collection=use_local_telemetry
-        or configs.data_collection_enabled(),
         logs_level=parse_args.log_level,
     )
 
@@ -1231,7 +1085,6 @@ async def main():
 
     logger.info(
         f"Launching Runhouse API server with den_auth={den_auth} and "
-        + f"use_local_telemetry={use_local_telemetry} "
         + f"on host={host} and use_https={use_https} and port_arg={daemon_port}"
     )
 

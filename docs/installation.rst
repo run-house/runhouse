@@ -171,7 +171,7 @@ Example output from ``sky status``:
 Authenticate with Runhouse Den
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To enable sharing features and telemetry through Runhouse Den, you can log in to your
+To enable sharing features through Runhouse Den, you can log in to your
 Runhouse Den account. Start by creating one via our `signup page </signup>`.
 You'll have the option to authenticate with your Google or Github account.
 

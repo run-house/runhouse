@@ -73,7 +73,6 @@ class Cluster(Resource):
         ssl_certfile: str = None,
         domain: str = None,
         den_auth: bool = False,
-        use_local_telemetry: bool = False,
         dryrun=False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -104,7 +103,6 @@ class Cluster(Resource):
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
         self.server_host = server_host
         self.domain = domain
-        self.use_local_telemetry = use_local_telemetry
 
         self._default_env = _get_env_from(default_env)
         if self._default_env and not self._default_env.name:
@@ -249,7 +247,6 @@ class Cluster(Resource):
                 "server_connection_type",
                 "domain",
                 "den_auth",
-                "use_local_telemetry",
                 "ssh_port",
                 "client_port",
             ],
@@ -818,7 +815,6 @@ class Cluster(Resource):
         https_flag = self._use_https
         caddy_flag = self._use_caddy
         domain = self.domain
-        use_local_telemetry = self.use_local_telemetry
 
         cluster_key_path = None
         cluster_cert_path = None
@@ -895,7 +891,6 @@ class Cluster(Resource):
             + (f" --ssl-certfile {cluster_cert_path}" if self._use_custom_certs else "")
             + (f" --ssl-keyfile {cluster_key_path}" if self._use_custom_certs else "")
             + (f" --domain {domain}" if domain else "")
-            + (" --use-local-telemetry" if use_local_telemetry else "")
             + f" --port {self.server_port}"
             + f" --api-server-url {rns_client.api_server_url}"
             + f" --default-env-name {self.default_env.name}"
