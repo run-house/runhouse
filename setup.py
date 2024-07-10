@@ -73,7 +73,7 @@ install_requires = [
     "opentelemetry-sdk",
     "pexpect",
     "pyOpenSSL>=23.3.0",
-    "ray[default] >= 2.2.0, != 2.6.0",
+    "ray >= 2.2.0, != 2.6.0",
     "async_timeout",  # Needed for ray<=2.9
     "rich",
     "sentry-sdk",
