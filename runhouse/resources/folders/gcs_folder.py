@@ -1,5 +1,10 @@
+import copy
+import os
+import shutil
 import subprocess
-from typing import Optional
+import tempfile
+from pathlib import Path
+from typing import Callable, List, Optional
 
 from runhouse.logger import logger
 
@@ -11,18 +16,291 @@ class GCSFolder(Folder):
     DEFAULT_FS = "gcp"
 
     def __init__(self, dryrun: bool, **kwargs):
+        from google.cloud import storage
+
         super().__init__(dryrun=dryrun, **kwargs)
+        self.client = storage.Client()
+        self._filesystem = "gs://"
 
     @staticmethod
     def from_config(config: dict, dryrun=False, _resolve_children=True):
         """Load config values into the object."""
         return GCSFolder(**config, dryrun=dryrun)
 
+    @property
+    def bucket(self):
+        return self.client.bucket(self._bucket_name)
+
+    def _to_local(self, dest_path: str, data_config: dict):
+        """Copies folder to local."""
+        from runhouse import Cluster
+
+        if self._fs_str == "file":
+            shutil.copytree(src=self.path, dst=dest_path)
+        elif isinstance(self.system, Cluster):
+            return self._cluster_to_local(cluster=self.system, dest_path=dest_path)
+        else:
+            self._gcs_copy_to_local(dest_path)
+
+        return self._destination_folder(
+            dest_path=dest_path, dest_system="file", data_config=data_config
+        )
+
+    def _gcs_copy_to_local(self, dest_path: str):
+        """Copy GCS folder to local."""
+        Path(dest_path).mkdir(parents=True, exist_ok=True)
+        key = self._key
+        blobs = self.client.list_blobs(self.bucket.name, prefix=key)
+        for blob in blobs:
+            dest_file_path = Path(dest_path) / Path(blob.name).relative_to(key)
+            dest_file_path.parent.mkdir(parents=True, exist_ok=True)
+            blob.download_to_filename(str(dest_file_path))
+
+    def _cluster_to_local(self, cluster, dest_path):
+        if not cluster.address:
+            raise ValueError("Cluster must be started before copying data from it.")
+        Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
+
+        cluster._rsync(
+            source=self.path,
+            dest=str(Path(dest_path).expanduser()),
+            up=False,
+            contents=True,
+        )
+        new_folder = copy.deepcopy(self)
+        new_folder.path = dest_path
+        new_folder.system = "file"
+        return new_folder
+
+    def _move_within_gcs(self, new_path):
+        key = self._key
+        blobs = self.client.list_blobs(self.bucket.name, prefix=key)
+        for blob in blobs:
+            old_name = blob.name
+            new_name = new_path + old_name[len(key) :]
+            self.bucket.copy_blob(blob, self.bucket, new_name)
+            blob.delete()
+
+    def _gcs_to_local(self, local_path):
+        key = self._key
+        Path(local_path).mkdir(parents=True, exist_ok=True)
+        blobs = self.client.list_blobs(self.bucket.name, prefix=key)
+        for blob in blobs:
+            dest_file_path = Path(local_path) / Path(blob.name).relative_to(key)
+            dest_file_path.parent.mkdir(parents=True, exist_ok=True)
+            blob.download_to_filename(str(dest_file_path))
+            blob.delete()
+
+    def _gcs_copy(self, new_path):
+        key = self._key
+        blobs = self.client.list_blobs(self.bucket.name, prefix=key)
+        for blob in blobs:
+            old_name = blob.name
+            new_name = new_path + old_name[len(key) :]
+            new_blob = self.bucket.blob(new_name)
+            new_blob.rewrite(blob)
+
+    def _fsspec_copy(self, system: str, path: str, data_config: dict):
+        """Copy the folder to the given new filesystem and path."""
+        if system == "gs":
+            self._gcs_copy(path)
+        else:
+            raise NotImplementedError("Only GCS copying is implemented")
+
+    def _destination_folder(
+        self,
+        dest_path: str,
+        dest_system: Optional[str] = "file",
+        data_config: Optional[dict] = None,
+    ):
+        new_folder = copy.deepcopy(self)
+        new_folder.path = dest_path
+        new_folder.system = dest_system
+        new_folder.data_config = data_config or {}
+        return new_folder
+
+    def put(
+        self, contents, overwrite=False, mode: str = "wb", write_fn: Callable = None
+    ):
+        """Put given contents in folder."""
+        self.mkdir()
+        if isinstance(contents, list):
+            for resource in contents:
+                self.put(resource, overwrite=overwrite)
+            return
+
+        key = self._key
+
+        if isinstance(contents, GCSFolder):
+            if not self.is_writable():
+                raise RuntimeError(f"Cannot put files into non-writable folder {key}")
+
+            if contents.folder_path is None:
+                contents.folder_path = key + "/" + contents.folder_path
+            return
+
+        if not isinstance(contents, dict):
+            raise TypeError(
+                "`contents` argument must be a dict mapping filenames to file-like objects"
+            )
+
+        if overwrite is False:
+            # Check if files exist and raise an error if they do
+            existing_files = [
+                blob.name for blob in self.client.list_blobs(self.bucket, prefix=key)
+            ]
+            intersection = set(existing_files).intersection(set(contents.keys()))
+            if intersection:
+                raise FileExistsError(
+                    f"File(s) {intersection} already exist(s) at path {key}, "
+                    f"cannot save them without overwriting."
+                )
+
+        for filename, file_obj in contents.items():
+            file_key = key + filename
+            try:
+                blob = self.bucket.blob(file_key)
+                if write_fn:
+                    with open(file_obj, "rb") as f:
+                        write_fn(f, blob.upload_from_file(f))
+                else:
+                    blob.upload_from_file(file_obj)
+
+            except Exception as e:
+                raise RuntimeError(f"Failed to upload {filename} to GCS: {e}")
+
+    def mv(
+        self, system, path: Optional[str] = None, data_config: Optional[dict] = None
+    ):
+        """Move the folder to a new filesystem or cluster."""
+        if path is None:
+            path = "rh/" + self.rns_address
+
+        data_config = data_config or {}
+
+        if system == "gcs":
+            self._move_within_gcs(path)
+        elif system == "file":
+            self._gcs_to_local(path)
+        else:
+            raise NotImplementedError("System not supported")
+
+        self.path = path
+        self.system = system
+        self.data_config = data_config or {}
+
+    def ls(self, full_paths: bool = True, sort: bool = False) -> List:
+        """List the contents of the folder.
+
+        Args:
+            full_paths (Optional[bool]): Whether to list the full paths of the folder contents.
+                Defaults to ``True``.
+            sort (Optional[bool]): Whether to sort the folder contents by time modified.
+                Defaults to ``False``.
+        """
+        blobs = list(self.client.list_blobs(self.bucket, prefix=self._key))
+
+        if sort:
+            blobs = sorted(blobs, key=lambda f: f.updated, reverse=True)
+
+        if full_paths:
+            return [
+                self._filesystem + f"{self.bucket.name}/{blob.name}" for blob in blobs
+            ]
+        else:
+            return [Path(blob.name).name for blob in blobs]
+
+    def exists_in_system(self):
+        """Whether the folder exists in the filesystem."""
+        try:
+            blobs = list(
+                self.client.list_blobs(self.bucket, prefix=self._key, max_results=1)
+            )
+            return len(blobs) > 0
+        except:
+            return False
+
+    def open(self, name, mode="rb", encoding=None):
+        """Returns a GCS blob stream which must be used as a content manager to be opened.
+
+        Example:
+            >>> with my_folder.open('obj_name') as my_file:
+            >>>     pickle.load(my_file)
+        """
+        blob_name = self._key + name
+        blob = self.bucket.blob(blob_name)
+
+        try:
+            if "r" not in mode:
+                raise NotImplementedError(f"{mode} mode is not implemented yet for GCS")
+
+            return blob.open(mode=mode, encoding=encoding)
+
+        except Exception as e:
+            raise e
+
+    def mkdir(self):
+        """Create the folder in specified file system if it doesn't already exist."""
+        try:
+            key = self._key
+            blob = self.bucket.blob()
+            blob.upload_from_string("")
+            logger.info(
+                f"Directory {key} created successfully in bucket {self._bucket_name}."
+            )
+            return self
+        except Exception as e:
+            raise e
+
+    def mount(self, path: Optional[str] = None, tmp: bool = False) -> str:
+        """Mount the folder locally.
+
+        Example:
+            remote_folder = rh.folder("folder/path", system="s3")
+            local_mount = remote_folder.mount()
+        """
+        if tmp:
+            local_mount_path = tempfile.mkdtemp()
+        else:
+            local_mount_path = path or os.path.join(tempfile.gettempdir(), "gcs_mount")
+
+        if not os.path.exists(local_mount_path):
+            os.makedirs(local_mount_path)
+
+        # Sync the GCS bucket to the local directory using gsutil
+        sync_command = f"gsutil rsync -r {self._filesystem}{self._bucket_name}/{self._key} {local_mount_path}"
+        subprocess.run(sync_command, shell=True, check=True)
+
+        return local_mount_path
+
+    def rm(self, contents: list = None, recursive: bool = True):
+        """Delete a folder from the GCS bucket. Optionally provide a list of folder contents to delete.
+
+        Args:
+            contents (Optional[List]): Specific contents to delete in the folder.
+            recursive (bool): Delete the folder itself (including all its contents).
+                Defaults to ``True``.
+        """
+        key = self._key
+        bucket = self._bucket_name
+        if contents:
+            blobs_to_delete = [
+                self.bucket.blob(f"{key}{content}") for content in contents
+            ]
+        else:
+            if recursive:
+                blobs_to_delete = list(self.client.list_blobs(bucket, prefix=key))
+            else:
+                blobs_to_delete = [self.bucket.blob(key)]
+
+        for blob in blobs_to_delete:
+            blob.delete()
+
     def delete_bucket(self):
         """Delete the gcs bucket."""
         # https://github.com/skypilot-org/skypilot/blob/3517f55ed074466eadd4175e152f68c5ea3f5f4c/sky/data/storage.py#L1775
-        bucket_name = self._bucket_name_from_path(self.path)
-        remove_obj_command = f"rm -r gs://{bucket_name}"
+        bucket_name = self._bucket_name
+        remove_obj_command = f"rm -r {self._filesystem}{bucket_name}"
 
         try:
             subprocess.check_output(
@@ -34,6 +312,23 @@ class GCSFolder(Folder):
         except subprocess.CalledProcessError as e:
             raise e
 
+    def is_writable(self):
+        """Whether the folder is writable.
+
+        Example:
+            >>> if my_folder.is_writable():
+            >>>     ....
+        """
+        test_blob = self.bucket.blob(self._key + "writability_test_file.txt")
+
+        try:
+            test_blob.upload_from_string("")
+            test_blob.delete()
+            return True
+
+        except Exception:
+            return False
+
     def _upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to an GCS bucket."""
         sync_dir_command = self._upload_command(src=src, dest=self.path)
@@ -42,14 +337,14 @@ class GCSFolder(Folder):
     def _upload_command(self, src: str, dest: str):
         # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/storage.py#L1240
         dest = dest.lstrip("/")
-        return f"gsutil -m rsync -r -x '.git/*' {src} gs://{dest}"
+        return f"gsutil -m rsync -r -x '.git/*' {src} {self._filesystem}{dest}"
 
     def _download(self, dest):
         """Download a folder from a GCS bucket to local dir."""
         # NOTE: Sky doesn't support this API yet for each provider
         # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/storage.py#L231
         remote_dir = self.path.lstrip("/")
-        remote_dir = f"gs://{remote_dir}"
+        remote_dir = f"{self._filesystem}{remote_dir}"
         subprocess.run(
             ["gsutil", "-m", "rsync", "-r", "-x", ".git/*", remote_dir, dest],
             stdout=subprocess.DEVNULL,
@@ -70,7 +365,7 @@ class GCSFolder(Folder):
     def _to_local(self, dest_path: str, data_config: dict):
         """Copy a folder from an GCS bucket to local dir."""
         self._download(dest=dest_path)
-        return self.destination_folder(
+        return self._destination_folder(
             dest_path=dest_path, dest_system="file", data_config=data_config
         )
 
@@ -92,7 +387,7 @@ class GCSFolder(Folder):
             logger.warning(
                 "Transfer from GCS to S3 currently supported for buckets only, not specific directories."
             )
-            gs_bucket_name = self._bucket_name_from_path(self.path)
+            gs_bucket_name = self._bucket_name
             s3_bucket_name = self._bucket_name_from_path(data_store_path)
             self.gcs_to_s3(
                 gs_bucket_name=gs_bucket_name,
@@ -103,14 +398,14 @@ class GCSFolder(Folder):
         else:
             raise ValueError(f"Invalid system: {system}")
 
-        return self.destination_folder(
+        return self._destination_folder(
             dest_path=data_store_path, dest_system=system, data_config=data_config
         )
 
     def gcs_to_s3(self, gs_bucket_name: str, s3_bucket_name: str) -> None:
         # https://github.com/skypilot-org/skypilot/blob/3517f55ed074466eadd4175e152f68c5ea3f5f4c/sky/data/data_transfer.py#L138
         disable_multiprocessing_flag = '-o "GSUtil:parallel_process_count=1"'
-        sync_command = f"gsutil -m {disable_multiprocessing_flag} rsync -rd gs://{gs_bucket_name} s3://{s3_bucket_name}"
+        sync_command = f"gsutil -m {disable_multiprocessing_flag} rsync -rd {self._filesystem}{gs_bucket_name} s3://{s3_bucket_name}"
         try:
             subprocess.run(sync_command, shell=True)
         except subprocess.CalledProcessError as e:

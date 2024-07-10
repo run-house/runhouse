@@ -534,7 +534,7 @@ def package(
         install_str (str): Additional arguments to install.
         path (str): URL of the package to install.
         system (str): File system or cluster on which the package lives. Currently this must a cluster or one of:
-            [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
+            [``file``, ``s3``, ``gs``].
         dryrun (bool): Whether to create the Package if it doesn't exist, or load the Package object as a dryrun.
             (Default: ``False``)
         local_mount (bool): Whether to locally mount the installed package. (Default: ``False``)
