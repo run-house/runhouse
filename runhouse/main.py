@@ -185,7 +185,6 @@ def _print_cluster_config(cluster_config: Dict):
 
     backend_config = [
         "resource_subtype",
-        "use_local_telemetry",
         "domain",
         "server_host",
         "ips",
@@ -506,7 +505,6 @@ def _start_server(
     use_caddy=False,
     domain=None,
     certs_address=None,
-    use_local_telemetry=False,
     api_server_url=None,
     default_env_name=None,
     conda_env=None,
@@ -579,11 +577,6 @@ def _start_server(
     if address_flag:
         logger.info(f"Server public IP address: {certs_address}.")
         flags.append(address_flag)
-
-    use_local_telemetry_flag = " --use-local-telemetry" if use_local_telemetry else ""
-    if use_local_telemetry_flag:
-        logger.info("Configuring local telemetry on the cluster.")
-        flags.append(use_local_telemetry_flag)
 
     api_server_url_flag = (
         f" --api-server-url {api_server_url}" if api_server_url else ""
@@ -703,9 +696,6 @@ def start(
         None,
         help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
-    use_local_telemetry: bool = typer.Option(
-        False, help="Whether to use local telemetry"
-    ),
     default_env_name: str = typer.Option(
         None, help="Default env to start the server on."
     ),
@@ -727,7 +717,6 @@ def start(
         use_caddy=use_caddy,
         domain=domain,
         certs_address=certs_address,
-        use_local_telemetry=use_local_telemetry,
         default_env_name=default_env_name,
         conda_env=conda_env,
     )
@@ -782,10 +771,6 @@ def restart(
         None,
         help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
-    use_local_telemetry: bool = typer.Option(
-        False,
-        help="Whether to use local telemetry",
-    ),
     api_server_url: str = typer.Option(
         default="https://api.run.house",
         help="URL of Runhouse Den",
@@ -830,7 +815,6 @@ def restart(
         use_caddy=use_caddy,
         domain=domain,
         certs_address=certs_address,
-        use_local_telemetry=use_local_telemetry,
         api_server_url=api_server_url,
         default_env_name=default_env_name,
         conda_env=conda_env,

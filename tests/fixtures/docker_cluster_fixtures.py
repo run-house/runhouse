@@ -298,7 +298,6 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - Caddy set up on startup to forward Runhouse HTTP server to port 443
-    - Telemetry enabled
     """
     import os
 
@@ -337,7 +336,6 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
             "server_port": DEFAULT_HTTPS_PORT,
             "client_port": local_client_port,
             "den_auth": True,
-            "use_local_telemetry": True,
         },
     )
 
@@ -357,7 +355,6 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
     - Public key authentication
     - Nginx set up on startup to forward Runhouse HTTP server to port 443
     - Default env with Ray 2.30.0
-    - Telemetry enabled
     """
     import os
 
@@ -394,7 +391,6 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
         additional_cluster_init_args={
             "name": f"{test_org_rns_folder}_docker_cluster_pk_ssh",
             "server_connection_type": "ssh",
-            "use_local_telemetry": True,
             "default_env": default_env,
         },
     )
@@ -455,7 +451,6 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
     - Public key authentication
     - Den auth disabled (to mimic VPC)
     - Caddy set up on startup to forward Runhouse HTTP Server to port 80
-    - Telemetry enabled
     """
     import os
 
@@ -494,7 +489,6 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
             "server_port": DEFAULT_HTTP_PORT,
             "client_port": local_client_port,
             "den_auth": False,
-            "use_local_telemetry": True,
         },
     )
     # Yield the cluster

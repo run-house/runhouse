@@ -1103,7 +1103,6 @@ class ObjStore:
 
         log_ctx = None
         if stream_logs:
-            # When we start collecting logs for telemetry, we'll enter here too
             log_ctx = run(
                 name=run_name,
                 log_dest="file" if run_name else None,
