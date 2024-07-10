@@ -87,11 +87,15 @@ def aws_lambda_fn(
 
     # extract function pointers, path to code and arg names from callable function.
     handler_function_name = fn.__name__
-    fn_pointers, req_to_add = Function._extract_pointers(
-        fn, reqs=[] if env is None else env.reqs
+    fn_pointers = Function._extract_pointers(fn)
+    (
+        local_path_containing_function,
+        should_add,
+    ) = Function._get_local_path_containing_module(
+        fn_pointers[0], reqs=[] if env is None else env.reqs
     )
-    if req_to_add and env is not None:
-        env.reqs = [req_to_add] + env.reqs
+    if should_add and env is not None:
+        env.reqs = [str(local_path_containing_function)] + env.reqs
     paths_to_code = [extract_module_path(fn)]
     if name is None:
         name = fn.__name__
