@@ -241,13 +241,13 @@ class Package(Resource):
                             f"{path}/requirements.txt not found, skipping reqs install"
                         )
 
-                sys.path.append(path) if not cluster else run_setup_command(
+                sys.path.insert(0, path) if not cluster else run_setup_command(
                     f"export PATH=$PATH;{path}", cluster=cluster
                 )
             elif not cluster:
                 if Path(self.install_target).resolve().expanduser().exists():
-                    sys.path.append(
-                        str(Path(self.install_target).resolve().expanduser())
+                    sys.path.insert(
+                        0, str(Path(self.install_target).resolve().expanduser())
                     )
                 else:
                     raise ValueError(
@@ -403,7 +403,7 @@ class Package(Resource):
                     external=False
                 ) == system.endpoint(external=False):
                     # If we're on the target system, just make sure the package is in the Python path
-                    sys.path.append(self.install_target.local_path)
+                    sys.path.insert(0, self.install_target.local_path)
                     return self
             logger.info(
                 f"Copying package from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
