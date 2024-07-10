@@ -370,13 +370,13 @@ class Module(Resource):
     @staticmethod
     def _get_obj_from_pointers(module_path, module_name, obj_name, reload=True):
         """Helper method to load a class or function from a module path, module name, and class name."""
-        if module_path:
-            abs_path = str((Path.home() / module_path).expanduser().resolve())
-            if not abs_path:
-                logger.debug(f"Could not find module path {module_path}")
-            elif abs_path not in sys.path:
-                sys.path.insert(0, abs_path)
-                logger.debug(f"Appending {module_path} to sys.path")
+        # if module_path:
+        #     abs_path = str((Path.home() / module_path).expanduser().resolve())
+        #     if not abs_path:
+        #         logger.debug(f"Could not find module path {module_path}")
+        #     elif abs_path not in sys.path:
+        #         sys.path.insert(0, abs_path)
+        #         logger.debug(f"Appending {module_path} to sys.path")
 
         # This updates the sys.path with any new paths that have been added since the last time we imported
         # e.g. if the user ran cluster.run(["pip install my_package"]) since this env was created.
