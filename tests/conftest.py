@@ -350,19 +350,6 @@ from tests.test_resources.test_modules.test_functions.conftest import (
     summer_func_with_auth,  # noqa: F401
 )
 
-# ----------------- Tables -----------------
-
-from tests.test_resources.test_modules.test_tables.conftest import (
-    arrow_table,  # noqa: F401
-    cudf_table,  # noqa: F401
-    dask_table,  # noqa: F401
-    huggingface_table,  # noqa: F401
-    pandas_table,  # noqa: F401
-    ray_table,  # noqa: F401
-    table,  # noqa: F401
-)
-
-
 ########## DEFAULT LEVELS ##########
 
 default_fixtures = {}

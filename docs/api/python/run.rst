@@ -64,7 +64,7 @@ A Run may contain some (or all) of these core components:
 - **Downstream dependencies**: Runhouse artifacts saved by the Run.
 
 .. note::
-    Artifacts represent any Runhouse primitive (e.g. :ref:`Blob`, :ref:`Function`, :ref:`Table`, etc.) that is
+    Artifacts represent any Runhouse primitive (e.g. :ref:`Blob`, :ref:`Function`, etc.) that is
     loaded or saved by the Run.
 
 

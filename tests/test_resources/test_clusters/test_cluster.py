@@ -2,7 +2,6 @@ import subprocess
 import time
 from threading import Thread
 
-import pandas as pd
 import pytest
 import requests
 
@@ -39,22 +38,6 @@ def load_shared_resource_config(resource_class_name, address):
     resource_class = getattr(rh, resource_class_name)
     loaded_resource = resource_class.from_name(address, dryrun=True)
     return loaded_resource.config()
-
-
-def save_resource_and_return_config():
-    df = pd.DataFrame(
-        {"id": [1, 2, 3, 4, 5, 6], "grade": ["a", "b", "b", "a", "a", "e"]}
-    )
-    table = rh.table(df, name="test_table")
-    return table.config()
-
-
-def test_table_to_rh_here():
-    df = pd.DataFrame(
-        {"id": [1, 2, 3, 4, 5, 6], "grade": ["a", "b", "b", "a", "a", "e"]}
-    )
-    rh.table(df, name="test_table").to(rh.here)
-    assert rh.here.get("test_table") is not None
 
 
 def summer(a: int, b: int):
@@ -179,22 +162,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_docker_cluster_fixture_is_logged_out(self, docker_cluster_pk_ssh_no_auth):
-        save_resource_and_return_config_cluster = rh.function(
-            save_resource_and_return_config,
-            name="save_resource_and_return_config_cluster",
-        ).to(
-            system=docker_cluster_pk_ssh_no_auth,
-        )
-        saved_config_on_cluster = save_resource_and_return_config_cluster()
-        # This cluster was created without any logged in Runhouse config. Make sure that the simple resource
-        # created on the cluster starts with "~", which is the prefix that local Runhouse configs are saved with.
-        assert ("/" not in saved_config_on_cluster["name"]) or (
-            saved_config_on_cluster["name"].startswith("~")
-        )
-
-    @pytest.mark.level("local")
-    @pytest.mark.clustertest
     def test_cluster_recreate(self, cluster):
         # Create underlying ssh connection if not already
         cluster.run(["echo hello"])
@@ -291,15 +258,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert not cluster.get(env3.name)
         assert cluster.get(env1.name)
         assert cluster.get("k1")
-
-    @pytest.mark.level("local")
-    @pytest.mark.clustertest
-    @pytest.mark.skip(reason="TODO")
-    def test_rh_here_objects(self, cluster):
-        save_test_table_remote = rh.function(test_table_to_rh_here, system=cluster)
-        save_test_table_remote()
-        assert "test_table" in cluster.keys()
-        assert isinstance(cluster.get("test_table"), rh.Table)
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
