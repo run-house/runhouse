@@ -478,6 +478,7 @@ class Module(Resource):
             new_module.name = new_name
             # TODO dedup with _extract_state
             # Exclude anything already being sent in the config and private module attributes
+
             excluded_state_keys = list(new_module.config().keys()) + [
                 "_system",
                 "_name",
