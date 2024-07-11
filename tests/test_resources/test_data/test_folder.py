@@ -1,3 +1,7 @@
+import shutil
+import tempfile
+from pathlib import Path
+
 import pytest
 
 import runhouse as rh
@@ -8,10 +12,6 @@ from ray import cloudpickle as pickle
 
 DATA_STORE_BUCKET = "runhouse-folder"
 DATA_STORE_PATH = f"/{DATA_STORE_BUCKET}/folder-tests"
-
-
-def fs_str_rh_fn(folder):
-    return folder._fs_str
 
 
 def _check_skip_test(folder, dest):
@@ -55,9 +55,10 @@ def _check_skip_test(folder, dest):
             )
 
     # Bugs
-    if folder_sys == "file" and dest_sys == "s3":
-        pytest.skip("Built-in type region should not be set to None.")
-    elif folder_sys == "gs" and dest_sys == "file":
+    # Note: As of Jul-12-2024 doesn't seem to be an issue
+    # if folder_sys == "file" and dest_sys == "s3":
+    #     pytest.skip("Built-in type region should not be set to None.")
+    if folder_sys == "gs" and dest_sys == "file":
         pytest.skip("Gsutil rsync command errors out.")
 
 
@@ -104,41 +105,59 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         new_folder = folder.to(system=system)
 
         assert new_folder._fs_str == expected_fs_str
-        assert "sample_file_0.txt" in new_folder.ls(full_paths=False)
+
+        folder_contents = new_folder.ls(full_paths=False)
+        assert "sample_file_0.txt" in folder_contents
 
         new_folder.rm()
 
     @pytest.mark.level("local")
-    @pytest.mark.skip("Bad path")
-    def test_from_cluster(self, cluster):
-        rh.folder(path="../../../").to(cluster, path="my_new_tests_folder")
-        tests_folder = rh.folder(system=cluster, path="my_new_tests_folder")
-        assert "my_new_tests_folder/requirements.txt" in tests_folder.ls()
+    def test_send_folder_to_cluster(self, cluster):
+        path = "my_new_tests_folder"
+        cluster_folder = rh.folder(system=cluster, path=path)
 
-    @pytest.mark.level("local")  # TODO: fix this test
-    @pytest.mark.skip("[WIP] Fix this test")
-    def test_folder_attr_on_cluster(self, local_folder, cluster):
-        cluster_folder = local_folder.to(cluster)
-        fs_str_cluster = rh.function(fn=fs_str_rh_fn).to(cluster)
-        fs_str = fs_str_cluster(cluster_folder)
-        assert fs_str == "file"
+        # Send the folder to the cluster
+        cluster_folder = cluster_folder.to(cluster)
+
+        cluster_folder.put({"requirements.txt": "torch"})
+        folder_contents = cluster_folder.ls()
+        res = [f for f in folder_contents if "requirements.txt" in f]
+        assert res
 
     ##### S3 Folder Tests #####
     @pytest.mark.level("minimal")
-    def test_create_and_save_data_to_s3_folder(self):
+    def test_save_data_to_s3_folder(self):
         data = list(range(50))
-        s3_folder = rh.folder(path=DATA_STORE_PATH, system="s3")
-        s3_folder.mkdir()
+        s3_folder = rh.folder(system="s3", path=DATA_STORE_PATH)
         s3_folder.put({"test_data.py": pickle.dumps(data)}, overwrite=True)
 
         assert s3_folder.exists_in_system()
 
     @pytest.mark.level("minimal")
+    def test_save_local_folder_to_s3(self):
+        temp_dir = tempfile.mkdtemp()
+        try:
+            data = list(range(50))
+            fake_file_path = Path(temp_dir) / "test_data.py"
+            with open(fake_file_path, "wb") as f:
+                pickle.dump(data, f)
+
+            local_folder = rh.folder(path=fake_file_path.parent)
+            assert local_folder.system == "file"
+
+            s3_folder = local_folder.to("s3", path=DATA_STORE_PATH)
+            assert s3_folder.system == "s3"
+            assert s3_folder.exists_in_system()
+
+        finally:
+            shutil.rmtree(temp_dir)
+
+    @pytest.mark.level("minimal")
     def test_read_data_from_existing_s3_folder(self):
         # Note: Uses folder created above
         s3_folder = rh.folder(path=DATA_STORE_PATH, system="s3")
-        fss_file: "fsspec.core.OpenFile" = s3_folder.open(name="test_data.py")
-        with fss_file as f:
+        file_stream = s3_folder.open(name="test_data.py")
+        with file_stream as f:
             data = pickle.load(f)
 
         assert data == list(range(50))

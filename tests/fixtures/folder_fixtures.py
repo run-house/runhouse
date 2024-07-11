@@ -20,11 +20,15 @@ def folder(request):
 
 
 @pytest.fixture
-def local_folder(tmp_path):
-    args = {"path": tmp_path / "tests_tmp"}
+def local_folder():
+    from runhouse import Folder
+
+    args = {"path": Folder.DEFAULT_CACHE_FOLDER}
     local_folder = rh.folder(**args)
     init_args[id(local_folder)] = args
-    local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
+    local_folder.put(
+        {f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)}, overwrite=True
+    )
     return local_folder
 
 
@@ -36,10 +40,11 @@ def local_folder_docker(docker_cluster_pk_ssh_no_auth):
         "path": "rh-folder",
     }
 
-    local_folder_docker = rh.folder(**args)
+    # Send the docker folder to the cluster (as a module)
+    local_folder_docker = rh.folder(**args).to(docker_cluster_pk_ssh_no_auth)
     init_args[id(local_folder_docker)] = args
     local_folder_docker.put(
-        {f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)}
+        {f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)}, overwrite=True
     )
     return local_folder_docker
 

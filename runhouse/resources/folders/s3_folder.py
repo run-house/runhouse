@@ -124,18 +124,6 @@ class S3Folder(Folder):
         else:
             raise NotImplementedError("Only S3 copying is implemented")
 
-    def _destination_folder(
-        self,
-        dest_path: str,
-        dest_system: Optional[str] = "file",
-        data_config: Optional[dict] = None,
-    ):
-        new_folder = copy.deepcopy(self)
-        new_folder.path = dest_path
-        new_folder.system = dest_system
-        new_folder.data_config = data_config or {}
-        return new_folder
-
     def put(
         self, contents, overwrite=False, mode: str = "wb", write_fn: Callable = None
     ):
@@ -189,9 +177,8 @@ class S3Folder(Folder):
                             ),
                         )
                 else:
-                    self.client.put_object(
-                        Bucket=bucket_name, Key=file_key, Body=file_obj.read()
-                    )
+                    body = self._serialize_file_obj(file_obj)
+                    self.client.put_object(Bucket=bucket_name, Key=file_key, Body=body)
 
             except Exception as e:
                 raise RuntimeError(f"Failed to upload {filename} to S3: {e}")
@@ -251,7 +238,8 @@ class S3Folder(Folder):
                 Bucket=self._bucket_name, Prefix=self._key, MaxKeys=1
             )
             return "Contents" in response
-        except:
+        except Exception as e:
+            logger.error(f"Failed to check if folder exists: {e}")
             return False
 
     def open(self, name, mode="rb", encoding=None):
@@ -367,7 +355,7 @@ class S3Folder(Folder):
     def _upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to an S3 bucket."""
         sync_dir_command = self._upload_command(src=src, dest=self.path)
-        self._run_upload_cli_cmd(sync_dir_command)
+        self._upload_folder_to_bucket(sync_dir_command)
 
     def _upload_command(self, src: str, dest: str):
         # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/storage.py#L922
@@ -426,7 +414,7 @@ class S3Folder(Folder):
             sync_dir_command = self._upload_command(
                 src=self.fsspec_url, dest=data_store_path
             )
-            self._run_upload_cli_cmd(sync_dir_command)
+            self._upload_folder_to_bucket(sync_dir_command)
         elif system == "gs":
             # Note: The sky data transfer API only allows for transfers between buckets, not specific directories.
             logger.warning(

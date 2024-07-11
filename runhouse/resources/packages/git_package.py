@@ -4,8 +4,6 @@ from typing import Union
 
 from runhouse.resources.envs.utils import run_setup_command
 
-from runhouse.resources.folders import Folder, folder
-
 from .package import Package
 
 
@@ -54,6 +52,8 @@ class GitPackage(Package):
 
     # TODO for cluster
     def _install(self, env: Union[str, "Env"] = None, cluster: "Cluster" = None):
+        from runhouse.resources.folders import Folder, folder
+
         if cluster and isinstance(self.install_target, str):
             install_target = folder(path=self.install_target, system=cluster)
         else:

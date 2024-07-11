@@ -107,18 +107,6 @@ class GCSFolder(Folder):
         else:
             raise NotImplementedError("Only GCS copying is implemented")
 
-    def _destination_folder(
-        self,
-        dest_path: str,
-        dest_system: Optional[str] = "file",
-        data_config: Optional[dict] = None,
-    ):
-        new_folder = copy.deepcopy(self)
-        new_folder.path = dest_path
-        new_folder.system = dest_system
-        new_folder.data_config = data_config or {}
-        return new_folder
-
     def put(
         self, contents, overwrite=False, mode: str = "wb", write_fn: Callable = None
     ):
@@ -164,6 +152,7 @@ class GCSFolder(Folder):
                     with open(file_obj, "rb") as f:
                         write_fn(f, blob.upload_from_file(f))
                 else:
+                    file_obj = self._serialize_file_obj(file_obj)
                     blob.upload_from_file(file_obj)
 
             except Exception as e:
@@ -217,7 +206,9 @@ class GCSFolder(Folder):
                 self.client.list_blobs(self.bucket, prefix=self._key, max_results=1)
             )
             return len(blobs) > 0
-        except:
+
+        except Exception as e:
+            logger.error(f"Failed to check if folder exists: {e}")
             return False
 
     def open(self, name, mode="rb", encoding=None):
@@ -332,7 +323,7 @@ class GCSFolder(Folder):
     def _upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to an GCS bucket."""
         sync_dir_command = self._upload_command(src=src, dest=self.path)
-        self._run_upload_cli_cmd(sync_dir_command)
+        self._upload_folder_to_bucket(sync_dir_command)
 
     def _upload_command(self, src: str, dest: str):
         # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/storage.py#L1240
@@ -381,7 +372,7 @@ class GCSFolder(Folder):
             sync_dir_command = self._upload_command(
                 src=self.fsspec_url, dest=data_store_path
             )
-            self._run_upload_cli_cmd(sync_dir_command)
+            self._upload_folder_to_bucket(sync_dir_command)
         elif system == "s3":
             # Note: The sky data transfer API only allows for transfers between buckets, not specific directories.
             logger.warning(
