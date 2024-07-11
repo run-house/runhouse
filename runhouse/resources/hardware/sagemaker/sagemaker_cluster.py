@@ -36,7 +36,11 @@ from runhouse.globals import configs, rns_client
 from runhouse.logger import logger
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import ServerConnectionType
-from runhouse.rns.utils.api import is_jsonable, relative_ssh_path, resolve_absolute_path
+from runhouse.rns.utils.api import (
+    is_jsonable,
+    relative_file_path,
+    resolve_absolute_path,
+)
 from runhouse.rns.utils.names import _generate_default_name
 
 
@@ -249,7 +253,7 @@ class SageMakerCluster(Cluster):
     def ssh_key_path(self):
         """Relative path to the private SSH key used to connect to the cluster."""
         if self._ssh_key_path:
-            return relative_ssh_path(self._ssh_key_path)
+            return relative_file_path(self._ssh_key_path)
 
         # Default relative path
         return f"~/.ssh/{self.SSH_KEY_FILE_NAME}"
@@ -377,7 +381,7 @@ class SageMakerCluster(Cluster):
             )
 
         if self.ssh_key_path:
-            self.ssh_key_path = relative_ssh_path(self.ssh_key_path)
+            self.ssh_key_path = relative_file_path(self.ssh_key_path)
         else:
             self.ssh_key_path = None
 
