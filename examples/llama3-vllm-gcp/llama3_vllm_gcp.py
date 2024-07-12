@@ -106,7 +106,7 @@ async def main():
         # open_ports=[443], # Expose HTTPS port to public
         # server_connection_type="tls", # Specify how runhouse communicates with this cluster
         # den_auth=False, # No authentication required to hit this cluster (NOT recommended)
-    )
+    ).up_if_not()
 
     # We'll set an `autostop_mins` of 30 for this example. If you'd like your cluster to run indefinitely, set `autostop_mins=-1`.
     # You can use SkyPilot in the terminal to manage your active clusters with `sky status` and `sky down <cluster_id>`.
