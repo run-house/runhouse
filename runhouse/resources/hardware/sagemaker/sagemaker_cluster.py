@@ -532,7 +532,7 @@ class SageMakerCluster(Cluster):
         """Delete non-serializable elements (e.g. sagemaker session object) before pickling."""
         state = self.__dict__.copy()
         state["_sagemaker_session"] = None
-        state["client"] = None
+        state["_http_client"] = None
         state["_rpc_tunnel"] = None
         return state
 
