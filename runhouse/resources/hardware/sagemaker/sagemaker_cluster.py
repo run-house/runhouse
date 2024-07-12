@@ -429,7 +429,7 @@ class SageMakerCluster(Cluster):
             logger.info(f"Cluster {self.name} is not up, bringing it up now.")
             self.up_if_not()
 
-        if not self.client:
+        if not self._http_client:
             try:
                 self.connect_server_client()
                 logger.info(
@@ -1300,7 +1300,7 @@ class SageMakerCluster(Cluster):
         if not self.instance_id:
             raise ValueError(f"No instance ID set for cluster {self.name}. Is it up?")
 
-        if not self.client:
+        if not self._http_client:
             self.connect_server_client()
 
         # Sync the local ~/.rh directory to the cluster
@@ -1421,7 +1421,7 @@ class SageMakerCluster(Cluster):
     def _update_autostop(self, autostop_mins: int = None):
         cluster_config = self.config()
         cluster_config["autostop_mins"] = autostop_mins or -1
-        if not self.client:
+        if not self._http_client:
             self.connect_server_client()
         # Update the config on the server with the new autostop time
         self.client.check_server()
