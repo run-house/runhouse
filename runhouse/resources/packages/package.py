@@ -82,6 +82,10 @@ class Package(Resource):
         return f"Package: {self.install_target}"
 
     @staticmethod
+    def is_python_package_string(s: str):
+        return re.match(r"^[a-zA-Z0-9\._-]+$", s) is not None
+
+    @staticmethod
     def _find_locally_installed_version(package_name: str):
         try:
             return metadata.version(package_name)
@@ -488,7 +492,7 @@ class Package(Resource):
         # If we are just defaulting to pip, attempt to install the same version of the package
         # that is already installed locally
         # Check if the target is only letters, nothing else. This means its a string like 'numpy'.
-        if install_method == "pip" and target.isalpha():
+        if install_method == "pip" and Package.is_python_package_string(target):
             locally_installed_version = Package._find_locally_installed_version(target)
             if locally_installed_version:
                 target = f"{target}=={locally_installed_version}"
