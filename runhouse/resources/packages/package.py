@@ -117,7 +117,9 @@ class Package(Resource):
     ):
         install_args = f" {self.install_args}" if self.install_args else ""
         if isinstance(self.install_target, Folder):
-            install_cmd = f"{self.install_target.local_path}" + install_args
+            install_cmd = (
+                f"{str(Path(self.install_target.local_path).absolute())}" + install_args
+            )
         else:
             install_cmd = self.install_target + install_args
 
@@ -202,6 +204,17 @@ class Package(Resource):
 
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
 
+        if isinstance(self.install_target, Folder):
+            if not cluster:
+                path = self.install_target.local_path
+            elif self.install_target.exists_in_system():
+                path = self.install_target.path
+            else:
+                path = self.to(cluster).install_target.path
+
+            if not path:
+                return
+
         if self.install_method == "pip":
             install_cmd = self._pip_install_cmd(env=env, cluster=cluster)
             logger.info(f"Running via install_method pip: {install_cmd}")
@@ -210,6 +223,7 @@ class Package(Resource):
                 raise RuntimeError(
                     f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
                 )
+
         elif self.install_method == "conda":
             install_cmd = self._conda_install_cmd(env=env, cluster=cluster)
             logger.info(f"Running via install_method conda: {install_cmd}")
@@ -219,32 +233,28 @@ class Package(Resource):
                     f"Conda install {install_cmd} failed, check that the package exists and is "
                     "available for your platform."
                 )
-        elif self.install_method in ["reqs", "local"]:
+
+        elif self.install_method == "reqs":
+            install_cmd = self._reqs_install_cmd(env=env, cluster=cluster)
+            if install_cmd:
+                logger.info(f"Running via install_method reqs: {install_cmd}")
+                retcode = run_setup_command(install_cmd, cluster=cluster)[0]
+                if retcode != 0:
+                    raise RuntimeError(
+                        f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
+                    )
+            else:
+                logger.info(f"{path}/requirements.txt not found, skipping reqs install")
+
+        else:
+            if self.install_method != "local":
+                raise ValueError(
+                    f"Unknown install method {self.install_method}. Must be one of {INSTALL_METHODS}"
+                )
+
+        # Need to append to path
+        if self.install_method in ["local", "reqs"]:
             if isinstance(self.install_target, Folder):
-                if not cluster:
-                    path = self.install_target.local_path
-                elif self.install_target.exists_in_system():
-                    path = self.install_target.path
-                else:
-                    path = self.to(cluster).install_target.path
-
-                if not path:
-                    return
-
-                if self.install_method == "reqs":
-                    install_cmd = self._reqs_install_cmd(env=env, cluster=cluster)
-                    if install_cmd:
-                        logger.info(f"Running via install_method reqs: {install_cmd}")
-                        retcode = run_setup_command(install_cmd, cluster=cluster)[0]
-                        if retcode != 0:
-                            raise RuntimeError(
-                                f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
-                            )
-                    else:
-                        logger.info(
-                            f"{path}/requirements.txt not found, skipping reqs install"
-                        )
-
                 sys.path.insert(0, path) if not cluster else run_setup_command(
                     f"export PATH=$PATH;{path}", cluster=cluster
                 )
@@ -261,10 +271,6 @@ class Package(Resource):
                 raise ValueError(
                     f"If cluster is provided, install_target must be a Folder for install_method {self.install_method}"
                 )
-        else:
-            raise ValueError(
-                f"Unknown install_method {self.install_method}. Try using cluster.run() or to install instead."
-            )
 
     # ----------------------------------
     # Torch Install Helpers
