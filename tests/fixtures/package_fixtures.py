@@ -103,3 +103,28 @@ def installed_editable_package(tmp_path_factory):
 
     # Delete everything in tmp_package_dir recursively
     shutil.rmtree(tmp_package_dir)
+
+
+@pytest.fixture(scope="session")
+def installed_editable_package_copy(tmp_path_factory):
+    tmp_package_dir = (
+        tmp_path_factory.mktemp("fake_package_copy") / "test_fake_package_copy"
+    )
+
+    # Copy the test_fake_package directory that's in the same directory as this file, to the tmp_package_dir established
+    # above.
+    shutil.copytree(
+        os.path.join(os.path.dirname(__file__), "test_fake_package_copy"),
+        tmp_package_dir,
+    )
+
+    # Run a pip install -e on the tmp_package_dir via subprocess.run, locally, not on the cluster
+    subprocess.run(["pip", "install", "-e", str(tmp_package_dir)], check=True)
+
+    yield
+
+    # Uninstall the package after the test is done
+    subprocess.run(["pip", "uninstall", "-y", "test_fake_package_copy"], check=True)
+
+    # Delete everything in tmp_package_dir recursively
+    shutil.rmtree(tmp_package_dir)
