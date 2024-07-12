@@ -245,7 +245,7 @@ if __name__ == "__main__":
         instance_type="A10G:1",
         memory="32+",
         provider="aws",
-    )
+    ).up_if_not()
 
     # Next, we define the environment for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
