@@ -32,7 +32,7 @@ class S3Folder(Folder):
         """Load config values into the object."""
         return S3Folder(**config, dryrun=dryrun)
 
-    def _to_local(self, dest_path: str, data_config: dict):
+    def _to_local(self, dest_path: str):
         """Copies folder to local."""
         from runhouse import Cluster
 
@@ -41,11 +41,9 @@ class S3Folder(Folder):
         elif isinstance(self.system, Cluster):
             return self._cluster_to_local(cluster=self.system, dest_path=dest_path)
         else:
-            self._s3_copy_to_local(dest_path, data_config)
+            self._s3_copy_to_local(dest_path)
 
-        return self._destination_folder(
-            dest_path=dest_path, dest_system="file", data_config=data_config
-        )
+        return self._destination_folder(dest_path=dest_path, dest_system="file")
 
     def _s3_copy_to_local(self, dest_path: str):
         """Copy S3 folder to local."""
@@ -176,14 +174,10 @@ class S3Folder(Folder):
             except Exception as e:
                 raise RuntimeError(f"Failed to upload {filename} to S3: {e}")
 
-    def mv(
-        self, system, path: Optional[str] = None, data_config: Optional[dict] = None
-    ):
+    def mv(self, system, path: Optional[str] = None):
         """Move the folder to a new filesystem or cluster."""
         if path is None:
             path = "rh/" + self.rns_address
-
-        data_config = data_config or {}
 
         if system == "s3":
             self._move_within_s3(path)
@@ -194,7 +188,6 @@ class S3Folder(Folder):
 
         self.path = path
         self.system = system
-        self.data_config = data_config or {}
 
     def ls(self, full_paths: bool = True, sort: bool = False) -> List:
         """List the contents of the folder.
@@ -388,18 +381,15 @@ class S3Folder(Folder):
         dest_cluster.run([download_command])
         return S3Folder(path=path, system=dest_cluster, dryrun=True)
 
-    def _to_local(self, dest_path: str, data_config: dict):
+    def _to_local(self, dest_path: str):
         """Copy a folder from an S3 bucket to local dir."""
         self._download(dest=dest_path)
-        return self._destination_folder(
-            dest_path=dest_path, dest_system="file", data_config=data_config
-        )
+        return self._destination_folder(dest_path=dest_path, dest_system="file")
 
     def _to_data_store(
         self,
         system: str,
         data_store_path: Optional[str] = None,
-        data_config: Optional[dict] = None,
     ):
         """Copy folder from S3 to another remote data store (ex: S3, GCP, Azure)"""
         if system == "s3":
@@ -424,9 +414,7 @@ class S3Folder(Folder):
         else:
             raise ValueError(f"Invalid system: {system}")
 
-        return self._destination_folder(
-            dest_path=data_store_path, dest_system=system, data_config=data_config
-        )
+        return self._destination_folder(dest_path=data_store_path, dest_system=system)
 
     def s3_to_gcs(self, s3_bucket_name: str, gs_bucket_name: str):
         import boto3

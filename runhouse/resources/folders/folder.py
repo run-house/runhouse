@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 from runhouse.globals import rns_client
 
@@ -31,7 +31,6 @@ class Folder(Module):
         system: Union[str, Cluster] = None,
         dryrun: bool = False,
         local_mount: bool = False,
-        data_config: Optional[Dict] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -54,7 +53,6 @@ class Folder(Module):
                 self._path = path
             else:
                 self._path = self._path_absolute_to_rh_workdir(path)
-        self.data_config = data_config or {}
 
         self.local_mount = local_mount
         self._local_mount_path = None
@@ -129,49 +127,6 @@ class Folder(Module):
         self._path = path
         self._local_mount_path = None
 
-    # TODO [JL] we can probably kill this entirely
-    @property
-    def data_config(self):
-        if isinstance(self.system, Resource):  # if system is a cluster
-            # handle case cluster is itself
-            if self.system.on_this_cluster():
-                return self._data_config
-
-            if not self.system.address:
-                self.system._update_from_sky_status(dryrun=False)
-                if not self.system.address:
-                    raise ValueError(
-                        "Cluster must be started before copying data from it."
-                    )
-            creds = self.system.creds_values
-
-            client_keys = (
-                [str(Path(creds["ssh_private_key"]).expanduser())]
-                if creds.get("ssh_private_key")
-                else []
-            )
-            password = creds.get("password", None)
-            config_creds = {
-                "host": creds.get("ssh_host") or self.system.address,
-                "username": creds.get("ssh_user"),
-                # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
-                "client_keys": client_keys,  # For SSHFS
-                "password": password,
-                "connect_timeout": "3s",
-                "proxy_command": creds.get("ssh_proxy_command"),
-            }
-            ret_config = self._data_config.copy()
-            ret_config.update(config_creds)
-            if creds and self.system.ssh_port:
-                ret_config["port"] = self.system.ssh_port
-            return ret_config
-        return self._data_config
-
-    @data_config.setter
-    def data_config(self, data_config):
-        self._data_config = data_config
-        self._urlpath = None
-
     @property
     def _fs_str(self):
         if isinstance(self.system, Resource):  # if system is a cluster
@@ -205,9 +160,7 @@ class Folder(Module):
         except IOError:
             return False
 
-    def mv(
-        self, system, path: Optional[str] = None, data_config: Optional[dict] = None
-    ) -> None:
+    def mv(self, system, path: Optional[str] = None) -> None:
         """Move the folder to a new filesystem or cluster.
 
         Example:
@@ -239,7 +192,6 @@ class Folder(Module):
             # Update the path attribute
             self.path = str(dest_path)
             self.system = self.DEFAULT_FS
-            self.data_config = data_config or {}
 
         else:
             # TODO [JL] support moving to other systems
@@ -249,7 +201,6 @@ class Folder(Module):
         self,
         system: Union[str, "Cluster"],
         path: Optional[Union[str, Path]] = None,
-        data_config: Optional[dict] = None,
     ):
         """Copy the folder to a new filesystem.
         Currently supported: ``here``, ``file``, ``gs``, ``s3``, or a cluster.
@@ -309,11 +260,9 @@ class Folder(Module):
         # to more performant cloud-specific APIs
         system = _get_cluster_from(system)
         if system == self.DEFAULT_FS:
-            return self._to_local(dest_path=path, data_config=data_config)
+            return self._to_local(dest_path=path)
         elif system in ["s3", "gs"]:
-            return self._to_data_store(
-                system=system, data_store_path=path, data_config=data_config
-            )
+            return self._to_data_store(system=system, data_store_path=path)
         else:
             raise ValueError(
                 f"System '{system}' not currently supported as a destination system."
@@ -323,18 +272,16 @@ class Folder(Module):
         self,
         dest_path: str,
         dest_system: Optional[str] = "file",
-        data_config: Optional[dict] = None,
     ):
         """Returns a new Folder object pointing to the destination folder."""
         folder_config = self.config()
         folder_config["system"] = dest_system
         folder_config["path"] = dest_path
-        folder_config["data_config"] = data_config
         new_folder = Folder.from_config(folder_config)
 
         return new_folder
 
-    def _to_local(self, dest_path: str, data_config: dict):
+    def _to_local(self, dest_path: str):
         """Copies folder to local. Only relevant for the base Folder if its system is a cluster."""
         if isinstance(self.system, Cluster):
             # Cluster --> local copying
@@ -347,7 +294,7 @@ class Folder(Module):
         if self.system == self.DEFAULT_FS:
             # Local --> local copying
             logger.debug(f"Copying folder to local path: {dest_path}")
-            self.mv(system=self.system, path=dest_path, data_config=data_config)
+            self.mv(system=self.system, path=dest_path)
             return self
 
         raise TypeError(f"Cannot copy from {self.system} to local.")
@@ -356,14 +303,13 @@ class Folder(Module):
         self,
         system: str,
         data_store_path: Optional[str] = None,
-        data_config: Optional[dict] = None,
     ):
         """Local or cluster to blob storage."""
         local_folder_path = self.path
 
         # The new folder should be a sub-folder for the relevant data store (e.g. `S3Folder`)
         new_folder = self._destination_folder(
-            dest_path=data_store_path, dest_system=system, data_config=data_config
+            dest_path=data_store_path, dest_system=system
         )
         new_folder._upload(src=local_folder_path)
         return new_folder
@@ -495,8 +441,6 @@ class Folder(Module):
         new_folder = copy.deepcopy(self)
         new_folder.path = dest_path
         new_folder.system = self.DEFAULT_FS
-        # Don't need to do anything with _data_config because cluster creds are injected virtually through the
-        # data_config property
         return new_folder
 
     def is_local(self):
@@ -546,7 +490,7 @@ class Folder(Module):
 
     def config(self, condensed=True):
         config = super().config(condensed)
-        config_attrs = ["local_mount", "data_config"]
+        config_attrs = ["local_mount"]
         self.save_attrs_to_config(config, config_attrs)
 
         if self.system == Folder.DEFAULT_FS:
