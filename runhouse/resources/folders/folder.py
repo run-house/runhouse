@@ -96,10 +96,6 @@ class Folder(Module):
             from .gcs_folder import GCSFolder
 
             return GCSFolder.from_config(config, dryrun=dryrun)
-        elif config["system"] == "azure":
-            from .azure_folder import AzureFolder
-
-            return AzureFolder.from_config(config, dryrun=dryrun)
         elif isinstance(config["system"], dict):
             config["system"] = Cluster.from_config(
                 config["system"], dryrun=dryrun, _resolve_children=_resolve_children
