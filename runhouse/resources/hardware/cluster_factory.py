@@ -444,6 +444,9 @@ def ondemand_cluster(
                 c.set_connection_defaults()
                 if den_auth:
                     c.save()
+                if autostop_mins and autostop_mins != c.autostop_mins:
+                    c.keep_warm(mins=autostop_mins)
+                    logger.info(f"Updating {c.name} autostop to {autostop_mins}.")
                 return c
         except ValueError as e:
             if not alt_options:
