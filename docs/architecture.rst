@@ -8,7 +8,7 @@ Runhouse Resources
 
 Resources are the Runhouse primitive for objects that can be saved, shared, and reused. This can be split
 into compute resources (clusters, functions, modules, environments, and runs) and data resources
-(folder, table, blob, etc).
+(folder, blob, etc).
 
 Compute
 -------
@@ -40,8 +40,6 @@ dig into provider-specific APIs.
 
 * **Folder**: Represents a specified location (could be local, remote, or file storage), for managing where various
   Runhouse resources live.
-
-* **Table**: Provides convenient APIs for writing, partitioning, fetch, and stream various data types.
 
 * **Blob**: Represents a data object stored in a particular system.
 
