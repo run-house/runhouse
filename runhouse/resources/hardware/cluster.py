@@ -151,7 +151,6 @@ class Cluster(Resource):
             self._default_env.name = _unnamed_default_env_name(self.name)
 
         if self.is_up():
-            self.check_server()
             self._default_env.to(self)
             self.save_config_to_cluster()
 
@@ -319,7 +318,7 @@ class Cluster(Resource):
             ServerConnectionType.SSH,
             ServerConnectionType.AWS_SSM,
         ]:
-            self.check_server()
+            self.client.check_server()
             return f"http://{LOCALHOST}:{client_port}"
 
     def _client(self, restart_server=True):
@@ -471,7 +470,6 @@ class Cluster(Resource):
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"])
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"], env="my_conda_env")
         """
-        self.check_server()
         env = _get_env_from(env) if env else self.default_env
         env.reqs = env._reqs + reqs
         env.to(self)
@@ -479,7 +477,6 @@ class Cluster(Resource):
     def get(self, key: str, default: Any = None, remote=False):
         """Get the result for a given key from the cluster's object store. To raise an error if the key is not found,
         use `cluster.get(key, default=KeyError)`."""
-        self.check_server()
         if self.on_this_cluster():
             return obj_store.get(key, default=default, remote=remote)
         try:
@@ -498,7 +495,6 @@ class Cluster(Resource):
 
     # TODO deprecate
     def get_run(self, run_name: str, folder_path: str = None):
-        self.check_server()
         return self.get(run_name, remote=True).provenance
 
     # TODO This should accept an env (for env var secrets and docker envs).
@@ -506,12 +502,10 @@ class Cluster(Resource):
         self, provider_secrets: List[str or "Secret"], env: Union[str, "Env"] = None
     ):
         """Copy secrets from current environment onto the cluster"""
-        self.check_server()
         self.sync_secrets(provider_secrets, env=env or self.default_env)
 
     def put(self, key: str, obj: Any, env=None):
         """Put the given object on the cluster's object store at the given key."""
-        self.check_server()
         if self.on_this_cluster():
             return obj_store.put(key, obj, env=env)
         return self.call_client_method(
@@ -522,8 +516,6 @@ class Cluster(Resource):
         self, resource: Resource, state: Dict = None, dryrun: bool = False, env=None
     ):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
-        self.check_server()
-
         if resource.RESOURCE_TYPE == "env" and not resource.name:
             resource.name = self.default_env.name
 
@@ -562,14 +554,12 @@ class Cluster(Resource):
 
     def rename(self, old_key: str, new_key: str):
         """Rename a key in the cluster's object store."""
-        self.check_server()
         if self.on_this_cluster():
             return obj_store.rename(old_key, new_key)
         return self.call_client_method("rename_object", old_key, new_key)
 
     def keys(self, env=None):
         """List all keys in the cluster's object store."""
-        self.check_server()
         if self.on_this_cluster():
             return obj_store.keys()
         res = self.call_client_method("keys", env=env)
@@ -577,7 +567,6 @@ class Cluster(Resource):
 
     def delete(self, keys: Union[None, str, List[str]]):
         """Delete the given items from the cluster's object store. To delete all items, use `cluster.clear()`"""
-        self.check_server()
         if isinstance(keys, str):
             keys = [keys]
         if self.on_this_cluster():
@@ -586,7 +575,6 @@ class Cluster(Resource):
 
     def clear(self):
         """Clear the cluster's object store."""
-        self.check_server()
         if self.on_this_cluster():
             return obj_store.clear()
         return self.call_client_method("delete")
@@ -601,6 +589,7 @@ class Cluster(Resource):
     # ----------------- RPC Methods ----------------- #
 
     def call_client_method(self, method_name, *args, **kwargs):
+        self.check_server()
         method = getattr(self.client, method_name)
         return method(*args, **kwargs)
 
@@ -673,9 +662,6 @@ class Cluster(Resource):
             )
 
     def check_server(self, restart_server=True):
-        if self.on_this_cluster():
-            return
-
         try:
             logger.debug(f"Checking server {self.name}")
             self.client.check_server()
@@ -712,7 +698,6 @@ class Cluster(Resource):
         """Loads the status of the Runhouse daemon running on the cluster."""
         # Note: If running outside a local cluster need to include a resource address to construct the cluster subtoken
         # Allow for specifying a resource address explicitly in case the resource has no rns address yet
-        self.check_server()
         if self.on_this_cluster():
             status = obj_store.status()
         else:
@@ -984,7 +969,6 @@ class Cluster(Resource):
         Example:
             >>> cluster.call("my_module", "my_method", arg1, arg2, kwarg1=kwarg1)
         """
-        self.check_server()
         # Note: might be single value, might be a generator!
         if self.on_this_cluster():
             method_to_call = obj_store.acall if run_async else obj_store.call
@@ -997,12 +981,9 @@ class Cluster(Resource):
                 # remote=remote,
                 serialization=None,
             )
-        method_to_call = (
-            self.client.acall_module_method
-            if run_async
-            else self.client.call_module_method
-        )
-        return method_to_call(
+        method_to_call = "acall_module_method" if run_async else "call_module_method"
+        return self.call_client_method(
+            method_to_call,
             module_name,
             method_name,
             resource_address=self.rns_address,
@@ -1453,7 +1434,6 @@ class Cluster(Resource):
         Example:
             >>> cpu.sync_secrets(secrets=["aws", "lambda"])
         """
-        self.check_server()
         from runhouse.resources.secrets import Secret
 
         env = env or self._default_env
@@ -1535,7 +1515,6 @@ class Cluster(Resource):
 
     def download_cert(self):
         """Download certificate from the cluster (Note: user must have access to the cluster)"""
-        self.check_server()
         self.call_client_method("get_certificate")
         logger.info(
             f"Latest TLS certificate for {self.name} saved to local path: {self.cert_config.cert_path}"
@@ -1543,7 +1522,6 @@ class Cluster(Resource):
 
     def enable_den_auth(self, flush=True):
         """Enable Den auth on the cluster."""
-        self.check_server()
         if self.on_this_cluster():
             raise ValueError("Cannot toggle Den Auth live on the cluster.")
         else:
@@ -1554,7 +1532,6 @@ class Cluster(Resource):
         return self
 
     def disable_den_auth(self):
-        self.check_server()
         if self.on_this_cluster():
             raise ValueError("Cannot toggle Den Auth live on the cluster.")
         else:
@@ -1680,8 +1657,10 @@ class Cluster(Resource):
                 "Make sure you have a Den account, and you've created your cluster with den_auth = True."
             )
             return
-        self.check_server()
-        self.call_client_method("set_settings", {"status_check_interval": -1})
+        if self.on_this_cluster():
+            obj_store.set_cluster_config_value("status_check_interval", -1)
+        else:
+            self.call_client_method("set_settings", {"status_check_interval": -1})
 
     def _enable_or_update_status_check(
         self, new_interval: int = DEFAULT_STATUS_CHECK_INTERVAL
@@ -1696,5 +1675,9 @@ class Cluster(Resource):
                 "Make sure you have a Den account, and you've created your cluster with den_auth = True."
             )
             return
-        self.check_server()
-        self.call_client_method("set_settings", {"status_check_interval": new_interval})
+        if self.on_this_cluster():
+            obj_store.set_cluster_config_value("status_check_interval", new_interval)
+        else:
+            self.call_client_method(
+                "set_settings", {"status_check_interval": new_interval}
+            )

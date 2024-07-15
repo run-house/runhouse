@@ -470,7 +470,6 @@ class Module(Resource):
             )
 
         if system:
-            system.check_server()
             if isinstance(env, Env):
                 env = env.to(system, force_install=force_install)
 
