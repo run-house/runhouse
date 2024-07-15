@@ -11,7 +11,7 @@ An overview of common installation and setup steps when working with Runhouse.
 Install the Runhouse library
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Optionally, begin by setting up a virtual env with `Conda <https://conda.io/projects/conda/en/latest/user-guide/install/index.html>`
+Optionally, begin by setting up a virtual env with `Conda <https://conda.io/projects/conda/en/latest/user-guide/install/index.html>`_
 or your package and environment management tool of choice. This allows you to maintain an environment with a
 specific version of Python and installed packages.
 
@@ -44,7 +44,7 @@ that provider's CLI included - or choose multiple providers. SkyPilot will also 
 Configure Cloud Credentials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Runhouse uses `SkyPilot <https://github.com/skypilot-org/skypilot>` to launch and manage virtual machine instances on your cloud providers.
+Runhouse uses `SkyPilot <https://github.com/skypilot-org/skypilot>`_ to launch and manage virtual machine instances on your cloud providers.
 
 For each provider, we recommend you begin by checking your configuration with SkyPilot.
 
@@ -58,7 +58,7 @@ AWS
 ---
 
 Start by installing the AWS CLI. Follow this
-`Getting Started <https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html>` guide
+`Getting Started <https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html>`_ guide
 or use ``pip install "runhouse[aws]"`` to include it with the Runhouse library.
 
 Next, configure AWS with the following command:
@@ -67,7 +67,7 @@ Next, configure AWS with the following command:
     $ aws configure
 
 You'll be prompted to enter your AWS Access ID. This can be found by logging into
-the `AWS Console <https://console.aws.amazon.com/console/home>`. Click on the name
+the `AWS Console <https://console.aws.amazon.com/console/home>`_. Click on the name
 of your account in the top-left corner of the screen and then select
 "Securtiy credentials" from the dropdown.
 
@@ -77,7 +77,7 @@ To verify that credentials are properly set up, run the SkyPilot command again:
 
     $ sky check
 
-For more info: `SkyPilot | AWS <https://skypilot.readthedocs.io/en/latest/cloud-setup/cloud-permissions/aws.html>`
+For more info: `SkyPilot AWS <https://skypilot.readthedocs.io/en/latest/cloud-setup/cloud-permissions/aws.html>`_
 
 GCP
 ---
@@ -110,7 +110,7 @@ If you don't have one ready yet, you can connect one later by listing your proje
 with ``gcloud projects list`` and setting one
 with ``gcloud config set project <PROJECT_ID>``.
 
-For more info: `SkyPilot | GCP <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#google-cloud-platform-gcp>`
+For more info: `SkyPilot GCP <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#google-cloud-platform-gcp>`_
 
 Azure
 -----
@@ -127,7 +127,7 @@ credentials to launch instances on their cloud.
     $ az account set -s <subscription_id>
     $ sky check
 
-For more info: `SkyPilot | Azure <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#azure>`
+For more info: `SkyPilot Azure <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#azure>`_
 
 
 Other Providers
@@ -144,7 +144,7 @@ Cluster Lifecycle Management
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To ensure that you have full control over the availability of your clusters, and the cost associated with maintaining them,
-you may find the following `SkyPilot commands <https://skypilot.readthedocs.io/en/latest/reference/cli.html#cluster-cli>` helpful:
+you may find the following `SkyPilot commands <https://skypilot.readthedocs.io/en/latest/reference/cli.html#cluster-cli>`_ helpful:
 
 - ``sky status`` - Displays a list of all your clusters by name.
 - ``sky stop <NAME>`` - Stops an instance. This will not fully tear down the cluster in case you need to restart it.
@@ -172,10 +172,10 @@ Authenticate with Runhouse Den
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To enable sharing features through Runhouse Den, you can log in to your
-Runhouse Den account. Start by creating one via our `signup page </signup>`.
+Runhouse Den account. Start by creating one via our `signup page <https://www.run.house/signup>`_.
 You'll have the option to authenticate with your Google or Github account.
 
-Once you've created an account, you'll be able to access your Runhouse token on your `account page <https://www.run.house/account>`.
+Once you've created an account, you'll be able to access your Runhouse token on your `account page <https://www.run.house//account>`_.
 
 Login to Runhouse in your terminal with the following command:
 
@@ -187,9 +187,9 @@ You'll be prompted to enter your token and, after your initial login, you will s
 - ``Download your Runhouse config to your local .rh folder? [Y/n]:`` - Updates your local config file from your settings on the cloud
 - ``Upload your local .rh config to Runhouse? [y/N]:`` - Use updates to your local config to modify your saved account settings
 
-If you are running Runhouse strictly in code (like in a notebook), you can also login to your account
-with the Python API:
+If you are running Runhouse strictly in code (like in a notebook), you can also login to your account with the Python API:
 
 .. code-block:: python
+
     import runhouse as rh
     rh.login()
