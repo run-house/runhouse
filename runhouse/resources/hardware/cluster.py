@@ -122,7 +122,13 @@ class Cluster(Resource):
         if not self._http_client:
             if not self.address:
                 raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
-            self.connect_server_client()
+            connect_call = threading.Thread(target=self.connect_server_client)
+            connect_call.start()
+            connect_call.join(timeout=5)
+            if connect_call.is_alive():
+                raise ConnectionError(
+                    f"Could not connect to client. Please check that the cluster {self.name} is up."
+                )
         return self._http_client
 
     @property
@@ -321,12 +327,12 @@ class Cluster(Resource):
             self.client.check_server()
             return f"http://{LOCALHOST}:{client_port}"
 
-    def _client(self, restart_server=True):
+    def _client(self):
         if self.on_this_cluster():
             # Previously (before calling within the same cluster worked) returned None
             return obj_store
         if not self._http_client:
-            self.check_server(restart_server=restart_server)
+            self.client.check_server()
         return self.client
 
     @property
@@ -588,10 +594,56 @@ class Cluster(Resource):
 
     # ----------------- RPC Methods ----------------- #
 
-    def call_client_method(self, method_name, *args, **kwargs):
-        self.check_server()
-        method = getattr(self.client, method_name)
-        return method(*args, **kwargs)
+    def call_client_method(self, method_name, *args, restart_server=True, **kwargs):
+        def check_and_call():
+            try:
+                # setup the client connection, and check server in background call
+                client = self.client
+                check_call = threading.Thread(target=client.check_server)
+                check_call.start()
+                check_call.join()
+
+                method = getattr(client, method_name)
+                return method(*args, **kwargs)
+            except (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.ReadTimeout,
+                requests.exceptions.ChunkedEncodingError,
+                ValueError,
+            ) as e:
+                if isinstance(e, ValueError) and "Error checking server:" not in str(e):
+                    raise e
+                raise ConnectionError(f"Check server failed: {e}.")
+
+        try:
+            return check_and_call()
+        except ConnectionError as e:
+            if not restart_server:
+                raise ConnectionError(f"Could not connect to server {self.name}: {e}")
+            elif "Check server failed: " not in str(e):
+                raise e
+
+            if not self._ping(retry=True):
+                raise Exception(f"Could not reach cluster {self.name}. Is it up?")
+
+            logger.info(
+                f"Cluster {self.name} is up, but the Runhouse API server may not be up."
+            )
+
+            self._http_client = None
+            self.restart_server()
+            for i in range(3):
+                logger.info(f"Checking server {self.name} again [{i + 1}/3]")
+
+                try:
+                    self.call_client_method(
+                        method_name, *args, restart_server=False, **kwargs
+                    )
+                except ConnectionError as e:
+                    if i == 2:
+                        raise e
+                    time.sleep(5)
+        return
 
     def connect_tunnel(self, force_reconnect=False):
         if self._rpc_tunnel and force_reconnect:
@@ -661,39 +713,6 @@ class Cluster(Resource):
                 system=self,
             )
 
-    def check_server(self, restart_server=True):
-        try:
-            logger.debug(f"Checking server {self.name}")
-            self.client.check_server()
-            logger.info(f"Server {self.name} is up.")
-        except (
-            requests.exceptions.ConnectionError,
-            requests.exceptions.ReadTimeout,
-            requests.exceptions.ChunkedEncodingError,
-        ):
-            if restart_server:
-                logger.info(
-                    f"Server {self.name} is up, but the Runhouse API server may not be up."
-                )
-                self._http_client = None
-                self.restart_server()
-                for i in range(5):
-                    logger.info(f"Checking server {self.name} again [{i + 1}/5].")
-                    try:
-                        self.client.check_server()
-                        logger.info(f"Server {self.name} is up.")
-                        return
-                    except (
-                        requests.exceptions.ConnectionError,
-                        requests.exceptions.ReadTimeout,
-                    ) as error:
-                        if i == 5:
-                            logger.error(error)
-                        time.sleep(5)
-            raise ValueError(f"Could not connect to server {self.name}")
-
-        return
-
     def status(self, resource_address: str = None):
         """Loads the status of the Runhouse daemon running on the cluster."""
         # Note: If running outside a local cluster need to include a resource address to construct the cluster subtoken
@@ -702,7 +721,9 @@ class Cluster(Resource):
             status = obj_store.status()
         else:
             status = self.call_client_method(
-                "status", resource_address=resource_address or self.rns_address
+                "status",
+                restart_server=False,
+                resource_address=resource_address or self.rns_address,
             )
         return status
 
@@ -1167,12 +1188,18 @@ class Cluster(Resource):
             runner._ssh_base_command(ssh_mode=SshMode.INTERACTIVE, port_forward=None)
         )
 
-    def _ping(self, timeout=5):
-        ssh_call = threading.Thread(target=lambda: self.run(['echo "hello"']))
+    def _ping(self, timeout=5, retry=False):
+        ssh_call = threading.Thread(
+            target=lambda: self._run_commands_with_ssh(
+                ['echo "hello"'], stream_logs=False
+            )
+        )
         ssh_call.start()
         ssh_call.join(timeout=timeout)
         if ssh_call.is_alive():
-            raise TimeoutError("SSH call timed out")
+            if retry:
+                return self._ping(retry=False)
+            return False
         return True
 
     def _copy_certs_to_cluster(self):

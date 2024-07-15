@@ -1,6 +1,7 @@
 import contextlib
 import json
 import subprocess
+import threading
 import time
 import warnings
 from pathlib import Path
@@ -112,7 +113,9 @@ class OnDemandCluster(Cluster):
 
     @property
     def client(self):
-        if not self._http_client:
+        try:
+            return super().client
+        except ValueError as e:
             if not self.address:
                 # Try loading in from local Sky DB
                 self._update_from_sky_status(dryrun=True)
@@ -121,8 +124,8 @@ class OnDemandCluster(Cluster):
                         f"Could not determine address for ondemand cluster <{self.name}>. "
                         "Up the cluster with `cluster.up_if_not`."
                     )
-            self.connect_server_client()
-        return self._http_client
+                return super().client
+            raise e
 
     @property
     def autostop_mins(self):
@@ -644,3 +647,18 @@ class OnDemandCluster(Cluster):
                 return_cmd=True,
             )
             subprocess.run(cmd, shell=True)
+
+    def _ping(self, timeout=5, retry=False):
+        ssh_call = threading.Thread(
+            target=lambda: self._run_commands_with_ssh(
+                ['echo "hello"'], stream_logs=False
+            )
+        )
+        ssh_call.start()
+        ssh_call.join(timeout=timeout)
+        if ssh_call.is_alive():
+            if retry:
+                if self.is_up():  # refreshes ips
+                    return self._ping(retry=False)
+            return False
+        return True
