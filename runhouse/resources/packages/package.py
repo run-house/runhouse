@@ -84,7 +84,7 @@ class Package(Resource):
 
     @staticmethod
     def is_python_package_string(s: str):
-        return re.match(r"^[a-zA-Z0-9\._-]+$", s) is not None
+        return isinstance(s, str) and re.match(r"^[a-zA-Z0-9\._-]+$", s) is not None
 
     @staticmethod
     def _find_locally_installed_version(package_name: str):
