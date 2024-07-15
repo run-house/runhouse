@@ -7,6 +7,8 @@ from runhouse.constants import DEFAULT_SERVER_PORT, EMPTY_DEFAULT_ENV_NAME
 
 from runhouse.globals import rns_client
 
+from runhouse.rns.utils.names import _generate_default_name
+
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import (
     DeleteObjectParams,
@@ -136,6 +138,7 @@ class TestHTTPClient:
 
     @pytest.mark.level("unit")
     def test_call_module_method(self, mocker):
+
         response_sequence = [
             json.dumps({"output_type": "stdout", "data": "Log message"}),
             json.dumps(
@@ -156,8 +159,20 @@ class TestHTTPClient:
         # Call the method under test
         method_name = "install"
         module_name = EMPTY_DEFAULT_ENV_NAME
+
+        # mock run name as it generated on the http client
+        run_name = _generate_default_name(
+            prefix=module_name
+            if method_name == "__call__"
+            else f"{module_name}_{method_name}",
+            precision="ms",  # Higher precision because we see collisions within the same second
+            sep="@",
+        )
         result = self.client.call(
-            module_name, method_name, resource_address=self.local_cluster.rns_address
+            module_name,
+            method_name,
+            resource_address=self.local_cluster.rns_address,
+            run_name=run_name,
         )
 
         assert result == "final_result"
@@ -167,7 +182,7 @@ class TestHTTPClient:
         expected_json_data = {
             "data": None,
             "serialization": "pickle",
-            "run_name": None,
+            "run_name": run_name,
             "stream_logs": True,
             "save": False,
             "remote": False,
@@ -202,18 +217,28 @@ class TestHTTPClient:
         module_name = "module"
         method_name = "install"
 
+        # mock run name as it generated on the http client
+        run_name = _generate_default_name(
+            prefix=module_name
+            if method_name == "__call__"
+            else f"{module_name}_{method_name}",
+            precision="ms",  # Higher precision because we see collisions within the same second
+            sep="@",
+        )
+
         self.client.call(
             module_name,
             method_name,
             data=data,
             resource_address=self.local_cluster.rns_address,
+            run_name=run_name,
         )
 
         # Assert that the post request was called with the correct data
         expected_json_data = {
             "data": serialize_data(data, "pickle"),
             "serialization": "pickle",
-            "run_name": None,
+            "run_name": run_name,
             "stream_logs": True,
             "save": False,
             "remote": False,
