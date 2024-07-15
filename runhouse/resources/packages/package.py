@@ -1,5 +1,6 @@
 import copy
 import importlib.metadata as metadata
+import json
 import re
 import sys
 from pathlib import Path
@@ -91,6 +92,20 @@ class Package(Resource):
             return metadata.version(package_name)
         except metadata.PackageNotFoundError:
             return None
+
+    @staticmethod
+    def _get_local_install_path(package_name: str):
+        distribution = metadata.distribution(package_name)
+        direct_url_json = distribution.read_text("direct_url.json")
+        if direct_url_json:
+            # File URL starts with file://
+            try:
+                url = json.loads(direct_url_json).get("url", None)
+                if url:
+                    if url.startswith("file://"):
+                        return url[len("file://") :]
+            except json.JSONDecodeError:
+                return None
 
     @staticmethod
     def _prepend_python_executable(
@@ -501,7 +516,14 @@ class Package(Resource):
         if install_method == "pip" and Package.is_python_package_string(target):
             locally_installed_version = Package._find_locally_installed_version(target)
             if locally_installed_version:
-                target = f"{target}=={locally_installed_version}"
+                # Check if this is a package that was installed from local
+                local_install_path = Package._get_local_install_path(target)
+                if local_install_path and Path(local_install_path).exists():
+                    target = Folder(path=local_install_path, dryrun=True)
+
+                # Otherwise, this is a package that was installed from pip, probably
+                else:
+                    target = f"{target}=={locally_installed_version}"
 
         # "Local" install method is a special case where we just copy a local folder and add to path
         if install_method == "local":
