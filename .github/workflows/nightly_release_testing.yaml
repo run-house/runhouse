@@ -1,0 +1,102 @@
+name: Nightly Release Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run every night at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  not-cluster-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Release Testing
+        uses: ./.github/workflows/setup_release_testing
+        with:
+          DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          API_SERVER_URL: ${{ env.API_SERVER_URL }}
+
+      - name: Run not cluster tests
+        env:
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
+          ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
+        run: pytest --level release tests -k "not cluster" --detached
+        timeout-minutes: 60
+
+      - name: Teardown all clusters
+        if: always()
+        run: |
+          sky status
+          sky down --all -y
+          sky status
+
+  cluster-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Release Testing
+        uses: ./.github/workflows/setup_release_testing
+        with:
+          DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          API_SERVER_URL: ${{ env.API_SERVER_URL }}
+
+      - name: Run cluster and not on-demand tests
+        env:
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
+          ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
+        run: pytest --level release tests -k "cluster and not ondemand" --detached
+        timeout-minutes: 60
+
+      - name: Teardown all cluster-tests clusters
+        if: always()
+        run: |
+          sky status
+          sky down --all -y
+          sky status
+
+
+  ondemand-aws-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Release Testing
+        uses: ./.github/workflows/setup_release_testing
+        with:
+          DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          API_SERVER_URL: ${{ env.API_SERVER_URL }}
+
+      - name: Run on-demand aws tests
+        env:
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
+          ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
+        run: pytest --level release tests -k "ondemand and aws" --detached
+        timeout-minutes: 60
+
+      - name: Teardown all on-demand-aws-tests clusters
+        if: always()
+        run: |
+          sky status
+          sky down --all -y
+          sky status
