@@ -71,7 +71,7 @@ properly configured by running ``sky check``.
         name="rh-cluster",
         instance_type="CPU:2+",
         provider="aws"
-    )
+    ).up_if_not()
 
 .. code:: ipython3
 
