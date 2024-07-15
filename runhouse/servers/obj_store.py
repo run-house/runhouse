@@ -1593,3 +1593,19 @@ class ObjStore:
 
     def status(self):
         return sync_function(self.astatus)()
+
+    ##############################################
+    # Cluster log streaming methods
+    ##############################################
+    def write_logs(self, run_name: str, lines: List[str]):
+        # TODO [SB]: implement. will replace the logic of the loop which is waiting for the run to finish
+        #  to stream the whole log.
+        pass
+
+    async def astream_logs(self, run_name: str):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "stream_logs_of_a_run", run_name
+        )
+
+    def stream_logs(self, run_name: str):
+        return sync_function(self.astream_logs)(run_name)

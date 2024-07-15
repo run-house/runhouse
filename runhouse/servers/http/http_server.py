@@ -29,7 +29,6 @@ from runhouse.constants import (
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import logger
 from runhouse.rns.utils.api import resolve_absolute_path
-from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import averify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
@@ -299,11 +298,7 @@ class HTTPServer:
         params = params or CallParams()
 
         try:
-            params.run_name = params.run_name or _generate_default_name(
-                prefix=key if method_name == "__call__" else f"{key}_{method_name}",
-                precision="ms",  # Higher precision because we see collisions within the same second
-                sep="@",
-            )
+
             # Call async so we can loop to collect logs until the result is ready
 
             fut = asyncio.create_task(
@@ -405,6 +400,7 @@ class HTTPServer:
         # Default argument to json doesn't allow a user to pass in a serialization string if they want
         # But, if they didn't pass anything, we want it to be `json` by default.
         serialization = serialization or "json"
+        logger.info(f"in http sever get call, stream logs are {stream_logs}")
 
         try:
 
@@ -445,6 +441,13 @@ class HTTPServer:
                 data=exception_data,
                 serialization=serialization,
             )
+
+    @staticmethod
+    @app.get("/logs")
+    @validate_cluster_access
+    async def get_call_logs(request: Request, run_name: str):
+
+        return obj_store.stream_logs(run_name)
 
     @staticmethod
     def _get_logfiles(log_key, log_type=None):

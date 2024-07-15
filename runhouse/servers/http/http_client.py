@@ -2,6 +2,7 @@ import json
 import logging
 import time
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 from pathlib import Path
 from random import randrange
@@ -18,6 +19,8 @@ from runhouse.logger import ClusterLogsFormatter, logger
 from runhouse.resources.envs.utils import _get_env_from
 
 from runhouse.resources.resource import Resource
+
+from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
@@ -29,7 +32,6 @@ from runhouse.servers.http.http_utils import (
     RenameObjectParams,
     serialize_data,
 )
-
 
 # Make this global so connections are pooled across instances of HTTPClient
 session = requests.Session()
@@ -283,6 +285,20 @@ class HTTPClient:
         with open(self.cert_path, "wb") as file:
             file.write(cert)
 
+    def stream_run_logs(self, run_name: str, resource_address: str = None):
+        # need to have try-except here in case we are trying to stream logs from localhost client (i.e in unittests)
+        try:
+            logs_res = retry_with_exponential_backoff(session.get)(
+                self._formatted_url(f"logs?run_name={run_name}"),
+                stream=False,
+                headers=rns_client.request_headers(resource_address),
+                auth=self.auth,
+                verify=self.verify,
+            ).json()
+            return logs_res.get("output_logs", ""), logs_res.get("err_logs", "")
+        except requests.exceptions.ConnectionError:
+            return "", ""
+
     def call(
         self,
         key: str,
@@ -325,6 +341,12 @@ class HTTPClient:
         """
         Client function to call the rpc for call_module_method
         """
+        run_name = run_name or _generate_default_name(
+            prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+            precision="ms",  # Higher precision because we see collisions within the same second
+            sep="@",
+        )
+
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(
@@ -395,6 +417,31 @@ class HTTPClient:
                     result["system"] = system
                 result = Resource.from_config(result, dryrun=True)
 
+        # make log streaming run on a separate thread. This way we won't experience redundant latency.
+        logger.info(f"starting a streaming log thread for {run_name}")
+        # Create a ThreadPoolExecutor
+        with ThreadPoolExecutor() as executor:
+            # Submit the thread function to the executor
+            future = executor.submit(self.stream_run_logs, run_name, resource_address)
+
+            # Wait for the thread to complete and get the result
+            output_logs, err_logs = future.result()
+
+        if output_logs:
+            handle_response(
+                {"data": output_logs},
+                "stdout",
+                error_str,
+                log_formatter=self.log_formatter,
+            )
+        if err_logs:
+            handle_response(
+                {"data": err_logs},
+                "stderr",
+                error_str,
+                log_formatter=self.log_formatter,
+            )
+
         end = time.time()
 
         if (
@@ -411,6 +458,7 @@ class HTTPClient:
         else:
             log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
         logging.info(log_str)
+
         return result
 
     async def acall(
@@ -458,6 +506,13 @@ class HTTPClient:
         """
         Client function to call the rpc for call_module_method
         """
+
+        run_name = run_name or _generate_default_name(
+            prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+            precision="ms",  # Higher precision because we see collisions within the same second
+            sep="@",
+        )
+
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(
@@ -514,6 +569,34 @@ class HTTPClient:
                         result["system"] = system
                     result = Resource.from_config(result, dryrun=True)
 
+            # make log streaming run on a separate thread. This way we won't experience redundant latency.
+            logger.info(f"starting a streaming log thread for {run_name}")
+            error_str = f"Error calling {method_name} on {key} on server"
+            # Create a ThreadPoolExecutor
+            with ThreadPoolExecutor() as executor:
+                # Submit the thread function to the executor
+                future = executor.submit(
+                    self.stream_run_logs, run_name, resource_address
+                )
+
+                # Wait for the thread to complete and get the result
+                output_logs, err_logs = future.result()
+
+            if output_logs:
+                handle_response(
+                    {"data": output_logs},
+                    "stdout",
+                    error_str,
+                    log_formatter=self.log_formatter,
+                )
+            if err_logs:
+                handle_response(
+                    {"data": err_logs},
+                    "stderr",
+                    error_str,
+                    log_formatter=self.log_formatter,
+                )
+
             end = time.time()
 
             if (
@@ -530,6 +613,7 @@ class HTTPClient:
             else:
                 log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
             logging.info(log_str)
+
             return result
 
     def put_object(self, key: str, value: Any, env=None):
