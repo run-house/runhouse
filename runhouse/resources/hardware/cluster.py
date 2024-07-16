@@ -816,13 +816,13 @@ class Cluster(Resource):
         """
         logger.info(f"Restarting Runhouse API server on {self.name}.")
 
-        default_env = _get_env_from(self._default_env) if self._default_env else None
-        if default_env:
-            self._sync_default_env_to_cluster()
-
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
             logger.debug("Finished syncing Runhouse to cluster.")
+
+        default_env = _get_env_from(self._default_env) if self._default_env else None
+        if default_env:
+            self._sync_default_env_to_cluster()
 
         https_flag = self._use_https
         caddy_flag = self._use_caddy
