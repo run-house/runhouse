@@ -69,7 +69,6 @@ jobs:
           sky down --all -y
           sky status
 
-
   ondemand-aws-tests:
     runs-on: ubuntu-latest
     steps:
@@ -94,7 +93,38 @@ jobs:
         run: pytest --level release tests -k "ondemand and aws" --detached
         timeout-minutes: 60
 
-      - name: Teardown all on-demand-aws-tests clusters
+      - name: Teardown all ondemand-aws-tests clusters
+        if: always()
+        run: |
+          sky status
+          sky down --all -y
+          sky status
+
+  ondemand-gcp-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Release Testing
+        uses: ./.github/workflows/setup_release_testing
+        with:
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          API_SERVER_URL: ${{ env.API_SERVER_URL }}
+
+      - name: Run GCP tests
+        env:
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
+          ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
+        run: pytest --level release tests -k "ondemand and gcp" --detached
+        timeout-minutes: 60
+
+      - name: Teardown all ondemand-gcp-tests clusters
         if: always()
         run: |
           sky status
