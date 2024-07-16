@@ -37,9 +37,9 @@ Envs
 ----
 
 The Runhouse environment represents a whole compute environment,
-consisting of packages, environment variables, the working directory,
-and any secrets necessary for performing tasks within the environment.
-It defines the environment on which Runhouse functions and modules run.
+consisting of packages, environment variables, and any secrets necessary
+for performing tasks within the environment. It defines the environment
+on which Runhouse functions and modules run.
 
 Currently, both bare metal environments and Conda environments are
 supported. Docker environment support is planned.
@@ -49,23 +49,22 @@ Bare Metal Envs
 
 Envs can be constructed with the ``rh.env()`` factory function,
 optionally taking in a name, requirements (packages), environment
-variables, secrets, and working directory.
+variables, and secrets.
 
 .. code:: ipython3
 
     env = rh.env(
             name="fn_env",
             reqs=["numpy", "torch"],
-            working_dir="./",  # current working dir
             env_vars={"USER": "*****"},
             secrets=["aws"],
     )
 
-If no environment name is provided, it defaults to ``"base_env"``, which
-corresponds to the base, catch-all environment on the cluster. If
-multiple “base_env” environments are sent to a cluster, the dependencies
-and variables will continue to be synced on top of the existing base
-environment.
+If no environment name is provided, when the environment is sent to a
+cluster, the dependencies and variables of the environment will be
+installed and synced on top of the cluster’s default env. However,
+Without a name, the env resource itself can not be accessed and does not
+live in the cluster’s object store.
 
 Conda Envs
 ~~~~~~~~~~
@@ -186,6 +185,30 @@ etc). Each env servlet has its own local object store where objects
 persist in Python, and lives in its own process, reducing interprocess
 overhead and eliminating launch overhead for calls made in the same env.
 
+Syncing your local code
+~~~~~~~~~~~~~~~~~~~~~~~
+
+You may be wondering how the actual code that you have written and sent
+to Runhouse gets synced to the cluster, if it is not included in the
+env. When you import a function and send it to the env, we locate the
+function’s import site and find the package it’s a part of. We do this
+by searching for any “.git”, “setup.py”, “setup.cfg”, “pyproject.toml”,
+or “requirements.txt”, and then sync the first directory we find that
+represents a package. Any directory with a ``requirements.txt`` that is
+synced up will also have those reqs installed. *We do not store this
+code on our servers at all, it is just synced onto your own cluster.*
+
+You can also sync a specific folder of your own choosing, and it will be
+synced and added to the remote Python path, resulting in any Python
+packages in that directory being importable. For example:
+
+.. code:: ipython3
+
+    env = rh.env(
+            name="fn_env_with_local_package",
+            reqs=["numpy", "torch", "~/path/to/package"],
+    )
+
 Cluster Default Env
 ^^^^^^^^^^^^^^^^^^^
 
@@ -211,7 +234,6 @@ sourcing bash).
     default_env = rh.conda_env(
         name="cluster_default",
         reqs=["skypilot"],  # to enable autostop, which requires skypilot library
-        working_dir="./",
         env_vars={"my_token": "TOKEN_VAL"}
     )
     cluster = rh.ondemand_cluster(
@@ -250,10 +272,13 @@ that we have specified for the cluster.
     INFO | 2024-05-20 18:08:45.130137 | Time to call cluster_default._run_command: 2.67 seconds
 
 
+
+
 .. parsed-literal::
     :class: code-output
 
     [(0, 'cluster_default       *  /opt/conda/envs/cluster_default\n', '')]
+
 
 
 .. code:: ipython3
