@@ -9,6 +9,12 @@ inputs:
   DEV_AWS_SECRET_KEY:
     description: 'AWS Secret Access Key'
     required: true
+  GCP_SERVICE_ACCOUNT_KEY:
+    description: 'GCP Service Account Key'
+    required: true
+  GCP_PROJECT_ID:
+    description: 'GCP Project ID'
+    required: true
   TEST_TOKEN:
     description: 'Test Token'
     required: true
@@ -25,24 +31,36 @@ runs:
     - name: Check out repository code
       uses: actions/checkout@v3
 
-    - name: Configure aws
+    - name: Configure & Authenticate to AWS
       run: |
         aws configure set aws_access_key_id ${{ inputs.DEV_AWS_ACCESS_KEY }}
         aws configure set aws_secret_access_key ${{ inputs.DEV_AWS_SECRET_KEY }}
         aws configure set default.region us-east-1
       shell: bash
 
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ inputs.GCP_SERVICE_ACCOUNT_KEY }}
+        project_id: ${{ inputs.GCP_PROJECT_ID }}
+
+    - name: Install Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ inputs.GCP_PROJECT_ID }}
+        service_account_key: ${{ inputs.GCP_SERVICE_ACCOUNT_KEY }}
+
     - name: Install & check skypilot configuration
       run: |
         python -m pip install --upgrade pip
-        pip install skypilot[aws]
+        pip install skypilot[aws,gcp]
         sky check
         sky status
       shell: bash
 
     - name: Install python packages & dependencies
       run: |
-        pip install runhouse[aws]
+        pip install runhouse[aws,gcp]
         pip install -r tests/requirements.txt scipy pyarrow
       shell: bash
 
@@ -52,6 +70,6 @@ runs:
     - name: Setup ~/.rh/config.yaml
       uses: ./.github/workflows/setup_rh_config
       with:
-        username: ${{ inputs.TEST_TOKEN }}
-        token: ${{ inputs.TEST_USERNAME }}
+        username: ${{ inputs.TEST_USERNAME }}
+        token: ${{ inputs.TEST_TOKEN }}
         api_server_url: ${{ inputs.API_SERVER_URL }}
