@@ -274,23 +274,27 @@ class ClusterServlet:
                             api_server_url=api_server_url,
                         )
 
-                        if sent_status != 200:
+                        if sent_status == 404:
+                            logger.info(
+                                "Cluster has not been saved, no update to status or logs."
+                            )
+                        elif sent_status != 200:
                             logger.error(
                                 f"{sent_status}: Error in sending cluster status to Den. Check cluster logs for more info."
                             )
                         else:
                             logger.info("Successfully sent cluster status to Den.")
 
-                        sent_logs = await rns_client.send_cluster_logs_to_den(
-                            cluster_uri=cluster_uri, api_server_url=api_server_url
-                        )
-
-                        if sent_logs != 200:
-                            logger.error(
-                                f"{sent_logs}: Error in sending cluster logs to Den. Check cluster logs for more info."
+                            sent_logs = await rns_client.send_cluster_logs_to_den(
+                                cluster_uri=cluster_uri, api_server_url=api_server_url
                             )
-                        else:
-                            logger.info("Successfully sent cluster logs to Den.")
+
+                            if sent_logs != 200:
+                                logger.error(
+                                    f"{sent_logs}: Error in sending cluster logs to Den. Check cluster logs for more info."
+                                )
+                            else:
+                                logger.info("Successfully sent cluster logs to Den.")
 
             except Exception as e:
                 self.logger.error(
