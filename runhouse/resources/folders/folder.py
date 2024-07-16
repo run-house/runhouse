@@ -35,10 +35,6 @@ PROVIDER_FS_LOOKUP = {
 }
 
 
-class CodeSyncError(Exception):
-    pass
-
-
 class Folder(Resource):
     RESOURCE_TYPE = "folder"
     DEFAULT_FS = "file"
@@ -455,13 +451,6 @@ class Folder(Resource):
         """Copy the folder from a file or cluster source onto a destination cluster."""
         if not dest_cluster.address:
             raise ValueError("Cluster must be started before copying data to it.")
-
-        # If self.path is the same as the user's home directory, raise an error.
-        # Check this with Path and expanduser to handle both relative and absolute paths.
-        if Path(self.path).expanduser() in [Path("~").expanduser(), Path("/")]:
-            raise CodeSyncError(
-                "Cannot sync the home directory. Please include a Python configuration file in a subdirectory."
-            )
 
         # Create tmp_mount if needed
         if not self.is_local() and mount:

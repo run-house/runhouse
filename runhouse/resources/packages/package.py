@@ -22,6 +22,10 @@ INSTALL_METHODS = {"local", "reqs", "pip", "conda", "rh"}
 from runhouse.logger import logger
 
 
+class CodeSyncError(Exception):
+    pass
+
+
 class Package(Resource):
     RESOURCE_TYPE = "package"
 
@@ -126,6 +130,17 @@ class Package(Resource):
             install_cmd = env._full_command(install_cmd)
 
         return install_cmd
+
+    def _validate_folder_path(self):
+        # If self.path is the same as the user's home directory, raise an error.
+        # Check this with Path and expanduser to handle both relative and absolute paths.
+        if Path(self.install_target.path).expanduser() in [
+            Path("~").expanduser(),
+            Path("/"),
+        ]:
+            raise CodeSyncError(
+                "Cannot sync the home directory. Please include a Python configuration file in a subdirectory."
+            )
 
     def _pip_install_cmd(
         self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
@@ -433,8 +448,10 @@ class Package(Resource):
             logger.info(
                 f"Copying package from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
             )
+            self._validate_folder_path()
             new_folder = self.install_target._to_cluster(system, path=path, mount=mount)
         else:  # to fs
+            self._validate_folder_path()
             new_folder = self.install_target.to(system, path=path)
         new_folder.system = system
         new_package = copy.copy(self)
