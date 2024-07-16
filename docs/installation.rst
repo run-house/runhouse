@@ -23,18 +23,21 @@ specific version of Python and installed packages.
 For local-only development, the Runhouse base package can be installed with:
 
 .. code-block:: shell
+
     $ pip install runhouse
 
 **Recommended**: To use Runhouse to launch on-demand clusters, please instead run the following command.
 This additionally installs SkyPilot, which is used for launching fresh VMs through your cloud provider.
 
 .. code-block:: shell
+
     $ pip install "runhouse[sky]"
 
 Alternatively, if you plan to use Runhouse with a specific cloud provider, you can install the package with
 that provider's CLI included - or choose multiple providers. SkyPilot will also be included with these.
 
 .. code-block:: shell
+
     # Cloud-specific installation
     $ pip install "runhouse[aws]"
     # Include multiple providers
@@ -64,6 +67,7 @@ or use ``pip install "runhouse[aws]"`` to include it with the Runhouse library.
 Next, configure AWS with the following command:
 
 .. code-block:: shell
+
     $ aws configure
 
 You'll be prompted to enter your AWS Access ID. This can be found by logging into
@@ -180,7 +184,8 @@ Once you've created an account, you'll be able to access your Runhouse token on 
 Login to Runhouse in your terminal with the following command:
 
 .. code-block:: shell
-    runhouse login
+
+    $ runhouse login
 
 You'll be prompted to enter your token and, after your initial login, you will see the following propmts:
 
