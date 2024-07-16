@@ -181,3 +181,8 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         )
 
         test_reqs_file.unlink()
+
+    @pytest.mark.level("local")
+    def test_package_in_home_dir_to_cluster(self, cluster):
+        with pytest.raises(rh.CodeSyncError):
+            rh.Package.from_string("~").to(cluster)
