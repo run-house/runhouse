@@ -275,9 +275,8 @@ def set_up_local_cluster(
     config["token"] = rh.configs.token
     config["username"] = rh.configs.username
 
-    if rh_cluster._use_https:
-        # If re-using fixtures make sure the crt file gets copied on to the cluster
-        rh_cluster.restart_server()
+    # Runhouse is already installed on the Docker clusters, but we need to sync our actual version
+    rh_cluster.restart_server(resync_rh=True)
 
     if rh_cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
         test_env(logged_in=logged_in).to(rh_cluster)
