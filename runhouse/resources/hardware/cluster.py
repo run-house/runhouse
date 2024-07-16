@@ -814,7 +814,7 @@ class Cluster(Resource):
     def restart_server(
         self,
         _rh_install_url: str = None,
-        resync_rh: bool = True,
+        resync_rh: bool = False,
         restart_ray: bool = True,
         restart_proxy: bool = False,
         logs_level: str = None,
@@ -831,6 +831,12 @@ class Cluster(Resource):
             >>> rh.cluster("rh-cpu").restart_server()
         """
         logger.info(f"Restarting Runhouse API server on {self.name}.")
+
+        # Check if Runhouse is already installed
+        return_codes = self.run(["runhouse --version"], node="all")
+        if return_codes[0][0][0] != 0:
+            logger.debug("Runhouse is not installed on the cluster.")
+            resync_rh = True
 
         if resync_rh:
             self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
