@@ -418,6 +418,24 @@ class Cluster(Resource):
 
         local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
 
+        remote_ray_version_call = self.run(
+            ["ray --version"], node="all", env=env, stream_logs=False
+        )
+        ray_installed_remotely = remote_ray_version_call[0][0][0] == 0
+        if not ray_installed_remotely:
+            local_ray_version_call = subprocess.run(
+                ["pip freeze | grep ray"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=True,
+            )
+
+            # if Ray is installed locally, install the same version on the cluster
+            if local_ray_version_call.returncode == 0:
+                ray_version = local_ray_version_call.stdout.decode("utf-8").strip()
+                ray_install_cmd = f"python3 -m pip install {ray_version}"
+                self.run([ray_install_cmd], node="all", env=env, stream_logs=True)
+
         # Check if runhouse is installed from source and has setup.py
         if (
             not _install_url
