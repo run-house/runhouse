@@ -20,9 +20,8 @@ def restart_server(request):
 def setup_test_cluster(args, request, create_env=False):
     cluster = rh.ondemand_cluster(**args)
     init_args[id(cluster)] = args
-    if not cluster.is_up():
-        cluster.up()
-    elif request.config.getoption("--restart-server"):
+    cluster.up_if_not()
+    if request.config.getoption("--restart-server"):
         cluster.restart_server()
 
     cluster.save()

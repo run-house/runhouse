@@ -291,8 +291,6 @@ class OnDemandCluster(Cluster):
         """
         if self.on_this_cluster():
             return True
-        if self._ping(retry=False):
-            return True
         self._update_from_sky_status(dryrun=False)
         return self.address is not None
 

@@ -658,7 +658,7 @@ class Cluster(Resource):
             elif "Check server failed: " not in str(e):
                 raise e
 
-            if not self._ping(retry=True):
+            if not self.is_up():
                 raise Exception(f"Could not reach cluster {self.name}. Is it up?")
 
             logger.info(
