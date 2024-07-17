@@ -18,11 +18,11 @@ inputs:
   KUBECONFIG:
     description: 'Kubeconfig'
     required: false
-  TEST_TOKEN:
-    description: 'Test Token'
+  CI_ACCOUNT_TOKEN:
+    description: 'CI Token'
     required: true
-  TEST_USERNAME:
-    description: 'Test Username'
+  CI_ACCOUNT_USERNAME:
+    description: 'CI Username'
     required: true
   API_SERVER_URL:
     description: 'API Server URL'
@@ -58,7 +58,7 @@ runs:
         mkdir -p $HOME/.kube
         echo "${{ inputs.KUBECONFIG }}" > $HOME/.kube/config
         sudo apt-get update
-        sudo apt-get install -y socat
+        sudo apt-get install -y socat netcat
       shell: bash
 
     - name: Install & check skypilot configuration
@@ -81,6 +81,6 @@ runs:
     - name: Setup ~/.rh/config.yaml
       uses: ./.github/workflows/setup_rh_config
       with:
-        username: ${{ inputs.TEST_USERNAME }}
-        token: ${{ inputs.TEST_TOKEN }}
+        username: ${{ inputs.CI_ACCOUNT_USERNAME }}
+        token: ${{ inputs.CI_ACCOUNT_TOKEN }}
         api_server_url: ${{ inputs.API_SERVER_URL }}

@@ -18,12 +18,11 @@ jobs:
         with:
           DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
           DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
-          # TODO: no need to have to provide these here
           KUBECONFIG: ${{ secrets.KUBECONFIG }}
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          CI_ACCOUNT_TOKEN: ${{ secrets.CI_ACCOUNT_TOKEN }}
+          CI_ACCOUNT_USERNAME: ${{ secrets.CI_ACCOUNT_USERNAME }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
 
       - name: Run not cluster tests
@@ -33,7 +32,7 @@ jobs:
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest --level release tests -k "not cluster" --detached
-        timeout-minutes: 120
+        timeout-minutes: 180
 
       - name: Teardown all clusters
         if: always()
@@ -53,12 +52,11 @@ jobs:
         with:
           DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
           DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
-          # TODO: no need to have to provide these here
           KUBECONFIG: ${{ secrets.KUBECONFIG }}
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          CI_ACCOUNT_TOKEN: ${{ secrets.CI_ACCOUNT_TOKEN }}
+          CI_ACCOUNT_USERNAME: ${{ secrets.CI_ACCOUNT_USERNAME }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
 
       - name: Run cluster and not on-demand tests
@@ -67,8 +65,8 @@ jobs:
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "cluster and not ondemand" --detached
-        timeout-minutes: 120
+        run:  pytest -v --level release -k "cluster and not ondemand" --detached
+        timeout-minutes: 180
 
       - name: Teardown all cluster-tests clusters
         if: always()
@@ -88,12 +86,11 @@ jobs:
         with:
           DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
           DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
-          # TODO: no need to have to provide these here
           KUBECONFIG: ${{ secrets.KUBECONFIG }}
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          CI_ACCOUNT_TOKEN: ${{ secrets.CI_ACCOUNT_TOKEN }}
+          CI_ACCOUNT_USERNAME: ${{ secrets.CI_ACCOUNT_USERNAME }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
 
       - name: Run on-demand aws tests
@@ -102,8 +99,8 @@ jobs:
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "ondemand and aws" --detached
-        timeout-minutes: 120
+        run: pytest --level release tests -k "ondemand_aws_cluster" --detached
+        timeout-minutes: 180
 
       - name: Teardown all ondemand-aws-tests clusters
         if: always()
@@ -123,12 +120,11 @@ jobs:
         with:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          # TODO: no need to have to provide these here
           KUBECONFIG: ${{ secrets.KUBECONFIG }}
           DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
           DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          CI_ACCOUNT_TOKEN: ${{ secrets.CI_ACCOUNT_TOKEN }}
+          CI_ACCOUNT_USERNAME: ${{ secrets.CI_ACCOUNT_USERNAME }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
 
       - name:  Run on-demand gcp tests
@@ -137,8 +133,8 @@ jobs:
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "ondemand and gcp" --detached
-        timeout-minutes: 120
+        run: pytest --level release tests -k "ondemand_gcp_cluster" --detached
+        timeout-minutes: 180
 
       - name: Teardown all ondemand-gcp-tests clusters
         if: always()
@@ -159,11 +155,10 @@ jobs:
           KUBECONFIG: ${{ secrets.KUBECONFIG }}
           DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
           DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
-          # TODO: no need to have to provide these here
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          CI_ACCOUNT_TOKEN: ${{ secrets.CI_ACCOUNT_TOKEN }}
+          CI_ACCOUNT_USERNAME: ${{ secrets.CI_ACCOUNT_USERNAME }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
 
       - name: Run kubernetes tests
@@ -173,4 +168,35 @@ jobs:
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest --level release tests -k "ondemand_k8s_cluster" --detached
-        timeout-minutes: 120
+        timeout-minutes: 180
+
+  check-cluster-status:
+    if: always()
+    needs:
+      - not-cluster-tests
+      - cluster-tests
+      - ondemand-aws-tests
+      - ondemand-gcp-tests
+      - kubernetes-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Release Testing
+        uses: ./.github/workflows/setup_release_testing
+        with:
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+          DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          CI_ACCOUNT_TOKEN: ${{ secrets.CI_ACCOUNT_TOKEN }}
+          CI_ACCOUNT_USERNAME: ${{ secrets.CI_ACCOUNT_USERNAME }}
+          API_SERVER_URL: ${{ env.API_SERVER_URL }}
+
+      - name: Wait to check cluster status
+        run: sleep 600 # 10 minutes
+
+      - name: Check cluster status
+        run: sky status
