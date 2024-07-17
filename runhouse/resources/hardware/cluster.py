@@ -15,7 +15,11 @@ import yaml
 
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
-from runhouse.utils import locate_working_dir, run_command_with_password_login
+from runhouse.utils import (
+    find_locally_installed_version,
+    locate_working_dir,
+    run_command_with_password_login,
+)
 
 # Filter out DeprecationWarnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -423,7 +427,7 @@ class Cluster(Resource):
         logging.info(f"Syncing default env {self._default_env.name} to cluster")
         self._default_env.install(cluster=self)
 
-    def _sync_runhouse_to_cluster(self, _install_url=None, env=None):
+    def _sync_runhouse_to_cluster(self, _install_url=None, env=None, resync_rh=None):
         if self.on_this_cluster():
             return
 
@@ -434,49 +438,64 @@ class Cluster(Resource):
 
         local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
 
-        # Check if runhouse is installed from source and has setup.py
-        if (
+        installed_editable_locally = (
             not _install_url
             and local_rh_package_path.parent.name == "runhouse"
             and (local_rh_package_path.parent / "setup.py").exists()
-        ):
-            # Package is installed in editable mode
-            local_rh_package_path = local_rh_package_path.parent
-            dest_path = f"~/{local_rh_package_path.name}"
+        )
 
-            self._rsync(
-                source=str(local_rh_package_path),
-                dest=dest_path,
-                node="all",
-                up=True,
-                contents=True,
-                filter_options="- docs/",
+        if installed_editable_locally or resync_rh:
+            remote_ray_version_call = self.run(
+                ["ray --version"], node="all", env=env, stream_logs=False
             )
-            rh_install_cmd = "python3 -m pip install ./runhouse"
-        # elif local_rh_package_path.parent.name == 'site-packages':
-        else:
-            # Package is installed in site-packages
-            # status_codes = self.run(['pip install runhouse-nightly==0.0.2.20221202'], stream_logs=True)
-            # rh_package = 'runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl'
-            # rh_download_cmd = f'curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}'
-            if not _install_url:
-                import runhouse
+            ray_installed_remotely = remote_ray_version_call[0][0][0] == 0
+            if not ray_installed_remotely:
+                local_ray_version = find_locally_installed_version("ray")
 
-                _install_url = f"runhouse=={runhouse.__version__}"
-            rh_install_cmd = f"python3 -m pip install {_install_url}"
+                # if Ray is installed locally, install the same version on the cluster
+                if local_ray_version:
+                    ray_install_cmd = f"python3 -m pip install ray=={local_ray_version}"
+                    self.run([ray_install_cmd], node="all", env=env, stream_logs=True)
 
-        for node in self.ips:
-            status_codes = self.run(
-                [rh_install_cmd],
-                node=node,
-                env=env,
-                stream_logs=True,
-            )
+            # Check if runhouse is installed from source and has setup.py
+            if installed_editable_locally:
+                # Package is installed in editable mode
+                local_rh_package_path = local_rh_package_path.parent
+                dest_path = f"~/{local_rh_package_path.name}"
 
-            if status_codes[0][0] != 0:
-                raise ValueError(
-                    f"Error installing runhouse on cluster <{self.name}> node <{node}>"
+                self._rsync(
+                    source=str(local_rh_package_path),
+                    dest=dest_path,
+                    node="all",
+                    up=True,
+                    contents=True,
+                    filter_options="- docs/",
                 )
+                rh_install_cmd = "python3 -m pip install ./runhouse"
+
+            elif resync_rh:
+                # Package is installed in site-packages
+                # status_codes = self.run(['pip install runhouse-nightly==0.0.2.20221202'], stream_logs=True)
+                # rh_package = 'runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl'
+                # rh_download_cmd = f'curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}'
+                if not _install_url:
+                    import runhouse
+
+                    _install_url = f"runhouse=={runhouse.__version__}"
+                rh_install_cmd = f"python3 -m pip install {_install_url}"
+
+            for node in self.ips:
+                status_codes = self.run(
+                    [rh_install_cmd],
+                    node=node,
+                    env=env,
+                    stream_logs=True,
+                )
+
+                if status_codes[0][0] != 0:
+                    raise ValueError(
+                        f"Error installing runhouse on cluster <{self.name}> node <{node}>"
+                    )
 
     def install_packages(
         self, reqs: List[Union["Package", str]], env: Union["Env", str] = None
@@ -814,7 +833,7 @@ class Cluster(Resource):
     def restart_server(
         self,
         _rh_install_url: str = None,
-        resync_rh: bool = True,
+        resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
         logs_level: str = None,
@@ -822,7 +841,7 @@ class Cluster(Resource):
         """Restart the RPC server.
 
         Args:
-            resync_rh (bool): Whether to resync runhouse. (Default: ``True``)
+            resync_rh (bool): Whether to resync runhouse. Specifying False will not sync Runhouse under any circumstance. If it is None, then it will sync if Runhouse is not installed on the cluster or if locally it is installed as editable. (Default: ``None``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
             env (str or Env, optional): Specified environment to restart the server on. (Default: ``None``)
             restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
@@ -832,8 +851,17 @@ class Cluster(Resource):
         """
         logger.info(f"Restarting Runhouse API server on {self.name}.")
 
-        if resync_rh:
-            self._sync_runhouse_to_cluster(_install_url=_rh_install_url)
+        if resync_rh is None:
+            return_codes = self.run(["runhouse --version"], node="all")
+            if return_codes[0][0][0] != 0:
+                logger.debug("Runhouse is not installed on the cluster.")
+                resync_rh = True
+
+        # Check if Runhouse is already installed
+        if resync_rh or resync_rh is None:
+            self._sync_runhouse_to_cluster(
+                _install_url=_rh_install_url, resync_rh=resync_rh
+            )
             logger.debug("Finished syncing Runhouse to cluster.")
 
         default_env = _get_env_from(self._default_env) if self._default_env else None
