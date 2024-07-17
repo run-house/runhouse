@@ -115,31 +115,51 @@ def notebook(
 @app.command()
 def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluster")):
     """SSH into a cluster created elsewhere (so `ssh cluster` doesn't work out of the box) or not yet up."""
-
     try:
         c = cluster(name=cluster_name)
-    except ValueError:
-        logger.error(
-            f"Could not load cluster called {cluster_name} from Den. Please save it to Den, and rerun."
-        )
-        raise typer.Exit(1)
 
-    if not c.is_shared:
-        if up:
-            try:
-                c.up_if_not()
-            except NotImplementedError:
+        if not c.is_shared:
+            if up:
+                try:
+                    c.up_if_not()
+                except NotImplementedError:
+                    console.print(
+                        f"Cluster {cluster_name} is not an on-demand cluster, so it can't be brought up automatically."
+                        f"Please start it manually and re-save the cluster with the new connection info in Python."
+                    )
+                    raise typer.Exit(1)
+            elif not c.is_up():
                 console.print(
-                    f"Cluster {cluster_name} is not an on-demand cluster, so it can't be brought up automatically."
-                    f"Please start it manually and re-save the cluster with the new connection info in Python."
+                    f"Cluster {cluster_name} is not up. Please run `runhouse ssh {cluster_name} --up`."
                 )
                 raise typer.Exit(1)
-        elif not c.is_up():
+
+        c.ssh()
+    except ValueError:
+        import sky
+
+        from runhouse import OnDemandCluster
+        from runhouse.constants import DEFAULT_SSH_PORT
+        from runhouse.resources.hardware.utils import _run_ssh_command
+
+        state = sky.status(cluster_names=[cluster_name], refresh=False)
+
+        if len(state) == 0:
             console.print(
-                f"Cluster {cluster_name} is not up. Please run `runhouse ssh {cluster_name} --up`."
+                f"Could not load cluster called {cluster_name}. Cluster must either be saved to Den, "
+                "or be an ondemand cluster that is currently up."
             )
+
             raise typer.Exit(1)
-    c.ssh()
+
+        resource_handle = state[0].get("handle", {})
+        _run_ssh_command(
+            address=resource_handle.head_ip,
+            ssh_user=resource_handle.ssh_user or "ubuntu",
+            ssh_port=resource_handle.stable_ssh_ports[0] or DEFAULT_SSH_PORT,
+            ssh_private_key=OnDemandCluster.DEFAULT_KEYFILE,
+            docker_user=resource_handle.docker_user,
+        )
 
 
 ###############################

@@ -42,6 +42,7 @@ from runhouse.logger import logger
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
     _current_cluster,
+    _run_ssh_command,
     _unnamed_default_env_name,
     ServerConnectionType,
 )
@@ -1174,18 +1175,13 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").ssh()
         """
-        from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
-
         creds = self.creds_values
-        runner = SkySSHRunner(
-            ip=self.address,
+        _run_ssh_command(
+            address=self.address,
             ssh_user=creds["ssh_user"],
-            port=self.ssh_port,
+            ssh_port=self.ssh_port,
             ssh_private_key=creds["ssh_private_key"],
             docker_user=self.docker_user,
-        )
-        subprocess.run(
-            runner._ssh_base_command(ssh_mode=SshMode.INTERACTIVE, port_forward=None)
         )
 
     def _ping(self, timeout=5, retry=False):
