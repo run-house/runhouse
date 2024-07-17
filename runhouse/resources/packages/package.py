@@ -1,6 +1,4 @@
 import copy
-import importlib.metadata as metadata
-import json
 import re
 import sys
 from pathlib import Path
@@ -14,7 +12,12 @@ from runhouse.resources.hardware.utils import (
     detect_cuda_version_or_cpu,
 )
 from runhouse.resources.resource import Resource
-from runhouse.utils import locate_working_dir
+from runhouse.utils import (
+    find_locally_installed_version,
+    get_local_install_path,
+    is_python_package_string,
+    locate_working_dir,
+)
 
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda", "rh"}
@@ -85,31 +88,6 @@ class Package(Resource):
             #     return f'Package: {self.install_target.name}'
             return f"Package: {self.install_target.path}"
         return f"Package: {self.install_target}"
-
-    @staticmethod
-    def is_python_package_string(s: str):
-        return isinstance(s, str) and re.match(r"^[a-zA-Z0-9\._-]+$", s) is not None
-
-    @staticmethod
-    def _find_locally_installed_version(package_name: str):
-        try:
-            return metadata.version(package_name)
-        except metadata.PackageNotFoundError:
-            return None
-
-    @staticmethod
-    def _get_local_install_path(package_name: str):
-        distribution = metadata.distribution(package_name)
-        direct_url_json = distribution.read_text("direct_url.json")
-        if direct_url_json:
-            # File URL starts with file://
-            try:
-                url = json.loads(direct_url_json).get("url", None)
-                if url:
-                    if url.startswith("file://"):
-                        return url[len("file://") :]
-            except json.JSONDecodeError:
-                return None
 
     @staticmethod
     def _prepend_python_executable(
@@ -530,11 +508,11 @@ class Package(Resource):
         # If we are just defaulting to pip, attempt to install the same version of the package
         # that is already installed locally
         # Check if the target is only letters, nothing else. This means its a string like 'numpy'.
-        if install_method == "pip" and Package.is_python_package_string(target):
-            locally_installed_version = Package._find_locally_installed_version(target)
+        if install_method == "pip" and is_python_package_string(target):
+            locally_installed_version = find_locally_installed_version(target)
             if locally_installed_version:
                 # Check if this is a package that was installed from local
-                local_install_path = Package._get_local_install_path(target)
+                local_install_path = get_local_install_path(target)
                 if local_install_path and Path(local_install_path).exists():
                     target = Folder(path=local_install_path, dryrun=True)
 
