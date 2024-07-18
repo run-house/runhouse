@@ -38,7 +38,7 @@ runs:
         aws-region: us-east-1
 
     - name: Verify AWS credentials
-      run: | 
+      run: |
         aws sts get-caller-identity
       shell: bash
 
