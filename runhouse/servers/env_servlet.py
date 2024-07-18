@@ -218,9 +218,10 @@ class EnvServlet:
         try:
             env_servlet_process = psutil.Process(pid=env_servlet_pid)
             memory_size_bytes = env_servlet_process.memory_full_info().uss
-            cpu_usage_percent = env_servlet_process.cpu_percent(interval=1)
+            cpu_usage_percent = env_servlet_process.cpu_percent()
             env_memory_usage = {
                 "used": memory_size_bytes,
+                "memory_percent": round((memory_size_bytes / total_memory), 4) * 100,
                 "percent": cpu_usage_percent,
                 "total": total_memory,
             }
