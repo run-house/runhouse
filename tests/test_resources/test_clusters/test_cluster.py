@@ -742,6 +742,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             == ResourceServerStatus.terminated
         )
 
+        # setting the status to running again, so it won't mess with the following tests
+        # (when running all release suite at once, for example)
+        post_status_data_resp = requests.post(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            data=json.dumps(status_data),
+            headers=headers,
+        )
+        assert post_status_data_resp.status_code in [200, 422]
+
     @pytest.mark.level("minimal")
     @pytest.mark.clustertest
     def test_status_scheduler_basic_flow(self, cluster):
