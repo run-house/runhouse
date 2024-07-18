@@ -856,7 +856,9 @@ class Cluster(Resource):
             self._sync_default_env_to_cluster()
 
         if resync_rh is None:
-            return_codes = self.run(["runhouse --version"], node="all")
+            return_codes = self.run(
+                ["runhouse --version"], node="all", stream_logs=False
+            )
             if return_codes[0][0][0] != 0:
                 logger.debug("Runhouse is not installed on the cluster.")
                 resync_rh = True
