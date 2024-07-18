@@ -3,11 +3,8 @@ name: Setup Release Testing
 description: Reusable steps for prepping release testing
 
 inputs:
-  DEV_AWS_ACCESS_KEY:
-    description: 'AWS Access Key ID'
-    required: false
-  DEV_AWS_SECRET_KEY:
-    description: 'AWS Secret Access Key'
+  AWS_OSS_ROLE_ARN:
+    description: 'AWS OSS Role ARN'
     required: false
   GCP_SERVICE_ACCOUNT_KEY:
     description: 'GCP Service Account Key'
@@ -18,11 +15,11 @@ inputs:
   KUBECONFIG:
     description: 'Kubeconfig'
     required: false
-  TEST_TOKEN:
-    description: 'Test Token'
+  CI_ACCOUNT_TOKEN:
+    description: 'CI Token'
     required: true
-  TEST_USERNAME:
-    description: 'Test Username'
+  CI_ACCOUNT_USERNAME:
+    description: 'CI Username'
     required: true
   API_SERVER_URL:
     description: 'API Server URL'
@@ -35,10 +32,23 @@ runs:
       uses: actions/checkout@v3
 
     - name: Configure & Authenticate to AWS
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        role-to-assume: ${{ inputs.AWS_OSS_ROLE_ARN }}
+        aws-region: us-east-1
+
+    - name: Write AWS credentials to file
       run: |
-        aws configure set aws_access_key_id ${{ inputs.DEV_AWS_ACCESS_KEY }}
-        aws configure set aws_secret_access_key ${{ inputs.DEV_AWS_SECRET_KEY }}
-        aws configure set default.region us-east-1
+        mkdir -p ~/.aws
+        echo "[default]" > ~/.aws/credentials
+        echo "aws_access_key_id=$AWS_ACCESS_KEY_ID" >> ~/.aws/credentials
+        echo "aws_secret_access_key=$AWS_SECRET_ACCESS_KEY" >> ~/.aws/credentials
+        echo "aws_session_token=$AWS_SESSION_TOKEN" >> ~/.aws/credentials
+      shell: bash
+
+    - name: Verify AWS credentials
+      run: |
+        aws sts get-caller-identity
       shell: bash
 
     - name: Authenticate to Google Cloud
@@ -58,7 +68,7 @@ runs:
         mkdir -p $HOME/.kube
         echo "${{ inputs.KUBECONFIG }}" > $HOME/.kube/config
         sudo apt-get update
-        sudo apt-get install -y socat
+        sudo apt-get install -y socat netcat
       shell: bash
 
     - name: Install & check skypilot configuration
@@ -81,6 +91,6 @@ runs:
     - name: Setup ~/.rh/config.yaml
       uses: ./.github/workflows/setup_rh_config
       with:
-        username: ${{ inputs.TEST_USERNAME }}
-        token: ${{ inputs.TEST_TOKEN }}
+        username: ${{ inputs.CI_ACCOUNT_USERNAME }}
+        token: ${{ inputs.CI_ACCOUNT_TOKEN }}
         api_server_url: ${{ inputs.API_SERVER_URL }}
