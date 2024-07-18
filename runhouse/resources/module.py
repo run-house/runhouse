@@ -1268,7 +1268,6 @@ def _module_subclass_factory(cls, cls_pointers):
 def module(
     cls: [Type] = None,
     name: Optional[str] = None,
-    system: Optional[Union[str, Cluster]] = None,  # deprecated
     env: Optional[Union[str, Env]] = None,
     dryrun: bool = False,
 ):
@@ -1358,15 +1357,9 @@ def module(
         >>> my_local_module = rh.module(name="~/my_module")
         >>> my_s3_module = rh.module(name="@/my_module")
     """
-    if name and not any([cls, system, env]):
+    if name and not any([cls, env]):
         # Try reloading existing module
         return Module.from_name(name, dryrun)
-
-    if system:
-        raise Exception(
-            "`system` argument is no longer supported in the module factory function. "
-            "Use `.to(system)` or `.get_or_to(system)` after construction to send and run the Module on the system."
-        )
 
     if not isinstance(env, Env):
         env = _get_env_from(env)
