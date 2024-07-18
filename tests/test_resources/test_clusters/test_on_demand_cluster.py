@@ -173,6 +173,22 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         # assert get_last_active() > time.time() - 1
 
     @pytest.mark.level("release")
+    def test_cluster_ping_and_is_up(self, cluster):
+        assert cluster._ping(retry=False)
+
+        original_ips = cluster.ips
+
+        cluster.address = None
+        assert not cluster._ping(retry=False)
+
+        cluster.address = "00.00.000.00"
+        assert not cluster._ping(retry=False)
+
+        assert cluster._ping(retry=True)
+        assert cluster.is_up()
+        assert cluster.ips == original_ips
+
+    @pytest.mark.level("release")
     def test_docker_container_reqs(self, ondemand_aws_cluster):
         ret_code = ondemand_aws_cluster.run("pip freeze | grep torch")[0][0]
         assert ret_code == 0

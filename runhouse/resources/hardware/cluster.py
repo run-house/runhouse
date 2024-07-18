@@ -19,6 +19,7 @@ from runhouse.utils import (
     find_locally_installed_version,
     locate_working_dir,
     run_command_with_password_login,
+    ThreadWithException,
 )
 
 # Filter out DeprecationWarnings
@@ -392,7 +393,7 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").is_up()
         """
-        return self.on_this_cluster() or self.address is not None
+        return self.on_this_cluster() or self._ping()
 
     def up_if_not(self):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
@@ -653,7 +654,7 @@ class Cluster(Resource):
             elif "Check server failed: " not in str(e):
                 raise e
 
-            if not self.is_up():
+            if not self._ping(retry=True):
                 raise Exception(f"Could not reach cluster {self.name}. Is it up?")
 
             logger.info(
@@ -1246,18 +1247,26 @@ class Cluster(Resource):
         )
 
     def _ping(self, timeout=5, retry=False):
-        ssh_call = threading.Thread(
-            target=lambda: self._run_commands_with_ssh(
-                ['echo "hello"'], stream_logs=False
-            )
-        )
-        ssh_call.start()
-        ssh_call.join(timeout=timeout)
-        if ssh_call.is_alive():
-            if retry:
-                return self._ping(retry=False)
+        if not self.address:
             return False
-        return True
+
+        def run_ssh_call():
+            res = self._run_commands_with_ssh(['echo "hello"'], stream_logs=False)
+            if res[0][0] != 0:
+                raise Exception
+
+        ssh_call = ThreadWithException(target=run_ssh_call)
+        try:
+            ssh_call.start()
+            ssh_call.join(timeout=timeout)
+            if not ssh_call.is_alive():
+                return True
+        except:
+            pass
+
+        if retry:
+            return self._ping(retry=False)
+        return False
 
     def _copy_certs_to_cluster(self):
         """Copy local certs to the cluster. Destination on the cluster depends on whether Caddy is enabled. This is
