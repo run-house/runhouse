@@ -76,7 +76,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     def test_pip_install_cmd(self, pip_package):
         assert (
             pip_package._pip_install_cmd()
-            == f"{sys.executable} -m pip install {pip_package.install_target}"
+            == f'{sys.executable} -m pip install "{pip_package.install_target}"'
         )
 
     @pytest.mark.level("unit")
@@ -97,7 +97,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     def test_git_install_cmd(self, git_package):
         assert (
             git_package._pip_install_cmd()
-            == f"{sys.executable} -m pip install {git_package.install_target}"
+            == f'{sys.executable} -m pip install "{git_package.install_target}"'
         )
 
     # --------- test install on cluster ---------
@@ -105,7 +105,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     def test_pip_install(self, cluster, pip_package):
         assert (
             pip_package._pip_install_cmd(cluster=cluster)
-            == f"python3 -m pip install {pip_package.install_target}"
+            == f'python3 -m pip install "{pip_package.install_target}"'
         )
 
         # install through remote ssh

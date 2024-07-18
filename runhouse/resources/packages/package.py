@@ -129,7 +129,8 @@ class Package(Resource):
                 f"{str(Path(self.install_target.local_path).absolute())}" + install_args
             )
         else:
-            install_cmd = self.install_target + install_args
+            install_target = f'"{self.install_target}"'
+            install_cmd = install_target + install_args
 
         install_cmd = f"pip install {self._install_cmd_for_torch(install_cmd, cluster)}"
         install_cmd = self._prepend_python_executable(
