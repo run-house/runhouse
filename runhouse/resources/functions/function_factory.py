@@ -68,12 +68,15 @@ def function(
     fn_pointers = None
     if callable(fn):
         fn_pointers = Function._extract_pointers(fn)
-        (
-            local_path_containing_module,
-            should_add,
-        ) = Function._get_local_path_containing_module(fn_pointers[0], env.reqs)
-        if should_add:
-            env.reqs = [str(local_path_containing_module)] + env.reqs
+        if isinstance(env, Env):
+            # Sometimes env may still be a string, in which case it won't be modified
+            (
+                local_path_containing_module,
+                should_add,
+            ) = Function._get_local_path_containing_module(fn_pointers[0], env.reqs)
+            if should_add:
+                env.reqs = [str(local_path_containing_module)] + env.reqs
+
         if fn_pointers[1] == "notebook":
             fn_pointers = Function._handle_nb_fn(
                 fn,
