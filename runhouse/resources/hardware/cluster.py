@@ -630,7 +630,7 @@ class Cluster(Resource):
             try:
                 # setup the client connection, and check server in background call
                 client = self.client
-                check_call = threading.Thread(target=client.check_server)
+                check_call = ThreadWithException(target=client.check_server)
                 check_call.start()
                 check_call.join()
 
