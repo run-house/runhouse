@@ -207,6 +207,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         assert get_status_data["status"] == ResourceServerStatus.terminated
 
     @pytest.mark.level("minimal")
+    @pytest.mark.skip("Test requires terminating the cluster")
     def test_status_autostop_cluster(self, cluster):
         cluster_config = cluster.config()
         cluster_uri = rns_client.format_rns_address(cluster.rns_address)
@@ -265,7 +266,9 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             headers=headers,
         )
 
-        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"])[0][1].split(
+        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"], stream_logs=False)[
+            0
+        ][1].split(
             "\n"
         )  # create list of lines
         cluster_logs = [

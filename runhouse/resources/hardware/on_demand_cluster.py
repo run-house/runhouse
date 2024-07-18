@@ -184,7 +184,7 @@ class OnDemandCluster(Cluster):
     def endpoint(self, external=False):
         try:
             self.client.check_server()
-        except ValueError:
+        except ConnectionError:
             return None
 
         return super().endpoint(external)

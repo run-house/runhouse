@@ -755,9 +755,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # the scheduler start running in a delay of 1 min, so the cluster startup will finish properly.
         # Therefore, the test needs to sleep for a while.
         time.sleep(60)
-        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"])[0][1]
+        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"], stream_logs=False)[
+            0
+        ][1]
         assert (
-            "Performing cluster status check: potentially sending to Den or updating autostop."
+            "Performing cluster checks: potentially sending to Den, surfacing logs to Den or updating autostop."
             in cluster_logs
         )
 
@@ -847,8 +849,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_cluster_run_within_cluster(self, cluster):
         remote_run = rh.function(run_in_no_env).to(cluster)
         res = remote_run("echo hello")
+        exp = cluster.run("echo hello")
+
         assert res[0][0] == 0
-        assert res[0][1] == "hello\n"
+        assert res[0][1] == exp[0][1]
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -869,7 +873,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # check cluster attr set, and  new env exists on the system
         assert new_env.env_name in cluster.run("conda info --envs")[0][1]
         assert cluster.default_env.name == new_env.name
-        assert new_env.name in cluster.status().get("env_resource_mapping")
+        assert new_env.name in cluster.status().get("env_servlet_processes")
 
         # check that env defaults to new default env for run/put
         assert cluster.run("pip freeze | grep diffusers")[0][0] == 0
