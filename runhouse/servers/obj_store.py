@@ -278,6 +278,16 @@ class ObjStore:
             cluster_nodes = ray.nodes()
             return [node["NodeManagerAddress"] for node in cluster_nodes]
 
+    def get_process_env(self) -> Optional["Env"]:
+        """
+        If this is an env servlet object store, then we are within a Runhouse env.
+
+        Return the env so it can be used for Runhouse primitives.
+        """
+        if self.servlet_name is not None and self.has_local_storage:
+            # Each env is stored within itself, I believe
+            return self.get(self.servlet_name)
+
     ##############################################
     # Generic helpers
     ##############################################

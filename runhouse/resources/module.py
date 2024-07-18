@@ -49,6 +49,24 @@ MODULE_ATTRS = [
 ]
 
 
+def _env_for_module(passed_in_env=None, system=None):
+    if passed_in_env is not None:
+        return _get_env_from(passed_in_env)
+
+    active_env_servlet_env = obj_store.get_process_env()
+    if active_env_servlet_env:
+        return active_env_servlet_env
+
+    if system and isinstance(system, Cluster):
+        return system.default_env
+
+    potential_default_env = _get_env_from(_default_env_if_on_cluster())
+    if potential_default_env:
+        return potential_default_env
+
+    return Env()
+
+
 class Module(Resource):
     RESOURCE_TYPE = "module"
 
@@ -72,14 +90,15 @@ class Module(Resource):
             system or _current_cluster(key="config"), dryrun=dryrun
         )
         self._env = env
+        if not self._env:
+            self._env = _env_for_module(passed_in_env=env, system=self._system)
+
         is_builtin = hasattr(sys.modules["runhouse"], self.__class__.__qualname__)
         if not pointers and not is_builtin:
             # If there are no pointers and this isn't a builtin module, we assume this is a user-created subclass
             # of rh.Module, and we need to do the factory constructor logic here.
 
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
-            if not self._env:
-                self._env = self._system.default_env if self._system else Env()
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
             pointers = Module._extract_pointers(self.__class__)
@@ -1368,12 +1387,7 @@ def module(
             "Use `.to(system)` or `.get_or_to(system)` after construction to send and run the Module on the system."
         )
 
-    if not isinstance(env, Env):
-        env = _get_env_from(env)
-        if not env:
-            env = _get_env_from(_default_env_if_on_cluster())
-        if not env:
-            env = Env()
+    env = _env_for_module(passed_in_env=env)
 
     cls_pointers = Module._extract_pointers(cls)
 
