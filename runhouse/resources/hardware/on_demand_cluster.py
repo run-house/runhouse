@@ -1,7 +1,6 @@
 import contextlib
 import json
 import subprocess
-import threading
 import time
 import warnings
 from pathlib import Path
@@ -291,8 +290,7 @@ class OnDemandCluster(Cluster):
         """
         if self.on_this_cluster():
             return True
-        self._update_from_sky_status(dryrun=False)
-        return self.address is not None
+        return self._ping(retry=True)
 
     def _sky_status(self, refresh: bool = True, retry: bool = True):
         """
@@ -649,16 +647,10 @@ class OnDemandCluster(Cluster):
             subprocess.run(cmd, shell=True)
 
     def _ping(self, timeout=5, retry=False):
-        ssh_call = threading.Thread(
-            target=lambda: self._run_commands_with_ssh(
-                ['echo "hello"'], stream_logs=False
-            )
-        )
-        ssh_call.start()
-        ssh_call.join(timeout=timeout)
-        if ssh_call.is_alive():
-            if retry:
-                if self.is_up():  # refreshes ips
-                    return self._ping(retry=False)
-            return False
-        return True
+        if super()._ping(timeout=timeout, retry=False):
+            return True
+
+        if retry:
+            self._update_from_sky_status(dryrun=False)
+            return super()._ping(timeout=timeout, retry=False)
+        return False

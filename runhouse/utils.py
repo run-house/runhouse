@@ -9,6 +9,8 @@ import os
 import re
 import subprocess
 import sys
+import threading
+
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Optional, Type, Union
@@ -299,3 +301,17 @@ def get_node_ip():
     import socket
 
     return socket.gethostbyname(socket.gethostname())
+
+
+class ThreadWithException(threading.Thread):
+    def run(self):
+        self._exc = None
+        try:
+            super().run()
+        except Exception as e:
+            self._exc = e
+
+    def join(self, timeout=None):
+        super().join(timeout=timeout)
+        if self._exc:
+            raise self._exc
