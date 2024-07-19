@@ -137,7 +137,7 @@ For more info: `SkyPilot Azure <https://skypilot.readthedocs.io/en/latest/gettin
 Other Providers
 ---------------
 
-For a full list of providers and configuration details: `SkyPilot documentation <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`.
+For a full list of providers and configuration details: `SkyPilot documentation <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`_.
 Some additional providers supported by Runhouse via SkyPilot include:
 
 - Kubernetes
