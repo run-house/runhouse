@@ -315,7 +315,7 @@ class Cluster(Resource):
         the internal url (including the local connected port rather than the sever port). If cluster is not up,
         returns None.
         """
-        if not (self.address or self.on_this_cluster()):
+        if not self.address or self.on_this_cluster():
             return None
 
         client_port = self.client_port or self.server_port
