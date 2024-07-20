@@ -151,6 +151,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         assert remote_package.install_target.system == cluster
 
     @pytest.mark.level("local")
+    @pytest.mark.skip("Feature deprecated for now")
     def test_local_package_version_gets_installed(self, cluster):
         run_with_logs("pip install plotly==5.9.0")
         env = rh.env(name="temp_env", reqs=["plotly"])
