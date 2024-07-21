@@ -37,7 +37,9 @@ class ResourceServerStatus(str, Enum):
     unknown = "unknown"
     internal_server_error = "internal_server_error"
     runhouse_daemon_down = "runhouse_daemon_down"
+    server_down = "server_down"  # TODO [SB]: remove once Runhouse 0.0.32 is released.
     invalid_url = "invalid_url"
+    local_cluster = "local_cluster"
 
 
 def cluster_config_file_exists() -> bool:
