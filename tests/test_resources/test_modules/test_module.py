@@ -852,7 +852,7 @@ class TestModule:
         with pytest.raises(ModuleNotFoundError) as err:
             exc_module = ExceptionModule()
             exc_module.to(cluster)
-        assert "pyarrow" in str(err.value)
+        assert "plotly" in str(err.value)
 
     @pytest.mark.level("local")
     @pytest.mark.asyncio
