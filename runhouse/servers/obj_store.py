@@ -1101,14 +1101,13 @@ class ObjStore:
 
         from runhouse.resources.provenance import run
 
-        log_ctx = None
-        if stream_logs:
-            log_ctx = run(
-                name=run_name,
-                log_dest="file" if run_name else None,
-                load=False,
-            )
-            log_ctx.__enter__()
+        # TODO [SB]: instead of writing the logs using run object, write them using an obj_store method
+        log_ctx = run(
+            name=run_name,
+            log_dest="file" if run_name else None,
+            load=False,
+        )
+        log_ctx.__enter__()
 
         # Use a finally to track the active functions so that it is always removed
         request_id = req_ctx.get().request_id

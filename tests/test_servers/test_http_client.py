@@ -183,7 +183,7 @@ class TestHTTPClient:
             "data": None,
             "serialization": "pickle",
             "run_name": run_name,
-            "stream_logs": True,
+            "stream_logs": False,
             "save": False,
             "remote": False,
         }
@@ -239,7 +239,7 @@ class TestHTTPClient:
             "data": serialize_data(data, "pickle"),
             "serialization": "pickle",
             "run_name": run_name,
-            "stream_logs": True,
+            "stream_logs": False,
             "save": False,
             "remote": False,
         }

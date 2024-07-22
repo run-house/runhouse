@@ -1,6 +1,7 @@
 import inspect
 import json
 import os
+import re
 import site
 import time
 
@@ -268,6 +269,7 @@ class TestModule:
         assert remote_instance.remote._hidden_1 == "hidden"
 
         results = []
+
         out = ""
         with rh.capture_stdout() as stdout:
             for i, val in enumerate(remote_instance.slow_iter()):
@@ -276,6 +278,10 @@ class TestModule:
                 results += [val]
                 out = out + str(stdout)
         assert len(results) == 3
+
+        # remove_ansi_escape_sequences
+        ansi_escape = re.compile(r"\x1b\[.*?[@-~]")
+        out = ansi_escape.sub("", out)
 
         # Check that stdout was captured. Skip the last result because sometimes we
         # don't catch it and it makes the test flaky.
@@ -365,6 +371,10 @@ class TestModule:
                 results += [val]
                 out = out + str(stdout)
         assert len(results) == 3
+
+        # remove_ansi_escape_sequences
+        ansi_escape = re.compile(r"\x1b\[.*?[@-~]")
+        out = ansi_escape.sub("", out)
 
         # Check that stdout was captured. Skip the last result because sometimes we
         # don't catch it and it makes the test flaky.

@@ -14,7 +14,6 @@ import yaml
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
-from fastapi.responses import StreamingResponse
 
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
@@ -312,19 +311,8 @@ class HTTPServer:
                     remote=params.remote,
                 )
             )
-            # If stream_logs is False, we'll wait for the result and return it
-            if not params.stream_logs:
-                return await fut
-
-            return StreamingResponse(
-                HTTPServer._get_results_and_logs_generator(
-                    key,
-                    fut=fut,
-                    run_name=params.run_name,
-                    serialization=params.serialization,
-                ),
-                media_type="application/json",
-            )
+            await fut
+            return jsonable_encoder(fut.result())
         except Exception as e:
             return handle_exception_response(
                 e,
