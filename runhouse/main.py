@@ -549,6 +549,7 @@ def _start_server(
     existing_ray_instance = check_for_existing_ray_instance()
     if not existing_ray_instance or restart_ray:
         cmds.append(RAY_KILL_CMD)
+        cmds.append("sleep 5")
         cmds.append(RAY_START_CMD)
 
     # Collect flags
