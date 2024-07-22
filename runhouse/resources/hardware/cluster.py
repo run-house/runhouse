@@ -1057,7 +1057,7 @@ class Cluster(Resource):
                 data={"args": args, "kwargs": kwargs},
                 stream_logs=stream_logs,
                 run_name=run_name,
-                # remote=remote,
+                remote=remote,
                 serialization=None,
             )
         method_to_call = "acall_module_method" if run_async else "call_module_method"

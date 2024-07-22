@@ -41,6 +41,11 @@ def error_handling_decorator(func):
             if serialization is None or serialization == "none":
                 return output
             if output is not None:
+                if kwargs.get("remote"):
+                    return Response(
+                        output_type=OutputType.CONFIG,
+                        data=output,
+                    )
                 serialized_data = serialize_data(output, serialization)
                 return Response(
                     output_type=OutputType.RESULT_SERIALIZED,
