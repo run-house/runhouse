@@ -320,15 +320,17 @@ def _print_envs_info(
 
             # convert bytes to GB
             memory_usage_gb = round(
-                int(env_cpu_info["used"]) / (1024**3),
+                int(env_cpu_info["used_memory"]) / (1024**3),
                 2,
             )
-            total_cluster_memory = math.ceil(int(env_cpu_info["total"]) / (1024**3))
+            total_cluster_memory = math.ceil(
+                int(env_cpu_info["total_memory"]) / (1024**3)
+            )
             cpu_memory_usage_percent = round(
-                float(env_cpu_info["used"] / env_cpu_info["total"]),
+                float(env_cpu_info["used_memory"] / env_cpu_info["total_memory"]),
                 2,
             )
-            cpu_usage_percent = round(float(env_cpu_info["percent"]), 2)
+            cpu_usage_percent = round(float(env_cpu_info["utilization_percent"]), 2)
 
             cpu_usage_summery = f"{DOUBLE_SPACE_UNICODE}CPU: {cpu_usage_percent}% | Memory: {memory_usage_gb} / {total_cluster_memory} Gb ({cpu_memory_usage_percent}%)"
 
@@ -345,9 +347,13 @@ def _print_envs_info(
         # sometimes the cluster has no GPU, therefore the env_gpu_info is an empty dictionary.
         if env_gpu_info:
             # get the gpu usage info, and convert it to GB.
-            total_gpu_memory = math.ceil(float(env_gpu_info.get("total")) / (1024**3))
-            gpu_util_percent = round(float(env_gpu_info.get("percent")), 2)
-            used_gpu_memory = round(float(env_gpu_info.get("used")) / (1024**3), 2)
+            total_gpu_memory = math.ceil(
+                float(env_gpu_info.get("total_memory")) / (1024**3)
+            )
+            gpu_util_percent = round(float(env_gpu_info.get("utilization_percent")), 2)
+            used_gpu_memory = round(
+                float(env_gpu_info.get("used_memory")) / (1024**3), 2
+            )
             gpu_memory_usage_percent = round(
                 float(used_gpu_memory / total_gpu_memory) * 100, 2
             )

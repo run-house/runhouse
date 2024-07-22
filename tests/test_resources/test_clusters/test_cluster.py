@@ -716,9 +716,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         for k in env_servlet_processes:
             if env_servlet_processes[k]["env_gpu_usage"] == {}:
                 env_servlet_processes[k]["env_gpu_usage"] = {
-                    "used": None,
-                    "percent": None,
-                    "total": None,
+                    "allocated_memory": None,
+                    "used_memory": None,
+                    "utilization_percent": None,
+                    "total_memory": None,
+                    "memory_percent_allocated": None,
                 }
         env_servlet_processes = sort_env_servlet_processes(env_servlet_processes)
         get_status_data["env_servlet_processes"] = sort_env_servlet_processes(
