@@ -628,13 +628,8 @@ class Cluster(Resource):
     def call_client_method(self, method_name, *args, restart_server=True, **kwargs):
         def check_and_call():
             try:
-                # setup the client connection, and check server in background call
-                client = self.client
-                check_call = ThreadWithException(target=client.check_server)
-                check_call.start()
-                check_call.join()
-
-                method = getattr(client, method_name)
+                self.client.check_server()
+                method = getattr(self.client, method_name)
                 return method(*args, **kwargs)
             except (
                 requests.exceptions.ConnectionError,
