@@ -1383,9 +1383,12 @@ class ObjStore:
 
         if remote and isinstance(res, dict) and "resource_type" in res:
             config = res
-            if config.get("system").get("name") == (
-                await self.aget_cluster_config()
-            ).get("name"):
+            # Config is condensed by default, so system may just be a string
+            if isinstance(config.get("system"), dict):
+                system_name = config.get("system").get("name")
+            else:
+                system_name = config.get("system")
+            if system_name == (await self.aget_cluster_config()).get("name"):
                 from runhouse import here
 
                 config["system"] = here
