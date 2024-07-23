@@ -369,7 +369,14 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 2
     default_env = rh.env(
-        reqs=["ray==2.30.0", "pytest", "httpx", "pytest_asyncio", "pandas"],
+        reqs=[
+            "ray==2.30.0",
+            "pytest",
+            "httpx",
+            "pytest_asyncio",
+            "pandas",
+            "numpy<=1.26.4",
+        ],
         working_dir=None,
         name="default_env",
     )

@@ -358,9 +358,9 @@ default_fixtures[TestLevels.UNIT] = {"cluster": ["named_cluster"]}
 default_fixtures[TestLevels.LOCAL] = {
     "cluster": [
         "docker_cluster_pk_ssh_no_auth",  # Represents private dev use case
-        # "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
-        # "docker_cluster_pk_tls_den_auth",  # Represents public app use case
-        # "docker_cluster_pk_http_exposed",  # Represents within VPC use case
+        "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
+        "docker_cluster_pk_tls_den_auth",  # Represents public app use case
+        "docker_cluster_pk_http_exposed",  # Represents within VPC use case
     ]
 }
 default_fixtures[TestLevels.MINIMAL] = {
