@@ -549,7 +549,6 @@ def _start_server(
     existing_ray_instance = check_for_existing_ray_instance()
     if not existing_ray_instance or restart_ray:
         cmds.append(RAY_KILL_CMD)
-        cmds.append("sleep 5")
         cmds.append(RAY_START_CMD)
 
     # Collect flags
@@ -662,8 +661,27 @@ def _start_server(
                 result = subprocess.run(cmd, shell=True, check=True)
             else:
                 result = subprocess.run(shlex.split(cmd), text=True)
-            # We don't want to raise an error if the server kill fails, as it may simply not be running
-            if result.returncode != 0 and "pkill" not in cmd:
+
+            if result.returncode != 0:
+                # We don't want to raise an error if the server kill fails, as it may simply not be running
+                if "pkill" in cmd:
+                    continue
+
+                # Retry ray start in case pkill process did not complete in time, up to 10s
+                if cmd == RAY_START_CMD:
+                    console.print("Retrying:")
+                    attempt = 0
+                    while result.returncode != 0 and attempt < 10:
+                        attempt += 1
+                        time.sleep(1)
+                        result = subprocess.run(
+                            shlex.split(cmd), text=True, capture_output=True
+                        )
+                        if result.stderr and "ConnectionError" not in result.stderr:
+                            break
+                    if result.returncode == 0:
+                        continue
+
                 console.print(f"Error while executing `{cmd}`")
                 raise typer.Exit(1)
 
