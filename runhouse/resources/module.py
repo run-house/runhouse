@@ -524,15 +524,7 @@ class Module(Resource):
             new_module.name = new_name
             # TODO dedup with _extract_state
             # Exclude anything already being sent in the config and private module attributes
-            excluded_state_keys = list(new_module.config().keys()) + [
-                "_system",
-                "_name",
-                "_rns_folder",
-                "dryrun",
-                "_env",
-                "_pointers",
-                "_resolve",
-            ]
+            excluded_state_keys = list(new_module.config().keys()) + MODULE_ATTRS
             state = {}
             # We only send over state for instances, not classes
             if not isinstance(self, type):
