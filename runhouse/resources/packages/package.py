@@ -362,29 +362,6 @@ class Package(Resource):
         packages_to_install = [match[0] for match in matches]
         return packages_to_install
 
-    # ----------------------------------
-
-    @staticmethod
-    def _pip_install(
-        install_cmd: str, env: Union[str, "Env"] = "", cluster: "Cluster" = None
-    ):
-        retcode = run_setup_command(install_cmd, cluster=cluster)[0]
-        if retcode != 0:
-            raise RuntimeError(
-                "Pip install failed, check that the package exists and is available for your platform."
-            )
-
-    @staticmethod
-    def _conda_install(
-        install_cmd: str, env: Union[str, "Env"] = "", cluster: "Cluster" = None
-    ):
-        retcode = run_setup_command(install_cmd, cluster=cluster)[0]
-        if retcode != 0:
-            raise RuntimeError(
-                "Conda install failed, check that the package exists and is "
-                "available for your platform."
-            )
-
     def to(
         self,
         system: Union[str, Dict, "Cluster"],
