@@ -14,6 +14,7 @@ pandas
 numpy<=1.26.4
 pyarrow
 openapi-core==0.19.1
+plotly
 
 # packages for minimal+ tests
 skypilot==0.5.0
