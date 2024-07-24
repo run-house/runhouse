@@ -1537,9 +1537,7 @@ class ObjStore:
         if provider:
             resource_config["provider"] = provider
 
-        logger.info(
-            f"Message received from client to construct resource: {resource_config}"
-        )
+        logger.debug(f"Message received from client to construct resource: {name}")
 
         resource = Resource.from_config(config=resource_config, dryrun=dryrun)
 
