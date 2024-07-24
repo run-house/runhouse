@@ -662,7 +662,7 @@ class Cluster(Resource):
                 logger.info(f"Checking server {self.name} again [{i + 1}/3]")
 
                 try:
-                    self.call_client_method(
+                    return self.call_client_method(
                         method_name, *args, restart_server=False, **kwargs
                     )
                 except ConnectionError as e:
