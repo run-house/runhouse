@@ -112,7 +112,8 @@ def ondemand_k8s_cluster(request):
     args = {
         "name": "k8s-cpu",
         "provider": "kubernetes",
-        "instance_type": "1CPU--1GB",
+        "instance_type": "CPU:1",
+        "memory": ".2",
     }
     cluster = setup_test_cluster(args, request)
     return cluster
