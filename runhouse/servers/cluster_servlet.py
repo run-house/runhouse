@@ -232,6 +232,10 @@ class ClusterServlet:
                     configs.token is not None and interval_size != -1
                 )
                 should_update_autostop = self.autostop_helper is not None
+
+                # turning off sending logs for now, until latency issue resolved and send logs revamp will land in next release
+                send_logs = False
+
                 if should_send_status_and_logs_to_den or should_update_autostop:
                     logger.info(
                         "Performing cluster checks: potentially sending to Den, surfacing logs to Den or updating autostop."
@@ -283,18 +287,22 @@ class ClusterServlet:
                                 f"{sent_status}: Error in sending cluster status to Den. Check cluster logs for more info."
                             )
                         else:
-                            logger.info("Successfully sent cluster status to Den.")
+                            logger.debug("Successfully sent cluster status to Den.")
 
-                            sent_logs = await rns_client.send_cluster_logs_to_den(
-                                cluster_uri=cluster_uri, api_server_url=api_server_url
-                            )
-
-                            if sent_logs != 200:
-                                logger.error(
-                                    f"{sent_logs}: Error in sending cluster logs to Den. Check cluster logs for more info."
+                            if send_logs:
+                                logs_resp = await rns_client.send_cluster_logs_to_den(
+                                    cluster_uri=cluster_uri,
+                                    api_server_url=api_server_url,
                                 )
-                            else:
-                                logger.info("Successfully sent cluster logs to Den.")
+
+                                if logs_resp != 200:
+                                    logger.error(
+                                        f"{logs_resp}: Error in sending cluster logs to Den. Check cluster logs for more info."
+                                    )
+                                else:
+                                    logger.debug(
+                                        "Successfully sent cluster logs to Den."
+                                    )
 
             except Exception as e:
                 self.logger.error(
@@ -449,7 +457,7 @@ class ClusterServlet:
                         f"({post_logs_resp.status_code}) Failed to send cluster logs to Den: {post_logs_error}"
                     )
                 else:
-                    self.logger.info(
+                    self.logger.debug(
                         f"Successfully sent cluster logs to Den. Next status check will be in {round(interval_size / 60, 2)} minutes."
                     )
             except Exception as e:
