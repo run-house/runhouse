@@ -181,7 +181,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         cluster.address = None
         assert not cluster._ping(retry=False)
 
-        cluster.address = "00.00.000.00"
+        cluster.address = "00.00.000.11"
         assert not cluster._ping(retry=False)
 
         assert cluster._ping(retry=True)
