@@ -20,6 +20,8 @@ jobs:
         uses: ./.github/workflows/setup_release_testing
         with:
           AWS_OSS_ROLE_ARN: ${{ secrets.AWS_OSS_ROLE_ARN }}
+          DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
           KUBECONFIG: ${{ secrets.KUBECONFIG }}
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -56,6 +58,8 @@ jobs:
         uses: ./.github/workflows/setup_release_testing
         with:
           AWS_OSS_ROLE_ARN: ${{ secrets.AWS_OSS_ROLE_ARN }}
+          DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
           KUBECONFIG: ${{ secrets.KUBECONFIG }}
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -92,6 +96,8 @@ jobs:
         uses: ./.github/workflows/setup_release_testing
         with:
           AWS_OSS_ROLE_ARN: ${{ secrets.AWS_OSS_ROLE_ARN }}
+          DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
           KUBECONFIG: ${{ secrets.KUBECONFIG }}
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -131,6 +137,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           KUBECONFIG: ${{ secrets.KUBECONFIG }}
           AWS_OSS_ROLE_ARN: ${{ secrets.AWS_OSS_ROLE_ARN }}
+          DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
           CI_ACCOUNT_TOKEN: ${{ secrets.CI_ACCOUNT_TOKEN }}
           CI_ACCOUNT_USERNAME: ${{ secrets.CI_ACCOUNT_USERNAME }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
@@ -165,6 +173,8 @@ jobs:
         with:
           KUBECONFIG: ${{ secrets.KUBECONFIG }}
           AWS_OSS_ROLE_ARN: ${{ secrets.AWS_OSS_ROLE_ARN }}
+          DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           CI_ACCOUNT_TOKEN: ${{ secrets.CI_ACCOUNT_TOKEN }}
@@ -201,6 +211,8 @@ jobs:
         with:
           KUBECONFIG: ${{ secrets.KUBECONFIG }}
           AWS_OSS_ROLE_ARN: ${{ secrets.AWS_OSS_ROLE_ARN }}
+          DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           CI_ACCOUNT_TOKEN: ${{ secrets.CI_ACCOUNT_TOKEN }}
