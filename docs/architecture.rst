@@ -43,7 +43,6 @@ The basic flow of how Runhouse offloads function and classes as services is as f
 annotated code snippet:
 
 .. code-block:: python
-
     import runhouse as rh
 
     # [1] and [2]
@@ -64,12 +63,16 @@ annotated code snippet:
 
     # [6]
     gpu.teardown()
-
 .. note::
 
 
 1. Specify and/or Allocate Compute
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: python
+    gpu = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws").up_if_not()
+.. note::
+
 Runhouse can allocate compute to the application on the fly, either by
 utilizing an existing VM or Ray cluster, or allocating a new one using local cloud or K8s credentials. The
 ``rh.cluster`` constructor is generally used to specify and interact with remote compute, including bringing it up
@@ -77,6 +80,10 @@ if necessary (``cluster.up_if_not()``).
 
 2. Starting the Runhouse Server Daemon
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: python
+    gpu.up_if_not()
+.. note::
+
 If not already running, the client will start the Runhouse API server daemon
 on the compute and form a secure network connection (either over SSH or HTTP/S). Dependencies can be specified to be
 installed before starting the daemon.
@@ -97,8 +104,13 @@ installed before starting the daemon.
 
 3. Deploying Functions or Classes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: python
+    sd_env = rh.env(reqs=["torch", "transformers", "diffusers"], name="sd_generate")
+    remote_sd_generate = rh.function(sd_generate).to(gpu, worker=sd_env)
+.. note::
+
 The user specifies a function or class to be deployed to the remote compute
-using the ``rh.function``` or ``rh.module`` constructors (or by subclassing ``rh.Module``), and calling
+using the ``rh.function`` or ``rh.module`` constructors (or by subclassing ``rh.Module``), and calling
 ``remote_obj = my_obj.to(my_cluster, worker=my_env)``. The Runhouse client library extracts the path, module name,
 and importable name from the function or class. If the function or class is defined in local code, the repo or
 package is rsynced onto the cluster. An instruction with the import path is sent to the cluster to
@@ -106,6 +118,11 @@ construct the function or class in a particular worker and upserts it into the k
 
 4. Calling the Function or Class
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: python
+    imgs = remote_sd_generate("A hot dog made out of matcha.")
+    imgs[0].show()
+.. note::
+
 After deploying the function, class, or object into the server, the Runhouse
 Python client returns a local callable stub which behaves like the original object but forwards method calls
 over HTTP to the remote object on the cluster.
@@ -123,6 +140,12 @@ over HTTP to the remote object on the cluster.
 
 5. Saving and Loading
 ^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: python
+    remote_sd_generate.save()
+    sd_upsampler = rh.function(name="/my_username/sd_upsampler")
+    high_res_imgs = sd_upsampler(imgs)
+.. note::
+
 The Runhouse client can save and load objects to and from the local filesystem, or to a
 remote metadata store. This allows for easy sharing of clusters and services across users and environments,
 and for versioning and rollback of objects. The metadata store can be accessed from any Python interpreter,
@@ -130,6 +153,10 @@ and is backed by UIs and APIs to view, monitor, and manage all resources.
 
 6. Terminating Modules, Workers, or Clusters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: python
+    gpu.teardown()
+.. note::
+
 When a remote object is no longer needed, it can be deallocated from
 the remote compute by calling ``cluster.delete(obj_name)``. This will remove the object from the key-value store and
 free up the memory on the worker. A worker process can similarly be terminated with ``cluster.delete(worker_name)``,
@@ -153,9 +180,6 @@ For this reason, it has no other runtime to setup than Python itself, can be use
 can use your Ray or Spark clusters less disruptively within your stack (e.g. sending a function which uses
 Ray over to the head node of the Ray cluster, where the Ray will execute as usual).
 
-<diagram showing Ray calling actors within the cluster, Runhouse calling outside into other processes, VMs,
-Ray clusters, K8s clusters, clouds>
-
 This also fixes certain sharp edges with these systems to significantly reduce costs, such as the inability to use
 more than one cluster in an application or sharing a cluster between multiple callers. Is also means the local and
 remote compute are largely decoupled, with no shared runtime which will break if one disconnects or goes down.
@@ -170,15 +194,10 @@ For example, with Runhouse it's easy to allocate small compute to start a traini
 restart it with a slightly larger box. Other compute flexibility like multi-region or multi-cloud which other
 orchestrators struggle with are trivial for Runhouse.
 
-<diagram showing Airflow as a sequence of nodes, and Runhouse as a call within Python to an outside node>
-
 Generally, workflow orchestrators are built to be good at monitoring, telemetry, fault-tolerance, and scheduling, so
 we recommend using one strictly for those features and using Runhouse within your pipeline nodes for the heterogeneous
 compute and remote execution. You can also save a lot of money by reusing compute across multiple nodes or reusing
 services across multiple pipelines with Runhouse, which is generally not possible with workflow orchestrators.
-
-<diagram showing an Airflow pipeline calling multiple steps on one cluster, and another pipeline calling a service
-created by the first>
 
 Serverless frameworks (e.g. Modal, AWS Lambda)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -187,8 +206,6 @@ strictly from within regular Python - they require specific pre-packaging or CLI
 commands outside Python. Runhouse runs fully in a Python interpreter so it can extend the compute power of practically
 any existing Python application, and allocates services inside your own compute, wherever that may be. We may even
 support serverless systems as compute backends in the future.
-
-<diagram showing Modal creating new services within their own compute, and Runhouse within EC2, K8s, GCP, etc.>
 
 Infrastructure in code (e.g. SkyPilot, Pulumi)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -199,17 +216,11 @@ to perform allocation, (re)deployment, and management of a new service all in Py
 instantly within the existing application. It also doesn't need to perform allocation to create new services -
 it can use existing compute or static VMs.
 
-<diagram showing SkyPilot running a CLI command on the remote compute and getting back logs, and Runhouse using
-SkyPilot to launch new compute, send a function to it, and call it>
-
 GPU/Accelerator dispatch (e.g. PyTorch, Jax, Mojo)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 GPU/Accelerator dispatch systems give the ability to offload computation to a local GPU or
 TPU. Runhouse does not have this capability but can offload a function or class to a remote instance with an
 accelerator, which can then itself use libraries like PyTorch or Jax (and maybe one day Mojo) to use the accelerator.
-
-<diagram showing PyTorch dispatching to the GPU within the node, Runhouse dispatching to a remote node which then uses
-PyTorch to dispatch to the GPU>
 
 Saving, Loading, and Sharing
 ----------------------------
