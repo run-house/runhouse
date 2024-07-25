@@ -43,6 +43,7 @@ The basic flow of how Runhouse offloads function and classes as services is as f
 annotated code snippet:
 
 .. code-block:: python
+
     import runhouse as rh
 
     # [1] and [2]
@@ -63,6 +64,7 @@ annotated code snippet:
 
     # [6]
     gpu.teardown()
+
 .. note::
 
 
@@ -70,7 +72,9 @@ annotated code snippet:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: python
+
     gpu = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws").up_if_not()
+
 .. note::
 
 Runhouse can allocate compute to the application on the fly, either by
@@ -80,10 +84,6 @@ if necessary (``cluster.up_if_not()``).
 
 2. Starting the Runhouse Server Daemon
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. code-block:: python
-    gpu.up_if_not()
-.. note::
-
 If not already running, the client will start the Runhouse API server daemon
 on the compute and form a secure network connection (either over SSH or HTTP/S). Dependencies can be specified to be
 installed before starting the daemon.
@@ -100,13 +100,17 @@ installed before starting the daemon.
 #. New workers can be constructed with ``rh.env``, which specifies the details of the Python environment
    (packages, environment variables) in which the process will be constructed. By default, workers live
    in the same Python environment as the daemon but can also be started in a conda environment or a
-   separate node.
+   separate node. To configure the environment of the daemon itself, such as setting environment variables
+   or installing dependencies which will apply across all workers by default, you can pass an ``rh.env`` to the
+   ``default_env`` argument of the ``rh.cluster`` constructor.
 
 3. Deploying Functions or Classes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. code-block:: python
+
     sd_env = rh.env(reqs=["torch", "transformers", "diffusers"], name="sd_generate")
     remote_sd_generate = rh.function(sd_generate).to(gpu, worker=sd_env)
+
 .. note::
 
 The user specifies a function or class to be deployed to the remote compute
@@ -119,8 +123,10 @@ construct the function or class in a particular worker and upserts it into the k
 4. Calling the Function or Class
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. code-block:: python
+
     imgs = remote_sd_generate("A hot dog made out of matcha.")
     imgs[0].show()
+
 .. note::
 
 After deploying the function, class, or object into the server, the Runhouse
@@ -141,9 +147,11 @@ over HTTP to the remote object on the cluster.
 5. Saving and Loading
 ^^^^^^^^^^^^^^^^^^^^^
 .. code-block:: python
+
     remote_sd_generate.save()
     sd_upsampler = rh.function(name="/my_username/sd_upsampler")
     high_res_imgs = sd_upsampler(imgs)
+
 .. note::
 
 The Runhouse client can save and load objects to and from the local filesystem, or to a
@@ -154,7 +162,9 @@ and is backed by UIs and APIs to view, monitor, and manage all resources.
 6. Terminating Modules, Workers, or Clusters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. code-block:: python
+
     gpu.teardown()
+
 .. note::
 
 When a remote object is no longer needed, it can be deallocated from
