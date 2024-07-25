@@ -181,6 +181,9 @@ class OnDemandCluster(Cluster):
         return config
 
     def endpoint(self, external=False):
+        if not self.address or self.on_this_cluster():
+            return None
+
         try:
             self.client.check_server()
         except ConnectionError:

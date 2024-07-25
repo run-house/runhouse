@@ -315,7 +315,7 @@ class Cluster(Resource):
         the internal url (including the local connected port rather than the sever port). If cluster is not up,
         returns None.
         """
-        if not (self.address or self.on_this_cluster()):
+        if not self.address or self.on_this_cluster():
             return None
 
         client_port = self.client_port or self.server_port
@@ -628,13 +628,8 @@ class Cluster(Resource):
     def call_client_method(self, method_name, *args, restart_server=True, **kwargs):
         def check_and_call():
             try:
-                # setup the client connection, and check server in background call
-                client = self.client
-                check_call = ThreadWithException(target=client.check_server)
-                check_call.start()
-                check_call.join()
-
-                method = getattr(client, method_name)
+                self.client.check_server()
+                method = getattr(self.client, method_name)
                 return method(*args, **kwargs)
             except (
                 requests.exceptions.ConnectionError,
@@ -667,7 +662,7 @@ class Cluster(Resource):
                 logger.info(f"Checking server {self.name} again [{i + 1}/3]")
 
                 try:
-                    self.call_client_method(
+                    return self.call_client_method(
                         method_name, *args, restart_server=False, **kwargs
                     )
                 except ConnectionError as e:
@@ -1062,7 +1057,7 @@ class Cluster(Resource):
                 data={"args": args, "kwargs": kwargs},
                 stream_logs=stream_logs,
                 run_name=run_name,
-                # remote=remote,
+                remote=remote,
                 serialization=None,
             )
         method_to_call = "acall_module_method" if run_async else "call_module_method"

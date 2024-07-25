@@ -6,10 +6,10 @@ inputs:
   AWS_OSS_ROLE_ARN:
     description: 'AWS OSS Role ARN'
     required: false
-  DEV_AWS_ACCESS_KEY:
+  DEV_AWS_ACCESS_KEY: # TODO we should rely only on the ROLE_ARN above
     description: 'AWS Access Key ID'
     required: false
-  DEV_AWS_SECRET_KEY:
+  DEV_AWS_SECRET_KEY:  # TODO we should rely only on the ROLE_ARN above
     description: 'AWS Secret Access Key'
   GCP_SERVICE_ACCOUNT_KEY:
     description: 'GCP Service Account Key'
@@ -46,42 +46,12 @@ runs:
         sudo apt-get install -y socat netcat
       shell: bash
 
-#    - name: Configure & Authenticate to AWS
-#      uses: aws-actions/configure-aws-credentials@v2
-#      with:
-#        role-to-assume: ${{ inputs.AWS_OSS_ROLE_ARN }}
-#        aws-region: us-east-1
-#        duration-seconds: 10800  # 3 hours (prevent auth errors for longer running jobs)
-#        audience: sts.amazonaws.com
-
     - name: Configure & Authenticate to AWS
       run: |
         aws configure set aws_access_key_id ${{ inputs.DEV_AWS_ACCESS_KEY }}
         aws configure set aws_secret_access_key ${{ inputs.DEV_AWS_SECRET_KEY }}
         aws configure set default.region us-east-1
       shell: bash
-
-
-#    - name: Write AWS credentials to file
-#      run: |
-#        mkdir -p ~/.aws
-#        echo "[default]" > ~/.aws/credentials
-#        echo "aws_access_key_id=$AWS_ACCESS_KEY_ID" >> ~/.aws/credentials
-#        echo "aws_secret_access_key=$AWS_SECRET_ACCESS_KEY" >> ~/.aws/credentials
-#        echo "aws_session_token=$AWS_SESSION_TOKEN" >> ~/.aws/credentials
-#      shell: bash
-
-#    - name: Verify AWS credentials
-#      run: |
-#        aws sts get-caller-identity
-#      shell: bash
-
-#    - name: Validate Kubernetes access
-#      run: |
-#        kubectl get nodes
-#        kubectl describe clusterrolebinding oss-role-binding
-#        kubectl describe configmap aws-auth -n kube-system
-#      shell: bash
 
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v1

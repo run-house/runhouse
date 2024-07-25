@@ -47,7 +47,9 @@ that provider's CLI included - or choose multiple providers. SkyPilot will also 
 Configure Cloud Credentials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Runhouse uses `SkyPilot <https://github.com/skypilot-org/skypilot>`_ to launch and manage virtual machine instances on your cloud providers.
+Optionally, for `on-demand clusters </docs/tutorials/api-clusters#on-demand-clusters>`_, Runhouse uses
+`SkyPilot <https://github.com/skypilot-org/skypilot>`_ to launch and manage virtual machine instances on your cloud providers.
+These steps are not necessary when using static clusters that can be accessed with SSH credentials.
 
 For each provider, we recommend you begin by checking your configuration with SkyPilot.
 
@@ -137,17 +139,17 @@ For more info: `SkyPilot Azure <https://skypilot.readthedocs.io/en/latest/gettin
 Other Providers
 ---------------
 
-For a full list of providers and configuration details: `SkyPilot documentation <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`.
+For a full list of providers and configuration details: `SkyPilot documentation <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`_.
 Some additional providers supported by Runhouse via SkyPilot include:
 
 - Kubernetes
 - Lambda Cloud
 - & more
 
-Cluster Lifecycle Management
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+On-Demand Cluster Lifecycle Management
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To ensure that you have full control over the availability of your clusters, and the cost associated with maintaining them,
+To ensure that you have full control over the availability of on-demand clusters, and the cost associated with maintaining them,
 you may find the following `SkyPilot commands <https://skypilot.readthedocs.io/en/latest/reference/cli.html#cluster-cli>`_ helpful:
 
 - ``sky status`` - Displays a list of all your clusters by name.

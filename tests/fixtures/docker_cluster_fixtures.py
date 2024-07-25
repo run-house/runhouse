@@ -369,7 +369,14 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 2
     default_env = rh.env(
-        reqs=["ray==2.30.0", "pytest", "httpx", "pytest_asyncio", "pandas"],
+        reqs=[
+            "ray==2.30.0",
+            "pytest",
+            "httpx",
+            "pytest_asyncio",
+            "pandas",
+            "numpy<=1.26.4",
+        ],
         working_dir=None,
         name="default_env",
     )
@@ -450,6 +457,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
     - Public key authentication
     - Den auth disabled (to mimic VPC)
     - Caddy set up on startup to forward Runhouse HTTP Server to port 80
+    - Default conda_env with Python 3.11 and Ray 2.30.0
     """
     import os
 
@@ -465,11 +473,25 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 3
     local_client_port = LOCAL_HTTP_SERVER_PORT + 3
+    default_env = rh.conda_env(
+        reqs=[
+            "ray==2.30.0",
+            "pytest",
+            "httpx",
+            "pytest_asyncio",
+            "pandas",
+            "numpy<=1.26.4",
+        ],
+        conda_env={"dependencies": ["python=3.11"], "name": "default_env"},
+        env_vars={"OMP_NUM_THREADS": "8"},
+        working_dir=None,
+        name="default_env",
+    )
 
     local_cluster, cleanup = set_up_local_cluster(
-        image_name="keypair",
+        image_name="keypair-conda",
         container_name="rh-pk-http-port-fwd",
-        dir_name="public-key-auth",
+        dir_name="public-key-auth-conda",
         keypath=str(
             Path(
                 rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
@@ -488,6 +510,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
             "server_port": DEFAULT_HTTP_PORT,
             "client_port": local_client_port,
             "den_auth": False,
+            "default_env": default_env,
         },
     )
     # Yield the cluster

@@ -306,7 +306,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         )
 
         assert get_status_data_resp.status_code == 200
-        cluster_logs_from_s3 = get_status_data_resp.json()["data"][0][1:].replace(
-            "\n ", "\n"
-        )
+        cluster_logs_from_s3 = get_status_data_resp.json()["data"]["logs_text"][0][
+            1:
+        ].replace("\n ", "\n")
         assert cluster_logs_from_s3 in cluster_logs

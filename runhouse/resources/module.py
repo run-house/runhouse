@@ -524,15 +524,7 @@ class Module(Resource):
             new_module.name = new_name
             # TODO dedup with _extract_state
             # Exclude anything already being sent in the config and private module attributes
-            excluded_state_keys = list(new_module.config().keys()) + [
-                "_system",
-                "_name",
-                "_rns_folder",
-                "dryrun",
-                "_env",
-                "_pointers",
-                "_resolve",
-            ]
+            excluded_state_keys = list(new_module.config().keys()) + MODULE_ATTRS
             state = {}
             # We only send over state for instances, not classes
             if not isinstance(self, type):
@@ -1268,7 +1260,6 @@ def _module_subclass_factory(cls, cls_pointers):
 def module(
     cls: [Type] = None,
     name: Optional[str] = None,
-    system: Optional[Union[str, Cluster]] = None,  # deprecated
     env: Optional[Union[str, Env]] = None,
     dryrun: bool = False,
 ):
@@ -1358,15 +1349,9 @@ def module(
         >>> my_local_module = rh.module(name="~/my_module")
         >>> my_s3_module = rh.module(name="@/my_module")
     """
-    if name and not any([cls, system, env]):
+    if name and not any([cls, env]):
         # Try reloading existing module
         return Module.from_name(name, dryrun)
-
-    if system:
-        raise Exception(
-            "`system` argument is no longer supported in the module factory function. "
-            "Use `.to(system)` or `.get_or_to(system)` after construction to send and run the Module on the system."
-        )
 
     if not isinstance(env, Env):
         env = _get_env_from(env)

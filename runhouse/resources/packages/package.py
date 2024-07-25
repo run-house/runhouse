@@ -362,29 +362,6 @@ class Package(Resource):
         packages_to_install = [match[0] for match in matches]
         return packages_to_install
 
-    # ----------------------------------
-
-    @staticmethod
-    def _pip_install(
-        install_cmd: str, env: Union[str, "Env"] = "", cluster: "Cluster" = None
-    ):
-        retcode = run_setup_command(install_cmd, cluster=cluster)[0]
-        if retcode != 0:
-            raise RuntimeError(
-                "Pip install failed, check that the package exists and is available for your platform."
-            )
-
-    @staticmethod
-    def _conda_install(
-        install_cmd: str, env: Union[str, "Env"] = "", cluster: "Cluster" = None
-    ):
-        retcode = run_setup_command(install_cmd, cluster=cluster)[0]
-        if retcode != 0:
-            raise RuntimeError(
-                "Conda install failed, check that the package exists and is "
-                "available for your platform."
-            )
-
     def to(
         self,
         system: Union[str, Dict, "Cluster"],
@@ -516,10 +493,6 @@ class Package(Resource):
                 local_install_path = get_local_install_path(target)
                 if local_install_path and Path(local_install_path).exists():
                     target = Folder(path=local_install_path, dryrun=True)
-
-                # Otherwise, this is a package that was installed from pip, probably
-                else:
-                    target = f"{target}=={locally_installed_version}"
 
         # "Local" install method is a special case where we just copy a local folder and add to path
         if install_method == "local":

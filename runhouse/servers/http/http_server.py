@@ -314,7 +314,7 @@ class HTTPServer:
                     stream_logs=params.stream_logs,
                     serialization=params.serialization,
                     run_name=params.run_name,
-                    # remote=params.remote,
+                    remote=params.remote,
                 )
             )
             # If stream_logs is False, we'll wait for the result and return it
