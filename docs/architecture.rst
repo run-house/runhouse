@@ -50,8 +50,8 @@ annotated code snippet:
     gpu = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws").up_if_not()
 
     # [3]
-    sd_env = rh.env(reqs=["torch", "transformers", "diffusers"], name="sd_generate")
-    remote_sd_generate = rh.function(sd_generate).to(gpu, worker=sd_env)
+    sd_worker = rh.env(reqs=["torch", "transformers", "diffusers"], name="sd_generate")
+    remote_sd_generate = rh.function(sd_generate).to(gpu, env=sd_worker)
 
     # [4]
     imgs = remote_sd_generate("A hot dog made out of matcha.")
@@ -108,14 +108,14 @@ installed before starting the daemon.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. code-block:: python
 
-    sd_env = rh.env(reqs=["torch", "transformers", "diffusers"], name="sd_generate")
-    remote_sd_generate = rh.function(sd_generate).to(gpu, worker=sd_env)
+    sd_worker = rh.env(reqs=["torch", "transformers", "diffusers"], name="sd_generate")
+    remote_sd_generate = rh.function(sd_generate).to(gpu, env=sd_worker)
 
 .. note::
 
 The user specifies a function or class to be deployed to the remote compute
 using the ``rh.function`` or ``rh.module`` constructors (or by subclassing ``rh.Module``), and calling
-``remote_obj = my_obj.to(my_cluster, worker=my_env)``. The Runhouse client library extracts the path, module name,
+``remote_obj = my_obj.to(my_cluster, env=my_env)``. The Runhouse client library extracts the path, module name,
 and importable name from the function or class. If the function or class is defined in local code, the repo or
 package is rsynced onto the cluster. An instruction with the import path is sent to the cluster to
 construct the function or class in a particular worker and upserts it into the key-value store.
@@ -246,7 +246,7 @@ resources. Den can be accessed via an HTTP API or from any Python interpreter wi
 
     import runhouse as rh
 
-    remote_func = rh.function(fn=my_func).to(my_cluster, worker=my_env, name="my_function")
+    remote_func = rh.function(fn=my_func).to(my_cluster, env=my_env, name="my_function")
 
     # Save to Den
     remote_func.save()
