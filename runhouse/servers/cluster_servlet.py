@@ -214,105 +214,116 @@ class ClusterServlet:
         return deleted_keys
 
     ##############################################
-    # Cluster status functions
+    # Periodic Cluster Checks APIs
     ##############################################
+    @staticmethod
+    async def save_status_metrics_to_den(
+        status: ResourceStatusData, cluster_uri: str, api_server_url: str
+    ):
+        from runhouse.resources.hardware.utils import ResourceServerStatus
+
+        resource_info = dict(status)
+        env_servlet_processes = dict(resource_info.pop("env_servlet_processes"))
+        status_data = {
+            "status": ResourceServerStatus.running,
+            "resource_type": status.cluster_config.get("resource_type"),
+            "resource_info": resource_info,
+            "env_servlet_processes": env_servlet_processes,
+        }
+        client = httpx.AsyncClient()
+        return await client.post(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            data=json.dumps(status_data),
+            headers=rns_client.request_headers(),
+        )
 
     async def aperiodic_cluster_checks(self):
+        """Periodically check the status of the cluster, gather metrics about the cluster's utilization & memory,
+        and save it to Den."""
         # Delay the start of post_status_thread, so we'll finish the cluster startup properly
         await asyncio.sleep(SCHEDULERS_DELAY)
+        cluster_config = await self.aget_cluster_config()
+        interval_size = cluster_config.get(
+            "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
+        )
         while True:
             try:
-
-                cluster_config = await self.aget_cluster_config()
-                interval_size = cluster_config.get(
-                    "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
-                )
-
                 # Only if one of these is true, do we actually need to get the status from each EnvServlet
-                should_send_status_and_logs_to_den = (
+                should_send_status_and_logs_to_den: bool = (
                     configs.token is not None and interval_size != -1
                 )
-                should_update_autostop = self.autostop_helper is not None
-                if should_send_status_and_logs_to_den or should_update_autostop:
+                should_update_autostop: bool = self.autostop_helper is not None
+
+                if (
+                    not should_send_status_and_logs_to_den
+                    and not should_update_autostop
+                ):
+                    break
+
+                logger.debug("Performing cluster checks")
+                status: ResourceStatusData = await self.astatus()
+                if should_update_autostop:
+                    logger.debug("Updating autostop")
+                    await self._update_autostop(status)
+
+                if not should_send_status_and_logs_to_den:
+                    break
+
+                logger.debug("Sending cluster status to Den")
+                cluster_rns_address = cluster_config.get("name")
+                cluster_uri = rns_client.format_rns_address(cluster_rns_address)
+                api_server_url = status.cluster_config.get(
+                    "api_server_url", rns_client.api_server_url
+                )
+
+                resp = await ClusterServlet.save_status_metrics_to_den(
+                    status=status,
+                    cluster_uri=cluster_uri,
+                    api_server_url=api_server_url,
+                )
+                status_code = resp.status_code
+
+                if status_code == 404:
                     logger.info(
-                        "Performing cluster checks: potentially sending to Den, surfacing logs to Den or updating autostop."
+                        "Cluster has not yet been saved to Den, cannot update status or logs."
                     )
-                    status: ResourceStatusData = await self.astatus()
+                elif status_code != 200:
+                    logger.error(
+                        f"{status_code}: Failed to send cluster status to Den: {resp.json()}"
+                    )
+                else:
+                    logger.debug("Successfully sent cluster status to Den.")
+                    prev_end_log_line = cluster_config.get("end_log_line", 0)
+                    (
+                        logs_resp,
+                        new_start_log_line,
+                        new_end_log_line,
+                    ) = await self.send_cluster_logs_to_den(
+                        cluster_uri=cluster_uri,
+                        api_server_url=api_server_url,
+                        prev_end_log_line=prev_end_log_line,
+                    )
+                    if logs_resp is None:
+                        # Failed to build the logs payload to send to Den
+                        break
 
-                    if should_update_autostop:
-                        function_running = any(
-                            any(
-                                len(
-                                    resource["env_resource_mapping"][resource_name].get(
-                                        "active_function_calls", []
-                                    )
-                                )
-                                > 0
-                                for resource_name in resource[
-                                    "env_resource_mapping"
-                                ].keys()
-                            )
-                            for resource in status.env_servlet_processes.values()
+                    logs_status_code = logs_resp.status_code
+                    if logs_status_code != 200:
+                        logger.error(
+                            f"{logs_status_code}: Failed to send cluster logs to Den: {logs_resp.josn()}"
                         )
-                        if function_running:
-                            await self.autostop_helper.set_last_active_time_to_now()
-                        # We do this separately from the set_last_active_time_to_now call above because
-                        # function_running will only reflect activity from functions which happen to be running during
-                        # the status check. We still need to attempt to register activity for functions which have
-                        # been called and completed.
-                        await self.autostop_helper.register_activity_if_needed()
-
-                    if should_send_status_and_logs_to_den:
-                        cluster_rns_address = cluster_config.get("name")
-                        cluster_uri = rns_client.format_rns_address(cluster_rns_address)
-                        api_server_url = status.cluster_config.get(
-                            "api_server_url", rns_client.api_server_url
+                    else:
+                        logger.info("Successfully sent cluster logs to Den.")
+                        await self.aset_cluster_config_value(
+                            key="start_log_line", value=new_start_log_line
                         )
-
-                        sent_status = await self.send_status_to_den(
-                            status=status,
-                            cluster_uri=cluster_uri,
-                            api_server_url=api_server_url,
+                        await self.aset_cluster_config_value(
+                            key="end_log_line", value=new_end_log_line
                         )
-
-                        if sent_status == 404:
-                            logger.info(
-                                "Cluster has not been saved, no update to status or logs."
-                            )
-                        elif sent_status != 200:
-                            logger.error(
-                                f"{sent_status}: Error in sending cluster status to Den. Check cluster logs for more info."
-                            )
-                        else:
-                            logger.debug("Successfully sent cluster status to Den.")
-
-                            prev_end_log_line = cluster_config.get("end_log_line", 0)
-                            (
-                                sent_logs,
-                                new_start_log_line,
-                                new_end_log_line,
-                            ) = await self.send_cluster_logs_to_den(
-                                cluster_uri=cluster_uri,
-                                api_server_url=api_server_url,
-                                prev_end_log_line=prev_end_log_line,
-                            )
-
-                            if sent_logs != 200:
-                                logger.error(
-                                    f"{sent_logs}: Error in sending cluster logs to Den. Check cluster logs for more info."
-                                )
-                            else:
-                                logger.info("Successfully sent cluster logs to Den.")
-                                await self.aset_cluster_config_value(
-                                    key="start_log_line", value=new_start_log_line
-                                )
-                                await self.aset_cluster_config_value(
-                                    key="end_log_line", value=new_end_log_line
-                                )
 
             except Exception as e:
                 self.logger.error(
-                    f"Cluster status check has failed: {str(e)}. Please check cluster logs for more info."
+                    f"Cluster checks have failed: {str(e)}\n.Please check cluster logs for more info."
                 )
                 self.logger.warning(
                     f"Temporarily increasing the interval between two consecutive status checks. "
@@ -321,7 +332,7 @@ class ClusterServlet:
                     f"If a value is not provided, interval size will be set to {round(DEFAULT_STATUS_CHECK_INTERVAL / 60, 2)} minutes."
                 )
                 await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
-            else:
+            finally:
                 # make sure that the thread will go to sleep, even if the interval size == -1
                 # (meaning that sending status to den is disabled).
                 interval_size = (
@@ -335,6 +346,28 @@ class ClusterServlet:
         # This is only ever called once in its own thread, so we can do asyncio.run here instead of
         # sync_function.
         asyncio.run(self.aperiodic_cluster_checks())
+
+    async def _update_autostop(self, status: ResourceStatusData):
+        function_running = any(
+            any(
+                len(
+                    resource["env_resource_mapping"][resource_name].get(
+                        "active_function_calls", []
+                    )
+                )
+                > 0
+                for resource_name in resource["env_resource_mapping"].keys()
+            )
+            for resource in status.env_servlet_processes.values()
+        )
+        if function_running:
+            await self.autostop_helper.set_last_active_time_to_now()
+
+        # We do this separately from the set_last_active_time_to_now call above because
+        # function_running will only reflect activity from functions which happen to be running during
+        # the status check. We still need to attempt to register activity for functions which have
+        # been called and completed.
+        await self.autostop_helper.register_activity_if_needed()
 
     async def _status_for_env_servlet(self, env_servlet_name):
         try:
@@ -419,29 +452,8 @@ class ClusterServlet:
     def status(self):
         return sync_function(self.astatus)()
 
-    async def send_status_to_den(
-        self, status: ResourceStatusData, cluster_uri: str, api_server_url: str
-    ):
-        from runhouse.resources.hardware.utils import ResourceServerStatus
-
-        resource_info = dict(status)
-        env_servlet_processes = dict(resource_info.pop("env_servlet_processes"))
-        status_data = {
-            "status": ResourceServerStatus.running,
-            "resource_type": status.cluster_config.get("resource_type"),
-            "resource_info": resource_info,
-            "env_servlet_processes": env_servlet_processes,
-        }
-        client = httpx.AsyncClient()
-        resp = await client.post(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-            data=json.dumps(status_data),
-            headers=rns_client.request_headers(),
-        )
-        return resp.status_code
-
     ##############################################
-    # Surface cluster logs to Den
+    # Save cluster logs to Den
     ##############################################
     def _get_logs(self):
         with open(SERVER_LOGFILE) as log_file:
@@ -456,18 +468,17 @@ class ClusterServlet:
     async def send_cluster_logs_to_den(
         self, cluster_uri: str, api_server_url: str, prev_end_log_line: int
     ):
-
+        """Load the most recent logs from the server's log file and send them to Den."""
         try:
-
             # setting to a list, so it will be easier to get the end line num  + the logs delta to send to den.
             latest_logs = self._get_logs().split("\n")
 
-            new_end_log_line = len(latest_logs) - 1
             # minus 1 because we start counting logs from 0.
+            new_end_log_line = len(latest_logs) - 1
 
             if new_end_log_line < prev_end_log_line:
+                # Likely a sign that the daemon was restarted, so we should start from the beginning
                 prev_end_log_line = 0
-                # prob the runhouse daemon was restarted, starting saving the logs from scratch
 
             logs_to_den = "\n".join(latest_logs[prev_end_log_line:])
             logs_data = {
@@ -482,10 +493,10 @@ class ClusterServlet:
                 data=json.dumps(logs_data),
                 headers=rns_client.request_headers(),
             )
-            return post_logs_resp.status_code, prev_end_log_line, new_end_log_line
+            return post_logs_resp, prev_end_log_line, new_end_log_line
+
         except Exception as e:
             logger.error(
-                f"Generating cluster logs before sending them to den has failed: {e}. Please check cluster logs for "
-                f"more info."
+                f"Failed to load cluster logs, please check cluster logs for more info: {e}."
             )
-            return -1, prev_end_log_line, new_end_log_line
+            return None, prev_end_log_line, new_end_log_line
