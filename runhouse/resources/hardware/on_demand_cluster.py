@@ -148,7 +148,13 @@ class OnDemandCluster(Cluster):
         if self._docker_user:
             return self._docker_user
 
-        if not self.image_id:
+        # TODO detect whether this is a k8s cluster properly, and handle the user setting / SSH properly
+        #  (e.g. SkyPilot's new KubernetesCommandRunner)
+        if (
+            not self.image_id
+            or "docker:" not in self.image_id
+            or self.provider == "kubernetes"
+        ):
             return None
 
         from runhouse.resources.hardware.sky_ssh_runner import get_docker_user

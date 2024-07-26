@@ -213,7 +213,6 @@ if __name__ == "__main__":
         name="tgi_env",
         reqs=["docker"],
         secrets=["huggingface"],
-        working_dir="./",
     )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call

@@ -126,7 +126,6 @@ if __name__ == "__main__":
         ],
         secrets=["huggingface"],  # Needed to download Llama 3 from HuggingFace
         name="llama3inference",
-        working_dir="./",
     )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
