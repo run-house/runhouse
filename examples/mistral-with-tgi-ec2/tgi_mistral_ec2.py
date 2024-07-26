@@ -159,7 +159,6 @@ if __name__ == "__main__":
     env = rh.env(
         name="tgi_env",
         reqs=["docker", "openai", "torch", "transformers"],
-        working_dir="./",
     )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
