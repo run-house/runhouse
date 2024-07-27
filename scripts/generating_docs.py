@@ -127,11 +127,15 @@ def generate_docs_for_branches():
 
 
 def generate_docs_for_tags():
-    # Handle tags (not releases)
-    tags_url = f"https://api.github.com/repos/{SOURCE_REPO_PATH}/tags"
+    """Build tags for tagged releases."""
+    tags_url = f"https://api.github.com/repos/{SOURCE_REPO_PATH}/releases"
     releases = get_refs_from_repo(tags_url)
+
+    if isinstance(releases, dict) and releases.get("message") == "Bad credentials":
+        raise ValueError("Invalid Github credentials")
+
     for release in releases:
-        tag_name = release["name"]
+        tag_name = release["tag_name"]
         tag_url = (
             f"https://api.github.com/repos/{SOURCE_REPO_PATH}/git/refs/tags/{tag_name}"
         )
@@ -140,13 +144,13 @@ def generate_docs_for_tags():
 
         if "object" in tag_info and "sha" in tag_info["object"]:
             commit_hash = tag_info["object"]["sha"]
-            print(f"Building docs for release: {tag_name} (commit hash: {commit_hash})")
+            print(f"Building docs for tag: {tag_name} (commit hash: {commit_hash})")
             build_and_copy_docs(tag_name, commit_hash)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Generate docs for tags, branches, or both."
+        description="Generate docs and perform related tasks."
     )
     parser.add_argument(
         "--docs-type",
