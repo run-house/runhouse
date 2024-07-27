@@ -12,7 +12,7 @@ from git import Repo
 
 dotenv.load_dotenv()
 
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GITHUB_TOKEN = os.getenv("GH_TOKEN")
 
 SOURCE_REPO_NAME = "runhouse"
 SOURCE_REPO_PATH = f"run-house/{SOURCE_REPO_NAME}"
@@ -30,10 +30,22 @@ HEADERS = {
 
 
 def clone_repo():
-    # Clone the runhouse repo locally
+    # Check if the repository exists and is a valid git repository
     if os.path.exists(SOURCE_REPO_NAME):
-        Repo(SOURCE_REPO_NAME)
+        try:
+            repo = Repo(SOURCE_REPO_NAME)
+            # Fetch the latest changes
+            origin = repo.remotes.origin
+            origin.fetch()
+        except Exception as e:
+            # Handle the case where the directory is not a valid git repo or another issue
+            warnings.warn(
+                f"Existing directory is not a valid git repository or another error occurred: {e}"
+            )
+            shutil.rmtree(SOURCE_REPO_NAME)
+            Repo.clone_from(SOURCE_REPO_URL, SOURCE_REPO_NAME)
     else:
+        # Clone the repository if it does not exist
         Repo.clone_from(SOURCE_REPO_URL, SOURCE_REPO_NAME)
 
 
@@ -70,7 +82,7 @@ def build_and_copy_docs(branch_name, commit_hash=None):
         # Run the make json command in the "docs" directory of the local Runhouse repo
         res = run_command("cd runhouse && cd docs && make json")
         if res.returncode != 0:
-            warnings.warn(
+            raise RuntimeError(
                 f"Failed to build docs for branch: {branch_name}: {res.stderr}"
             )
 
@@ -104,7 +116,7 @@ def build_and_copy_docs(branch_name, commit_hash=None):
         )
 
     except Exception as e:
-        warnings.warn(f"Failed to build docs for {branch_name}: {str(e)}")
+        raise RuntimeError(f"Failed to build docs for {branch_name}: {str(e)}")
 
 
 def generate_docs_for_branches():
@@ -126,27 +138,45 @@ def generate_docs_for_branches():
             build_and_copy_docs(ref_name)
 
 
+def generate_docs_for_tag(tag_name):
+    """Build docs for a specific release tag."""
+    tag_url = (
+        f"https://api.github.com/repos/{SOURCE_REPO_PATH}/git/refs/tags/{tag_name}"
+    )
+    _build_docs_for_tag(tag_url, tag_name)
+
+
 def generate_docs_for_tags():
-    # Handle tags (not releases)
-    tags_url = f"https://api.github.com/repos/{SOURCE_REPO_PATH}/tags"
+    """Build tags for all tagged releases."""
+    tags_url = f"https://api.github.com/repos/{SOURCE_REPO_PATH}/releases"
     releases = get_refs_from_repo(tags_url)
+
+    if isinstance(releases, dict) and releases.get("status") != 200:
+        raise ValueError(f"Failed to load tags: {releases}")
+
     for release in releases:
-        tag_name = release["name"]
+        tag_name = release["tag_name"]
         tag_url = (
             f"https://api.github.com/repos/{SOURCE_REPO_PATH}/git/refs/tags/{tag_name}"
         )
-        tag_response = requests.get(tag_url, headers=HEADERS)
-        tag_info = tag_response.json()
+        _build_docs_for_tag(tag_url, tag_name)
 
-        if "object" in tag_info and "sha" in tag_info["object"]:
-            commit_hash = tag_info["object"]["sha"]
-            print(f"Building docs for release: {tag_name} (commit hash: {commit_hash})")
-            build_and_copy_docs(tag_name, commit_hash)
+
+def _build_docs_for_tag(tag_url, tag_name):
+    tag_response = requests.get(tag_url, headers=HEADERS)
+    tag_info = tag_response.json()
+    if "status" in tag_info and tag_info.get("status") != 200:
+        raise ValueError(f"Failed to get tag info for tag {tag_name}: {tag_info}")
+
+    if "object" in tag_info and "sha" in tag_info["object"]:
+        commit_hash = tag_info["object"]["sha"]
+        print(f"Building docs for tag: {tag_name} (commit hash: {commit_hash})")
+        build_and_copy_docs(tag_name, commit_hash)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Generate docs for tags, branches, or both."
+        description="Generate docs and perform related tasks."
     )
     parser.add_argument(
         "--docs-type",
@@ -156,17 +186,25 @@ if __name__ == "__main__":
         help="Type of docs to build. If 'all' provided will build for both branches and tags. "
         "Default is 'tags'",
     )
+    parser.add_argument(
+        "--tag-name",
+        nargs="?",
+        help="Specific release tag name to build docs for. If not specified will build for all --docs-type specified.",
+    )
 
     args = parser.parse_args()
     docs_type = args.docs_type
+    tag_name = args.tag_name
 
     clone_repo()
 
-    if docs_type == "tags":
+    if tag_name:
+        generate_docs_for_tag(tag_name)
+    elif docs_type == "tags":
         generate_docs_for_tags()
     elif docs_type == "branches":
         generate_docs_for_branches()
     elif docs_type == "all":
-        # run for branches & tags
+        # run for all branches & all tags
         generate_docs_for_branches()
         generate_docs_for_tags()
