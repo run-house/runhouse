@@ -127,9 +127,6 @@ class S3Folder(Folder):
         bucket_name = self._bucket_name
 
         if isinstance(contents, S3Folder):
-            if not self.is_writable():
-                raise RuntimeError(f"Cannot put files into non-writable folder {key}")
-
             if contents.folder_path is None:
                 contents.folder_path = key + "/" + contents.folder_path
             return
@@ -297,23 +294,6 @@ class S3Folder(Folder):
             S3Store(name=self._bucket_name, source=self._urlpath).delete()
         except Exception as e:
             raise e
-
-    def is_writable(self):
-        """Whether the folder is writable.
-
-        Example:
-            >>> if my_folder.is_writable():
-            >>>     ....
-        """
-        test_key = self._key + "writability_test_file.txt"
-        bucket = self._bucket_name
-
-        try:
-            self.client.put_object(Bucket=bucket, Key=test_key, Body="")
-            self.client.delete_object(Bucket=bucket, Key=test_key)
-            return True
-        except:
-            return False
 
     def _upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to an S3 bucket."""
