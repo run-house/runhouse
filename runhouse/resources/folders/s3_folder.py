@@ -332,7 +332,7 @@ class S3Folder(Folder):
         download_via_awscli = "aws s3 sync --no-follow-symlinks " f"{src} {dest}"
         return download_via_awscli
 
-    def _to_cluster(self, dest_cluster, path=None, mount=False):
+    def _to_cluster(self, dest_cluster, path=None):
         """Copy the folder from a s3 bucket onto a cluster."""
         download_command = self._download_command(src=self.fsspec_url, dest=path)
         dest_cluster.run([download_command])

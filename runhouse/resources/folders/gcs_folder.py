@@ -289,7 +289,7 @@ class GCSFolder(Folder):
         download_via_gsutil = f"gsutil -m rsync -e -r {src} {dest}"
         return download_via_gsutil
 
-    def _to_cluster(self, dest_cluster, path=None, mount=False):
+    def _to_cluster(self, dest_cluster, path=None):
         upload_command = self._upload_command(src=self.path, dest=path)
         dest_cluster.run([upload_command])
         return GCSFolder(path=path, system=dest_cluster, dryrun=True)

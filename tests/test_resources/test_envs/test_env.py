@@ -157,7 +157,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         folder_name = "test_package"
         count = 0
         conda_env_cluster = s3_env.to(
-            system=cluster, path=folder_name, mount=True, force_install=True
+            system=cluster, path=folder_name, force_install=True
         )
         for req in conda_env_cluster.reqs:
             if isinstance(req, rh.Package) and isinstance(
