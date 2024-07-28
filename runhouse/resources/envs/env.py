@@ -104,7 +104,7 @@ class Env(Resource):
     def reqs(self, reqs):
         self._reqs = reqs
 
-    def _reqs_to(self, system: Union[str, Cluster], path=None, mount=False):
+    def _reqs_to(self, system: Union[str, Cluster], path=None):
         """Send self.reqs to the system (cluster or file system)"""
         from runhouse.resources.folders import Folder
 
@@ -116,7 +116,7 @@ class Env(Resource):
 
             if isinstance(req, Package) and isinstance(req.install_target, Folder):
                 req = (
-                    req.to(system, path=path, mount=mount)
+                    req.to(system, path=path)
                     if isinstance(system, Cluster)
                     else req.to(system, path=path)
                 )
@@ -195,7 +195,6 @@ class Env(Resource):
         system: Union[str, Cluster],
         node_idx=None,
         path=None,
-        mount=False,
         force_install=False,
     ):
         """
@@ -209,7 +208,7 @@ class Env(Resource):
         """
         system = _get_cluster_from(system)
         new_env = copy.deepcopy(self)
-        new_env.reqs, new_env.working_dir = self._reqs_to(system, path, mount)
+        new_env.reqs, new_env.working_dir = self._reqs_to(system, path)
 
         if isinstance(system, Cluster):
             if node_idx is not None:

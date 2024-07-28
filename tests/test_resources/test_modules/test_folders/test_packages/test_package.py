@@ -23,7 +23,7 @@ def send_tensor_to_cuda():
 
 def test_mount_local_package_to_cluster(cluster):
     mount_path = "package_mount"
-    package = rh.Package.from_string("./").to(cluster, path=mount_path, mount=True)
+    package = rh.Package.from_string("./").to(cluster, path=mount_path)
 
     assert isinstance(package.install_target, rh.Folder)
     assert package.install_target.system == cluster
@@ -35,7 +35,7 @@ def test_package_file_system_to_cluster(cluster, s3_package):
     assert s3_package.install_target.exists_in_system()
 
     folder_name = Path(s3_package.install_target.path).stem
-    s3_package.to(system=cluster, mount=True, path=folder_name)
+    s3_package.to(system=cluster, path=folder_name)
 
     # Confirm the package's folder is now on the cluster
     assert "sample_file_0.txt" in cluster.run([f"ls {folder_name}"])[0][1]

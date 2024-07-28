@@ -374,7 +374,6 @@ class Package(Resource):
         self,
         system: Union[str, Dict, "Cluster"],
         path: Optional[str] = None,
-        mount: bool = False,
     ):
         """Copy the package onto filesystem or cluster, and return the new Package object."""
         from runhouse.resources.folders import Folder
