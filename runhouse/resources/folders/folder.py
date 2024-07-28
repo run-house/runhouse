@@ -131,23 +131,6 @@ class Folder(Module):
         else:
             return None
 
-    def is_writable(self):
-        """Whether the folder is writable.
-
-        Example:
-            >>> if my_folder.is_writable():
-            >>>     ....
-        """
-        test_file_path = Path(self.path).expanduser() / "writability_test_file.txt"
-        try:
-            with open(test_file_path, "w") as test_file:
-                test_file.write("")
-            test_file_path.unlink()  # Delete the test file
-            return True
-
-        except IOError:
-            return False
-
     def mv(self, system, path: Optional[str] = None) -> None:
         """Move the folder to a new filesystem or cluster.
 
@@ -758,10 +741,6 @@ class Folder(Module):
             return
 
         if isinstance(contents, Folder):
-            if not self.is_writable():
-                raise RuntimeError(
-                    f"Cannot put files into non-writable folder {full_path}"
-                )
             if contents.path is None:  # Should only be the case when Folder is created
                 contents.path = os.path.join(full_path, contents.name)
             return

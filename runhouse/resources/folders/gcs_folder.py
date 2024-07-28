@@ -109,9 +109,6 @@ class GCSFolder(Folder):
         key = self._key
 
         if isinstance(contents, GCSFolder):
-            if not self.is_writable():
-                raise RuntimeError(f"Cannot put files into non-writable folder {key}")
-
             if contents.folder_path is None:
                 contents.folder_path = key + "/" + contents.folder_path
             return
@@ -263,23 +260,6 @@ class GCSFolder(Folder):
             )
         except subprocess.CalledProcessError as e:
             raise e
-
-    def is_writable(self):
-        """Whether the folder is writable.
-
-        Example:
-            >>> if my_folder.is_writable():
-            >>>     ....
-        """
-        test_blob = self.bucket.blob(self._key + "writability_test_file.txt")
-
-        try:
-            test_blob.upload_from_string("")
-            test_blob.delete()
-            return True
-
-        except Exception:
-            return False
 
     def _upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to an GCS bucket."""
