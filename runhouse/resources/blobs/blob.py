@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 
 from runhouse.resources.envs.env import Env
 from runhouse.resources.envs.utils import _get_env_from
@@ -36,7 +36,6 @@ class Blob(Module):
         system: Union[str, Cluster],
         env: Optional[Union[str, Env]] = None,
         path: Optional[str] = None,
-        data_config: Optional[dict] = None,
     ):
         """Return a copy of the blob on the destination system, and optionally path.
 
@@ -70,7 +69,7 @@ class Blob(Module):
 
         from runhouse.resources.blobs.file import file
 
-        new_blob = file(path=path, system=system, data_config=data_config)
+        new_blob = file(path=path, system=system)
         new_blob.write(self.fetch())
         return new_blob
 
@@ -120,7 +119,6 @@ def blob(
     path: Optional[Union[str, Path]] = None,
     system: Optional[str] = None,
     env: Optional[Union[str, Env]] = None,
-    data_config: Optional[Dict] = None,
     load: bool = True,
     dryrun: bool = False,
 ):
@@ -138,8 +136,6 @@ def blob(
             specified.
         env (Optional[Env or str]): Environment for the blob. If left empty, defaults to base environment.
             (Default: ``None``)
-        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler (in the case of
-            saving the the filesystem).
         load (bool): Whether to try to load the Blob object from RNS. (Default: ``True``)
         dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
             (Default: ``False``)
@@ -173,7 +169,7 @@ def blob(
         >>> my_local_blob = rh.blob(name="~/my_blob")
         >>> my_s3_blob = rh.blob(name="@/my_blob")
     """
-    if name and load and not any([data is not None, path, system, data_config]):
+    if name and load and not any([data is not None, path, system]):
         # Try reloading existing blob
         try:
             return Blob.from_name(name, dryrun)
@@ -186,7 +182,7 @@ def blob(
     system = _get_cluster_from(system or _current_cluster(key="config"), dryrun=dryrun)
     env = env or _get_env_from(env)
 
-    if (not system or isinstance(system, Cluster)) and not path and data_config is None:
+    if (not system or isinstance(system, Cluster)) and not path:
         # Blobs must be named, or we don't have a key for the kv store
         name = name or _generate_default_name(prefix="blob")
         new_blob = Blob(name=name, dryrun=dryrun).to(system, env)
@@ -204,7 +200,6 @@ def blob(
         path=path,
         system=system,
         env=env,
-        data_config=data_config,
         dryrun=dryrun,
     )
     if isinstance(system, Cluster):
