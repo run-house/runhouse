@@ -132,7 +132,7 @@ def blob(
         path (Optional[str or Path]): Path (or path) to the blob object. Specfying a path will force the blob to be
             saved to the filesystem rather than persist in the cluster's object store.
         system (Optional[str or Cluster]): File system or cluster name. If providing a file system this must be one of:
-            [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
+            [``file``, ``s3``, ``gs``].
             We are working to add additional file system support. If providing a cluster, this must be a cluster object
             or name, and whether the data is saved to the object store or filesystem depends on whether a path is
             specified.

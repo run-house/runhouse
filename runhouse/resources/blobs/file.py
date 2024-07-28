@@ -178,7 +178,7 @@ class File(Blob):
             >>> file = rh.file(data, path="saved/path")
             >>> file.exists_in_system()
         """
-        return self._folder.fsspec_fs.exists(self.fsspec_url)
+        return self._folder.exists_in_system(self.fsspec_url)
 
 
 def file(
@@ -196,7 +196,7 @@ def file(
         name (Optional[str]): Name to give the file object, to be reused later on.
         path (Optional[str]): Path (or path) of the file object.
         system (Optional[str or Cluster]): File system or cluster name. If providing a file system this must be one of:
-            [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
+            [``file``, ``s3``, ``gs``].
             We are working to add additional file system support.
         data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
         dryrun (bool): Whether to create the File if it doesn't exist, or load a File object as a dryrun.

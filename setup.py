@@ -64,7 +64,6 @@ def parse_readme(readme: str) -> str:
 install_requires = [
     "python-dotenv",
     "fastapi",
-    "fsspec<=2023.5.0",
     "pexpect",
     "pyOpenSSL>=23.3.0",
     "ray[default] >= 2.2.0, != 2.6.0",
