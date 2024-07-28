@@ -433,7 +433,7 @@ class Module(Resource):
             >>> local_module = rh.module(my_class)
             >>> cluster_module = local_module.to("my_cluster")
         """
-        if system == self.system and env == self.env:
+        if system == self.system and env == self.env and not force_install:
             if name and not self.name == name:
                 # TODO return duplicate object under new name, don't rename
                 self.rename(name)

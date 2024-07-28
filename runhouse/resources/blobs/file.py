@@ -178,7 +178,7 @@ class File(Blob):
             >>> file = rh.file(data, path="saved/path")
             >>> file.exists_in_system()
         """
-        return self._folder.exists_in_system(self.fsspec_url)
+        return self._folder.exists_in_system()
 
 
 def file(

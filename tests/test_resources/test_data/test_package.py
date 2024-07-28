@@ -131,13 +131,14 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_remote_reqs_install(self, cluster, reqs_package):
-        path = reqs_package.to(cluster).install_target.path
+        remote_reqs_package = reqs_package.to(cluster)
+        path = remote_reqs_package.install_target.path
 
-        assert reqs_package._reqs_install_cmd(cluster=cluster) in [
+        assert remote_reqs_package._reqs_install_cmd(cluster=cluster) in [
             None,
             f"python3 -m pip install -r {path}/requirements.txt",
         ]
-        reqs_package._install(cluster=cluster)
+        remote_reqs_package._install(cluster=cluster)
 
     @pytest.mark.level("local")
     def test_git_install(self, cluster, git_package):

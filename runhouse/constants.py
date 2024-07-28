@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from typing import List
 
-RESERVED_SYSTEM_NAMES: List[str] = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
+RESERVED_SYSTEM_NAMES: List[str] = ["file", "s3", "gs", "azure", "here"]
 CLUSTER_CONFIG_PATH: str = "~/.rh/cluster_config.json"
 CONFIG_YAML_PATH: str = "~/.rh/config.yaml"
 SERVER_LOGFILE_PATH = "~/.rh/server.log"

@@ -1,6 +1,6 @@
 import copy
 import os
-import shlex
+import pickle
 import shutil
 import subprocess
 import tempfile
@@ -11,12 +11,13 @@ from runhouse.globals import rns_client
 
 from runhouse.logger import logger
 from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
+from runhouse.resources.module import Module
 from runhouse.resources.resource import Resource
-from runhouse.rns.utils.api import generate_uuid
+from runhouse.rns.utils.api import generate_uuid, relative_file_path
 from runhouse.utils import locate_working_dir
 
 
-class Folder(Resource):
+class Folder(Module):
     RESOURCE_TYPE = "folder"
     DEFAULT_FS = "file"
     CLUSTER_FS = "ssh"
@@ -39,24 +40,17 @@ class Folder(Resource):
         .. note::
             To build a folder, please use the factory method :func:`folder`.
         """
-        super().__init__(name=name, dryrun=dryrun)
+        super().__init__(name=name, dryrun=dryrun, system=system)
 
-        self._system = None
-        self._filesystem = None
-
-        current_cluster_config = _current_cluster(key="config")
-        if current_cluster_config and system is None:
-            self.system = Cluster.from_config(current_cluster_config)
-        elif isinstance(system, dict):
-            self.system = Cluster.from_config(system)
-        else:
-            self.system = system or self.DEFAULT_FS
+        # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.gui.FileSelector.urlpath
+        # Note: no longer needed as part of previous fsspec usage, but still used by some s3 / gsutil commands
+        self._urlpath = None
 
         # TODO [DG] Should we ever be allowing this to be None?
         if path is None:
-            self._path = self.default_path(self.rns_address, system)
+            self._path = Folder.default_path(self.rns_address, system)
         else:
-            if system != "file":
+            if system != self.DEFAULT_FS:
                 self._path = path
             else:
                 self._path = self._path_absolute_to_rh_workdir(path)
@@ -68,9 +62,9 @@ class Folder(Resource):
             self.mount(tmp=True)
 
     def __getstate__(self):
-        """Override the pickle method to clear _filesystem before pickling."""
+        """Override the pickle method to clear _urlpath before pickling."""
         state = self.__dict__.copy()
-        state["_filesystem"] = None
+        state["_urlpath"] = None
         return state
 
     @classmethod
@@ -91,10 +85,10 @@ class Folder(Resource):
     # ----------------------------------
     @staticmethod
     def from_config(config: dict, dryrun=False, _resolve_children=True):
+        """Load config values into the object."""
         if _resolve_children:
             config = Folder._check_for_child_configs(config)
 
-        """Load config values into the object."""
         if config["system"] == "s3":
             from .s3_folder import S3Folder
 
@@ -126,9 +120,6 @@ class Folder(Resource):
         if self._path is not None:
             if self.system == Folder.DEFAULT_FS:
                 return str(Path(self._path).expanduser())
-            elif self._fs_str == self.CLUSTER_FS and self._path.startswith("~/"):
-                # sftp takes relative paths to the home directory but doesn't understand '~'
-                return str(self._path[2:])
             return str(self._path)
         else:
             return None
@@ -138,15 +129,7 @@ class Folder(Resource):
         self._path = path
         self._local_mount_path = None
 
-    @property
-    def system(self):
-        return self._system
-
-    @system.setter
-    def system(self, data_source):
-        self._system = data_source
-        self._filesystem = None
-
+    # TODO [JL] we can probably kill this entirely
     @property
     def data_config(self):
         if isinstance(self.system, Resource):  # if system is a cluster
@@ -187,7 +170,7 @@ class Folder(Resource):
     @data_config.setter
     def data_config(self, data_config):
         self._data_config = data_config
-        self._filesystem = None
+        self._urlpath = None
 
     @property
     def _fs_str(self):
@@ -212,7 +195,7 @@ class Folder(Resource):
             >>> if my_folder.is_writable():
             >>>     ....
         """
-        test_file_path = Path(self.path) / "writability_test_file.txt"
+        test_file_path = Path(self.path).expanduser() / "writability_test_file.txt"
         try:
             with open(test_file_path, "w") as test_file:
                 test_file.write("")
@@ -255,7 +238,7 @@ class Folder(Resource):
 
             # Update the path attribute
             self.path = str(dest_path)
-            self.system = "file"
+            self.system = self.DEFAULT_FS
             self.data_config = data_config or {}
 
         else:
@@ -268,17 +251,51 @@ class Folder(Resource):
         path: Optional[Union[str, Path]] = None,
         data_config: Optional[dict] = None,
     ):
-        """Copy the folder to a new filesystem, and return a new Folder object pointing to the new location."""
+        """Copy the folder to a new filesystem.
+        Currently supported: ``here``, ``file``, ``gs``, ``s3``, or a cluster.
+
+        Example:
+            >>> local_folder = rh.folder(path="/my/local/folder")
+            >>> s3_folder = local_folder.to("s3")
+        """
         if system == "here":
             current_cluster_config = _current_cluster(key="config")
             if current_cluster_config:
                 system = Cluster.from_config(current_cluster_config)
             else:
-                system = "file"
+                system = self.DEFAULT_FS
             path = str(Path.cwd() / self.path.split("/")[-1]) if path is None else path
 
+        if isinstance(system, Cluster):
+            if not path:
+                # Use a default path on the cluster (in ~/.cache/runhouse)
+                dest_path = Folder.default_path(
+                    rns_address=self.rns_address, system=system
+                )
+            else:
+                # Destination path on the cluster should be a relative path
+                dest_path = (
+                    relative_file_path(file_path=path)
+                    if Path(path).is_absolute()
+                    else path
+                )
+
+            # rsync the folder contents to the cluster's destination path
+            logger.debug(f"Syncing folder contents to cluster in path: {dest_path}")
+            self._to_cluster(system, path=dest_path)
+
+            # update the folder's system + path to the relative path on the cluster, since we'll return a
+            # new folder module which points to the cluster's file system
+            self.system = system
+            self.path = dest_path
+
+            # Note: setting `force_install` to ensure the module gets installed the cluster
+            # the folder's system may already be set to a cluster, which would skip the install
+            logger.debug("Sending folder module to cluster")
+            return super().to(system=system, force_install=True)
+
         path = str(
-            path or self.default_path(self.rns_address, system)
+            path or Folder.default_path(self.rns_address, system)
         )  # Make sure it's a string and not a Path
 
         system_str = getattr(
@@ -291,26 +308,16 @@ class Folder(Resource):
         # to_local, to_cluster and to_data_store are also overridden by subclasses to dispatch
         # to more performant cloud-specific APIs
         system = _get_cluster_from(system)
-
-        if system == "file":
+        if system == self.DEFAULT_FS:
             return self._to_local(dest_path=path, data_config=data_config)
-        elif isinstance(system, Cluster):  # If system is a cluster
-            return self._to_cluster(dest_cluster=system, path=path)
-        elif system in ["s3", "gs", "azure"]:
+        elif system in ["s3", "gs"]:
             return self._to_data_store(
                 system=system, data_store_path=path, data_config=data_config
             )
         else:
-            self._fsspec_copy(system, path, data_config)
-            new_folder = copy.deepcopy(self)
-            new_folder.path = path
-            new_folder.system = system
-            new_folder.data_config = data_config or {}
-            return new_folder
-
-    def _fsspec_copy(self, system: str, path: str, data_config: dict):
-        """Copy the fsspec filesystem to the given new filesystem and path."""
-        raise NotImplementedError
+            raise ValueError(
+                f"System '{system}' not currently supported as a destination system."
+            )
 
     def _destination_folder(
         self,
@@ -319,11 +326,31 @@ class Folder(Resource):
         data_config: Optional[dict] = None,
     ):
         """Returns a new Folder object pointing to the destination folder."""
-        raise NotImplementedError
+        folder_config = self.config()
+        folder_config["system"] = dest_system
+        folder_config["path"] = dest_path
+        folder_config["data_config"] = data_config
+        new_folder = Folder.from_config(folder_config)
+
+        return new_folder
 
     def _to_local(self, dest_path: str, data_config: dict):
-        """Copies folder to local."""
-        raise NotImplementedError
+        """Copies folder to local. Only relevant for the base Folder if its system is a cluster."""
+        if isinstance(self.system, Cluster):
+            # Cluster --> local copying
+            logger.debug(
+                f"Copying folder from cluster {self.system.name} to local path: {dest_path}"
+            )
+            # Return a new folder objecting pointing to the local destination path
+            return self._cluster_to_local(self.system, dest_path)
+
+        if self.system == self.DEFAULT_FS:
+            # Local --> local copying
+            logger.debug(f"Copying folder to local path: {dest_path}")
+            self.mv(system=self.system, path=dest_path, data_config=data_config)
+            return self
+
+        raise TypeError(f"Cannot copy from {self.system} to local.")
 
     def _to_data_store(
         self,
@@ -334,47 +361,19 @@ class Folder(Resource):
         """Local or cluster to blob storage."""
         local_folder_path = self.path
 
-        folder_config = self.config()
-        folder_config["system"] = system
-        folder_config["path"] = data_store_path
-        folder_config["data_config"] = data_config
-        new_folder = Folder.from_config(folder_config)
-
-        if (
-            self._fs_str == "file"
-        ):  # Also covers the case where we're on the cluster at system
-            new_folder._upload(src=local_folder_path)
-        elif isinstance(self.system, Cluster):
-            self.system.run(
-                [
-                    new_folder._upload_command(
-                        src=local_folder_path, dest=new_folder.path
-                    )
-                ]
-            )
-        else:
-            self._fsspec_copy("file", data_store_path, data_config)
-
-        return new_folder
-
-    @staticmethod
-    def rsync(local, remote, data_config, up=True):
-        """Rsync local folder to remote."""
-        dest_str = f'{data_config["username"]}@{data_config["host"]}:{remote}'
-        src_str = local
-        if not up:
-            src_str, dest_str = dest_str, src_str
-        cmd = (
-            f'rsync {src_str} {dest_str} --password_file {data_config["key_filename"]}'
+        # The new folder should be a sub-folder for the relevant data store (e.g. `S3Folder`)
+        new_folder = self._destination_folder(
+            dest_path=data_store_path, dest_system=system, data_config=data_config
         )
-        subprocess.run(shlex.split(cmd), check=True)
+        new_folder._upload(src=local_folder_path)
+        return new_folder
 
     def mkdir(self):
         """Create the folder in specified file system if it doesn't already exist."""
-        path = Path(self.path)
+        path = Path(self.path).expanduser()
         if not path.exists():
             path.mkdir(parents=True, exist_ok=True)
-            logger.info(f"Folder created in path: {self.path}")
+            logger.info(f"Folder created in path: {path}")
 
     def mount(self, path: Optional[str] = None, tmp: bool = False) -> str:
         """Mount the folder locally.
@@ -420,7 +419,7 @@ class Folder(Resource):
         dest_folder.path = dest_path
         dest_folder.system = dest_cluster
 
-        if self._fs_str == "file" and dest_cluster.name is not None:
+        if self._fs_str == self.DEFAULT_FS and dest_cluster.name is not None:
             # Includes case where we're on the cluster itself
             # And the destination is a cluster, not rh.here
             dest_cluster._rsync(
@@ -484,7 +483,21 @@ class Folder(Resource):
 
         This function rsyncs down the data and return a folder with system=='file'.
         """
-        raise NotImplementedError
+        if not cluster.address:
+            raise ValueError("Cluster must be started before copying data from it.")
+        Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
+        cluster._rsync(
+            source=self.path,
+            dest=str(Path(dest_path).expanduser()),
+            up=False,
+            contents=True,
+        )
+        new_folder = copy.deepcopy(self)
+        new_folder.path = dest_path
+        new_folder.system = self.DEFAULT_FS
+        # Don't need to do anything with _data_config because cluster creds are injected virtually through the
+        # data_config property
+        return new_folder
 
     def is_local(self):
         """Whether the folder is on the local filesystem.
@@ -493,21 +506,21 @@ class Folder(Resource):
             >>> is_local = my_folder.is_local()
         """
         return (
-            self._fs_str == "file"
+            self._fs_str == self.DEFAULT_FS
             and self.path is not None
             and Path(self.path).expanduser().exists()
         ) or self._local_mount_path
 
     def _upload(self, src: str, region: Optional[str] = None):
-        """Upload a folder to a remote bucket."""
+        """Upload a folder to a remote folder."""
         raise NotImplementedError
 
     def _upload_command(self, src: str, dest: str):
         """CLI command for uploading folder to remote bucket. Needed when uploading a folder from a cluster."""
         raise NotImplementedError
 
-    def _run_upload_cli_cmd(self, command: str):
-        """Uploads a folder to a remote bucket.
+    def _upload_folder_to_bucket(self, command: str):
+        """Uploads a folder to a remote bucket (e.g. s3).
         Based on the CLI command skypilot uses to upload the folder"""
         # Adapted from: https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/data_utils.py#L165 # noqa
         with subprocess.Popen(
@@ -606,7 +619,7 @@ class Folder(Resource):
             sort (Optional[bool]): Whether to sort the folder contents by time modified.
                 Defaults to ``False``.
         """
-        paths = [p for p in Path(self.path).iterdir()]
+        paths = [p for p in Path(self.path).expanduser().iterdir()]
 
         # Sort the paths by modification time if sort is True
         if sort:
@@ -738,13 +751,14 @@ class Folder(Resource):
         return None, None
 
     def open(self, name, mode="rb", encoding=None):
-        """Returns the specified file as a stream, which must be used as a content manager to be opened.
+        """Returns the specified file as a stream (`botocore.response.StreamingBody`), which must be used as a
+        content manager to be opened.
 
         Example:
             >>> with my_folder.open('obj_name') as my_file:
             >>>        pickle.load(my_file)
         """
-        file_path = Path(self.path) / name
+        file_path = Path(self.path).expanduser() / name
         valid_modes = {"r", "w", "a", "rb", "wb", "ab", "r+", "w+", "a+"}
 
         if mode not in valid_modes:
@@ -775,7 +789,8 @@ class Folder(Resource):
         Example:
             >>> exists_on_system = my_folder.exists_in_system()
         """
-        return Path(self.path).exists() and Path(self.path).is_dir()
+        full_path = Path(self.path).expanduser()
+        return full_path.exists() and full_path.is_dir()
 
     def rm(self, contents: list = None, recursive: bool = True):
         """Delete a folder from the file system. Optionally provide a list of folder contents to delete.
@@ -788,7 +803,7 @@ class Folder(Resource):
         Example:
             >>> my_folder.rm()
         """
-        folder_path = Path(self.path)
+        folder_path = Path(self.path).expanduser()
 
         if contents:
             for content in contents:
@@ -828,15 +843,16 @@ class Folder(Resource):
                 objects to write, or a Resource object, or a list of Resources.
             overwrite (bool): Whether to dump the file contents as json. By default expects data to be encoded.
                 Defaults to ``False``.
-            mode (Optional(str)): Write mode to use for fsspec. Defaults to ``wb``.
+            mode (Optional(str)): Write mode to use. Defaults to ``wb``.
             write_fn (Optional(Callable)): Function to use for writing file contents.
-                Example: ``write_fn = lambda f, data: json.dump(data, f)
+                Example: ``write_fn = lambda f, data: json.dump(data, f)``
 
         Example:
             >>> my_folder.put(contents={"filename.txt": data})
         """
         self.mkdir()
 
+        full_path = str(Path(self.path).expanduser())
         # Handle lists of resources just for convenience
         if isinstance(contents, list):
             for resource in contents:
@@ -846,10 +862,10 @@ class Folder(Resource):
         if isinstance(contents, Folder):
             if not self.is_writable():
                 raise RuntimeError(
-                    f"Cannot put files into non-writable folder {self.path}"
+                    f"Cannot put files into non-writable folder {full_path}"
                 )
             if contents.path is None:  # Should only be the case when Folder is created
-                contents.path = os.path.join(self.path, contents.name)
+                contents.path = os.path.join(full_path, contents.name)
             return
 
         if not isinstance(contents, dict):
@@ -859,18 +875,18 @@ class Folder(Resource):
 
         if overwrite is False:
             # Check if files exist and raise an error if they do
-            existing_files = set(os.listdir(self.path))
+            existing_files = set(os.listdir(full_path))
             intersection = existing_files.intersection(set(contents.keys()))
             if intersection:
                 raise FileExistsError(
-                    f"File(s) {intersection} already exist(s) at path: {self.path}. "
+                    f"File(s) {intersection} already exist(s) at path: {full_path}. "
                     f"Cannot save them with overwrite={overwrite}."
                 )
 
         for filename, file_obj in contents.items():
-            file_path = os.path.join(self.path, filename)
-
-            if not overwrite and os.path.exists(file_path):
+            file_obj = self._serialize_file_obj(file_obj)
+            file_path = Path(full_path) / filename
+            if not overwrite and file_path.exists():
                 raise FileExistsError(f"File {file_path} already exists.")
 
             try:
@@ -878,12 +894,20 @@ class Folder(Resource):
                     if write_fn:
                         write_fn(f, file_obj)
                     else:
-                        f.write(file_obj) if isinstance(file_obj, bytes) else f.write(
-                            file_obj.read()
-                        )
+                        f.write(file_obj)
 
             except Exception as e:
                 raise RuntimeError(f"Failed to write {filename} to {file_path}: {e}")
+
+    @staticmethod
+    def _serialize_file_obj(file_obj):
+        if not isinstance(file_obj, bytes):
+            try:
+                file_obj = pickle.dumps(file_obj)
+            except (pickle.PicklingError, TypeError) as e:
+                raise ValueError(f"Cannot serialize file contents: {e}")
+
+        return file_obj
 
     @staticmethod
     def _bucket_name_from_path(path: str) -> str:

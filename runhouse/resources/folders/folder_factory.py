@@ -1,10 +1,10 @@
-import warnings
 from pathlib import Path
 from typing import Dict, Optional, Union
 
+from runhouse.logger import logger
+
 from runhouse.resources.folders.folder import Folder
 from runhouse.resources.hardware.utils import _get_cluster_from
-from runhouse.resources.resource import Resource
 
 
 def folder(
@@ -22,7 +22,6 @@ def folder(
         path (Optional[str or Path]): Path (or path) that the folder is located at.
         system (Optional[str or Cluster]): File system or cluster name. If providing a file system this must be one of:
             [``file``, ``s3``, ``gs``].
-            We are working to add additional file system support.
         dryrun (bool): Whether to create the Folder if it doesn't exist, or load a Folder object as a dryrun.
             (Default: ``False``)
         local_mount (bool): Whether or not to mount the folder locally. (Default: ``False``)
@@ -53,6 +52,7 @@ def folder(
     if system == "s3":
         from .s3_folder import S3Folder
 
+        logger.debug(f"Creating a S3 folder with name: {name}")
         return S3Folder(
             system=system,
             path=path,
@@ -64,6 +64,7 @@ def folder(
     elif system == "gs":
         from .gcs_folder import GCSFolder
 
+        logger.debug(f"Creating a GS folder with name: {name}")
         return GCSFolder(
             system=system,
             path=path,
@@ -72,11 +73,9 @@ def folder(
             name=name,
             dryrun=dryrun,
         )
-    elif system == "azure":
-        warnings.warn("Azure folders are not currently supported.")
 
     if system == Folder.DEFAULT_FS:
-        # Create the base Folder to interact with the local filesystem
+        logger.debug(f"Creating local folder with name: {name}")
         return Folder(
             system=system,
             path=path,
@@ -86,9 +85,11 @@ def folder(
             dryrun=dryrun,
         )
 
-    cluster_system = _get_cluster_from(system, dryrun=dryrun)
-    if isinstance(cluster_system, Resource):
+    from runhouse import Cluster
 
+    cluster_system = _get_cluster_from(system, dryrun=dryrun)
+    if isinstance(cluster_system, Cluster):
+        logger.debug(f"Creating folder {name} for cluster: {cluster_system.name}")
         return Folder(
             system=cluster_system,
             path=path,
@@ -99,6 +100,6 @@ def folder(
         )
 
     raise ValueError(
-        f"File system '{system}' not currently supported. If the file system "
-        f"is a cluster (ex: /my-user/rh-cpu), make sure the cluster config has been saved."
+        f"System '{system}' not currently supported. If the file system "
+        f"is a cluster (ex: '/my-user/rh-cpu'), make sure the cluster config has been saved."
     )

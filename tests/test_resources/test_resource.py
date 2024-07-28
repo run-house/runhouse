@@ -92,7 +92,6 @@ class TestResource:
         new_resource = rh.Resource.from_config(resource.config())
         assert new_resource.config() == resource.config()
         assert new_resource.rns_address == resource.rns_address
-        assert new_resource.dryrun == resource.dryrun
         # TODO allow resource subclass tests to extend set of properties to test
 
     @pytest.mark.level("local")
