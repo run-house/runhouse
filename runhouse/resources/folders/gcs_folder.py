@@ -31,7 +31,7 @@ class GCSFolder(Folder):
     def bucket(self):
         return self.client.bucket(self._bucket_name)
 
-    def _to_local(self, dest_path: str, data_config: dict):
+    def _to_local(self, dest_path: str):
         """Copies folder to local."""
         from runhouse import Cluster
 
@@ -42,9 +42,7 @@ class GCSFolder(Folder):
         else:
             self._gcs_copy_to_local(dest_path)
 
-        return self._destination_folder(
-            dest_path=dest_path, dest_system="file", data_config=data_config
-        )
+        return self._destination_folder(dest_path=dest_path, dest_system="file")
 
     def _gcs_copy_to_local(self, dest_path: str):
         """Copy GCS folder to local."""
@@ -151,14 +149,10 @@ class GCSFolder(Folder):
             except Exception as e:
                 raise RuntimeError(f"Failed to upload {filename} to GCS: {e}")
 
-    def mv(
-        self, system, path: Optional[str] = None, data_config: Optional[dict] = None
-    ):
+    def mv(self, system, path: Optional[str] = None):
         """Move the folder to a new filesystem or cluster."""
         if path is None:
             path = "rh/" + self.rns_address
-
-        data_config = data_config or {}
 
         if system == "gcs":
             self._move_within_gcs(path)
@@ -169,7 +163,6 @@ class GCSFolder(Folder):
 
         self.path = path
         self.system = system
-        self.data_config = data_config or {}
 
     def ls(self, full_paths: bool = True, sort: bool = False) -> List:
         """List the contents of the folder.
@@ -344,18 +337,15 @@ class GCSFolder(Folder):
         dest_cluster.run([upload_command])
         return GCSFolder(path=path, system=dest_cluster, dryrun=True)
 
-    def _to_local(self, dest_path: str, data_config: dict):
+    def _to_local(self, dest_path: str):
         """Copy a folder from an GCS bucket to local dir."""
         self._download(dest=dest_path)
-        return self._destination_folder(
-            dest_path=dest_path, dest_system="file", data_config=data_config
-        )
+        return self._destination_folder(dest_path=dest_path, dest_system="file")
 
     def _to_data_store(
         self,
         system: str,
         data_store_path: Optional[str] = None,
-        data_config: Optional[dict] = None,
     ):
         """Copy folder from GCS to another remote data store (ex: GCS, S3, Azure)"""
         if system == "gs":
@@ -380,9 +370,7 @@ class GCSFolder(Folder):
         else:
             raise ValueError(f"Invalid system: {system}")
 
-        return self._destination_folder(
-            dest_path=data_store_path, dest_system=system, data_config=data_config
-        )
+        return self._destination_folder(dest_path=data_store_path, dest_system=system)
 
     def gcs_to_s3(self, gs_bucket_name: str, s3_bucket_name: str) -> None:
         # https://github.com/skypilot-org/skypilot/blob/3517f55ed074466eadd4175e152f68c5ea3f5f4c/sky/data/data_transfer.py#L138
