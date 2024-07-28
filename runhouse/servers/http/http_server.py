@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import inspect
 import json
+import time
 import traceback
 import uuid
 from functools import wraps
@@ -14,7 +15,6 @@ import yaml
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
-from fastapi.responses import StreamingResponse
 
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
@@ -51,7 +51,6 @@ from runhouse.servers.obj_store import (
     RaySetupOption,
 )
 from runhouse.utils import sync_function
-
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -312,19 +311,9 @@ class HTTPServer:
                     remote=params.remote,
                 )
             )
-            # If stream_logs is False, we'll wait for the result and return it
-            if not params.stream_logs:
-                return await fut
+            await fut
+            return jsonable_encoder(fut.result())
 
-            return StreamingResponse(
-                HTTPServer._get_results_and_logs_generator(
-                    key,
-                    fut=fut,
-                    run_name=params.run_name,
-                    serialization=params.serialization,
-                ),
-                media_type="application/json",
-            )
         except Exception as e:
             return handle_exception_response(
                 e,
@@ -400,7 +389,6 @@ class HTTPServer:
         # Default argument to json doesn't allow a user to pass in a serialization string if they want
         # But, if they didn't pass anything, we want it to be `json` by default.
         serialization = serialization or "json"
-        logger.info(f"in http sever get call, stream logs are {stream_logs}")
 
         try:
 
@@ -447,7 +435,43 @@ class HTTPServer:
     @validate_cluster_access
     async def get_call_logs(request: Request, run_name: str):
 
-        return obj_store.stream_logs(run_name)
+        output_last_line, err_last_line = 0, 0
+        output_logs, err_logs = obj_store.stream_logs(
+            run_name=run_name,
+            output_logs_start=output_last_line,
+            err_logs_start=err_last_line,
+        )
+
+        output_logs_length = (
+            len(output_logs.split("\n")) if len(output_logs) > 0 else len(output_logs)
+        )
+        err_logs_length = (
+            len(err_logs.split("\n")) if len(err_logs) > 0 else len(err_logs)
+        )
+
+        while output_logs_length > output_last_line or err_logs_length > err_last_line:
+            time.sleep(0.1)  # wait 0.1 sec until we call the obj_store for more logs
+            output_last_line, err_last_line = output_logs_length, err_logs_length
+            # getting the new out_logs and err_logs, and appending them to the logs we already got in
+            # the previous calls.
+            new_output_logs, new_err_logs = obj_store.stream_logs(
+                run_name=run_name,
+                output_logs_start=output_last_line,
+                err_logs_start=err_last_line,
+            )
+            output_logs = output_logs + new_output_logs
+            output_logs_length = (
+                len(output_logs.split("\n"))
+                if len(output_logs) > 0
+                else len(output_logs)
+            )
+            err_logs = err_logs + new_err_logs
+            err_logs_length = (
+                len(err_logs.split("\n")) if len(err_logs) > 0 else len(err_logs)
+            )
+
+        logs = {"output_logs": output_logs, "err_logs": err_logs}
+        return logs
 
     @staticmethod
     def _get_logfiles(log_key, log_type=None):

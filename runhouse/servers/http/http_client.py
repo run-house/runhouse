@@ -347,6 +347,11 @@ class HTTPClient:
             sep="@",
         )
 
+        error_str = f"Error calling {method_name} on {key} on server"
+
+        # make log streaming run on a separate thread. This way we won't experience redundant latency.
+        logger.info(f"starting a streaming log thread for {run_name}")
+
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(
@@ -360,7 +365,7 @@ class HTTPClient:
                 data=serialize_data(data, serialization),
                 serialization=serialization,
                 run_name=run_name,
-                stream_logs=stream_logs,
+                stream_logs=False,
                 save=save,
                 remote=remote,
             ).dict(),
@@ -374,7 +379,12 @@ class HTTPClient:
             raise ValueError(
                 f"Error calling {method_name} on server: {res.content.decode()}"
             )
-        error_str = f"Error calling {method_name} on {key} on server"
+
+        # Create a ThreadPoolExecutor
+        with ThreadPoolExecutor() as executor:
+
+            # Submit the thread function to the executor
+            future = executor.submit(self.stream_run_logs, run_name, resource_address)
 
         # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
         # maybe a stream of results), so we need to separate these out.
@@ -417,31 +427,6 @@ class HTTPClient:
                     result["system"] = system
                 result = Resource.from_config(result, dryrun=True)
 
-        # make log streaming run on a separate thread. This way we won't experience redundant latency.
-        logger.info(f"starting a streaming log thread for {run_name}")
-        # Create a ThreadPoolExecutor
-        with ThreadPoolExecutor() as executor:
-            # Submit the thread function to the executor
-            future = executor.submit(self.stream_run_logs, run_name, resource_address)
-
-            # Wait for the thread to complete and get the result
-            output_logs, err_logs = future.result()
-
-        if output_logs:
-            handle_response(
-                {"data": output_logs},
-                "stdout",
-                error_str,
-                log_formatter=self.log_formatter,
-            )
-        if err_logs:
-            handle_response(
-                {"data": err_logs},
-                "stderr",
-                error_str,
-                log_formatter=self.log_formatter,
-            )
-
         end = time.time()
 
         if (
@@ -458,6 +443,23 @@ class HTTPClient:
         else:
             log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
         logging.info(log_str)
+
+        output_logs, err_logs = future.result()
+
+        if output_logs:
+            handle_response(
+                {"data": output_logs},
+                "stdout",
+                error_str,
+                log_formatter=self.log_formatter,
+            )
+        if err_logs:
+            handle_response(
+                {"data": err_logs},
+                "stderr",
+                error_str,
+                log_formatter=self.log_formatter,
+            )
 
         return result
 
@@ -513,6 +515,8 @@ class HTTPClient:
             sep="@",
         )
 
+        error_str = f"Error calling {method_name} on {key} on server"
+
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(
@@ -527,21 +531,31 @@ class HTTPClient:
                 data=serialize_data(data, serialization),
                 serialization=serialization,
                 run_name=run_name,
-                stream_logs=stream_logs,
+                stream_logs=False,
                 save=save,
                 remote=remote,
                 run_async=run_async,
             ).dict(),
             headers=rns_client.request_headers(resource_address),
         ) as res:
+
             if res.status_code != 200:
                 raise ValueError(
                     f"Error calling {method_name} on server: {res.content.decode()}"
                 )
-            error_str = f"Error calling {method_name} on {key} on server"
 
-            # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
-            # maybe a stream of results), so we need to separate these out.
+            # make log streaming run on a separate thread. This way we won't experience redundant latency.
+            logger.info(f"starting a streaming log thread for {run_name}")
+            # Create a ThreadPoolExecutor
+            with ThreadPoolExecutor() as executor:
+
+                # Submit the thread function to the executor
+                future = executor.submit(
+                    self.stream_run_logs, run_name, resource_address
+                )
+
+            # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single
+            # result, maybe a stream of results), so we need to separate these out.
             result = None
             async for response_json in res.aiter_lines():
                 resp = json.loads(response_json)
@@ -569,34 +583,6 @@ class HTTPClient:
                         result["system"] = system
                     result = Resource.from_config(result, dryrun=True)
 
-            # make log streaming run on a separate thread. This way we won't experience redundant latency.
-            logger.info(f"starting a streaming log thread for {run_name}")
-            error_str = f"Error calling {method_name} on {key} on server"
-            # Create a ThreadPoolExecutor
-            with ThreadPoolExecutor() as executor:
-                # Submit the thread function to the executor
-                future = executor.submit(
-                    self.stream_run_logs, run_name, resource_address
-                )
-
-                # Wait for the thread to complete and get the result
-                output_logs, err_logs = future.result()
-
-            if output_logs:
-                handle_response(
-                    {"data": output_logs},
-                    "stdout",
-                    error_str,
-                    log_formatter=self.log_formatter,
-                )
-            if err_logs:
-                handle_response(
-                    {"data": err_logs},
-                    "stderr",
-                    error_str,
-                    log_formatter=self.log_formatter,
-                )
-
             end = time.time()
 
             if (
@@ -613,6 +599,9 @@ class HTTPClient:
             else:
                 log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
             logging.info(log_str)
+
+            # Wait for the log stream thread to complete and get the result
+            output_logs, err_logs = future.result()
 
             return result
 

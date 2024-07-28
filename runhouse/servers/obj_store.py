@@ -1101,14 +1101,13 @@ class ObjStore:
 
         from runhouse.resources.provenance import run
 
-        log_ctx = None
-        if stream_logs:
-            log_ctx = run(
-                name=run_name,
-                log_dest="file" if run_name else None,
-                load=False,
-            )
-            log_ctx.__enter__()
+        # TODO [SB]: instead of writing the logs using run object, write them using an obj_store method
+        log_ctx = run(
+            name=run_name,
+            log_dest="file" if run_name else None,
+            load=False,
+        )
+        log_ctx.__enter__()
 
         # Use a finally to track the active functions so that it is always removed
         request_id = req_ctx.get().request_id
@@ -1602,10 +1601,18 @@ class ObjStore:
         #  to stream the whole log.
         pass
 
-    async def astream_logs(self, run_name: str):
+    async def astream_logs(
+        self, run_name: str, output_logs_start: int, err_logs_start: int
+    ):
         return await self.acall_actor_method(
-            self.cluster_servlet, "stream_logs_of_a_run", run_name
+            self.cluster_servlet,
+            "stream_logs_of_a_run",
+            run_name,
+            output_logs_start,
+            err_logs_start,
         )
 
-    def stream_logs(self, run_name: str):
-        return sync_function(self.astream_logs)(run_name)
+    def stream_logs(self, run_name: str, output_logs_start: int, err_logs_start: int):
+        return sync_function(self.astream_logs)(
+            run_name, output_logs_start, err_logs_start
+        )

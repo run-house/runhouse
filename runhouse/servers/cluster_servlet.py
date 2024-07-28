@@ -504,30 +504,49 @@ class ClusterServlet:
     ##############################################
     # Log streaming methods
     ##############################################
-    def stream_logs_of_a_run(self, run_name: str):
+    def stream_logs_of_a_run(
+        self, run_name: str, output_logs_start: int, err_logs_start: int
+    ):
         run_name = run_name.replace("%40", "@")
+
         out_logs_path = os.path.expanduser(
             f"{LOGS_CLUSTER_FOLDER}/{run_name}/{run_name}.out"
         )
         err_logs_path = os.path.expanduser(
             f"{LOGS_CLUSTER_FOLDER}/{run_name}/{run_name}.err"
         )
+
         out_logs_exists = os.path.exists(out_logs_path)
         err_logs_exists = os.path.exists(err_logs_path)
-        logger.info(
-            f"err_logs_exists: {err_logs_exists}, out_logs_exists: {out_logs_exists}"
-        )
+
         err_logs, out_logs = [], []
+
         if err_logs_exists:
             with open(err_logs_path) as err_file:
                 err_logs = err_file.readlines()
+                # getting only the new err_logs, we did not get in the last call to this function.
+                err_logs = (
+                    err_logs[err_logs_start:] if err_logs_start < len(err_logs) else []
+                )
+
         if out_logs_exists:
             with open(out_logs_path) as out_file:
                 out_logs = out_file.readlines()
+                # getting only the new out_logs, we did not get in the last call to this function.
+                out_logs = (
+                    out_logs[output_logs_start:]
+                    if output_logs_start < len(out_logs)
+                    else []
+                )
+
         cleaned_err_log_lines = [ColoredFormatter.format_log(line) for line in err_logs]
         cleaned_out_log_lines = [ColoredFormatter.format_log(line) for line in out_logs]
-        logs = {
-            "output_logs": " ".join(cleaned_out_log_lines),
-            "err_logs": " ".join(cleaned_err_log_lines),
-        }
-        return logs
+
+        output_logs = (
+            " ".join(cleaned_out_log_lines) if len(cleaned_out_log_lines) > 0 else ""
+        )
+        err_logs = (
+            " ".join(cleaned_err_log_lines) if len(cleaned_err_log_lines) > 0 else ""
+        )
+
+        return output_logs, err_logs
