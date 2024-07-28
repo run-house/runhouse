@@ -12,7 +12,6 @@ def folder(
     path: Optional[Union[str, Path]] = None,
     system: Optional[Union[str, "Cluster"]] = None,
     dryrun: bool = False,
-    local_mount: bool = False,
 ) -> Folder:
     """Creates a Runhouse folder object, which can be used to interact with the folder at the given path.
 
@@ -23,7 +22,6 @@ def folder(
             [``file``, ``s3``, ``gs``].
         dryrun (bool): Whether to create the Folder if it doesn't exist, or load a Folder object as a dryrun.
             (Default: ``False``)
-        local_mount (bool): Whether or not to mount the folder locally. (Default: ``False``)
 
     Returns:
         Folder: The resulting folder.
@@ -37,7 +35,7 @@ def folder(
     """
     # TODO [DG] Include loud warning that relative paths are relative to the git root / working directory!
 
-    if name and not any([path, system, local_mount]):
+    if name and not any([path, system]):
         # If only the name is provided
         try:
             return Folder.from_name(name, dryrun)
@@ -54,7 +52,6 @@ def folder(
         return S3Folder(
             system=system,
             path=path,
-            local_mount=local_mount,
             name=name,
             dryrun=dryrun,
         )
@@ -65,7 +62,6 @@ def folder(
         return GCSFolder(
             system=system,
             path=path,
-            local_mount=local_mount,
             name=name,
             dryrun=dryrun,
         )
@@ -75,7 +71,6 @@ def folder(
         return Folder(
             system=system,
             path=path,
-            local_mount=local_mount,
             name=name,
             dryrun=dryrun,
         )
@@ -88,7 +83,6 @@ def folder(
         return Folder(
             system=cluster_system,
             path=path,
-            local_mount=local_mount,
             name=name,
             dryrun=dryrun,
         )

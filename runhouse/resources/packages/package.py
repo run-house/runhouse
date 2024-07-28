@@ -539,8 +539,6 @@ def package(
     path: str = None,
     system: str = None,
     dryrun: bool = False,
-    local_mount: bool = False,
-    data_config: Optional[Dict] = None,
 ) -> Package:
     """
     Builds an instance of :class:`Package`.
@@ -554,8 +552,6 @@ def package(
             [``file``, ``s3``, ``gs``].
         dryrun (bool): Whether to create the Package if it doesn't exist, or load the Package object as a dryrun.
             (Default: ``False``)
-        local_mount (bool): Whether to locally mount the installed package. (Default: ``False``)
-        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
 
     Returns:
         Package: The resulting package.
@@ -565,9 +561,7 @@ def package(
         >>> reloaded_package = rh.package(name="my-package")
         >>> local_package = rh.package(path="local/folder/path", install_method="local")
     """
-    if name and not any(
-        [install_method, install_str, path, system, data_config, local_mount]
-    ):
+    if name and not any([install_method, install_str, path, system]):
         # If only the name is provided and dryrun is set to True
         return Package.from_name(name, dryrun)
 
@@ -577,9 +571,7 @@ def package(
         from runhouse.resources.folders import Folder, folder
 
         system = system or Folder.DEFAULT_FS
-        install_target = folder(
-            path=path, system=system, local_mount=local_mount, data_config=data_config
-        )
+        install_target = folder(path=path, system=system)
         install_args = install_str
     elif install_str is not None:
         install_target, install_args = install_str.split(" ", 1)

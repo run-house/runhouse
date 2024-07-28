@@ -3,7 +3,6 @@ import os
 import pickle
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Callable, List, Optional, Union
 
@@ -30,7 +29,6 @@ class Folder(Module):
         path: Optional[str] = None,
         system: Union[str, Cluster] = None,
         dryrun: bool = False,
-        local_mount: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -53,11 +51,6 @@ class Folder(Module):
                 self._path = path
             else:
                 self._path = self._path_absolute_to_rh_workdir(path)
-
-        self.local_mount = local_mount
-        self._local_mount_path = None
-        if local_mount:
-            self.mount(tmp=True)
 
     def __getstate__(self):
         """Override the pickle method to clear _urlpath before pickling."""
@@ -121,7 +114,6 @@ class Folder(Module):
     @path.setter
     def path(self, path):
         self._path = path
-        self._local_mount_path = None
 
     @property
     def _fs_str(self):
@@ -135,7 +127,7 @@ class Folder(Module):
     @property
     def local_path(self):
         if self.is_local():
-            return self._local_mount_path or str(Path(self.path).expanduser())
+            return str(Path(self.path).expanduser())
         else:
             return None
 
@@ -317,42 +309,10 @@ class Folder(Module):
             path.mkdir(parents=True, exist_ok=True)
             logger.info(f"Folder created in path: {path}")
 
-    def mount(self, path: Optional[str] = None, tmp: bool = False) -> str:
-        """Mount the folder locally.
-
-        Example:
-            remote_folder = rh.folder("folder/path", system="s3")
-            local_mount = remote_folder.mount()
-        """
-        if tmp:
-            local_mount_path = tempfile.mkdtemp()
-        else:
-            local_mount_path = path or os.path.join(
-                tempfile.gettempdir(), "local_mount"
-            )
-
-        if not os.path.exists(local_mount_path):
-            os.makedirs(local_mount_path)
-
-        # Copy the contents to the local directory
-        src_path = Path(self.path)
-        dest_path = Path(local_mount_path)
-
-        if src_path.is_dir():
-            shutil.copytree(src_path, dest_path, dirs_exist_ok=True)
-        else:
-            shutil.copy2(src_path, dest_path)
-
-        return local_mount_path
-
-    def _to_cluster(self, dest_cluster, path=None, mount=False):
+    def _to_cluster(self, dest_cluster, path=None):
         """Copy the folder from a file or cluster source onto a destination cluster."""
         if not dest_cluster.address:
             raise ValueError("Cluster must be started before copying data to it.")
-
-        # Create tmp_mount if needed
-        if not self.is_local() and mount:
-            self.mount(tmp=True)
 
         dest_path = path or f"~/{Path(self.path).name}"
 
@@ -449,7 +409,7 @@ class Folder(Module):
             self._fs_str == self.DEFAULT_FS
             and self.path is not None
             and Path(self.path).expanduser().exists()
-        ) or self._local_mount_path
+        )
 
     def _upload(self, src: str, region: Optional[str] = None):
         """Upload a folder to a remote folder."""
@@ -486,8 +446,6 @@ class Folder(Module):
 
     def config(self, condensed=True):
         config = super().config(condensed)
-        config_attrs = ["local_mount"]
-        self.save_attrs_to_config(config, config_attrs)
 
         if self.system == Folder.DEFAULT_FS:
             # If folder is local check whether path is relative, and if so take it relative to the working director

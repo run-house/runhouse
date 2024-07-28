@@ -1,8 +1,6 @@
 import copy
-import os
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Callable, List, Optional
 
@@ -226,27 +224,6 @@ class GCSFolder(Folder):
             return self
         except Exception as e:
             raise e
-
-    def mount(self, path: Optional[str] = None, tmp: bool = False) -> str:
-        """Mount the folder locally.
-
-        Example:
-            remote_folder = rh.folder("folder/path", system="s3")
-            local_mount = remote_folder.mount()
-        """
-        if tmp:
-            local_mount_path = tempfile.mkdtemp()
-        else:
-            local_mount_path = path or os.path.join(tempfile.gettempdir(), "gcs_mount")
-
-        if not os.path.exists(local_mount_path):
-            os.makedirs(local_mount_path)
-
-        # Sync the GCS bucket to the local directory using gsutil
-        sync_command = f"gsutil rsync -r {self._urlpath}{self._bucket_name}/{self._key} {local_mount_path}"
-        subprocess.run(sync_command, shell=True, check=True)
-
-        return local_mount_path
 
     def rm(self, contents: list = None, recursive: bool = True):
         """Delete a folder from the GCS bucket. Optionally provide a list of folder contents to delete.
