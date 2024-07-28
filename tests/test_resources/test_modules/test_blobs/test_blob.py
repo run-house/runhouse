@@ -79,11 +79,7 @@ def test_file_to_blob(file, cluster):
     indirect=True,
 )
 def test_blob_to_file(blob, folder):
-    new_file = blob.to(
-        system=folder.system,
-        path=folder.path + "/test_blob.pickle",
-        data_config=folder.data_config,
-    )
+    new_file = blob.to(system=folder.system, path=folder.path + "/test_blob.pickle")
     assert new_file.system == folder.system
     assert new_file.path == folder.path + "/test_blob.pickle"
     fetched = new_file.fetch()
