@@ -52,7 +52,7 @@ RAY_START_CMD = f"ray start --head --port {DEFAULT_RAY_PORT} --disable-usage-sta
 # --autoscaling-config=~/ray_bootstrap_config.yaml
 # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
 # which runs on other ports but is required to preserve autostop and correct cluster status.
-RAY_KILL_CMD = 'pkill -9 -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
+RAY_KILL_CMD = 'pkill -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
 
 CONDA_INSTALL_CMDS = [
     "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh",
@@ -81,7 +81,7 @@ STATUS_CHECK_DELAY = 1 * MINUTE
 
 # Constants Surfacing Logs to Den
 DEFAULT_LOG_SURFACING_INTERVAL = 2 * MINUTE
-S3_LOGS_FILE_NAME = "server.log"
+SERVER_LOGS_FILE_NAME = "server.log"
 DEFAULT_SURFACED_LOG_LENGTH = 20
 # Constants for schedulers
 SCHEDULERS_DELAY = 2 * MINUTE

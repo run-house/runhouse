@@ -115,31 +115,51 @@ def notebook(
 @app.command()
 def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluster")):
     """SSH into a cluster created elsewhere (so `ssh cluster` doesn't work out of the box) or not yet up."""
-
     try:
         c = cluster(name=cluster_name)
-    except ValueError:
-        logger.error(
-            f"Could not load cluster called {cluster_name} from Den. Please save it to Den, and rerun."
-        )
-        raise typer.Exit(1)
 
-    if not c.is_shared:
-        if up:
-            try:
-                c.up_if_not()
-            except NotImplementedError:
+        if not c.is_shared:
+            if up:
+                try:
+                    c.up_if_not()
+                except NotImplementedError:
+                    console.print(
+                        f"Cluster {cluster_name} is not an on-demand cluster, so it can't be brought up automatically."
+                        f"Please start it manually and re-save the cluster with the new connection info in Python."
+                    )
+                    raise typer.Exit(1)
+            elif not c.is_up():
                 console.print(
-                    f"Cluster {cluster_name} is not an on-demand cluster, so it can't be brought up automatically."
-                    f"Please start it manually and re-save the cluster with the new connection info in Python."
+                    f"Cluster {cluster_name} is not up. Please run `runhouse ssh {cluster_name} --up`."
                 )
                 raise typer.Exit(1)
-        elif not c.is_up():
+
+        c.ssh()
+    except ValueError:
+        import sky
+
+        from runhouse import OnDemandCluster
+        from runhouse.constants import DEFAULT_SSH_PORT
+        from runhouse.resources.hardware.utils import _run_ssh_command
+
+        state = sky.status(cluster_names=[cluster_name], refresh=False)
+
+        if len(state) == 0:
             console.print(
-                f"Cluster {cluster_name} is not up. Please run `runhouse ssh {cluster_name} --up`."
+                f"Could not load cluster called {cluster_name}. Cluster must either be saved to Den, "
+                "or be an ondemand cluster that is currently up."
             )
+
             raise typer.Exit(1)
-    c.ssh()
+
+        resource_handle = state[0].get("handle", {})
+        _run_ssh_command(
+            address=resource_handle.head_ip,
+            ssh_user=resource_handle.ssh_user or "ubuntu",
+            ssh_port=resource_handle.stable_ssh_ports[0] or DEFAULT_SSH_PORT,
+            ssh_private_key=OnDemandCluster.DEFAULT_KEYFILE,
+            docker_user=resource_handle.docker_user,
+        )
 
 
 ###############################
@@ -300,15 +320,17 @@ def _print_envs_info(
 
             # convert bytes to GB
             memory_usage_gb = round(
-                int(env_cpu_info["used"]) / (1024**3),
+                int(env_cpu_info["used_memory"]) / (1024**3),
                 2,
             )
-            total_cluster_memory = math.ceil(int(env_cpu_info["total"]) / (1024**3))
+            total_cluster_memory = math.ceil(
+                int(env_cpu_info["total_memory"]) / (1024**3)
+            )
             cpu_memory_usage_percent = round(
-                float(env_cpu_info["used"] / env_cpu_info["total"]),
+                float(env_cpu_info["used_memory"] / env_cpu_info["total_memory"]),
                 2,
             )
-            cpu_usage_percent = round(float(env_cpu_info["percent"]), 2)
+            cpu_usage_percent = round(float(env_cpu_info["utilization_percent"]), 2)
 
             cpu_usage_summery = f"{DOUBLE_SPACE_UNICODE}CPU: {cpu_usage_percent}% | Memory: {memory_usage_gb} / {total_cluster_memory} Gb ({cpu_memory_usage_percent}%)"
 
@@ -325,9 +347,13 @@ def _print_envs_info(
         # sometimes the cluster has no GPU, therefore the env_gpu_info is an empty dictionary.
         if env_gpu_info:
             # get the gpu usage info, and convert it to GB.
-            total_gpu_memory = math.ceil(float(env_gpu_info.get("total")) / (1024**3))
-            gpu_util_percent = round(float(env_gpu_info.get("percent")), 2)
-            used_gpu_memory = round(float(env_gpu_info.get("used")) / (1024**3), 2)
+            total_gpu_memory = math.ceil(
+                float(env_gpu_info.get("total_memory")) / (1024**3)
+            )
+            gpu_util_percent = round(float(env_gpu_info.get("utilization_percent")), 2)
+            used_gpu_memory = round(
+                float(env_gpu_info.get("used_memory")) / (1024**3), 2
+            )
             gpu_memory_usage_percent = round(
                 float(used_gpu_memory / total_gpu_memory) * 100, 2
             )
@@ -409,7 +435,8 @@ def status(
             )
             raise typer.Exit(1)
         try:
-            current_cluster.check_server(restart_server=False)
+            if current_cluster._http_client:
+                current_cluster._http_client.check_server()
         except requests.exceptions.ConnectionError:
             console.print(
                 f"Could not connect to the server on cluster {cluster_name}. Check that the server is up with "
@@ -634,8 +661,27 @@ def _start_server(
                 result = subprocess.run(cmd, shell=True, check=True)
             else:
                 result = subprocess.run(shlex.split(cmd), text=True)
-            # We don't want to raise an error if the server kill fails, as it may simply not be running
-            if result.returncode != 0 and "pkill" not in cmd:
+
+            if result.returncode != 0:
+                # We don't want to raise an error if the server kill fails, as it may simply not be running
+                if "pkill" in cmd:
+                    continue
+
+                # Retry ray start in case pkill process did not complete in time, up to 10s
+                if cmd == RAY_START_CMD:
+                    console.print("Retrying:")
+                    attempt = 0
+                    while result.returncode != 0 and attempt < 10:
+                        attempt += 1
+                        time.sleep(1)
+                        result = subprocess.run(
+                            shlex.split(cmd), text=True, capture_output=True
+                        )
+                        if result.stderr and "ConnectionError" not in result.stderr:
+                            break
+                    if result.returncode == 0:
+                        continue
+
                 console.print(f"Error while executing `{cmd}`")
                 raise typer.Exit(1)
 

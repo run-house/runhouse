@@ -25,14 +25,14 @@ class S3Folder(Folder):
 
         super().__init__(dryrun=dryrun, **kwargs)
         self.client = boto3.client("s3")
-        self._filesystem = "s3://"
+        self._urlpath = "s3://"
 
     @staticmethod
     def from_config(config: dict, dryrun=False, _resolve_children=True):
         """Load config values into the object."""
         return S3Folder(**config, dryrun=dryrun)
 
-    def _to_local(self, dest_path: str, data_config: dict):
+    def _to_local(self, dest_path: str):
         """Copies folder to local."""
         from runhouse import Cluster
 
@@ -41,11 +41,9 @@ class S3Folder(Folder):
         elif isinstance(self.system, Cluster):
             return self._cluster_to_local(cluster=self.system, dest_path=dest_path)
         else:
-            self._s3_copy_to_local(dest_path, data_config)
+            self._s3_copy_to_local(dest_path)
 
-        return self._destination_folder(
-            dest_path=dest_path, dest_system="file", data_config=data_config
-        )
+        return self._destination_folder(dest_path=dest_path, dest_system="file")
 
     def _s3_copy_to_local(self, dest_path: str):
         """Copy S3 folder to local."""
@@ -117,13 +115,6 @@ class S3Folder(Folder):
                 Key=new_key,
             )
 
-    def _fsspec_copy(self, system: str, path: str, data_config: dict):
-        """Copy the folder to the given new filesystem and path."""
-        if system == "s3":
-            self._s3_copy(path)
-        else:
-            raise NotImplementedError("Only S3 copying is implemented")
-
     def put(
         self, contents, overwrite=False, mode: str = "wb", write_fn: Callable = None
     ):
@@ -183,14 +174,10 @@ class S3Folder(Folder):
             except Exception as e:
                 raise RuntimeError(f"Failed to upload {filename} to S3: {e}")
 
-    def mv(
-        self, system, path: Optional[str] = None, data_config: Optional[dict] = None
-    ):
+    def mv(self, system, path: Optional[str] = None):
         """Move the folder to a new filesystem or cluster."""
         if path is None:
             path = "rh/" + self.rns_address
-
-        data_config = data_config or {}
 
         if system == "s3":
             self._move_within_s3(path)
@@ -201,7 +188,6 @@ class S3Folder(Folder):
 
         self.path = path
         self.system = system
-        self.data_config = data_config or {}
 
     def ls(self, full_paths: bool = True, sort: bool = False) -> List:
         """List the contents of the folder.
@@ -225,7 +211,7 @@ class S3Folder(Folder):
 
         if full_paths:
             return [
-                self._filesystem + f"{self._bucket_name}/{obj['Key']}" for obj in paths
+                self._urlpath + f"{self._bucket_name}/{obj['Key']}" for obj in paths
             ]
         else:
             return [Path(obj["Key"]).name for obj in paths]
@@ -292,7 +278,7 @@ class S3Folder(Folder):
             os.makedirs(local_mount_path)
 
         # Sync the S3 bucket to the local directory using AWS CLI
-        sync_command = f"aws s3 sync {self._filesystem}{self._bucket_name}/{self._key} {local_mount_path}"
+        sync_command = f"aws s3 sync {self._urlpath}{self._bucket_name}/{self._key} {local_mount_path}"
         subprocess.run(sync_command, shell=True, check=True)
 
         return local_mount_path
@@ -331,7 +317,7 @@ class S3Folder(Folder):
         try:
             from sky.data.storage import S3Store
 
-            S3Store(name=self._bucket_name, source=self._filesystem).delete()
+            S3Store(name=self._bucket_name, source=self._urlpath).delete()
         except Exception as e:
             raise e
 
@@ -363,7 +349,7 @@ class S3Folder(Folder):
         upload_command = (
             'aws s3 sync --no-follow-symlinks --exclude ".git/*" '
             f"{src} "
-            f"{self._filesystem}{dest}"
+            f"{self._urlpath}{dest}"
         )
 
         return upload_command
@@ -373,7 +359,7 @@ class S3Folder(Folder):
         # NOTE: Sky doesn't support this API yet for each provider
         # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/storage.py#L231
         remote_dir = self.path.lstrip("/")
-        remote_dir = self._filesystem + remote_dir
+        remote_dir = self._urlpath + remote_dir
         try:
             subprocess.run(
                 ["aws", "s3", "sync", remote_dir, dest],
@@ -395,18 +381,15 @@ class S3Folder(Folder):
         dest_cluster.run([download_command])
         return S3Folder(path=path, system=dest_cluster, dryrun=True)
 
-    def _to_local(self, dest_path: str, data_config: dict):
+    def _to_local(self, dest_path: str):
         """Copy a folder from an S3 bucket to local dir."""
         self._download(dest=dest_path)
-        return self._destination_folder(
-            dest_path=dest_path, dest_system="file", data_config=data_config
-        )
+        return self._destination_folder(dest_path=dest_path, dest_system="file")
 
     def _to_data_store(
         self,
         system: str,
         data_store_path: Optional[str] = None,
-        data_config: Optional[dict] = None,
     ):
         """Copy folder from S3 to another remote data store (ex: S3, GCP, Azure)"""
         if system == "s3":
@@ -431,9 +414,7 @@ class S3Folder(Folder):
         else:
             raise ValueError(f"Invalid system: {system}")
 
-        return self._destination_folder(
-            dest_path=data_store_path, dest_system=system, data_config=data_config
-        )
+        return self._destination_folder(dest_path=data_store_path, dest_system=system)
 
     def s3_to_gcs(self, s3_bucket_name: str, gs_bucket_name: str):
         import boto3
@@ -506,7 +487,7 @@ class S3Folder(Folder):
             .execute()
         )
         logger.info(
-            f"Transfer job scheduled: {self._filesystem}{s3_bucket_name} -> gs://{gs_bucket_name}"
+            f"Transfer job scheduled: {self._urlpath}{s3_bucket_name} -> gs://{gs_bucket_name}"
         )
 
         logger.info("Waiting for the transfer to finish")

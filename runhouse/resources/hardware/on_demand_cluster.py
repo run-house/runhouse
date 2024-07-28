@@ -112,7 +112,9 @@ class OnDemandCluster(Cluster):
 
     @property
     def client(self):
-        if not self._http_client:
+        try:
+            return super().client
+        except ValueError as e:
             if not self.address:
                 # Try loading in from local Sky DB
                 self._update_from_sky_status(dryrun=True)
@@ -121,8 +123,8 @@ class OnDemandCluster(Cluster):
                         f"Could not determine address for ondemand cluster <{self.name}>. "
                         "Up the cluster with `cluster.up_if_not`."
                     )
-            self.connect_server_client()
-        return self._http_client
+                return super().client
+            raise e
 
     @property
     def autostop_mins(self):
@@ -130,8 +132,6 @@ class OnDemandCluster(Cluster):
 
     @autostop_mins.setter
     def autostop_mins(self, mins):
-        self.check_server()
-
         self._autostop_mins = mins
         if self.on_this_cluster():
             obj_store.set_cluster_config_value("autostop_mins", mins)
@@ -148,7 +148,13 @@ class OnDemandCluster(Cluster):
         if self._docker_user:
             return self._docker_user
 
-        if not self.image_id:
+        # TODO detect whether this is a k8s cluster properly, and handle the user setting / SSH properly
+        #  (e.g. SkyPilot's new KubernetesCommandRunner)
+        if (
+            not self.image_id
+            or "docker:" not in self.image_id
+            or self.provider == "kubernetes"
+        ):
             return None
 
         from runhouse.resources.hardware.sky_ssh_runner import get_docker_user
@@ -181,9 +187,12 @@ class OnDemandCluster(Cluster):
         return config
 
     def endpoint(self, external=False):
+        if not self.address or self.on_this_cluster():
+            return None
+
         try:
-            self.check_server()
-        except ValueError:
+            self.client.check_server()
+        except ConnectionError:
             return None
 
         return super().endpoint(external)
@@ -290,8 +299,7 @@ class OnDemandCluster(Cluster):
         """
         if self.on_this_cluster():
             return True
-        self._update_from_sky_status(dryrun=False)
-        return self.address is not None
+        return self._ping(retry=True)
 
     def _sky_status(self, refresh: bool = True, retry: bool = True):
         """
@@ -646,3 +654,12 @@ class OnDemandCluster(Cluster):
                 return_cmd=True,
             )
             subprocess.run(cmd, shell=True)
+
+    def _ping(self, timeout=5, retry=False):
+        if super()._ping(timeout=timeout, retry=False):
+            return True
+
+        if retry:
+            self._update_from_sky_status(dryrun=False)
+            return super()._ping(timeout=timeout, retry=False)
+        return False

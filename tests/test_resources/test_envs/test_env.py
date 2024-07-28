@@ -233,12 +233,15 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_working_dir_env(self, env, cluster, tmp_path):
-        working_dir = tmp_path / "test_working_dir"
+        dir_name = "test_working_dir"
+        working_dir = tmp_path / dir_name
         working_dir.mkdir(exist_ok=True)
         env.working_dir = str(working_dir)
 
         assert str(working_dir) in env.reqs
-        env.to(cluster, force_install=True)
+
+        # Send the env to the cluster, save the dir in the main working directory (~) of the cluster
+        env.to(cluster, path=dir_name, force_install=True)
         assert working_dir.name in cluster.run(["ls"])[0][1]
 
         cluster.run([f"rm -r {working_dir.name}"])

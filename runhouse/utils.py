@@ -1,18 +1,51 @@
 import asyncio
 import contextvars
 import functools
+import importlib.metadata as metadata
 import inspect
+import json
 import logging
 import os
+import re
 import subprocess
 import sys
+import threading
+
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Callable, Type, Union
+from typing import Callable, Optional, Type, Union
 
 import pexpect
 
 logger = logging.getLogger(__name__)
+
+####################################################################################################
+# Python package utilities
+####################################################################################################
+def find_locally_installed_version(package_name: str) -> Optional[str]:
+    try:
+        return metadata.version(package_name)
+    except metadata.PackageNotFoundError:
+        return None
+
+
+def get_local_install_path(package_name: str) -> Optional[str]:
+    distribution = metadata.distribution(package_name)
+    direct_url_json = distribution.read_text("direct_url.json")
+    if direct_url_json:
+        # File URL starts with file://
+        try:
+            url = json.loads(direct_url_json).get("url", None)
+            if url:
+                if url.startswith("file://"):
+                    return url[len("file://") :]
+        except json.JSONDecodeError:
+            return None
+
+
+def is_python_package_string(s: str) -> bool:
+    return isinstance(s, str) and re.match(r"^[a-zA-Z0-9\._-]+$", s) is not None
+
 
 ####################################################################################################
 # Simple running utility
@@ -268,3 +301,17 @@ def get_node_ip():
     import socket
 
     return socket.gethostbyname(socket.gethostname())
+
+
+class ThreadWithException(threading.Thread):
+    def run(self):
+        self._exc = None
+        try:
+            super().run()
+        except Exception as e:
+            self._exc = e
+
+    def join(self, timeout=None):
+        super().join(timeout=timeout)
+        if self._exc:
+            raise self._exc

@@ -680,6 +680,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_send_status_to_db(self, cluster):
+
         import json
 
         cluster.save()
@@ -715,9 +716,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         for k in env_servlet_processes:
             if env_servlet_processes[k]["env_gpu_usage"] == {}:
                 env_servlet_processes[k]["env_gpu_usage"] = {
-                    "used": None,
-                    "percent": None,
-                    "total": None,
+                    "allocated_memory": None,
+                    "used_memory": None,
+                    "utilization_percent": None,
+                    "total_memory": None,
+                    "memory_percent_allocated": None,
                 }
         env_servlet_processes = sort_env_servlet_processes(env_servlet_processes)
         get_status_data["env_servlet_processes"] = sort_env_servlet_processes(
@@ -741,6 +744,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             == ResourceServerStatus.terminated
         )
 
+        # setting the status to running again, so it won't mess with the following tests
+        # (when running all release suite at once, for example)
+        post_status_data_resp = requests.post(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            data=json.dumps(status_data),
+            headers=headers,
+        )
+        assert post_status_data_resp.status_code in [200, 422]
+
     @pytest.mark.level("minimal")
     @pytest.mark.clustertest
     def test_status_scheduler_basic_flow(self, cluster):
@@ -754,9 +766,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # the scheduler start running in a delay of 1 min, so the cluster startup will finish properly.
         # Therefore, the test needs to sleep for a while.
         time.sleep(60)
-        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"])[0][1]
+        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"], stream_logs=False)[
+            0
+        ][1]
         assert (
-            "Performing cluster status check: potentially sending to Den or updating autostop."
+            "Performing cluster checks: potentially sending to Den, surfacing logs to Den or updating autostop."
             in cluster_logs
         )
 
@@ -846,8 +860,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_cluster_run_within_cluster(self, cluster):
         remote_run = rh.function(run_in_no_env).to(cluster)
         res = remote_run("echo hello")
+        exp = cluster.run("echo hello")
+
         assert res[0][0] == 0
-        assert res[0][1] == "hello\n"
+        assert res[0][1] == exp[0][1]
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -868,7 +884,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # check cluster attr set, and  new env exists on the system
         assert new_env.env_name in cluster.run("conda info --envs")[0][1]
         assert cluster.default_env.name == new_env.name
-        assert new_env.name in cluster.status().get("env_resource_mapping")
+        assert new_env.name in cluster.status().get("env_servlet_processes")
 
         # check that env defaults to new default env for run/put
         assert cluster.run("pip freeze | grep diffusers")[0][0] == 0

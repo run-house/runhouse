@@ -1,4 +1,5 @@
 import json
+import subprocess
 
 from enum import Enum
 from pathlib import Path
@@ -10,6 +11,8 @@ from runhouse.constants import (
     RESERVED_SYSTEM_NAMES,
 )
 from runhouse.resources.envs.utils import _get_env_from, run_setup_command
+from runhouse.resources.hardware.sky.command_runner import SshMode
+from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner
 
 
 class ServerConnectionType(str, Enum):
@@ -34,7 +37,9 @@ class ResourceServerStatus(str, Enum):
     unknown = "unknown"
     internal_server_error = "internal_server_error"
     runhouse_daemon_down = "runhouse_daemon_down"
+    server_down = "server_down"  # TODO [SB]: remove once Runhouse 0.0.32 is released.
     invalid_url = "invalid_url"
+    local_cluster = "local_cluster"
 
 
 def cluster_config_file_exists() -> bool:
@@ -129,3 +134,23 @@ def detect_cuda_version_or_cpu(cluster: "Cluster" = None):
     if run_setup_command("nvidia-smi", cluster=cluster)[0] == 0:
         return cuda_version
     return "cpu"
+
+
+def _run_ssh_command(
+    address: str,
+    ssh_user: str,
+    ssh_port: int,
+    ssh_private_key: str,
+    docker_user: str,
+):
+    runner = SkySSHRunner(
+        ip=address,
+        ssh_user=ssh_user,
+        port=ssh_port,
+        ssh_private_key=ssh_private_key,
+        docker_user=docker_user,
+    )
+    ssh_command = runner._ssh_base_command(
+        ssh_mode=SshMode.INTERACTIVE, port_forward=None
+    )
+    subprocess.run(ssh_command)

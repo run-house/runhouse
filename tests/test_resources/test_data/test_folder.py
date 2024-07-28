@@ -67,7 +67,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
     MAP_FIXTURES = {"resource": "folder"}
 
     _unit_folder_fixtures = ["local_folder"]
-    _local_folder_fixtures = _unit_folder_fixtures + ["local_folder_docker"]
+    _local_folder_fixtures = _unit_folder_fixtures + ["docker_cluster_folder"]
     _all_folder_fixtures = _local_folder_fixtures + [
         "cluster_folder",
         "s3_folder",
@@ -111,14 +111,16 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
 
         new_folder.rm()
 
-    @pytest.mark.level("local")
+    @pytest.mark.level("minimal")
     def test_send_folder_to_cluster(self, cluster):
-        path = "my_new_tests_folder"
-        cluster_folder = rh.folder(system=cluster, path=path)
+        path = Path.cwd()
+        local_folder = rh.folder(path=path)
 
-        # Send the folder to the cluster
-        cluster_folder = cluster_folder.to(cluster)
+        # Send the folder to the cluster, receive a new folder object in return which points to cluster's file system
+        cluster_folder = local_folder.to(cluster)
+        assert cluster_folder.system == cluster
 
+        # Add a new file to the folder on the cluster
         cluster_folder.put({"requirements.txt": "torch"})
         folder_contents = cluster_folder.ls()
         res = [f for f in folder_contents if "requirements.txt" in f]
@@ -126,12 +128,22 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
 
     ##### S3 Folder Tests #####
     @pytest.mark.level("minimal")
-    def test_save_data_to_s3_folder(self):
+    def test_send_local_folder_to_s3(self):
         data = list(range(50))
-        s3_folder = rh.folder(system="s3", path=DATA_STORE_PATH)
-        s3_folder.put({"test_data.py": pickle.dumps(data)}, overwrite=True)
 
+        # set initially to local file system, then send to s3
+        path = Path.cwd()
+        local_folder = rh.folder(path=path)
+        assert local_folder.system == "file"
+
+        s3_folder = local_folder.to("s3")
+        assert s3_folder.system == "s3"
+
+        s3_folder.put({"test_data.py": pickle.dumps(data)}, overwrite=True)
         assert s3_folder.exists_in_system()
+
+        s3_folder.rm()
+        assert not s3_folder.exists_in_system()
 
     @pytest.mark.level("minimal")
     def test_save_local_folder_to_s3(self):
@@ -154,13 +166,18 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("minimal")
     def test_read_data_from_existing_s3_folder(self):
-        # Note: Uses folder created above
+        # Note: here we initialize the folder with the s3 system
         s3_folder = rh.folder(path=DATA_STORE_PATH, system="s3")
-        file_stream = s3_folder.open(name="test_data.py")
+
+        file_name = "test_data.py"
+        file_stream = s3_folder.open(name=file_name)
         with file_stream as f:
             data = pickle.load(f)
 
         assert data == list(range(50))
+
+        file_contents = s3_folder.get(file_name)
+        assert isinstance(file_contents, bytes)
 
     @pytest.mark.level("minimal")
     def test_create_and_delete_folder_from_s3(self):
@@ -172,13 +189,11 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
 
         assert not s3_folder.exists_in_system()
 
-    @pytest.mark.skip("Region needs to be supported for sending to s3.")
-    @pytest.mark.level("minimal")  # TODO: needs S3 credentials
+    @pytest.mark.level("minimal")
     def test_s3_folder_uploads_and_downloads(self, local_folder, tmp_path):
-        # NOTE: you can also specify a specific path like this:
-        # test_folder = rh.folder(path='/runhouse/my-folder', system='s3')
-
         s3_folder = rh.folder(system="s3")
+        assert s3_folder.system == "s3"
+
         s3_folder._upload(src=local_folder.path)
 
         assert s3_folder.exists_in_system()

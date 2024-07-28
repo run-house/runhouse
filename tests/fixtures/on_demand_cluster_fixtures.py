@@ -20,9 +20,8 @@ def restart_server(request):
 def setup_test_cluster(args, request, create_env=False):
     cluster = rh.ondemand_cluster(**args)
     init_args[id(cluster)] = args
-    if not cluster.is_up():
-        cluster.up()
-    elif request.config.getoption("--restart-server"):
+    cluster.up_if_not()
+    if request.config.getoption("--restart-server"):
         cluster.restart_server()
 
     cluster.save()
@@ -113,7 +112,8 @@ def ondemand_k8s_cluster(request):
     args = {
         "name": "k8s-cpu",
         "provider": "kubernetes",
-        "instance_type": "1CPU--1GB",
+        "instance_type": "CPU:1",
+        "memory": ".2",
     }
     cluster = setup_test_cluster(args, request)
     return cluster

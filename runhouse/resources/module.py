@@ -83,12 +83,19 @@ class Module(Resource):
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
             pointers = Module._extract_pointers(self.__class__)
-            (
-                local_path_containing_module,
-                should_add,
-            ) = Module._get_local_path_containing_module(pointers[0], self._env.reqs)
-            if should_add:
-                self._env.reqs = [str(local_path_containing_module)] + self._env.reqs
+
+            if isinstance(self._env, Env):
+                # Sometimes env may still be a string, in which case it won't be modified
+                (
+                    local_path_containing_module,
+                    should_add,
+                ) = Module._get_local_path_containing_module(
+                    pointers[0], self._env.reqs
+                )
+                if should_add:
+                    self._env.reqs = [
+                        str(local_path_containing_module)
+                    ] + self._env.reqs
         self._pointers = pointers
         self._endpoint = endpoint
         self._signature = signature
@@ -452,7 +459,11 @@ class Module(Resource):
         # We need to change the pointers to the remote import path if we're sending this module to a remote cluster,
         # and we need to add the local path to the module to the requirements if it's not already there.
         remote_import_path = None
-        if env and (self._pointers or getattr(self, "fn_pointers", None)):
+        if (
+            env
+            and isinstance(env, Env)
+            and (self._pointers or getattr(self, "fn_pointers", None))
+        ):
             pointers = self._pointers if self._pointers else self.fn_pointers
 
             # Update the envs reqs with the local path to the module if it's not already there
@@ -470,7 +481,6 @@ class Module(Resource):
             )
 
         if system:
-            system.check_server()
             if isinstance(env, Env):
                 env = env.to(system, force_install=force_install)
 
@@ -514,15 +524,7 @@ class Module(Resource):
             new_module.name = new_name
             # TODO dedup with _extract_state
             # Exclude anything already being sent in the config and private module attributes
-            excluded_state_keys = list(new_module.config().keys()) + [
-                "_system",
-                "_name",
-                "_rns_folder",
-                "dryrun",
-                "_env",
-                "_pointers",
-                "_resolve",
-            ]
+            excluded_state_keys = list(new_module.config().keys()) + MODULE_ATTRS
             state = {}
             # We only send over state for instances, not classes
             if not isinstance(self, type):
@@ -1258,7 +1260,6 @@ def _module_subclass_factory(cls, cls_pointers):
 def module(
     cls: [Type] = None,
     name: Optional[str] = None,
-    system: Optional[Union[str, Cluster]] = None,  # deprecated
     env: Optional[Union[str, Env]] = None,
     dryrun: bool = False,
 ):
@@ -1348,15 +1349,9 @@ def module(
         >>> my_local_module = rh.module(name="~/my_module")
         >>> my_s3_module = rh.module(name="@/my_module")
     """
-    if name and not any([cls, system, env]):
+    if name and not any([cls, env]):
         # Try reloading existing module
         return Module.from_name(name, dryrun)
-
-    if system:
-        raise Exception(
-            "`system` argument is no longer supported in the module factory function. "
-            "Use `.to(system)` or `.get_or_to(system)` after construction to send and run the Module on the system."
-        )
 
     if not isinstance(env, Env):
         env = _get_env_from(env)
@@ -1366,11 +1361,15 @@ def module(
             env = Env()
 
     cls_pointers = Module._extract_pointers(cls)
-    local_path_containing_module, should_add = Module._get_local_path_containing_module(
-        cls_pointers[0], env.reqs
-    )
-    if should_add:
-        env.reqs = [str(local_path_containing_module)] + env.reqs
+
+    if isinstance(env, Env):
+        # Sometimes env may still be a string, in which case it won't be modified
+        (
+            local_path_containing_module,
+            should_add,
+        ) = Module._get_local_path_containing_module(cls_pointers[0], env.reqs)
+        if should_add:
+            env.reqs = [str(local_path_containing_module)] + env.reqs
 
     name = name or (
         cls_pointers[2] if cls_pointers else _generate_default_name(prefix="module")

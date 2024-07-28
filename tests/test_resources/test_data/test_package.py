@@ -76,7 +76,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     def test_pip_install_cmd(self, pip_package):
         assert (
             pip_package._pip_install_cmd()
-            == f"{sys.executable} -m pip install {pip_package.install_target}"
+            == f'{sys.executable} -m pip install "{pip_package.install_target}"'
         )
 
     @pytest.mark.level("unit")
@@ -97,7 +97,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     def test_git_install_cmd(self, git_package):
         assert (
             git_package._pip_install_cmd()
-            == f"{sys.executable} -m pip install {git_package.install_target}"
+            == f'{sys.executable} -m pip install "{git_package.install_target}"'
         )
 
     # --------- test install on cluster ---------
@@ -105,7 +105,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     def test_pip_install(self, cluster, pip_package):
         assert (
             pip_package._pip_install_cmd(cluster=cluster)
-            == f"python3 -m pip install {pip_package.install_target}"
+            == f'python3 -m pip install "{pip_package.install_target}"'
         )
 
         # install through remote ssh
@@ -131,13 +131,14 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_remote_reqs_install(self, cluster, reqs_package):
-        path = reqs_package.to(cluster).install_target.path
+        remote_reqs_package = reqs_package.to(cluster)
+        path = remote_reqs_package.install_target.path
 
-        assert (
-            reqs_package._reqs_install_cmd(cluster=cluster)
-            == f"python3 -m pip install -r {path}/requirements.txt"
-        )
-        reqs_package._install(cluster=cluster)
+        assert remote_reqs_package._reqs_install_cmd(cluster=cluster) in [
+            None,
+            f"python3 -m pip install -r {path}/requirements.txt",
+        ]
+        remote_reqs_package._install(cluster=cluster)
 
     @pytest.mark.level("local")
     def test_git_install(self, cluster, git_package):
@@ -151,6 +152,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         assert remote_package.install_target.system == cluster
 
     @pytest.mark.level("local")
+    @pytest.mark.skip("Feature deprecated for now")
     def test_local_package_version_gets_installed(self, cluster):
         run_with_logs("pip install plotly==5.9.0")
         env = rh.env(name="temp_env", reqs=["plotly"])
@@ -181,3 +183,8 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         )
 
         test_reqs_file.unlink()
+
+    @pytest.mark.level("local")
+    def test_package_in_home_dir_to_cluster(self, cluster):
+        with pytest.raises(rh.CodeSyncError):
+            rh.Package.from_string("~").to(cluster)

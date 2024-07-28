@@ -41,6 +41,11 @@ def error_handling_decorator(func):
             if serialization is None or serialization == "none":
                 return output
             if output is not None:
+                if kwargs.get("remote"):
+                    return Response(
+                        output_type=OutputType.CONFIG,
+                        data=output,
+                    )
                 serialized_data = serialize_data(output, serialization)
                 return Response(
                     output_type=OutputType.RESULT_SERIALIZED,
@@ -218,11 +223,11 @@ class EnvServlet:
         try:
             env_servlet_process = psutil.Process(pid=env_servlet_pid)
             memory_size_bytes = env_servlet_process.memory_full_info().uss
-            cpu_usage_percent = env_servlet_process.cpu_percent(interval=1)
+            cpu_usage_percent = env_servlet_process.cpu_percent()
             env_memory_usage = {
-                "used": memory_size_bytes,
-                "percent": cpu_usage_percent,
-                "total": total_memory,
+                "used_memory": memory_size_bytes,
+                "utilization_percent": cpu_usage_percent,
+                "total_memory": total_memory,
             }
         except psutil.NoSuchProcess:
             env_memory_usage = {}
@@ -237,7 +242,7 @@ class EnvServlet:
                 subprocess.run(
                     [
                         "nvidia-smi",
-                        "--query-gpu=utilization.gpu,memory.total,count",
+                        "--query-gpu=utilization.gpu,memory.total,count,utilization.memory",
                         "--format=csv,noheader,nounits",
                     ],
                     stdout=subprocess.PIPE,
@@ -249,7 +254,10 @@ class EnvServlet:
             gpu_util_percent = float(gpu_general_info[0])
             total_gpu_memory = int(gpu_general_info[1]) * (1024**2)  # in bytes
             num_of_gpus = int(gpu_general_info[2])
-            used_gpu_memory = 0  # in bytes
+            memory_utilization_percent = int(
+                gpu_general_info[3]
+            )  # in %, meaning 0 <= val <= 100, out of total gpu memory
+            allocated_gpu_memory = 0  # in bytes
 
             env_gpu_usage = (
                 subprocess.run(
@@ -267,14 +275,20 @@ class EnvServlet:
             for i in range(1, len(env_gpu_usage)):
                 single_env_gpu_info = env_gpu_usage[i].strip().split(", ")
                 if int(single_env_gpu_info[0]) == env_servlet_pid:
-                    used_gpu_memory = used_gpu_memory + int(single_env_gpu_info[-1]) * (
-                        1024**2
-                    )
-            if used_gpu_memory > 0:
+                    allocated_gpu_memory = allocated_gpu_memory + int(
+                        single_env_gpu_info[-1]
+                    ) * (1024**2)
+            used_memory = round(memory_utilization_percent / 100, 2) * total_gpu_memory
+            if allocated_gpu_memory > 0:
                 env_gpu_usage = {
-                    "used": used_gpu_memory,
-                    "percent": gpu_util_percent / num_of_gpus,
-                    "total": total_gpu_memory,
+                    "allocated_memory": allocated_gpu_memory,
+                    "total_memory": total_gpu_memory,
+                    "used_memory": used_memory,  # in bytes
+                    "utilization_percent": gpu_util_percent / num_of_gpus,
+                    "memory_percent_allocated": round(
+                        used_memory / allocated_gpu_memory, 4
+                    )
+                    * 100,
                 }
             else:
                 env_gpu_usage = {}

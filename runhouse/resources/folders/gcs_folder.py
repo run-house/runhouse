@@ -20,7 +20,7 @@ class GCSFolder(Folder):
 
         super().__init__(dryrun=dryrun, **kwargs)
         self.client = storage.Client()
-        self._filesystem = "gs://"
+        self._urlpath = "gs://"
 
     @staticmethod
     def from_config(config: dict, dryrun=False, _resolve_children=True):
@@ -31,7 +31,7 @@ class GCSFolder(Folder):
     def bucket(self):
         return self.client.bucket(self._bucket_name)
 
-    def _to_local(self, dest_path: str, data_config: dict):
+    def _to_local(self, dest_path: str):
         """Copies folder to local."""
         from runhouse import Cluster
 
@@ -42,9 +42,7 @@ class GCSFolder(Folder):
         else:
             self._gcs_copy_to_local(dest_path)
 
-        return self._destination_folder(
-            dest_path=dest_path, dest_system="file", data_config=data_config
-        )
+        return self._destination_folder(dest_path=dest_path, dest_system="file")
 
     def _gcs_copy_to_local(self, dest_path: str):
         """Copy GCS folder to local."""
@@ -100,13 +98,6 @@ class GCSFolder(Folder):
             new_blob = self.bucket.blob(new_name)
             new_blob.rewrite(blob)
 
-    def _fsspec_copy(self, system: str, path: str, data_config: dict):
-        """Copy the folder to the given new filesystem and path."""
-        if system == "gs":
-            self._gcs_copy(path)
-        else:
-            raise NotImplementedError("Only GCS copying is implemented")
-
     def put(
         self, contents, overwrite=False, mode: str = "wb", write_fn: Callable = None
     ):
@@ -158,14 +149,10 @@ class GCSFolder(Folder):
             except Exception as e:
                 raise RuntimeError(f"Failed to upload {filename} to GCS: {e}")
 
-    def mv(
-        self, system, path: Optional[str] = None, data_config: Optional[dict] = None
-    ):
+    def mv(self, system, path: Optional[str] = None):
         """Move the folder to a new filesystem or cluster."""
         if path is None:
             path = "rh/" + self.rns_address
-
-        data_config = data_config or {}
 
         if system == "gcs":
             self._move_within_gcs(path)
@@ -176,7 +163,6 @@ class GCSFolder(Folder):
 
         self.path = path
         self.system = system
-        self.data_config = data_config or {}
 
     def ls(self, full_paths: bool = True, sort: bool = False) -> List:
         """List the contents of the folder.
@@ -193,9 +179,7 @@ class GCSFolder(Folder):
             blobs = sorted(blobs, key=lambda f: f.updated, reverse=True)
 
         if full_paths:
-            return [
-                self._filesystem + f"{self.bucket.name}/{blob.name}" for blob in blobs
-            ]
+            return [self._urlpath + f"{self.bucket.name}/{blob.name}" for blob in blobs]
         else:
             return [Path(blob.name).name for blob in blobs]
 
@@ -259,7 +243,7 @@ class GCSFolder(Folder):
             os.makedirs(local_mount_path)
 
         # Sync the GCS bucket to the local directory using gsutil
-        sync_command = f"gsutil rsync -r {self._filesystem}{self._bucket_name}/{self._key} {local_mount_path}"
+        sync_command = f"gsutil rsync -r {self._urlpath}{self._bucket_name}/{self._key} {local_mount_path}"
         subprocess.run(sync_command, shell=True, check=True)
 
         return local_mount_path
@@ -291,7 +275,7 @@ class GCSFolder(Folder):
         """Delete the gcs bucket."""
         # https://github.com/skypilot-org/skypilot/blob/3517f55ed074466eadd4175e152f68c5ea3f5f4c/sky/data/storage.py#L1775
         bucket_name = self._bucket_name
-        remove_obj_command = f"rm -r {self._filesystem}{bucket_name}"
+        remove_obj_command = f"rm -r {self._urlpath}{bucket_name}"
 
         try:
             subprocess.check_output(
@@ -328,14 +312,14 @@ class GCSFolder(Folder):
     def _upload_command(self, src: str, dest: str):
         # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/storage.py#L1240
         dest = dest.lstrip("/")
-        return f"gsutil -m rsync -r -x '.git/*' {src} {self._filesystem}{dest}"
+        return f"gsutil -m rsync -r -x '.git/*' {src} {self._urlpath}{dest}"
 
     def _download(self, dest):
         """Download a folder from a GCS bucket to local dir."""
         # NOTE: Sky doesn't support this API yet for each provider
         # https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/storage.py#L231
         remote_dir = self.path.lstrip("/")
-        remote_dir = f"{self._filesystem}{remote_dir}"
+        remote_dir = f"{self._urlpath}{remote_dir}"
         subprocess.run(
             ["gsutil", "-m", "rsync", "-r", "-x", ".git/*", remote_dir, dest],
             stdout=subprocess.DEVNULL,
@@ -353,18 +337,15 @@ class GCSFolder(Folder):
         dest_cluster.run([upload_command])
         return GCSFolder(path=path, system=dest_cluster, dryrun=True)
 
-    def _to_local(self, dest_path: str, data_config: dict):
+    def _to_local(self, dest_path: str):
         """Copy a folder from an GCS bucket to local dir."""
         self._download(dest=dest_path)
-        return self._destination_folder(
-            dest_path=dest_path, dest_system="file", data_config=data_config
-        )
+        return self._destination_folder(dest_path=dest_path, dest_system="file")
 
     def _to_data_store(
         self,
         system: str,
         data_store_path: Optional[str] = None,
-        data_config: Optional[dict] = None,
     ):
         """Copy folder from GCS to another remote data store (ex: GCS, S3, Azure)"""
         if system == "gs":
@@ -389,14 +370,12 @@ class GCSFolder(Folder):
         else:
             raise ValueError(f"Invalid system: {system}")
 
-        return self._destination_folder(
-            dest_path=data_store_path, dest_system=system, data_config=data_config
-        )
+        return self._destination_folder(dest_path=data_store_path, dest_system=system)
 
     def gcs_to_s3(self, gs_bucket_name: str, s3_bucket_name: str) -> None:
         # https://github.com/skypilot-org/skypilot/blob/3517f55ed074466eadd4175e152f68c5ea3f5f4c/sky/data/data_transfer.py#L138
         disable_multiprocessing_flag = '-o "GSUtil:parallel_process_count=1"'
-        sync_command = f"gsutil -m {disable_multiprocessing_flag} rsync -rd {self._filesystem}{gs_bucket_name} s3://{s3_bucket_name}"
+        sync_command = f"gsutil -m {disable_multiprocessing_flag} rsync -rd {self._urlpath}{gs_bucket_name} s3://{s3_bucket_name}"
         try:
             subprocess.run(sync_command, shell=True)
         except subprocess.CalledProcessError as e:

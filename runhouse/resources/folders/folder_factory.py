@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Optional, Union
 
 from runhouse.logger import logger
 
@@ -13,19 +13,17 @@ def folder(
     system: Optional[Union[str, "Cluster"]] = None,
     dryrun: bool = False,
     local_mount: bool = False,
-    data_config: Optional[Dict] = None,
 ) -> Folder:
     """Creates a Runhouse folder object, which can be used to interact with the folder at the given path.
 
     Args:
         name (Optional[str]): Name to give the folder, to be re-used later on.
         path (Optional[str or Path]): Path (or path) that the folder is located at.
-        system (Optional[str or Cluster]): File system or cluster name. If providing a file system this must be one of:
+        system (Optional[str or Cluster]): File system or cluster name. If prpre-oviding a file system this must be one of:
             [``file``, ``s3``, ``gs``].
         dryrun (bool): Whether to create the Folder if it doesn't exist, or load a Folder object as a dryrun.
             (Default: ``False``)
         local_mount (bool): Whether or not to mount the folder locally. (Default: ``False``)
-        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
 
     Returns:
         Folder: The resulting folder.
@@ -39,7 +37,7 @@ def folder(
     """
     # TODO [DG] Include loud warning that relative paths are relative to the git root / working directory!
 
-    if name and not any([path, system, local_mount, data_config]):
+    if name and not any([path, system, local_mount]):
         # If only the name is provided
         try:
             return Folder.from_name(name, dryrun)
@@ -56,7 +54,6 @@ def folder(
         return S3Folder(
             system=system,
             path=path,
-            data_config=data_config,
             local_mount=local_mount,
             name=name,
             dryrun=dryrun,
@@ -68,7 +65,6 @@ def folder(
         return GCSFolder(
             system=system,
             path=path,
-            data_config=data_config,
             local_mount=local_mount,
             name=name,
             dryrun=dryrun,
@@ -79,7 +75,6 @@ def folder(
         return Folder(
             system=system,
             path=path,
-            data_config=data_config,
             local_mount=local_mount,
             name=name,
             dryrun=dryrun,
@@ -93,7 +88,6 @@ def folder(
         return Folder(
             system=cluster_system,
             path=path,
-            data_config=data_config,
             local_mount=local_mount,
             name=name,
             dryrun=dryrun,
@@ -101,5 +95,5 @@ def folder(
 
     raise ValueError(
         f"System '{system}' not currently supported. If the file system "
-        f"is a cluster (ex: /my-user/rh-cpu), make sure the cluster config has been saved."
+        f"is a cluster (ex: '/my-user/rh-cpu'), make sure the cluster config has been saved."
     )

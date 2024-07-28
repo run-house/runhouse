@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 import time
 
 import pytest
@@ -172,6 +173,22 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         # assert get_last_active() > time.time() - 1
 
     @pytest.mark.level("release")
+    def test_cluster_ping_and_is_up(self, cluster):
+        assert cluster._ping(retry=False)
+
+        original_ips = cluster.ips
+
+        cluster.address = None
+        assert not cluster._ping(retry=False)
+
+        cluster.address = "00.00.000.11"
+        assert not cluster._ping(retry=False)
+
+        assert cluster._ping(retry=True)
+        assert cluster.is_up()
+        assert cluster.ips == original_ips
+
+    @pytest.mark.level("release")
     def test_docker_container_reqs(self, ondemand_aws_cluster):
         ret_code = ondemand_aws_cluster.run("pip freeze | grep torch")[0][0]
         assert ret_code == 0
@@ -181,6 +198,9 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         remote_torch_exists = rh.function(torch_exists).to(ondemand_aws_cluster)
         assert remote_torch_exists()
 
+    ####################################################################################################
+    # Status tests
+    ####################################################################################################
     @pytest.mark.level("minimal")
     @pytest.mark.skip("Test requires terminating the cluster")
     def test_set_status_after_teardown(self, cluster):
@@ -203,6 +223,61 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         assert get_status_data["status"] == ResourceServerStatus.terminated
 
     @pytest.mark.level("minimal")
+    @pytest.mark.skip("Test requires terminating the cluster")
+    def test_status_autostop_cluster(self, cluster):
+        cluster_config = cluster.config()
+        cluster_uri = rns_client.format_rns_address(cluster.rns_address)
+        api_server_url = cluster_config.get("api_server_url", rns_client.api_server_url)
+        cluster_name_no_owner = cluster.rns_address.split("/")[-1]
+
+        # Mocking autostop by running sky down
+        result_teardown = subprocess.run(
+            ["sky", "down", "-y", cluster_name_no_owner], capture_output=True, text=True
+        )
+        assert result_teardown.returncode == 0
+
+        get_status_data_resp = requests.get(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            headers=rns_client.request_headers(),
+        )
+        assert get_status_data_resp.status_code == 200
+        # For UI displaying purposes, the cluster/status endpoint returns cluster status history.
+        # The latest status info is the first element in the list returned by the endpoint.
+        get_status_data = get_status_data_resp.json()["data"][0]
+        assert get_status_data["resource_type"] == cluster_config.get("resource_type")
+        assert get_status_data["status"] == ResourceServerStatus.terminated
+
+    @pytest.mark.level("minimal")
+    @pytest.mark.skip(
+        "Stopping and restarting the server mid-test causes some errors, need to fix"
+    )
+    def test_status_cluster_rh_daemon_stopped(self, cluster):
+        cluster_config = cluster.config()
+        cluster_uri = rns_client.format_rns_address(cluster.rns_address)
+        api_server_url = cluster_config.get("api_server_url", rns_client.api_server_url)
+
+        cluster.run(["runhouse stop"])
+        get_status_data_resp = requests.get(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            headers=rns_client.request_headers(),
+        )
+        assert get_status_data_resp.status_code == 200
+        # For UI displaying purposes, the cluster/status endpoint returns cluster status history.
+        # The latest status info is the first element in the list returned by the endpoint.
+        get_status_data = get_status_data_resp.json()["data"][0]
+        assert get_status_data["resource_type"] == cluster_config.get("resource_type")
+        if cluster_config.get("open_ports"):
+            assert (
+                get_status_data["status"] == ResourceServerStatus.runhouse_daemon_down
+            )
+        else:
+            assert get_status_data["status"] == ResourceServerStatus.terminated
+        cluster.restart_server()
+
+    ####################################################################################################
+    # Logs surfacing tests
+    ####################################################################################################
+    @pytest.mark.level("minimal")
     def test_logs_surfacing_scheduler_basic_flow(self, cluster):
 
         time.sleep(120)
@@ -210,12 +285,14 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         headers = rh.globals.rns_client.request_headers()
         api_server_url = rh.globals.rns_client.api_server_url
 
-        get_status_data_resp = requests.get(
+        get_logs_data_resp = requests.get(
             f"{api_server_url}/resource/{cluster_uri}/logs",
             headers=headers,
         )
 
-        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"])[0][1].split(
+        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"], stream_logs=False)[
+            0
+        ][1].split(
             "\n"
         )  # create list of lines
         cluster_logs = [
@@ -228,8 +305,8 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             in cluster_logs
         )
 
-        assert get_status_data_resp.status_code == 200
-        cluster_logs_from_s3 = get_status_data_resp.json()["data"][0][1:].replace(
-            "\n ", "\n"
-        )
+        assert get_logs_data_resp.status_code == 200
+        cluster_logs_from_s3 = get_logs_data_resp.json()["data"]["logs_text"][0][
+            1:
+        ].replace("\n ", "\n")
         assert cluster_logs_from_s3 in cluster_logs
