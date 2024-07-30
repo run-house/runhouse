@@ -454,7 +454,7 @@ class Module(Resource):
         )
 
         env = self.env if not env else env
-        env = _get_env_from(env)
+        env = _get_env_from(env, load=False)
 
         # We need to change the pointers to the remote import path if we're sending this module to a remote cluster,
         # and we need to add the local path to the module to the requirements if it's not already there.

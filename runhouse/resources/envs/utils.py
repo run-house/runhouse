@@ -41,7 +41,7 @@ def _process_env_vars(env_vars):
     return processed_vars
 
 
-def _get_env_from(env):
+def _get_env_from(env, load: bool = True):
     if isinstance(env, Resource):
         return env
 
@@ -54,6 +54,9 @@ def _get_env_from(env):
     elif isinstance(env, Dict):
         return Env.from_config(env)
     elif isinstance(env, str) and EMPTY_DEFAULT_ENV_NAME not in env:
+        if not load:
+            return env
+
         try:
             return (
                 Env.from_name(env)
