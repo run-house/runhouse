@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from typing import List
 
-RESERVED_SYSTEM_NAMES: List[str] = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
+RESERVED_SYSTEM_NAMES: List[str] = ["file", "s3", "gs", "azure", "here"]
 CLUSTER_CONFIG_PATH: str = "~/.rh/cluster_config.json"
 CONFIG_YAML_PATH: str = "~/.rh/config.yaml"
 SERVER_LOGFILE_PATH = "~/.rh/server.log"
@@ -81,7 +81,7 @@ STATUS_CHECK_DELAY = 1 * MINUTE
 
 # Constants Surfacing Logs to Den
 DEFAULT_LOG_SURFACING_INTERVAL = 2 * MINUTE
-S3_LOGS_FILE_NAME = "server.log"
+SERVER_LOGS_FILE_NAME = "server.log"
 DEFAULT_SURFACED_LOG_LENGTH = 20
 # Constants for schedulers
 SCHEDULERS_DELAY = 2 * MINUTE

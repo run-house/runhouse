@@ -1,6 +1,9 @@
+from pathlib import Path
+
 import pytest
 
 import runhouse as rh
+from runhouse.constants import TEST_ORG
 
 from tests.conftest import init_args
 
@@ -20,39 +23,49 @@ def folder(request):
 
 
 @pytest.fixture
-def local_folder(tmp_path):
-    args = {"path": tmp_path / "tests_tmp"}
+def local_folder():
+    from runhouse import Folder
+
+    args = {"path": Folder.DEFAULT_CACHE_FOLDER}
     local_folder = rh.folder(**args)
     init_args[id(local_folder)] = args
-    local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
+    local_folder.put(
+        {f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)}, overwrite=True
+    )
     return local_folder
 
 
 @pytest.fixture
-def local_folder_docker(docker_cluster_pk_ssh_no_auth):
+def docker_cluster_folder(docker_cluster_pk_ssh_no_auth):
+    local_path = Path.cwd()
+    dest_path = "rh-folder"
+
     args = {
-        "name": "test_docker_folder",
-        "system": docker_cluster_pk_ssh_no_auth,
-        "path": "rh-folder",
+        "name": f"/{TEST_ORG}/test_docker_folder",
+        "path": local_path,
     }
 
-    local_folder_docker = rh.folder(**args)
-    init_args[id(local_folder_docker)] = args
-    local_folder_docker.put(
-        {f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)}
+    # Create a local folder based on the current working dir, then send it to the docker cluster as a module
+    docker_folder = rh.folder(**args).to(
+        system=docker_cluster_pk_ssh_no_auth, path=dest_path
     )
-    return local_folder_docker
+    assert docker_folder.system == docker_cluster_pk_ssh_no_auth
+
+    init_args[id(docker_folder)] = args
+    docker_folder.put(
+        {f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)}, overwrite=True
+    )
+    return docker_folder
 
 
 @pytest.fixture
 def cluster_folder(ondemand_aws_cluster):
     args = {
         "name": "test_cluster_folder",
-        "system": ondemand_aws_cluster,
         "path": "rh-folder",
     }
 
-    cluster_folder = rh.folder(**args)
+    cluster_folder = rh.folder(**args).to(system=ondemand_aws_cluster)
     init_args[id(cluster_folder)] = args
     cluster_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
     return cluster_folder

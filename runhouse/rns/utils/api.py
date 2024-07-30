@@ -72,7 +72,7 @@ def resolve_absolute_path(path: str):
     return os.path.abspath(os.path.expanduser(path))
 
 
-def relative_ssh_path(file_path: str):
+def relative_file_path(file_path: str):
     """Convert to a relative path if it is not already one."""
     if file_path.startswith("~"):
         return file_path

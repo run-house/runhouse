@@ -8,7 +8,7 @@ from runhouse.constants import DEFAULT_SERVER_PORT, LOCAL_HOSTS, RESERVED_SYSTEM
 
 from runhouse.logger import logger
 from runhouse.resources.hardware.utils import ServerConnectionType
-from runhouse.rns.utils.api import relative_ssh_path
+from runhouse.rns.utils.api import relative_file_path
 
 from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
@@ -415,6 +415,24 @@ def ondemand_cluster(
             context=context,
             server_connection_type=server_connection_type,
             default_env=default_env,
+            autostop_mins=autostop_mins,
+            num_instances=num_instances,
+            provider=provider,
+            use_spot=use_spot,
+            image_id=image_id,
+            region=region,
+            memory=memory,
+            disk_size=disk_size,
+            open_ports=open_ports,
+            sky_kwargs=sky_kwargs,
+            server_port=server_port,
+            server_host=server_host,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
+            domain=domain,
+            den_auth=den_auth,
+            dryrun=dryrun,
+            **kwargs,
         )
 
     if name:
@@ -597,7 +615,7 @@ def sagemaker_cluster(
             "version is being used. For more info: https://www.run.house/docs/api/python/cluster#id9"
         )
 
-    ssh_key_path = relative_ssh_path(ssh_key_path) if ssh_key_path else None
+    ssh_key_path = relative_file_path(ssh_key_path) if ssh_key_path else None
 
     if (
         server_connection_type is not None

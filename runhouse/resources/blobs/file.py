@@ -1,6 +1,6 @@
 import pickle
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Optional, Union
 
 from runhouse.resources.blobs.blob import Blob, blob
 from runhouse.resources.envs import _get_env_from, Env
@@ -16,7 +16,6 @@ class File(Blob):
         name: Optional[str] = None,
         system: Optional[str] = Folder.DEFAULT_FS,
         env: Optional[Env] = None,
-        data_config: Optional[Dict] = None,
         dryrun: bool = False,
         **kwargs,
     ):
@@ -31,7 +30,6 @@ class File(Blob):
         self._folder = folder(
             path=str(Path(path).parent) if path is not None else path,
             system=system,
-            data_config=data_config,
             dryrun=dryrun,
         )
         super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
@@ -40,7 +38,6 @@ class File(Blob):
         config = super().config(condensed)
         file_config = {
             "path": self.path,  # pair with data source to create the physical URL
-            "data_config": self.data_config,
         }
         config.update(file_config)
         return config
@@ -67,14 +64,6 @@ class File(Blob):
         self._filename = str(Path(new_path).name)
 
     @property
-    def data_config(self):
-        return self._folder.data_config
-
-    @data_config.setter
-    def data_config(self, new_data_config):
-        self._folder.data_config = new_data_config
-
-    @property
     def fsspec_url(self):
         return self._folder.fsspec_url + "/" + self._filename
 
@@ -91,11 +80,7 @@ class File(Blob):
         return self._folder.open(self._filename, mode=mode)
 
     def to(
-        self,
-        system,
-        env: Optional[Union[str, Env]] = None,
-        path: Optional[str] = None,
-        data_config: Optional[dict] = None,
+        self, system, env: Optional[Union[str, Env]] = None, path: Optional[str] = None
     ):
         """Return a copy of the file on the destination system and path.
 
@@ -124,7 +109,7 @@ class File(Blob):
             new_blob.data = data_backup
             return new_blob
 
-        new_file = file(path=path, system=system, data_config=data_config)
+        new_file = file(path=path, system=system)
         try:
             new_file.write(
                 self.fetch(mode="r", deserialize=False), serialize=False, mode="w"
@@ -178,7 +163,7 @@ class File(Blob):
             >>> file = rh.file(data, path="saved/path")
             >>> file.exists_in_system()
         """
-        return self._folder.fsspec_fs.exists(self.fsspec_url)
+        return self._folder.exists_in_system()
 
 
 def file(
@@ -186,7 +171,6 @@ def file(
     name: Optional[str] = None,
     path: Optional[str] = None,
     system: Optional[str] = None,
-    data_config: Optional[Dict] = None,
     dryrun: bool = False,
 ):
     """Returns a File object, which can be used to interact with the resource at the given path
@@ -196,9 +180,8 @@ def file(
         name (Optional[str]): Name to give the file object, to be reused later on.
         path (Optional[str]): Path (or path) of the file object.
         system (Optional[str or Cluster]): File system or cluster name. If providing a file system this must be one of:
-            [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
+            [``file``, ``s3``, ``gs``].
             We are working to add additional file system support.
-        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
         dryrun (bool): Whether to create the File if it doesn't exist, or load a File object as a dryrun.
             (Default: ``False``)
 
@@ -231,6 +214,5 @@ def file(
         data=data,
         path=path,
         system=system,
-        data_config=data_config or {},  # Trick to force blob factory to create a File
         dryrun=dryrun,
     )

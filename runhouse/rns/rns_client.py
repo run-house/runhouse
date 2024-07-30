@@ -7,14 +7,11 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Set, Union
 
 import dotenv
-import httpx
 
 import requests
 from pydantic import BaseModel
 
-from runhouse.constants import S3_LOGS_FILE_NAME, SERVER_LOGFILE
-
-from runhouse.logger import ColoredFormatter, logger
+from runhouse.logger import logger
 
 from runhouse.rns.utils.api import (
     generate_uuid,
@@ -633,51 +630,3 @@ class RNSClient:
         return folder(name=name_or_path, path=folder_url).resources(
             full_paths=full_paths
         )
-
-    async def send_status(
-        self, status: ResourceStatusData, cluster_uri: str, api_server_url: str
-    ):
-        from runhouse.resources.hardware.utils import ResourceServerStatus
-
-        resource_info = dict(status)
-        env_servlet_processes = dict(resource_info.pop("env_servlet_processes"))
-        status_data = {
-            "status": ResourceServerStatus.running,
-            "resource_type": status.cluster_config.get("resource_type"),
-            "resource_info": resource_info,
-            "env_servlet_processes": env_servlet_processes,
-        }
-        client = httpx.AsyncClient()
-        resp = await client.post(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-            data=json.dumps(status_data),
-            headers=self.request_headers(),
-        )
-        return resp.status_code
-
-    ##############################################
-    # Surface cluster logs to Den
-    ##############################################
-    def _get_logs(self):
-        with open(SERVER_LOGFILE) as log_file:
-            log_lines = log_file.readlines()
-        cleaned_log_lines = [ColoredFormatter.format_log(line) for line in log_lines]
-        return " ".join(cleaned_log_lines)
-
-    async def send_cluster_logs_to_den(self, cluster_uri: str, api_server_url: str):
-
-        try:
-            latest_logs = self._get_logs()
-            logs_data = {"file_name": S3_LOGS_FILE_NAME, "logs": latest_logs}
-
-            post_logs_resp = requests.post(
-                f"{api_server_url}/resource/{cluster_uri}/logs",
-                data=json.dumps(logs_data),
-                headers=self.request_headers(),
-            )
-            return post_logs_resp.status_code
-        except Exception as e:
-            logger.error(
-                f"Sending cluster logs to den has failed: {e}. Please check cluster logs for more info."
-            )
-            return -1

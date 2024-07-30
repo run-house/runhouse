@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 from runhouse.resources.envs.utils import install_conda, run_setup_command
-from runhouse.resources.folders import Folder, folder
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import (
     _get_cluster_from,
@@ -48,7 +47,7 @@ class Package(Resource):
         self,
         name: str = None,
         install_method: str = None,
-        install_target: Union[str, Folder] = None,
+        install_target: Union[str, "Folder"] = None,
         install_args: str = None,
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
@@ -81,6 +80,8 @@ class Package(Resource):
         return config
 
     def __str__(self):
+        from runhouse.resources.folders import Folder
+
         if self.name:
             return f"Package: {self.name}"
         if isinstance(self.install_target, Folder):
@@ -123,6 +124,8 @@ class Package(Resource):
     def _pip_install_cmd(
         self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
     ):
+        from runhouse.resources.folders import Folder
+
         install_args = f" {self.install_args}" if self.install_args else ""
         if isinstance(self.install_target, Folder):
             install_cmd = (
@@ -142,6 +145,8 @@ class Package(Resource):
     def _conda_install_cmd(
         self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
     ):
+        from runhouse.resources.folders import Folder
+
         install_args = f" {self.install_args}" if self.install_args else ""
         if isinstance(self.install_target, Folder):
             install_cmd = f"{self.install_target.local_path}" + install_args
@@ -156,6 +161,8 @@ class Package(Resource):
     def _reqs_install_cmd(
         self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
     ):
+        from runhouse.resources.folders import Folder
+
         install_args = f" {self.install_args}" if self.install_args else ""
         if not isinstance(self.install_target, Folder):
             install_cmd = self.install_target + install_args
@@ -210,6 +217,7 @@ class Package(Resource):
                 (Default: ``None``)
             cluster (Optional[Cluster]): If provided, will install package on cluster using SSH.
         """
+        from runhouse.resources.folders import Folder
 
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
 
@@ -366,9 +374,10 @@ class Package(Resource):
         self,
         system: Union[str, Dict, "Cluster"],
         path: Optional[str] = None,
-        mount: bool = False,
     ):
         """Copy the package onto filesystem or cluster, and return the new Package object."""
+        from runhouse.resources.folders import Folder
+
         if not isinstance(self.install_target, Folder):
             raise TypeError(
                 "`install_target` must be a Folder in order to copy the package to a system."
@@ -401,15 +410,17 @@ class Package(Resource):
                     # If we're on the target system, just make sure the package is in the Python path
                     sys.path.insert(0, self.install_target.local_path)
                     return self
+
             logger.info(
                 f"Copying package from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
             )
-            self._validate_folder_path()
-            new_folder = self.install_target._to_cluster(system, path=path, mount=mount)
-        else:  # to fs
-            self._validate_folder_path()
-            new_folder = self.install_target.to(system, path=path)
-        new_folder.system = system
+        self._validate_folder_path()
+
+        # sync folder to the fs and create a new module on the fs where relevant
+        new_folder = self.install_target.to(system, path=path)
+        new_folder = new_folder._destination_folder(
+            dest_path=new_folder.path, dest_system=system
+        )
         new_package = copy.copy(self)
         new_package.install_target = new_folder
         return new_package
@@ -423,6 +434,8 @@ class Package(Resource):
     @staticmethod
     def from_config(config: dict, dryrun=False, _resolve_children=True):
         if isinstance(config.get("install_target"), dict):
+            from runhouse.resources.folders import Folder
+
             config["install_target"] = Folder.from_config(
                 config["install_target"],
                 dryrun=dryrun,
@@ -470,8 +483,10 @@ class Package(Resource):
             else Path(locate_working_dir()) / rel_target
         )
         if abs_target.exists():
+            from runhouse.resources.folders import Folder
+
             target = Folder(
-                path=abs_target, dryrun=True
+                path=abs_target, system=Folder.DEFAULT_FS, dryrun=True
             )  # No need to create the folder here
         else:
             target = rel_target
@@ -492,7 +507,11 @@ class Package(Resource):
                 # Check if this is a package that was installed from local
                 local_install_path = get_local_install_path(target)
                 if local_install_path and Path(local_install_path).exists():
-                    target = Folder(path=local_install_path, dryrun=True)
+                    from runhouse.resources.folders import Folder
+
+                    target = Folder(
+                        path=local_install_path, system=Folder.DEFAULT_FS, dryrun=True
+                    )
 
         # "Local" install method is a special case where we just copy a local folder and add to path
         if install_method == "local":
@@ -523,8 +542,6 @@ def package(
     path: str = None,
     system: str = None,
     dryrun: bool = False,
-    local_mount: bool = False,
-    data_config: Optional[Dict] = None,
 ) -> Package:
     """
     Builds an instance of :class:`Package`.
@@ -535,11 +552,9 @@ def package(
         install_str (str): Additional arguments to install.
         path (str): URL of the package to install.
         system (str): File system or cluster on which the package lives. Currently this must a cluster or one of:
-            [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
+            [``file``, ``s3``, ``gs``].
         dryrun (bool): Whether to create the Package if it doesn't exist, or load the Package object as a dryrun.
             (Default: ``False``)
-        local_mount (bool): Whether to locally mount the installed package. (Default: ``False``)
-        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler.
 
     Returns:
         Package: The resulting package.
@@ -549,19 +564,17 @@ def package(
         >>> reloaded_package = rh.package(name="my-package")
         >>> local_package = rh.package(path="local/folder/path", install_method="local")
     """
-    if name and not any(
-        [install_method, install_str, path, system, data_config, local_mount]
-    ):
+    if name and not any([install_method, install_str, path, system]):
         # If only the name is provided and dryrun is set to True
         return Package.from_name(name, dryrun)
 
     install_target = None
     install_args = None
     if path is not None:
+        from runhouse.resources.folders import Folder, folder
+
         system = system or Folder.DEFAULT_FS
-        install_target = folder(
-            path=path, system=system, local_mount=local_mount, data_config=data_config
-        )
+        install_target = folder(path=path, system=system)
         install_args = install_str
     elif install_str is not None:
         install_target, install_args = install_str.split(" ", 1)

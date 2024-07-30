@@ -120,7 +120,6 @@ async def main():
         reqs=["vllm==0.2.7"],  # >=0.3.0 causes Pydantic version error
         secrets=["huggingface"],  # Needed to download Llama 3 from HuggingFace
         name="llama3inference",
-        working_dir="./",
     )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call

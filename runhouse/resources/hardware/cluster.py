@@ -1266,12 +1266,10 @@ class Cluster(Resource):
     def _copy_certs_to_cluster(self):
         """Copy local certs to the cluster. Destination on the cluster depends on whether Caddy is enabled. This is
         to ensure that the Caddy service has the necessary access to load the certs when the service is started."""
-        from runhouse import folder
-
         # Copy to the home directory by default
-        local_certs_path = self.cert_config.key_path
+        source = str(Path(self.cert_config.key_path).parent)
         dest = self.cert_config.DEFAULT_CLUSTER_DIR
-        folder(path=Path(local_certs_path).parent).to(self, path=dest)
+        self._rsync(source, dest, up=True)
 
         if self._use_caddy:
             # Move to the Caddy directory to ensure the daemon has access to the certs

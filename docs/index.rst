@@ -23,6 +23,7 @@ Table of Contents
    tutorials/quick-start-cloud
    tutorials/quick-start-local
    tutorials/quick-start-den
+   architecture
 
 .. toctree::
    :maxdepth: 1
@@ -47,7 +48,6 @@ Table of Contents
    :caption: Other Topics
 
    tutorials/async.rst
-   architecture
    installation
    debugging-logging
    docker

@@ -53,7 +53,6 @@ class Run(Resource):
         log_dest: str = "file",
         path: str = None,
         system: Union[str, Cluster] = None,
-        data_config: dict = None,
         status: RunStatus = RunStatus.NOT_STARTED,
         start_time: Optional[str] = None,
         end_time: Optional[str] = None,
@@ -100,7 +99,6 @@ class Run(Resource):
             self.folder = folder_factory(
                 path=folder_path,
                 system=folder_system,
-                data_config=data_config,
                 dryrun=dryrun,
             )
 
@@ -257,19 +255,13 @@ class Run(Resource):
         """Write data (ex: function inputs or result, stdout, stderr) to the Run's dedicated folder on the system."""
         file(system=self.folder.system, path=path).write(data, serialize=False)
 
-    def to(
-        self,
-        system,
-        path: Optional[str] = None,
-        data_config: Optional[dict] = None,
-    ):
+    def to(self, system, path: Optional[str] = None):
         """Send a Run to another system.
 
         Args:
             system (Union[str or Cluster]): Name of the system or Cluster object to copy the Run to.
             path (Optional[str]): Path to the on the system to save the Run.
                 Defaults to the local path for Runs (in the rh folder of the working directory).
-            data_config (Optional[dict]): Config to pass into fsspec handler for copying the Run.
 
         Returns:
             Run: A copy of the Run on the destination system and path.
@@ -295,9 +287,7 @@ class Run(Resource):
             # Save to default local path if none provided
             path = path or self._base_local_folder_path(self.name)
 
-        new_run.folder = self.folder.to(
-            system=system, path=path, data_config=data_config
-        )
+        new_run.folder = self.folder.to(system=system, path=path)
 
         return new_run
 
@@ -596,7 +586,6 @@ def run(
     log_dest: str = "file",
     path: str = None,
     system: Union[str, Cluster] = None,
-    data_config: dict = None,
     load: bool = True,
     dryrun: bool = False,
     **kwargs,
@@ -609,9 +598,8 @@ def run(
         path (Optional[str]): Path to the Run's dedicated folder on the system where the Run lives.
         system (Optional[str or Cluster]): File system or cluster name where the Run lives.
             If providing a file system this must be one of:
-            [``file``, ``github``, ``sftp``, ``ssh``, ``s3``, ``gs``, ``azure``].
+            [``file``, ``s3``, ``gs``].
             We are working to add additional file system support.
-        data_config (Optional[Dict]): The data config to pass to the underlying fsspec handler for the folder.
         load (bool): Whether to try reloading an existing Run from configs. (Default: ``True``)
         dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
             (Default: ``False``)
@@ -620,7 +608,7 @@ def run(
     Returns:
         Run: The loaded Run object.
     """
-    if name and load and not any([path, system, data_config, kwargs]):
+    if name and load and not any([path, system, kwargs]):
         # Try reloading existing Run from RNS
         return Run.from_name(name, dryrun=dryrun)
 
@@ -640,7 +628,6 @@ def run(
         log_dest=log_dest,
         path=path,
         system=system,
-        data_config=data_config,
         dryrun=dryrun,
         **kwargs,
     )
