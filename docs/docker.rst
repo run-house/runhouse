@@ -42,13 +42,17 @@ Private Docker Image
 
 To use a Docker image hosted on a private registry, such as ECR, you
 need to pass in the following environment variables. These environment
-variables will propogate through to SkyPilot, which will use them while
+variables will propagate through to SkyPilot, which will use them while
 launching and setting up the cluster and base container.
 
 Values used in:
-``docker login -u <user> -p <password> <registry server>``: \*
-SKYPILOT_DOCKER_USERNAME: ``<user>`` \* SKYPILOT_DOCKER_PASSWORD:
-``<password>`` \* SKYPILOT_DOCKER_SERVER: ``<registry server>``
+``docker login -u <user> -p <password> <registry server>``:
+
+* SKYPILOT_DOCKER_USERNAME: ``<user>``
+
+* SKYPILOT_DOCKER_PASSWORD: ``<password>``
+
+* SKYPILOT_DOCKER_SERVER: ``<registry server>``
 
 For instance, to use the PyTorch2.2 ECR Framework provided
 `here <https://github.com/aws/deep-learning-containers/blob/master/available_images.md#ec2-framework-containers-tested-on-ec2-ecs-and-eks-only>`__,
@@ -81,7 +85,7 @@ any reason the docker pull fails on the cluster (for instance, due to
 incorrect credentials or permission error), you must first teardown the
 cluster with ``ecr_cluster.teardown()`` or
 ``sky stop ecr_pytorch_cluster`` in CLI before re-launching the cluster
-with new credentials in order for them to propogate through.
+with new credentials in order for them to propagate through.
 
 Advanced Usage and Details
 --------------------------
