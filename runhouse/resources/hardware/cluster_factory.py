@@ -28,6 +28,7 @@ def cluster(
     domain: str = None,
     den_auth: bool = None,
     default_env: Union["Env", str] = None,
+    version: str = None,
     dryrun: bool = False,
     **kwargs,
 ) -> Union[Cluster, OnDemandCluster, SageMakerCluster]:
@@ -58,6 +59,7 @@ def cluster(
         default_env (Env or str, optional): Environment that the Runhouse server is started on in the cluster. Used to
             specify an isolated environment (e.g. conda env) or any setup and requirements prior to starting the Runhouse
             server. (Default: ``None``)
+        version (Optional[str]): Version of the Function to create or load.
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
 
@@ -100,12 +102,15 @@ def cluster(
             domain=domain,
             den_auth=den_auth,
             default_env=default_env,
+            version=version,
             kwargs=kwargs if len(kwargs) > 0 else None,
         )
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
         try:
-            c = Cluster.from_name(name, dryrun, alt_options=alt_options)
+            c = Cluster.from_name(
+                name, dryrun, alt_options=alt_options, version=version
+            )
             if c:
                 c.set_connection_defaults()
                 if den_auth:
@@ -134,6 +139,7 @@ def cluster(
             domain=domain,
             den_auth=den_auth,
             default_env=default_env,
+            version=version,
             dryrun=dryrun,
             **kwargs,
         )
@@ -163,6 +169,7 @@ def cluster(
             domain=domain,
             den_auth=den_auth,
             default_env=default_env,
+            version=version,
             dryrun=dryrun,
             **kwargs,
         )
@@ -187,6 +194,7 @@ def cluster(
         domain=domain,
         den_auth=den_auth,
         default_env=default_env,
+        version=version,
         dryrun=dryrun,
         **kwargs,
     )
@@ -321,6 +329,7 @@ def ondemand_cluster(
     domain: str = None,
     den_auth: bool = None,
     default_env: Union["Env", str] = None,
+    version: str = None,
     dryrun: bool = False,
     **kwargs,
 ) -> OnDemandCluster:
@@ -372,6 +381,7 @@ def ondemand_cluster(
         default_env (Env or str, optional): Environment that the Runhouse server is started on in the cluster. Used to
             specify an isolated environment (e.g. conda env) or any setup and requirements prior to starting the Runhouse
             server. (Default: ``None``)
+        version (Optional[str]): Version of the Cluster to create or load.
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
 
@@ -431,6 +441,7 @@ def ondemand_cluster(
             ssl_certfile=ssl_certfile,
             domain=domain,
             den_auth=den_auth,
+            version=version,
             dryrun=dryrun,
             **kwargs,
         )
@@ -452,6 +463,7 @@ def ondemand_cluster(
             ssl_certfile=ssl_certfile,
             domain=domain,
             den_auth=den_auth,
+            version=version,
             default_env=default_env,
         )
         # Filter out None/default values
@@ -488,6 +500,7 @@ def ondemand_cluster(
         den_auth=den_auth,
         default_env=default_env,
         name=name,
+        version=version,
         dryrun=dryrun,
         **kwargs,
     )
@@ -520,6 +533,7 @@ def sagemaker_cluster(
     domain: str = None,
     den_auth: bool = None,
     default_env: Union["Env", str] = None,
+    version: str = None,
     dryrun: bool = False,
     **kwargs,
 ) -> SageMakerCluster:
@@ -578,6 +592,7 @@ def sagemaker_cluster(
         default_env (Env or str, optional): Environment that the Runhouse server is started on in the cluster. Used to
             specify an isolated environment (e.g. conda env) or any setup and requirements prior to starting the Runhouse
             server. (Default: ``None``)
+        version (Optional[str]): Version of the Cluster to create or load.
         dryrun (bool): Whether to create the SageMakerCluster if it doesn't exist, or load a SageMakerCluster object
             as a dryrun.
             (Default: ``False``)
@@ -651,6 +666,7 @@ def sagemaker_cluster(
             ssl_certfile=ssl_certfile,
             domain=domain,
             den_auth=den_auth,
+            version=version,
             default_env=default_env,
         )
         # Filter out None/default values
@@ -691,6 +707,7 @@ def sagemaker_cluster(
         ssl_certfile=ssl_certfile,
         domain=domain,
         default_env=default_env,
+        version=version,
         dryrun=dryrun,
         **kwargs,
     )

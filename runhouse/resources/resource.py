@@ -30,6 +30,7 @@ class Resource:
         provenance=None,
         access_level: Optional[ResourceAccess] = ResourceAccess.WRITE,
         visibility: Optional[ResourceVisibility] = ResourceVisibility.PRIVATE,
+        version: Optional[str] = None,
         **kwargs,
     ):
         """
@@ -77,6 +78,8 @@ class Resource:
         self.access_level = access_level
         self._visibility = visibility
 
+        self.version = version
+
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
 
     @property
@@ -90,6 +93,7 @@ class Resource:
             "resource_type": self.RESOURCE_TYPE,
             "resource_subtype": self.__class__.__name__,
             "provenance": self.provenance.config if self.provenance else None,
+            "version": self.version,
         }
         self.save_attrs_to_config(
             config,
@@ -184,7 +188,7 @@ class Resource:
         from runhouse.resources.hardware.utils import _current_cluster
 
         if _current_cluster():
-            return obj_store.get(self._name)
+            return obj_store.get(self.obj_store_key(self.name, self.version))
         else:
             return self
 
@@ -254,15 +258,23 @@ class Resource:
         return config
 
     @classmethod
-    def from_name(cls, name, dryrun=False, alt_options=None, _resolve_children=True):
-        """Load existing Resource via its name."""
+    def from_name(
+        cls,
+        name,
+        dryrun=False,
+        alt_options=None,
+        version: str = None,
+        _resolve_children=True,
+    ):
+        """Load existing Resource via its name. Optionally load a specific version of the resource."""
         # TODO is this the right priority order?
         from runhouse.resources.hardware.utils import _current_cluster
 
         if _current_cluster() and obj_store.contains(name):
-            return obj_store.get(name)
+            key = Resource.obj_store_key(name, version)
+            return obj_store.get(key)
 
-        config = rns_client.load_config(name=name)
+        config = rns_client.load_config(name=name, version=version)
 
         if alt_options:
             config = cls._compare_config_with_alt_options(config, alt_options)
@@ -308,6 +320,13 @@ class Resource:
         if loaded.name:
             rns_client.add_upstream_resource(loaded.name)
         return loaded
+
+    @staticmethod
+    def obj_store_key(name: str, version: str = None):
+        """Key for a resource as saved in the object store. Optionally includes a version tag."""
+        if not version:
+            return name
+        return f"{name}@{version}"
 
     def unname(self):
         """Remove the name of the resource. This changes the resource name to anonymous and deletes any local

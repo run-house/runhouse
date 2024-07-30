@@ -20,6 +20,7 @@ def env(
     working_dir: Optional[Union[str, Path]] = None,
     secrets: Optional[Union[str, "Secret"]] = [],
     compute: Optional[Dict] = {},
+    version: Optional[str] = None,
     dryrun: bool = False,
 ):
     """Builds an instance of :class:`Env`.
@@ -39,6 +40,7 @@ def env(
             cluster scheduler (generally Ray). Only use this if you know what you're doing.
             Example: ``{"cpus": 1, "gpus": 1}``. (Default: {})
             More info: https://docs.ray.io/en/latest/ray-core/scheduling/resources.html
+        version (Optional[str]): Version of the Env to create or load.
         dryrun (bool, optional): Whether to run in dryrun mode. (Default: ``False``)
 
 
@@ -61,7 +63,7 @@ def env(
     if name and not any(
         [reqs, conda_env, setup_cmds, env_vars, secrets, working_dir, compute]
     ):
-        return Env.from_name(name, dryrun)
+        return Env.from_name(name, dryrun, version=version)
 
     reqs = _process_reqs(reqs or [])
     conda_yaml = _get_conda_yaml(conda_env)
@@ -74,6 +76,7 @@ def env(
             env_vars=env_vars,
             working_dir=working_dir,
             secrets=secrets,
+            version=version,
             name=name or conda_yaml["name"],
             dryrun=dryrun,
         )
@@ -86,6 +89,7 @@ def env(
         secrets=secrets,
         name=name,
         compute=compute,
+        version=version,
         dryrun=dryrun,
     )
 
@@ -100,6 +104,7 @@ def conda_env(
     working_dir: Optional[Union[str, Path]] = None,
     secrets: List[Union[str, "Secret"]] = [],
     compute: Optional[Dict] = {},
+    version: Optional[str] = None,
     dryrun: bool = False,
 ):
     """Builds an instance of :class:`CondaEnv`.
@@ -119,6 +124,7 @@ def conda_env(
             cluster scheduler (generally Ray). Only use this if you know what you're doing.
             Example: ``{"cpus": 1, "gpus": 1}``. (Default: {})
             More info: https://docs.ray.io/en/latest/ray-core/scheduling/resources.html
+        version (Optional[str]): Version of the Env to create or load.
         dryrun (bool, optional): Whether to run in dryrun mode. (Default: ``False``)
 
     Returns:
@@ -144,5 +150,6 @@ def conda_env(
         working_dir=working_dir,
         secrets=secrets,
         compute=compute,
+        version=version,
         dryrun=dryrun,
     )

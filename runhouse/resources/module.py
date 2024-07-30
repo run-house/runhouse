@@ -60,6 +60,7 @@ class Module(Resource):
         name: Optional[str] = None,
         system: Union[Cluster, str] = None,
         env: Optional[Env] = None,
+        version: Optional[str] = None,
         dryrun: bool = False,
         provenance: Optional[dict] = None,
         **kwargs,
@@ -67,7 +68,9 @@ class Module(Resource):
         """
         Runhouse Module object
         """
-        super().__init__(name=name, dryrun=dryrun, provenance=provenance, **kwargs)
+        super().__init__(
+            name=name, dryrun=dryrun, provenance=provenance, version=version, **kwargs
+        )
         self._system = _get_cluster_from(
             system or _current_cluster(key="config"), dryrun=dryrun
         )
@@ -653,7 +656,7 @@ class Module(Resource):
         if not self.system or not self.name:
             return self
         if self._system.on_this_cluster():
-            return obj_store.get(self._name)
+            return obj_store.get(self.obj_store_key(self.name, self.version))
         elif isinstance(self._system, Cluster):
             return self._system.get(self._name, remote=True)
         else:
@@ -823,7 +826,9 @@ class Module(Resource):
                 return client.get(name, remote=remote)
 
             if isinstance(system, Cluster) and name and system.on_this_cluster():
-                obj_store_obj = obj_store.get(name, default=None)
+                obj_store_obj = obj_store.get(
+                    self.obj_store_key(key, self.version), default=None
+                )
                 if obj_store_obj:
                     return obj_store_obj.__getattribute__(key)
                 else:
@@ -1261,6 +1266,7 @@ def module(
     cls: [Type] = None,
     name: Optional[str] = None,
     env: Optional[Union[str, Env]] = None,
+    version: Optional[str] = None,
     dryrun: bool = False,
 ):
     """Returns a Module object, which can be used to instantiate and interact with the class remotely.
@@ -1287,6 +1293,7 @@ def module(
         cls: The class to instantiate.
         name (Optional[str]): Name to give the module object, to be reused later on.
         env (Optional[str or Env]): Environment in which the module should live on the cluster, if system is cluster.
+        version (Optional[str]): Version of the Module to create or load.
         dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
             (Default: ``False``)
 
@@ -1351,7 +1358,7 @@ def module(
     """
     if name and not any([cls, env]):
         # Try reloading existing module
-        return Module.from_name(name, dryrun)
+        return Module.from_name(name, dryrun, version=version)
 
     if not isinstance(env, Env):
         env = _get_env_from(env)
@@ -1377,10 +1384,7 @@ def module(
 
     module_subclass = _module_subclass_factory(cls, cls_pointers)
     return module_subclass._module_init_only(
-        env=env,
-        dryrun=dryrun,
-        pointers=cls_pointers,
-        name=name,
+        env=env, dryrun=dryrun, pointers=cls_pointers, name=name, version=version
     )
 
 

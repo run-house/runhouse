@@ -334,10 +334,7 @@ class RNSClient:
 
         return added_users, new_users, valid_users
 
-    def load_config(
-        self,
-        name,
-    ) -> dict:
+    def load_config(self, name, version: str = None) -> dict:
         if not name:
             return {}
 
@@ -352,7 +349,7 @@ class RNSClient:
             return _current_cluster("config")
 
         if rns_address[0] in ["~", "^"]:
-            config = self._load_config_from_local(rns_address)
+            config = self._load_config_from_local(rns_address, version)
             if config:
                 return config
 
@@ -368,6 +365,8 @@ class RNSClient:
             resource_uri = self.resource_uri(name)
             logger.debug(f"Attempting to load config for {rns_address} from RNS.")
             uri = f"{self.api_server_url}/resource/{resource_uri}"
+            if version:
+                uri += f"?version={version}"
             resp = self.session.get(
                 uri,
                 headers=request_headers,
@@ -386,11 +385,13 @@ class RNSClient:
             return config
         return {}
 
-    def _load_config_from_local(self, rns_address=None, path=None) -> Optional[dict]:
-        """Load config from local file"""
+    def _load_config_from_local(
+        self, rns_address=None, version=None, path=None
+    ) -> Optional[dict]:
+        """Load config from local file. Optionally specify a specific version of the local resource to load."""
         # TODO should we handle remote filesystems, or throw an error if system != 'file'?
         if not path:
-            path = self.locate(rns_address, resolve_path=False)
+            path = self.locate(rns_address, version=version, resolve_path=False)
             if not path:
                 return None
         config_path = Path(path) / "config.json"
@@ -407,14 +408,6 @@ class RNSClient:
         if rns_address:
             config["name"] = rns_address
         return config
-
-    def get_rns_address_for_local_path(self, local_path):
-        """Get RNS address for local path"""
-        try:
-            rel_path = str(Path(local_path).relative_to(self.rh_directory))
-            return "~/" + rel_path
-        except ValueError:
-            return None
 
     def save_config(self, resource, overwrite: bool = True):
         """Register the resource, saving it to local config folder and/or RNS config store. Uses the resource's
@@ -439,7 +432,9 @@ class RNSClient:
     def _save_config_to_local(self, config: dict, rns_address: str):
         if not rns_address:
             raise ValueError("Cannot save resource without rns address or path.")
-        resource_dir = Path(self.locate(rns_address, resolve_path=False))
+        resource_dir = Path(
+            self.locate(rns_address, version=config.get("version"), resolve_path=False)
+        )
         resource_dir.mkdir(parents=True, exist_ok=True)
         config_path = resource_dir / "config.json"
         with open(config_path, "w") as f:
@@ -575,6 +570,7 @@ class RNSClient:
     def locate(
         self,
         name,
+        version: str = None,
         resolve_path=True,
     ):
         """Return the path for a resource."""
@@ -587,15 +583,20 @@ class RNSClient:
             name = self.resolve_rns_path(name)
 
         if name.startswith("~"):
-            return name.replace("~", self.rh_directory)
+            name = name.replace("~", self.rh_directory)
 
         if name.startswith("^"):
-            return name.replace("^", self.rh_builtins_directory + "/")
+            name = name.replace("^", self.rh_builtins_directory + "/")
 
         # TODO [DG] see if this breaks anything, also make it traverse the various rns folders to find the resource
         # if name.startswith('/'):
         #     if self.exists(name):
         #         return self.resource_uri(name)
+
+        if name:
+            if version:
+                return f"{name}/{version}"
+            return name
 
         return None
 

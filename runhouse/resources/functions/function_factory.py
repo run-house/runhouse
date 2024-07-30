@@ -11,6 +11,7 @@ def function(
     fn: Optional[Union[str, Callable]] = None,
     name: Optional[str] = None,
     env: Optional[Union[List[str], Env, str]] = None,
+    version: Optional[str] = None,
     dryrun: bool = False,
     load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
@@ -25,6 +26,7 @@ def function(
             This can be either from a local config or from the RNS.
         env (Optional[List[str] or Env or str]): List of requirements to install on the remote cluster, or path to the
             requirements.txt file, or Env object or string name of an Env object.
+        version (Optional[str]): Version of the Function to create or load.
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
             (Default: ``False``)
         load_secrets (bool): Whether or not to send secrets; only applicable if `dryrun` is set to ``False``.
@@ -52,7 +54,7 @@ def function(
     """  # noqa: E501
     if name and not any([fn, env]):
         # Try reloading existing function
-        return Function.from_name(name, dryrun)
+        return Function.from_name(name, dryrun, version=version)
 
     if not isinstance(env, Env):
         env = _get_env_from(env) or Env()
@@ -107,7 +109,9 @@ def function(
         )
         env.reqs = [repo_package] + env.reqs
 
-    new_function = Function(fn_pointers=fn_pointers, name=name, dryrun=dryrun, env=env)
+    new_function = Function(
+        fn_pointers=fn_pointers, name=name, dryrun=dryrun, env=env, version=version
+    )
 
     if load_secrets and not dryrun:
         new_function.send_secrets()

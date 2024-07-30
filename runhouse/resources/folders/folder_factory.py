@@ -11,6 +11,7 @@ def folder(
     name: Optional[str] = None,
     path: Optional[Union[str, Path]] = None,
     system: Optional[Union[str, "Cluster"]] = None,
+    version: Optional[str] = None,
     dryrun: bool = False,
 ) -> Folder:
     """Creates a Runhouse folder object, which can be used to interact with the folder at the given path.
@@ -38,7 +39,7 @@ def folder(
     if name and not any([path, system]):
         # If only the name is provided
         try:
-            return Folder.from_name(name, dryrun)
+            return Folder.from_name(name, dryrun, version=version)
         except ValueError:
             # This is a rare instance where passing no constructor params is actually valid (anonymous folder),
             # so if we don't find the name, the user may still actually want to create a new folder.
@@ -53,6 +54,7 @@ def folder(
             system=system,
             path=path,
             name=name,
+            version=version,
             dryrun=dryrun,
         )
     elif system == "gs":
@@ -63,6 +65,7 @@ def folder(
             system=system,
             path=path,
             name=name,
+            version=version,
             dryrun=dryrun,
         )
 
@@ -72,12 +75,13 @@ def folder(
             system=system,
             path=path,
             name=name,
+            version=version,
             dryrun=dryrun,
         )
 
     from runhouse import Cluster
 
-    cluster_system = _get_cluster_from(system, dryrun=dryrun)
+    cluster_system = _get_cluster_from(system, dryrun=dryrun, version=version)
     if isinstance(cluster_system, Cluster):
         logger.debug(f"Creating folder {name} for cluster: {cluster_system.name}")
         return Folder(

@@ -22,6 +22,7 @@ class Function(Module):
         name: Optional[str] = None,
         system: Optional[Cluster] = None,
         env: Optional[Env] = None,
+        version: Optional[str] = None,
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -34,7 +35,9 @@ class Function(Module):
         """
         self.fn_pointers = fn_pointers
         self._loaded_fn = None
-        super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
+        super().__init__(
+            name=name, dryrun=dryrun, system=system, env=env, version=version, **kwargs
+        )
 
     # ----------------- Constructor helper methods -----------------
 
