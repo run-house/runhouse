@@ -27,6 +27,7 @@ class Env(Resource):
         working_dir: Optional[Union[str, Path]] = None,
         secrets: Optional[Union[str, "Secret"]] = [],
         compute: Optional[Dict] = {},
+        version: Optional[str] = None,
         dryrun: bool = True,
         **kwargs,  # We have this here to ignore extra arguments when calling from_config
     ):
@@ -36,7 +37,7 @@ class Env(Resource):
         .. note::
             To create an Env, please use the factory method :func:`env`.
         """
-        super().__init__(name=name, dryrun=dryrun)
+        super().__init__(name=name, version=version, dryrun=dryrun)
         self._reqs = reqs
         self.setup_cmds = setup_cmds
         self.env_vars = env_vars

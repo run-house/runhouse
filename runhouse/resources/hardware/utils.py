@@ -92,7 +92,7 @@ def _default_env_if_on_cluster():
     )
 
 
-def _get_cluster_from(system, dryrun=False):
+def _get_cluster_from(system, dryrun=False, version=None):
     from .cluster import Cluster
 
     if isinstance(system, Cluster):
@@ -108,7 +108,7 @@ def _get_cluster_from(system, dryrun=False):
         if config and system == config.get("name"):
             return Cluster.from_config(config, dryrun)
         try:
-            system = Cluster.from_name(name=system, dryrun=dryrun)
+            system = Cluster.from_name(name=system, dryrun=dryrun, version=version)
         except ValueError:
             # Name not found in RNS. Doing the lookup this way saves us a hop to RNS
             pass

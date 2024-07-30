@@ -17,6 +17,7 @@ class GitPackage(Package):
         install_method: str = None,
         install_args: str = None,
         revision: str = None,
+        version: str = None,
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -28,6 +29,7 @@ class GitPackage(Package):
         """
         super().__init__(
             name=name,
+            version=version,
             dryrun=dryrun,
             install_method=install_method,
             install_target="./" + git_url.split("/")[-1].replace(".git", ""),
@@ -93,6 +95,7 @@ def git_package(
     revision: str = None,
     install_method: str = None,
     install_str: str = None,
+    version: str = None,
     dryrun: bool = False,
 ):
     """
@@ -104,6 +107,7 @@ def git_package(
         revision (str): Version of the Git package to install.
         install_method (str): Method for installing the package. If left blank, defaults to local installation.
         install_str (str): Additional arguments to add to installation command.
+        version (Optional[str]): Version of the Git Package to create or load.
         dryrun (bool): Whether to load the Package object as a dryrun, or create the Package if it doesn't exist.
             (Default: ``False``)
 
@@ -117,7 +121,7 @@ def git_package(
     """
     if name and not any([install_method, install_str, git_url, revision]):
         # If only the name is provided and dryrun is set to True
-        return Package.from_name(name, dryrun)
+        return Package.from_name(name, dryrun, version=version)
 
     install_method = install_method or "local"
     if git_url is not None:
@@ -129,5 +133,6 @@ def git_package(
         revision=revision,
         install_method=install_method,
         install_args=install_str,
+        version=version,
         dryrun=dryrun,
     )

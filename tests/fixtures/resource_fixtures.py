@@ -123,3 +123,15 @@ def local_named_resource():
     r = Resource(**args)
     init_args[id(r)] = args
     return r
+
+
+@pytest.fixture(scope="session")
+def local_named_versioned_resource():
+    args = {"name": "~/" + RESOURCE_NAME, "version": "v1"}
+    r = Resource(**args)
+    init_args[id(r)] = args
+
+    # Save to local file system, to be reloaded later
+    r.save()
+
+    return r

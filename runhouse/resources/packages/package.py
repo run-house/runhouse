@@ -49,6 +49,7 @@ class Package(Resource):
         install_method: str = None,
         install_target: Union[str, "Folder"] = None,
         install_args: str = None,
+        version: str = None,
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -60,6 +61,7 @@ class Package(Resource):
         """
         super().__init__(
             name=name,
+            version=version,
             dryrun=dryrun,
         )
         self.install_method = install_method
@@ -541,6 +543,7 @@ def package(
     install_str: str = None,
     path: str = None,
     system: str = None,
+    version: str = None,
     dryrun: bool = False,
 ) -> Package:
     """
@@ -553,6 +556,7 @@ def package(
         path (str): URL of the package to install.
         system (str): File system or cluster on which the package lives. Currently this must a cluster or one of:
             [``file``, ``s3``, ``gs``].
+        version (Optional[str]): Version of the Package to create or load.
         dryrun (bool): Whether to create the Package if it doesn't exist, or load the Package object as a dryrun.
             (Default: ``False``)
 
@@ -566,7 +570,7 @@ def package(
     """
     if name and not any([install_method, install_str, path, system]):
         # If only the name is provided and dryrun is set to True
-        return Package.from_name(name, dryrun)
+        return Package.from_name(name, dryrun, version=version)
 
     install_target = None
     install_args = None
@@ -584,5 +588,6 @@ def package(
         install_target=install_target,
         install_args=install_args,
         name=name,
+        version=version,
         dryrun=dryrun,
     )

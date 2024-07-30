@@ -111,8 +111,11 @@ class Secret(Resource):
         return Secret(**config, dryrun=dryrun)
 
     @classmethod
-    def from_name(cls, name, dryrun=False):
+    def from_name(cls, name, version=None, dryrun=False):
         """Load existing Secret via its name."""
+        if version is not None:
+            logger.warning("Versioning is not currently supported for secrets.")
+
         try:
             config = load_config(name, cls.USER_ENDPOINT)
             if config:

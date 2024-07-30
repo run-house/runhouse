@@ -248,6 +248,7 @@ from tests.fixtures.on_demand_cluster_fixtures import (
 
 from tests.fixtures.resource_fixtures import (
     local_named_resource,  # noqa: F401
+    local_named_versioned_resource,  # noqa: F401
     named_resource,  # noqa: F401
     named_resource_for_org,  # noqa: F401
     resource,  # noqa: F401

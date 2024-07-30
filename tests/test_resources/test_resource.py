@@ -94,6 +94,36 @@ class TestResource:
         assert new_resource.rns_address == resource.rns_address
         # TODO allow resource subclass tests to extend set of properties to test
 
+    @pytest.mark.level("unit")
+    def test_load_rns_resource_with_version(self, resource):
+        new_resource = rh.Resource.from_name(
+            name=resource.name, version=resource.version
+        )
+        assert new_resource.config() == resource.config()
+        assert new_resource.rns_address == resource.rns_address
+        assert new_resource.version == resource.version
+
+    @pytest.mark.level("unit")
+    def test_load_local_resource_with_version(self, local_named_versioned_resource):
+        new_func = rh.Resource.from_name(
+            name=local_named_versioned_resource.rns_address,
+            version=local_named_versioned_resource.version,
+        )
+        assert new_func.config() == local_named_versioned_resource.config()
+        assert new_func.rns_address == local_named_versioned_resource.rns_address
+        assert new_func.version == local_named_versioned_resource.version
+
+    @pytest.mark.level("unit")
+    def test_load_obj_store_resource_with_version(self, ondemand_aws_cluster):
+        from runhouse import obj_store
+
+        obj_store.put("k1@v1.0", "some_val")
+
+        with pytest.raises(KeyError):
+            obj_store.get("k1")
+
+        assert obj_store.get("k1@v1.0") == "some_val"
+
     @pytest.mark.level("local")
     def test_save_and_load(self, saved_resource):
         if TEST_ORG in saved_resource.rns_address:

@@ -172,10 +172,18 @@ class Cluster(Resource):
             )
 
     @classmethod
-    def from_name(cls, name, dryrun=False, alt_options=None, _resolve_children=True):
+    def from_name(
+        cls,
+        name,
+        dryrun=False,
+        alt_options=None,
+        version: str = None,
+        _resolve_children=True,
+    ):
         cluster = super().from_name(
             name=name,
             dryrun=dryrun,
+            version=version,
             alt_options=alt_options,
             _resolve_children=_resolve_children,
         )
@@ -515,7 +523,8 @@ class Cluster(Resource):
         """Get the result for a given key from the cluster's object store. To raise an error if the key is not found,
         use `cluster.get(key, default=KeyError)`."""
         if self.on_this_cluster():
-            return obj_store.get(key, default=default, remote=remote)
+            key = self.obj_store_key(key, self.version)
+            return obj_store.get(key=key, default=default, remote=remote)
         try:
             res = self.call_client_method(
                 "get",

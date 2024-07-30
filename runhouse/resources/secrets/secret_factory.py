@@ -31,7 +31,7 @@ def secret(
         )
 
     if name and not values:
-        return Secret.from_name(name, dryrun)
+        return Secret.from_name(name, dryrun=dryrun)
 
     if not values:
         raise ValueError("values must be provided for an in-memory secret.")

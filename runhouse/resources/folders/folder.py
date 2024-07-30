@@ -28,6 +28,7 @@ class Folder(Module):
         name: Optional[str] = None,
         path: Optional[str] = None,
         system: Union[str, Cluster] = None,
+        version: Optional[str] = None,
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -37,7 +38,7 @@ class Folder(Module):
         .. note::
             To build a folder, please use the factory method :func:`folder`.
         """
-        super().__init__(name=name, dryrun=dryrun, system=system)
+        super().__init__(name=name, version=version, dryrun=dryrun, system=system)
 
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.gui.FileSelector.urlpath
         # Note: no longer needed as part of previous fsspec usage, but still used by some s3 / gsutil commands
