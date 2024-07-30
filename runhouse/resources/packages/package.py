@@ -507,7 +507,11 @@ class Package(Resource):
                 # Check if this is a package that was installed from local
                 local_install_path = get_local_install_path(target)
                 if local_install_path and Path(local_install_path).exists():
-                    target = Folder(path=local_install_path, dryrun=True)
+                    from runhouse.resources.folders import Folder
+
+                    target = Folder(
+                        path=local_install_path, system=Folder.DEFAULT_FS, dryrun=True
+                    )
 
         # "Local" install method is a special case where we just copy a local folder and add to path
         if install_method == "local":
