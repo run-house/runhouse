@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Set, Union
 import ray
 from pydantic import BaseModel
 
-from runhouse.constants import DEFAULT_LOG_LEVEL
+from runhouse.constants import DEFAULT_LOG_LEVEL, LOGS_CLUSTER_FOLDER
 
 from runhouse.logger import logger
 
@@ -30,6 +30,12 @@ class ClusterServletSetupOption(str, Enum):
     GET_OR_CREATE = "get_or_create"
     GET_OR_FAIL = "get_or_fail"
     FORCE_CREATE = "force_create"
+
+
+class ServerLogType(str, Enum):
+    output = "out"
+    error = "err"
+    warning = "warn"
 
 
 class ObjStoreError(Exception):
@@ -1136,6 +1142,7 @@ class ObjStore:
         finally:
             del self.active_function_calls[func_call_id]
             if log_ctx:
+                print(f"{run_name}: COMPLETED")
                 log_ctx.__exit__(None, None, None)
 
         return res
@@ -1593,13 +1600,22 @@ class ObjStore:
     def status(self):
         return sync_function(self.astatus)()
 
-    ##############################################
-    # Cluster log streaming methods
-    ##############################################
-    def write_logs(self, run_name: str, lines: List[str]):
-        # TODO [SB]: implement. will replace the logic of the loop which is waiting for the run to finish
-        #  to stream the whole log.
-        pass
+    #############################################################
+    # Server log streaming and writing methods
+    #############################################################
+    async def awrite_logs(
+        self, env_name: str, run_name: str, lines: List[str], log_type: ServerLogType
+    ):
+        file_name = f"{run_name}.{str(log_type)}"
+        file_path = f"{LOGS_CLUSTER_FOLDER}/{env_name}/{run_name}/{file_name}"
+        return await self.acall_actor_method(
+            self.cluster_servlet, "write_run_logs", file_path, lines
+        )
+
+    def write_logs(
+        self, env_name: str, run_name: str, lines: List[str], log_type: ServerLogType
+    ):
+        return sync_function(self.awrite_logs)(env_name, run_name, lines, log_type)
 
     async def astream_logs(
         self, run_name: str, output_logs_start: int, err_logs_start: int

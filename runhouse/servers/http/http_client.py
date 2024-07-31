@@ -287,6 +287,7 @@ class HTTPClient:
 
     def stream_run_logs(self, run_name: str, resource_address: str = None):
         # need to have try-except here in case we are trying to stream logs from localhost client (i.e in unittests)
+        # start with the delay
         try:
             logs_res = retry_with_exponential_backoff(session.get)(
                 self._formatted_url(f"logs?run_name={run_name}"),

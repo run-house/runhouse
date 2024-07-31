@@ -501,9 +501,9 @@ class ClusterServlet:
 
         return resp_status_code, prev_end_log_line, new_end_log_line
 
-    ##############################################
-    # Log streaming methods
-    ##############################################
+    #############################################################
+    # Server Logs streaming and writing methods
+    #############################################################
     def stream_logs_of_a_run(
         self, run_name: str, output_logs_start: int, err_logs_start: int
     ):
@@ -550,3 +550,14 @@ class ClusterServlet:
         )
 
         return output_logs, err_logs
+
+    def write_run_logs(self, file_path: str, lines: List[str]):
+        """
+        writes logs of a single run in a specific env.
+        :param file_path: The path of the log file on the cluster, where the logs will be saved.
+        :param lines: log lines that will be written in the file.
+        """
+        with open(file_path, "r+") as log_file:
+            for line in lines:
+                line = f"{line}\n" if len(line) > 0 and line[-1] != "\n" else line
+                log_file.write(line)
