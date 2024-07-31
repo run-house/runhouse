@@ -1,12 +1,13 @@
-name: Generate Docs for Release Tag
+name: Generate Docs for Tag
 
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - '*'  # Triggers on any tag push
   workflow_dispatch:
     inputs:
       tag-name:
-        description: 'The tag name to build docs for'
+        description: 'Tag Name (ex: v0.0.32)'
         required: false # Allow empty for cases where the release event provides the tag
         default: ''
 
