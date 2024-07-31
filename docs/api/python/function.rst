@@ -17,7 +17,7 @@ Function Class
 
 .. autoclass:: runhouse.Function
    :members:
-   :exclude-members: map, starmap, get_or_call, send_secrets
+   :exclude-members: map, starmap, get_or_call
 
     .. automethod:: __init__
 

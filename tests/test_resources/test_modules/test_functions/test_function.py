@@ -423,7 +423,6 @@ class TestFunction:
         # TODO: should not use .resolved_state(), need to be fixed.
         assert get_or_call_res == 17
 
-    # TODO: should consider testing Function.send_secrets after secrets refactor.
     # TODO: should consider testing Function.keep_warm.
 
     # ---------- Unittests ----------
@@ -564,12 +563,6 @@ class TestFunction:
         assert response_first == 17
         second_response = self.function.get_or_call("my_run_first_time")
         assert second_response == 17
-
-    @pytest.mark.level("unit")
-    @pytest.mark.skip("Maybe send secrets is not relevant")
-    def test_send_secrets_unittest(self, mock_get):
-        # TODO: need to think if send_secrets is a relevant Function method
-        pass
 
     @pytest.mark.level("local")
     @pytest.mark.asyncio

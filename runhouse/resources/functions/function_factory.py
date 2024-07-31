@@ -17,7 +17,6 @@ def function(
     env: Optional[Union[List[str], Env, str]] = None,
     load_from_den: bool = True,
     dryrun: bool = False,
-    load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
 ):
     """runhouse.function(fn: str | Callable | None = None, name: str | None = None, system: str | Cluster | None = None, env: str | List[str] | Env | None = None, dryrun: bool = False, load_secrets: bool = False, serialize_notebook_fn: bool = False)
@@ -26,15 +25,13 @@ def function(
 
     Args:
         fn (Optional[str or Callable]): The function to execute on the remote system when the function is called.
-        name (Optional[str], optional): Name of the Function to create or retrieve.
+        name (str, optional): Name of the Function to create or retrieve.
             This can be either from a local config or from the RNS. (Default: ``None``)
         env (Optional[List[str] or Env or str], optional): List of requirements to install on the remote cluster,
             or path to the requirements.txt file, or Env object or string name of an Env object. (Default: ``None``)
         load_from_den (bool, optional): Whether to try loading the function from Den. (Default: ``True``)
         dryrun (bool, optional): Whether to create the Function if it doesn't exist, or load the Function object as
             a dryrun. (Default: ``False``)
-        load_secrets (bool, optional): Whether or not to send secrets; only applicable if `dryrun` is set to ``False``.
-            (Default: ``False``)
         serialize_notebook_fn (bool, optional): If function is of a notebook setting, whether or not to serialized the
             function. (Default: ``False``)
 
@@ -121,8 +118,5 @@ def function(
         env.reqs = [repo_package] + env.reqs
 
     new_function = Function(fn_pointers=fn_pointers, name=name, dryrun=dryrun, env=env)
-
-    if load_secrets and not dryrun:
-        new_function.send_secrets()
 
     return new_function
