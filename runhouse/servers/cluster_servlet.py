@@ -3,7 +3,7 @@ import copy
 import datetime
 import json
 import threading
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import httpx
 import requests
@@ -295,7 +295,7 @@ class ClusterServlet:
                     logger.debug("Successfully sent cluster status to Den.")
                     prev_end_log_line = cluster_config.get("end_log_line", 0)
                     (
-                        logs_resp,
+                        logs_resp_status_code,
                         new_start_log_line,
                         new_end_log_line,
                     ) = await self.send_cluster_logs_to_den(
@@ -303,16 +303,10 @@ class ClusterServlet:
                         api_server_url=api_server_url,
                         prev_end_log_line=prev_end_log_line,
                     )
-                    if logs_resp is None:
-                        # Failed to build the logs payload to send to Den
-                        break
+                    if not logs_resp_status_code:
+                        logger.warning("There were no logs to send to Den.")
 
-                    logs_status_code = logs_resp.status_code
-                    if logs_status_code != 200:
-                        logger.error(
-                            f"{logs_status_code}: Failed to send cluster logs to Den: {logs_resp.josn()}"
-                        )
-                    else:
+                    elif logs_resp_status_code == 200:
                         logger.debug("Successfully sent cluster logs to Den.")
                         await self.aset_cluster_config_value(
                             key="start_log_line", value=new_start_log_line
@@ -467,36 +461,40 @@ class ClusterServlet:
 
     async def send_cluster_logs_to_den(
         self, cluster_uri: str, api_server_url: str, prev_end_log_line: int
-    ):
+    ) -> Tuple[Optional[int], Optional[int], Optional[int]]:
         """Load the most recent logs from the server's log file and send them to Den."""
-        try:
-            # setting to a list, so it will be easier to get the end line num  + the logs delta to send to den.
-            latest_logs = self._get_logs().split("\n")
+        # setting to a list, so it will be easier to get the end line num  + the logs delta to send to den.
+        latest_logs = self._get_logs().split("\n")
 
-            # minus 1 because we start counting logs from 0.
-            new_end_log_line = len(latest_logs) - 1
+        # minus 1 because we start counting logs from 0.
+        new_end_log_line = len(latest_logs) - 1
 
-            if new_end_log_line < prev_end_log_line:
-                # Likely a sign that the daemon was restarted, so we should start from the beginning
-                prev_end_log_line = 0
+        if new_end_log_line < prev_end_log_line:
+            # Likely a sign that the daemon was restarted, so we should start from the beginning
+            prev_end_log_line = 0
 
-            logs_to_den = "\n".join(latest_logs[prev_end_log_line:])
-            logs_data = {
-                "file_name": self._generate_logs_file_name(),
-                "logs": logs_to_den,
-                "start_line": prev_end_log_line,
-                "end_line": new_end_log_line,
-            }
+        logs_to_den = "\n".join(latest_logs[prev_end_log_line:])
 
-            post_logs_resp = requests.post(
-                f"{api_server_url}/resource/{cluster_uri}/logs",
-                data=json.dumps(logs_data),
-                headers=rns_client.request_headers(),
-            )
-            return post_logs_resp, prev_end_log_line, new_end_log_line
+        if len(logs_to_den) == 0:
+            return None, None, None
 
-        except Exception as e:
+        logs_data = {
+            "file_name": self._generate_logs_file_name(),
+            "logs": logs_to_den,
+            "start_line": prev_end_log_line,
+            "end_line": new_end_log_line,
+        }
+
+        post_logs_resp = requests.post(
+            f"{api_server_url}/resource/{cluster_uri}/logs",
+            data=json.dumps(logs_data),
+            headers=rns_client.request_headers(),
+        )
+
+        resp_status_code = post_logs_resp.status_code
+        if resp_status_code != 200:
             logger.error(
-                f"Failed to load cluster logs, please check cluster logs for more info: {e}."
+                f"{resp_status_code}: Failed to send cluster logs to Den: {post_logs_resp.json()}"
             )
-            return None, prev_end_log_line, new_end_log_line
+
+        return resp_status_code, prev_end_log_line, new_end_log_line
