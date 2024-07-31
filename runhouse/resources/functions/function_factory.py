@@ -12,7 +12,6 @@ def function(
     name: Optional[str] = None,
     env: Optional[Union[List[str], Env, str]] = None,
     dryrun: bool = False,
-    load_secrets: bool = False,
     serialize_notebook_fn: bool = False,
 ):
     """runhouse.function(fn: str | Callable | None = None, name: str | None = None, system: str | Cluster | None = None, env: str | List[str] | Env | None = None, dryrun: bool = False, load_secrets: bool = False, serialize_notebook_fn: bool = False)
@@ -26,8 +25,6 @@ def function(
         env (Optional[List[str] or Env or str]): List of requirements to install on the remote cluster, or path to the
             requirements.txt file, or Env object or string name of an Env object.
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
-            (Default: ``False``)
-        load_secrets (bool): Whether or not to send secrets; only applicable if `dryrun` is set to ``False``.
             (Default: ``False``)
         serialize_notebook_fn (bool): If function is of a notebook setting, whether or not to serialized the function.
             (Default: ``False``)
@@ -108,8 +105,5 @@ def function(
         env.reqs = [repo_package] + env.reqs
 
     new_function = Function(fn_pointers=fn_pointers, name=name, dryrun=dryrun, env=env)
-
-    if load_secrets and not dryrun:
-        new_function.send_secrets()
 
     return new_function
