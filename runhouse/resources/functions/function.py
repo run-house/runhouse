@@ -185,23 +185,6 @@ class Function(Module):
         )
         return config
 
-    def http_url(self, curl_command=False, *args, **kwargs) -> str:
-        """
-        Return the endpoint needed to run the Function on the remote cluster, or provide the curl command if requested.
-        """
-        raise NotImplementedError("http_url not yet implemented for Function")
-
-    def notebook(self, persist=False, sync_package_on_close=None, port_forward=8888):
-        """Tunnel into and launch notebook from the system."""
-        if self.system is None:
-            raise RuntimeError("Cannot SSH, running locally")
-
-        self.system.notebook(
-            persist=persist,
-            sync_package_on_close=sync_package_on_close,
-            port_forward=port_forward,
-        )
-
     def get_or_call(self, run_name: str, load=True, local=True, *args, **kwargs) -> Any:
         """Check if object already exists on cluster or rns, and if so return the result. If not, run the function.
         Keep in mind this can be called with any of the usual method call modifiers - `remote=True`, `run_async=True`,
@@ -234,25 +217,6 @@ class Function(Module):
             logger.info(f"Item {run_name} not found on cluster. Running function.")
 
         return self.call(*args, **kwargs, run_name=run_name)
-
-    def keep_warm(
-        self,
-        autostop_mins=None,
-    ):
-        """Keep the system warm for autostop_mins. If autostop_mins is ``None`` or -1, keep warm indefinitely.
-
-        Example:
-            >>> # keep gpu warm for 30 mins
-            >>> remote_fn = rh.function(local_fn).to(gpu)
-            >>> remote_fn.keep_warm(autostop_mins=30)
-        """
-        if autostop_mins is None:
-            logger.info(f"Keeping {self.name} indefinitely warm")
-            # keep indefinitely warm if user doesn't specify
-            autostop_mins = -1
-        self.system.keep_warm(autostop_mins=autostop_mins)
-
-        return self
 
     @staticmethod
     def _handle_nb_fn(fn, fn_pointers, serialize_notebook_fn, name):
