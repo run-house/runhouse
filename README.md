@@ -7,37 +7,27 @@
 [![Den](https://img.shields.io/badge/runhouse_den-purple)](https://www.run.house/login)
 
 ## 👵 Welcome Home!
-
 Runhouse gives your code the superpower of traversing remote infrastructure, so you
-can iterate and debug your ML apps and workflows locally in regular Python (no DSLs, yaml, or prescriptive
-dev environment) with full-scale compute and data (no sandbox). It's the fastest way to build, run,
-and deploy production-quality ML apps and workflows on your own infrastructure, and perhaps the only way to
-take production code and run it as-is locally (again, running on identical powerful infra) to iterate it further or
-debug.
+can iterate and debug your ML apps and workflows in full-scale compute, but from a local editor in regular Python. No DSLs, yaml, or prescriptive
+dev environment. It's the fastest way to build, run, and deploy production-quality ML apps and workflows on your own infrastructure, and perhaps the only way to
+take production code and run it as-is from a "local" setting to iterate it further or debug.
 
-After you've sent a function or class to remote compute, Runhouse also allows you to persist, reuse, and share it as
-a service, turning otherwise redundant AI activities into common modular components across your team or company.
-This improves cost, velocity, and reproducibility - think 10 ML pipelines and researchers calling the same shared
-preprocessing, training, evaluation, or batch inference service, rather than each allocating their own compute
-resources and deploying slightly differing code. Or, imagine experimenting with a new preprocessing method in a
-notebook, but you can call every other stage of your ML workflow as the production services themselves.
+## What is Runhouse For?
+* When research-to-production is slow and painful, both due to mismatched research & production data/environments and orchestrator pipelines' lack of debugabillity. 
+* If teams need an infra-agnostic way to execute Python to flexibly run a single workflow across heterogenous compute, even running on multiple cloud providers. 
+* Ending frustration at platforms-in-a-box like SageMaker or Vertex, and moving to a more flexible solution to develop and deploy ML code. 
+* Growing ML maturity, as organizations move from one-off ML projects to at-scale ML flywheel.
 
-Highlights:
-* 👩‍🔬 Dispatch Python functions, classes, and data to remote infra instantly, and call
-them eagerly as if they were local. Logs are streamed, iteration is fast.
-* 👷‍♀️ Share Python functions or classes as robust services, including HTTPS, auth, observability,
-scaling, custom domains, secrets, versioning, and more.
-* 🐍 No DSL, decorators, yaml, CLI incantations, or boilerplate. Just your own regular Python.
-* 🚀 Deploy anywhere you run Python. No special packaging or deployment process. Research and production code are
-identical.
+## Highlights:
+* 🚀 Dispatch Python functions, classes, and data to remote infra instantly, and call them eagerly as if they were local. Deployment/redeployment is nearly instant and logs are streamed back, making iteration extremely fast. 
+* 🐍 No DSL, decorators, yaml, CLI incantations, or boilerplate. Just your own regular Python, deployable to anywhere you run Python.
+* 👩‍🔬 No special packaging or deployment processing is needed; research and production code are identical. Call Runhouse-deployed functions from CI/CD, Orchestrators, or applications like a micro-service. 
 * 👩‍🎓 BYO-infra with extensive and growing support - Ray, Kubernetes, AWS, GCP, Azure, local, on-prem, and more.
-When you want to shift or scale, just send your code to more powerful infra.
-* 👩‍🚀 Extreme reproducibility and portability. A single succinct script can allocate the infra, set up dependencies,
-and serve your app.
-* 👩‍🍳 Nest applications to create complex workflows and services. Components are decoupled so you can change,
-shift, or scale any component without affecting the rest of your system.
+* 👩‍🚀 Extreme reproducibility and portability. There's no lock-in, because when you want to shift, scale, or pick the cheapest pricing, changing infra is as easy as changing 1 line specifying a different cluster.
+* 👷‍♀️ Share Python functions or classes as robust services, including HTTPS, auth, observability, scaling, custom domains, secrets, versioning, and more.
+* 👩‍🍳 Support complex workflows or services and advanced logic since your components are de-coupled and infra/modules are interactable with code.  
 
-The Runhouse API is dead simple. Send your **modules** (functions and classes) into **environments** on compute
+The Runhouse API is simple. Send your **modules** (functions and classes) into **environments** on compute
 **infra**, like this:
 
 ```python
@@ -70,11 +60,18 @@ With the above simple structure you can build, call, and share:
 * 🦺 **Best-practice utilities**: PII obfuscation, content moderation, data augmentation
 
 
-## 🛋️ Sharing and Versioning with Runhouse Den
+## 🛋️ Infra Monitoring, Resource Sharing and Versioning with Runhouse Den
 
 You can unlock unique accessibility and sharing features with
-[Runhouse Den](https://www.run.house/dashboard), a complimentary product to this repo.
-Log in from anywhere to save, share, and load resources:
+[Runhouse Den](https://www.run.house/dashboard), a complementary product to this repo.
+
+After you've sent a function or class to remote compute, Runhouse allows you to persist and share it as
+a service, turning otherwise redundant AI activities into common modular components across your team or company.
+* This makes the shared resource observable. With Den, you can see how often a resource was called (and by whom), and what was the GPU utilization of the box it was on.
+* This improves cost - think 10 ML pipelines and researchers calling the same shared preprocessing, training, evaluation, or batch inference service, rather than each allocating their own compute resources
+* This improves velocity and reproducibility. Avoid deploying slightly differing code per pipeline, and deploy the results of an improved method to everyone once published.
+
+Log in from anywhere to save, share, and load resources and observe usage, logs, and compute utilization on a single pane of glass:
 ```shell
 runhouse login
 ```
