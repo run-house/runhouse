@@ -152,14 +152,14 @@ def generate_docs_for_tag(tag_name, email, username):
 
 
 def generate_docs_for_tags(email, username):
-    tags_url = f"https://api.github.com/repos/{SOURCE_REPO_PATH}/releases"
-    releases = get_refs_from_repo(tags_url)
+    tags_url = f"https://api.github.com/repos/{SOURCE_REPO_PATH}/tags"
+    tags: list[dict] = get_refs_from_repo(tags_url)
 
-    if isinstance(releases, dict) and releases.get("status") != 200:
-        raise ValueError(f"Failed to load tags: {releases}")
+    if isinstance(tags, dict) and tags.get("status") != 200:
+        raise ValueError(f"Failed to load tags: {tags}")
 
-    for release in releases:
-        tag_name = release["tag_name"]
+    for tag_metadata in tags:
+        tag_name = tag_metadata["name"]
         tag_url = (
             f"https://api.github.com/repos/{SOURCE_REPO_PATH}/git/refs/tags/{tag_name}"
         )
