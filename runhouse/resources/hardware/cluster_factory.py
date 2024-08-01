@@ -464,7 +464,10 @@ def ondemand_cluster(
                     c.save()
                 return c
         except ValueError as e:
-            if not alt_options:
+            import sky
+
+            state = sky.status(cluster_names=[name], refresh=False)
+            if len(state) == 0 and not alt_options:
                 raise e
 
     c = OnDemandCluster(
