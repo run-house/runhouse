@@ -20,6 +20,7 @@ def env(
     working_dir: Optional[Union[str, Path]] = None,
     secrets: Optional[Union[str, "Secret"]] = [],
     compute: Optional[Dict] = {},
+    load_from_den: bool = True,
     dryrun: bool = False,
 ):
     """Builds an instance of :class:`Env`.
@@ -39,6 +40,7 @@ def env(
             cluster scheduler (generally Ray). Only use this if you know what you're doing.
             Example: ``{"cpus": 1, "gpus": 1}``. (Default: {})
             More info: https://docs.ray.io/en/latest/ray-core/scheduling/resources.html
+        load_from_den (bool): Whether to try loading the Env resource from Den. (Default: ``True``)
         dryrun (bool, optional): Whether to run in dryrun mode. (Default: ``False``)
 
 
@@ -62,7 +64,7 @@ def env(
         [reqs, conda_env, setup_cmds, env_vars, secrets, working_dir, compute]
     ):
         try:
-            return Env.from_name(name, dryrun)
+            return Env.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
         except ValueError:
             return Env(name=name)
 

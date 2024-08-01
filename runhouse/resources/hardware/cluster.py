@@ -172,7 +172,14 @@ class Cluster(Resource):
             )
 
     @classmethod
-    def from_name(cls, name, dryrun=False, alt_options=None, _resolve_children=True):
+    def from_name(
+        cls,
+        name,
+        load_from_den=True,
+        dryrun=False,
+        alt_options=None,
+        _resolve_children=True,
+    ):
         cluster = super().from_name(
             name=name,
             dryrun=dryrun,

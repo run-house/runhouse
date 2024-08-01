@@ -111,7 +111,14 @@ class Secret(Resource):
         return Secret(**config, dryrun=dryrun)
 
     @classmethod
-    def from_name(cls, name, dryrun=False):
+    def from_name(
+        cls,
+        name,
+        load_from_den=True,
+        dryrun=False,
+        alt_options=None,
+        _resolve_children=True,
+    ):
         """Load existing Secret via its name."""
         try:
             config = load_config(name, cls.USER_ENDPOINT)

@@ -541,6 +541,7 @@ def package(
     install_str: str = None,
     path: str = None,
     system: str = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
 ) -> Package:
     """
@@ -553,6 +554,7 @@ def package(
         path (str): URL of the package to install.
         system (str): File system or cluster on which the package lives. Currently this must a cluster or one of:
             [``file``, ``s3``, ``gs``].
+        load_from_den (bool): Whether to try loading the Package from Den. (Default: ``True``)
         dryrun (bool): Whether to create the Package if it doesn't exist, or load the Package object as a dryrun.
             (Default: ``False``)
 
@@ -566,7 +568,7 @@ def package(
     """
     if name and not any([install_method, install_str, path, system]):
         # If only the name is provided and dryrun is set to True
-        return Package.from_name(name, dryrun)
+        return Package.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
 
     install_target = None
     install_args = None

@@ -119,7 +119,7 @@ def blob(
     path: Optional[Union[str, Path]] = None,
     system: Optional[str] = None,
     env: Optional[Union[str, Env]] = None,
-    load: bool = True,
+    load_from_den: bool = True,
     dryrun: bool = False,
 ):
     """Returns a Blob object, which can be used to interact with the resource at the given path
@@ -136,7 +136,7 @@ def blob(
             specified.
         env (Optional[Env or str]): Environment for the blob. If left empty, defaults to base environment.
             (Default: ``None``)
-        load (bool): Whether to try to load the Blob object from RNS. (Default: ``True``)
+        load_from_den (bool): Whether to try to load the Blob resource from Den. (Default: ``True``)
         dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
             (Default: ``False``)
 
@@ -169,10 +169,10 @@ def blob(
         >>> my_local_blob = rh.blob(name="~/my_blob")
         >>> my_s3_blob = rh.blob(name="@/my_blob")
     """
-    if name and load and not any([data is not None, path, system]):
+    if name and not any([data is not None, path, system]):
         # Try reloading existing blob
         try:
-            return Blob.from_name(name, dryrun)
+            return Blob.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
         except ValueError:
             # This is a rare instance where passing no constructor params is actually valid
             # (e.g. rh.blob(name=key).write(data)), so if we don't find the name, we still want to

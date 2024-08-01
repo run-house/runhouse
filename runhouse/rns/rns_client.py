@@ -337,6 +337,7 @@ class RNSClient:
     def load_config(
         self,
         name,
+        load_from_den=True,
     ) -> dict:
         if not name:
             return {}
@@ -356,7 +357,7 @@ class RNSClient:
             if config:
                 return config
 
-        if rns_address.startswith("/"):
+        if load_from_den and rns_address.startswith("/"):
             request_headers = self.request_headers()
             if not request_headers:
                 raise PermissionError(
