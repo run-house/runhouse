@@ -93,6 +93,7 @@ def git_package(
     revision: str = None,
     install_method: str = None,
     install_str: str = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
 ):
     """
@@ -104,6 +105,7 @@ def git_package(
         revision (str): Version of the Git package to install.
         install_method (str): Method for installing the package. If left blank, defaults to local installation.
         install_str (str): Additional arguments to add to installation command.
+        load_from_den (bool): Whether to try loading the package from Den. (Default: ``True``)
         dryrun (bool): Whether to load the Package object as a dryrun, or create the Package if it doesn't exist.
             (Default: ``False``)
 
@@ -117,7 +119,7 @@ def git_package(
     """
     if name and not any([install_method, install_str, git_url, revision]):
         # If only the name is provided and dryrun is set to True
-        return Package.from_name(name, dryrun)
+        return Package.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
 
     install_method = install_method or "local"
     if git_url is not None:
