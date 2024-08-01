@@ -241,10 +241,6 @@ class Cluster(Resource):
 
     def _save_sub_resources(self, folder: str = None):
         from runhouse.resources.envs import Env
-        from runhouse.resources.secrets import Secret
-
-        if self._creds and isinstance(self._creds, Secret):
-            self._creds.save(folder=folder)
 
         if self._default_env and isinstance(self._default_env, Env):
             if not self._default_env.name:
