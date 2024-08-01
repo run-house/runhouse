@@ -61,7 +61,10 @@ def env(
     if name and not any(
         [reqs, conda_env, setup_cmds, env_vars, secrets, working_dir, compute]
     ):
-        return Env.from_name(name, dryrun)
+        try:
+            return Env.from_name(name, dryrun)
+        except ValueError:
+            return Env(name=name)
 
     reqs = _process_reqs(reqs or [])
     conda_yaml = _get_conda_yaml(conda_env)
