@@ -1284,6 +1284,7 @@ def module(
     cls: [Type] = None,
     name: Optional[str] = None,
     env: Optional[Union[str, Env]] = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
 ):
     """Returns a Module object, which can be used to instantiate and interact with the class remotely.
@@ -1310,6 +1311,7 @@ def module(
         cls: The class to instantiate.
         name (Optional[str]): Name to give the module object, to be reused later on.
         env (Optional[str or Env]): Environment in which the module should live on the cluster, if system is cluster.
+        load_from_den (bool): Whether to try loading the module from Den. (Default: ``True``)
         dryrun (bool): Whether to create the Module if it doesn't exist, or load a Module object as a dryrun.
             (Default: ``False``)
 
@@ -1374,7 +1376,7 @@ def module(
     """
     if name and not any([cls, env]):
         # Try reloading existing module
-        return Module.from_name(name, dryrun)
+        return Module.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
 
     if env:
         logger.warning(

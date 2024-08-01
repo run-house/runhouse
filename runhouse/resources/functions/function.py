@@ -210,7 +210,9 @@ class Function(Module):
             port_forward=port_forward,
         )
 
-    def get_or_call(self, run_name: str, load=True, local=True, *args, **kwargs) -> Any:
+    def get_or_call(
+        self, run_name: str, load_from_den=True, local=True, *args, **kwargs
+    ) -> Any:
         """Check if object already exists on cluster or rns, and if so return the result. If not, run the function.
         Keep in mind this can be called with any of the usual method call modifiers - `remote=True`, `run_async=True`,
         `stream_logs=False`, etc.
@@ -218,7 +220,7 @@ class Function(Module):
         Args:
             run_name (Optional[str]): Name of a particular run for this function.
                 If not provided will use the function's name.
-            load (bool): Whether to load the name from the RNS if it exists.
+            load_from_den (bool): Whether to try loading the run name from Den.
             *args: Arguments to pass to the function for the run (relevant if creating a new run).
             **kwargs: Keyword arguments to pass to the function for the run (relevant if creating a new run).
 
@@ -232,10 +234,13 @@ class Function(Module):
         # TODO let's just do this for functions initially, and decide if we want to support it for calls on modules
         #  as well. Right now this only works with remote=True, we should decide if we want to fix that later.
 
-        if load:
-            resource = globals.rns_client.load_config(name=run_name)
-            if resource:
-                return Resource.from_name(name=run_name, dryrun=self.dryrun)
+        resource = globals.rns_client.load_config(
+            name=run_name, load_from_den=load_from_den
+        )
+        if resource:
+            return Resource.from_name(
+                name=run_name, load_from_den=load_from_den, dryrun=self.dryrun
+            )
         try:
             return self.system.get(run_name, default=KeyError)
         except KeyError:

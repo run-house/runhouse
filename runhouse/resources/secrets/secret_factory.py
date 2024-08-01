@@ -11,6 +11,7 @@ def secret(
     name: Optional[str] = None,
     values: Optional[Dict] = None,
     provider: Optional[str] = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
 ) -> Secret:
     """Builds an instance of :class:`Secret`.
@@ -18,6 +19,7 @@ def secret(
     Args:
         name (str, optional): Name to assign the secret resource.
         values (Dict, optional): Dictionary of secret key-value pairs.
+        load_from_den (bool): Whether to try loading the secret from Den. (Default: ``True``)
         dryrun (bool, optional): Whether to create in dryrun mode. (Default: False)
     Returns:
         Secret: The resulting Secret object.
@@ -31,7 +33,7 @@ def secret(
         )
 
     if name and not values:
-        return Secret.from_name(name, dryrun)
+        return Secret.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
 
     if not values:
         raise ValueError("values must be provided for an in-memory secret.")
@@ -45,6 +47,7 @@ def provider_secret(
     values: Optional[Dict] = None,
     path: Union[str, File] = None,
     env_vars: Optional[Dict] = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
 ) -> ProviderSecret:
     """
@@ -61,6 +64,7 @@ def provider_secret(
         path (str or Path, optional): Path where the secret values are held.
         env_vars (Dict, optional): Dictionary mapping secret keys to the corresponding
             environment variable key.
+        load_from_den (bool): Whether to try loading the secret from Den. (Default: ``True``)
         dryrun (bool): Whether to creat in dryrun mode. (Default: False)
 
     Returns:
@@ -75,14 +79,16 @@ def provider_secret(
         if not name:
             raise ValueError("Either name or provider must be provided.")
         if not any([values, path, env_vars]):
-            return Secret.from_name(name)
+            return Secret.from_name(name, load_from_den=load_from_den)
 
     elif not any([values, path, env_vars]):
         if provider in Secret.builtin_providers(as_str=True):
             secret_class = _get_provider_class(provider)
             return secret_class(name=name, provider=provider, dryrun=dryrun)
         else:
-            return ProviderSecret.from_name(name or provider)
+            return ProviderSecret.from_name(
+                name or provider, load_from_den=load_from_den
+            )
 
     elif sum([bool(x) for x in [values, path, env_vars]]) == 1:
         secret_class = _get_provider_class(provider)
