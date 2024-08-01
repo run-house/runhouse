@@ -433,11 +433,18 @@ class Module(Resource):
             >>> local_module = rh.module(my_class)
             >>> cluster_module = local_module.to("my_cluster")
         """
-        if system == self.system and env == self.env and not force_install:
+
+        if system == self.system and env == self.env:
             if name and not self.name == name:
                 # TODO return duplicate object under new name, don't rename
                 self.rename(name)
-            return self
+
+            from runhouse import Folder
+
+            if not isinstance(self, Folder):
+                # If the module is a folder with a system set to a cluster, we still want to put a copy of
+                # the module on the cluster before returning - e.g. `rh.folder(system="my-cluster")`
+                return self
 
         if system == "here":
             from runhouse import here

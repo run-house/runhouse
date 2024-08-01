@@ -80,12 +80,15 @@ def folder(
     cluster_system = _get_cluster_from(system, dryrun=dryrun)
     if isinstance(cluster_system, Cluster):
         logger.debug(f"Creating folder {name} for cluster: {cluster_system.name}")
-        return Folder(
+        system_folder = Folder(
             system=cluster_system,
             path=path,
             name=name,
             dryrun=dryrun,
         )
+
+        # Only create the module on the cluster, don't actually sync the folder contents
+        return system_folder.to(system=cluster_system, path=path, _sync_contents=False)
 
     raise ValueError(
         f"System '{system}' not currently supported. If the file system "

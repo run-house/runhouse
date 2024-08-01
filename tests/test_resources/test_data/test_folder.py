@@ -117,12 +117,22 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         local_folder = rh.folder(path=path)
 
         # Send the folder to the cluster, receive a new folder object in return which points to cluster's file system
-        cluster_folder = local_folder.to(cluster)
+        cluster_folder = local_folder.to(system=cluster)
         assert cluster_folder.system == cluster
 
         # Add a new file to the folder on the cluster
         cluster_folder.put({"requirements.txt": "torch"})
         folder_contents = cluster_folder.ls()
+        res = [f for f in folder_contents if "requirements.txt" in f]
+        assert res
+
+        # Initialize a new folder with system already set to the cluster, pointing to the same path on the
+        # cluster where the folder was just sent
+        # Should be able to then run folder operations on the cluster directly
+        new_cluster_folder = rh.folder(system=cluster, path=cluster_folder.path)
+        assert new_cluster_folder.system == cluster
+
+        folder_contents = new_cluster_folder.ls()
         res = [f for f in folder_contents if "requirements.txt" in f]
         assert res
 

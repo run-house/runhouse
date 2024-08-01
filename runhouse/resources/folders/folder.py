@@ -172,10 +172,10 @@ class Folder(Module):
         self,
         system: Union[str, "Cluster"],
         path: Optional[Union[str, Path]] = None,
+        _sync_contents=True,
     ):
         """Copy the folder to a new filesystem.
         Currently supported: ``here``, ``file``, ``gs``, ``s3``, or a cluster.
-
         Example:
             >>> local_folder = rh.folder(path="/my/local/folder")
             >>> s3_folder = local_folder.to("s3")
@@ -202,9 +202,10 @@ class Folder(Module):
                     else path
                 )
 
-            # rsync the folder contents to the cluster's destination path
-            logger.debug(f"Syncing folder contents to cluster in path: {dest_path}")
-            self._to_cluster(system, path=dest_path)
+            if _sync_contents:
+                # rsync the folder contents to the cluster's destination path
+                logger.debug(f"Syncing folder contents to cluster in path: {dest_path}")
+                self._to_cluster(system, path=dest_path)
 
             # update the folder's system + path to the relative path on the cluster, since we'll return a
             # new folder module which points to the cluster's file system
@@ -214,7 +215,7 @@ class Folder(Module):
             # Note: setting `force_install` to ensure the module gets installed the cluster
             # the folder's system may already be set to a cluster, which would skip the install
             logger.debug("Sending folder module to cluster")
-            return super().to(system=system, force_install=True)
+            return super().to(system=system)
 
         path = str(
             path or Folder.default_path(self.rns_address, system)

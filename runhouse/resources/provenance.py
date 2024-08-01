@@ -126,9 +126,20 @@ class Run(Resource):
         if self.log_dest == "file":
             # Capture stdout and stderr to the Run's folder
             self.folder.mkdir()
+
+            stdout_path = Path(self._stdout_path)
+            stderr_path = Path(self._stderr_path)
+
+            # Ensure the parent directories & log files exist
+            stdout_path.parent.mkdir(parents=True, exist_ok=True)
+            stderr_path.parent.mkdir(parents=True, exist_ok=True)
+
+            stdout_path.touch(exist_ok=True)
+            stderr_path.touch(exist_ok=True)
+
             # TODO fix the fact that we keep appending and then stream back the full file
-            sys.stdout = StreamTee(sys.stdout, [Path(self._stdout_path).open(mode="a")])
-            sys.stderr = StreamTee(sys.stderr, [Path(self._stderr_path).open(mode="a")])
+            sys.stdout = StreamTee(sys.stdout, [stdout_path.open(mode="a")])
+            sys.stderr = StreamTee(sys.stderr, [stderr_path.open(mode="a")])
 
             # Add the stdout and stderr handlers to the root logger
             self._stdout_handler = logging.StreamHandler(sys.stdout)
