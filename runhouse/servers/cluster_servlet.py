@@ -55,6 +55,17 @@ class ClusterServlet:
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
             self.autostop_helper = AutostopHelper()
 
+        self._cluster_name = self.cluster_config.get("name", None)
+        self._cluster_uri = (
+            rns_client.format_rns_address(self._cluster_name)
+            if self._cluster_name
+            else None
+        )
+
+        self._api_server_url = self.cluster_config.get(
+            "api_server_url", rns_client.api_server_url
+        )
+
         logger.info("Creating periodic_cluster_checks thread.")
         cluster_checks_thread = threading.Thread(
             target=self.periodic_cluster_checks, daemon=True
@@ -131,12 +142,11 @@ class ClusterServlet:
         """Checks whether user has read or write access to a given module saved on the cluster."""
         from runhouse.rns.utils.api import ResourceAccess
 
-        if token is None:
-            # If no token is provided assume no access
+        if token is None or self._cluster_name is None:
+            # If no token or cluster uri are provided assume no access
             return False
 
-        cluster_uri = self.cluster_config["name"]
-        cluster_access = await self.aresource_access_level(token, cluster_uri)
+        cluster_access = await self.aresource_access_level(token, self._cluster_name)
         if cluster_access == ResourceAccess.WRITE:
             # if user has write access to cluster will have access to all resources
             return True
@@ -211,26 +221,32 @@ class ClusterServlet:
     ##############################################
     # Periodic Cluster Checks APIs
     ##############################################
-    @staticmethod
-    async def save_status_metrics_to_den(
-        status: ResourceStatusData, cluster_uri: str, api_server_url: str
-    ):
+
+    async def asave_status_metrics_to_den(self, status: dict):
         from runhouse.resources.hardware.utils import ResourceServerStatus
 
-        resource_info = dict(status)
-        env_servlet_processes = dict(resource_info.pop("env_servlet_processes"))
+        # making a copy so the status won't be modified with pop, since it will be returned after sending to den.
+        # (status is passed as pointer).
+        status_copy = copy.deepcopy(status)
+        env_servlet_processes = status_copy.pop("env_servlet_processes")
+
         status_data = {
             "status": ResourceServerStatus.running,
-            "resource_type": status.cluster_config.get("resource_type"),
-            "resource_info": resource_info,
+            "resource_type": status_copy.get("cluster_config").pop("resource_type"),
+            "resource_info": status_copy,
             "env_servlet_processes": env_servlet_processes,
         }
+
         client = httpx.AsyncClient()
+
         return await client.post(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            f"{self._api_server_url}/resource/{self._cluster_uri}/cluster/status",
             data=json.dumps(status_data),
             headers=rns_client.request_headers(),
         )
+
+    def save_status_metrics_to_den(self, status: dict):
+        return sync_function(self.asave_status_metrics_to_den)(status)
 
     async def aperiodic_cluster_checks(self):
         """Periodically check the status of the cluster, gather metrics about the cluster's utilization & memory,
@@ -244,7 +260,9 @@ class ClusterServlet:
             try:
                 # Only if one of these is true, do we actually need to get the status from each EnvServlet
                 should_send_status_and_logs_to_den: bool = (
-                    configs.token is not None and interval_size != -1
+                    configs.token is not None
+                    and interval_size != -1
+                    and self._cluster_uri is not None
                 )
                 should_update_autostop: bool = self.autostop_helper is not None
 
@@ -255,7 +273,10 @@ class ClusterServlet:
                     break
 
                 logger.debug("Performing cluster checks")
-                status: ResourceStatusData = await self.astatus()
+                status, den_resp = await self.astatus(
+                    send_to_den=should_send_status_and_logs_to_den
+                )
+
                 if should_update_autostop:
                     logger.debug("Updating autostop")
                     await self._update_autostop(status)
@@ -263,19 +284,7 @@ class ClusterServlet:
                 if not should_send_status_and_logs_to_den:
                     break
 
-                logger.debug("Sending cluster status to Den")
-                cluster_rns_address = cluster_config.get("name")
-                cluster_uri = rns_client.format_rns_address(cluster_rns_address)
-                api_server_url = status.cluster_config.get(
-                    "api_server_url", rns_client.api_server_url
-                )
-
-                resp = await ClusterServlet.save_status_metrics_to_den(
-                    status=status,
-                    cluster_uri=cluster_uri,
-                    api_server_url=api_server_url,
-                )
-                status_code = resp.status_code
+                status_code = den_resp.status_code
 
                 if status_code == 404:
                     logger.info(
@@ -283,18 +292,17 @@ class ClusterServlet:
                     )
                 elif status_code != 200:
                     logger.error(
-                        f"{status_code}: Failed to send cluster status to Den: {resp.json()}"
+                        f"Failed to send cluster status to Den: {den_resp.json()}"
                     )
                 else:
                     logger.debug("Successfully sent cluster status to Den.")
+
                     prev_end_log_line = cluster_config.get("end_log_line", 0)
                     (
                         logs_resp_status_code,
                         new_start_log_line,
                         new_end_log_line,
                     ) = await self.send_cluster_logs_to_den(
-                        cluster_uri=cluster_uri,
-                        api_server_url=api_server_url,
                         prev_end_log_line=prev_end_log_line,
                     )
                     if not logs_resp_status_code:
@@ -310,6 +318,9 @@ class ClusterServlet:
                         await self.aset_cluster_config_value(
                             key="end_log_line", value=new_end_log_line
                         )
+                        # since we are setting a new values to the cluster_config, we need to reload it so the next
+                        # cluster check iteration will reference to the updated cluster config.
+                        cluster_config = await self.aget_cluster_config()
 
             except Exception:
                 logger.error(
@@ -333,7 +344,7 @@ class ClusterServlet:
         # sync_function.
         asyncio.run(self.aperiodic_cluster_checks())
 
-    async def _update_autostop(self, status: ResourceStatusData):
+    async def _update_autostop(self, status: dict):
         function_running = any(
             any(
                 len(
@@ -344,7 +355,7 @@ class ClusterServlet:
                 > 0
                 for resource_name in resource["env_resource_mapping"].keys()
             )
-            for resource in status.env_servlet_processes.values()
+            for resource in status.get("env_servlet_processes", {}).values()
         )
         if function_running:
             await self.autostop_helper.set_last_active_time_to_now()
@@ -406,7 +417,9 @@ class ClusterServlet:
             "server_pid": server_pid,  # will be useful for multi-node clusters.
         }
 
-    async def astatus(self):
+    async def astatus(
+        self, send_to_den: bool = False
+    ) -> Tuple[Dict, Optional[httpx.Response]]:
         import psutil
 
         from runhouse.utils import get_pid
@@ -489,11 +502,21 @@ class ClusterServlet:
             "server_memory_usage": memory_usage,
             "server_gpu_usage": server_gpu_usage,
         }
-        status_data = ResourceStatusData(**status_data)
-        return status_data
 
-    def status(self):
-        return sync_function(self.astatus)()
+        # converting status_data to ResourceStatusData instance to verify we constructed the status data correctly
+        status_data = ResourceStatusData(**status_data).model_dump()
+
+        if send_to_den:
+
+            logger.debug("Sending cluster status to Den")
+            den_resp = self.save_status_metrics_to_den(status=status_data)
+
+            return status_data, den_resp
+
+        return status_data, None
+
+    def status(self, send_to_den: bool = False):
+        return sync_function(self.astatus)(send_to_den=send_to_den)
 
     ##############################################
     # Save cluster logs to Den
@@ -509,7 +532,7 @@ class ClusterServlet:
         return f"{current_timestamp}_{SERVER_LOGS_FILE_NAME}"
 
     async def send_cluster_logs_to_den(
-        self, cluster_uri: str, api_server_url: str, prev_end_log_line: int
+        self, prev_end_log_line: int
     ) -> Tuple[Optional[int], Optional[int], Optional[int]]:
         """Load the most recent logs from the server's log file and send them to Den."""
         # setting to a list, so it will be easier to get the end line num  + the logs delta to send to den.
@@ -535,7 +558,7 @@ class ClusterServlet:
         }
 
         post_logs_resp = requests.post(
-            f"{api_server_url}/resource/{cluster_uri}/logs",
+            f"{self._api_server_url}/resource/{self._cluster_uri}/logs",
             data=json.dumps(logs_data),
             headers=rns_client.request_headers(),
         )

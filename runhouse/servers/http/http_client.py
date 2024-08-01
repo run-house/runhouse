@@ -276,10 +276,14 @@ class HTTPClient:
                 f"but local Runhouse version is ({runhouse.__version__})"
             )
 
-    def status(self, resource_address: str):
+    def status(self, resource_address: str, send_to_den: bool = False):
         """Load the remote cluster's status."""
         # Note: Resource address must be specified in order to construct the cluster subtoken
-        return self.request("status", req_type="get", resource_address=resource_address)
+        return self.request(
+            f"status?send_to_den={send_to_den}",
+            req_type="get",
+            resource_address=resource_address,
+        )
 
     def folder_ls(self, path: Union[str, Path], full_paths: bool, sort: bool):
         folder_params = FolderLsParams(

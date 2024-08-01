@@ -1587,8 +1587,10 @@ class ObjStore:
 
         return keys_and_info
 
-    async def astatus(self):
-        return await self.acall_actor_method(self.cluster_servlet, "status")
+    async def astatus(self, send_to_den: bool = False):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "status", send_to_den
+        )
 
-    def status(self):
-        return sync_function(self.astatus)()
+    def status(self, send_to_den: bool = False):
+        return sync_function(self.astatus)(send_to_den=send_to_den)
