@@ -50,7 +50,7 @@ Table of Contents
    tutorials/async.rst
    installation
    debugging-logging
-   docker
+   docker-setup
    troubleshooting
    security-and-authentication
 
