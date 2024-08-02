@@ -1153,15 +1153,8 @@ class Module(Resource):
                     param.default if param.default != inspect.Parameter.empty else ...,
                 )
 
-            # Filter out any callables which are not compatible for generating the schema
-            filtered_params = {
-                k: (v[0], v[1])
-                for k, v in params.items()
-                if not isinstance(v[0], Callable)
-            }
-
             module_method_params = create_model(
-                f"{method_name}_schema", **filtered_params
+                f"{method_name}_schema", **params
             ).schema()
             module_method_params["title"] = "kwargs"
 

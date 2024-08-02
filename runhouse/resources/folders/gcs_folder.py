@@ -2,7 +2,7 @@ import copy
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import List, Optional
 
 from runhouse.logger import logger
 
@@ -96,9 +96,7 @@ class GCSFolder(Folder):
             new_blob = self.bucket.blob(new_name)
             new_blob.rewrite(blob)
 
-    def put(
-        self, contents, overwrite=False, mode: str = "wb", write_fn: Callable = None
-    ):
+    def put(self, contents, overwrite=False, mode: str = "wb"):
         """Put given contents in folder."""
         self.mkdir()
         if isinstance(contents, list):
@@ -134,12 +132,8 @@ class GCSFolder(Folder):
             file_key = key + filename
             try:
                 blob = self.bucket.blob(file_key)
-                if write_fn:
-                    with open(file_obj, "rb") as f:
-                        write_fn(f, blob.upload_from_file(f))
-                else:
-                    file_obj = self._serialize_file_obj(file_obj)
-                    blob.upload_from_file(file_obj)
+                file_obj = self._serialize_file_obj(file_obj)
+                blob.upload_from_file(file_obj)
 
             except Exception as e:
                 raise RuntimeError(f"Failed to upload {filename} to GCS: {e}")

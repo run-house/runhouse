@@ -4,7 +4,7 @@ import pickle
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Callable, List, Optional, Union
+from typing import List, Optional, Union
 
 from runhouse.globals import rns_client
 
@@ -713,9 +713,7 @@ class Folder(Module):
                 else:
                     folder_path.unlink()
 
-    def put(
-        self, contents, overwrite=False, mode: str = "wb", write_fn: Callable = None
-    ):
+    def put(self, contents, overwrite=False, mode: str = "wb"):
         """Put given contents in folder.
 
         Args:
@@ -725,8 +723,6 @@ class Folder(Module):
             overwrite (bool): Whether to dump the file contents as json. By default expects data to be encoded.
                 Defaults to ``False``.
             mode (Optional(str)): Write mode to use. Defaults to ``wb``.
-            write_fn (Optional(Callable)): Function to use for writing file contents.
-                Example: ``write_fn = lambda f, data: json.dump(data, f)``
 
         Example:
             >>> my_folder.put(contents={"filename.txt": data})
@@ -768,10 +764,7 @@ class Folder(Module):
 
             try:
                 with open(file_path, mode) as f:
-                    if write_fn:
-                        write_fn(f, file_obj)
-                    else:
-                        f.write(file_obj)
+                    f.write(file_obj)
 
             except Exception as e:
                 raise RuntimeError(f"Failed to write {filename} to {file_path}: {e}")
