@@ -50,6 +50,7 @@ Table of Contents
    architecture
    debugging-logging
    docker-setup
+   docker-workflows
    troubleshooting
    security-and-authentication
 
