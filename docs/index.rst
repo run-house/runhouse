@@ -49,6 +49,7 @@ Table of Contents
    tutorials/async.rst
    architecture
    debugging-logging
+   docker-setup
    troubleshooting
    security-and-authentication
 
