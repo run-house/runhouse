@@ -1,5 +1,11 @@
-Docker Runtime Env
-==================
+Docker: Cluster Setup
+=====================
+
+.. raw:: html
+
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/docker-setup.ipynb">
+    <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
+
 
 Runhouse integrates with
 `SkyPilot <https://skypilot.readthedocs.io/en/latest/docs/index.html>`__
