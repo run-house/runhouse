@@ -47,7 +47,7 @@ START_NOHUP_CMD = f"nohup {SERVER_START_CMD} >> {SERVER_LOGFILE} 2>&1 &"
 # We need to specify "--disable-usage-stats" because cluster.run uses INTERACTIVE (-t) SshMode by
 # default, which Ray detects and asks the user for 10 seconds whether they want to opt out of usage
 # stats collection. This breaks the daemon start sequence, so we disable it upfront.
-RAY_START_CMD = f"ray start --head --port {DEFAULT_RAY_PORT} --disable-usage-stats"
+RAY_START_CMD = f"ray start --head --include-dashboard=False --port {DEFAULT_RAY_PORT} --disable-usage-stats"
 # RAY_BOOTSTRAP_FILE = "~/ray_bootstrap_config.yaml"
 # --autoscaling-config=~/ray_bootstrap_config.yaml
 # We need to use this instead of ray stop to make sure we don't stop the SkyPilot ray server,
