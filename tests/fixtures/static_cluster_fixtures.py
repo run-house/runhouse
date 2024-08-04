@@ -38,7 +38,12 @@ def static_cpu_cluster():
     args = dict(
         name="static-cpu-password", host=[sky_cluster.address], ssh_creds=ssh_creds
     )
-    c = rh.cluster(**args).save()
+
+    c = rh.cluster(**args)
+
+    # We are sharing the cluster so the cluster credentials well be saved as well, and the tests will not break.
+    c.share(users=rh.configs.username)
+
     c.restart_server(resync_rh=True)
     init_args[id(c)] = args
 

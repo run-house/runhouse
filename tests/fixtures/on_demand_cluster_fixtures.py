@@ -24,7 +24,8 @@ def setup_test_cluster(args, request, create_env=False):
     if request.config.getoption("--restart-server"):
         cluster.restart_server()
 
-    cluster.save()
+    # Sharing the cluster so the cluster credentials well be saved as well, and the tests will not break.
+    cluster.share(users=rh.configs.username)
 
     if create_env or cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
         test_env().to(cluster)
