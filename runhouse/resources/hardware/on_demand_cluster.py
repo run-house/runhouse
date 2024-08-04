@@ -200,7 +200,7 @@ class OnDemandCluster(Cluster):
     def _copy_sky_yaml_from_cluster(self, abs_yaml_path: str):
         if not Path(abs_yaml_path).exists():
             Path(abs_yaml_path).parent.mkdir(parents=True, exist_ok=True)
-            self._rsync("~/.sky/sky_ray.yml", abs_yaml_path, up=False)
+            self.rsync("~/.sky/sky_ray.yml", abs_yaml_path, up=False)
 
             # Save SSH info to the ~/.ssh/config
             ray_yaml = yaml.safe_load(open(abs_yaml_path, "r"))

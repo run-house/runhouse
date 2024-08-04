@@ -67,7 +67,9 @@ def cluster_folder(ondemand_aws_cluster):
 
     cluster_folder = rh.folder(**args).to(system=ondemand_aws_cluster)
     init_args[id(cluster_folder)] = args
-    cluster_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
+    cluster_folder.put(
+        {f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)}, overwrite=True
+    )
     return cluster_folder
 
 

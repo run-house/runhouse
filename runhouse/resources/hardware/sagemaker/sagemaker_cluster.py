@@ -1147,7 +1147,7 @@ class SageMakerCluster(Cluster):
     # -------------------------------------------------------
     # Cluster Helpers
     # -------------------------------------------------------
-    def _rsync(self, source: str, dest: str, up: bool, contents: bool = False):
+    def rsync(self, source: str, dest: str, up: bool, contents: bool = False):
         source = source + "/" if not source.endswith("/") else source
         dest = dest + "/" if not dest.endswith("/") else dest
 
@@ -1308,7 +1308,7 @@ class SageMakerCluster(Cluster):
             self.connect_server_client()
 
         # Sync the local ~/.rh directory to the cluster
-        self._rsync(
+        self.rsync(
             source=str(Path("~/.rh").expanduser()),
             dest="~/.rh",
             up=True,
@@ -1332,7 +1332,7 @@ class SageMakerCluster(Cluster):
             local_rh_package_path = local_rh_package_path.parent
             dest_path = f"~/{local_rh_package_path.name}"
 
-            self._rsync(
+            self.rsync(
                 source=str(local_rh_package_path),
                 dest=dest_path,
                 up=True,

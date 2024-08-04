@@ -63,7 +63,7 @@ class S3Folder(Folder):
             raise ValueError("Cluster must be started before copying data from it.")
 
         Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
-        cluster._rsync(
+        cluster.rsync(
             source=self.path,
             dest=str(Path(dest_path).expanduser()),
             up=False,

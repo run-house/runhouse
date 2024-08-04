@@ -17,7 +17,7 @@ class TestMultiNodeCluster:
         dest_path = f"~/{local_rh_package_path.name}"
 
         # Rsync Runhouse package onto the worker node
-        multinode_cpu_cluster._rsync(
+        multinode_cpu_cluster.rsync(
             source=str(local_rh_package_path),
             dest=dest_path,
             up=True,

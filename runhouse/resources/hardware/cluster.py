@@ -459,7 +459,7 @@ class Cluster(Resource):
             local_rh_package_path = local_rh_package_path.parent
             dest_path = f"~/{local_rh_package_path.name}"
 
-            self._rsync(
+            self.rsync(
                 source=str(local_rh_package_path),
                 dest=dest_path,
                 node="all",
@@ -1099,7 +1099,7 @@ class Cluster(Resource):
         return state
 
     # ----------------- SSH Methods ----------------- #
-    def _rsync(
+    def rsync(
         self,
         source: str,
         dest: str,
@@ -1112,8 +1112,24 @@ class Cluster(Resource):
         """
         Sync the contents of the source directory into the destination.
 
-        .. note:
-            Ending `source` with a slash will copy the contents of the directory into dest,
+        Args:
+            source (str): The source path.
+            dest (str): The target path.
+            up (bool): The direction of the sync. If ``True``, will rsync from local to cluster. If ``False``
+              will rsync from cluster to local.
+            node (Optional[str]): Specific cluster node to rsync to. If not specified will use the address of the
+                cluster's head node.
+            contents (Optional[bool]): Whether the contents of the source directory or the directory itself should
+                be copied to destination.
+                If ``True`` the contents of the source directory are copied to the destination, and the source
+                directory itself is not created at the destination.
+                If ``False`` the source directory along with its contents are copied ot the destination, creating
+                an additional directory layer at the destination. (Default: ``False``).
+            filter_options (Optional[str]): The filter options for rsync.
+            stream_logs (Optional[bool]): Whether to stream logs to the stdout/stderr. (Default: ``False``).
+
+        .. note::
+            Ending ``source`` with a slash will copy the contents of the directory into dest,
             while omitting it will copy the directory itself (adding a directory layer).
         """
         # Theoretically we could reuse this logic from SkyPilot which Rsyncs to all nodes in parallel:
@@ -1122,7 +1138,7 @@ class Cluster(Resource):
         # If we need to change it to be greedier we can.
         if up and (node == "all" or (len(self.ips) > 1 and not node)):
             for node in self.ips:
-                self._rsync(
+                self.rsync(
                     source,
                     dest,
                     up=up,
@@ -1269,7 +1285,7 @@ class Cluster(Resource):
         # Copy to the home directory by default
         source = str(Path(self.cert_config.key_path).parent)
         dest = self.cert_config.DEFAULT_CLUSTER_DIR
-        self._rsync(source, dest, up=True)
+        self.rsync(source, dest, up=True)
 
         if self._use_caddy:
             # Move to the Caddy directory to ensure the daemon has access to the certs
@@ -1581,7 +1597,7 @@ class Cluster(Resource):
                 if sync_package_on_close == "./":
                     sync_package_on_close = locate_working_dir()
                 pkg = Package.from_string("local:" + sync_package_on_close)
-                self._rsync(source=f"~/{pkg.name}", dest=pkg.local_path, up=False)
+                self.rsync(source=f"~/{pkg.name}", dest=pkg.local_path, up=False)
             if not persist:
                 tunnel.terminate()
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"

@@ -307,9 +307,7 @@ class Folder(Module):
         if self._fs_str == self.DEFAULT_FS and dest_cluster.name is not None:
             # Includes case where we're on the cluster itself
             # And the destination is a cluster, not rh.here
-            dest_cluster._rsync(
-                source=self.path, dest=dest_path, up=True, contents=True
-            )
+            dest_cluster.rsync(source=self.path, dest=dest_path, up=True, contents=True)
 
         elif isinstance(self.system, Resource):
             if self.system.endpoint(external=False) == dest_cluster.endpoint(
@@ -371,7 +369,7 @@ class Folder(Module):
         if not cluster.address:
             raise ValueError("Cluster must be started before copying data from it.")
         Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
-        cluster._rsync(
+        cluster.rsync(
             source=self.path,
             dest=str(Path(dest_path).expanduser()),
             up=False,

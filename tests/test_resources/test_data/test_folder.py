@@ -112,6 +112,30 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         new_folder.rm()
 
     @pytest.mark.level("minimal")
+    def test_cluster_folder_sync_upload(self, local_folder, cluster):
+        cluster_dest = rh.Folder.DEFAULT_CACHE_FOLDER
+        cluster.rsync(source=local_folder.path, dest=cluster_dest, up=True)
+        res = cluster.run([f"ls -l {cluster_dest}"])
+
+        assert all(f"sample_file_{i}.txt" in res[0][1] for i in range(3))
+
+    @pytest.mark.level("minimal")
+    def test_cluster_folder_sync_download(self, cluster_folder):
+        import subprocess
+
+        cluster = cluster_folder.system
+        local_dest = rh.Folder.DEFAULT_CACHE_FOLDER
+
+        cluster.rsync(
+            source=cluster_folder.path, dest=local_dest, contents=True, up=False
+        )
+        res = subprocess.run(
+            f"ls -l {local_dest}", shell=True, check=True, capture_output=True
+        )
+
+        assert all(f"sample_file_{i}.txt" in res.stdout.decode() for i in range(3))
+
+    @pytest.mark.level("minimal")
     def test_send_folder_to_cluster(self, cluster):
         path = Path.cwd()
         local_folder = rh.folder(path=path)
