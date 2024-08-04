@@ -71,13 +71,15 @@ class EnvServlet:
 
         logs_level = kwargs.get("logs_level", DEFAULT_LOG_LEVEL)
         logger.setLevel(logs_level)
-        # self.logger = logger
+
+        disable_telemetry = kwargs.get("disable_telemetry")
 
         await obj_store.ainitialize(
             self.env_name,
             has_local_storage=True,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
             logs_level=logs_level,
+            disable_telemetry=disable_telemetry,
         )
 
         # Ray defaults to setting OMP_NUM_THREADS to 1, which unexpectedly limit parallelism in user programs.

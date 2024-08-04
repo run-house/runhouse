@@ -31,7 +31,7 @@ class Defaults:
         "default_autostop": -1,
         "use_spot": False,
         "use_local_configs": True,
-        "disable_data_collection": False,
+        "disable_telemetry_collection": False,
         "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
@@ -276,15 +276,27 @@ class Defaults:
         except OSError:
             raise Exception(f"Failed to delete config file from path {config_path}")
 
-    def disable_data_collection(self):
-        self.set("disable_data_collection", True)
-        os.environ["DISABLE_DATA_COLLECTION"] = "True"
+    def disable_telemetry_collection(self):
+        self.set("disable_telemetry_collection", True)
+        os.environ["DISABLE_TELEMETRY_COLLECTION"] = "True"
 
-    def data_collection_enabled(self) -> bool:
+    def enable_telemetry_collection(self):
+        self.set("disable_telemetry_collection", False)
+        os.environ["DISABLE_TELEMETRY_COLLECTION"] = "False"
+
+    def telemetry_collection_enabled(self) -> bool:
         """Checks whether to enable data collection, based on values set in the local ~/.rh config or as an env var."""
-        if self.get("disable_data_collection") is True:
+
+        # checking disable_telemetry_collection for BC
+        if (
+            self.get("disable_data_collection") is True
+            or self.get("disable_telemetry_collection") is True
+        ):
             return False
-        if os.getenv("DISABLE_DATA_COLLECTION", "False").lower() in ("true", "1"):
+        if os.getenv("disable_data_collection", "False").lower() in (
+            "true",
+            "1",
+        ) or os.getenv("DISABLE_TELEMETRY_COLLECTION", "True").lower() in ("True", "1"):
             return False
 
         return True
