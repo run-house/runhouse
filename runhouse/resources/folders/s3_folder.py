@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import List, Optional
 
 from runhouse.logger import logger
 
@@ -113,9 +113,7 @@ class S3Folder(Folder):
                 Key=new_key,
             )
 
-    def put(
-        self, contents, overwrite=False, mode: str = "wb", write_fn: Callable = None
-    ):
+    def put(self, contents, overwrite=False, mode: str = "wb"):
         """Put given contents in folder."""
         self.mkdir()
         if isinstance(contents, list):
@@ -154,17 +152,8 @@ class S3Folder(Folder):
         for filename, file_obj in contents.items():
             file_key = key + filename
             try:
-                if write_fn:
-                    with open(file_obj, "rb") as f:
-                        write_fn(
-                            f,
-                            self.client.put_object(
-                                Bucket=bucket_name, Key=file_key, Body=f.read()
-                            ),
-                        )
-                else:
-                    body = self._serialize_file_obj(file_obj)
-                    self.client.put_object(Bucket=bucket_name, Key=file_key, Body=body)
+                body = self._serialize_file_obj(file_obj)
+                self.client.put_object(Bucket=bucket_name, Key=file_key, Body=body)
 
             except Exception as e:
                 raise RuntimeError(f"Failed to upload {filename} to S3: {e}")

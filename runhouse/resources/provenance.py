@@ -386,10 +386,9 @@ class Run(Resource):
         config_to_write = config or self.config()
         logger.debug(f"Config to save on system: {config_to_write}")
         self.folder.put(
-            {self.RUN_CONFIG_FILE: config_to_write},
+            {self.RUN_CONFIG_FILE: json.dumps(config)},
             overwrite=overwrite,
             mode="w",
-            write_fn=lambda data, f: json.dump(data, f, indent=4),
         )
 
     def _detect_run_type(self):
