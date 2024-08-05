@@ -241,10 +241,6 @@ class Cluster(Resource):
 
     def _save_sub_resources(self, folder: str = None):
         from runhouse.resources.envs import Env
-        from runhouse.resources.secrets import Secret
-
-        if self._creds and isinstance(self._creds, Secret):
-            self._creds.save(folder=folder)
 
         if self._default_env and isinstance(self._default_env, Env):
             if not self._default_env.name:
@@ -827,7 +823,8 @@ class Cluster(Resource):
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
-        logs_level: str = None,
+        logs_level: str = DEFAULT_LOG_LEVEL,  # DEFAULT_LOG_LEVEL = 'INFO'
+        disable_telemetry: bool = False,
     ):
         """Restart the RPC server.
 
@@ -836,6 +833,8 @@ class Cluster(Resource):
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
             env (str or Env, optional): Specified environment to restart the server on. (Default: ``None``)
             restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
+            logs_level (str): The level of logs that are printed to the server.log file (Default: ``INFO``)
+            disable_telemetry (bool): Whether to disable telemetry data collection on the cluster (Default: ``False``)
 
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
@@ -971,6 +970,7 @@ class Cluster(Resource):
             )
             + " --from-python"
             + f" --log-level {logs_level}"
+            + (" --disable-telemetry" if disable_telemetry else "")
         )
 
         status_codes = self._run_cli_commands_on_cluster_helper(commands=[restart_cmd])

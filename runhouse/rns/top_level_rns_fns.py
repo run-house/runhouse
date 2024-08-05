@@ -12,7 +12,7 @@ from runhouse.servers.obj_store import ClusterServletSetupOption
 logging.getLogger("numexpr").setLevel(logging.WARNING)
 
 
-collect_data: bool = configs.data_collection_enabled()
+collect_data: bool = configs.telemetry_collection_enabled()
 if collect_data:
     import sentry_sdk
 
