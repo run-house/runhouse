@@ -16,8 +16,6 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import StreamingResponse
 
-import runhouse as rh
-
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
@@ -117,19 +115,14 @@ class HTTPServer:
         default_env_name=None,
         conda_env=None,
         from_test: bool = False,
-        log_level: int = DEFAULT_LOG_LEVEL,
-        disable_telemetry: bool = False,
         *args,
         **kwargs,
     ):
+        log_level = kwargs.get("logs_level", DEFAULT_LOG_LEVEL)
         logger.setLevel(log_level)
         if log_level != DEFAULT_LOG_LEVEL:
             logger.info(f"setting logs level to {log_level}")
         runtime_env = {"conda": conda_env} if conda_env else None
-
-        if disable_telemetry:
-            rh.configs.disable_telemetry_collection()
-            logger.info("disabled telemetry collection")
 
         default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
 
@@ -143,7 +136,6 @@ class HTTPServer:
                 setup_ray=RaySetupOption.TEST_PROCESS,
                 runtime_env=runtime_env,
                 logs_level=log_level,
-                disable_telemetry=disable_telemetry,
             )
 
         # TODO disabling due to latency, figure out what to do with this
@@ -159,7 +151,6 @@ class HTTPServer:
             create=True,
             runtime_env=runtime_env,
             logs_level=log_level,
-            disable_telemetry=disable_telemetry,
         )
 
         if default_env_name == EMPTY_DEFAULT_ENV_NAME:
@@ -677,7 +668,7 @@ class HTTPServer:
     @staticmethod
     def _collect_cluster_stats():
         """Collect cluster metadata and send to Grafana Loki"""
-        if not configs.telemetry_collection_enabled():
+        if not configs.data_collection_enabled():
             return
 
         cluster_data = HTTPServer._cluster_status_report()
@@ -840,13 +831,6 @@ async def main():
         type=str,
         default=DEFAULT_LOG_LEVEL,
         help="The lowest log level of the printed logs",
-    )
-
-    parser.add_argument(
-        "--disable-telemetry",
-        action="store_true",  # if providing --disable-telemetry will turn off all telemetry / data collection
-        default=argparse.SUPPRESS,  # If user didn't specify, attribute will not be present (not False)
-        help="Whether to collect telemetry data",
     )
 
     parse_args = parser.parse_args()
@@ -1039,13 +1023,10 @@ async def main():
 
     await obj_store.aset_cluster_config(cluster_config)
 
-    disable_telemetry = getattr(parse_args, "disable_telemetry", False)
-
     await HTTPServer.ainitialize(
         default_env_name=default_env_name,
         conda_env=conda_name,
         logs_level=parse_args.log_level,
-        disable_telemetry=disable_telemetry,
     )
 
     if den_auth:

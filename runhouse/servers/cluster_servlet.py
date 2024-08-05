@@ -15,6 +15,7 @@ from runhouse.constants import (
     DEFAULT_STATUS_CHECK_INTERVAL,
     INCREASED_INTERVAL,
     INCREASED_STATUS_CHECK_INTERVAL,
+    SCHEDULERS_DELAY,
     SERVER_LOGFILE,
     SERVER_LOGS_FILE_NAME,
 )
@@ -59,15 +60,11 @@ class ClusterServlet:
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
             self.autostop_helper = AutostopHelper()
 
-        self.enable_telemetry_collection = not kwargs.get("disable_telemetry")
-
-        # creating the periodic_cluster_checks thread only if telemetry collection is enabled.
-        if self.enable_telemetry_collection:
-            logger.info("Creating periodic_cluster_checks thread.")
-            cluster_checks_thread = threading.Thread(
-                target=self.periodic_cluster_checks, daemon=True
-            )
-            cluster_checks_thread.start()
+        logger.info("Creating periodic_cluster_checks thread.")
+        cluster_checks_thread = threading.Thread(
+            target=self.periodic_cluster_checks, daemon=True
+        )
+        cluster_checks_thread.start()
 
     ##############################################
     # Cluster config state storage methods
@@ -243,7 +240,8 @@ class ClusterServlet:
     async def aperiodic_cluster_checks(self):
         """Periodically check the status of the cluster, gather metrics about the cluster's utilization & memory,
         and save it to Den."""
-
+        # Delay the start of post_status_thread, so we'll finish the cluster startup properly
+        await asyncio.sleep(SCHEDULERS_DELAY)
         cluster_config = await self.aget_cluster_config()
         interval_size = cluster_config.get(
             "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL

@@ -24,13 +24,13 @@ Removing Collected Data
 If you would like us to remove your collected data, please contact
 the `Runhouse team <https://www.run.house/about>`_ (first name at run.house)
 
-Disabling Telemetry Collection
+Disabling Data Collection
 -----------------------------------
-To disable telemetry collection and error tracking collection, set the environment variable :code:`DISABLE_TELEMETRY_COLLECTION`
-to :code:`True`. Alternatively, set :code:`disable_telemetry_collection` to :code:`true` in your
+To disable data collection and error tracking collection, set the environment variable :code:`DISABLE_DATA_COLLECTION`
+to :code:`True`. Alternatively, set :code:`disable_data_collection` to :code:`true` in your
 local Runhouse config (:code:`~/.rh/config.yaml`), or in Python:
 
 .. code-block:: python
 
     import runhouse as rh
-    rh.configs.disable_telemetry_collection()
+    rh.configs.disable_data_collection()

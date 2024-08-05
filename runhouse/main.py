@@ -537,7 +537,6 @@ def _start_server(
     conda_env=None,
     from_python=None,
     log_level=None,
-    disable_telemetry=False,
 ):
     ############################################
     # Build CLI commands to start the server
@@ -632,9 +631,6 @@ def _start_server(
         if log_level
         else f" --log-level {DEFAULT_LOG_LEVEL}"
     )
-
-    if disable_telemetry:
-        flags.append(" --disable-telemetry")
 
     # Check if screen or nohup are available
     screen = screen and _check_if_command_exists("screen")
@@ -840,19 +836,12 @@ def restart(
         help="Minimum log level for logs to be printed",
         callback=lambda value: value.upper(),
     ),
-    disable_telemetry: bool = typer.Option(
-        default=None,
-        help="Disable cluster telemetry collection",
-    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
         c = cluster(name=name)
         c.restart_server(
-            resync_rh=resync_rh,
-            restart_ray=restart_ray,
-            logs_level=log_level,
-            disable_telemetry=disable_telemetry,
+            resync_rh=resync_rh, restart_ray=restart_ray, logs_level=log_level
         )
         return
 
@@ -877,7 +866,6 @@ def restart(
         conda_env=conda_env,
         from_python=from_python,
         log_level=log_level,
-        disable_telemetry=disable_telemetry,
     )
 
 
