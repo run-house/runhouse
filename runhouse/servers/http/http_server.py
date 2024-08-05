@@ -53,7 +53,6 @@ from runhouse.servers.obj_store import (
 )
 from runhouse.utils import sync_function
 
-
 app = FastAPI(docs_url=None, redoc_url=None)
 
 
@@ -321,13 +320,14 @@ class HTTPServer:
             if not params.stream_logs:
                 return await fut
 
+            # HTTPServer._get_results_and_logs_generator(
+            #     key,
+            #     fut=fut,
+            #     run_name=params.run_name,
+            #     serialization=params.serialization,
+            # )
             return StreamingResponse(
-                HTTPServer._get_results_and_logs_generator(
-                    key,
-                    fut=fut,
-                    run_name=params.run_name,
-                    serialization=params.serialization,
-                ),
+                fut,
                 media_type="application/json",
             )
         except Exception as e:
@@ -738,6 +738,83 @@ class HTTPServer:
             logger.error(
                 f"({resp.status_code}) Failed to send logs to Grafana Loki: {resp.text}"
             )
+
+    @staticmethod
+    async def _get_logs_helper(run_name: str, serialization, key):
+        logger.debug(f"Streaming logs for key {run_name}")
+        open_logfiles = []
+        start_lines = {"output_logs": 0, "error_logs": 0}
+
+        waiting_for_results = True
+
+        try:
+            while waiting_for_results:
+                await asyncio.sleep(LOGGING_WAIT_TIME)
+                # Grab all the lines written to all the log files since the last time we checked, including
+                # any new log files that have been created
+                open_logfiles = HTTPServer.open_new_logfiles(run_name, open_logfiles)
+                ret_lines = {"output_logs": [], "error_logs": []}
+
+                for i, f in enumerate(open_logfiles):
+                    file_lines = f.readlines()[start_lines[i] :]
+                    if file_lines:
+                        if ".out" in f.name:
+                            ret_lines["output_logs"] += file_lines
+                            start_lines["output_logs"] += len(file_lines)
+                        elif ".err" in f.name:
+                            ret_lines["error_logs"] += file_lines
+                            start_lines["error_logs"] += len(file_lines)
+                    elif not file_lines and ".out" in f.name:
+                        waiting_for_results = False
+
+                if ret_lines:
+                    logger.debug(f"Yielding logs for key {run_name}")
+                    yield json.dumps(jsonable_encoder(Response(data=ret_lines))) + "\n"
+
+        except Exception as e:
+            logger.exception(e)
+            # NOTE: We do not convert the exception to an HTTPException here, because once we're inside this
+            # generator starlette has already returned the StreamingResponse and there is no way to halt the stream
+            # to return a 403 instead. Users shouldn't notice much of a difference, because if working through the
+            # client the exception will be serialized and returned to appear as a native python exception, and if
+            # working through an HTTP call stream_logs is False by default, so a normal HTTPException will be raised
+            # above before entering this generator.
+            exception_data = {
+                "error": serialize_data(e, serialization),
+                "traceback": traceback.format_exc(),
+            }
+            yield json.dumps(
+                jsonable_encoder(
+                    Response(
+                        output_type=OutputType.EXCEPTION,
+                        data=exception_data,
+                        serialization=serialization,
+                    )
+                )
+            )
+        finally:
+            if not open_logfiles:
+                logger.warning(f"No logfiles found for call {key}")
+            for f in open_logfiles:
+                f.close()
+
+    @staticmethod
+    @app.get("/logs")
+    @validate_cluster_access
+    async def get_logs(request: Request, run_name: str, serialization, key):
+
+        fut = asyncio.create_task(
+            HTTPServer._get_logs_helper(
+                key=key,
+                serialization=serialization,
+                run_name=run_name,
+            )
+        )
+
+        return StreamingResponse(
+            fut,
+            media_type="application/json",
+        )
 
 
 async def main():
