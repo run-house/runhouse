@@ -21,13 +21,14 @@ from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
+    FolderParams,
     GetObjectParams,
     handle_response,
     OutputType,
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
-    serialize_data,
+    serialize_data, FolderOperation,
 )
 
 
@@ -271,6 +272,12 @@ class HTTPClient:
         """Load the remote cluster's status."""
         # Note: Resource address must be specified in order to construct the cluster subtoken
         return self.request("status", req_type="get", resource_address=resource_address)
+
+    def folder_operation(self, operation: FolderOperation, **kwargs):
+        folder_params = FolderParams(**kwargs).dict()
+        return self.request_json(
+            f"/folder/method/{operation}", req_type="post", json_dict=folder_params
+        )
 
     def get_certificate(self):
         cert: bytes = self.request(
