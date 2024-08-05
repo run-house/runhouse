@@ -75,6 +75,7 @@ def validate_cluster_access(func):
         is_coro = inspect.iscoroutinefunction(func)
 
         func_call: bool = func.__name__ in ["post_call", "get_call"]
+        write_only_access: bool = func.__name__ in ["folder_operation"]
         token = get_token_from_request(request)
 
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
@@ -90,7 +91,9 @@ def validate_cluster_access(func):
                         "provide a valid token in the Authorization header.",
                     )
                 cluster_uri = (await obj_store.aget_cluster_config()).get("name")
-                cluster_access = await averify_cluster_access(cluster_uri, token)
+                cluster_access = await averify_cluster_access(
+                    cluster_uri, token, write_only_access
+                )
                 if not cluster_access:
                     # Must have cluster access for all the non func calls
                     # Note: for func calls we handle the auth in the object store
