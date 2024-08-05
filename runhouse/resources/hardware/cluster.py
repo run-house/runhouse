@@ -1783,3 +1783,54 @@ class Cluster(Resource):
             self.call_client_method(
                 "set_settings", {"status_check_interval": new_interval}
             )
+
+    ##############################################
+    # Folder Operations
+    ##############################################
+    def _ls(self, path: Path, full_paths: bool = True, sort: bool = False):
+        return self.client.folder_operation(
+            operation="ls", path=path, full_paths=full_paths, sort=sort
+        )
+
+    def _get(
+        self,
+        path: Path,
+        mode: str = "rb",
+        encoding: str = None,
+    ):
+        return self.client.folder_operation(
+            operation="get",
+            path=path,
+            mode=mode,
+            encoding=encoding,
+        )
+
+    def _put(
+        self,
+        path: Path,
+        contents: Union[Dict[str, Any], Resource, List[Resource]],
+        mode: str = "wb",
+        overwrite: bool = False,
+        serialization: str = None,
+    ):
+        return self.client.folder_operation(
+            operation="put",
+            path=path,
+            contents=contents,
+            mode=mode,
+            overwrite=overwrite,
+            serialization=serialization,
+        )
+
+    def _rm(self, path: Path, contents: List[str] = None, recursive: bool = False):
+        return self.client.folder_operation(
+            operation="rm", path=path, contents=contents, recursive=recursive
+        )
+
+    def _mkdir(self, path: Path):
+        return self.client.folder_operation(operation="mkdir", path=path)
+
+    def _mv(self, path: Path, dest_path: Path):
+        return self.client.folder_operation(
+            operation="mv", path=path, dest_path=dest_path
+        )
