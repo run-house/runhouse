@@ -36,12 +36,21 @@ from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
+    folder_get,
+    folder_ls,
+    folder_mkdir,
+    folder_mv,
+    folder_put,
+    folder_rm,
+    FolderOperation,
+    FolderParams,
     get_token_from_request,
     handle_exception_response,
     OutputType,
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
+    resolve_folder_path,
     Response,
     serialize_data,
     ServerSettings,
@@ -52,7 +61,6 @@ from runhouse.servers.obj_store import (
     RaySetupOption,
 )
 from runhouse.utils import sync_function
-
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -607,6 +615,38 @@ class HTTPServer:
                 new_key=params.new_key,
             )
             return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/{operation}")
+    @validate_cluster_access
+    async def folder_operation(
+        request: Request, operation: FolderOperation, folder_params: FolderParams
+    ):
+        try:
+            path = resolve_folder_path(folder_params.path)
+
+            if operation == FolderOperation.MKDIR:
+                return folder_mkdir(path)
+
+            elif operation == FolderOperation.GET:
+                return folder_get(path, folder_params)
+
+            elif operation == FolderOperation.PUT:
+                return folder_put(path, folder_params)
+
+            elif operation == FolderOperation.LS:
+                return folder_ls(path, folder_params)
+
+            elif operation == FolderOperation.RM:
+                return folder_rm(path, folder_params)
+
+            elif operation == FolderOperation.MV:
+                return folder_mv(path, folder_params)
+
         except Exception as e:
             return handle_exception_response(
                 e, traceback.format_exc(), from_http_server=True
