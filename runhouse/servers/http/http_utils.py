@@ -2,6 +2,8 @@ import codecs
 import json
 import re
 import sys
+from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import requests
@@ -84,6 +86,24 @@ class OutputType:
     CANCELLED = "cancelled"
     RESULT_SERIALIZED = "result_serialized"
     CONFIG = "config"
+
+
+class FolderMethod(str, Enum):
+    GET = "get"
+    LS = "ls"
+    PUT = "put"
+    MKDIR = "mkdir"
+    RM = "rm"
+
+
+class FolderParams(BaseModel):
+    operation: FolderMethod
+    path: Optional[str] = None
+    mode: Optional[str] = None
+    serialization: Optional[str] = None
+    overwrite: Optional[bool] = False
+    recursive: Optional[bool] = False
+    contents: Optional[Any] = None
 
 
 def pickle_b64(picklable):
@@ -281,3 +301,143 @@ def handle_response(
     elif output_type == OutputType.STDERR:
         res = response_data["data"]
         print(system_color + res + reset_color, file=sys.stderr)
+
+
+###########################
+#### Folder Operations ####
+###########################
+def folder_mkdir(path: Path):
+    if not path.parent.is_dir():
+        raise ValueError(
+            f"Parent path {path.parent} does not exist or is not a directory"
+        )
+
+    path.mkdir(parents=True, exist_ok=True)
+
+    return Response(output_type=OutputType.SUCCESS)
+
+
+def folder_get(path: Path, folder_params: FolderParams):
+    mode = folder_params.mode or "rb"
+    serialization = folder_params.serialization
+    binary_mode = "b" in mode
+
+    with open(path, mode=mode) as f:
+        file_contents = f.read()
+
+    if binary_mode and isinstance(file_contents, bytes):
+        file_contents = file_contents.decode()
+
+    output_type = OutputType.RESULT_SERIALIZED
+    serialization = serialization or ("pickle" if binary_mode else None)
+
+    return Response(
+        data=file_contents,
+        output_type=output_type,
+        serialization=serialization,
+    )
+
+
+def folder_put(path: Path, folder_params: FolderParams):
+    overwrite = folder_params.overwrite
+    mode = folder_params.mode or "wb"
+    serialization = folder_params.serialization
+    contents = folder_params.contents
+
+    if not path.is_dir():
+        raise ValueError(f"Path {path} is not a directory")
+
+    path.mkdir(exist_ok=True)
+
+    if overwrite is False:
+        existing_files = {str(item.name) for item in path.iterdir()}
+        intersection = existing_files.intersection(set(contents.keys()))
+        if intersection:
+            raise FileExistsError(
+                f"File(s) {intersection} already exist(s) at path: {path}"
+            )
+
+    for filename, file_obj in contents.items():
+        binary_mode = "b" in mode
+        if binary_mode:
+            serialization = serialization or "pickle"
+
+        file_obj = serialize_data(file_obj, serialization)
+
+        if binary_mode and not isinstance(file_obj, bytes):
+            file_obj = file_obj.encode()
+
+        file_path = path / filename
+        if not overwrite and file_path.exists():
+            raise FileExistsError(f"File {file_path} already exists.")
+
+        try:
+            with open(file_path, mode) as f:
+                f.write(file_obj)
+        except Exception as e:
+            raise e
+
+    return Response(output_type=OutputType.SUCCESS)
+
+
+def folder_ls(path: Path, folder_params: FolderParams):
+    recursive: bool = folder_params.recursive
+    if path is None:
+        raise ValueError("Path is required for ls operation")
+
+    if not path.exists():
+        raise FileNotFoundError(f"Path {path} does not exist")
+
+    if not path.is_dir():
+        raise ValueError(f"Path {path} is not a directory")
+
+    files = list(path.rglob("*")) if recursive else [item for item in path.iterdir()]
+    return Response(
+        data=files,
+        output_type=OutputType.RESULT_SERIALIZED,
+        serialization=None,
+    )
+
+
+def folder_rm(path: Path, folder_params: FolderParams):
+    import shutil
+
+    recursive: bool = folder_params.recursive
+    contents = folder_params.contents
+    if contents:
+        for content in contents:
+            content_path = path / content
+            if content_path.exists():
+                if content_path.is_file():
+                    content_path.unlink()
+                elif content_path.is_dir() and recursive:
+                    shutil.rmtree(content_path)
+                else:
+                    raise ValueError(
+                        f"Path {content_path} is a directory and recursive is set to False"
+                    )
+        return Response(output_type=OutputType.SUCCESS)
+
+    if not path.is_dir():
+        path.unlink()
+        return Response(output_type=OutputType.SUCCESS)
+
+    if recursive:
+        shutil.rmtree(path)
+        return Response(output_type=OutputType.SUCCESS)
+
+    items = path.iterdir()
+    if not items:
+        # Empty dir
+        path.rmdir()
+        return Response(output_type=OutputType.SUCCESS)
+
+    for item in items:
+        if item.is_file():
+            item.unlink()
+        else:
+            raise ValueError(
+                f"Folder {item} found in {path}, recursive is set to False"
+            )
+
+    return Response(output_type=OutputType.SUCCESS)
