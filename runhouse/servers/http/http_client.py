@@ -28,7 +28,8 @@ from runhouse.servers.http.http_utils import (
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
-    serialize_data, FolderOperation,
+    serialize_data,
+    FolderOperation,
 )
 
 
