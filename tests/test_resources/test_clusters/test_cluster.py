@@ -762,19 +762,21 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                 "This test checking pinging cluster status to den, this could be done only on OnDemand clusters."
             )
 
-        cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
-        headers = rh.globals.rns_client.request_headers()
-        api_server_url = rh.globals.rns_client.api_server_url
-
         cluster.save()
-
+        # the scheduler start running in a delay of 1 min, so the cluster startup will finish properly.
+        # Therefore, the test needs to sleep for a while.
+        time.sleep(60)
         cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"], stream_logs=False)[
             0
         ][1]
         assert (
-            f'HTTP Request: POST {api_server_url}/resource/{cluster_uri}/cluster/status "HTTP/1.1 200 OK"'
+            "Performing cluster checks: potentially sending to Den, surfacing logs to Den or updating autostop."
             in cluster_logs
         )
+
+        cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
+        headers = rh.globals.rns_client.request_headers()
+        api_server_url = rh.globals.rns_client.api_server_url
 
         get_status_data_resp = requests.get(
             f"{api_server_url}/resource/{cluster_uri}/cluster/status",
