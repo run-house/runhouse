@@ -39,6 +39,7 @@ from runhouse.resources.hardware.ray_utils import (
     check_for_existing_ray_instance,
     kill_actors,
 )
+from runhouse.rns.rns_client import ResourceStatusData
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
@@ -384,15 +385,15 @@ def _print_envs_info(
                     )
 
 
-def _print_status(status_data: dict, current_cluster: Cluster):
+def _print_status(status_data: ResourceStatusData, current_cluster: Cluster):
     """
     Prints the status of the cluster to the console
     :param config: cluster's  config
     :return: cluster's  config
     """
 
-    cluster_config = status_data.get("cluster_config")
-    env_servlet_processes = status_data.get("env_servlet_processes")
+    cluster_config = status_data.cluster_config
+    env_servlet_processes = status_data.env_servlet_processes
 
     if "name" in cluster_config.keys():
         console.print(cluster_config.get("name"))
@@ -403,8 +404,8 @@ def _print_status(status_data: dict, current_cluster: Cluster):
     )
     console.print(daemon_headline_txt, style="bold royal_blue1")
 
-    console.print(f'Runhouse v{status_data.get("runhouse_version")}')
-    console.print(f'server pid: {status_data.get("server_pid")}')
+    console.print(f"Runhouse v{status_data.runhouse_version}")
+    console.print(f"server pid: {status_data.server_pid}")
 
     # Print relevant info from cluster config.
     _print_cluster_config(cluster_config)
@@ -452,33 +453,48 @@ def status(
             )
             raise typer.Exit(1)
 
-    # case we are inside the cluster
-    if cluster_or_local != "file":
-        # If we are on the cluster load status directly from the object store
-        cluster_status: dict = dict(obj_store.status())
-        cluster_config = copy.deepcopy(cluster_status.get("cluster_config"))
-        current_cluster: Cluster = Cluster.from_config(cluster_config)
-        return _print_status(cluster_status, current_cluster)
-
-    if cluster_name is None:
+    if cluster_or_local == "file" and not cluster_name:
         # If running outside the cluster must specify a cluster name
         console.print("Missing argument `cluster_name`.")
         return
 
-    try:
-        current_cluster: Cluster = Cluster.from_name(name=cluster_name)
-        cluster_status: dict = current_cluster.status(
-            resource_address=current_cluster.rns_address
+    # case we are inside the cluster
+    elif cluster_or_local != "file":
+
+        # If we are on the cluster load status directly from the object store
+        # cluster status type: ResourceStatusData
+        cluster_status, send_status_resp = obj_store.status(send_to_den=True)
+
+        cluster_config = copy.deepcopy(cluster_status.cluster_config)
+        current_cluster: Cluster = Cluster.from_config(cluster_config)
+
+    else:
+        try:
+            current_cluster: Cluster = Cluster.from_name(name=cluster_name)
+            cluster_status, send_status_resp = current_cluster.status(
+                resource_address=current_cluster.rns_address, send_to_den=True
+            )
+
+        except ValueError:
+            console.print("Failed to load status for cluster.")
+            return
+        except requests.exceptions.ConnectionError:
+            console.print(
+                "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}"
+            )
+            return
+
+    status_code = send_status_resp.status_code
+
+    if status_code == 404:
+        logger.info(
+            "Cluster has not yet been saved to Den, cannot update status or logs."
+        )
+    elif status_code != 200:
+        logger.error(
+            f"{status_code}: Failed to send cluster status to Den: {send_status_resp.json()}"
         )
 
-    except ValueError:
-        console.print("Failed to load status for cluster.")
-        return
-    except requests.exceptions.ConnectionError:
-        console.print(
-            "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}"
-        )
-        return
     return _print_status(cluster_status, current_cluster)
 
 

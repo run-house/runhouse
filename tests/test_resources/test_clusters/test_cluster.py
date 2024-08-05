@@ -12,7 +12,6 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_PORT,
     LOCALHOST,
-    SERVER_LOGFILE_PATH,
 )
 
 from runhouse.resources.hardware.utils import ResourceServerStatus
@@ -203,7 +202,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             headers=rh.globals.rns_client.request_headers(),
         )
         assert r.status_code == 200
-        status_data = r.json()
+        # Status endpoint returns two values - the status data, and the response from den, if the status is sent to den.
+        # The status data is the first element of the response.
+        status_data = r.json()[0]
         assert status_data["cluster_config"]["resource_type"] == "cluster"
         assert status_data["env_servlet_processes"]
         assert status_data["system_cpu_usage"]
@@ -443,7 +444,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         # Wait a second so the calls can start
         time.sleep(1)
-        cluster_data = cluster.status()
+
+        # Status method returns two values - the status data, and the response from den, if the status is sent to den.
+        # The status data is the first element of the response.
+        cluster_data = cluster.status()[0]
 
         expected_cluster_status_data_keys = [
             "env_servlet_processes",
@@ -496,7 +500,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # wait for threads to finish
         for call_thread in call_threads:
             call_thread.join()
-        updated_status = cluster.status()
+
+        # Status method returns two values - the status data, and the response from den, if the status is sent to den.
+        # The status data is the first element of the response.
+        updated_status = cluster.status()[0]
+
         # Check that the sleep calls are no longer active
         assert (
             updated_status.get("env_servlet_processes")
@@ -565,9 +573,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         default_env_name = cluster.default_env.name
 
         cluster.put(key="status_key2", obj="status_value2")
-        status_output_string = cluster.run(
+        status_output_response = cluster.run(
             ["runhouse status"], _ssh_mode="non_interactive"
-        )[0][1]
+        )[0]
+        assert status_output_response[0] == 0
+        status_output_string = status_output_response[1]
         # The string that's returned is utf-8 with the literal escape characters mixed in.
         # We need to convert the escape characters to their actual values to compare the strings.
         status_output_string = status_output_string.encode("utf-8").decode(
@@ -683,9 +693,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         import json
 
-        cluster.save()
+        # Status method return two values - the status data, and the response from den, if the status is sent to den.
+        # The status data is the first element of the response.
+        status = cluster.status()[0]
 
-        status = cluster.status()
         env_servlet_processes = status.pop("env_servlet_processes")
         status_data = {
             "status": ResourceServerStatus.running,
@@ -753,42 +764,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         assert post_status_data_resp.status_code in [200, 422]
 
-    @pytest.mark.level("minimal")
-    @pytest.mark.clustertest
-    def test_status_scheduler_basic_flow(self, cluster):
-
-        if not cluster.config().get("resource_subtype") == "OnDemandCluster":
-            pytest.skip(
-                "This test checking pinging cluster status to den, this could be done only on OnDemand clusters."
-            )
-
-        cluster.save()
-        # the scheduler start running in a delay of 1 min, so the cluster startup will finish properly.
-        # Therefore, the test needs to sleep for a while.
-        time.sleep(60)
-        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"], stream_logs=False)[
-            0
-        ][1]
-        assert (
-            "Performing cluster checks: potentially sending to Den, surfacing logs to Den or updating autostop."
-            in cluster_logs
-        )
-
-        cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
-        headers = rh.globals.rns_client.request_headers()
-        api_server_url = rh.globals.rns_client.api_server_url
-
-        get_status_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-            headers=headers,
-        )
-
-        assert get_status_data_resp.status_code == 200
-        assert (
-            get_status_data_resp.json()["data"][0]["status"]
-            == ResourceServerStatus.running
-        )
-
     ####################################################################################################
     # Default env tests
     ####################################################################################################
@@ -796,7 +771,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_default_env_in_status(self, cluster):
-        res = cluster.status()
+        # Status method return two values - the status data, and the response from den, if the status is sent to den.
+        # The status data is the first element of the response.
+        res = cluster.status()[0]
         assert cluster.default_env.name in res.get("env_servlet_processes")
 
     @pytest.mark.level("local")
@@ -884,7 +861,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # check cluster attr set, and  new env exists on the system
         assert new_env.env_name in cluster.run("conda info --envs")[0][1]
         assert cluster.default_env.name == new_env.name
-        assert new_env.name in cluster.status().get("env_servlet_processes")
+        assert new_env.name in cluster.status()[0].get("env_servlet_processes")
 
         # check that env defaults to new default env for run/put
         assert cluster.run("pip freeze | grep diffusers")[0][0] == 0

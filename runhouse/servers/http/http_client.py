@@ -267,10 +267,14 @@ class HTTPClient:
                 f"but local Runhouse version is ({runhouse.__version__})"
             )
 
-    def status(self, resource_address: str):
+    def status(self, resource_address: str, send_to_den: bool = False):
         """Load the remote cluster's status."""
         # Note: Resource address must be specified in order to construct the cluster subtoken
-        return self.request("status", req_type="get", resource_address=resource_address)
+        return self.request(
+            f"status?send_to_den={send_to_den}",
+            req_type="get",
+            resource_address=resource_address,
+        )
 
     def get_certificate(self):
         cert: bytes = self.request(
