@@ -36,12 +36,25 @@ from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
+    folder_get,
+    folder_ls,
+    folder_mkdir,
+    folder_mv,
+    folder_put,
+    folder_rm,
+    FolderGetParams,
+    FolderLsParams,
+    FolderMvParams,
+    FolderParams,
+    FolderPutParams,
+    FolderRmParams,
     get_token_from_request,
     handle_exception_response,
     OutputType,
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
+    resolve_folder_path,
     Response,
     serialize_data,
     ServerSettings,
@@ -52,7 +65,6 @@ from runhouse.servers.obj_store import (
     RaySetupOption,
 )
 from runhouse.utils import sync_function
-
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -607,6 +619,96 @@ class HTTPServer:
                 new_key=params.new_key,
             )
             return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/ls")
+    @validate_cluster_access
+    async def folder_ls_cmd(request: Request, ls_params: FolderLsParams):
+        try:
+            path = resolve_folder_path(ls_params.path)
+            return folder_ls(path, full_paths=ls_params.full_paths, sort=ls_params.sort)
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/mkdir")
+    @validate_cluster_access
+    async def folder_mkdir_cmd(request: Request, folder_params: FolderParams):
+        try:
+            path = resolve_folder_path(folder_params.path)
+            return folder_mkdir(path)
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/get")
+    @validate_cluster_access
+    async def folder_get_cmd(request: Request, get_params: FolderGetParams):
+        try:
+            path = resolve_folder_path(get_params.path)
+            return folder_get(path, mode=get_params.mode, encoding=get_params.encoding)
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/put")
+    @validate_cluster_access
+    async def folder_put_cmd(request: Request, put_params: FolderPutParams):
+        try:
+            path = resolve_folder_path(put_params.path)
+            return folder_put(
+                path,
+                overwrite=put_params.overwrite,
+                mode=put_params.mode,
+                serialization=put_params.serialization,
+                contents=put_params.contents,
+            )
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/rm")
+    @validate_cluster_access
+    async def folder_rm_cmd(request: Request, rm_params: FolderRmParams):
+        try:
+            path = resolve_folder_path(rm_params.path)
+            return folder_rm(
+                path, contents=rm_params.contents, recursive=rm_params.recursive
+            )
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/mv")
+    @validate_cluster_access
+    async def folder_mv_cmd(request: Request, mv_params: FolderMvParams):
+        try:
+            path = resolve_folder_path(mv_params.path)
+            return folder_mv(
+                src_path=path,
+                dest_path=mv_params.dest_path,
+                overwrite=mv_params.overwrite,
+            )
+
         except Exception as e:
             return handle_exception_response(
                 e, traceback.format_exc(), from_http_server=True
