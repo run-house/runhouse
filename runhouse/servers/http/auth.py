@@ -75,6 +75,7 @@ class AuthCache:
 async def averify_cluster_access(
     cluster_uri: str,
     token: str,
+    write_only_access: bool = False,
 ) -> bool:
     """Checks whether the user has access to the cluster.
     Note: A user with write access to the cluster or a cluster owner will have access to all other resources on
@@ -93,5 +94,8 @@ async def averify_cluster_access(
             return True
 
     cluster_access_level = await obj_store.aresource_access_level(token, cluster_uri)
+
+    if write_only_access:
+        return cluster_access_level == ResourceAccess.WRITE
 
     return cluster_access_level in [ResourceAccess.WRITE, ResourceAccess.READ]
