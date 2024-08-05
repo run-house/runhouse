@@ -62,7 +62,6 @@ from runhouse.servers.obj_store import (
 )
 from runhouse.utils import sync_function
 
-
 app = FastAPI(docs_url=None, redoc_url=None)
 
 
