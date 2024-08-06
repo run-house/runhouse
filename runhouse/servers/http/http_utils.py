@@ -107,6 +107,8 @@ class FolderParams(BaseModel):
     contents: Optional[Any] = None
     dest_path: Optional[str] = None
     encoding: Optional[str] = None
+    full_paths: Optional[bool] = True
+    sort: Optional[bool] = False
 
 
 def pickle_b64(picklable):
@@ -360,7 +362,7 @@ def folder_get(path: Path, folder_params: FolderParams):
     if binary_mode and isinstance(file_contents, bytes):
         file_contents = file_contents.decode()
 
-    Response(
+    return Response(
         data=file_contents,
         output_type=OutputType.RESULT_SERIALIZED,
         serialization=None,
@@ -421,11 +423,17 @@ def folder_ls(path: Path, folder_params: FolderParams):
     if not path.is_dir():
         raise HTTPException(status_code=400, detail=f"Path {path} is not a directory")
 
-    files = (
-        list(path.rglob("*"))
-        if folder_params.recursive
-        else [item for item in path.iterdir()]
-    )
+    paths = [p for p in path.iterdir()]
+
+    # Sort the paths by modification time if sort is True
+    if folder_params.sort:
+        paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+    # Convert paths to strings and format them based on full_paths
+    if folder_params.full_paths:
+        files = [str(p.resolve()) for p in paths]
+    else:
+        files = [p.name for p in paths]
 
     return Response(
         data=files,
