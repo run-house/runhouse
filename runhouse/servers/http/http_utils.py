@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Union
 import requests
 
 from fastapi import HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from ray import cloudpickle as pickle
 from ray.exceptions import RayTaskError
 
@@ -96,6 +96,7 @@ class FolderOperation(str, Enum):
     MKDIR = "mkdir"
     RM = "rm"
     MV = "mv"
+    EXISTS = "exists"
 
 
 class FolderParams(BaseModel):
@@ -109,6 +110,10 @@ class FolderParams(BaseModel):
     encoding: Optional[str] = None
     full_paths: Optional[bool] = True
     sort: Optional[bool] = False
+
+    @validator("path", pre=True, always=True)
+    def convert_path_to_string(cls, v):
+        return str(v) if v is not None else v
 
 
 def pickle_b64(picklable):
@@ -508,3 +513,11 @@ def folder_mv(path: Path, folder_params: FolderParams):
     shutil.move(str(path), str(dest_path))
 
     return Response(output_type=OutputType.SUCCESS)
+
+
+def folder_exists(path: Path):
+    return Response(
+        data=path.exists() and path.is_dir(),
+        output_type=OutputType.RESULT_SERIALIZED,
+        serialization=None,
+    )

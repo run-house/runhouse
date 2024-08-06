@@ -36,6 +36,7 @@ from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
+    folder_exists,
     folder_get,
     folder_ls,
     folder_mkdir,
@@ -649,6 +650,9 @@ class HTTPServer:
 
             elif operation == FolderOperation.MV:
                 return folder_mv(path, folder_params)
+
+            elif operation == FolderOperation.EXISTS:
+                return folder_exists(path)
 
         except Exception as e:
             return handle_exception_response(

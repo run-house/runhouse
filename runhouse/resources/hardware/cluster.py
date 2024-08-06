@@ -1787,14 +1787,14 @@ class Cluster(Resource):
     ##############################################
     # Folder Operations
     ##############################################
-    def _ls(self, path: Path, full_paths: bool = True, sort: bool = False):
+    def _ls(self, path: Union[str, Path], full_paths: bool = True, sort: bool = False):
         return self.client.folder_operation(
             operation="ls", path=path, full_paths=full_paths, sort=sort
         )
 
     def _get(
         self,
-        path: Path,
+        path: Union[str, Path],
         mode: str = "rb",
         encoding: str = None,
     ):
@@ -1807,7 +1807,7 @@ class Cluster(Resource):
 
     def _put(
         self,
-        path: Path,
+        path: Union[str, Path],
         contents: Union[Dict[str, Any], Resource, List[Resource]],
         mode: str = "wb",
         overwrite: bool = False,
@@ -1822,15 +1822,23 @@ class Cluster(Resource):
             serialization=serialization,
         )
 
-    def _rm(self, path: Path, contents: List[str] = None, recursive: bool = False):
+    def _rm(
+        self,
+        path: Union[str, Path],
+        contents: List[str] = None,
+        recursive: bool = False,
+    ):
         return self.client.folder_operation(
             operation="rm", path=path, contents=contents, recursive=recursive
         )
 
-    def _mkdir(self, path: Path):
+    def _mkdir(self, path: Union[str, Path]):
         return self.client.folder_operation(operation="mkdir", path=path)
 
-    def _mv(self, path: Path, dest_path: Path):
+    def _mv(self, path: Union[str, Path], dest_path: Union[str, Path]):
         return self.client.folder_operation(
             operation="mv", path=path, dest_path=dest_path
         )
+
+    def _exists(self, path: Union[str, Path]):
+        return self.client.folder_operation(operation="exists", path=path)

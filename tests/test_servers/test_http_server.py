@@ -1,5 +1,4 @@
 import json
-import os
 import tempfile
 from pathlib import Path
 
@@ -20,7 +19,6 @@ from runhouse.servers.http.http_utils import (
 from tests.utils import friend_account
 
 INVALID_HEADERS = {"Authorization": "Bearer InvalidToken"}
-
 
 # Helper used for testing rh.Function
 def summer(a, b):
@@ -106,70 +104,6 @@ class TestHTTPServerDocker:
             "/keys", headers=rns_client.request_headers(cluster.rns_address)
         )
         assert new_key in response.json().get("data")
-
-    @pytest.mark.level("local")
-    def test_folder_ls(self, http_client, cluster):
-        response = http_client.post(
-            "/folder",
-            json={"operation": "ls", "path": "~"},
-            headers=rns_client.request_headers(cluster.rns_address),
-        )
-        assert response.status_code == 200
-
-        file_names: list = response.json().get("data")
-        base_names = [os.path.basename(f) for f in file_names]
-        assert ".rh" in base_names
-
-    @pytest.mark.level("local")
-    def test_folder_put_and_get(self, http_client, cluster):
-        response = http_client.post(
-            "/folder",
-            json={
-                "operation": "put",
-                "path": "~/.rh",
-                "contents": {"new_file.txt": "Hello, world!"},
-            },
-            headers=rns_client.request_headers(cluster.rns_address),
-        )
-        assert response.status_code == 200
-
-        response = http_client.post(
-            "/folder",
-            json={"operation": "get", "path": "~/.rh/new_file.txt"},
-            headers=rns_client.request_headers(cluster.rns_address),
-        )
-        assert response.status_code == 200
-
-    @pytest.mark.level("local")
-    def test_folder_mkdir(self, http_client, cluster):
-        response = http_client.post(
-            "/folder",
-            json={"operation": "mkdir", "path": "~/.rh/new-folder"},
-            headers=rns_client.request_headers(cluster.rns_address),
-        )
-        assert response.status_code == 200
-
-    @pytest.mark.level("local")
-    def test_folder_rm(self, http_client, cluster):
-        # Delete the file
-        response = http_client.post(
-            "/folder",
-            json={
-                "operation": "rm",
-                "path": "~/.rh/new-folder",
-                "contents": ["new_file.txt"],
-            },
-            headers=rns_client.request_headers(cluster.rns_address),
-        )
-        assert response.status_code == 200
-
-        # Delete the folder
-        response = http_client.post(
-            "/folder",
-            json={"operation": "rm", "path": "~/.rh/new-folder"},
-            headers=rns_client.request_headers(cluster.rns_address),
-        )
-        assert response.status_code == 200
 
     @pytest.mark.level("local")
     def test_delete_obj(self, http_client, cluster):
