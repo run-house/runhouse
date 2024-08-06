@@ -39,9 +39,10 @@ from runhouse.servers.http.http_utils import (
     folder_get,
     folder_ls,
     folder_mkdir,
+    folder_mv,
     folder_put,
     folder_rm,
-    FolderMethod,
+    FolderOperation,
     FolderParams,
     get_token_from_request,
     handle_exception_response,
@@ -49,6 +50,7 @@ from runhouse.servers.http.http_utils import (
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
+    resolve_folder_path,
     Response,
     serialize_data,
     ServerSettings,
@@ -622,34 +624,31 @@ class HTTPServer:
             )
 
     @staticmethod
-    @app.post("/folder")
+    @app.post("/folder/method/{operation}")
     @validate_cluster_access
-    async def folder_operation(request: Request, folder_params: FolderParams):
+    async def folder_operation(
+        request: Request, operation: FolderOperation, folder_params: FolderParams
+    ):
         try:
-            operation = folder_params.operation
-            raw_path = folder_params.path
-            path = (
-                None
-                if raw_path is None
-                else Path(raw_path).expanduser()
-                if raw_path.startswith("~")
-                else Path(raw_path).resolve()
-            )
+            path = resolve_folder_path(folder_params.path)
 
-            if operation == FolderMethod.MKDIR:
+            if operation == FolderOperation.MKDIR:
                 return folder_mkdir(path)
 
-            elif operation == FolderMethod.GET:
+            elif operation == FolderOperation.GET:
                 return folder_get(path, folder_params)
 
-            elif operation == FolderMethod.PUT:
+            elif operation == FolderOperation.PUT:
                 return folder_put(path, folder_params)
 
-            elif operation == FolderMethod.LS:
+            elif operation == FolderOperation.LS:
                 return folder_ls(path, folder_params)
 
-            elif operation == FolderMethod.RM:
+            elif operation == FolderOperation.RM:
                 return folder_rm(path, folder_params)
+
+            elif operation == FolderOperation.MV:
+                return folder_mv(path, folder_params)
 
         except Exception as e:
             return handle_exception_response(
