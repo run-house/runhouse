@@ -301,7 +301,9 @@ class ClusterServlet:
                         prev_end_log_line=prev_end_log_line,
                     )
                     if not logs_resp_status_code:
-                        logger.warning("There were no logs to send to Den.")
+                        logger.debug(
+                            f"No logs were generated in the past {interval_size} minute(s), logs were not sent to Den."
+                        )
 
                     elif logs_resp_status_code == 200:
                         logger.debug("Successfully sent cluster logs to Den.")
