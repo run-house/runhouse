@@ -301,7 +301,7 @@ class Folder(Module):
             if not path.exists():
                 path.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"Folder created in path: {self.path}")
+        logger.debug(f"Folder created in path: {self.path}")
 
     def _to_cluster(self, dest_cluster, path=None):
         """Copy the folder from a file or cluster source onto a destination cluster."""
