@@ -1,5 +1,7 @@
 import json
+import os
 import tempfile
+import uuid
 from pathlib import Path
 
 import pytest
@@ -213,6 +215,139 @@ class TestHTTPServerDocker:
                         deserialize_data(resp_obj["data"], resp_obj["serialization"])
                         == 3
                     )
+
+    @pytest.mark.level("local")
+    def test_folder_put_and_get_and_mv(self, http_client, cluster):
+        file_name = str(uuid.uuid4())
+        response = http_client.post(
+            "/folder/method/put",
+            json={
+                "path": "~/.rh",
+                "contents": {f"{file_name}.txt": "Hello, world!"},
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        response = http_client.post(
+            "/folder/method/get",
+            json={"path": f"~/.rh/{file_name}.txt"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        resp_json = response.json()
+        serialization = resp_json["serialization"]
+
+        assert serialization is None
+        assert resp_json["output_type"] == "result_serialized"
+        assert resp_json["data"] == "Hello, world!"
+
+        dest_path = f"~/{file_name}.txt"
+        response = http_client.post(
+            "/folder/method/mv",
+            json={"path": f"~/.rh/{file_name}.txt", "dest_path": dest_path},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        response = http_client.post(
+            "/folder/method/get",
+            json={"path": dest_path},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+        assert response.json()["data"] == "Hello, world!"
+
+    @pytest.mark.level("local")
+    def test_folder_put_pickle_object(self, http_client, cluster):
+        file_name = str(uuid.uuid4())
+
+        raw_data = [1, 2, 3]
+        serialization = "pickle"
+        serialized_data = serialize_data(raw_data, serialization)
+
+        response = http_client.post(
+            "/folder/method/put",
+            json={
+                "path": "~/.rh",
+                "contents": {f"{file_name}.pickle": serialized_data},
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        response = http_client.post(
+            "/folder/method/get",
+            json={"path": f"~/.rh/{file_name}.pickle"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        resp_json = response.json()
+        assert resp_json["output_type"] == "result_serialized"
+
+        # TODO: User's responsibility to deserialize the response data?
+        assert deserialize_data(resp_json["data"], serialization) == raw_data
+
+    @pytest.mark.level("local")
+    def test_folder_mkdir_rm_and_ls(self, http_client, cluster):
+        response = http_client.post(
+            "/folder/method/mkdir",
+            json={"path": "~/.rh/new-folder"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        response = http_client.post(
+            "/folder/method/put",
+            json={
+                "path": "~/.rh",
+                "contents": {"new_file.txt": "Hello, world!"},
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        # delete the file
+        response = http_client.post(
+            "/folder/method/rm",
+            json={
+                "path": "~/.rh/new-folder",
+                "contents": ["new_file.txt"],
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        # empty folder should still be there since recursive not explicitly set to `True`
+        response = http_client.post(
+            "/folder/method/ls",
+            json={"path": "~/.rh"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        file_names: list = response.json().get("data")
+        assert "new-folder" in [os.path.basename(f) for f in file_names]
+
+        # Delete the now empty folder
+        response = http_client.post(
+            "/folder/method/rm",
+            json={"path": "~/.rh/new-folder"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        response = http_client.post(
+            "/folder/method/ls",
+            json={"path": "~/.rh"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        file_names: list = response.json().get("data")
+        assert "new-folder" not in [os.path.basename(f) for f in file_names]
 
     @pytest.mark.level("local")
     @pytest.mark.asyncio
