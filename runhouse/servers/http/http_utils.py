@@ -107,6 +107,8 @@ class FolderParams(BaseModel):
     contents: Optional[Any] = None
     dest_path: Optional[str] = None
     encoding: Optional[str] = None
+    full_paths: Optional[bool] = True
+    sort: Optional[bool] = False
 
 
 def pickle_b64(picklable):
@@ -421,11 +423,17 @@ def folder_ls(path: Path, folder_params: FolderParams):
     if not path.is_dir():
         raise HTTPException(status_code=400, detail=f"Path {path} is not a directory")
 
-    files = (
-        list(path.rglob("*"))
-        if folder_params.recursive
-        else [item for item in path.iterdir()]
-    )
+    paths = [p for p in path.iterdir()]
+
+    # Sort the paths by modification time if sort is True
+    if folder_params.sort:
+        paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+    # Convert paths to strings and format them based on full_paths
+    if folder_params.full_paths:
+        files = [str(p.resolve()) for p in paths]
+    else:
+        files = [p.name for p in paths]
 
     return Response(
         data=files,
@@ -500,3 +508,7 @@ def folder_mv(path: Path, folder_params: FolderParams):
     shutil.move(str(path), str(dest_path))
 
     return Response(output_type=OutputType.SUCCESS)
+
+
+# folder_put(Path("/Users/josh.l/dev/runhouse/runhouse/servers/http"), FolderParams(operation="put", contents={"test.txt": "Hello World!"}))
+folder_ls(Path("/Users/josh.l/dev/runhouse/runhouse/servers/http"), FolderParams())

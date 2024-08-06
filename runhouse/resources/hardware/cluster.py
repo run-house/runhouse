@@ -1787,9 +1787,9 @@ class Cluster(Resource):
     ##############################################
     # Folder Operations
     ##############################################
-    def _ls(self, path: Path, recursive: bool = False):
+    def _ls(self, path: Path, full_paths: bool = True, sort: bool = False):
         return self.client.folder_operation(
-            operation="ls", path=path, recursive=recursive
+            operation="ls", path=path, full_paths=full_paths, sort=sort
         )
 
     def _get(
