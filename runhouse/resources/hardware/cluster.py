@@ -1197,10 +1197,9 @@ class Cluster(Resource):
         )
 
         runner = SkySSHRunner(
-            node,
+            (node, self.ssh_port),
             **ssh_credentials,
             ssh_control_name=ssh_control_name,
-            port=self.ssh_port,
             docker_user=self.docker_user,
         )
         if not pwd:
@@ -1416,10 +1415,9 @@ class Cluster(Resource):
         )
 
         runner = SkySSHRunner(
-            host,
+            (host, self.ssh_port),
             **ssh_credentials,
             ssh_control_name=ssh_control_name,
-            port=self.ssh_port,
             docker_user=self.docker_user,
         )
 

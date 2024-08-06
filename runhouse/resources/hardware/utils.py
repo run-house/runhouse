@@ -143,9 +143,8 @@ def _run_ssh_command(
     docker_user: str,
 ):
     runner = SkySSHRunner(
-        ip=address,
+        node=(address, ssh_port),
         ssh_user=ssh_user,
-        port=ssh_port,
         ssh_private_key=ssh_private_key,
         docker_user=docker_user,
     )
