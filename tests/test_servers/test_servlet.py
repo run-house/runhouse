@@ -68,7 +68,7 @@ class TestServlet:
             serialization="pickle",
             remote=True,
         )
-        assert resp.output_type == "result_serialized"
+        assert resp.output_type == "config"
         blob_config = deserialize_data(resp.data, resp.serialization)
         assert isinstance(blob_config, dict)
 

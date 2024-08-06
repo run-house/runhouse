@@ -1,19 +1,18 @@
-Data: Folders, Tables, & Blobs
-==============================
+Data: Folders & Blobs
+=====================
 
 .. raw:: html
 
     <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/api-data.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
-
 Runhouse has several abstractions to provide a simple interface for
 storing, recalling, and moving data between the user’s laptop, remote
 compute, cloud storage, and specialized storage (e.g. data warehouses).
 
-The Folder, Table, and Blob APIs provide least-common-denominator APIs
-across providers, allowing users to easily specify the actions they want
-to take on the data without needed to dig into provider-specific APIs.
+The Folder and Blob APIs provide least-common-denominator APIs across
+providers, allowing users to easily specify the actions they want to
+take on the data without needed to dig into provider-specific APIs.
 
 Install Runhouse and Setup Cluster
 ----------------------------------
@@ -142,129 +141,6 @@ bouncing the folder off local.
     s3_folder.to(system=cluster)               # fs to cluster
     s3_folder.to(system="gs")                  # fs to fs
 
-Tables
-------
-
-The Runhouse Table API allows for abstracting tabular data storage, and
-supports interfaces for HuggingFace, Dask, Pandas, Rapids, and Ray
-tables (more in progress!).
-
-These can be synced and written down to local, remote clusters, or file
-storage (S3, GS, Azure).
-
-Let’s step through an example using a Pandas table we upload to our s3
-bucket using Runhouse.
-
-.. code:: ipython3
-
-    import pandas as pd
-    df = pd.DataFrame(
-            {"id": [1, 2, 3, 4, 5, 6], "grade": ["a", "b", "b", "a", "a", "e"]}
-        )
-
-    table_name = "sample_table"
-    path = "/runhouse-table/sample_table"
-    rh_table = rh.table(
-        data=df, name=table_name, path=path, system="s3", mkdir=True
-    ).write().save()
-
-
-.. parsed-literal::
-    :class: code-output
-
-    INFO | 2023-08-29 19:55:29.834000 | Found credentials in shared credentials file: ~/.aws/credentials
-
-
-.. code:: ipython3
-
-    rh_table.data
-
-
-
-.. parsed-literal::
-    :class: code-output
-
-     id grade
-      1     a
-      2     b
-      3     b
-      4     a
-      5     a
-      6     e
-
-
-
-To sync over and save the table to a remote cluster, or to local
-(“here”):
-
-.. code:: ipython3
-
-    cluster_table = rh_table.to(cluster)
-
-
-.. parsed-literal::
-    :class: code-output
-
-    INFO | 2023-08-29 19:59:39.456856 | Copying folder from s3://runhouse-table/sample_table to: cpu-cluster, with path: ~/.cache/runhouse/82d19ef56425409fb92e5d4dfcd389e2
-    INFO | 2023-08-29 19:59:39.458405 | Running command on cpu-cluster: aws --version >/dev/null 2>&1 || pip3 install awscli && aws s3 sync --no-follow-symlinks s3://runhouse-table/sample_table ~/.cache/runhouse/82d19ef56425409fb92e5d4dfcd389e2
-
-
-.. parsed-literal::
-    :class: code-output
-
-    download: s3://runhouse-table/sample_table/d68a64f755014c049b6e97b120db5d0f.parquet to .cache/runhouse/82d19ef56425409fb92e5d4dfcd389e2/d68a64f755014c049b6e97b120db5d0f.parquet
-    download: s3://runhouse-table/sample_table/ebf7bbc1b22e4172b162b723b4b234f2.parquet to .cache/runhouse/82d19ef56425409fb92e5d4dfcd389e2/ebf7bbc1b22e4172b162b723b4b234f2.parquet
-    download: s3://runhouse-table/sample_table/53d00aa5fa2148dd9f4d9836f7b6a9be.parquet to .cache/runhouse/82d19ef56425409fb92e5d4dfcd389e2/53d00aa5fa2148dd9f4d9836f7b6a9be.parquet
-    download: s3://runhouse-table/sample_table/2d0aed0ba49d42509ae9124368a74323.parquet to .cache/runhouse/82d19ef56425409fb92e5d4dfcd389e2/2d0aed0ba49d42509ae9124368a74323.parquet
-    download: s3://runhouse-table/sample_table/ea3841db70874ee7aade6ff1299325c5.parquet to .cache/runhouse/82d19ef56425409fb92e5d4dfcd389e2/ea3841db70874ee7aade6ff1299325c5.parquet
-    download: s3://runhouse-table/sample_table/e7a7dce218054b6aa2b0853c12afe952.parquet to .cache/runhouse/82d19ef56425409fb92e5d4dfcd389e2/e7a7dce218054b6aa2b0853c12afe952.parquet
-
-
-.. code:: ipython3
-
-    local_table = rh_table.to('here')
-
-
-.. parsed-literal::
-    :class: code-output
-
-    INFO | 2023-08-29 19:59:49.336813 | Copying folder from s3://runhouse-table/sample_table to: file, with path: /Users/caroline/Documents/runhouse/runhouse/docs/notebooks/basics/sample_table
-
-
-To stream batches of the table, we reload the table object, but with an
-iterable ``.data`` field, using the ``rh.table`` constructor and passing
-in the name.
-
-Note that you can’t directly do this with the original table object, as
-its ``.data`` field is the original ``data`` passed in, and not
-necessarily in an iterable format.
-
-.. code:: ipython3
-
-    reloaded_table = rh.table(name=table_name)
-
-.. code:: ipython3
-
-    batches = reloaded_table.stream(batch_size=2)
-    for batch in batches:
-        print(batch)
-
-
-.. parsed-literal::
-    :class: code-output
-
-       id grade
-    0   1     a
-    1   2     b
-       id grade
-    0   3     b
-    1   4     a
-       id grade
-    0   5     a
-    1   6     e
-
-
-
 Blobs
 -----
 
@@ -347,7 +223,16 @@ Cluster Termination
     # or
     cluster.teardown()
 
+
+
 .. raw:: html
 
     <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"><span style="color: #008000; text-decoration-color: #008000">⠹</span> <span style="color: #008080; text-decoration-color: #008080; font-weight: bold">Terminating </span><span style="color: #008000; text-decoration-color: #008000; font-weight: bold">cpu-cluster</span>
     </pre>
+
+
+
+
+.. raw:: html
+
+    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"></pre>

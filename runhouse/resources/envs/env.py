@@ -1,22 +1,19 @@
 import copy
 import logging
 import os
+import shlex
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.globals import obj_store
-from runhouse.resources.envs.utils import (
-    _process_env_vars,
-    run_setup_command,
-    run_with_logs,
-)
+
+from runhouse.logger import logger
+from runhouse.resources.envs.utils import _process_env_vars, run_setup_command
 from runhouse.resources.folders import Folder
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
-
-
-logger = logging.getLogger(__name__)
+from runhouse.utils import run_with_logs
 
 
 class Env(Resource):
@@ -65,8 +62,8 @@ class Env(Resource):
             Package.from_config(
                 config["working_dir"], dryrun=True, _resolve_children=_resolve_children
             )
-            if isinstance(config["working_dir"], dict)
-            else config["working_dir"]
+            if isinstance(config.get("working_dir"), dict)
+            else config.get("working_dir")
         )
 
         resource_subtype = config.get("resource_subtype")
@@ -114,8 +111,7 @@ class Env(Resource):
         for req in self.reqs:
             if isinstance(req, str):
                 new_req = Package.from_string(req)
-                if isinstance(new_req.install_target, Folder):
-                    req = new_req
+                req = new_req
 
             if isinstance(req, Package) and isinstance(req.install_target, Folder):
                 req = (
@@ -135,10 +131,7 @@ class Env(Resource):
         for secret in self.secrets:
             if isinstance(secret, str):
                 secret = Secret.from_name(secret)
-            if hasattr(secret, "path") and secret.path:
-                new_secrets.append(secret.to(system=system))
-            else:
-                new_secrets.append(secret.to(system=system, env=self))
+            new_secrets.append(secret.to(system=system, env=self))
         return new_secrets
 
     def _install_reqs(self, cluster: Cluster = None, reqs: List = None):
@@ -164,8 +157,10 @@ class Env(Resource):
             return
 
         for cmd in setup_cmds:
-            cmd = f"{self._run_cmd} {cmd}" if self._run_cmd else cmd
-            run_setup_command(cmd, cluster=cluster)
+            cmd = self._full_command(cmd)
+            run_setup_command(
+                cmd, cluster=cluster, env_vars=_process_env_vars(self.env_vars)
+            )
 
     def install(self, force: bool = False, cluster: Cluster = None):
         """Locally install packages and run setup commands."""
@@ -183,15 +178,24 @@ class Env(Resource):
         self._install_reqs(cluster=cluster)
         self._run_setup_cmds(cluster=cluster)
 
+    def _full_command(self, command: str):
+        if self._run_cmd:
+            return f"{self._run_cmd} $SHELL -c {shlex.quote(command)}"
+        return command
+
     def _run_command(self, command: str, **kwargs):
         """Run command locally inside the environment"""
-        if self._run_cmd:
-            command = f"{self._run_cmd} {command}"
+        command = self._full_command(command)
         logging.info(f"Running command in {self.name}: {command}")
         return run_with_logs(command, **kwargs)
 
     def to(
-        self, system: Union[str, Cluster], path=None, mount=False, force_install=False
+        self,
+        system: Union[str, Cluster],
+        node_idx=None,
+        path=None,
+        mount=False,
+        force_install=False,
     ):
         """
         Send environment to the system (Cluster or file system).
@@ -205,9 +209,19 @@ class Env(Resource):
         system = _get_cluster_from(system)
         new_env = copy.deepcopy(self)
         new_env.reqs, new_env.working_dir = self._reqs_to(system, path, mount)
-        new_env.secrets = self._secrets_to(system)
 
         if isinstance(system, Cluster):
+            if node_idx is not None:
+                if node_idx >= len(system.ips):
+                    raise ValueError(
+                        f"Cluster {system.name} has only {len(system.ips)} nodes. Requested node index {node_idx} is out of bounds."
+                    )
+
+                if new_env.compute is None:
+                    new_env.compute = {}
+
+                new_env.compute["node_idx"] = node_idx
+
             key = (
                 system.put_resource(new_env)
                 if new_env.name
@@ -223,6 +237,9 @@ class Env(Resource):
             else:
                 system.call(key, "_install_reqs", reqs=new_env.reqs)
                 system.call(key, "_run_setup_cmds", setup_cmds=new_env.setup_cmds)
+
+            # Secrets are resources that go in the env, so put them in after the env is created
+            new_env.secrets = self._secrets_to(system)
 
         return new_env
 

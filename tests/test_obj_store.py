@@ -1,4 +1,3 @@
-import logging
 import time
 
 import numpy as np
@@ -14,7 +13,8 @@ from tests.test_resources.test_modules.test_functions.test_function import (
 TEMP_FILE = "my_file.txt"
 TEMP_FOLDER = "~/runhouse-tests"
 
-logger = logging.getLogger(__name__)
+from runhouse.logger import logger
+
 
 UNIT = {"cluster": []}
 LOCAL = {
@@ -30,7 +30,6 @@ RELEASE = {
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "password_cluster",
         "static_cpu_cluster",
     ]
 }
@@ -42,7 +41,6 @@ MAXIMAL = {
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "password_cluster",
         "multinode_cpu_cluster",
         "static_cpu_cluster",
     ]

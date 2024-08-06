@@ -1,6 +1,6 @@
 import json
+import subprocess
 
-import logging
 from enum import Enum
 from pathlib import Path
 from typing import Dict
@@ -10,9 +10,9 @@ from runhouse.constants import (
     EMPTY_DEFAULT_ENV_NAME,
     RESERVED_SYSTEM_NAMES,
 )
-from runhouse.resources.envs.utils import _get_env_from
-
-logger = logging.getLogger(__name__)
+from runhouse.resources.envs.utils import _get_env_from, run_setup_command
+from runhouse.resources.hardware.sky.command_runner import SshMode
+from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner
 
 
 class ServerConnectionType(str, Enum):
@@ -28,6 +28,18 @@ class ServerConnectionType(str, Enum):
     TLS = "tls"
     NONE = "none"
     AWS_SSM = "aws_ssm"
+
+
+class ResourceServerStatus(str, Enum):
+    running = "running"
+    terminated = "terminated"
+    unauthorized = "unauthorized"
+    unknown = "unknown"
+    internal_server_error = "internal_server_error"
+    runhouse_daemon_down = "runhouse_daemon_down"
+    server_down = "server_down"  # TODO [SB]: remove once Runhouse 0.0.32 is released.
+    invalid_url = "invalid_url"
+    local_cluster = "local_cluster"
 
 
 def cluster_config_file_exists() -> bool:
@@ -72,7 +84,7 @@ def _default_env_if_on_cluster():
         _get_env_from(
             config.get(
                 "default_env",
-                Env(name=EMPTY_DEFAULT_ENV_NAME, working_dir="./"),
+                Env(name=EMPTY_DEFAULT_ENV_NAME),
             )
         )
         if config
@@ -106,3 +118,39 @@ def _get_cluster_from(system, dryrun=False):
 
 def _unnamed_default_env_name(cluster_name):
     return f"{cluster_name}_default_env"
+
+
+def detect_cuda_version_or_cpu(cluster: "Cluster" = None):
+    """Return the CUDA version on the cluster. If we are on a CPU-only cluster return 'cpu'.
+
+    Note: A cpu-only machine may have the CUDA toolkit installed, which means nvcc will still return
+    a valid version. Also check if the NVIDIA driver is installed to confirm we are on a GPU."""
+
+    status_codes = run_setup_command("nvcc --version", cluster=cluster)
+    if not status_codes[0] == 0:
+        return "cpu"
+    cuda_version = status_codes[1].split("release ")[1].split(",")[0]
+
+    if run_setup_command("nvidia-smi", cluster=cluster)[0] == 0:
+        return cuda_version
+    return "cpu"
+
+
+def _run_ssh_command(
+    address: str,
+    ssh_user: str,
+    ssh_port: int,
+    ssh_private_key: str,
+    docker_user: str,
+):
+    runner = SkySSHRunner(
+        ip=address,
+        ssh_user=ssh_user,
+        port=ssh_port,
+        ssh_private_key=ssh_private_key,
+        docker_user=docker_user,
+    )
+    ssh_command = runner._ssh_base_command(
+        ssh_mode=SshMode.INTERACTIVE, port_forward=None
+    )
+    subprocess.run(ssh_command)

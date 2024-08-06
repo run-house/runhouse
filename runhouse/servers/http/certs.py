@@ -1,6 +1,5 @@
 import datetime
 import ipaddress
-import logging
 from pathlib import Path
 
 from cryptography import x509
@@ -9,9 +8,8 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
+from runhouse.logger import logger
 from runhouse.rns.utils.api import resolve_absolute_path
-
-logger = logging.getLogger(__name__)
 
 
 class TLSCertConfig:

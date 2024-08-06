@@ -6,7 +6,7 @@
 # ## Setup credentials and dependencies
 # Install the required dependencies:
 # ```shell
-# $ pip install -r requirements.txt
+# $ pip install "runhouse[aws]"
 # ```
 #
 # We'll be launching an AWS Inferentia instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we
@@ -151,15 +151,6 @@ if __name__ == "__main__":
         ],
     )
 
-    # Next, we define the environment for our module. This includes the required dependencies that need
-    # to be installed on the remote machine.
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        name="instruct_env",
-        working_dir="./",
-    )
-
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
     # by the name `mistral-instruct` if it was already put on the cluster. If we want to update the module each
@@ -168,7 +159,7 @@ if __name__ == "__main__":
     # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
     # set up on the remote machine before the module is run.
     remote_instruct_model = MistralInstruct().get_or_to(
-        cluster, env=env, name="mistral-instruct"
+        cluster, name="mistral-instruct"
     )
 
     # ## Loading and prompting the model

@@ -9,23 +9,24 @@ from runhouse.constants import DEFAULT_HTTPS_PORT, EMPTY_DEFAULT_ENV_NAME
 from tests.conftest import init_args
 from tests.utils import test_env
 
+NUM_OF_INSTANCES = 2
+
 
 @pytest.fixture()
 def restart_server(request):
     return request.config.getoption("--restart-server")
 
 
-def setup_test_cluster(args, request):
+def setup_test_cluster(args, request, create_env=False):
     cluster = rh.ondemand_cluster(**args)
     init_args[id(cluster)] = args
-
-    if not cluster.is_up():
-        cluster.up()
-    elif request.config.getoption("--restart-server"):
+    cluster.up_if_not()
+    if request.config.getoption("--restart-server"):
         cluster.restart_server()
 
     cluster.save()
-    if cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
+
+    if create_env or cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
         test_env().to(cluster)
     return cluster
 
@@ -47,8 +48,19 @@ def ondemand_cluster(request):
 
 @pytest.fixture(scope="session")
 def ondemand_aws_cluster(request):
-    args = {"name": "aws-cpu", "instance_type": "CPU:2+", "provider": "aws"}
-    cluster = setup_test_cluster(args, request)
+    """
+    Note: Also used to test docker and default env with alternate Ray version.
+    """
+    args = {
+        "name": "aws-cpu",
+        "instance_type": "CPU:2+",
+        "provider": "aws",
+        "image_id": "docker:nvcr.io/nvidia/pytorch:23.10-py3",
+        "region": "us-east-2",
+        "default_env": rh.env(reqs=["ray==2.30.0"], working_dir=None),
+        "sky_kwargs": {"launch": {"retry_until_up": True}},
+    }
+    cluster = setup_test_cluster(args, request, create_env=True)
     return cluster
 
 
@@ -70,7 +82,22 @@ def ondemand_aws_https_cluster_with_auth(request):
 
 @pytest.fixture(scope="session")
 def ondemand_gcp_cluster(request):
-    args = {"name": "gcp-cpu", "instance_type": "CPU:2+", "provider": "gcp"}
+    """
+    Note: Also used to test conda default env.
+    """
+    env_vars = {"var1": "val1", "var2": "val2"}
+    default_env = rh.conda_env(
+        name="default_env",
+        reqs=test_env().reqs + ["ray==2.30.0"],
+        env_vars=env_vars,
+        conda_env={"dependencies": ["python=3.11"], "name": "default_env"},
+    )
+    args = {
+        "name": "gcp-cpu",
+        "instance_type": "CPU:2+",
+        "provider": "gcp",
+        "default_env": default_env,
+    }
     cluster = setup_test_cluster(args, request)
     return cluster
 
@@ -85,7 +112,8 @@ def ondemand_k8s_cluster(request):
     args = {
         "name": "k8s-cpu",
         "provider": "kubernetes",
-        "instance_type": "1CPU--1GB",
+        "instance_type": "CPU:1",
+        "memory": ".2",
     }
     cluster = setup_test_cluster(args, request)
     return cluster
@@ -116,7 +144,7 @@ def a10g_gpu_cluster(request):
 def multinode_cpu_cluster(request):
     args = {
         "name": "rh-cpu-multinode",
-        "num_instances": 2,
+        "num_instances": NUM_OF_INSTANCES,
         "instance_type": "CPU:2+",
     }
     cluster = setup_test_cluster(args, request)
@@ -124,16 +152,11 @@ def multinode_cpu_cluster(request):
 
 
 @pytest.fixture(scope="session")
-def ondemand_default_conda_env_cluster(request):
-    env_vars = {"var1": "val1", "var2": "val2"}
-    default_env = rh.conda_env(
-        name="default_env", reqs=test_env().reqs + ["skypilot"], env_vars=env_vars
-    )
+def multinode_gpu_cluster(request):
     args = {
-        "name": "default-env-cpu",
-        "instance_type": "CPU:2+",
-        "provider": "aws",
-        "default_env": default_env,
+        "name": "rh-gpu-multinode",
+        "num_instances": NUM_OF_INSTANCES,
+        "instance_type": "g5.xlarge",
     }
     cluster = setup_test_cluster(args, request)
     return cluster

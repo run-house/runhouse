@@ -2,7 +2,6 @@ import argparse
 import asyncio
 import inspect
 import json
-import logging
 import traceback
 import uuid
 from functools import wraps
@@ -20,6 +19,7 @@ from fastapi.responses import StreamingResponse
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
+    DEFAULT_LOG_LEVEL,
     DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
     EMPTY_DEFAULT_ENV_NAME,
@@ -27,6 +27,7 @@ from runhouse.constants import (
     RH_LOGFILE_PATH,
 )
 from runhouse.globals import configs, obj_store, rns_client
+from runhouse.logger import logger
 from runhouse.rns.utils.api import resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.caddy.config import CaddyConfig
@@ -52,7 +53,6 @@ from runhouse.servers.obj_store import (
 )
 from runhouse.utils import sync_function
 
-logger = logging.getLogger(__name__)
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -114,65 +114,15 @@ class HTTPServer:
         cls,
         default_env_name=None,
         conda_env=None,
-        enable_local_span_collection=None,
         from_test: bool = False,
         *args,
         **kwargs,
     ):
+        log_level = kwargs.get("logs_level", DEFAULT_LOG_LEVEL)
+        logger.setLevel(log_level)
+        if log_level != DEFAULT_LOG_LEVEL:
+            logger.info(f"setting logs level to {log_level}")
         runtime_env = {"conda": conda_env} if conda_env else None
-
-        # If enable_local_span_collection flag is passed, setup the span exporter and related functionality
-        if enable_local_span_collection:
-            from opentelemetry import trace
-            from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-            from opentelemetry.instrumentation.requests import RequestsInstrumentor
-            from opentelemetry.sdk.resources import Resource
-            from opentelemetry.sdk.trace import TracerProvider
-            from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-            from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
-                InMemorySpanExporter,
-            )
-
-            trace.set_tracer_provider(
-                TracerProvider(
-                    resource=Resource.create(
-                        {"service.name": "runhouse-in-memory-service"}
-                    )
-                )
-            )
-            global memory_exporter
-            memory_exporter = InMemorySpanExporter()
-            trace.get_tracer_provider().add_span_processor(
-                SimpleSpanProcessor(memory_exporter)
-            )
-            # Instrument the app object
-            FastAPIInstrumentor.instrument_app(app)
-
-            # Instrument the requests library
-            RequestsInstrumentor().instrument()
-
-            @app.get("/spans")
-            @validate_cluster_access
-            def get_spans(request: Request):
-                return {
-                    "spans": [
-                        span.to_json() for span in memory_exporter.get_finished_spans()
-                    ]
-                }
-
-            @app.middleware("http")
-            async def _add_username_to_span(request: Request, call_next):
-                from opentelemetry import trace
-
-                span = trace.get_current_span()
-
-                token = get_token_from_request(request)
-                username = await obj_store.aget_username(token)
-                if username:
-                    # Set the username as a span attribute
-                    span.set_attribute("username", username)
-
-                return await call_next(request)
 
         default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
 
@@ -185,6 +135,7 @@ class HTTPServer:
                 default_env_name,
                 setup_ray=RaySetupOption.TEST_PROCESS,
                 runtime_env=runtime_env,
+                logs_level=log_level,
             )
 
         # TODO disabling due to latency, figure out what to do with this
@@ -194,24 +145,18 @@ class HTTPServer:
         # except Exception as e:
         #     logger.error(f"Failed to collect cluster stats: {str(e)}")
 
-        if enable_local_span_collection:
-            try:
-                # Collect telemetry stats for the cluster
-                HTTPServer._collect_telemetry_stats()
-            except Exception as e:
-                logger.error(f"Failed to collect cluster telemetry stats: {str(e)}")
-
         # We initialize a default env servlet where some things may run.
         _ = obj_store.get_env_servlet(
             env_name=default_env_name,
             create=True,
             runtime_env=runtime_env,
+            logs_level=log_level,
         )
 
         if default_env_name == EMPTY_DEFAULT_ENV_NAME:
-            from runhouse import env
+            from runhouse.resources.envs import Env
 
-            default_env = env(name=default_env_name, working_dir="./")
+            default_env = Env(name=default_env_name)
             data = (default_env.config(condensed=False), {}, False)
             obj_store.put_resource(
                 serialized_data=data, serialization=None, env_name=default_env_name
@@ -222,7 +167,6 @@ class HTTPServer:
         cls,
         default_env_name=None,
         conda_env=None,
-        enable_local_span_collection=None,
         from_test: bool = False,
         *args,
         **kwargs,
@@ -230,7 +174,6 @@ class HTTPServer:
         return sync_function(cls.ainitialize)(
             default_env_name,
             conda_env,
-            enable_local_span_collection,
             from_test,
             *args,
             **kwargs,
@@ -255,7 +198,7 @@ class HTTPServer:
         await obj_store.adisable_den_auth()
 
     @classmethod
-    async def disable_den_auth(cls):
+    def disable_den_auth(cls):
         return sync_function(HTTPServer.adisable_den_auth)()
 
     @staticmethod
@@ -339,6 +282,11 @@ class HTTPServer:
         if message.autostop_mins:
             obj_store.set_cluster_config_value("autostop_mins", message.autostop_mins)
 
+        if message.status_check_interval:
+            obj_store.set_cluster_config_value(
+                "status_check_interval", message.status_check_interval
+            )
+
         return Response(output_type=OutputType.SUCCESS)
 
     @staticmethod
@@ -366,7 +314,7 @@ class HTTPServer:
                     stream_logs=params.stream_logs,
                     serialization=params.serialization,
                     run_name=params.run_name,
-                    # remote=params.remote,
+                    remote=params.remote,
                 )
             )
             # If stream_logs is False, we'll wait for the result and return it
@@ -713,8 +661,9 @@ class HTTPServer:
     @staticmethod
     @app.get("/status")
     @validate_cluster_access
-    async def get_status(request: Request):
-        return await obj_store.astatus()
+    def get_status(request: Request):
+
+        return obj_store.status()
 
     @staticmethod
     def _collect_cluster_stats():
@@ -729,64 +678,6 @@ class HTTPServer:
             {**cluster_data, **sky_data},
             labels={"username": configs.username, "environment": "prod"},
         )
-
-    @staticmethod
-    def _collect_telemetry_stats():
-        """Collect telemetry stats and send them to the Runhouse hosted OpenTelemetry collector"""
-        from opentelemetry import trace
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-            OTLPSpanExporter,
-        )
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-        from opentelemetry.instrumentation.requests import RequestsInstrumentor
-        from opentelemetry.sdk.resources import Resource
-        from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
-        telemetry_collector_address = configs.get("telemetry_collector_address")
-
-        logger.info(f"Preparing to send telemetry to {telemetry_collector_address}")
-
-        # Set the tracer provider and the exporter
-        import runhouse
-
-        service_version = runhouse.__version__
-        if telemetry_collector_address == "https://api-dev.run.house:14318":
-            service_name = "runhouse-service-dev"
-            deployment_env = "dev"
-        else:
-            service_name = "runhouse-service-prod"
-            deployment_env = "prod"
-        trace.set_tracer_provider(
-            TracerProvider(
-                resource=Resource.create(
-                    {
-                        "service.namespace": "Runhouse_OSS",
-                        "service.name": service_name,
-                        "service.version": service_version,
-                        "deployment.environment": deployment_env,
-                    }
-                )
-            )
-        )
-        otlp_exporter = OTLPSpanExporter(
-            endpoint=telemetry_collector_address + "/v1/traces",
-        )
-
-        # Add the exporter to the tracer provider
-        trace.get_tracer_provider().add_span_processor(
-            BatchSpanProcessor(otlp_exporter)
-        )
-
-        logger.info(
-            f"Successfully added telemetry exporter {telemetry_collector_address}"
-        )
-
-        # Instrument the app object
-        FastAPIInstrumentor.instrument_app(app)
-
-        # Instrument the requests library
-        RequestsInstrumentor().instrument()
 
     @staticmethod
     def _cluster_status_report():
@@ -870,12 +761,6 @@ async def main():
         "--conda-env", type=str, default=None, help="Conda env to run server in"
     )
     parser.add_argument(
-        "--use-local-telemetry",
-        action="store_true",  # if providing --use-local-telemetry will be set to True
-        default=argparse.SUPPRESS,  # If user didn't specify, attribute will not be present (not False)
-        help="Enable local telemetry",
-    )
-    parser.add_argument(
         "--use-https",
         action="store_true",  # if providing --use-https will be set to True
         default=argparse.SUPPRESS,  # If user didn't specify, attribute will not be present (not False)
@@ -928,12 +813,24 @@ async def main():
         default=None,
         help="Name of env where the HTTP server is started.",
     )
-
     parser.add_argument(
         "--api-server-url",
         type=str,
         default=rns_client.api_server_url,
         help="URL of Runhouse Den",
+    )
+    parser.add_argument(
+        "--from-python",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Whether HTTP server is called from Python rather than CLI.",
+    )
+
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        default=DEFAULT_LOG_LEVEL,
+        help="The lowest log level of the printed logs",
     )
 
     parse_args = parser.parse_args()
@@ -942,6 +839,14 @@ async def main():
     restart_proxy = parse_args.restart_proxy
     api_server_url = parse_args.api_server_url
     default_env_name = parse_args.default_env_name
+
+    if not hasattr(parse_args, "from_python") and not default_env_name:
+        # detect default env if called from runhouse cli (start/restart) and cluster_config exists
+        from runhouse.resources.hardware.utils import load_cluster_config_from_file
+
+        cluster_config = load_cluster_config_from_file()
+        if cluster_config.get("default_env"):
+            default_env_name = cluster_config.get("default_env")["name"]
 
     # The object store and the cluster servlet within it need to be
     # initialized in order to call `obj_store.get_cluster_config()`, which
@@ -1004,23 +909,6 @@ async def main():
     if den_auth:
         await obj_store.aenable_den_auth()
 
-    # Telemetry enabled
-    if hasattr(
-        parse_args, "use_local_telemetry"
-    ) and parse_args.use_local_telemetry != cluster_config.get(
-        "use_local_telemetry", False
-    ):
-        logger.warning(
-            f"CLI provided use_local_telemetry: {parse_args.use_local_telemetry} is different from the "
-            f"use_local_telemetry specified in cluster_config.json: "
-            f"{cluster_config.get('use_local_telemetry')}. Prioritizing CLI provided use_local_telemetry."
-        )
-
-    use_local_telemetry = getattr(
-        parse_args, "use_local_telemetry", False
-    ) or cluster_config.get("use_local_telemetry", False)
-    cluster_config["use_local_telemetry"] = use_local_telemetry
-
     domain = parse_args.domain or cluster_config.get("domain", None)
     cluster_config["domain"] = domain
 
@@ -1082,11 +970,15 @@ async def main():
             f"cluster_config.json: {cluster_config.get('ips', [None])[0]}. Prioritizing CLI provided certs_address."
         )
 
-    certs_address = parse_args.certs_address or cluster_config.get("ips", [None])[0]
-    if certs_address is not None:
-        cluster_config["ips"] = [certs_address]
+    certs_addresses = parse_args.certs_address or cluster_config.get("ips", None)
+
+    # We don't want to unset multiple addresses if they were set in the cluster config
+    if certs_addresses is not None:
+        cluster_config["ips"] = certs_addresses
     else:
         cluster_config["ips"] = ["0.0.0.0"]
+
+    certs_address = certs_addresses[0] if certs_addresses else None
 
     config_conn = cluster_config.get("server_connection_type")
 
@@ -1130,13 +1022,11 @@ async def main():
         cluster_config["server_connection_type"] = "tls" if use_https else "none"
 
     await obj_store.aset_cluster_config(cluster_config)
-    logger.info("Updated cluster config with parsed argument values.")
 
     await HTTPServer.ainitialize(
         default_env_name=default_env_name,
         conda_env=conda_name,
-        enable_local_span_collection=use_local_telemetry
-        or configs.data_collection_enabled(),
+        logs_level=parse_args.log_level,
     )
 
     if den_auth:
@@ -1195,9 +1085,15 @@ async def main():
 
     logger.info(
         f"Launching Runhouse API server with den_auth={den_auth} and "
-        + f"use_local_telemetry={use_local_telemetry} "
         + f"on host={host} and use_https={use_https} and port_arg={daemon_port}"
     )
+
+    cluster = None
+    if not hasattr(parse_args, "from_python") and default_env_name:
+        from runhouse.resources.hardware import Cluster
+
+        cluster = Cluster.from_config(cluster_config)
+        cluster._sync_default_env_to_cluster()
 
     # Only launch uvicorn with certs if HTTPS is enabled and not using Caddy
     uvicorn_cert = parsed_ssl_certfile if not use_caddy and use_https else None
@@ -1213,6 +1109,15 @@ async def main():
     )
     server = uvicorn.Server(config)
     await server.serve()
+
+    if cluster:
+        cluster.put_resource(cluster.default_env)
+
+        from runhouse.resources.envs.utils import _process_env_vars
+
+        env_vars = _process_env_vars(cluster.default_env.env_vars)
+        if env_vars:
+            cluster.call(cluster.default_env.name, "_set_env_vars", env_vars)
 
 
 if __name__ == "__main__":

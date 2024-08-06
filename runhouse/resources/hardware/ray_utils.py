@@ -1,11 +1,10 @@
-import logging
 import subprocess
 from typing import Optional
 
 import ray
 from ray.experimental.state.api import list_actors
 
-logger = logging.getLogger(__name__)
+from runhouse.logger import logger
 
 
 def check_for_existing_ray_instance():

@@ -66,6 +66,17 @@ version <https://www.run.house/docs/tutorials/quick-start-local>`__ of
 this tutorial, which sets up and deploys the Python function to a local
 server, rather than a remote cluster.
 
+.. note::
+
+   Make sure that any code in your Python file that’s meant to only run
+   locally is placed within a ``if __name__ == "__main__":`` block.
+   Otherwise, that code will run when Runhouse attempts to import your
+   code remotely. For example, you wouldn’t want
+   ``function.to(cluster)`` to run again on the cluster. This is not
+   necessary when using a notebook. Please see our `examples
+   directory <https://github.com/run-house/runhouse/tree/main/examples>`__
+   for implementation details.
+
 To use a cluster that’s already running:
 
 .. code:: ipython3

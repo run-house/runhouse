@@ -1,11 +1,11 @@
-import logging
 import subprocess
 import time
 from typing import Optional
 
+from runhouse.logger import logger
+
 from .folder import Folder
 
-logger = logging.getLogger(__name__)
 
 MAX_POLLS = 120000
 POLL_INTERVAL = 1

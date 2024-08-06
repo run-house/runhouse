@@ -1,4 +1,3 @@
-import logging
 import subprocess
 
 from pathlib import Path
@@ -8,14 +7,13 @@ import yaml
 
 from runhouse.constants import ENVS_DIR
 from runhouse.globals import obj_store
+
+from runhouse.logger import logger
 from runhouse.resources.envs.utils import install_conda, run_setup_command
 
 from runhouse.resources.packages import Package
 
 from .env import Env
-
-
-logger = logging.getLogger(__name__)
 
 
 class CondaEnv(Env):

@@ -1,6 +1,5 @@
 import logging
 import subprocess
-import sys
 
 from pathlib import Path
 from typing import Dict, List
@@ -10,6 +9,7 @@ import yaml
 from runhouse.constants import CONDA_INSTALL_CMDS, EMPTY_DEFAULT_ENV_NAME
 from runhouse.globals import rns_client
 from runhouse.resources.resource import Resource
+from runhouse.utils import locate_working_dir, run_with_logs
 
 
 def _process_reqs(reqs):
@@ -25,11 +25,8 @@ def _process_reqs(reqs):
                 package = rns_client.load_config(package)
             else:
                 # if package refers to a local path package
-                path = Path(package.split(":")[-1]).expanduser()
-                if (
-                    path.is_absolute()
-                    or (rns_client.locate_working_dir() / path).exists()
-                ):
+                path = Path(Package.split_req_install_method(package)[1]).expanduser()
+                if path.is_absolute() or (locate_working_dir() / path).exists():
                     package = Package.from_string(package)
         elif isinstance(package, dict):
             package = Package.from_config(package)
@@ -53,7 +50,7 @@ def _get_env_from(env):
     if isinstance(env, List):
         if len(env) == 0:
             return Env(reqs=env, working_dir=None)
-        return Env(reqs=env, working_dir="./")
+        return Env(reqs=env)
     elif isinstance(env, Dict):
         return Env.from_config(env)
     elif isinstance(env, str) and EMPTY_DEFAULT_ENV_NAME not in env:
@@ -99,7 +96,7 @@ def _get_conda_yaml(conda_env=None):
         for dep in conda_yaml["dependencies"]
         if isinstance(dep, Dict) and "pip" in dep
     ]:
-        conda_yaml["dependencies"].append({"pip": ["ray >= 2.2.0, <= 2.6.3, != 2.6.0"]})
+        conda_yaml["dependencies"].append({"pip": ["ray >= 2.2.0, != 2.6.0"]})
     else:
         for dep in conda_yaml["dependencies"]:
             if (
@@ -107,7 +104,7 @@ def _get_conda_yaml(conda_env=None):
                 and "pip" in dep
                 and not [pip for pip in dep["pip"] if "ray" in pip]
             ):
-                dep["pip"].append("ray >= 2.2.0, <= 2.6.3, != 2.6.0")
+                dep["pip"].append("ray >= 2.2.0, != 2.6.0")
                 continue
     return conda_yaml
 
@@ -126,53 +123,12 @@ def _env_vars_from_file(env_file):
 
 
 # ------- Installation helpers -------
-
-
-def run_with_logs(cmd: str, **kwargs):
-    """Runs a command and prints the output to sys.stdout.
-    We can't just pipe to sys.stdout, and when in a `call` method
-    we overwrite sys.stdout with a multi-logger to a file and stdout.
-
-    Args:
-        cmd: The command to run.
-        kwargs: Keyword arguments to pass to subprocess.Popen.
-
-    Returns:
-        The returncode of the command.
-    """
-    require_outputs = kwargs.pop("require_outputs", False)
-    stream_logs = kwargs.pop("stream_logs", True)
-
-    p = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        shell=True,
-        **kwargs,
-    )
-
-    out = ""
-    if stream_logs:
-        while True:
-            line = p.stdout.readline()
-            if line == "" and p.poll() is not None:
-                break
-            sys.stdout.write(line)
-            sys.stdout.flush()
-            if require_outputs:
-                out += line
-
-    stdout, stderr = p.communicate()
-
-    if require_outputs:
-        stdout = stdout or out
-        return p.returncode, stdout, stderr
-
-    return p.returncode
-
-
-def run_setup_command(cmd: str, cluster: "Cluster" = None, stream_logs: bool = False):
+def run_setup_command(
+    cmd: str,
+    cluster: "Cluster" = None,
+    env_vars: Dict = None,
+    stream_logs: bool = False,
+):
     """
     Helper function to run a command during possibly the cluster default env setup. If a cluster is provided,
     run command on the cluster using SSH. If the cluster is not provided, run locally, as if already on the
@@ -188,13 +144,19 @@ def run_setup_command(cmd: str, cluster: "Cluster" = None, stream_logs: bool = F
     """
     if not cluster:
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
-    return cluster._run_commands_with_ssh([cmd], stream_logs=stream_logs)[0]
+    elif cluster.on_this_cluster():
+        cmd = cluster.default_env._full_command(cmd)
+        return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
+
+    return cluster._run_commands_with_ssh(
+        [cmd], stream_logs=stream_logs, env_vars=env_vars
+    )[0]
 
 
 def install_conda(cluster: "Cluster" = None):
-    if run_setup_command("conda --version")[0] != 0:
+    if run_setup_command("conda --version", cluster=cluster)[0] != 0:
         logging.info("Conda is not installed. Installing...")
         for cmd in CONDA_INSTALL_CMDS:
-            run_setup_command(cmd, stream_logs=True)
-        if run_setup_command("conda --version")[0] != 0:
+            run_setup_command(cmd, cluster=cluster, stream_logs=True)
+        if run_setup_command("conda --version", cluster=cluster)[0] != 0:
             raise RuntimeError("Could not install Conda.")

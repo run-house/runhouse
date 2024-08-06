@@ -1,4 +1,3 @@
-import logging
 import multiprocessing
 import os
 import time
@@ -9,9 +8,9 @@ import requests
 import runhouse as rh
 from runhouse.globals import rns_client
 
-from tests.utils import friend_account
+from runhouse.logger import logger
 
-logger = logging.getLogger(__name__)
+from tests.utils import friend_account
 
 
 def get_remote_func_name(test_folder):
@@ -639,3 +638,9 @@ class TestFunction:
         future_module = async_returns_coroutine_remote(2, 3, run_async=False)
         assert future_module.__class__.__name__ == "FutureModule"
         assert await future_module == 5
+
+    @pytest.mark.level("local")
+    def test_send_function_to_fresh_env(self, cluster):
+        env = rh.env(name="fresh_env", reqs=["numpy"])
+        summer_remote = rh.function(summer).to(cluster, env=env)
+        summer_remote(2, 3)

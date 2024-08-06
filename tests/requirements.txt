@@ -11,8 +11,13 @@ boto3
 docker
 s3fs
 pandas
+numpy<=1.26.4
 pyarrow
-openapi-core
+openapi-core==0.19.1
+plotly
 
 # packages for minimal+ tests
-skypilot
+skypilot==0.5.0
+
+# requests must be lowered
+requests<2.32.0

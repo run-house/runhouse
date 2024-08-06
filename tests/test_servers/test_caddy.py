@@ -351,7 +351,7 @@ class TestCaddyServerLocally:
     def test_using_caddy_on_local_cluster(self, cluster):
         protocol = "https" if cluster._use_https else "http"
 
-        cluster.check_server()
+        cluster.client.check_server()
 
         assert cluster.is_up()
 

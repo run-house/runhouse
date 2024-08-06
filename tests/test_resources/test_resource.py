@@ -97,6 +97,10 @@ class TestResource:
 
     @pytest.mark.level("local")
     def test_save_and_load(self, saved_resource):
+        if TEST_ORG in saved_resource.rns_address:
+            # Kitchen tester not in the org, so skip for org resources
+            return
+
         alt_resource = None
         # Test loading from name
         loaded_resource = saved_resource.__class__.from_name(saved_resource.rns_address)
@@ -177,6 +181,10 @@ class TestResource:
         if saved_resource.__class__.__name__ == "OnDemandCluster":
             return
 
+        if TEST_ORG in saved_resource.rns_address:
+            # Org resources require org membership or being granted explicit access - have a separate test for this
+            return
+
         if saved_resource.rns_address.startswith("~"):
             # For `local_named_resource` resolve the rns address so it can be shared and loaded
             from runhouse.globals import rns_client
@@ -232,28 +240,43 @@ class TestResource:
         assert new_config == config
 
     @pytest.mark.level("local")
-    def test_sharing_and_loading_resource_for_org(self, named_resource_for_org):
-        with pytest.raises(Exception):
-            # Friend account should not be able to load the resource without org membership or explicit resource access
-            with friend_account():
-                new_config = load_shared_resource_config(
-                    named_resource_for_org.__class__.__name__,
-                    named_resource_for_org.rns_address,
-                )
-                assert new_config == named_resource_for_org.config()
-
-        # Current user with access to org should be able to reload
-        new_config = load_shared_resource_config(
-            named_resource_for_org.__class__.__name__,
-            named_resource_for_org.rns_address,
-        )
-        assert new_config == named_resource_for_org.config()
-
-    @pytest.mark.level("local")
-    def test_create_and_load_new_subresources_for_org(
-        self, named_resource_for_org, docker_cluster_pk_ssh_den_auth
+    def test_sharing_org_resources(
+        self, saved_resource, docker_cluster_pk_ssh_den_auth
     ):
         from tests.test_servers.conftest import summer
+
+        # Skip this test for ondemand clusters, because making
+        # it compatible with ondemand_cluster requires changes
+        # that break CI.
+        # TODO: Remove this by doing some CI-specific logic.
+        if saved_resource.__class__.__name__ == "OnDemandCluster":
+            return
+
+        if TEST_ORG not in saved_resource.rns_address:
+            # Skip if resource is not associated with an org
+            return
+
+        if saved_resource.rns_address.startswith("~"):
+            # For `local_named_resource` resolve the rns address so it can be shared and loaded
+            from runhouse.globals import rns_client
+
+            saved_resource.rns_address = rns_client.local_to_remote_address(
+                saved_resource.rns_address
+            )
+
+        saved_resource.share(
+            users=["support@run.house"],
+            access_level="read",
+            notify_users=False,
+        )
+
+        # Org resources require org membership or being granted explicit access
+        with pytest.raises(ValueError):
+            with friend_account():
+                load_shared_resource_config(
+                    saved_resource.__class__.__name__,
+                    saved_resource.rns_address,
+                )
 
         resource_name = f"/{TEST_ORG}/summer_func"
         args = {"name": resource_name, "fn": summer}
@@ -262,7 +285,7 @@ class TestResource:
         f = rh.function(**args).to(docker_cluster_pk_ssh_den_auth, env=["pytest"])
         init_args[id(f)] = args
 
-        # # Should be saved to Den under the org
+        # Should be saved to Den under the org
         f.save()
 
         # Reload the function with the rns address pointing to the org

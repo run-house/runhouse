@@ -1,22 +1,44 @@
 import asyncio
-import logging
+import copy
+import json
 import threading
-import time
 from typing import Any, Dict, List, Optional, Set, Union
 
+import requests
+
+import runhouse
+
+from runhouse.constants import (
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_LOG_SURFACING_INTERVAL,
+    DEFAULT_STATUS_CHECK_INTERVAL,
+    INCREASED_INTERVAL,
+    INCREASED_STATUS_CHECK_INTERVAL,
+    S3_LOGS_FILE_NAME,
+    SCHEDULERS_DELAY,
+    SERVER_LOGFILE,
+)
+
 from runhouse.globals import configs, obj_store, rns_client
+from runhouse.logger import ColoredFormatter, logger
 from runhouse.resources.hardware import load_cluster_config_from_file
+from runhouse.resources.hardware.utils import detect_cuda_version_or_cpu
+from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
+from runhouse.servers.autostop_helper import AutostopHelper
 from runhouse.servers.http.auth import AuthCache
 
-logger = logging.getLogger(__name__)
+from runhouse.utils import sync_function
+
+
+class ClusterServletError(Exception):
+    pass
 
 
 class ClusterServlet:
     async def __init__(
         self, cluster_config: Optional[Dict[str, Any]] = None, *args, **kwargs
     ):
-
         # We do this here instead of at the start of the HTTP Server startup
         # because someone can be running `HTTPServer()` standalone in a test
         # and still want an initialized cluster config in the servlet.
@@ -29,48 +51,19 @@ class ClusterServlet:
         self._initialized_env_servlet_names: Set[str] = set()
         self._key_to_env_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache(cluster_config)
+        self.autostop_helper = None
+
+        logger.setLevel(kwargs.get("logs_level", DEFAULT_LOG_LEVEL))
+        self.logger = logger
 
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
-            if cluster_config.get("autostop_mins") > 0:
-                try:
-                    from sky.skylet import configs  # noqa
-                except ImportError:
-                    raise ImportError(
-                        "skypilot must be installed on the cluster environment to support cluster autostop. "
-                        "Install using cluster.run('pip install skypilot') or adding `skypilot` to the env requirements."
-                    )
-            self._last_activity = time.time()
-            self._last_register = None
-            thread = threading.Thread(target=self.update_autostop, daemon=True)
-            thread.start()
+            self.autostop_helper = AutostopHelper()
 
-    ##############################################
-    # Cluster autostop
-    ##############################################
-    def update_autostop(self):
-        import pickle
-
-        from sky.skylet import configs as sky_configs
-
-        while True:
-            autostop_mins = pickle.loads(
-                sky_configs.get_config("autostop_config")
-            ).autostop_idle_minutes
-            self._last_register = float(
-                sky_configs.get_config("autostop_last_active_time")
-            )
-            if autostop_mins > 0 and (
-                not self._last_register
-                or (
-                    # within 2 min of autostop and there's more recent activity
-                    60 * autostop_mins - (time.time() - self._last_register) < 120
-                    and self._last_activity > self._last_register
-                )
-            ):
-                sky_configs.set_config("autostop_last_active_time", self._last_activity)
-                self._last_register = self._last_activity
-
-            time.sleep(30)
+        logger.info("Creating periodic_cluster_checks thread.")
+        cluster_checks_thread = threading.Thread(
+            target=self.periodic_cluster_checks, daemon=True
+        )
+        cluster_checks_thread.start()
 
     ##############################################
     # Cluster config state storage methods
@@ -79,6 +72,9 @@ class ClusterServlet:
         return self.cluster_config
 
     async def aset_cluster_config(self, cluster_config: Dict[str, Any]):
+        if "has_cuda" not in cluster_config.keys():
+            cluster_config["has_cuda"] = detect_cuda_version_or_cpu() != "cpu"
+
         self.cluster_config = cluster_config
 
         # Propagate the changes to all other process's obj_stores
@@ -97,11 +93,8 @@ class ClusterServlet:
         return self.cluster_config
 
     async def aset_cluster_config_value(self, key: str, value: Any):
-        if key == "autostop_mins" and value > -1:
-            from sky.skylet import configs as sky_configs
-
-            self._last_activity = time.time()
-            sky_configs.set_config("autostop_last_active_time", self._last_activity)
+        if self.autostop_helper and key == "autostop_mins":
+            await self.autostop_helper.set_autostop(value)
         self.cluster_config[key] = value
 
         # Propagate the changes to all other process's obj_stores
@@ -187,7 +180,8 @@ class ClusterServlet:
         return self._key_to_env_servlet_name
 
     async def aget_env_servlet_name_for_key(self, key: Any) -> str:
-        self._last_activity = time.time()
+        if self.autostop_helper:
+            await self.autostop_helper.set_last_active_time_to_now()
         return self._key_to_env_servlet_name.get(key, None)
 
     async def aput_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
@@ -217,3 +211,267 @@ class ClusterServlet:
         for key in deleted_keys:
             self._key_to_env_servlet_name.pop(key)
         return deleted_keys
+
+    ##############################################
+    # Cluster status functions
+    ##############################################
+
+    async def aperiodic_cluster_checks(self):
+        # Delay the start of post_status_thread, so we'll finish the cluster startup properly
+        await asyncio.sleep(SCHEDULERS_DELAY)
+        while True:
+            try:
+
+                cluster_config = await self.aget_cluster_config()
+                interval_size = cluster_config.get(
+                    "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
+                )
+
+                # Only if one of these is true, do we actually need to get the status from each EnvServlet
+                should_send_status_and_logs_to_den = (
+                    configs.token is not None and interval_size != -1
+                )
+                should_update_autostop = self.autostop_helper is not None
+
+                # turning off sending logs for now, until latency issue resolved and send logs revamp will land in next release
+                send_logs = False
+
+                if should_send_status_and_logs_to_den or should_update_autostop:
+                    logger.info(
+                        "Performing cluster checks: potentially sending to Den, surfacing logs to Den or updating autostop."
+                    )
+                    status: ResourceStatusData = await self.astatus()
+
+                    if should_update_autostop:
+                        function_running = any(
+                            any(
+                                len(
+                                    resource["env_resource_mapping"][resource_name].get(
+                                        "active_function_calls", []
+                                    )
+                                )
+                                > 0
+                                for resource_name in resource[
+                                    "env_resource_mapping"
+                                ].keys()
+                            )
+                            for resource in status.env_servlet_processes.values()
+                        )
+                        if function_running:
+                            await self.autostop_helper.set_last_active_time_to_now()
+                        # We do this separately from the set_last_active_time_to_now call above because
+                        # function_running will only reflect activity from functions which happen to be running during
+                        # the status check. We still need to attempt to register activity for functions which have
+                        # been called and completed.
+                        await self.autostop_helper.register_activity_if_needed()
+
+                    if should_send_status_and_logs_to_den:
+                        cluster_rns_address = cluster_config.get("name")
+                        cluster_uri = rns_client.format_rns_address(cluster_rns_address)
+                        api_server_url = status.cluster_config.get(
+                            "api_server_url", rns_client.api_server_url
+                        )
+
+                        sent_status = await rns_client.send_status(
+                            status=status,
+                            cluster_uri=cluster_uri,
+                            api_server_url=api_server_url,
+                        )
+
+                        if sent_status == 404:
+                            logger.info(
+                                "Cluster has not been saved, no update to status or logs."
+                            )
+                        elif sent_status != 200:
+                            logger.error(
+                                f"{sent_status}: Error in sending cluster status to Den. Check cluster logs for more info."
+                            )
+                        else:
+                            logger.debug("Successfully sent cluster status to Den.")
+
+                            if send_logs:
+                                logs_resp = await rns_client.send_cluster_logs_to_den(
+                                    cluster_uri=cluster_uri,
+                                    api_server_url=api_server_url,
+                                )
+
+                                if logs_resp != 200:
+                                    logger.error(
+                                        f"{logs_resp}: Error in sending cluster logs to Den. Check cluster logs for more info."
+                                    )
+                                else:
+                                    logger.debug(
+                                        "Successfully sent cluster logs to Den."
+                                    )
+
+            except Exception as e:
+                self.logger.error(
+                    f"Cluster status check has failed: {str(e)}. Please check cluster logs for more info."
+                )
+                self.logger.warning(
+                    f"Temporarily increasing the interval between two consecutive status checks. "
+                    f"Next status check will be in {round(INCREASED_INTERVAL / 60, 2)} minutes. "
+                    f"For changing the interval size, please run cluster._enable_or_update_status_check(new_interval). "
+                    f"If a value is not provided, interval size will be set to {round(DEFAULT_STATUS_CHECK_INTERVAL / 60, 2)} minutes."
+                )
+                await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
+            else:
+                # make sure that the thread will go to sleep, even if the interval size == -1
+                # (meaning that sending status to den is disabled).
+                interval_size = (
+                    DEFAULT_STATUS_CHECK_INTERVAL
+                    if interval_size == -1
+                    else interval_size
+                )
+                await asyncio.sleep(interval_size)
+
+    def periodic_cluster_checks(self):
+        # This is only ever called once in its own thread, so we can do asyncio.run here instead of
+        # sync_function.
+        asyncio.run(self.aperiodic_cluster_checks())
+
+    async def _status_for_env_servlet(self, env_servlet_name):
+        try:
+            (
+                objects_in_env_servlet,
+                env_servlet_utilization_data,
+            ) = await obj_store.acall_env_servlet_method(
+                env_servlet_name, method="astatus_local"
+            )
+
+            return {
+                "env_servlet_name": env_servlet_name,
+                "objects_in_env_servlet": objects_in_env_servlet,
+                "env_servlet_utilization_data": env_servlet_utilization_data,
+            }
+
+        # Need to catch the exception here because we're running this in a gather,
+        # and need to know which env servlet failed
+        except Exception as e:
+            return {"env_servlet_name": env_servlet_name, "Exception": e}
+
+    async def astatus(self):
+        import psutil
+
+        from runhouse.utils import get_pid
+
+        config_cluster = copy.deepcopy(self.cluster_config)
+
+        # Popping out creds because we don't want to show them in the status
+        config_cluster.pop("creds", None)
+
+        # Getting data from each env servlet about the objects it contains and the utilization data
+        env_servlet_utilization_data = {}
+        env_servlets_status = await asyncio.gather(
+            *[
+                self._status_for_env_servlet(env_servlet_name)
+                for env_servlet_name in self._initialized_env_servlet_names
+            ],
+        )
+
+        # Store the data for the appropriate env servlet name
+        for env_status in env_servlets_status:
+            env_servlet_name = env_status.get("env_servlet_name")
+
+            # Nothing if there was an exception
+            if "Exception" in env_status.keys():
+                e = env_status.get("Exception")
+                self.logger.warning(
+                    f"Exception {str(e)} in status for env servlet {env_servlet_name}"
+                )
+                env_servlet_utilization_data[env_servlet_name] = {}
+
+            # Otherwise, store what was in the env and the utilization data
+            else:
+                env_memory_info = env_status.get("env_servlet_utilization_data")
+                env_memory_info["env_resource_mapping"] = env_status.get(
+                    "objects_in_env_servlet"
+                )
+                env_servlet_utilization_data[env_servlet_name] = env_memory_info
+
+        # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
+        cpu_usage = psutil.cpu_percent(interval=1)
+
+        # Fields: `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
+        memory_usage = psutil.virtual_memory()._asdict()
+
+        # Fields: `total`, `used`, `free`, `percent`
+        disk_usage = psutil.disk_usage("/")._asdict()
+
+        status_data = {
+            "cluster_config": config_cluster,
+            "runhouse_version": runhouse.__version__,
+            "server_pid": get_pid(),
+            "env_servlet_processes": env_servlet_utilization_data,
+            "system_cpu_usage": cpu_usage,
+            "system_memory_usage": memory_usage,
+            "system_disk_usage": disk_usage,
+        }
+        status_data = ResourceStatusData(**status_data)
+        return status_data
+
+    def status(self):
+        return sync_function(self.astatus)()
+
+    ##############################################
+    # Surface cluster logs to Den
+    ##############################################
+    def _get_logs(self):
+        with open(SERVER_LOGFILE) as log_file:
+            log_lines = log_file.readlines()
+        cleaned_log_lines = [ColoredFormatter.format_log(line) for line in log_lines]
+        return " ".join(cleaned_log_lines)
+
+    async def asend_cluster_logs_to_den(self):
+        # Delay the start of post_logs_thread, so we'll finish the cluster startup properly
+        await asyncio.sleep(SCHEDULERS_DELAY)
+
+        while True:
+            self.logger.info("Trying to send cluster logs to Den")
+            try:
+                interval_size = DEFAULT_LOG_SURFACING_INTERVAL
+                latest_logs = self._get_logs()
+                logs_data = {"file_name": S3_LOGS_FILE_NAME, "logs": latest_logs}
+
+                cluster_config = await self.aget_cluster_config()
+                cluster_uri = rns_client.format_rns_address(cluster_config.get("name"))
+                api_server_url = cluster_config.get(
+                    "api_server_url", rns_client.api_server_url
+                )
+
+                post_logs_resp = requests.post(
+                    f"{api_server_url}/resource/{cluster_uri}/logs",
+                    data=json.dumps(logs_data),
+                    headers=rns_client.request_headers(),
+                )
+
+                post_logs_resp_json = post_logs_resp.json()
+
+                if post_logs_resp.status_code != 200:
+                    post_logs_error = (
+                        post_logs_resp_json.get("detail")
+                        if post_logs_resp_json.get("detail")
+                        else ""
+                    )
+                    self.logger.error(
+                        f"({post_logs_resp.status_code}) Failed to send cluster logs to Den: {post_logs_error}"
+                    )
+                else:
+                    self.logger.debug(
+                        f"Successfully sent cluster logs to Den. Next status check will be in {round(interval_size / 60, 2)} minutes."
+                    )
+            except Exception as e:
+                self.logger.error(
+                    f"Sending cluster logs to den has failed: {e}. Please check cluster logs for more info."
+                )
+                self.logger.warning(
+                    f"Temporarily increasing the interval between two consecutive log retrievals."
+                    f"Next log retrieval will be in {round(INCREASED_INTERVAL / 60, 2)} minutes. "
+                    f"For changing the interval size, please run cluster.restart_server(). "
+                    f"Interval size will be set to {interval_size}"
+                )
+            finally:
+                await asyncio.sleep(interval_size)
+
+    def send_cluster_logs_to_den(self):
+        asyncio.run(self.asend_cluster_logs_to_den())

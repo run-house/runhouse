@@ -146,11 +146,143 @@ factory function.
 
 .. code:: ipython3
 
-    from transformers import AutoModel
+    %%writefile bert_module.py
 
-    RemoteModel = rh.module(AutoModel).to(my_gpu)
-    remote_model = AutoModel.from_pretrained("google-bert/bert-base-uncased")
-    remote_model.predict()
+    from transformers import AutoModel, AutoTokenizer
+    import runhouse as rh
+
+
+    class BERT:
+        def __init__(self, model_id="google-bert/bert-base-uncased"):
+            self.model_id = model_id
+            self.model = None
+            self.tokenizer = None
+
+        def load_model(self):
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
+            self.model = AutoModel.from_pretrained(self.model_id)
+
+        def embed(self, samples):
+            if not self.model:
+                self.load_model()
+            tokens = self.tokenizer(samples, return_tensors="pt", padding=True, truncation=True)
+            return self.model(tokens.input_ids, attention_mask=tokens.attention_mask).last_hidden_state
+
+
+.. parsed-literal::
+    :class: code-output
+
+    Writing bert_module.py
+
+
+.. code:: ipython3
+
+    from bert_module import BERT
+
+    my_gpu = rh.cluster(name="rh-a10g", instance_type="A10G:1").up_if_not()
+    RemoteBERT = rh.module(BERT).to(my_gpu, env=rh.env(reqs=["torch", "transformers"]))
+
+
+
+.. parsed-literal::
+    :class: code-output
+
+    Output()
+
+
+
+.. raw:: html
+
+    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"></pre>
+
+
+
+
+.. raw:: html
+
+    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace">
+    </pre>
+
+
+
+
+.. parsed-literal::
+    :class: code-output
+
+    Output()
+
+
+
+.. raw:: html
+
+    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"></pre>
+
+
+
+
+.. raw:: html
+
+    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace">
+    </pre>
+
+
+
+.. parsed-literal::
+    :class: code-output
+
+    INFO | 2024-06-28 13:38:52.123093 | SSH tunnel on to server's port 32300 via server's ssh port 22 already created with the cluster.
+    INFO | 2024-06-28 13:38:52.672446 | Server rh-a10g is up.
+    INFO | 2024-06-28 13:38:52.685503 | Copying package from file:///Users/josh.l/dev/notebooks to: rh-a10g
+    INFO | 2024-06-28 13:38:55.339610 | Calling _cluster_default_env._install_reqs
+
+
+.. parsed-literal::
+    :class: code-output
+
+    -------
+    [36mrh-a10g[0m
+    -------
+    [36mInstalling Package: torch with method pip.
+    [0m[36mInstalling Package: transformers with method pip.
+    [0m[36mInstalling Package: ~/notebooks with method reqs.
+    [0m[36m/home/ubuntu/notebooks/requirements.txt not found, skipping
+    [0m
+
+.. parsed-literal::
+    :class: code-output
+
+    INFO | 2024-06-28 13:38:59.514676 | Time to call _cluster_default_env._install_reqs: 4.18 seconds
+    INFO | 2024-06-28 13:38:59.528542 | Calling _cluster_default_env._run_setup_cmds
+    INFO | 2024-06-28 13:39:00.183951 | Time to call _cluster_default_env._run_setup_cmds: 0.66 seconds
+    INFO | 2024-06-28 13:39:00.196598 | Sending module BERT of type <class 'runhouse.resources.module.BERT'> to rh-a10g
+
+
+.. code:: ipython3
+
+    remote_model = RemoteBERT("google-bert/bert-base-uncased")
+    print(remote_model.embed(["Hello, world!"]))
+
+
+.. parsed-literal::
+    :class: code-output
+
+    INFO | 2024-06-28 13:39:19.756608 | Calling BERT._remote_init
+    INFO | 2024-06-28 13:39:20.416427 | Time to call BERT._remote_init: 0.66 seconds
+    INFO | 2024-06-28 13:39:20.424210 | Calling BERT.embed
+    INFO | 2024-06-28 13:39:23.748200 | Time to call BERT.embed: 3.32 seconds
+
+
+.. parsed-literal::
+    :class: code-output
+
+    tensor([[[-0.0781,  0.1587,  0.0400,  ..., -0.2805,  0.0248,  0.4081],
+             [-0.2016,  0.1781,  0.4184,  ..., -0.2522,  0.3630, -0.0979],
+             [-0.7156,  0.6751,  0.6017,  ..., -1.1032,  0.0797,  0.0567],
+             [ 0.0527, -0.1483,  1.3609,  ..., -0.4513,  0.1274,  0.2655],
+             [-0.7122, -0.4815, -0.1438,  ...,  0.5602, -0.1062, -0.1301],
+             [ 0.9955,  0.1328, -0.0621,  ...,  0.2460, -0.6502, -0.3296]]],
+           requires_grad=True)
+
 
 Constructing your own rh.Module Class
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

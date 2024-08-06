@@ -22,7 +22,7 @@ First install Runhouse with ``pip install runhouse``
 
 Next, start the Runhouse server locally on CLI with
 ``runhouse restart``, and use ``runhouse status`` to print the status
-and details of the server.
+and details of the server. For printing cluster's status outside the cluser, its name should provided as well: ``runhouse status <cluster_name>``.
 
 .. code:: ipython3
 
@@ -32,24 +32,66 @@ and details of the server.
 
     !runhouse status
 
+*CPU cluster*
 
 .. parsed-literal::
     :class: code-output
 
-    [1;38;5;63m😈 Runhouse Daemon is running 🏃[0m
-    • server_port: [1;36m32300[0m
-    • den_auth: [3;91mFalse[0m
-    • server_connection_type: none
+    /sashab/rh-basic-cpu
+    😈 Runhouse Daemon is running 🏃
+    Runhouse v0.0.28
+    server pid: 29395
+    • server port: 32300
+    • den auth: True
+    • server connection type: ssh
     • backend config:
-            • use_local_telemetry: [3;91mFalse[0m
-            • domain: [3;35mNone[0m
-            • server_host: [1;92m0.0.0.0[0m
-            • ips: [1m[[0m[32m'0.0.0.0'[0m[1m][0m
-            • resource_subtype: Cluster
-    [1mServing 🍦 :[0m
-    [3;4mbase [0m[1;3;4m([0m[3;4mEnv[0m[1;3;4m)[0m[3;4m:[0m
-    This environment has no resources.
-    [0m
+      • resource subtype: OnDemandCluster
+      • domain: None
+      • server host: 0.0.0.0
+      • ips: ['52.207.212.159']
+      • resource subtype: OnDemandCluster
+      • autostop mins: autostop disabled
+    Serving 🍦 :
+    • _cluster_default_env (runhouse.Env)
+      This environment has only python packages installed, if such provided. No resources were found.
+    • sd_env (runhouse.Env) | pid: 29716 | node: head (52.207.212.159)
+      CPU: 0.0% | Memory: 0.13 / 8 Gb (1.65%)
+      This environment has only python packages installed, if such provided. No resources were found.
+    • np_pd_env (runhouse.Env) | pid: 29578 | node: head (52.207.212.159)
+      CPU: 0.0% | Memory: 0.13 / 8 Gb (1.71%)
+      • /sashab/summer (runhouse.Function)
+      • mult (runhouse.Function)
+
+*GPU cluster*
+
+.. parsed-literal::
+    :class: code-output
+
+    /sashab/rh-basic-gpu
+    😈 Runhouse Daemon is running 🏃
+    Runhouse v0.0.28
+    server pid: 29486
+    • server port: 32300
+    • den auth: True
+    • server connection type: ssh
+    • backend config:
+      • resource subtype: OnDemandCluster
+      • domain: None
+      • server host: 0.0.0.0
+      • ips: ['35.171.157.49']
+      • resource subtype: OnDemandCluster
+      • autostop mins: autostop disabled
+    Serving 🍦 :
+    • _cluster_default_env (runhouse.Env)
+      This environment has only python packages installed, if such provided. No resources were found.
+    • np_pd_env (runhouse.Env) | pid: 29672 | node: head (35.171.157.49)
+      CPU: 0.0% | Memory: 0.13 / 16 Gb (0.85%)
+      • /sashab/summer (runhouse.Function)
+      • mult (runhouse.Function)
+    • sd_env (runhouse.Env) | pid: 29812 | node: head (35.171.157.49)
+      CPU: 1.0% | Memory: 4.47 / 16 Gb (28.95%)
+      GPU: 0.0% | Memory: 6.89 / 23 Gb (29.96%)
+      • sd_generate (runhouse.Function)
 
 Local Python Function
 ---------------------
@@ -71,6 +113,17 @@ Deployment
 Standing up your Python code on the server is simple with the Runhouse
 API. Wrap the function with ``rh.function``, and then use
 ``.to(rh.here)`` to sync it to the server.
+
+.. note::
+
+   Make sure that any code in your Python file that’s meant to only run
+   locally is placed within a ``if __name__ == "__main__":`` block.
+   Otherwise, that code will run when Runhouse attempts to import your
+   code remotely. For example, you wouldn’t want
+   ``function.to(rh.here)`` to run again on the server. This is not
+   necessary when using a notebook. Please see our `examples
+   directory <https://github.com/run-house/runhouse/tree/main/examples>`__
+   for implementation details.
 
 .. code:: ipython3
 

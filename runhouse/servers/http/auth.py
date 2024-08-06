@@ -1,11 +1,9 @@
-import logging
 from typing import Optional, Union
 
 from runhouse.globals import rns_client
+from runhouse.logger import logger
 from runhouse.rns.utils.api import load_resp_content, ResourceAccess
 from runhouse.servers.http.http_utils import username_from_token
-
-logger = logging.getLogger(__name__)
 
 
 class AuthCache:
@@ -42,7 +40,7 @@ class AuthCache:
         else:
             resource_uri_to_send = resource_uri.replace("/", ":")
 
-        uri = f"{self.cluster_config.get('api_server_url')}/resource/{resource_uri_to_send}"
+        uri = f"{self.cluster_config.get('api_server_url', rns_client.api_server_url)}/resource/{resource_uri_to_send}"
         resp = rns_client.session.get(
             uri,
             headers={"Authorization": f"Bearer {token}"},

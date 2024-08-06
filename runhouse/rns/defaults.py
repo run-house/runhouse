@@ -1,3 +1,4 @@
+import contextvars
 import copy
 import json
 import logging
@@ -9,9 +10,12 @@ from typing import Any, Dict, Optional
 import requests
 import yaml
 
+from runhouse.logger import logger
+
 from runhouse.rns.utils.api import read_resp_data, to_bool
 
-logger = logging.getLogger(__name__)
+
+req_ctx = contextvars.ContextVar("rh_ctx", default={})
 
 
 class Defaults:
@@ -28,11 +32,9 @@ class Defaults:
         "use_spot": False,
         "use_local_configs": True,
         "disable_data_collection": False,
-        "use_local_telemetry": False,
         "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
-        "telemetry_collector_address": "https://api.run.house:14318",
     }
 
     def __init__(self):
@@ -41,21 +43,30 @@ class Defaults:
         self._default_folder = None
         self._defaults_cache = defaultdict(dict)
         self._simulate_logged_out = False
+        self._use_caller_token = False
 
     @property
     def token(self):
         if self._simulate_logged_out:
             return None
 
-        # This is not to "cache" the token, but rather to allow us to manually override it in python
+        # The token can be manually overriden in Python when we are logging in a test user and such
         if self._token:
             return self._token
+
+        if self._use_caller_token:
+            req_ctx_obj = req_ctx.get()
+            if req_ctx_obj:
+                return req_ctx_obj.token
+
+        # If nothing was set in req_ctx, we default to the environment variable
         if os.environ.get("RH_TOKEN"):
-            self._token = os.environ.get("RH_TOKEN")
-            return self._token
+            return os.environ.get("RH_TOKEN")
+
+        # Finally, we check the defaults cache, which is loaded from the config.yaml file
         if "token" in self.defaults_cache:
-            self._token = self.defaults_cache["token"]
-            return self._token
+            return self.defaults_cache["token"]
+
         return None
 
     @token.setter
@@ -224,7 +235,9 @@ class Defaults:
 
     def set_nested(self, key: str, value: Any, config_path: Optional[str] = None):
         """Set a config key that has multiple key/value pairs"""
-        self.defaults_cache.setdefault(key, {}).update(value)
+        if not self.defaults_cache.get(key):
+            self.defaults_cache.setdefault(key, {})
+        self.defaults_cache[key].update(value)
         self.save_defaults(config_path=config_path)
 
     def set_many(self, key_value_pairs: Dict, config_path: Optional[str] = None):
@@ -250,7 +263,8 @@ class Defaults:
 
     def delete_provider(self, provider: str):
         """Remove a specific provider from the config secrets."""
-        self.defaults_cache.get("secrets", {}).pop(provider, None)
+        if self.defaults_cache.get("secrets"):
+            self.defaults_cache.get("secrets").pop(provider, None)
         self.save_defaults()
 
     def delete_defaults(self, config_path: Optional[str] = None):

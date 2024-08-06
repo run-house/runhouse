@@ -1,12 +1,11 @@
 import copy
-import logging
 import os
 import shlex
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import fsspec
 
@@ -17,12 +16,14 @@ from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Clu
 from runhouse.resources.resource import Resource
 from runhouse.rns.top_level_rns_fns import exists
 from runhouse.rns.utils.api import generate_uuid
+from runhouse.utils import locate_working_dir
 
 fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
 # SSHFileSystem is not yet builtin.
 # Line above suggested by fsspec devs: https://github.com/fsspec/filesystem_spec/issues/1071
 
-logger = logging.getLogger(__name__)
+from runhouse.logger import logger
+
 
 PROVIDER_FS_LOOKUP = {
     "aws": "s3",
@@ -72,15 +73,13 @@ class Folder(Resource):
             self.system = system or self.DEFAULT_FS
 
         # TODO [DG] Should we ever be allowing this to be None?
-        self._path = (
-            self.default_path(self.rns_address, system)
-            if path is None
-            else path
-            if system != "file"
-            else path
-            if Path(path).expanduser().is_absolute()
-            else str(Path(rns_client.locate_working_dir()) / path)
-        )
+        if path is None:
+            self._path = self.default_path(self.rns_address, system)
+        else:
+            if system != "file":
+                self._path = path
+            else:
+                self._path = self._path_absolute_to_rh_workdir(path)
         self.data_config = data_config or {}
 
         self.local_mount = local_mount
@@ -619,11 +618,19 @@ class Folder(Resource):
 
     @staticmethod
     def _path_relative_to_rh_workdir(path):
-        rh_workdir = Path(rns_client.locate_working_dir())
+        rh_workdir = Path(locate_working_dir())
         try:
             return str(Path(path).relative_to(rh_workdir))
         except ValueError:
             return path
+
+    @staticmethod
+    def _path_absolute_to_rh_workdir(path):
+        return (
+            path
+            if Path(path).expanduser().is_absolute()
+            else str(Path(locate_working_dir()) / path)
+        )
 
     @property
     def fsspec_url(self):
@@ -638,7 +645,7 @@ class Folder(Resource):
             # e.g.: 'ssh:///home/ubuntu/.cache/runhouse/tables/dede71ef83ce45ffa8cb27d746f97ee8'
             return f"{self._fs_str}://{self.path}"
 
-    def ls(self, full_paths: bool = True, sort: bool = False) -> list:
+    def ls(self, full_paths: bool = True, sort: bool = False) -> List:
         """List the contents of the folder.
 
         Args:

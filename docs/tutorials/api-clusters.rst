@@ -56,6 +56,7 @@ types on AWS).
     import runhouse as rh
 
     aws_cluster = rh.cluster(name="test-cluster", instance_type="CPU:2")
+    aws_cluster.up_if_not()
 
 Next, we set up a basic function to throw up on our cluster. For more
 information about Functions & Modules that you can put up on a cluster,
@@ -109,7 +110,7 @@ and access objects and functions via ``curl``.
                              open_ports=[443], # expose HTTPS port to public
                              server_connection_type="tls", # specify how runhouse communicates with this cluster
                              den_auth=False, # no authentication required to hit this cluster (NOT recommended)
-    )
+    ).up_if_not()
 
 
 .. parsed-literal::

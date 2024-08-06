@@ -1,2 +1,4 @@
+beautifulsoup4
 runhouse[aws]
-bs4
+torch
+tqdm

@@ -325,18 +325,28 @@ Runhouse offers two options for enabling TLS/SSL on a cluster with Caddy:
 
 Using a Custom Domain
 ~~~~~~~~~~~~~~~~~~~~~
-Runhouse also supports custom domains for deploying your apps and services. In order to configure a domain, make sure
-to first add the relevant A record to your domain's DNS settings. Once the cluster is up, you can add a new A record
-with its public IP address.
+Runhouse supports using custom domains for deploying your apps and services. You can provide the domain ahead of time
+before launching the cluster by specifying the :code:`domain` argument:
 
+.. code-block:: python
+
+     cluster = rh.cluster(name="rh-serving-cpu",
+                          domain="<your domain>",
+                          instance_type="m5.xlarge",
+                          server_connection_type="tls",
+                          open_ports=[443]).up_if_not()
 
 .. note::
 
-    You'll need to also sure the relevant ports are open (ex: 443) in the security group settings of the cluster.
+    After the cluster is launched, make sure to add the relevant A record to your domain's DNS settings to point this
+    domain to the cluster's public IP address.
+
+    You'll need to also ensure the relevant ports are open (ex: 443) in the security group settings of the cluster.
     Runhouse will also automatically set up a TLS certificate for the domain via
     `Caddy <https://caddyserver.com/docs/automatic-https>`_.
 
-Once the server is up, you can include its IP and domain when initializing the Runhouse cluster object:
+If you have an existing cluster, you can also configure a domain by including the IP and domain when
+initializing the Runhouse cluster object:
 
 .. code-block:: python
 

@@ -1,4 +1,3 @@
-import logging
 import pickle
 from pathlib import Path
 from typing import Dict, Optional, Union
@@ -8,8 +7,6 @@ from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.folders import Folder, folder
 from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
 from runhouse.rns.utils.names import _generate_default_name
-
-logger = logging.getLogger(__name__)
 
 
 class File(Blob):

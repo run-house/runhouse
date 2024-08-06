@@ -143,9 +143,10 @@ class TestHTTPServerDocker:
         resp_obj: dict = json.loads(response.text.split("\n")[0])
 
         if resp_obj["output_type"] == "stdout":
-            assert resp_obj["data"] == [
-                "base_env servlet: Calling method call on module summer\n"
-            ]
+            assert (
+                "default_env env: Calling method call on module summer\n"
+                in resp_obj["data"][0]
+            )
 
         if resp_obj["output_type"] == "result_serialized":
             assert deserialize_data(resp_obj["data"], resp_obj["serialization"]) == 3
@@ -198,8 +199,14 @@ class TestHTTPServerDocker:
 
                 # Might be too aggressive to assert the exact print order and timing, but for now this works
                 if resp_obj["output_type"] == "stdout":
-                    assert "Hello from the cluster stdout!" in resp_obj["data"][0]
-                    assert "Hello from the cluster logs!" in resp_obj["data"][1]
+                    if "env" in resp_obj["data"][0]:
+                        assert (
+                            "default_env env: Calling method call on module do_printing_and_logging\n"
+                            in resp_obj["data"][0]
+                        )
+                    else:
+                        assert "Hello from the cluster stdout!" in resp_obj["data"][0]
+                        assert "Hello from the cluster logs!" in resp_obj["data"][1]
 
                 if resp_obj["output_type"] == "result_serialized":
                     assert (

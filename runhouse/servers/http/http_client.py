@@ -12,7 +12,8 @@ import httpx
 import requests
 
 from runhouse.globals import rns_client
-from runhouse.logger import ClusterLogsFormatter
+
+from runhouse.logger import ClusterLogsFormatter, logger
 
 from runhouse.resources.envs.utils import _get_env_from
 
@@ -28,8 +29,6 @@ from runhouse.servers.http.http_utils import (
     RenameObjectParams,
     serialize_data,
 )
-
-logger = logging.getLogger(__name__)
 
 
 # Make this global so connections are pooled across instances of HTTPClient

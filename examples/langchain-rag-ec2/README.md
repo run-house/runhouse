@@ -22,7 +22,7 @@ $ aws configure
 $ sky check
 ```
 
-We'll be hitting Open AI's API, so we need to set up our OpenAI API key:
+We'll be hitting OpenAI's API, so we need to set up our OpenAI API key:
 ```shell
 $ export OPENAI_API_KEY=<your openai key>
 ```

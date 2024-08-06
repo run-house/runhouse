@@ -1,20 +1,15 @@
-import logging
 import re
 from pathlib import Path
 from typing import Callable, List, Optional, Union
 
 from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.functions.function import Function
-from runhouse.resources.hardware import Cluster
 from runhouse.resources.packages import git_package
-
-logger = logging.getLogger(__name__)
 
 
 def function(
     fn: Optional[Union[str, Callable]] = None,
     name: Optional[str] = None,
-    system: Optional[Union[str, Cluster]] = None,  # deprecated
     env: Optional[Union[List[str], Env, str]] = None,
     dryrun: bool = False,
     load_secrets: bool = False,
@@ -55,22 +50,25 @@ def function(
         >>> # Load function from above
         >>> reloaded_function = rh.function(name="my_func")
     """  # noqa: E501
-    if name and not any([fn, system, env]):
+    if name and not any([fn, env]):
         # Try reloading existing function
         return Function.from_name(name, dryrun)
 
-    if system:
-        raise Exception(
-            "`system` argument is no longer supported in function factory function. "
-            "Use `.to(system=system)` after construction to send the function to the system."
-        )
-
     if not isinstance(env, Env):
-        env = _get_env_from(env) or Env(working_dir="./")
+        env = _get_env_from(env) or Env()
 
     fn_pointers = None
     if callable(fn):
-        fn_pointers = Function._extract_pointers(fn, reqs=env.reqs)
+        fn_pointers = Function._extract_pointers(fn)
+        if isinstance(env, Env):
+            # Sometimes env may still be a string, in which case it won't be modified
+            (
+                local_path_containing_module,
+                should_add,
+            ) = Function._get_local_path_containing_module(fn_pointers[0], env.reqs)
+            if should_add:
+                env.reqs = [str(local_path_containing_module)] + env.reqs
+
         if fn_pointers[1] == "notebook":
             fn_pointers = Function._handle_nb_fn(
                 fn,

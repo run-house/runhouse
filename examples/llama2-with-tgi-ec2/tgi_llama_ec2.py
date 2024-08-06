@@ -1,12 +1,12 @@
 # # Deploy Llama 7B Model with TGI on AWS EC2
 
 # This example demonstrates how to deploy a [Llama 7B model](https://huggingface.co/meta-llama/Llama-2-7b-chat-hf)
-# using [TGI](https://huggingface.co/docs/text-generation-inference/messages_api) on AWS EC2 using Runhouse.
+# using Hugging Face [TGI](https://huggingface.co/docs/text-generation-inference/messages_api) on AWS EC2 using Runhouse.
 #
 # ## Setup credentials and dependencies
 # Install the required dependencies:
 # ```shell
-# $ pip install -r requirements.txt
+# $ pip install "runhouse[aws]"
 # ```
 #
 # We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to make
@@ -159,8 +159,9 @@ class TGIInference(rh.Module):
 # Learn more about clusters in the [Runhouse docs](/docs/tutorials/api-clusters).
 #
 # :::note{.info title="Note"}
-# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
-# the script code will run when Runhouse attempts to run code remotely.
+# Make sure that all the following code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
+# the script code will run when Runhouse attempts to run code remotely. We'll break up the block in this example to
+# improve readability.
 # :::
 if __name__ == "__main__":
     port = 8080
@@ -183,7 +184,6 @@ if __name__ == "__main__":
         name="tgi_env",
         reqs=["docker", "torch", "transformers"],
         secrets=["huggingface"],
-        working_dir="./",
     )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call

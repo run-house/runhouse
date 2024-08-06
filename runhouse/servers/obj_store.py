@@ -1,24 +1,24 @@
 import asyncio
-import contextvars
-import functools
+import copy
 import inspect
 import logging
 import os
+import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from functools import wraps
 from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
+from pydantic import BaseModel
 
-import runhouse
+from runhouse.constants import DEFAULT_LOG_LEVEL
+
+from runhouse.logger import logger
+
+from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import ResourceVisibility
-from runhouse.utils import sync_function
-
-logger = logging.getLogger(__name__)
-
-req_ctx = contextvars.ContextVar("rh_ctx", default={})
+from runhouse.utils import arun_in_thread, sync_function
 
 
 class RaySetupOption(str, Enum):
@@ -40,13 +40,22 @@ class RunhouseStopIteration(Exception):
     pass
 
 
+class ActiveFunctionCallInfo(BaseModel):
+    key: str
+    method_name: str
+    request_id: str
+    start_time: float
+
+
 class NoLocalObjStoreError(ObjStoreError):
     def __init__(self, *args):
         super().__init__("No local object store exists; cannot perform operation.")
 
 
 def get_cluster_servlet(
-    create_if_not_exists: bool = False, runtime_env: Optional[Dict] = None
+    create_if_not_exists: bool = False,
+    runtime_env: Optional[Dict] = None,
+    logs_level: str = DEFAULT_LOG_LEVEL,
 ):
     from runhouse.servers.cluster_servlet import ClusterServlet
 
@@ -77,7 +86,7 @@ def get_cluster_servlet(
                 num_cpus=0,
                 runtime_env=runtime_env,
             )
-            .remote()
+            .remote(logs_level=logs_level)
         )
 
         # Make sure cluster servlet is actually initialized
@@ -137,6 +146,7 @@ class ObjStore:
         self.installed_envs = {}  # TODO: consider deleting it?
         self._kv_store: Dict[Any, Any] = None
         self.env_servlet_cache = {}
+        self.active_function_calls = {}
 
     async def ainitialize(
         self,
@@ -146,6 +156,7 @@ class ObjStore:
         ray_address: str = "auto",
         setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
         runtime_env: Optional[Dict] = None,
+        logs_level: str = DEFAULT_LOG_LEVEL,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -191,11 +202,12 @@ class ObjStore:
         self.cluster_servlet = get_cluster_servlet(
             create_if_not_exists=create_if_not_exists,
             runtime_env=runtime_env,
+            logs_level=logs_level,
         )
         if self.cluster_servlet is None:
             # TODO: logger.<method> is not printing correctly here when doing `runhouse start`.
             # Fix this and general logging.
-            logging.warning(
+            logger.warning(
                 "Warning, cluster servlet is not initialized. Object Store operations will not work."
             )
 
@@ -248,6 +260,23 @@ class ObjStore:
             setup_cluster_servlet,
             runtime_env,
         )
+
+    def get_internal_ips(self):
+        """Get list of internal IPs of all nodes in the cluster."""
+        cluster_config = self.get_cluster_config()
+        if "stable_internal_external_ips" in cluster_config:
+            return [
+                internal_ip
+                for internal_ip, external_ip in cluster_config[
+                    "stable_internal_external_ips"
+                ]
+            ]
+        else:
+            if not ray.is_initialized():
+                raise ConnectionError("Ray is not initialized.")
+
+            cluster_nodes = ray.nodes()
+            return [node["NodeManagerAddress"] for node in cluster_nodes]
 
     ##############################################
     # Generic helpers
@@ -319,7 +348,26 @@ class ObjStore:
             # ValueError: Failed to look up actor with name ...
             pass
 
-        if resources:
+        # Otherwise, create it
+        if create:
+            if resources is None:
+                resources = {}
+
+            if "node_idx" in resources and ("CPU" in resources or "GPU" in resources):
+                raise ValueError(
+                    "Cannot specify both node_idx and CPU/GPU resources for an env."
+                )
+
+            # Replace node_idx with actual node IP in Ray resources request
+            node_idx = resources.pop("node_idx", None)
+            if node_idx is not None:
+                cluster_ips = self.get_internal_ips()
+                if node_idx >= len(cluster_ips):
+                    raise ValueError(
+                        f"Node index {node_idx} is out of bounds for cluster with {len(cluster_ips)} nodes."
+                    )
+                resources[f"node:{cluster_ips[node_idx]}"] = 0.001
+
             # Check if requested resources are available
             available_resources = ray.available_resources()
             for k, v in resources.items():
@@ -328,18 +376,7 @@ class ObjStore:
                         f"Requested resource {k}={v} is not available on the cluster. "
                         f"Available resources: {available_resources}"
                     )
-        else:
-            resources = {}
 
-        # Otherwise, create it
-        if create:
-            if (
-                type(resources.get("GPU", 0)) != int
-                or type(resources.get("CPU", 0)) != int
-            ):
-                raise ValueError(
-                    f"GPU and CPU resource specifications must be integers, got {resources} for env {env_name}."
-                )
             new_env_actor = (
                 ray.remote(EnvServlet)
                 .options(
@@ -348,14 +385,18 @@ class ObjStore:
                     runtime_env=kwargs["runtime_env"]
                     if "runtime_env" in kwargs
                     else None,
-                    num_cpus=resources.pop("CPU", None),
+                    # Default to 0 CPUs if not specified, Ray will default it to 1
+                    num_cpus=resources.pop("CPU", 0),
                     num_gpus=resources.pop("GPU", None),
                     resources=resources,
                     lifetime="detached",
                     namespace="runhouse",
                     max_concurrency=1000,
                 )
-                .remote(env_name=env_name)
+                .remote(
+                    env_name=env_name,
+                    logs_level=kwargs.get("logs_level", DEFAULT_LOG_LEVEL),
+                )
             )
 
             # Make sure env_servlet is actually initialized
@@ -1040,27 +1081,6 @@ class ObjStore:
             ctx=dict(req_ctx.get()),
         )
 
-    async def arun_in_thread(self, method_to_run, *args, **kwargs):
-        def _run_sync_fn_with_context(
-            context_to_set, sync_fn, method_args, method_kwargs
-        ):
-            for var, value in context_to_set.items():
-                var.set(value)
-
-            return sync_fn(*method_args, **method_kwargs)
-
-        with ThreadPoolExecutor() as executor:
-            return await asyncio.get_event_loop().run_in_executor(
-                executor,
-                functools.partial(
-                    _run_sync_fn_with_context,
-                    context_to_set=contextvars.copy_context(),
-                    sync_fn=method_to_run,
-                    method_args=args,
-                    method_kwargs=kwargs,
-                ),
-            )
-
     async def acall_local(
         self,
         key: str,
@@ -1083,7 +1103,6 @@ class ObjStore:
 
         log_ctx = None
         if stream_logs:
-            # When we start collecting logs for telemetry, we'll enter here too
             log_ctx = run(
                 name=run_name,
                 log_dest="file" if run_name else None,
@@ -1091,6 +1110,50 @@ class ObjStore:
             )
             log_ctx.__enter__()
 
+        # Use a finally to track the active functions so that it is always removed
+        request_id = req_ctx.get().request_id
+
+        # There can be many function calls in one request_id, since request_id is tied to a call from the
+        # client to the server.
+        # We store with this func_call_id so we can easily pop the active call info out after the function
+        # concludes. In theory we could use a tuple of (key, start_time, etc), but it doesn't accomplish much
+        func_call_id = uuid.uuid4()
+        self.active_function_calls[func_call_id] = ActiveFunctionCallInfo(
+            key=key,
+            method_name=method_name,
+            request_id=request_id,
+            start_time=time.time(),
+        )
+        try:
+            res = await self._acall_local_helper(
+                key,
+                method_name,
+                *args,
+                run_name=run_name,
+                stream_logs=stream_logs,
+                remote=remote,
+                **kwargs,
+            )
+        finally:
+            del self.active_function_calls[func_call_id]
+            if log_ctx:
+                log_ctx.__exit__(None, None, None)
+
+        return res
+
+    async def _acall_local_helper(
+        self,
+        key: str,
+        method_name: Optional[str] = None,
+        *args,
+        run_name: Optional[str] = None,
+        stream_logs: bool = False,
+        remote: bool = False,
+        **kwargs,
+    ):
+        """acall_local primarily sets up the logging and tracking for the function call, then calls
+        _acall_local_helper to actually do the work. This is so we can have a finally block in acall_local to clean up
+        the active function calls tracking."""
         obj = self.get_local(key, default=KeyError)
 
         from runhouse.resources.module import Module
@@ -1167,7 +1230,7 @@ class ObjStore:
                 f"{self.servlet_name} env: Calling method {method_name} on module {key}"
             )
 
-            res = await self.arun_in_thread(method, *args, **kwargs)
+            res = await arun_in_thread(method, *args, **kwargs)
 
             # If this was a coroutine function (not a function returning a corotuine), we need to await it here,
             # and not use the FutureModule
@@ -1225,8 +1288,6 @@ class ObjStore:
             )
             fut = self._construct_call_retrievable(res, run_name, laziness_type)
             await self.aput_local(run_name, fut)
-            if log_ctx:
-                log_ctx.__exit__(None, None, None)
             return fut
 
         from runhouse.resources.resource import Resource
@@ -1247,9 +1308,6 @@ class ObjStore:
                 await self.aput_local(res.name, res)
                 # If remote is True and the result is a resource, we return just the config
                 res = res.config()
-
-        if log_ctx:
-            log_ctx.__exit__(None, None, None)
 
         return res
 
@@ -1325,9 +1383,12 @@ class ObjStore:
 
         if remote and isinstance(res, dict) and "resource_type" in res:
             config = res
-            if config.get("system").get("name") == (
-                await self.aget_cluster_config()
-            ).get("name"):
+            # Config is condensed by default, so system may just be a string
+            if isinstance(config.get("system"), dict):
+                system_name = config.get("system").get("name")
+            else:
+                system_name = config.get("system")
+            if system_name == (await self.aget_cluster_config()).get("name"):
                 from runhouse import here
 
                 config["system"] = here
@@ -1416,7 +1477,6 @@ class ObjStore:
         # actually create the corresponding env servlet.
         resource_config, _, _ = tuple(deserialize_data(serialized_data, serialization))
         if resource_config["resource_type"] == "env":
-
             # Note that the passed in `env_name` and the `env_name_to_create` here are
             # distinct. The `env_name` is the name of the env servlet where we want to store
             # the resource itself. The `env_name_to_create` is the name of the env servlet
@@ -1477,9 +1537,7 @@ class ObjStore:
         if provider:
             resource_config["provider"] = provider
 
-        logger.info(
-            f"Message received from client to construct resource: {resource_config}"
-        )
+        logger.debug(f"Message received from client to construct resource: {name}")
 
         resource = Resource.from_config(config=resource_config, dryrun=dryrun)
 
@@ -1500,42 +1558,38 @@ class ObjStore:
     ##############################################
     # Cluster info methods
     ##############################################
-    def status_local(self):
-        # The objects in env can be of any type, and not only runhouse resources,
-        # therefore we need to distinguish them when creating the list of the resources in each env.
-        if self.has_local_storage:
-            resources_in_env_modified = []
-            for k, v in self._kv_store.items():
-                cls = type(v)
-                py_module = cls.__module__
-                cls_name = (
-                    cls.__qualname__
-                    if py_module == "builtins"
-                    else (py_module + "." + cls.__qualname__)
-                )
-                if isinstance(v, runhouse.Resource):
-                    resources_in_env_modified.append(
-                        {"name": k, "resource_type": cls_name}
-                    )
-                else:
-                    resources_in_env_modified.append(
-                        {"name": k, "resource_type": cls_name}
-                    )
-            return resources_in_env_modified
-        else:
-            return []
+    def keys_with_info(self):
+        if not self.has_local_storage or self.servlet_name is None:
+            raise NoLocalObjStoreError()
+
+        # Need to copy to avoid race conditions
+        current_active_function_calls = copy.copy(self.active_function_calls)
+
+        keys_and_info = {}
+        for k, v in self._kv_store.items():
+            cls = type(v)
+            py_module = cls.__module__
+            cls_name = (
+                cls.__qualname__
+                if py_module == "builtins"
+                else (py_module + "." + cls.__qualname__)
+            )
+
+            active_fn_calls = [
+                call_info.dict()
+                for call_info in current_active_function_calls.values()
+                if call_info.key == k
+            ]
+
+            keys_and_info[k] = {
+                "resource_type": cls_name,
+                "active_function_calls": active_fn_calls,
+            }
+
+        return keys_and_info
 
     async def astatus(self):
-        config_cluster = self.get_cluster_config()
-        config_cluster.pop("creds", None)
-        cluster_servlets = {}
-        for env in await self.aget_all_initialized_env_servlet_names():
-            resources_in_env_modified = await self.acall_env_servlet_method(
-                env, "astatus_local"
-            )
-            cluster_servlets[env] = resources_in_env_modified
-        config_cluster["envs"] = cluster_servlets
-        return config_cluster
+        return await self.acall_actor_method(self.cluster_servlet, "status")
 
     def status(self):
         return sync_function(self.astatus)()

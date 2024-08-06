@@ -34,7 +34,7 @@ def env(
         env_vars (Dict or str): Dictionary of environment variables, or relative path to .env file containing
             environment variables. (Default: {})
         working_dir (str or Path): Working directory of the environment, to be loaded onto the system.
-            (Default: "./")
+            (Default: None)
         compute (Dict): Logical compute resources to be used by this environment, passed through to the
             cluster scheduler (generally Ray). Only use this if you know what you're doing.
             Example: ``{"cpus": 1, "gpus": 1}``. (Default: {})
@@ -62,8 +62,6 @@ def env(
         [reqs, conda_env, setup_cmds, env_vars, secrets, working_dir, compute]
     ):
         return Env.from_name(name, dryrun)
-
-    working_dir = working_dir or "./"
 
     reqs = _process_reqs(reqs or [])
     conda_yaml = _get_conda_yaml(conda_env)
@@ -99,7 +97,7 @@ def conda_env(
     name: Optional[str] = None,
     setup_cmds: List[str] = None,
     env_vars: Optional[Dict] = {},
-    working_dir: Optional[Union[str, Path]] = "./",
+    working_dir: Optional[Union[str, Path]] = None,
     secrets: List[Union[str, "Secret"]] = [],
     compute: Optional[Dict] = {},
     dryrun: bool = False,
@@ -116,7 +114,7 @@ def conda_env(
         env_vars (Dict or str): Dictionary of environment variables, or relative path to .env file containing
             environment variables. (Default: {})
         working_dir (str or Path): Working directory of the environment, to be loaded onto the system.
-            (Default: "./")
+            (Default: None)
         compute (Dict): Logical compute resources to be used by this environment, passed through to the
             cluster scheduler (generally Ray). Only use this if you know what you're doing.
             Example: ``{"cpus": 1, "gpus": 1}``. (Default: {})

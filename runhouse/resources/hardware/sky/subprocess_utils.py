@@ -4,7 +4,8 @@ import psutil
 from typing import Callable, List, Optional, Union
 
 import logging
-logger = logging.getLogger(__name__)
+from runhouse.logger import logger
+
 
 class CommandError(Exception):
     """Raised when a command fails.
