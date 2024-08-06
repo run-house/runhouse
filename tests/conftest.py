@@ -43,7 +43,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         "cluster": [
             "ondemand_aws_cluster",
             "static_cpu_cluster",
-            "password_cluster",
         ]
     }
     MAXIMAL = {
@@ -53,7 +52,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pwd_ssh_no_auth",
             "ondemand_aws_cluster",
             "static_cpu_cluster",
-            "password_cluster",
             "multinode_cpu_cluster"
         ]
     }
@@ -239,10 +237,10 @@ from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
     multinode_cpu_cluster,  # noqa: F401
+    multinode_gpu_cluster,  # noqa: F401
     ondemand_aws_cluster,  # noqa: F401
     ondemand_aws_https_cluster_with_auth,  # noqa: F401
     ondemand_cluster,  # noqa: F401
-    ondemand_default_conda_env_cluster,  # noqa: F401
     ondemand_gcp_cluster,  # noqa: F401
     ondemand_k8s_cluster,  # noqa: F401
     v100_gpu_cluster,  # noqa: F401
@@ -260,10 +258,7 @@ from tests.fixtures.resource_fixtures import (
     unnamed_resource,  # noqa: F401
 )
 
-from tests.fixtures.static_cluster_fixtures import (
-    password_cluster,  # noqa: F401
-    static_cpu_cluster,  # noqa: F401
-)
+from tests.fixtures.static_cluster_fixtures import static_cpu_cluster  # noqa: F401
 
 from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
     other_sm_cluster,  # noqa: F401
@@ -290,6 +285,8 @@ from tests.fixtures.folder_fixtures import (  # usort: skip
 from tests.fixtures.package_fixtures import (
     conda_package,  # noqa: F401
     git_package,  # noqa: F401
+    installed_editable_package,  # noqa: F401
+    installed_editable_package_copy,  # noqa: F401
     local_package,  # noqa: F401
     package,  # noqa: F401
     pip_package,  # noqa: F401
@@ -354,19 +351,6 @@ from tests.test_resources.test_modules.test_functions.conftest import (
     summer_func_with_auth,  # noqa: F401
 )
 
-# ----------------- Tables -----------------
-
-from tests.test_resources.test_modules.test_tables.conftest import (
-    arrow_table,  # noqa: F401
-    cudf_table,  # noqa: F401
-    dask_table,  # noqa: F401
-    huggingface_table,  # noqa: F401
-    pandas_table,  # noqa: F401
-    ray_table,  # noqa: F401
-    table,  # noqa: F401
-)
-
-
 ########## DEFAULT LEVELS ##########
 
 default_fixtures = {}
@@ -390,8 +374,6 @@ default_fixtures[TestLevels.RELEASE] = {
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "ondemand_default_conda_env_cluster",
-        "password_cluster",
         "static_cpu_cluster",
     ]
 }
@@ -404,9 +386,8 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "ondemand_default_conda_env_cluster",
-        "password_cluster",
         "multinode_cpu_cluster",
         "static_cpu_cluster",
+        "multinode_gpu_cluster",  # for testing cluster status on multinode gpu.
     ]
 }

@@ -1,15 +1,14 @@
-# # Fine Tune Llama2 with LoRA on AWS EC2
+# # Fine Tune Llama 2 with LoRA on AWS EC2
 
 # This example demonstrates fine tune a model using
-# [Llama2](https://huggingface.co/NousResearch/Llama-2-7b-chat-hf) and
+# [Llama 2](https://huggingface.co/NousResearch/Llama-2-7b-chat-hf) and
 # [LoRA](https://huggingface.co/docs/peft/main/en/conceptual_guides/lora) on AWS EC2 using Runhouse.
 #
 # ## Setup credentials and dependencies
 #
-# ```
-# Install the few required dependencies:
+# Install the required dependencies:
 # ```shell
-# $ pip install -r requirements.txt
+# $ pip install "runhouse[aws]"
 # ```
 #
 # We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
@@ -221,8 +220,9 @@ class FineTuner(rh.Module):
 # the script code will run when Runhouse attempts to run code remotely.
 # :::
 if __name__ == "__main__":
-    cluster = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws")
-
+    cluster = rh.cluster(
+        name="rh-a10x", instance_type="A10G:1", provider="aws"
+    ).up_if_not()
     # Next, we define the environment for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
     # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.

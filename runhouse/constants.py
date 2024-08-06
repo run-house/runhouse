@@ -5,15 +5,19 @@ from typing import List
 
 RESERVED_SYSTEM_NAMES: List[str] = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
 CLUSTER_CONFIG_PATH: str = "~/.rh/cluster_config.json"
+CONFIG_YAML_PATH: str = "~/.rh/config.yaml"
+SERVER_LOGFILE_PATH = "~/.rh/server.log"
 LOCALHOST: str = "127.0.0.1"
 LOCAL_HOSTS: List[str] = ["localhost", LOCALHOST]
+TUNNEL_TIMEOUT = 5
 
 LOGS_DIR = ".rh/logs"
 RH_LOGFILE_PATH = Path.home() / LOGS_DIR
 
 ENVS_DIR = "~/.rh/envs"
 
-MAX_MESSAGE_LENGTH = 1 * 1024 * 1024 * 1024  # 1 GB
+GIGABYTE = 1024**3
+MAX_MESSAGE_LENGTH = 1 * GIGABYTE
 
 CLI_RESTART_CMD = "runhouse restart"
 CLI_STOP_CMD = "runhouse stop"
@@ -22,6 +26,7 @@ DEFAULT_SERVER_PORT = 32300
 DEFAULT_HTTPS_PORT = 443
 DEFAULT_HTTP_PORT = 80
 DEFAULT_SSH_PORT = 22
+DEFAULT_LOG_LEVEL = "INFO"
 
 DEFAULT_RAY_PORT = 6379
 
@@ -58,3 +63,26 @@ CONDA_INSTALL_CMDS = [
 TEST_ORG = "test-org"
 
 EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"
+DEFAULT_DOCKER_CONTAINER_NAME = "sky_container"
+DOCKER_LOGIN_ENV_VARS = {
+    "SKYPILOT_DOCKER_USERNAME",
+    "SKYPILOT_DOCKER_PASSWORD",
+    "SKYPILOT_DOCKER_SERVER",
+}
+
+# Constants for the status check
+DOUBLE_SPACE_UNICODE = "\u00A0\u00A0"
+BULLET_UNICODE = "\u2022"
+MINUTE = 60
+HOUR = 3600
+DEFAULT_STATUS_CHECK_INTERVAL = 1 * MINUTE
+INCREASED_STATUS_CHECK_INTERVAL = 1 * HOUR
+STATUS_CHECK_DELAY = 1 * MINUTE
+
+# Constants Surfacing Logs to Den
+DEFAULT_LOG_SURFACING_INTERVAL = 2 * MINUTE
+S3_LOGS_FILE_NAME = "server.log"
+DEFAULT_SURFACED_LOG_LENGTH = 20
+# Constants for schedulers
+SCHEDULERS_DELAY = 2 * MINUTE
+INCREASED_INTERVAL = 1 * HOUR

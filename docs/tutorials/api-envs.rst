@@ -37,9 +37,9 @@ Envs
 ----
 
 The Runhouse environment represents a whole compute environment,
-consisting of packages, environment variables, the working directory,
-and any secrets necessary for performing tasks within the environment.
-It defines the environment on which Runhouse functions and modules run.
+consisting of packages, environment variables, and any secrets necessary
+for performing tasks within the environment. It defines the environment
+on which Runhouse functions and modules run.
 
 Currently, both bare metal environments and Conda environments are
 supported. Docker environment support is planned.
@@ -49,22 +49,22 @@ Bare Metal Envs
 
 Envs can be constructed with the ``rh.env()`` factory function,
 optionally taking in a name, requirements (packages), environment
-variables, secrets, and working directory.
+variables, and secrets.
 
 .. code:: ipython3
 
     env = rh.env(
             name="fn_env",
             reqs=["numpy", "torch"],
-            working_dir="./",  # current working dir
             env_vars={"USER": "*****"},
             secrets=["aws"],
     )
 
-If no environment name is provided, when the environment is sent to a cluster,
-the dependencies and variables of the environment will be installed and synced
-on top of the cluster's default env. However, Without a name, the env resource
-itself can not be accessed and does not live in the cluster's object store.
+If no environment name is provided, when the environment is sent to a
+cluster, the dependencies and variables of the environment will be
+installed and synced on top of the cluster’s default env. However,
+Without a name, the env resource itself can not be accessed and does not
+live in the cluster’s object store.
 
 Conda Envs
 ~~~~~~~~~~
@@ -96,11 +96,11 @@ Envs on the Cluster
 ~~~~~~~~~~~~~~~~~~~
 
 Runhouse environments are generic environments, and the object itself is
-not associated with a cluster. However, it is a core component of
-Runhouse services, like functions and modules, which are associated with
-a cluster. As such, it is set up remotely when these services are sent
-over to the cluster – packags are installed, working directory and env
-vars/secrets synced over, and cached on the cluster.
+not associated with a cluster. However, it is easy to set up an
+environment on the cluster, by simply calling the ``env.to(cluster)``
+API, or by sending your module/function to the env with the
+``<rh_fn>.to(cluster=cluster, env=env)`` API, which will construct and
+cache the environment on the remote cluster.
 
 .. code:: ipython3
 
@@ -124,6 +124,11 @@ vars/secrets synced over, and cached on the cluster.
     INFO | 2024-02-28 21:25:03.923658 | SSH tunnel on to server's port 32300 via server's ssh port 22 already created with the cluster.
     INFO | 2024-02-28 21:25:04.162828 | Server rh-cluster is up.
     INFO | 2024-02-28 21:25:04.166104 | Copying package from file:///Users/caroline/Documents/runhouse/notebooks to: rh-cluster
+
+
+.. parsed-literal::
+    :class: code-output
+
     INFO | 2024-02-28 21:25:07.356780 | Calling np_env.install
 
 
@@ -144,6 +149,11 @@ vars/secrets synced over, and cached on the cluster.
     :class: code-output
 
     INFO | 2024-02-28 21:25:09.601131 | Time to call np_env.install: 2.24 seconds
+
+
+.. parsed-literal::
+    :class: code-output
+
     INFO | 2024-02-28 21:25:16.987243 | Sending module np_sum to rh-cluster
 
 
@@ -174,3 +184,128 @@ servlet, which handles all the activities within the environment
 etc). Each env servlet has its own local object store where objects
 persist in Python, and lives in its own process, reducing interprocess
 overhead and eliminating launch overhead for calls made in the same env.
+
+Syncing your local code
+~~~~~~~~~~~~~~~~~~~~~~~
+
+You may be wondering how the actual code that you have written and sent
+to Runhouse gets synced to the cluster, if it is not included in the
+env. When you import a function and send it to the env, we locate the
+function’s import site and find the package it’s a part of. We do this
+by searching for any “.git”, “setup.py”, “setup.cfg”, “pyproject.toml”,
+or “requirements.txt”, and then sync the first directory we find that
+represents a package. Any directory with a ``requirements.txt`` that is
+synced up will also have those reqs installed. *We do not store this
+code on our servers at all, it is just synced onto your own cluster.*
+
+You can also sync a specific folder of your own choosing, and it will be
+synced and added to the remote Python path, resulting in any Python
+packages in that directory being importable. For example:
+
+.. code:: ipython3
+
+    env = rh.env(
+            name="fn_env_with_local_package",
+            reqs=["numpy", "torch", "~/path/to/package"],
+    )
+
+Cluster Default Env
+^^^^^^^^^^^^^^^^^^^
+
+The cluster also has a concept of a base default env, which is the
+environment on which the runhouse server will be started from. It is the
+environment in which cluster calls and computations, such as commands
+and functions, will default to running on, if no other env is specified.
+
+During cluster initialization, you can specify the default env for the
+cluster. It is constructed as with any other runhouse env, using
+``rh.env()``, and contains any package installations, commands to run,
+or env vars to set prior to starting the Runhouse server, or even a
+particular conda env to isolate your Runhouse environment. If no default
+env is specified, runs on the base environment on the cluster (after
+sourcing bash).
+
+.. code:: ipython3
+
+    import runhouse as rh
+
+.. code:: ipython3
+
+    default_env = rh.conda_env(
+        name="cluster_default",
+        reqs=["skypilot"],  # to enable autostop, which requires skypilot library
+        env_vars={"my_token": "TOKEN_VAL"}
+    )
+    cluster = rh.ondemand_cluster(
+        name="rh-cpu",
+        instance_type="CPU:2+",
+        provider="aws",
+        default_env=default_env,
+    )
+    cluster.up_if_not()
+
+Now, as we see in the examples below, running a command or sending over
+a function without specifying an env will default the default conda env
+that we have specified for the cluster.
+
+.. code:: ipython3
+
+    cluster.run("conda env list | grep '*'")
+
+
+.. parsed-literal::
+    :class: code-output
+
+    INFO | 2024-05-20 18:08:42.460946 | Calling cluster_default._run_command
+
+
+.. parsed-literal::
+    :class: code-output
+
+    [36mRunning command in cluster_default: conda run -n cluster_default conda env list | grep '*'
+    [0m[36mcluster_default       *  /opt/conda/envs/cluster_default
+    [0m
+
+.. parsed-literal::
+    :class: code-output
+
+    INFO | 2024-05-20 18:08:45.130137 | Time to call cluster_default._run_command: 2.67 seconds
+
+
+
+
+.. parsed-literal::
+    :class: code-output
+
+    [(0, 'cluster_default       *  /opt/conda/envs/cluster_default\n', '')]
+
+
+
+.. code:: ipython3
+
+    def check_import():
+        import sky
+        return "import succeeded"
+
+.. code:: ipython3
+
+    check_remote_import = rh.function(check_import).to(cluster)
+
+.. code:: ipython3
+
+    check_remote_import()
+
+
+.. parsed-literal::
+    :class: code-output
+
+    INFO | 2024-05-20 18:30:05.128009 | Calling check_import.call
+    INFO | 2024-05-20 18:30:05.691348 | Time to call check_import.call: 0.56 seconds
+
+
+
+
+.. parsed-literal::
+    :class: code-output
+
+    'import succeeded'

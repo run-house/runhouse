@@ -1,11 +1,10 @@
-import logging
 import subprocess
 import textwrap
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
 from runhouse.constants import DEFAULT_SERVER_PORT
+
+from runhouse.logger import logger
 
 SYSTEMCTL_ERROR = "systemctl: command not found"
 

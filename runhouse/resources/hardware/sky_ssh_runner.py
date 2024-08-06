@@ -1,5 +1,4 @@
 import copy
-import logging
 import os
 import pathlib
 import shlex
@@ -7,9 +6,11 @@ import subprocess
 import time
 from typing import Dict, List, Optional, Tuple, Union
 
-from runhouse.constants import LOCALHOST
+from runhouse.constants import DEFAULT_DOCKER_CONTAINER_NAME, LOCALHOST, TUNNEL_TIMEOUT
 
 from runhouse.globals import sky_ssh_runner_cache
+
+from runhouse.logger import logger
 
 from runhouse.resources.hardware.sky import common_utils, log_lib, subprocess_utils
 
@@ -22,9 +23,6 @@ from runhouse.resources.hardware.sky.command_runner import (
     SSHCommandRunner,
     SshMode,
 )
-
-
-logger = logging.getLogger(__name__)
 
 
 # Get rid of the constant "Found credentials in shared credentials file: ~/.aws/credentials" message
@@ -43,6 +41,32 @@ def is_port_in_use(port: int) -> bool:
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(("localhost", port)) == 0
+
+
+def get_docker_user(cluster: "Cluster", ssh_creds: Dict) -> str:
+    """Find docker container username."""
+    runner = SkySSHRunner(
+        ip=cluster.address,
+        ssh_user=ssh_creds.get("ssh_user", None),
+        port=cluster.ssh_port,
+        ssh_private_key=ssh_creds.get("ssh_private_key", None),
+        ssh_control_name=ssh_creds.get(
+            "ssh_control_name", f"{cluster.address}:{cluster.ssh_port}"
+        ),
+    )
+    container_name = DEFAULT_DOCKER_CONTAINER_NAME
+    whoami_returncode, whoami_stdout, whoami_stderr = runner.run(
+        f"sudo docker exec {container_name} whoami",
+        stream_logs=False,
+        require_outputs=True,
+    )
+    assert whoami_returncode == 0, (
+        f"Failed to get docker container user. Return "
+        f"code: {whoami_returncode}, Error: {whoami_stderr}"
+    )
+    docker_user = whoami_stdout.strip()
+    logger.debug(f"Docker container user: {docker_user}")
+    return docker_user
 
 
 class SkySSHRunner(SSHCommandRunner):
@@ -68,6 +92,9 @@ class SkySSHRunner(SSHCommandRunner):
             docker_user,
             disable_control_master,
         )
+
+        # RH modified
+        self.docker_user = docker_user
         self.tunnel_proc = None
         self.local_bind_port = local_bind_port
         self.remote_bind_port = None
@@ -90,7 +117,7 @@ class SkySSHRunner(SSHCommandRunner):
                     local, remote = fwd, fwd
                 else:
                     local, remote = fwd
-                logger.info(f"Forwarding port {local} to port {remote} on localhost.")
+                logger.debug(f"Forwarding port {local} to port {remote} on localhost.")
                 ssh += ["-L", f"{local}:localhost:{remote}"]
         if self._docker_ssh_proxy_command is not None:
             docker_ssh_proxy_command = self._docker_ssh_proxy_command(ssh)
@@ -179,6 +206,8 @@ class SkySSHRunner(SSHCommandRunner):
             "-i",
         ]
 
+        cmd = f"conda deactivate && {cmd}" if self.docker_user else cmd
+
         command += [
             shlex.quote(
                 f"true && source ~/.bashrc && export OMP_NUM_THREADS=1 "
@@ -235,15 +264,22 @@ class SkySSHRunner(SSHCommandRunner):
             ssh_mode=SshMode.NON_INTERACTIVE, port_forward=[(local_port, remote_port)]
         )
         command = " ".join(base_cmd)
-        logger.debug(f"Running forwarding command: {command}")
+        logger.info(f"Running forwarding command: {command}")
         proc = subprocess.Popen(
             shlex.split(command),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        # Wait for the ssh connection to start
-        time.sleep(1)
+        # Wait until tunnel is formed by trying to create a socket in a loop
+
+        start_time = time.time()
+        while not is_port_in_use(local_port):
+            time.sleep(0.1)
+            if time.time() - start_time > TUNNEL_TIMEOUT:
+                raise ConnectionError(
+                    f"Failed to create tunnel from {local_port} to {remote_port} on {self.ip}"
+                )
 
         # Set the tunnel process and ports to be cleaned up later
         self.tunnel_proc = proc
@@ -262,7 +298,6 @@ class SkySSHRunner(SSHCommandRunner):
 
             # Process keeping tunnel alive can only be killed with EOF
             self.tunnel_proc.stdin.close()
-            self.tunnel_proc.wait()
 
             # Remove port forwarding
             port_fwd_cmd = " ".join(
@@ -271,19 +306,21 @@ class SkySSHRunner(SSHCommandRunner):
                     port_forward=[(self.local_bind_port, self.remote_bind_port)],
                 )
             )
-            cancel_port_fwd = port_fwd_cmd.replace("-T", "-O cancel")
-            logger.debug(f"Running cancel command: {cancel_port_fwd}")
-            completed_cancel_cmd = subprocess.run(
-                shlex.split(cancel_port_fwd),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
 
-            if completed_cancel_cmd.returncode != 0:
-                logger.warning(
-                    f"Failed to cancel port forwarding from {self.local_bind_port} to {self.remote_bind_port}. "
-                    f"Error: {completed_cancel_cmd.stderr}"
+            if "ControlMaster" in port_fwd_cmd:
+                cancel_port_fwd = port_fwd_cmd.replace("-T", "-O cancel")
+                logger.debug(f"Running cancel command: {cancel_port_fwd}")
+                completed_cancel_cmd = subprocess.run(
+                    shlex.split(cancel_port_fwd),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                 )
+
+                if completed_cancel_cmd.returncode != 0:
+                    logger.warning(
+                        f"Failed to cancel port forwarding from {self.local_bind_port} to {self.remote_bind_port}. "
+                        f"Error: {completed_cancel_cmd.stderr}"
+                    )
 
             self.tunnel_proc = None
             self.local_bind_port = None
@@ -434,6 +471,7 @@ def ssh_tunnel(
     ssh_port: int = 22,
     remote_port: Optional[int] = None,
     num_ports_to_try: int = 0,
+    docker_user: Optional[str] = None,
 ) -> SkySSHRunner:
     """Initialize an ssh tunnel from a remote server to localhost
 
@@ -465,7 +503,12 @@ def ssh_tunnel(
     remote_port = remote_port or local_port
 
     tunnel = get_existing_sky_ssh_runner(address, ssh_port)
-    if tunnel and tunnel.ip == address and tunnel.remote_bind_port == remote_port:
+    tunnel_address = address if not docker_user else "localhost"
+    if (
+        tunnel
+        and tunnel.ip == tunnel_address
+        and tunnel.remote_bind_port == remote_port
+    ):
         logger.info(
             f"SSH tunnel on to server's port {remote_port} "
             f"via server's ssh port {ssh_port} already created with the cluster."
@@ -495,6 +538,7 @@ def ssh_tunnel(
         ssh_private_key=ssh_creds.get("ssh_private_key"),
         ssh_proxy_command=ssh_creds.get("ssh_proxy_command"),
         ssh_control_name=ssh_control_name,
+        docker_user=docker_user,
         port=ssh_port,
     )
     runner.tunnel(local_port, remote_port)

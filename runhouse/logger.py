@@ -1,6 +1,10 @@
 import logging
+import logging.config
+import re
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Union
+
+from runhouse.constants import DEFAULT_LOG_LEVEL
 
 
 class ColoredFormatter:
@@ -19,6 +23,12 @@ class ColoredFormatter:
     @classmethod
     def get_color(cls, color: str):
         return cls.COLORS.get(color, "")
+
+    # TODO: This method is a temp solution, until we'll update logging architecture. Remove once logging is cleaned up.
+    @classmethod
+    def format_log(cls, text):
+        ansi_escape = re.compile(r"(?:\x1B[@-_][0-?]*[ -/]*[@-~])")
+        return ansi_escape.sub("", text)
 
 
 class ClusterLogsFormatter:
@@ -90,35 +100,49 @@ class UTCFormatter(logging.Formatter):
             return dt.isoformat(timespec="milliseconds")
 
 
-LOGGING_CONFIG = {
-    "version": 1,
-    "disable_existing_loggers": True,
-    "formatters": {
-        "utc_formatter": {
-            "()": UTCFormatter,
-            "format": "%(levelname)s | %(asctime)s | %(message)s",
-            "datefmt": "%Y-%m-%d %H:%M:%S.%f",
+def get_logger(name: str = __name__, log_level: Union[int, str] = logging.INFO):
+    level_name = (
+        logging.getLevelName(log_level) if isinstance(log_level, int) else log_level
+    )
+    LOGGING_CONFIG = {
+        "version": 1,
+        "disable_existing_loggers": True,
+        "formatters": {
+            "utc_formatter": {
+                "()": UTCFormatter,
+                "format": "%(levelname)s | %(asctime)s | %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S.%f",
+            },
         },
-    },
-    "handlers": {
-        "default": {
-            "level": "INFO",
-            "formatter": "utc_formatter",
-            "class": "logging.StreamHandler",
-            "stream": "ext://sys.stderr",  # Default is stderr
+        "handlers": {
+            "default": {
+                "level": level_name,
+                "formatter": "utc_formatter",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stderr",  # Default is stderr
+            },
         },
-    },
-    "loggers": {
-        "": {  # root logger
-            "handlers": ["default"],
-            "level": "INFO",
-            "propagate": False,
+        "loggers": {
+            "": {  # root logger
+                "handlers": ["default"],
+                "level": level_name,
+                "propagate": False,
+            },
+            "my.packg": {
+                "handlers": ["default"],
+                "level": level_name,
+                "propagate": False,
+            },
+            "__main__": {  # if __name__ == '__main__'
+                "handlers": ["default"],
+                "level": level_name,
+                "propagate": False,
+            },
         },
-        "my.packg": {"handlers": ["default"], "level": "INFO", "propagate": False},
-        "__main__": {  # if __name__ == '__main__'
-            "handlers": ["default"],
-            "level": "DEBUG",
-            "propagate": False,
-        },
-    },
-}
+    }
+    logging.config.dictConfig(LOGGING_CONFIG)
+    logger = logging.getLogger(name=name)
+    return logger
+
+
+logger = get_logger(name=__name__, log_level=DEFAULT_LOG_LEVEL)

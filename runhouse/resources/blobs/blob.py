@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -8,8 +7,6 @@ from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Clu
 
 from runhouse.resources.module import Module
 from runhouse.rns.utils.names import _generate_default_name, _generate_default_path
-
-logger = logging.getLogger(__name__)
 
 
 class Blob(Module):

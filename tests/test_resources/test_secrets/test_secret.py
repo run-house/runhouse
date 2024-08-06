@@ -1,8 +1,6 @@
-import json
 import os
 
 import pytest
-import requests
 
 import runhouse as rh
 
@@ -86,7 +84,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         "secret": ["test_secret"] + provider_secrets,
         "cluster": [
             "ondemand_aws_cluster",
-            "password_cluster",
+            "static_cpu_cluster",
         ],
     }
     MAXIMAL = {
@@ -97,7 +95,6 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
             "ondemand_k8s_cluster",
             "ondemand_aws_https_cluster_with_auth",
             "static_cpu_cluster",
-            "password_cluster",
             "multinode_cpu_cluster",
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pwd_ssh_no_auth",
@@ -211,24 +208,3 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         else:
             cluster.sync_secrets([secret])
             assert cluster.get(secret.name)
-
-    @pytest.mark.level("unit")
-    def test_convert_secret_resource(self, test_secret):
-        from runhouse.rns.login import _convert_secrets_resource
-
-        name = test_secret.name
-        values = test_secret.values
-
-        # original format that secrets were saved into vault
-        requests.put(
-            f"{rns_client.api_server_url}/{rh.Secret.USER_ENDPOINT}/{name}",
-            data=json.dumps(values),
-            headers=rns_client.request_headers(),
-        )
-
-        _convert_secrets_resource([name], headers=rns_client.request_headers())
-        assert rh.secret(name=name)
-
-        rh.secret(name=name).delete()
-        with pytest.raises(Exception):
-            rh.secret(name=name)

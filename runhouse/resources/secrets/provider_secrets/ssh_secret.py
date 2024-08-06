@@ -1,17 +1,14 @@
 import copy
-import logging
 import os
 from pathlib import Path
 
 from typing import Any, Dict, Optional, Union
 
 from runhouse.globals import rns_client
-
+from runhouse.logger import logger
 from runhouse.resources.blobs.file import File
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.secrets.provider_secrets.provider_secret import ProviderSecret
-
-logger = logging.getLogger(__name__)
 
 
 class SSHSecret(ProviderSecret):
@@ -87,10 +84,14 @@ class SSHSecret(ProviderSecret):
             return self
 
         priv_key_path.parent.mkdir(parents=True, exist_ok=True)
-        priv_key_path.write_text(values["private_key"])
-        priv_key_path.chmod(0o600)
-        pub_key_path.write_text(values["public_key"])
-        pub_key_path.chmod(0o600)
+        private_key = values.get("private_key")
+        if private_key is not None:
+            priv_key_path.write_text(private_key)
+            priv_key_path.chmod(0o600)
+        public_key = values.get("public_key")
+        if public_key is not None:
+            pub_key_path.write_text(public_key)
+            pub_key_path.chmod(0o600)
 
         new_secret = copy.deepcopy(self)
         new_secret._values = None

@@ -1,14 +1,13 @@
-import logging
 from pathlib import Path
 from typing import Dict, Optional, Union
 
 import fsspec
 
+from runhouse.logger import logger
+
 from runhouse.resources.folders.folder import Folder
 from runhouse.resources.hardware.utils import _get_cluster_from
 from runhouse.resources.resource import Resource
-
-logger = logging.getLogger(__name__)
 
 
 def folder(

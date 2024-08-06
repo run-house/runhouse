@@ -9,7 +9,7 @@
 # ## Setup credentials and dependencies
 # Install the required dependencies:
 # ```shell
-# $ pip install -r requirements.txt
+# $ pip install openai "runhouse[aws]"
 # ```
 #
 # We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to make
@@ -159,7 +159,6 @@ if __name__ == "__main__":
     env = rh.env(
         name="tgi_env",
         reqs=["docker", "openai", "torch", "transformers"],
-        working_dir="./",
     )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call

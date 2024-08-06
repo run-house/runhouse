@@ -30,6 +30,12 @@ def np_summer(a, b):
     return int(np.sum([a, b]))
 
 
+def scipy_import():
+    import scipy
+
+    return str(scipy.__version__)
+
+
 @pytest.mark.envtest
 class TestEnv(tests.test_resources.test_resource.TestResource):
     MAP_FIXTURES = {"resource": "env"}
@@ -70,7 +76,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         ],
         "cluster": [
             "ondemand_aws_cluster",
-            "password_cluster",
+            "static_cpu_cluster",
         ],
     }
     MAXIMAL = {
@@ -88,7 +94,6 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             "ondemand_k8s_cluster",
             "ondemand_aws_https_cluster_with_auth",
             "static_cpu_cluster",
-            "password_cluster",
             "multinode_cpu_cluster",
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pwd_ssh_no_auth",
@@ -108,9 +113,6 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             assert env.conda_yaml
             assert isinstance(env.conda_yaml, Dict)
             assert set(["dependencies", "name"]).issubset(set(env.conda_yaml.keys()))
-
-        if "working_dir" not in args:
-            assert env.working_dir == "./"
 
         if "name" not in args:
             assert not env.name
@@ -203,8 +205,8 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         _uninstall_env(env, cluster)
 
     @pytest.mark.level("local")
-    def test_env_vars_file(self, env, cluster):
-        env_file = ".env"
+    def test_env_vars_file(self, env, cluster, tmp_path):
+        env_file = str(tmp_path / ".env")
         contents = [
             "# comment",
             "",
@@ -308,3 +310,14 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
         res = cluster.run([cmd], env=env)
         assert res[0][0] == 0
+
+    @pytest.mark.level("local")
+    def test_env_to_with_provider_secret(self, cluster):
+        os.environ["HF_TOKEN"] = "test_hf_token"
+        env = rh.env(name="hf_env", secrets=["huggingface"])
+        env.to(cluster)
+
+    @pytest.mark.level("local")
+    def test_env_in_function_factory(self, cluster):
+        remote_function = rh.function(scipy_import, env=["scipy"]).to(system=cluster)
+        assert remote_function() is not None

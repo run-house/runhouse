@@ -65,17 +65,13 @@ install_requires = [
     "python-dotenv",
     "fastapi",
     "fsspec<=2023.5.0",
-    "opentelemetry-api",
-    "opentelemetry-exporter-otlp-proto-http",
-    "opentelemetry-instrumentation",
-    "opentelemetry-instrumentation-fastapi",
-    "opentelemetry-instrumentation-requests",
-    "opentelemetry-sdk",
     "pexpect",
     "pyOpenSSL>=23.3.0",
-    "ray[default] >= 2.2.0, <= 2.6.3, != 2.6.0",
+    "ray[default] >= 2.2.0, != 2.6.0",
+    "async_timeout",  # Needed for ray<=2.9
     "rich",
     "sentry-sdk",
+    "setuptools < 70.0.0",  # Bug in setuptools 70.0.0: https://github.com/AUTOMATIC1111/stable-diffusion-webui/issues/15863 noqa
     "sshfs >= 2023.1.0, <= 2023.4.1",
     "typer",
     "uvicorn",
@@ -87,30 +83,30 @@ install_requires = [
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following
 # packages dependencies are changed.
 extras_require = {
-    "sky": ["skypilot==0.5.0"],
+    "sky": ["skypilot==0.6.0"],
     "data": ["pandas", "pyarrow"],
     "aws": [
-        "skypilot[aws]==0.5.0",
+        "skypilot[aws]==0.6.0",
         # https://github.com/aio-libs/aiobotocore/issues/983
         # If you don't want to use these exact versions, you can install runhouse without the aws extras, then
         # install your desired versions of awscli and boto3
         "pycryptodome==3.12.0",
         "sshtunnel>=0.3.0",  # required for sagemaker
     ],
-    "azure": ["skypilot[azure]==0.5.0"],
+    "azure": ["skypilot[azure]==0.6.0"],
     "gcp": [
-        "skypilot[gcp]==0.5.0",
+        "skypilot[gcp]==0.6.0",
         "gcsfs",
     ],
     "docker": ["docker"],
     "sagemaker": [
-        "skypilot==0.5.0",
+        "skypilot==0.6.0",
         # https://github.com/aws-samples/sagemaker-ssh-helper
         "sagemaker_ssh_helper",
         "sagemaker",
         "paramiko>=3.2.0",
     ],
-    "kubernetes": ["skypilot==0.5.0", "kubernetes"],
+    "kubernetes": ["skypilot==0.6.0", "kubernetes"],
 }
 
 extras_require["all"] = sum(extras_require.values(), [])

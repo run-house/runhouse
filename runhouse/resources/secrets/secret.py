@@ -1,20 +1,18 @@
 import copy
 import json
-import logging
 import os
 from pathlib import Path
 
 from typing import Dict, List, Optional, Union
 
 from runhouse.globals import configs, rns_client
+
+from runhouse.logger import logger
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
 from runhouse.resources.secrets.utils import _delete_vault_secrets, load_config
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
 from runhouse.rns.utils.names import _generate_default_name
-
-
-logger = logging.getLogger(__name__)
 
 
 class Secret(Resource):
@@ -131,7 +129,7 @@ class Secret(Resource):
         raise ValueError(f"Could not locate secret {name}")
 
     @classmethod
-    def builtin_providers(cls, as_str: bool = False) -> list:
+    def builtin_providers(cls, as_str: bool = False) -> List:
         """Return list of all Runhouse providers (as class objects) supported out of the box."""
         from runhouse.resources.secrets.provider_secrets.providers import (
             _str_to_provider_class,
@@ -173,11 +171,16 @@ class Secret(Resource):
         secrets = {}
         for name in names:
             path = os.path.expanduser(f"~/.rh/secrets/{name}.json")
-            with open(path, "r") as f:
-                config = json.load(f)
-            if config["name"].startswith("~") or config["name"].startswith("^"):
-                config["name"] = config["name"][2:]
-            secrets[name] = Secret.from_config(config)
+            try:
+                with open(path, "r") as f:
+                    config = json.load(f)
+                if config["name"].startswith("~") or config["name"].startswith("^"):
+                    config["name"] = config["name"][2:]
+                secrets[name] = Secret.from_config(config)
+            except json.JSONDecodeError:
+                # Ignore any empty / corrupted files
+                continue
+
         return secrets
 
     @classmethod

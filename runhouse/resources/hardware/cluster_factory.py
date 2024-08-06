@@ -1,4 +1,3 @@
-import logging
 import os
 import subprocess
 import warnings
@@ -6,14 +5,14 @@ import warnings
 from typing import Dict, List, Optional, Union
 
 from runhouse.constants import DEFAULT_SERVER_PORT, LOCAL_HOSTS, RESERVED_SYSTEM_NAMES
+
+from runhouse.logger import logger
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import relative_ssh_path
 
 from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
 from .sagemaker.sagemaker_cluster import SageMakerCluster
-
-logger = logging.getLogger(__name__)
 
 
 # Cluster factory method
@@ -109,9 +108,12 @@ def cluster(
             c = Cluster.from_name(name, dryrun, alt_options=alt_options)
             if c:
                 c.set_connection_defaults()
+                if den_auth:
+                    c.save()
                 return c
-        except ValueError:
-            pass
+        except ValueError as e:
+            if not alt_options:
+                raise e
 
     if ssh_creds:
         from runhouse.resources.secrets.utils import setup_cluster_creds
@@ -310,6 +312,7 @@ def ondemand_cluster(
     memory: Union[int, str, None] = None,
     disk_size: Union[int, str, None] = None,
     open_ports: Union[int, str, List[int], None] = None,
+    sky_kwargs: Dict = None,
     server_port: int = None,
     server_host: int = None,
     server_connection_type: Union[ServerConnectionType, str] = None,
@@ -335,12 +338,22 @@ def ondemand_cluster(
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
             or ``-1`` to keep cluster up indefinitely.
         use_spot (bool, optional): Whether or not to use spot instance.
-        image_id (str, optional): Custom image ID for the cluster.
+        image_id (str, optional): Custom image ID for the cluster. If using a docker image, please use the following
+            string format: "docker:<registry>/<image>:<tag>". See `user guide <https://www.run.house/docs/docker>`__
+            for more information on Docker cluster setup.
         region (str, optional): The region to use for the cluster.
         memory (int or str, optional): Amount of memory to use for the cluster, e.g. "16" or "16+".
         disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. "100" or "100+".
         open_ports (int or str or List[int], optional): Ports to open in the cluster's security group. Note
             that you are responsible for ensuring that the applications listening on these ports are secure.
+        sky_kwargs (dict, optional): Additional keyword arguments to pass to the SkyPilot `Resource` or
+            `launch` APIs. Should be a dict of the form
+            `{"resources": {<resources_kwargs>}, "launch": {<launch_kwargs>}}`, where resources_kwargs and
+            launch_kwargs will be passed to the SkyPilot Resources API
+            (See `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/reference/api.html#resources>`_)
+            and `launch` API (See
+            `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/reference/api.html#sky-launch>`_), respectively.
+            Any arguments which duplicate those passed to the `ondemand_cluster` factory method will raise an error.
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
         server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
@@ -402,6 +415,24 @@ def ondemand_cluster(
             context=context,
             server_connection_type=server_connection_type,
             default_env=default_env,
+            autostop_mins=autostop_mins,
+            num_instances=num_instances,
+            provider=provider,
+            use_spot=use_spot,
+            image_id=image_id,
+            region=region,
+            memory=memory,
+            disk_size=disk_size,
+            open_ports=open_ports,
+            sky_kwargs=sky_kwargs,
+            server_port=server_port,
+            server_host=server_host,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
+            domain=domain,
+            den_auth=den_auth,
+            dryrun=dryrun,
+            **kwargs,
         )
 
     if name:
@@ -429,9 +460,12 @@ def ondemand_cluster(
             c = Cluster.from_name(name, dryrun, alt_options=alt_options)
             if c:
                 c.set_connection_defaults()
+                if den_auth:
+                    c.save()
                 return c
-        except ValueError:
-            pass
+        except ValueError as e:
+            if not alt_options:
+                raise e
 
     c = OnDemandCluster(
         instance_type=instance_type,
@@ -444,6 +478,7 @@ def ondemand_cluster(
         memory=memory,
         disk_size=disk_size,
         open_ports=open_ports,
+        sky_kwargs=sky_kwargs,
         server_host=server_host,
         server_port=server_port,
         server_connection_type=server_connection_type,
@@ -625,8 +660,9 @@ def sagemaker_cluster(
             if c:
                 c.set_connection_defaults()
                 return c
-        except ValueError:
-            pass
+        except ValueError as e:
+            if not alt_options:
+                raise e
 
     if name in RESERVED_SYSTEM_NAMES:
         raise ValueError(

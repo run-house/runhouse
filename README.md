@@ -50,7 +50,7 @@ def sd_generate(prompt, **inference_kwargs):
 
 if __name__ == "__main__":
     gpu = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws")
-    sd_env = rh.env(reqs=["torch", "transformers", "diffusers"], name="sd_generate", working_dir="./")
+    sd_env = rh.env(reqs=["torch", "transformers", "diffusers"], name="sd_generate")
 
     # Deploy the function and environment (syncing over local code changes and installing dependencies)
     remote_sd_generate = rh.function(sd_generate).to(gpu, env=sd_env)

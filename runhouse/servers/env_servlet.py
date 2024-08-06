@@ -1,10 +1,11 @@
-import logging
 import os
 import traceback
 from functools import wraps
 from typing import Any, Dict, Optional
 
+from runhouse.constants import DEFAULT_LOG_LEVEL
 from runhouse.globals import obj_store
+from runhouse.logger import logger
 
 from runhouse.servers.http.http_utils import (
     deserialize_data,
@@ -15,7 +16,7 @@ from runhouse.servers.http.http_utils import (
 )
 from runhouse.servers.obj_store import ClusterServletSetupOption
 
-logger = logging.getLogger(__name__)
+from runhouse.utils import arun_in_thread, get_node_ip
 
 
 def error_handling_decorator(func):
@@ -40,6 +41,11 @@ def error_handling_decorator(func):
             if serialization is None or serialization == "none":
                 return output
             if output is not None:
+                if kwargs.get("remote"):
+                    return Response(
+                        output_type=OutputType.CONFIG,
+                        data=output,
+                    )
                 serialized_data = serialize_data(output, serialization)
                 return Response(
                     output_type=OutputType.RESULT_SERIALIZED,
@@ -63,10 +69,15 @@ class EnvServlet:
     async def __init__(self, env_name: str, *args, **kwargs):
         self.env_name = env_name
 
+        logs_level = kwargs.get("logs_level", DEFAULT_LOG_LEVEL)
+        logger.setLevel(logs_level)
+        # self.logger = logger
+
         await obj_store.ainitialize(
             self.env_name,
             has_local_storage=True,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
+            logs_level=logs_level,
         )
 
         # Ray defaults to setting OMP_NUM_THREADS to 1, which unexpectedly limit parallelism in user programs.
@@ -177,5 +188,144 @@ class EnvServlet:
     async def aclear_local(self):
         return await obj_store.aclear_local()
 
+    def _get_env_cpu_usage(self, cluster_config: dict = None):
+
+        import psutil
+
+        from runhouse.utils import get_pid
+
+        cluster_config = cluster_config or obj_store.cluster_config
+
+        total_memory = psutil.virtual_memory().total
+        node_ip = get_node_ip()
+        env_servlet_pid = get_pid()
+
+        if not cluster_config.get("resource_subtype") == "Cluster":
+            stable_internal_external_ips = cluster_config.get(
+                "stable_internal_external_ips"
+            )
+            for ips_set in stable_internal_external_ips:
+                internal_ip, external_ip = ips_set[0], ips_set[1]
+                if internal_ip == node_ip:
+                    # head ip equals to cluster address equals to cluster.ips[0]
+                    if ips_set[1] == cluster_config.get("ips")[0]:
+                        node_name = f"head ({external_ip})"
+                    else:
+                        node_name = f"worker_{stable_internal_external_ips.index(ips_set)} ({external_ip}"
+        else:
+            # a case it is a BYO cluster, assume that first ip in the ips list is the head.
+            ips = cluster_config.get("ips")
+            if len(ips) == 1 or node_ip == ips[0]:
+                node_name = f"head ({node_ip})"
+            else:
+                node_name = f"worker_{ips.index(node_ip)} ({node_ip})"
+
+        try:
+            env_servlet_process = psutil.Process(pid=env_servlet_pid)
+            memory_size_bytes = env_servlet_process.memory_full_info().uss
+            cpu_usage_percent = env_servlet_process.cpu_percent()
+            env_memory_usage = {
+                "used_memory": memory_size_bytes,
+                "utilization_percent": cpu_usage_percent,
+                "total_memory": total_memory,
+            }
+        except psutil.NoSuchProcess:
+            env_memory_usage = {}
+
+        return (env_memory_usage, node_name, total_memory, env_servlet_pid, node_ip)
+
+    def _get_env_gpu_usage(self, env_servlet_pid: int):
+        import subprocess
+
+        try:
+            gpu_general_info = (
+                subprocess.run(
+                    [
+                        "nvidia-smi",
+                        "--query-gpu=utilization.gpu,memory.total,count,utilization.memory",
+                        "--format=csv,noheader,nounits",
+                    ],
+                    stdout=subprocess.PIPE,
+                )
+                .stdout.decode("utf-8")
+                .strip()
+                .split(", ")
+            )
+            gpu_util_percent = float(gpu_general_info[0])
+            total_gpu_memory = int(gpu_general_info[1]) * (1024**2)  # in bytes
+            num_of_gpus = int(gpu_general_info[2])
+            memory_utilization_percent = int(
+                gpu_general_info[3]
+            )  # in %, meaning 0 <= val <= 100, out of total gpu memory
+            allocated_gpu_memory = 0  # in bytes
+
+            env_gpu_usage = (
+                subprocess.run(
+                    [
+                        "nvidia-smi",
+                        "--query-compute-apps=pid,gpu_uuid,used_memory",
+                        "--format=csv,nounits",
+                    ],
+                    stdout=subprocess.PIPE,
+                )
+                .stdout.decode("utf-8")
+                .strip()
+                .split("\n")
+            )
+            for i in range(1, len(env_gpu_usage)):
+                single_env_gpu_info = env_gpu_usage[i].strip().split(", ")
+                if int(single_env_gpu_info[0]) == env_servlet_pid:
+                    allocated_gpu_memory = allocated_gpu_memory + int(
+                        single_env_gpu_info[-1]
+                    ) * (1024**2)
+            used_memory = round(memory_utilization_percent / 100, 2) * total_gpu_memory
+            if allocated_gpu_memory > 0:
+                env_gpu_usage = {
+                    "allocated_memory": allocated_gpu_memory,
+                    "total_memory": total_gpu_memory,
+                    "used_memory": used_memory,  # in bytes
+                    "utilization_percent": gpu_util_percent / num_of_gpus,
+                    "memory_percent_allocated": round(
+                        used_memory / allocated_gpu_memory, 4
+                    )
+                    * 100,
+                }
+            else:
+                env_gpu_usage = {}
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to get GPU usage for {self.env_name}: {e}")
+            env_gpu_usage = {}
+
+        return env_gpu_usage
+
+    def _status_local_helper(self):
+        objects_in_env_servlet = obj_store.keys_with_info()
+        cluster_config = obj_store.cluster_config
+
+        (
+            env_memory_usage,
+            node_name,
+            total_memory,
+            env_servlet_pid,
+            node_ip,
+        ) = self._get_env_cpu_usage(cluster_config)
+
+        # Try loading GPU data (if relevant)
+        env_gpu_usage = (
+            self._get_env_gpu_usage(int(env_servlet_pid))
+            if cluster_config.get("has_cuda", False)
+            else {}
+        )
+
+        env_servlet_utilization_data = {
+            "env_gpu_usage": env_gpu_usage,
+            "node_ip": node_ip,
+            "node_name": node_name,
+            "pid": env_servlet_pid,
+            "env_cpu_usage": env_memory_usage,
+        }
+
+        return objects_in_env_servlet, env_servlet_utilization_data
+
     async def astatus_local(self):
-        return obj_store.status_local()
+        return await arun_in_thread(self._status_local_helper)

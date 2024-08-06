@@ -2,7 +2,6 @@ import configparser
 import contextlib
 import getpass
 import importlib
-import logging
 import os
 import pty
 import re
@@ -33,12 +32,13 @@ except ImportError:
 from runhouse.constants import LOCAL_HOSTS
 
 from runhouse.globals import configs, rns_client
+
+from runhouse.logger import logger
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import is_jsonable, relative_ssh_path, resolve_absolute_path
 from runhouse.rns.utils.names import _generate_default_name
 
-logger = logging.getLogger(__name__)
 
 ####################################################################################################
 # Caching mechanisms for SSHTunnelForwarder
@@ -429,7 +429,7 @@ class SageMakerCluster(Cluster):
             logger.info(f"Cluster {self.name} is not up, bringing it up now.")
             self.up_if_not()
 
-        if not self.client:
+        if not self._http_client:
             try:
                 self.connect_server_client()
                 logger.info(
@@ -532,7 +532,7 @@ class SageMakerCluster(Cluster):
         """Delete non-serializable elements (e.g. sagemaker session object) before pickling."""
         state = self.__dict__.copy()
         state["_sagemaker_session"] = None
-        state["client"] = None
+        state["_http_client"] = None
         state["_rpc_tunnel"] = None
         return state
 
@@ -1300,7 +1300,7 @@ class SageMakerCluster(Cluster):
         if not self.instance_id:
             raise ValueError(f"No instance ID set for cluster {self.name}. Is it up?")
 
-        if not self.client:
+        if not self._http_client:
             self.connect_server_client()
 
         # Sync the local ~/.rh directory to the cluster
@@ -1421,7 +1421,7 @@ class SageMakerCluster(Cluster):
     def _update_autostop(self, autostop_mins: int = None):
         cluster_config = self.config()
         cluster_config["autostop_mins"] = autostop_mins or -1
-        if not self.client:
+        if not self._http_client:
             self.connect_server_client()
         # Update the config on the server with the new autostop time
         self.client.check_server()

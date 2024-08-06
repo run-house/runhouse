@@ -1,12 +1,11 @@
-import logging
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 from runhouse.resources.envs import Env
 from runhouse.resources.functions.aws_lambda import LambdaFunction
 from runhouse.resources.functions.function import Function
+from runhouse.utils import extract_module_path
 
-logger = logging.getLogger(__name__)
 
 CRED_PATH = f"{Path.home()}/.aws/credentials"
 DEFAULT_PY_VERSION = "python3.9"
@@ -88,8 +87,16 @@ def aws_lambda_fn(
 
     # extract function pointers, path to code and arg names from callable function.
     handler_function_name = fn.__name__
-    fn_pointers = Function._extract_pointers(fn, reqs=[] if env is None else env.reqs)
-    paths_to_code = [Function._extract_module_path(fn)]
+    fn_pointers = Function._extract_pointers(fn)
+    (
+        local_path_containing_function,
+        should_add,
+    ) = Function._get_local_path_containing_module(
+        fn_pointers[0], reqs=[] if env is None else env.reqs
+    )
+    if should_add and env is not None:
+        env.reqs = [str(local_path_containing_function)] + env.reqs
+    paths_to_code = [extract_module_path(fn)]
     if name is None:
         name = fn.__name__
 

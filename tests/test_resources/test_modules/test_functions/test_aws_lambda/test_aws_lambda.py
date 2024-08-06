@@ -1,4 +1,3 @@
-import logging
 import os
 from pathlib import Path
 
@@ -12,7 +11,6 @@ from .test_helpers.lambda_tests.basic_handler_layer import arr_handler
 
 from .test_helpers.lambda_tests.basic_test_handler import lambda_no_args, lambda_sum
 
-logger = logging.getLogger(__name__)
 CUR_WORK_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_RESOURCES = f"{CUR_WORK_DIR}/test_helpers/lambda_tests"
 

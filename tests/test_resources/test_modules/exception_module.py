@@ -1,4 +1,4 @@
-import pyarrow  # noqa
+import plotly  # noqa
 import runhouse as rh
 
 

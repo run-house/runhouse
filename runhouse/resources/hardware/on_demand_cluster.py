@@ -1,10 +1,12 @@
 import contextlib
-import logging
+import json
 import subprocess
 import time
 import warnings
 from pathlib import Path
 from typing import Any, Dict
+
+import requests
 
 import rich.errors
 import yaml
@@ -19,15 +21,16 @@ from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_PORT,
+    DOCKER_LOGIN_ENV_VARS,
     LOCAL_HOSTS,
 )
 
-from runhouse.globals import configs, rns_client
-from runhouse.resources.hardware.utils import ServerConnectionType
+from runhouse.globals import configs, obj_store, rns_client
+
+from runhouse.logger import logger
+from runhouse.resources.hardware.utils import ResourceServerStatus, ServerConnectionType
 
 from .cluster import Cluster
-
-logger = logging.getLogger(__name__)
 
 
 class OnDemandCluster(Cluster):
@@ -57,6 +60,7 @@ class OnDemandCluster(Cluster):
         domain: str = None,
         den_auth: bool = False,
         region=None,
+        sky_kwargs: Dict = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -94,10 +98,12 @@ class OnDemandCluster(Cluster):
         self.region = region
         self.memory = memory
         self.disk_size = disk_size
+        self.sky_kwargs = sky_kwargs or {}
 
         self.stable_internal_external_ips = kwargs.get(
             "stable_internal_external_ips", None
         )
+        self._docker_user = None
 
         # Checks if state info is in local sky db, populates if so.
         if not dryrun and not self.ips and not self.creds_values:
@@ -105,23 +111,59 @@ class OnDemandCluster(Cluster):
             self._update_from_sky_status(dryrun=False)
 
     @property
+    def client(self):
+        try:
+            return super().client
+        except ValueError as e:
+            if not self.address:
+                # Try loading in from local Sky DB
+                self._update_from_sky_status(dryrun=True)
+                if not self.address:
+                    raise ValueError(
+                        f"Could not determine address for ondemand cluster <{self.name}>. "
+                        "Up the cluster with `cluster.up_if_not`."
+                    )
+                return super().client
+            raise e
+
+    @property
     def autostop_mins(self):
         return self._autostop_mins
 
     @autostop_mins.setter
     def autostop_mins(self, mins):
-        self.check_server()
-
+        self._autostop_mins = mins
         if self.on_this_cluster():
-            raise ValueError("Cannot set autostop_mins live on the cluster.")
+            obj_store.set_cluster_config_value("autostop_mins", mins)
         else:
             if self.run_python(["import skypilot"])[0] != 0:
                 raise ImportError(
                     "Skypilot must be installed on the cluster in order to set autostop."
                 )
-            self.client.set_settings({"autostop_mins": mins})
+            self.call_client_method("set_settings", {"autostop_mins": mins})
             sky.autostop(self.name, mins, down=True)
-            self._autostop_mins = mins
+
+    @property
+    def docker_user(self) -> str:
+        if self._docker_user:
+            return self._docker_user
+
+        # TODO detect whether this is a k8s cluster properly, and handle the user setting / SSH properly
+        #  (e.g. SkyPilot's new KubernetesCommandRunner)
+        if (
+            not self.image_id
+            or "docker:" not in self.image_id
+            or self.provider == "kubernetes"
+        ):
+            return None
+
+        from runhouse.resources.hardware.sky_ssh_runner import get_docker_user
+
+        if not self._creds:
+            return
+        self._docker_user = get_docker_user(self, self._creds.values)
+
+        return self._docker_user
 
     def config(self, condensed=True):
         config = super().config(condensed)
@@ -136,15 +178,21 @@ class OnDemandCluster(Cluster):
                 "image_id",
                 "region",
                 "stable_internal_external_ips",
+                "memory",
+                "disk_size",
+                "sky_kwargs",
             ],
         )
         config["autostop_mins"] = self._autostop_mins
         return config
 
     def endpoint(self, external=False):
+        if not self.address or self.on_this_cluster():
+            return None
+
         try:
-            self.check_server()
-        except ValueError:
+            self.client.check_server()
+        except ConnectionError:
             return None
 
         return super().endpoint(external)
@@ -251,8 +299,7 @@ class OnDemandCluster(Cluster):
         """
         if self.on_this_cluster():
             return True
-        self._update_from_sky_status(dryrun=False)
-        return self.address is not None
+        return self._ping(retry=True)
 
     def _sky_status(self, refresh: bool = True, retry: bool = True):
         """
@@ -331,6 +378,10 @@ class OnDemandCluster(Cluster):
             handle = cluster_dict["handle"]
             self.address = handle.head_ip
             self.stable_internal_external_ips = handle.stable_internal_external_ips
+            if self.stable_internal_external_ips is None or self.address is None:
+                raise ValueError(
+                    "Sky's cluster status does not have the necessary information to connect to the cluster. Please check if the cluster is up via `sky status`. Consider bringing down the cluster with `sky down` if you are still having issues."
+                )
             yaml_path = handle.cluster_yaml
             if Path(yaml_path).exists():
                 ssh_values = backend_utils.ssh_credential_from_yaml(yaml_path)
@@ -409,47 +460,70 @@ class OnDemandCluster(Cluster):
             if self.provider != "cheapest"
             else None
         )
-        task.set_resources(
-            sky.Resources(
-                # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
-                cloud=cloud_provider,
-                instance_type=self.get_instance_type(),
-                accelerators=self.accelerators(),
-                cpus=self.num_cpus(),
-                memory=self.memory,
-                region=self.region or configs.get("default_region"),
-                disk_size=self.disk_size,
-                ports=self.open_ports,
-                image_id=self.image_id,
-                use_spot=self.use_spot,
+        try:
+            task.set_resources(
+                sky.Resources(
+                    # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
+                    cloud=cloud_provider,
+                    instance_type=self.get_instance_type(),
+                    accelerators=self.accelerators(),
+                    cpus=self.num_cpus(),
+                    memory=self.memory,
+                    region=self.region or configs.get("default_region"),
+                    disk_size=self.disk_size,
+                    ports=self.open_ports,
+                    image_id=self.image_id,
+                    use_spot=self.use_spot,
+                    **self.sky_kwargs.get("resources", {}),
+                )
             )
-        )
-        if Path("~/.rh/config.yaml").expanduser().exists():
-            task.set_file_mounts(
-                {
-                    "~/.rh/config.yaml": "~/.rh/config.yaml",
-                }
+            if self.image_id:
+                import os
+
+                docker_env_vars = {}
+                for env_var in DOCKER_LOGIN_ENV_VARS:
+                    if os.getenv(env_var):
+                        docker_env_vars[env_var] = os.getenv(env_var)
+                if docker_env_vars:
+                    task.update_envs(docker_env_vars)
+            sky.launch(
+                task,
+                cluster_name=self.name,
+                idle_minutes_to_autostop=self._autostop_mins,
+                down=True,
+                **self.sky_kwargs.get("launch", {}),
             )
-        sky.launch(
-            task,
-            cluster_name=self.name,
-            idle_minutes_to_autostop=self._autostop_mins,
-            down=True,
-        )
+        # Make sure no args are passed both in sky_kwargs and as explicit args
+        except TypeError as e:
+            if "got multiple values for keyword argument" in str(e):
+                raise TypeError(
+                    f"{str(e)}. If argument is in `sky_kwargs`, it may need to be passed directly through the "
+                    f"ondemand_cluster constructor (see `ondemand_cluster docs "
+                    f"<https://www.run.house/docs/api/python/cluster#runhouse.ondemand_cluster>`_)."
+                )
+            raise e
 
         self._update_from_sky_status()
+
+        if self.domain:
+            logger.info(
+                f"Cluster has been launched with the custom domain '{self.domain}'. "
+                "Please add an A record to your DNS provider to point this domain to the cluster's "
+                f"public IP address ({self.address}) to ensure successful requests."
+            )
+
         self.restart_server()
 
         return self
 
-    def keep_warm(self, autostop_mins: int = -1):
+    def keep_warm(self, mins: int = -1):
         """Keep the cluster warm for given number of minutes after inactivity.
 
         Args:
-            autostop_mins (int): Amount of time (in min) to keep the cluster warm after inactivity.
+            mins (int): Amount of time (in min) to keep the cluster warm after inactivity.
                 If set to -1, keep cluster warm indefinitely. (Default: `-1`)
         """
-        self.autostop_mins = autostop_mins
+        self.autostop_mins = mins
         return self
 
     def teardown(self):
@@ -458,6 +532,36 @@ class OnDemandCluster(Cluster):
         Example:
             >>> rh.ondemand_cluster("rh-cpu").teardown()
         """
+        # TODO [SB]: remove the den_auth check once we will get status of clusters without den_auth as well.
+        warning_msg = "Failed to update Den with cluster terminated status."
+        if self.den_auth:
+            try:
+                cluster_status_data = self.status()
+                status_data = {
+                    "status": ResourceServerStatus.terminated,
+                    "resource_type": self.__class__.__base__.__name__.lower(),
+                    "data": cluster_status_data,
+                }
+                cluster_uri = rns_client.format_rns_address(self.rns_address)
+                api_server_url = cluster_status_data.get("cluster_config").get(
+                    "api_server_url", rns_client.api_server_url
+                )
+                post_status_data_resp = requests.post(
+                    f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+                    data=json.dumps(status_data),
+                    headers=rns_client.request_headers(),
+                )
+                if post_status_data_resp.status_code != 200:
+                    post_status_data_resp = post_status_data_resp.json()
+                    warning_msg = (
+                        warning_msg
+                        + f' Got {post_status_data_resp.status_code}: {post_status_data_resp.json()["detail"]}'
+                    )
+                    logger.warning(warning_msg)
+            except Exception as e:
+                warning_msg = warning_msg + f" Got {e}"
+                logger.warning(warning_msg)
+
         # Stream logs
         sky.down(self.name)
         self.address = None
@@ -540,10 +644,22 @@ class OnDemandCluster(Cluster):
                 ip=node or self.address,
                 ssh_user=ssh_user,
                 port=self.ssh_port,
-                ssh_private_key=sky_key,
+                ssh_private_key=str(sky_key),
+                docker_user=self.docker_user,
             )
-            subprocess.run(
-                runner._ssh_base_command(
-                    ssh_mode=SshMode.INTERACTIVE, port_forward=None
-                )
+            cmd = runner.run(
+                cmd="bash --rcfile <(echo '. ~/.bashrc; conda deactivate')",
+                ssh_mode=SshMode.INTERACTIVE,
+                port_forward=None,
+                return_cmd=True,
             )
+            subprocess.run(cmd, shell=True)
+
+    def _ping(self, timeout=5, retry=False):
+        if super()._ping(timeout=timeout, retry=False):
+            return True
+
+        if retry:
+            self._update_from_sky_status(dryrun=False)
+            return super()._ping(timeout=timeout, retry=False)
+        return False

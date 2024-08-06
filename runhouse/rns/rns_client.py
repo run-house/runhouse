@@ -1,15 +1,20 @@
 import hashlib
 import importlib
 import json
-import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Dict, Optional, Set, Union
+from typing import Any, Dict, Optional, Set, Union
 
 import dotenv
+import httpx
 
 import requests
+from pydantic import BaseModel
+
+from runhouse.constants import S3_LOGS_FILE_NAME, SERVER_LOGFILE
+
+from runhouse.logger import ColoredFormatter, logger
 
 from runhouse.rns.utils.api import (
     generate_uuid,
@@ -19,7 +24,18 @@ from runhouse.rns.utils.api import (
     ResourceAccess,
 )
 
-logger = logging.getLogger(__name__)
+from runhouse.utils import locate_working_dir
+
+
+# This is a copy of the Pydantic model that we use to validate in Den
+class ResourceStatusData(BaseModel):
+    cluster_config: dict
+    system_cpu_usage: float
+    system_memory_usage: Dict[str, Any]
+    system_disk_usage: Dict[str, Any]
+    env_servlet_processes: Dict[str, Dict[str, Any]]
+    server_pid: int
+    runhouse_version: str
 
 
 class RNSClient:
@@ -39,7 +55,7 @@ class RNSClient:
         self._configs = configs
         self._prev_folders = []
 
-        self.rh_directory = str(Path(self.locate_working_dir()) / "rh")
+        self.rh_directory = str(Path(locate_working_dir()) / "rh")
         self.rh_builtins_directory = str(
             Path(importlib.util.find_spec("runhouse").origin).parent / "builtins"
         )
@@ -62,48 +78,6 @@ class RNSClient:
         self._current_folder = None
 
         self.session = requests.Session()
-
-    @classmethod
-    def find_parent_with_file(cls, dir_path, file, searched_dirs=None):
-        if Path(dir_path) == Path.home() or dir_path == Path("/"):
-            return None
-        if Path(dir_path, file).exists():
-            return str(dir_path)
-        else:
-            if searched_dirs is None:
-                searched_dirs = {
-                    dir_path,
-                }
-            else:
-                searched_dirs.add(dir_path)
-            parent_path = Path(dir_path).parent
-            if parent_path in searched_dirs:
-                return None
-            return cls.find_parent_with_file(
-                parent_path, file, searched_dirs=searched_dirs
-            )
-
-    @classmethod
-    def locate_working_dir(cls, cwd=os.getcwd()):
-        # Search for working_dir by looking up directory tree, in the following order:
-        # 1. Upward directory with rh/ subdirectory
-        # 2. Root git directory
-        # 3. Upward directory with requirements.txt
-        # 4. User's cwd
-
-        for search_target in [
-            ".git",
-            "setup.py",
-            "setup.cfg",
-            "pyproject.toml",
-            "rh",
-            "requirements.txt",
-        ]:
-            dir_with_target = cls.find_parent_with_file(cwd, search_target)
-            if dir_with_target is not None:
-                return dir_with_target
-        else:
-            return cwd
 
     @property
     def default_folder(self):
@@ -244,7 +218,7 @@ class RNSClient:
         return {"Authorization": f"Bearer {hashed_token}"}
 
     def cluster_token(self, den_token: str, resource_address: str):
-        if "/" in resource_address:
+        if resource_address and "/" in resource_address:
             # If provided as a full rns address, extract the top level directory
             resource_address = self.base_folder(resource_address)
 
@@ -659,3 +633,51 @@ class RNSClient:
         return folder(name=name_or_path, path=folder_url).resources(
             full_paths=full_paths
         )
+
+    async def send_status(
+        self, status: ResourceStatusData, cluster_uri: str, api_server_url: str
+    ):
+        from runhouse.resources.hardware.utils import ResourceServerStatus
+
+        resource_info = dict(status)
+        env_servlet_processes = dict(resource_info.pop("env_servlet_processes"))
+        status_data = {
+            "status": ResourceServerStatus.running,
+            "resource_type": status.cluster_config.get("resource_type"),
+            "resource_info": resource_info,
+            "env_servlet_processes": env_servlet_processes,
+        }
+        client = httpx.AsyncClient()
+        resp = await client.post(
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            data=json.dumps(status_data),
+            headers=self.request_headers(),
+        )
+        return resp.status_code
+
+    ##############################################
+    # Surface cluster logs to Den
+    ##############################################
+    def _get_logs(self):
+        with open(SERVER_LOGFILE) as log_file:
+            log_lines = log_file.readlines()
+        cleaned_log_lines = [ColoredFormatter.format_log(line) for line in log_lines]
+        return " ".join(cleaned_log_lines)
+
+    async def send_cluster_logs_to_den(self, cluster_uri: str, api_server_url: str):
+
+        try:
+            latest_logs = self._get_logs()
+            logs_data = {"file_name": S3_LOGS_FILE_NAME, "logs": latest_logs}
+
+            post_logs_resp = requests.post(
+                f"{api_server_url}/resource/{cluster_uri}/logs",
+                data=json.dumps(logs_data),
+                headers=self.request_headers(),
+            )
+            return post_logs_resp.status_code
+        except Exception as e:
+            logger.error(
+                f"Sending cluster logs to den has failed: {e}. Please check cluster logs for more info."
+            )
+            return -1

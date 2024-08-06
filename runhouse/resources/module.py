@@ -2,10 +2,10 @@ import asyncio
 import copy
 import importlib
 import inspect
-import logging
-import os
+import site
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from importlib import reload as importlib_reload
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 
@@ -13,6 +13,7 @@ from apispec import APISpec
 from pydantic import create_model
 
 from runhouse.globals import obj_store, rns_client
+from runhouse.logger import logger
 from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.hardware import (
     _current_cluster,
@@ -26,8 +27,8 @@ from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import CallParams
+from runhouse.utils import get_module_import_info, locate_working_dir
 
-logger = logging.getLogger(__name__)
 
 # These are attributes that the Module's __getattribute__ logic should not intercept to run remotely
 # and values that shouldn't be passed as state in put_resource
@@ -78,13 +79,23 @@ class Module(Resource):
 
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
             if not self._env:
-                self._env = (
-                    self._system.default_env if self._system else Env(working_dir="./")
-                )
+                self._env = self._system.default_env if self._system else Env()
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
-            self._env.working_dir = self._env.working_dir or "./"
-            pointers = Module._extract_pointers(self.__class__, reqs=self._env.reqs)
+            pointers = Module._extract_pointers(self.__class__)
+
+            if isinstance(self._env, Env):
+                # Sometimes env may still be a string, in which case it won't be modified
+                (
+                    local_path_containing_module,
+                    should_add,
+                ) = Module._get_local_path_containing_module(
+                    pointers[0], self._env.reqs
+                )
+                if should_add:
+                    self._env.reqs = [
+                        str(local_path_containing_module)
+                    ] + self._env.reqs
         self._pointers = pointers
         self._endpoint = endpoint
         self._signature = signature
@@ -368,8 +379,15 @@ class Module(Resource):
         """Helper method to load a class or function from a module path, module name, and class name."""
         if module_path:
             abs_path = str((Path.home() / module_path).expanduser().resolve())
-            sys.path.insert(0, abs_path)
-            logger.debug(f"Appending {module_path} to sys.path")
+            if not abs_path:
+                logger.debug(f"Could not find module path {module_path}")
+            elif abs_path not in sys.path:
+                sys.path.insert(0, abs_path)
+                logger.debug(f"Appending {module_path} to sys.path")
+
+        # This updates the sys.path with any new paths that have been added since the last time we imported
+        # e.g. if the user ran cluster.run(["pip install my_package"]) since this env was created.
+        importlib_reload(site)
 
         if module_name in obj_store.imported_modules and reload:
             importlib.invalidate_caches()
@@ -434,20 +452,40 @@ class Module(Resource):
         system = (
             _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
         )
-        if not env:
-            if (
-                not self.env or (isinstance(self.env, Env) and not self.env.name)
-            ) and system:
-                env = system.default_env
-            else:
-                env = self.env
 
+        env = self.env if not env else env
         env = _get_env_from(env)
 
+        # We need to change the pointers to the remote import path if we're sending this module to a remote cluster,
+        # and we need to add the local path to the module to the requirements if it's not already there.
+        remote_import_path = None
+        if (
+            env
+            and isinstance(env, Env)
+            and (self._pointers or getattr(self, "fn_pointers", None))
+        ):
+            pointers = self._pointers if self._pointers else self.fn_pointers
+
+            # Update the envs reqs with the local path to the module if it's not already there
+            (
+                local_path_containing_module,
+                should_add,
+            ) = Module._get_local_path_containing_module(pointers[0], env.reqs)
+            if should_add:
+                env.reqs = [str(local_path_containing_module)] + env.reqs
+
+            # Figure out what the import path would be on the remote system
+            remote_import_path = str(
+                local_path_containing_module.name
+                / Path(pointers[0]).relative_to(local_path_containing_module)
+            )
+
         if system:
-            system.check_server()
             if isinstance(env, Env):
                 env = env.to(system, force_install=force_install)
+
+            if isinstance(env, Env) and not env.name:
+                env = system.default_env
 
         # We need to backup the system here so the __getstate__ method of the cluster
         # doesn't wipe the client of this function's cluster when deepcopy copies it.
@@ -464,6 +502,21 @@ class Module(Resource):
         )
         new_module.dryrun = True
 
+        # Set remote import path
+        if remote_import_path:
+            if new_module._pointers:
+                new_module._pointers = (
+                    remote_import_path,
+                    new_module._pointers[1],
+                    new_module._pointers[2],
+                )
+            else:
+                new_module.fn_pointers = (
+                    remote_import_path,
+                    new_module.fn_pointers[1],
+                    new_module.fn_pointers[2],
+                )
+
         if isinstance(system, Cluster):
             new_name = name or self.name or self.default_name()
             if self.rns_address:
@@ -471,15 +524,7 @@ class Module(Resource):
             new_module.name = new_name
             # TODO dedup with _extract_state
             # Exclude anything already being sent in the config and private module attributes
-            excluded_state_keys = list(new_module.config().keys()) + [
-                "_system",
-                "_name",
-                "_rns_folder",
-                "dryrun",
-                "_env",
-                "_pointers",
-                "_resolve",
-            ]
+            excluded_state_keys = list(new_module.config().keys()) + MODULE_ATTRS
             state = {}
             # We only send over state for instances, not classes
             if not isinstance(self, type):
@@ -946,102 +991,83 @@ class Module(Resource):
         return super().share(*args, **kwargs, visibility=visibility)
 
     @staticmethod
-    def _extract_module_path(raw_cls_or_fn: Union[Type, Callable]):
-        py_module = inspect.getmodule(raw_cls_or_fn)
+    def _is_running_in_notebook(module_path: Union[str, None]) -> bool:
+        """Returns True if running in a notebook, False otherwise"""
 
-        # Need to resolve in case just filename is given
-        module_path = (
-            str(Path(inspect.getfile(py_module)).resolve())
-            if hasattr(py_module, "__file__")
-            else None
-        )
+        # Check if running in an IPython notebook
+        # TODO better way of detecting if in a notebook or interactive Python env
+        if not module_path or module_path.endswith("ipynb"):
+            return True
 
-        return module_path
+        # Check if running in a marimo notebook
+        try:
+            import marimo as mo
+
+            return mo.running_in_notebook()
+        except (ImportError, ModuleNotFoundError):
+            # marimo not installed
+            return False
 
     @staticmethod
-    def _extract_pointers(raw_cls_or_fn: Union[Type, Callable], reqs: List[str]):
+    def _extract_pointers(raw_cls_or_fn: Union[Type, Callable]):
         """Get the path to the module, module name, and function name to be able to import it on the server"""
         if not (isinstance(raw_cls_or_fn, type) or isinstance(raw_cls_or_fn, Callable)):
             raise TypeError(
                 f"Expected Type or Callable but received {type(raw_cls_or_fn)}"
             )
-        # Background on all these dunders: https://docs.python.org/3/reference/import.html
-        py_module = inspect.getmodule(raw_cls_or_fn)
 
-        # Need to resolve in case just filename is given
-        module_path = Module._extract_module_path(raw_cls_or_fn)
+        root_path, module_name, cls_or_fn_name = get_module_import_info(raw_cls_or_fn)
 
-        # TODO better way of detecting if in a notebook or interactive Python env
-        if not module_path or module_path.endswith("ipynb"):
-            # The only time __file__ wouldn't be present is if the function is defined in an interactive
-            # interpreter or a notebook. We can't import on the server in that case, so we need to cloudpickle
-            # the fn to send it over. The __call__ function will serialize the function if we return it this way.
-            # This is a short-term hack.
-            # return None, "notebook", raw_fn.__name__
-            root_path = os.getcwd()
-            module_name = "notebook"
-            cls_or_fn_name = raw_cls_or_fn.__name__
-        else:
-            root_path = os.path.dirname(module_path)
-            module_name = inspect.getmodulename(module_path)
-            # TODO __qualname__ doesn't work when fn is aliased funnily, like torch.sum
-            cls_or_fn_name = getattr(
-                raw_cls_or_fn, "__qualname__", raw_cls_or_fn.__name__
-            )
+        return (
+            root_path,
+            module_name,
+            cls_or_fn_name,
+        )
 
-            # Adapted from https://github.com/modal-labs/modal-client/blob/main/modal/_function_utils.py#L94
-            if getattr(py_module, "__package__", None):
-                module_path = os.path.abspath(py_module.__file__)
-                package_paths = [
-                    os.path.abspath(p)
-                    for p in __import__(py_module.__package__).__path__
-                ]
-                base_dirs = [
-                    base_dir
-                    for base_dir in package_paths
-                    if os.path.commonpath((base_dir, module_path)) == base_dir
-                ]
+    @staticmethod
+    def _get_local_path_containing_module(
+        root_path: str, reqs: List[str]
+    ) -> Tuple[Path, bool]:
+        """
+        Find the directory containing the module root path in the reqs list.
 
-                if len(base_dirs) != 1:
-                    logger.debug(f"Module files: {module_path}")
-                    logger.debug(f"Package paths: {package_paths}")
-                    logger.debug(f"Base dirs: {base_dirs}")
-                    raise Exception("Wasn't able to find the package directory!")
-                root_path = os.path.dirname(base_dirs[0])
-                module_name = py_module.__spec__.name
+        If it is not found, find the working directory that contains the module root path and return that,
+        along with a flag indicating whether the module should be added to the reqs list.
 
-        remote_import_path = None
+        """
+
+        # First, check if the module is already included in one of the directories in reqs
+        local_path_containing_module = None
         for req in reqs:
-            local_path = None
+            if isinstance(req, str):
+                req = Package.from_string(req)
+
             if (
                 isinstance(req, Package)
                 and not isinstance(req.install_target, str)
                 and req.install_target.is_local()
             ):
-                local_path = Path(req.install_target.local_path)
-            elif isinstance(req, str):
-                if req.split(":")[0] in ["local", "reqs", "pip"]:
-                    req = req.split(":")[1]
+                local_path_containing_module = Path(req.install_target.local_path)
 
-                if Path(req).expanduser().resolve().exists():
-                    # Relative paths are relative to the working directory in Folders/Packages!
-                    local_path = (
-                        Path(req).expanduser()
-                        if Path(req).expanduser().is_absolute()
-                        else Path(rns_client.locate_working_dir()) / req
-                    )
-
-            if local_path:
+            if local_path_containing_module:
                 try:
                     # Module path relative to package
-                    remote_import_path = str(
-                        local_path.name / Path(root_path).relative_to(local_path)
-                    )
+                    Path(root_path).relative_to(local_path_containing_module)
                     break
                 except ValueError:  # Not a subdirectory
+                    local_path_containing_module = None
                     pass
 
-        return remote_import_path, module_name, cls_or_fn_name
+        # Only add this to the env's reqs if the module is not in one of the directories in reqs
+        add = local_path_containing_module is None
+
+        if not local_path_containing_module:
+            # If the module is not in one of the directories in reqs, we just use the full path,
+            # then we'll create a new "req" containing the Module
+            # TODO: should this "req" be a Package? I'll just start with a string for now
+            local_path_containing_module = Path(locate_working_dir(root_path))
+
+        return local_path_containing_module, add
 
     def openapi_spec(self, spec_name: Optional[str] = None):
         """Generate an OpenAPI spec for the module.
@@ -1234,7 +1260,6 @@ def _module_subclass_factory(cls, cls_pointers):
 def module(
     cls: [Type] = None,
     name: Optional[str] = None,
-    system: Optional[Union[str, Cluster]] = None,  # deprecated
     env: Optional[Union[str, Env]] = None,
     dryrun: bool = False,
 ):
@@ -1324,15 +1349,9 @@ def module(
         >>> my_local_module = rh.module(name="~/my_module")
         >>> my_s3_module = rh.module(name="@/my_module")
     """
-    if name and not any([cls, system, env]):
+    if name and not any([cls, env]):
         # Try reloading existing module
         return Module.from_name(name, dryrun)
-
-    if system:
-        raise Exception(
-            "`system` argument is no longer supported in the module factory function. "
-            "Use `.to(system)` or `.get_or_to(system)` after construction to send and run the Module on the system."
-        )
 
     if not isinstance(env, Env):
         env = _get_env_from(env)
@@ -1341,9 +1360,17 @@ def module(
         if not env:
             env = Env()
 
-        env.working_dir = env.working_dir or "./"
+    cls_pointers = Module._extract_pointers(cls)
 
-    cls_pointers = Module._extract_pointers(cls, env.reqs)
+    if isinstance(env, Env):
+        # Sometimes env may still be a string, in which case it won't be modified
+        (
+            local_path_containing_module,
+            should_add,
+        ) = Module._get_local_path_containing_module(cls_pointers[0], env.reqs)
+        if should_add:
+            env.reqs = [str(local_path_containing_module)] + env.reqs
+
     name = name or (
         cls_pointers[2] if cls_pointers else _generate_default_name(prefix="module")
     )

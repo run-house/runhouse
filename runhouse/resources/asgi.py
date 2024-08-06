@@ -1,11 +1,8 @@
 import inspect
-import logging
 from typing import Any, Optional, Tuple, Union
 
 from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.module import Module, MODULE_ATTRS
-
-logger = logging.getLogger(__name__)
 
 
 class Asgi(Module):

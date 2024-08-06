@@ -1,10 +1,6 @@
-import logging
-
 from typing import Dict, Optional
 
 from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
-
-logger = logging.getLogger(__name__)
 
 
 class SkySecret(SSHSecret):

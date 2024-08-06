@@ -1,10 +1,17 @@
+import sys
 from pathlib import Path
 
 import pytest
 
 import runhouse as rh
-
 import tests.test_resources.test_resource
+from runhouse.utils import run_with_logs
+
+
+def get_plotly_version():
+    import plotly
+
+    return plotly.__version__
 
 
 class TestPackage(tests.test_resources.test_resource.TestResource):
@@ -67,32 +74,38 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     # --------- test install command ---------
     @pytest.mark.level("unit")
     def test_pip_install_cmd(self, pip_package):
-        assert pip_package._install_cmd() == f"pip install {pip_package.install_target}"
+        assert (
+            pip_package._pip_install_cmd()
+            == f'{sys.executable} -m pip install "{pip_package.install_target}"'
+        )
 
     @pytest.mark.level("unit")
     def test_conda_install_cmd(self, conda_package):
         assert (
-            conda_package._install_cmd()
+            conda_package._conda_install_cmd()
             == f"conda install -y {conda_package.install_target}"
         )
 
     @pytest.mark.level("unit")
     def test_reqs_install_cmd(self, reqs_package):
         assert (
-            reqs_package._install_cmd()
-            == f"pip install -r {reqs_package.install_target.local_path}/requirements.txt"
+            reqs_package._reqs_install_cmd()
+            == f"{sys.executable} -m pip install -r {reqs_package.install_target.local_path}/requirements.txt"
         )
 
     @pytest.mark.level("unit")
     def test_git_install_cmd(self, git_package):
-        assert git_package._install_cmd() == f"pip install {git_package.install_target}"
+        assert (
+            git_package._pip_install_cmd()
+            == f'{sys.executable} -m pip install "{git_package.install_target}"'
+        )
 
     # --------- test install on cluster ---------
     @pytest.mark.level("local")
     def test_pip_install(self, cluster, pip_package):
         assert (
-            pip_package._install_cmd(cluster)
-            == f"pip install {pip_package.install_target}"
+            pip_package._pip_install_cmd(cluster=cluster)
+            == f'python3 -m pip install "{pip_package.install_target}"'
         )
 
         # install through remote ssh
@@ -105,7 +118,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("release")
     def test_conda_install(self, cluster, conda_package):
         assert (
-            conda_package._install_cmd(cluster)
+            conda_package._conda_install_cmd(cluster=cluster)
             == f"conda install -y {conda_package.install_target}"
         )
 
@@ -120,10 +133,10 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     def test_remote_reqs_install(self, cluster, reqs_package):
         path = reqs_package.to(cluster).install_target.path
 
-        assert (
-            reqs_package._install_cmd(cluster=cluster)
-            == f"pip install -r {path}/requirements.txt"
-        )
+        assert reqs_package._reqs_install_cmd(cluster=cluster) in [
+            None,
+            f"python3 -m pip install -r {path}/requirements.txt",
+        ]
         reqs_package._install(cluster=cluster)
 
     @pytest.mark.level("local")
@@ -136,6 +149,15 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
 
         assert isinstance(remote_package.install_target, rh.Folder)
         assert remote_package.install_target.system == cluster
+
+    @pytest.mark.level("local")
+    @pytest.mark.skip("Feature deprecated for now")
+    def test_local_package_version_gets_installed(self, cluster):
+        run_with_logs("pip install plotly==5.9.0")
+        env = rh.env(name="temp_env", reqs=["plotly"])
+
+        remote_fn = rh.function(get_plotly_version, env=env).to(cluster)
+        assert remote_fn() == "5.9.0"
 
     # --------- basic torch index-url testing ---------
     @pytest.mark.level("unit")
@@ -155,8 +177,13 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
 
         dummy_pkg = rh.Package.from_string(specifier="pip:dummy_package")
         assert (
-            dummy_pkg._requirements_txt_install_cmd(test_reqs_file, reqs_lines)
-            == f"-r {test_reqs_file} --extra-index-url {rh.Package.TORCH_INDEX_URLS.get('cpu')}"
+            f"-r {test_reqs_file} --extra-index-url {rh.Package.TORCH_INDEX_URLS.get('cpu')}"
+            in dummy_pkg._reqs_install_cmd_for_torch(test_reqs_file, reqs_lines)
         )
 
         test_reqs_file.unlink()
+
+    @pytest.mark.level("local")
+    def test_package_in_home_dir_to_cluster(self, cluster):
+        with pytest.raises(rh.CodeSyncError):
+            rh.Package.from_string("~").to(cluster)
