@@ -238,11 +238,12 @@ class EnvServlet:
         import subprocess
 
         try:
+
             gpu_general_info = (
                 subprocess.run(
                     [
                         "nvidia-smi",
-                        "--query-gpu=utilization.gpu,memory.total,count,utilization.memory",
+                        "--query-gpu=memory.total",
                         "--format=csv,noheader,nounits",
                     ],
                     stdout=subprocess.PIPE,
@@ -251,13 +252,9 @@ class EnvServlet:
                 .strip()
                 .split(", ")
             )
-            gpu_util_percent = float(gpu_general_info[0])
-            total_gpu_memory = int(gpu_general_info[1]) * (1024**2)  # in bytes
-            num_of_gpus = int(gpu_general_info[2])
-            memory_utilization_percent = int(
-                gpu_general_info[3]
-            )  # in %, meaning 0 <= val <= 100, out of total gpu memory
-            allocated_gpu_memory = 0  # in bytes
+            total_gpu_memory = int(gpu_general_info[0]) * (1024**2)  # in bytes
+
+            env_used_memory = 0  # in bytes
 
             env_gpu_usage = (
                 subprocess.run(
@@ -275,20 +272,13 @@ class EnvServlet:
             for i in range(1, len(env_gpu_usage)):
                 single_env_gpu_info = env_gpu_usage[i].strip().split(", ")
                 if int(single_env_gpu_info[0]) == env_servlet_pid:
-                    allocated_gpu_memory = allocated_gpu_memory + int(
-                        single_env_gpu_info[-1]
-                    ) * (1024**2)
-            used_memory = round(memory_utilization_percent / 100, 2) * total_gpu_memory
-            if allocated_gpu_memory > 0:
-                env_gpu_usage = {
-                    "allocated_memory": allocated_gpu_memory,
-                    "total_memory": total_gpu_memory,
-                    "used_memory": used_memory,  # in bytes
-                    "utilization_percent": gpu_util_percent / num_of_gpus,
-                    "memory_percent_allocated": round(
-                        used_memory / allocated_gpu_memory, 4
+                    env_used_memory = env_used_memory + int(single_env_gpu_info[-1]) * (
+                        1024**2
                     )
-                    * 100,
+            if env_used_memory > 0:
+                env_gpu_usage = {
+                    "used_memory": env_used_memory,  # in bytes
+                    "total_memory": total_gpu_memory,  # in bytes
                 }
             else:
                 env_gpu_usage = {}
