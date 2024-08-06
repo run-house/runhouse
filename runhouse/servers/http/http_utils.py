@@ -508,7 +508,3 @@ def folder_mv(path: Path, folder_params: FolderParams):
     shutil.move(str(path), str(dest_path))
 
     return Response(output_type=OutputType.SUCCESS)
-
-
-# folder_put(Path("/Users/josh.l/dev/runhouse/runhouse/servers/http"), FolderParams(operation="put", contents={"test.txt": "Hello World!"}))
-folder_ls(Path("/Users/josh.l/dev/runhouse/runhouse/servers/http"), FolderParams())
