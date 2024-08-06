@@ -214,7 +214,7 @@ class Folder(Module):
             # Note: setting `force_install` to ensure the module gets installed the cluster
             # the folder's system may already be set to a cluster, which would skip the install
             logger.debug("Sending folder module to cluster")
-            return super().to(system=system, force_install=True)
+            return super().to(system=system)
 
         path = str(
             path or Folder.default_path(self.rns_address, system)
