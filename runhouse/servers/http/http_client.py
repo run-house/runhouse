@@ -21,7 +21,6 @@ from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
-    FolderOperation,
     FolderParams,
     GetObjectParams,
     handle_response,
@@ -29,7 +28,7 @@ from runhouse.servers.http.http_utils import (
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
-    serialize_data,
+    serialize_data, FolderOperation,
 )
 
 
