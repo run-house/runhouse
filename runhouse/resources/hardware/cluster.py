@@ -1796,13 +1796,13 @@ class Cluster(Resource):
         self,
         path: Path,
         mode: str = "rb",
-        serialization: str = None,
+        encoding: str = None,
     ):
         return self.client.folder_operation(
             operation="get",
             path=path,
             mode=mode,
-            serialization=serialization,
+            encoding=encoding,
         )
 
     def _put(

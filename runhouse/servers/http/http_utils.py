@@ -106,6 +106,7 @@ class FolderParams(BaseModel):
     recursive: Optional[bool] = False
     contents: Optional[Any] = None
     dest_path: Optional[str] = None
+    encoding: Optional[str] = None
 
 
 def pickle_b64(picklable):
@@ -333,15 +334,16 @@ def folder_mkdir(path: Path):
 
 def folder_get(path: Path, folder_params: FolderParams):
     mode = folder_params.mode or "rb"
-    serialization = folder_params.serialization
+    encoding = folder_params.encoding
     binary_mode = "b" in mode
 
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"Path {path} does not exist")
 
     try:
-        with open(path, mode=mode) as f:
+        with open(path, mode=mode, encoding=encoding) as f:
             file_contents = f.read()
+
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File {path} not found")
 
@@ -358,13 +360,10 @@ def folder_get(path: Path, folder_params: FolderParams):
     if binary_mode and isinstance(file_contents, bytes):
         file_contents = file_contents.decode()
 
-    output_type = OutputType.RESULT_SERIALIZED
-    serialization = serialization or ("pickle" if binary_mode else None)
-
     return Response(
         data=file_contents,
-        output_type=output_type,
-        serialization=serialization,
+        output_type=OutputType.RESULT_SERIALIZED,
+        serialization=None,
     )
 
 
@@ -374,10 +373,13 @@ def folder_put(path: Path, folder_params: FolderParams):
     serialization = folder_params.serialization
     contents = folder_params.contents
 
-    if not path.is_dir():
-        raise HTTPException(status_code=404, detail=f"Path {path} is not a directory")
+    if contents and not isinstance(contents, dict):
+        raise HTTPException(
+            status_code=422,
+            detail="`contents` argument must be a dict mapping filenames to file-like objects",
+        )
 
-    path.mkdir(exist_ok=True)
+    path.mkdir(parents=True, exist_ok=True)
 
     if overwrite is False:
         existing_files = {str(item.name) for item in path.iterdir()}
@@ -390,10 +392,9 @@ def folder_put(path: Path, folder_params: FolderParams):
 
     for filename, file_obj in contents.items():
         binary_mode = "b" in mode
-        if binary_mode:
-            serialization = serialization or "pickle"
 
-        file_obj = serialize_data(file_obj, serialization)
+        if serialization:
+            file_obj = serialize_data(file_obj, serialization)
 
         if binary_mode and not isinstance(file_obj, bytes):
             file_obj = file_obj.encode()
@@ -425,6 +426,7 @@ def folder_ls(path: Path, folder_params: FolderParams):
         if folder_params.recursive
         else [item for item in path.iterdir()]
     )
+
     return Response(
         data=files,
         output_type=OutputType.RESULT_SERIALIZED,
