@@ -142,8 +142,14 @@ class Folder(Module):
         if path is None:
             raise ValueError("A destination path must be specified.")
 
-        dest_path = Path(path).expanduser()
-        src_path = Path(self.path).expanduser()
+        src_path = Path(self.path)
+        dest_path = Path(path)
+
+        if isinstance(self.system, Cluster):
+            return self.system._mv(path=src_path, dest_path=dest_path)
+
+        dest_path = dest_path.expanduser()
+        src_path = src_path.expanduser()
 
         if not src_path.exists():
             raise FileNotFoundError(f"The source path {src_path} does not exist.")
@@ -287,10 +293,15 @@ class Folder(Module):
 
     def mkdir(self):
         """Create the folder in specified file system if it doesn't already exist."""
-        path = Path(self.path).expanduser()
-        if not path.exists():
-            path.mkdir(parents=True, exist_ok=True)
-            logger.info(f"Folder created in path: {path}")
+        path = Path(self.path)
+        if isinstance(self.system, Cluster):
+            self.system._mkdir(path)
+        else:
+            path = path.expanduser()
+            if not path.exists():
+                path.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"Folder created in path: {self.path}")
 
     def _to_cluster(self, dest_cluster, path=None):
         """Copy the folder from a file or cluster source onto a destination cluster."""
@@ -498,7 +509,11 @@ class Folder(Module):
             sort (Optional[bool]): Whether to sort the folder contents by time modified.
                 Defaults to ``False``.
         """
-        paths = [p for p in Path(self.path).expanduser().iterdir()]
+        path = Path(self.path)
+        if isinstance(self.system, Cluster):
+            return self.system._ls(path)
+
+        paths = [p for p in path.expanduser().iterdir()]
 
         # Sort the paths by modification time if sort is True
         if sort:
@@ -518,7 +533,13 @@ class Folder(Module):
         """
         try:
             resources = [
-                path for path in self.ls() if (Path(path) / "config.json").exists()
+                path
+                for path in (
+                    self.system._ls(path=Path(path))
+                    if isinstance(self.system, Cluster)
+                    else self.ls()
+                )
+                if (Path(path) / "config.json").exists()
             ]
         except FileNotFoundError:
             return []
@@ -653,6 +674,11 @@ class Folder(Module):
         Example:
             >>> contents = my_folder.get(file_name)
         """
+        if isinstance(self.system, Cluster):
+            return self.system._get(
+                path=Path(self.path) / name, mode=mode, encoding=encoding
+            )
+
         with self.open(name, mode=mode, encoding=encoding) as f:
             return f.read()
 
@@ -682,8 +708,11 @@ class Folder(Module):
         Example:
             >>> my_folder.rm()
         """
-        folder_path = Path(self.path).expanduser()
+        path = Path(self.path)
+        if isinstance(self.system, Cluster):
+            return self.system._rm(path, contents, recursive)
 
+        folder_path = path.expanduser()
         if contents:
             for content in contents:
                 content_path = folder_path / content
@@ -725,15 +754,19 @@ class Folder(Module):
         Example:
             >>> my_folder.put(contents={"filename.txt": data})
         """
-        self.mkdir()
 
-        full_path = str(Path(self.path).expanduser())
         # Handle lists of resources just for convenience
         if isinstance(contents, list):
             for resource in contents:
                 self.put(resource, overwrite=overwrite)
             return
 
+        if isinstance(self.system, Cluster):
+            return self.system._put(
+                path=Path(self.path), contents=contents, overwrite=overwrite, mode=mode
+            )
+
+        full_path = str(Path(self.path).expanduser())
         if isinstance(contents, Folder):
             if contents.path is None:  # Should only be the case when Folder is created
                 contents.path = os.path.join(full_path, contents.name)
