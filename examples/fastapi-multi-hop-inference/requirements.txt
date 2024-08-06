@@ -1,0 +1,3 @@
+fastapi-cli==0.0.5
+lancedb==0.11.0
+runhouse[aws]==0.0.32
