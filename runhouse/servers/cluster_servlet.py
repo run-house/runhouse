@@ -452,11 +452,22 @@ class ClusterServlet:
         # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
         cpu_utilization = psutil.cpu_percent(interval=1)
 
-        # Fields: `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
+        # A dictionary that match the keys of psutil.virtual_memory()._asdict() to match the keys we expect in Den.
+        relevant_memory_info = {
+            "available": "free_memory",
+            "percent": "percent",
+            "total": "total_memory",
+            "used": "used_memory",
+        }
+
+        # Fields: `total`, `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
+        # according to psutil docs, percent = (total - available) / total * 100
         memory_usage = psutil.virtual_memory()._asdict()
 
-        # Fields: `total`, `used`, `free`, `percent`
-        disk_usage = psutil.disk_usage("/")._asdict()
+        memory_usage = {
+            relevant_memory_info[k]: memory_usage[k]
+            for k in relevant_memory_info.keys()
+        }
 
         server_pid: int = get_pid()
 
@@ -480,7 +491,6 @@ class ClusterServlet:
             "server_cpu_utilization": cpu_utilization,
             "server_gpu_utilization": gpu_utilization,
             "server_memory_usage": memory_usage,
-            "server_disk_usage": disk_usage,
             "server_gpu_usage": server_gpu_usage,
         }
         status_data = ResourceStatusData(**status_data)
