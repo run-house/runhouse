@@ -30,10 +30,11 @@ from runhouse.servers.http.http_utils import (
     serialize_data,
 )
 from runhouse.servers.obj_store import ClusterServletSetupOption
+from runhouse.servers.utils import get_memory_usage
 
 from runhouse.utils import (
     arun_in_thread,
-    get_gpu_usage,
+    get_gpu_usage_multinode,
     get_node_ip,
     get_pid,
     ServletType,
@@ -280,6 +281,12 @@ class Servlet:
                 "utilization_percent": cpu_usage_percent,
                 "total_memory": total_memory,
             }
+
+            # in case this is a multi-node, get the memory usage of the current node, so we would add it to the total
+            # memory usage info of the whole cluster
+            if "worker" in node_name:
+                env_memory_usage["node_memory_usage"] = get_memory_usage()
+
         except psutil.NoSuchProcess:
             env_memory_usage = {}
 
@@ -300,7 +307,7 @@ class Servlet:
         if collected_gpus_info is None or not collected_gpus_info[0]:
             return None
 
-        return get_gpu_usage(
+        return get_gpu_usage_multinode(
             collected_gpus_info=collected_gpus_info, servlet_type=ServletType.env
         )
 
@@ -399,7 +406,6 @@ class Servlet:
             "env_cpu_usage": env_memory_usage,
             "pid": servlet_pid,
         }
-
         return objects_in_servlet, servlet_utilization_data
 
     async def astatus_local(self):

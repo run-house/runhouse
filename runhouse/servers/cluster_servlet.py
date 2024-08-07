@@ -35,13 +35,13 @@ from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.autostop_helper import AutostopHelper
 from runhouse.servers.http.auth import AuthCache
 from runhouse.servers.http.http_utils import CreateProcessParams
-from runhouse.utils import (
-    ColoredFormatter,
+from runhouse.servers.utils import (
+    get_cpu_utilization_percent,
     get_gpu_usage,
-    get_pid,
-    ServletType,
-    sync_function,
+    get_multinode_cpu_usage,
+    get_multinode_gpu_usage,
 )
+from runhouse.utils import ColoredFormatter, get_pid, ServletType, sync_function
 
 logger = get_logger(__name__)
 
@@ -468,6 +468,7 @@ class ClusterServlet:
                         f"Failed to send cluster status to Den, status_code: {den_resp_code}"
                     )
                 else:
+
                     logger.debug("Successfully sent cluster status to Den")
 
                     (
@@ -652,7 +653,7 @@ class ClusterServlet:
         config_cluster.pop("creds", None)
 
         # Getting data from each env servlet about the objects it contains and the utilization data
-        servlet_utilization_data = {}
+        servlets_utilization_data = {}
         with self.lock:
             servlets_status = await asyncio.gather(
                 *[
@@ -671,7 +672,7 @@ class ClusterServlet:
                 logger.warning(
                     f"Exception {str(e)} in status for env servlet {servlet_name}"
                 )
-                servlet_utilization_data[servlet_name] = {}
+                servlets_utilization_data[servlet_name] = {}
 
             else:
                 # Store what was in the env and the utilization data
@@ -679,10 +680,10 @@ class ClusterServlet:
                 env_memory_info["env_resource_mapping"] = env_status.get(
                     "objects_in_servlet"
                 )
-                servlet_utilization_data[servlet_name] = env_memory_info
+                servlets_utilization_data[servlet_name] = env_memory_info
 
         # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
-        cpu_utilization = psutil.cpu_percent(interval=0)
+        cpu_utilization = get_cpu_utilization_percent(interval=0)
 
         # A dictionary that match the keys of psutil.virtual_memory()._asdict() to match the keys we expect in Den.
         relevant_memory_info = {
@@ -712,6 +713,21 @@ class ClusterServlet:
             if server_gpu_usage
             else None
         )
+        gpu_utilization = (
+            server_gpu_usage.pop("utilization_percent", None)
+            if gpu_utilization
+            else None
+        )
+
+        if len(config_cluster.get("ips")) > 1:
+            # cpu_utilization, memory_usage are dicts
+            cpu_utilization, memory_usage = get_multinode_cpu_usage(
+                memory_usage, cpu_utilization, servlets_utilization_data
+            )
+            if self.cluster_config.get("has_cuda", False):
+                server_gpu_usage = get_multinode_gpu_usage(
+                    server_gpu_usage, gpu_utilization, servlets_utilization_data
+                )
 
         # rest the gpu_info only after the status was sent to den. If we should not send status to den,
         # self.gpu_metrics will not be updated at all, therefore should not be reset.
@@ -723,7 +739,7 @@ class ClusterServlet:
             "cluster_config": config_cluster,
             "runhouse_version": runhouse.__version__,
             "server_pid": self.pid,
-            "env_servlet_processes": servlet_utilization_data,
+            "env_servlet_processes": servlets_utilization_data,
             "server_cpu_utilization": cpu_utilization,
             "server_gpu_utilization": gpu_utilization,
             "server_memory_usage": memory_usage,
