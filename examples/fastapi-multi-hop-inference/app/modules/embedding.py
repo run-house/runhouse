@@ -19,20 +19,24 @@ class URLEmbedder:
 
         return embeddings[0]
 
-    def embed_doc(self, url: str, **embed_kwargs):
+    def embed_docs(self, paths: str, **embed_kwargs):
         from langchain_community.document_loaders import WebBaseLoader
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
         docs = WebBaseLoader(
-            web_paths=[url],
+            web_paths=paths,
         ).load()
         split_docs = RecursiveCharacterTextSplitter(
-            chunk_size=1000, chunk_overlap=200
+            chunk_size=500, chunk_overlap=100
         ).split_documents(docs)
         splits_as_str = [doc.page_content for doc in split_docs]
         embeddings = self.model.encode(splits_as_str, **embed_kwargs)
         items = [
-            {"url": url, "page_content": doc.page_content, "vector": embeddings[index]}
+            {
+                "url": doc.metadata["source"],
+                "page_content": doc.page_content,
+                "vector": embeddings[index],
+            }
             for index, doc in enumerate(split_docs)
         ]
 
