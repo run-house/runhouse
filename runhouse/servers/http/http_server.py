@@ -56,6 +56,28 @@ from runhouse.utils import sync_function
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
+# ------------------------
+# Configure OpenTelemetry
+# ------------------------
+
+# TODO - only set up if telemetry is enabled
+try:
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+    from runhouse.servers.telemetry import memory_exporter
+except ImportError:
+    trace = None
+
+if trace:
+    # Initialize the OpenTelemetry tracer provider and span processor
+    logger.debug("Setting up OpenTelemetry in-memory collector")
+    provider = TracerProvider()
+    trace.set_tracer_provider(provider)
+    span_processor = SimpleSpanProcessor(memory_exporter)
+    provider.add_span_processor(span_processor)
+
 
 def validate_cluster_access(func):
     """If using Den auth, validate the user's cluster subtoken and access to the cluster before continuing."""
