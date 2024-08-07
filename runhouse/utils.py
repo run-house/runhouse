@@ -26,6 +26,7 @@ import threading
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional, Type, Union
 
@@ -601,3 +602,53 @@ def create_local_dir(path: Union[str, Path]):
     full_path = os.path.expanduser(path) if isinstance(path, str) else path.expanduser()
     Path(full_path).parent.mkdir(parents=True, exist_ok=True)
     return full_path
+
+
+####################################################################################################
+# Status collection utils
+####################################################################################################
+class ServletType(str, Enum):
+    env = "env"
+    cluster = "cluster"
+
+
+def get_gpu_usage(collected_gpus_info: dict, servlet_type: ServletType):
+
+    gpus_indices = list(collected_gpus_info.keys())
+
+    # how we retrieve total_gpu_memory:
+    # 1. getting the first gpu usage of the first gpu un the gpus list
+    # 2. getting the first gpu_info dictionary of the specific gpu (we collected the gpu info over time)
+    # 3. get total_memory value (it is the same across all envs)
+    total_gpu_memory = collected_gpus_info[gpus_indices[0]][0].get("total_memory")
+    total_used_memory, gpu_utilization_percent, free_memory = 0, 0, 0
+
+    if servlet_type == ServletType.cluster:
+        free_memory = collected_gpus_info[gpus_indices[0]][-1].get(
+            "free_memory"
+        )  # getting the latest free_memory value collected.
+
+    for gpu_index in gpus_indices:
+        collected_gpu_info = collected_gpus_info.get(gpu_index)
+        sum_used_memery = sum(
+            [gpu_info.get("used_memory") for gpu_info in collected_gpu_info]
+        )
+        total_used_memory = sum_used_memery / len(collected_gpu_info)  # average
+
+        if servlet_type == ServletType.cluster:
+            sum_cpu_util = sum(
+                [gpu_info.get("utilization_percent") for gpu_info in collected_gpu_info]
+            )
+            gpu_utilization_percent = sum_cpu_util / len(collected_gpu_info)  # average
+
+    total_used_memory = total_used_memory / len(gpus_indices)
+
+    gpu_usage = {"total_memory": total_gpu_memory, "used_memory": total_used_memory}
+
+    if servlet_type == ServletType.cluster:
+        gpu_utilization_percent = round(gpu_utilization_percent / len(gpus_indices), 2)
+        gpu_usage["free_memory"] = free_memory
+        gpu_usage["gpu_count"] = len(gpus_indices)
+        gpu_usage["utilization_percent"] = gpu_utilization_percent
+
+    return gpu_usage
