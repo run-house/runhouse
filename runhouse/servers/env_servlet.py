@@ -223,7 +223,7 @@ class EnvServlet:
         try:
             env_servlet_process = psutil.Process(pid=env_servlet_pid)
             memory_size_bytes = env_servlet_process.memory_full_info().uss
-            cpu_usage_percent = env_servlet_process.cpu_percent()
+            cpu_usage_percent = env_servlet_process.cpu_percent(interval=1)
             env_memory_usage = {
                 "used_memory": memory_size_bytes,
                 "utilization_percent": cpu_usage_percent,
