@@ -28,6 +28,7 @@ from runhouse.utils import locate_working_dir
 class ResourceStatusData(BaseModel):
     cluster_config: dict
     server_cpu_usage: float
+    server_gpu_usage: Optional[float]
     server_memory_usage: Dict[str, Any]
     server_gpu_usage: Optional[Dict[str, Any]]
     env_servlet_processes: Dict[str, Dict[str, Any]]

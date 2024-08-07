@@ -28,6 +28,13 @@ from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.autostop_helper import AutostopHelper
 from runhouse.servers.http.auth import AuthCache
+from runhouse.servers.utils import (
+    get_cpu_utilization_percent,
+    get_gpu_usage,
+    get_memory_usage,
+    get_multinode_cpu_usage,
+    get_multinode_gpu_usage,
+)
 
 from runhouse.utils import sync_function
 
@@ -292,7 +299,7 @@ class ClusterServlet:
                         f"{status_code}: Failed to send cluster status to Den: {resp.json()}"
                     )
                 else:
-                    logger.debug("Successfully sent cluster status to Den.")
+                    logger.error("Successfully sent cluster status to Den.")
                     prev_end_log_line = cluster_config.get("end_log_line", 0)
                     (
                         logs_resp_status_code,
@@ -415,7 +422,6 @@ class ClusterServlet:
         }
 
     async def astatus(self):
-        import psutil
 
         from runhouse.utils import get_pid
 
@@ -424,8 +430,25 @@ class ClusterServlet:
         # Popping out creds because we don't want to show them in the status
         config_cluster.pop("creds", None)
 
+        # getting status data of the head_node (== cluster_servlet)
+
+        cpu_utilization = get_cpu_utilization_percent(interval=1)
+
+        memory_usage = get_memory_usage()
+
+        server_pid: int = get_pid()
+
+        # get general gpu usage
+        server_gpu_usage = (
+            get_gpu_usage(server_pid)
+            if self.cluster_config.get("has_cuda", False)
+            else {}
+        )
+
+        gpu_utilization = server_gpu_usage.get("gpu_utilization_percent", None)
+
         # Getting data from each env servlet about the objects it contains and the utilization data
-        env_servlet_utilization_data = {}
+        envs_servlets_utilization_data = {}
         env_servlets_status = await asyncio.gather(
             *[
                 self._status_for_env_servlet(env_servlet_name)
@@ -443,7 +466,7 @@ class ClusterServlet:
                 self.logger.warning(
                     f"Exception {str(e)} in status for env servlet {env_servlet_name}"
                 )
-                env_servlet_utilization_data[env_servlet_name] = {}
+                envs_servlets_utilization_data[env_servlet_name] = {}
 
             # Otherwise, store what was in the env and the utilization data
             else:
@@ -451,43 +474,25 @@ class ClusterServlet:
                 env_memory_info["env_resource_mapping"] = env_status.get(
                     "objects_in_env_servlet"
                 )
-                env_servlet_utilization_data[env_servlet_name] = env_memory_info
-
-        # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
-        cpu_utilization = psutil.cpu_percent(interval=1)
-
-        # A dictionary that match the keys of psutil.virtual_memory()._asdict() to match the keys we expect in Den.
-        relevant_memory_info = {
-            "available": "free_memory",
-            "percent": "percent",
-            "total": "total_memory",
-            "used": "used_memory",
-        }
-
-        # Fields: `total`, `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
-        # according to psutil docs, percent = (total - available) / total * 100
-        memory_usage = psutil.virtual_memory()._asdict()
-
-        memory_usage = {
-            relevant_memory_info[k]: memory_usage[k]
-            for k in relevant_memory_info.keys()
-        }
+                envs_servlets_utilization_data[env_servlet_name] = env_memory_info
 
         server_pid: int = get_pid()
 
-        # get general gpu usage
-        server_gpu_usage = (
-            self._get_node_gpu_usage(server_pid)
-            if self.cluster_config.get("has_cuda", False)
-            else {}
-        )
-        gpu_utilization = server_gpu_usage.get("gpu_utilization_percent", None)
+        if len(config_cluster.get("ips")) > 1:
+            # cpu_utilization, memory_usage are dicts
+            cpu_utilization, memory_usage = get_multinode_cpu_usage(
+                memory_usage, cpu_utilization, envs_servlets_utilization_data
+            )
+            if self.cluster_config.get("has_cuda", False):
+                server_gpu_usage = get_multinode_gpu_usage(
+                    server_gpu_usage, gpu_utilization, envs_servlets_utilization_data
+                )
 
         status_data = {
             "cluster_config": config_cluster,
             "runhouse_version": runhouse.__version__,
             "server_pid": server_pid,
-            "env_servlet_processes": env_servlet_utilization_data,
+            "env_servlet_processes": envs_servlets_utilization_data,
             "server_cpu_utilization": cpu_utilization,
             "server_gpu_utilization": gpu_utilization,
             "server_memory_usage": memory_usage,

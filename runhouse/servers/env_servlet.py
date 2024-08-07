@@ -192,6 +192,8 @@ class EnvServlet:
 
         import psutil
 
+        from runhouse.servers.utils import get_memory_usage
+
         from runhouse.utils import get_pid
 
         cluster_config = cluster_config or obj_store.cluster_config
@@ -229,6 +231,12 @@ class EnvServlet:
                 "utilization_percent": cpu_usage_percent,
                 "total_memory": total_memory,
             }
+
+            # in case this is a multi-node, get the memory usage of the current node, so we would add it to the total
+            # memory usage info of the whole cluster
+            if "worker" in node_name:
+                env_memory_usage["node_memory_usage"] = get_memory_usage()
+
         except psutil.NoSuchProcess:
             env_memory_usage = {}
 
@@ -314,7 +322,6 @@ class EnvServlet:
             "pid": env_servlet_pid,
             "env_cpu_usage": env_memory_usage,
         }
-
         return objects_in_env_servlet, env_servlet_utilization_data
 
     async def astatus_local(self):
