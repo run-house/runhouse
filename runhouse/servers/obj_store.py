@@ -18,6 +18,7 @@ from runhouse.logger import logger
 
 from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import ResourceVisibility
+from runhouse.servers.telemetry.telemetry_middleware import call_func_with_telemetry
 from runhouse.utils import arun_in_thread, sync_function
 
 
@@ -103,7 +104,9 @@ def context_wrapper(func):
             if not req_ctx.get():
                 ctx_token = await self.apopulate_ctx_locally()
 
-            res = await func(self, *args, **kwargs)
+            # TODO: move this into cluster servlet, out of the core execution path
+            res = await call_func_with_telemetry(func, self, *args, **kwargs)
+
         except Exception as e:
             raise e
         finally:

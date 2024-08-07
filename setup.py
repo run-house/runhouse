@@ -64,6 +64,9 @@ def parse_readme(readme: str) -> str:
 install_requires = [
     "python-dotenv",
     "fastapi",
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp-proto-http",
     "pexpect",
     "pyOpenSSL>=23.3.0",
     "ray[default] >= 2.2.0, != 2.6.0",

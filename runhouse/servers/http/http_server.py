@@ -25,6 +25,9 @@ from runhouse.constants import (
     EMPTY_DEFAULT_ENV_NAME,
     LOGGING_WAIT_TIME,
     RH_LOGFILE_PATH,
+    TELEMETRY_SERVICE_NAME,
+    TELEMETRY_SERVICE_VERSION,
+    TELEMETRY_TRACES_URL,
 )
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import logger
@@ -68,6 +71,40 @@ from runhouse.servers.obj_store import (
 from runhouse.utils import sync_function
 
 app = FastAPI(docs_url=None, redoc_url=None)
+
+
+# TODO: move this into the cluster servlet and only run if observability is enabled
+try:
+    from opentelemetry import trace
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+except ImportError as e:
+    logger.warning(f"Missing open telemetry libraries: {e}")
+    trace = None
+
+
+if trace is not None:
+    # Define the resource with the service name and other attributes - attached to all telemetry data
+    resource = Resource(
+        attributes={
+            "service.name": TELEMETRY_SERVICE_NAME,
+            "service.version": TELEMETRY_SERVICE_VERSION,
+            "telemetry.sdk.language": "python",
+            "telemetry.sdk.name": "opentelemetry",
+        }
+    )
+
+    # Initialize OpenTelemetry SDK - creates tracers that generate spans
+    trace.set_tracer_provider(TracerProvider(resource=resource))
+
+    # Configure the OTLP exporter to send traces to the Runhouse backend
+    otlp_exporter = OTLPSpanExporter(endpoint=TELEMETRY_TRACES_URL)
+
+    # Add a span processor to the tracer provider to handle exporting spans
+    span_processor = BatchSpanProcessor(otlp_exporter)
+    trace.get_tracer_provider().add_span_processor(span_processor)
 
 
 def validate_cluster_access(func):

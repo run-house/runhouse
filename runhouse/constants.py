@@ -85,3 +85,9 @@ SERVER_LOGS_FILE_NAME = "server.log"
 DEFAULT_SURFACED_LOG_LENGTH = 20
 # Constants for schedulers
 INCREASED_INTERVAL = 1 * HOUR
+
+# Telemetry constants
+TELEMETRY_SERVICE_NAME = "rh-oss"
+TELEMETRY_SERVICE_VERSION = "1.0.0"
+TELEMETRY_TRACES_URL = "https://telemetry.run.house/v1/telemetry/traces"
+TELEMETRY_LOGS_URL = "https://telemetry.run.house/v1/telemetry/logs"
