@@ -390,6 +390,27 @@ class OnDemandCluster(Cluster):
                 raise ValueError(
                     "Sky's cluster status does not have the necessary information to connect to the cluster. Please check if the cluster is up via `sky status`. Consider bringing down the cluster with `sky down` if you are still having issues."
                 )
+
+            cloud = str(handle.launched_resources.cloud).lower()
+            self._cloud = cloud
+            if self._cloud == "kubernetes":
+                try:
+                    import kubernetes
+
+                    _, context = kubernetes.config.list_kube_config_contexts()
+                    if "namespace" in context["context"]:
+                        namespace = context["context"]["namespace"]
+                    else:
+                        namespace = "default"
+
+                    pod_name = f"{handle.cluster_name_on_cloud}-head"
+                    self._kube_properties = {
+                        "namespace": namespace,
+                        "pod_name": pod_name,
+                    }
+                except:
+                    pass
+
             yaml_path = handle.cluster_yaml
             if Path(yaml_path).exists():
                 ssh_values = backend_utils.ssh_credential_from_yaml(yaml_path)
