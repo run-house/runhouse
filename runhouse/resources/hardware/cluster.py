@@ -1149,7 +1149,7 @@ class Cluster(Resource):
                 )
             return
 
-        from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
+        from runhouse.resources.hardware.sky_ssh_runner import SshMode
 
         # If no address provided explicitly use the head node address
         node = node or self.address
@@ -1186,21 +1186,11 @@ class Cluster(Resource):
             subprocess.run(cmd, check=True, capture_output=not stream_logs, text=True)
             return
 
-        ssh_credentials = copy.copy(self.creds_values) or {}
-        ssh_credentials.pop("ssh_host", node)
-        pwd = ssh_credentials.pop("password", None)
-        ssh_credentials.pop("private_key", None)
-        ssh_credentials.pop("public_key", None)
-        ssh_control_name = ssh_credentials.pop(
-            "ssh_control_name", f"{node}:{self.ssh_port}"
-        )
+        runner = self._get_command_runner()
 
-        runner = SkySSHRunner(
-            (node, self.ssh_port),
-            **ssh_credentials,
-            ssh_control_name=ssh_control_name,
-            docker_user=self.docker_user,
-        )
+        ssh_credentials = copy.copy(self.creds_values) or {}
+        pwd = ssh_credentials.pop("password", None)
+
         if not pwd:
             if up:
                 runner.run(
@@ -1384,6 +1374,37 @@ class Cluster(Resource):
 
                 return return_codes
 
+    def _get_command_runner(self, node):
+        if (
+            hasattr(self, "_cloud")
+            and self._cloud == "kubernetes"
+            and hasattr(self, "_kube_properties")
+        ):
+            from runhouse.resources.hardware.sky_ssh_runner import SkyKubernetesRunner
+
+            namespace = self._kube_properties["namespace"]
+            pod_name = self._kube_properties["pod_name"]
+            runner = SkyKubernetesRunner((namespace, pod_name))
+        else:
+            from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner
+
+            ssh_credentials = copy.copy(self.creds_values)
+            host = ssh_credentials.pop("ssh_host", node)
+            ssh_credentials.pop("private_key", None)
+            ssh_credentials.pop("public_key", None)
+            ssh_control_name = ssh_credentials.pop(
+                "ssh_control_name", f"{node}:{self.ssh_port}"
+            )
+
+            runner = SkySSHRunner(
+                (host, self.ssh_port),
+                **ssh_credentials,
+                ssh_control_name=ssh_control_name,
+                docker_user=self.docker_user,
+            )
+
+        return runner
+
     def _run_commands_with_ssh(
         self,
         commands: list,
@@ -1394,7 +1415,7 @@ class Cluster(Resource):
         require_outputs: bool = True,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
     ):
-        from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
+        from runhouse.resources.hardware.sky_ssh_runner import SshMode
 
         if isinstance(commands, str):
             commands = [commands]
@@ -1404,21 +1425,7 @@ class Cluster(Resource):
 
         return_codes = []
 
-        ssh_credentials = copy.copy(self.creds_values)
-        host = ssh_credentials.pop("ssh_host", node or self.address)
-        pwd = ssh_credentials.pop("password", None)
-        ssh_credentials.pop("private_key", None)
-        ssh_credentials.pop("public_key", None)
-        ssh_control_name = ssh_credentials.pop(
-            "ssh_control_name", f"{node}:{self.ssh_port}"
-        )
-
-        runner = SkySSHRunner(
-            (host, self.ssh_port),
-            **ssh_credentials,
-            ssh_control_name=ssh_control_name,
-            docker_user=self.docker_user,
-        )
+        runner = self._get_command_runner(node=node)
 
         env_var_prefix = (
             " ".join(f"{key}={val}" for key, val in env_vars.items())

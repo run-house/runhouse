@@ -153,6 +153,7 @@ def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluste
             raise typer.Exit(1)
 
         resource_handle = state[0].get("handle", {})
+        # TODO - update for k8s cluster
         _run_ssh_command(
             address=resource_handle.head_ip,
             ssh_user=resource_handle.ssh_user or "ubuntu",
