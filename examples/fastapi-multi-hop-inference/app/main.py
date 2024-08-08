@@ -1,6 +1,6 @@
 # # RAG App Embedding and LLM Generation
 
-# This example is for a retrieval and generation (RAG) app that references text from websites
+# This example defines a retrieval augmented generation (RAG) app that references text from websites
 # to enrich the response from an LLM. Depending on the URLs you use to feed the application database,
 # you'll be able to answer questions more intelligently with explicit context.
 # You could, for example, pass in the URL of a new startup and then ask the app to answer questions
