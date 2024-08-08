@@ -2,6 +2,7 @@ import json
 import logging
 import time
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 from pathlib import Path
 from random import randrange
@@ -18,6 +19,7 @@ from runhouse.logger import ClusterLogsFormatter, logger
 from runhouse.resources.envs.utils import _get_env_from
 
 from runhouse.resources.resource import Resource
+from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
@@ -331,7 +333,24 @@ class HTTPClient:
             f"{'Calling' if method_name else 'Getting'} {key}"
             + (f".{method_name}" if method_name else "")
         )
+
+        run_name = run_name or _generate_default_name(
+            prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+            precision="ms",  # Higher precision because we see collisions within the same second
+            sep="@",
+        )
+
         serialization = serialization or "pickle"
+
+        logger.info(f"Creating log streaming thread for {run_name}.")
+        # Create a ThreadPoolExecutor
+        with ThreadPoolExecutor() as executor:
+
+            # Submit the thread function to the executor
+            future = executor.submit(
+                self.stream_run_logs, run_name, resource_address, serialization, key
+            )
+
         res = retry_with_exponential_backoff(session.post)(
             self._formatted_url(f"{key}/{method_name}"),
             json=CallParams(
@@ -354,27 +373,66 @@ class HTTPClient:
             )
         error_str = f"Error calling {method_name} on {key} on server"
 
+        stream_logs_res = future.result()
+
         # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
         # maybe a stream of results), so we need to separate these out.
         result = None
         res_iter = res.iter_lines(chunk_size=None)
+        stream_logs_iter = stream_logs_res.iter_lines(chunk_size=None)
+
+        more_res = True
+        more_logs = True
+
         # We need to manually iterate through res_iter so we can try/except to bypass a ChunkedEncodingError bug
-        while True:
+        while more_res or more_logs:
             try:
-                responses_json = next(res_iter)
+                results_responses_json = next(res_iter)
             except requests.exceptions.ChunkedEncodingError:
                 # Some silly bug in urllib3, see https://github.com/psf/requests/issues/4248
                 continue
             except StopIteration:
-                break
+                more_res = False
+                continue
             except StopAsyncIteration:
-                break
+                more_res = False
+                continue
 
-            resp = json.loads(responses_json)
-            output_type = resp["output_type"]
+            try:
+                logs_responses_json = next(stream_logs_iter)
+            except requests.exceptions.ChunkedEncodingError:
+                # Some silly bug in urllib3, see https://github.com/psf/requests/issues/4248
+                continue
+            except StopIteration:
+                more_logs = False
+                continue
+            except StopAsyncIteration:
+                more_logs = False
+                continue
+
+            res_resp = json.loads(results_responses_json)
+            output_type = res_resp["output_type"]
             result = handle_response(
-                resp, output_type, error_str, log_formatter=self.log_formatter
+                res_resp, output_type, error_str, log_formatter=self.log_formatter
             )
+
+            logs_resp = json.loads(logs_responses_json)
+            output_logs, error_logs = logs_resp["output_logs"], logs_resp["error_logs"]
+            if output_logs:
+                handle_response(
+                    output_logs,
+                    OutputType.STDOUT,
+                    error_str,
+                    log_formatter=self.log_formatter,
+                )
+            if error_logs:
+                handle_response(
+                    error_logs,
+                    OutputType.STDERR,
+                    error_str,
+                    log_formatter=self.log_formatter,
+                )
+
             # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
             # slow, we can just set it explicitly.
             from runhouse.resources.module import Module
@@ -464,7 +522,24 @@ class HTTPClient:
             f"{'Calling' if method_name else 'Getting'} {key}"
             + (f".{method_name}" if method_name else "")
         )
+
+        run_name = run_name or _generate_default_name(
+            prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+            precision="ms",  # Higher precision because we see collisions within the same second
+            sep="@",
+        )
+
         serialization = serialization or "pickle"
+
+        logger.info(f"Creating log streaming thread for {run_name}.")
+        # Create a ThreadPoolExecutor
+        with ThreadPoolExecutor() as executor:
+
+            # Submit the thread function to the executor
+            future = executor.submit(
+                self.stream_run_logs, run_name, resource_address, serialization, key
+            )
+
         async with self.async_session.stream(
             "POST",
             self._formatted_url(f"{key}/{method_name}"),
@@ -485,11 +560,13 @@ class HTTPClient:
                 )
             error_str = f"Error calling {method_name} on {key} on server"
 
+            stream_logs_res = future.result()
+
             # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
             # maybe a stream of results), so we need to separate these out.
             result = None
-            async for response_json in res.aiter_lines():
-                resp = json.loads(response_json)
+            async for res_response_json in res.aiter_lines():
+                resp = json.loads(res_response_json)
                 output_type = resp["output_type"]
                 result = handle_response(
                     resp, output_type, error_str, log_formatter=self.log_formatter
@@ -513,6 +590,27 @@ class HTTPClient:
                     ):
                         result["system"] = system
                     result = Resource.from_config(result, dryrun=True)
+
+            async for logs_responses_json in stream_logs_res():
+                logs_resp = json.loads(logs_responses_json)
+                output_logs, error_logs = (
+                    logs_resp["output_logs"],
+                    logs_resp["error_logs"],
+                )
+                if output_logs:
+                    handle_response(
+                        output_logs,
+                        OutputType.STDOUT,
+                        error_str,
+                        log_formatter=self.log_formatter,
+                    )
+                if error_logs:
+                    handle_response(
+                        error_logs,
+                        OutputType.STDERR,
+                        error_str,
+                        log_formatter=self.log_formatter,
+                    )
 
             end = time.time()
 
@@ -640,3 +738,18 @@ class HTTPClient:
         return self.request(
             f"keys/?env_name={env_name}" if env_name else "keys", req_type="get"
         )
+
+    def stream_run_logs(
+        self, run_name: str, resource_address: str = None, serialization=None, key=None
+    ):
+        # need to have try-except here in case we are trying to stream logs from localhost client (i.e in unittests)
+        logs_res = retry_with_exponential_backoff(session.get)(
+            self._formatted_url(
+                f"logs?run_name={run_name}&serialization={serialization}&key={key}"
+            ),
+            stream=False,
+            headers=rns_client.request_headers(resource_address),
+            auth=self.auth,
+            verify=self.verify,
+        ).json()
+        return logs_res
