@@ -106,6 +106,7 @@ class FolderPutParams(FolderParams):
     contents: Optional[Any]
     mode: Optional[str] = None
     overwrite: Optional[bool] = False
+    serialization: Optional[str] = None
 
 
 class FolderRmParams(FolderParams):

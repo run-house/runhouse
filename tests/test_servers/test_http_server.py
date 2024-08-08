@@ -224,6 +224,7 @@ class TestHTTPServerDocker:
             json={
                 "path": "~/.rh",
                 "contents": {f"{file_name}.txt": "Hello, world!"},
+                "overwrite": True
             },
             headers=rns_client.request_headers(cluster.rns_address),
         )
@@ -272,6 +273,7 @@ class TestHTTPServerDocker:
             json={
                 "path": "~/.rh",
                 "contents": {f"{file_name}.pickle": serialized_data},
+                "overwrite": True
             },
             headers=rns_client.request_headers(cluster.rns_address),
         )
@@ -287,11 +289,11 @@ class TestHTTPServerDocker:
         resp_json = response.json()
         assert resp_json["output_type"] == "result_serialized"
 
-        # TODO: User's responsibility to deserialize the response data?
         assert deserialize_data(resp_json["data"], serialization) == raw_data
 
     @pytest.mark.level("local")
-    def test_folder_mkdir_rm_and_ls(self, http_client, cluster):
+    def test_folder_mkdir_rm_and_ls(self, http_client, docker_cluster_pk_ssh_no_auth):
+        cluster = docker_cluster_pk_ssh_no_auth
         response = http_client.post(
             "/folder/method/mkdir",
             json={"path": "~/.rh/new-folder"},
@@ -304,6 +306,7 @@ class TestHTTPServerDocker:
             json={
                 "path": "~/.rh",
                 "contents": {"new_file.txt": "Hello, world!"},
+                "overwrite": True
             },
             headers=rns_client.request_headers(cluster.rns_address),
         )
