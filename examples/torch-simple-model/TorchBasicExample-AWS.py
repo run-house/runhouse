@@ -39,6 +39,13 @@ import os
 
 import runhouse as rh 
 
+# Let's define a function that downloads the data. You can imagine this as a generic function to access data. 
+def DownloadData(path = './data'):
+    train_dataset = datasets.MNIST(path, train=True, download = True)
+    test_dataset = datasets.MNIST(path, train=False, download = True)
+    print('Done with data download')
+
+
 # Next, we define a model class. We define a very basic feedforward neural network with three fully connected layers.
 class TorchExampleBasic(nn.Module):
     def __init__(self):
@@ -71,10 +78,18 @@ class SimpleTrainer():
         self.train_loader = None
         self.test_loader = None
 
-    def load_train(self, data, batch_size):
+        self.transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,))
+        ])
+
+
+    def load_train(self, path, batch_size):
+        data = datasets.MNIST(path, train=True, download=False, transform=self.transform)
         self.train_loader = DataLoader(data, batch_size=batch_size, shuffle=True)
 
-    def load_test(self, data, batch_size):
+    def load_test(self, path, batch_size):
+        data = datasets.MNIST(path, train=False, download=False, transform=self.transform)
         self.test_loader = DataLoader(data, batch_size=batch_size, shuffle=True)
         
     def train_model(self, learning_rate=0.001):
@@ -164,23 +179,25 @@ if __name__ == '__main__':
     
     # Define a cluster type - here we launch an on-demand AWS cluster with 1 NVIDIA A10G GPU. 
     # You can use any cloud you want, or existing compute
-    cluster = rh.ondemand_cluster(name="rh-a10x", instance_type="A10G:1", provider="aws").up_if_not()
+    cluster = rh.ondemand_cluster(name="a10g-jason", instance_type="A10G:1", provider="aws").up_if_not()
 
 
     # Next, we define the environment for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets (not needed here) that need to be synced up from local to remote.
     env = rh.env(
         name="test_env",
-        secrets=["huggingface"], # As an example
         reqs=["torch", "torchvision"]
     )
 
-    # Finally, we define our module and run it on the remote cluster. We take our normal Python class SimpleTrainer, and wrap it in rh.module()
+    # We define our module and run it on the remote cluster. We take our normal Python class SimpleTrainer, and wrap it in rh.module()
+    # We also take our function DownloadData and send it to the remote cluster as well
     # Then, we use `.to()` to send it to the remote cluster we just defined. 
     #
     # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
     # set up on the remote machine before the module is run.
     remote_torch_example = rh.module(SimpleTrainer).to(cluster, env=env, name="torch-basic-training")
+    remote_download = rh.function(DownloadData).to(cluster, env=env)
+    
 
 
     # ## Calling our remote Trainer
@@ -189,26 +206,18 @@ if __name__ == '__main__':
 
     # Though we could just as easily run identical code on local if my machine is capable of handling it. 
     #model = SimpleTrainer()       # If instantiating a local example
-    
 
     # We set some settings for the model training 
     batch_size = 64
     epochs = 5
     learning_rate = 0.01
 
-
-    # We create the datasets locally, and then send them to the remote model / remote .load_train() method. The "preprocessing" happens remotely.
+    # We create the datasets remotely, and then send them to the remote model / remote .load_train() method. The "preprocessing" happens remotely.
     # They become instance variables of the remote Trainer. 
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
-    ])
+    remote_download()
 
-    train_dataset = datasets.MNIST('./data', train=True, download=True, transform=transform)
-    test_dataset = datasets.MNIST('./data', train=False, transform=transform)
-
-    model.load_train(train_dataset, batch_size)
-    model.load_test(test_dataset, batch_size)
+    model.load_train('./data', batch_size)
+    model.load_test('./data', batch_size)
 
     # We can train the model per epoch, use the remote .test() method to assess the accuracy, and save it from remote to a S3 bucket. 
     # All errors, prints, and logs are sent to me as if I were debugging on my local machine, but all the work is done in the cloud. 
@@ -222,6 +231,12 @@ if __name__ == '__main__':
 
     # Finally, let's just see one prediction, as an example of using the remote model for inference. 
     # We have in essence done the research, and in one breath, debugged the production pipeline and deployed a microservice. 
+
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))
+    ])
+    test_dataset = datasets.MNIST('./data', train=False, transform=transform)
     example_data, example_target = test_dataset[0][0].unsqueeze(0), test_dataset[0][1]
     prediction = model.predict(example_data)
     print(f'Predicted: {prediction}, Actual: {example_target}')
