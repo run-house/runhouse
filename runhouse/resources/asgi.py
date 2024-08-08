@@ -67,6 +67,7 @@ def asgi(
     app: Any,
     env: Optional[Union[str, "Env"]] = None,
     name: Optional[str] = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
     **kwargs
 ) -> Asgi:
@@ -94,7 +95,7 @@ def asgi(
     """
     if name and not any([app, kwargs, env]):
         # Try reloading existing module
-        return Asgi.from_name(name, dryrun)
+        return Asgi.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
 
     if not isinstance(env, Env):
         env = _get_env_from(env) or Env()
