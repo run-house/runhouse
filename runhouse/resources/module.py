@@ -1353,6 +1353,13 @@ def module(
         # Try reloading existing module
         return Module.from_name(name, dryrun)
 
+    if env:
+        logger.warning(
+            "The `env` argument is deprecated and will be removed in a future version. Please first "
+            "construct your module and then do `module.to(system=system, env=env)` to set the environment. "
+            "You can do `module.to(system=rh.here, env=env)` to set the environment on the local system."
+        )
+
     if not isinstance(env, Env):
         env = _get_env_from(env)
         if not env:
