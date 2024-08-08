@@ -7,10 +7,17 @@
 [![Den](https://img.shields.io/badge/runhouse_den-purple)](https://www.run.house/login)
 
 ## 👵 Welcome Home!
-Runhouse gives your code the superpower of traversing remote infrastructure, so you
-can iterate and debug your ML apps and workflows in full-scale compute, but from a local editor in regular Python. No DSLs, yaml, or prescriptive
-dev environment. It's the fastest way to build, run, and deploy production-quality ML apps and workflows on your own infrastructure, and perhaps the only way to
-take production code and run it as-is from a "local" setting to iterate it further or debug.
+Runhouse enables rapid, cost-effective Machine Learning development across research and production. 
+It allows you to dispatch Python functions and classes to any of your own cloud compute infrastructure, and call them 
+eagerly as if they were local. This means:
+1. You can natively run and debug your code on remote GPUs or other powerful infra, like Ray, Spark, or Kubernetes, 
+from your laptop. Your application code then runs as-is in CI/CD or production, still dispatching work to remote infra.
+2. Your application, including the infrastructure steps, is captured in code in a way that eliminates manual gruntwork 
+and is exactly reproducible across your team and across research and production. 
+3. Your flexibility to scale and cost-optimize is unmatched, with teams often seeing cost savings of ~50%. 
+
+Orchestrating across clusters, regions, or clouds is trivial, as is complex logic like scaling, fault 
+tolerance, or multi-step workflows.
 
 ## What is Runhouse For?
 * When research-to-production is slow and painful, both due to mismatched research & production data/environments and orchestrator pipelines' lack of debugabillity. 
@@ -27,7 +34,7 @@ take production code and run it as-is from a "local" setting to iterate it furth
 * 👷‍♀️ Share Python functions or classes as robust services, including HTTPS, auth, observability, scaling, custom domains, secrets, versioning, and more.
 * 👩‍🍳 Support complex workflows or services and advanced logic since your components are de-coupled and infra/modules are interactable with code.  
 
-The Runhouse API is simple. Send your **modules** (functions and classes) into **environments** on compute
+The Runhouse API is simple. Send your **modules** (functions and classes) into **environments** (worker processes) on compute
 **infra**, like this:
 
 ```python
@@ -62,7 +69,7 @@ With the above simple structure you can build, call, and share:
 
 ## 🛋️ Infra Monitoring, Resource Sharing and Versioning with Runhouse Den
 
-You can unlock unique accessibility and sharing features with
+You can unlock unique observability and sharing features with
 [Runhouse Den](https://www.run.house/dashboard), a complementary product to this repo.
 
 After you've sent a function or class to remote compute, Runhouse allows you to persist and share it as
