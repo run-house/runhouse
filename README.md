@@ -8,15 +8,19 @@
 
 ## 👵 Welcome Home!
 
-Runhouse gives your code the superpower of traversing remote infrastructure, so you
-can iterate and debug your ML apps and workflows locally in regular Python (no DSLs, yaml, or prescriptive
-dev environment) with full-scale compute and data (no sandbox). It's the fastest way to build, run,
-and deploy production-quality ML apps and workflows on your own infrastructure, and perhaps the only way to
-take production code and run it as-is locally (again, running on identical powerful infra) to iterate it further or
-debug.
+Runhouse enables rapid, cost-effective Machine Learning development across research and production. 
+It allows you to dispatch Python functions and classes to your cloud compute infrastructure, and call them 
+eagerly as if they were local. This means:
+1. You can natively run and debug your code on remote GPUs or other powerful infra, like Ray, Spark, or Kubernetes, 
+from your laptop. Your application code then runs as-is in CI/CD or production, still dispatching work to remote infra.
+2. Your application, including the infrastructure steps, is captured in code in a way that eliminates manual gruntwork 
+and is exactly reproducible across your team and across research and production. 
+3. Your flexibility to scale and cost-optimize is unmatched, with teams seeing often seeing cost savings of ~50%. 
+Orchestrating across clusters, regions, or clouds is trivial, as is complex logic like scaling, fault 
+tolerance, or multi-step workflows.
 
-After you've sent a function or class to remote compute, Runhouse also allows you to persist, reuse, and share it as
-a service, turning otherwise redundant AI activities into common modular components across your team or company.
+After you've dispatched a function or class to remote compute, Runhouse also allows you to persist, reuse, and share 
+it as a service, turning otherwise redundant AI activities into common modular components across your team or company.
 This improves cost, velocity, and reproducibility - think 10 ML pipelines and researchers calling the same shared
 preprocessing, training, evaluation, or batch inference service, rather than each allocating their own compute
 resources and deploying slightly differing code. Or, imagine experimenting with a new preprocessing method in a
@@ -37,8 +41,8 @@ and serve your app.
 * 👩‍🍳 Nest applications to create complex workflows and services. Components are decoupled so you can change,
 shift, or scale any component without affecting the rest of your system.
 
-The Runhouse API is dead simple. Send your **modules** (functions and classes) into **environments** on compute
-**infra**, like this:
+The Runhouse API is dead simple. Send your **modules** (functions and classes) into **environments** (worker 
+processes) on compute **infra**, like this:
 
 ```python
 import runhouse as rh
@@ -72,7 +76,7 @@ With the above simple structure you can build, call, and share:
 
 ## 🛋️ Sharing and Versioning with Runhouse Den
 
-You can unlock unique accessibility and sharing features with
+You can unlock unique observability and sharing features with
 [Runhouse Den](https://www.run.house/dashboard), a complimentary product to this repo.
 Log in from anywhere to save, share, and load resources:
 ```shell
