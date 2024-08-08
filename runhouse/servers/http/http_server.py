@@ -42,8 +42,12 @@ from runhouse.servers.http.http_utils import (
     folder_mv,
     folder_put,
     folder_rm,
-    FolderOperation,
+    FolderGetParams,
+    FolderLsParams,
+    FolderMvParams,
     FolderParams,
+    FolderPutParams,
+    FolderRmParams,
     get_token_from_request,
     handle_exception_response,
     OutputType,
@@ -75,7 +79,14 @@ def validate_cluster_access(func):
         is_coro = inspect.iscoroutinefunction(func)
 
         func_call: bool = func.__name__ in ["post_call", "get_call"]
-        write_only_access: bool = func.__name__ in ["folder_operation"]
+        write_only_access: bool = func.__name__ in [
+            "folder_ls_cmd",
+            "folder_mkdir_cmd",
+            "folder_get_cmd",
+            "folder_put_cmd",
+            "folder_rm_cmd",
+            "folder_mv_cmd",
+        ]
         token = get_token_from_request(request)
 
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
@@ -624,31 +635,85 @@ class HTTPServer:
             )
 
     @staticmethod
-    @app.post("/folder/method/{operation}")
+    @app.post("/folder/method/ls")
     @validate_cluster_access
-    async def folder_operation(
-        request: Request, operation: FolderOperation, folder_params: FolderParams
-    ):
+    async def folder_ls_cmd(request: Request, ls_params: FolderLsParams):
+        try:
+            path = resolve_folder_path(ls_params.path)
+            return folder_ls(path, full_paths=ls_params.full_paths, sort=ls_params.sort)
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/mkdir")
+    @validate_cluster_access
+    async def folder_mkdir_cmd(request: Request, folder_params: FolderParams):
         try:
             path = resolve_folder_path(folder_params.path)
+            return folder_mkdir(path)
 
-            if operation == FolderOperation.MKDIR:
-                return folder_mkdir(path)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
-            elif operation == FolderOperation.GET:
-                return folder_get(path, folder_params)
+    @staticmethod
+    @app.post("/folder/method/get")
+    @validate_cluster_access
+    async def folder_get_cmd(request: Request, get_params: FolderGetParams):
+        try:
+            path = resolve_folder_path(get_params.path)
+            return folder_get(path, mode=get_params.mode, encoding=get_params.encoding)
 
-            elif operation == FolderOperation.PUT:
-                return folder_put(path, folder_params)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
-            elif operation == FolderOperation.LS:
-                return folder_ls(path, folder_params)
+    @staticmethod
+    @app.post("/folder/method/put")
+    @validate_cluster_access
+    async def folder_put_cmd(request: Request, put_params: FolderPutParams):
+        try:
+            path = resolve_folder_path(put_params.path)
+            return folder_put(
+                path,
+                overwrite=put_params.overwrite,
+                mode=put_params.mode,
+                serialization=put_params.serialization,
+                contents=put_params.contents,
+            )
 
-            elif operation == FolderOperation.RM:
-                return folder_rm(path, folder_params)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
-            elif operation == FolderOperation.MV:
-                return folder_mv(path, folder_params)
+    @staticmethod
+    @app.post("/folder/method/rm")
+    @validate_cluster_access
+    async def folder_rm_cmd(request: Request, rm_params: FolderRmParams):
+        try:
+            path = resolve_folder_path(rm_params.path)
+            return folder_rm(
+                path, contents=rm_params.contents, recursive=rm_params.recursive
+            )
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/mv")
+    @validate_cluster_access
+    async def folder_mv_cmd(request: Request, mv_params: FolderMvParams):
+        try:
+            path = resolve_folder_path(mv_params.path)
+            return folder_mv(src_path=path, dest_path=mv_params.dest_path)
 
         except Exception as e:
             return handle_exception_response(
