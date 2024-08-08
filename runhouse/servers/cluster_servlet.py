@@ -2,6 +2,7 @@ import asyncio
 import copy
 import datetime
 import json
+import os
 import threading
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -63,7 +64,7 @@ class ClusterServlet:
 
         self._initialized_env_servlet_names: Set[str] = set()
         self._key_to_env_servlet_name: Dict[Any, str] = {}
-        self._auth_cache: AuthCache = AuthCache(cluster_config)
+        self._auth_cache: AuthCache = AuthCache(self.cluster_config)
         self.autostop_helper = None
 
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
@@ -82,9 +83,9 @@ class ClusterServlet:
         self.pid = get_pid()
         self.process = psutil.Process(pid=self.pid)
         self.gpu_metrics = None  # will be updated only if this is a gpu cluster.
-        self.lock = (
-            threading.Lock()
-        )  # will be used when self.gpu_metrics will be updated by different threads.
+
+        # will be used when self.gpu_metrics will be updated by different threads.
+        self.lock = threading.Lock()
 
         if self.cluster_config.get("has_cuda"):
             logger.debug("Creating _periodic_gpu_check thread.")
@@ -253,7 +254,6 @@ class ClusterServlet:
     ##############################################
     # Periodic Cluster Checks APIs
     ##############################################
-
     async def asave_status_metrics_to_den(self, status: dict):
         from runhouse.resources.hardware.utils import ResourceServerStatus
 
@@ -283,7 +283,6 @@ class ClusterServlet:
         return sync_function(self.asave_status_metrics_to_den)(status)
 
     async def acheck_cluster_status(self, send_to_den: bool = True):
-
         logger.debug("Performing cluster status checks")
         status, den_resp_status_code = await self.astatus(send_to_den=send_to_den)
 
@@ -302,7 +301,6 @@ class ClusterServlet:
         return status, den_resp_status_code
 
     async def acheck_cluster_logs(self, interval_size: int):
-
         logger.debug("Performing logs checks")
 
         cluster_config = await self.aget_cluster_config()
@@ -335,7 +333,7 @@ class ClusterServlet:
     async def aperiodic_cluster_checks(self):
         """Periodically check the status of the cluster, gather metrics about the cluster's utilization & memory,
         and save it to Den."""
-
+        disable_observability = os.getenv("disable_observability", False)
         while True:
             should_send_status_and_logs_to_den: bool = (
                 configs.token is not None and self._cluster_uri is not None
@@ -344,6 +342,11 @@ class ClusterServlet:
 
             if not should_send_status_and_logs_to_den and not should_update_autostop:
                 break
+
+            cluster_config = await self.aget_cluster_config()
+            interval_size = cluster_config.get(
+                "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
+            )
 
             try:
                 status, den_resp_code = await self.acheck_cluster_status(
@@ -354,15 +357,16 @@ class ClusterServlet:
                     logger.debug("Updating autostop")
                     await self._update_autostop(status)
 
-                cluster_config = await self.aget_cluster_config()
-                interval_size = cluster_config.get(
-                    "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
-                )
-
                 if interval_size == -1 or not should_send_status_and_logs_to_den:
                     continue
 
                 logger.debug("Performing cluster checks")
+
+                if disable_observability:
+                    logger.info(
+                        "Cluster observability not enabled, skipping metrics collection."
+                    )
+                    break
 
                 if den_resp_code == 404:
                     logger.info(
@@ -396,9 +400,7 @@ class ClusterServlet:
                         await self.aset_cluster_config_value(
                             key="end_log_line", value=new_end_log_line
                         )
-                        # since we are setting a new values to the cluster_config, we need to reload it so the next
-                        # cluster check iteration will reference to the updated cluster config.
-                        cluster_config = await self.aget_cluster_config()
+
                 if den_resp_code == 200:
                     await self.acheck_cluster_logs(interval_size=interval_size)
 
@@ -409,6 +411,7 @@ class ClusterServlet:
                     "Temporarily increasing the interval between status checks."
                 )
                 await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
+
             finally:
                 # make sure that the thread will go to sleep, even if the interval size == -1
                 # (meaning that sending status to den is disabled).
@@ -468,12 +471,10 @@ class ClusterServlet:
 
     async def _aperiodic_gpu_check(self):
         """periodically collects cluster gpu usage"""
-
         pynvml.nvmlInit()  # init nvidia ml info collection
 
         while True:
             try:
-
                 gpu_count = pynvml.nvmlDeviceGetCount()
                 with self.lock:
                     if not self.gpu_metrics:
@@ -505,23 +506,22 @@ class ClusterServlet:
                             }
                         )
                         self.gpu_metrics[gpu_index] = updated_gpu_info
+
             except Exception as e:
                 logger.error(str(e))
                 pynvml.nvmlShutdown()
                 break
+
             finally:
                 # collects gpu usage every 5 seconds.
                 await asyncio.sleep(GPU_COLLECTION_INTERVAL)
 
     def _periodic_gpu_check(self):
-        # This is only ever called once in its own thread, so we can do asyncio.run here instead of
-        # sync_function.
+        # This is only ever called once in its own thread, so we can do asyncio.run here instead of `sync_function`.
         asyncio.run(self._aperiodic_gpu_check())
 
     def _get_node_gpu_usage(self, server_pid: int):
-
-        # currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
-
+        # TODO [SB] currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
         collected_gpus_info = copy.deepcopy(self.gpu_metrics)
 
         if collected_gpus_info is None or not collected_gpus_info[0]:
@@ -530,15 +530,13 @@ class ClusterServlet:
         cluster_gpu_usage = get_gpu_usage(
             collected_gpus_info=collected_gpus_info, servlet_type=ServletType.cluster
         )
-        cluster_gpu_usage[
-            "server_pid"
-        ] = server_pid  # will be useful for multi-node clusters.
+
+        # will be useful for multi-node clusters.
+        cluster_gpu_usage["server_pid"] = server_pid
 
         return cluster_gpu_usage
 
     async def astatus(self, send_to_den: bool = False) -> Tuple[Dict, Optional[int]]:
-        import psutil
-
         config_cluster = copy.deepcopy(self.cluster_config)
 
         # Popping out creds because we don't want to show them in the status
@@ -640,7 +638,6 @@ class ClusterServlet:
     # Save cluster logs to Den
     ##############################################
     def _get_logs(self):
-
         with open(SERVER_LOGFILE) as log_file:
             log_lines = log_file.readlines()
         cleaned_log_lines = [ColoredFormatter.format_log(line) for line in log_lines]
