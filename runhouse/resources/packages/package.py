@@ -414,6 +414,13 @@ class Package(Resource):
             logger.info(
                 f"Copying package from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
             )
+            # Avoids having the folder written into ~/.cache/<random uuid> on the cluster.
+            # TODO figure out the proper defaulting for all folders
+            path = path or (
+                f"~/{Path(self.install_target.local_path).name}"
+                if self.install_target.local_path
+                else None
+            )
         self._validate_folder_path()
 
         # sync folder to the fs and create a new module on the fs where relevant
