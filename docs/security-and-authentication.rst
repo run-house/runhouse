@@ -34,3 +34,15 @@ local Runhouse config (:code:`~/.rh/config.yaml`), or in Python:
 
     import runhouse as rh
     rh.configs.disable_data_collection()
+
+
+Disabling Cluster Telemetry Recording
+---------------------------------------
+To disable cluster telemetry recording, set the environment variable :code:`ENABLE_TELEMETRY`
+to :code:`False`. Alternatively, set :code:`enable_telemetry` to :code:`False` in your
+local Runhouse config (:code:`~/.rh/config.yaml`), or in Python:
+
+.. code-block:: python
+
+    import runhouse as rh
+    rh.configs.disable_telemetry()

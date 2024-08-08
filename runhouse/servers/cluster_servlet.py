@@ -11,6 +11,7 @@ import requests
 import runhouse
 
 from runhouse.constants import (
+    CLUSTER_CONFIG_PATH,
     DEFAULT_LOG_LEVEL,
     DEFAULT_STATUS_CHECK_INTERVAL,
     INCREASED_INTERVAL,
@@ -45,6 +46,10 @@ class ClusterServlet:
         # and still want an initialized cluster config in the servlet.
         if not cluster_config:
             cluster_config = load_cluster_config_from_file()
+
+        if cluster_config:
+            disable_telemetry = kwargs.get("disable_telemetry", False)
+            cluster_config["enable_telemetry"] = not disable_telemetry
 
         self.cluster_config: Optional[Dict[str, Any]] = (
             cluster_config if cluster_config else {}
@@ -113,6 +118,13 @@ class ClusterServlet:
         )
 
         return self.cluster_config
+
+    async def asave_cluster_config_locally(self, config: Dict[str, Any]):
+        import os
+
+        with open(os.path.expanduser(CLUSTER_CONFIG_PATH), "w+") as config_file:
+            json.dump(config, config_file)
+            config_file.write("\n")
 
     ##############################################
     # Auth cache internal functions

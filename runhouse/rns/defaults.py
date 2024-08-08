@@ -31,7 +31,7 @@ class Defaults:
         "default_autostop": -1,
         "use_spot": False,
         "use_local_configs": True,
-        "disable_data_collection": False,
+        "enable_telemetry": True,
         "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
@@ -288,3 +288,15 @@ class Defaults:
             return False
 
         return True
+
+    @property
+    def telemetry_enabled(self):
+        return self.get("enable_telemetry", True)
+
+    def disable_telemetry(self):
+        self.set("enable_telemetry", False)
+        os.environ["ENABLE_TELEMETRY"] = "False"
+
+    def enable_telemetry(self):
+        self.set("enable_telemetry", True)
+        os.environ["ENABLE_TELEMETRY"] = "True"

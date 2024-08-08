@@ -8,6 +8,7 @@ import requests
 import runhouse as rh
 
 from runhouse.constants import (
+    CLUSTER_CONFIG_PATH,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_PORT,
@@ -896,3 +897,42 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # set it back
         cluster.default_env = test_env
         cluster.delete(new_env.name)
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    @pytest.mark.skip(
+        "Stopping and restarting the server mid-test causes some errors, need to fix"
+    )
+    def test_enable_and_disable_telemetry(self, cluster):
+        import json
+
+        # check that by default cluster telemetry is enabled
+        cluster_config_on_cluster = cluster.run(
+            [f"cat {CLUSTER_CONFIG_PATH}"], stream_logs=False
+        )
+        assert cluster_config_on_cluster[0][0] == 0
+        cluster_config_on_cluster = json.loads(cluster_config_on_cluster[0][1])
+        assert cluster_config_on_cluster.get("enable_telemetry") is True
+
+        # check that the enable_telemetry in the cluster servlet config is correct as well
+        cluster_status = cluster.status()
+        cluster_config_in_cluster_servlet = cluster_status.get("cluster_config")
+        assert cluster_config_in_cluster_servlet.get("enable_telemetry") is True
+
+        # check that restart server disables telemetry, if enable_telemetry=False is provided to restart-server()
+        cluster.restart_server(enable_telemetry=False)
+        cluster_config_on_cluster = cluster.run(
+            [f"cat {CLUSTER_CONFIG_PATH}"], stream_logs=False
+        )
+        assert cluster_config_on_cluster[0][0] == 0
+        cluster_config_on_cluster = json.loads(cluster_config_on_cluster[0][1])
+        assert cluster_config_on_cluster.get("enable_telemetry") == "False"
+
+        # check that the enable_telemetry in the cluster servlet config is correct as well
+        cluster_status = cluster.status()
+        cluster_config_in_cluster_servlet = cluster_status.get("cluster_config")
+        assert cluster_config_in_cluster_servlet.get("enable_telemetry") == "False"
+
+        # restart cluster to enable telemetry once again
+        cluster.restart_server()
+        # TODO: do we want telemetry enabled by default for test clusters?

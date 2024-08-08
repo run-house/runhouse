@@ -27,6 +27,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import requests.exceptions
 
+import runhouse as rh
+
 from runhouse.constants import (
     CLI_RESTART_CMD,
     CLI_STOP_CMD,
@@ -295,6 +297,7 @@ class Cluster(Resource):
 
         config["creds"] = creds
         config["api_server_url"] = rns_client.api_server_url
+        config["enable_telemetry"] = rh.configs.telemetry_enabled
 
         if self._default_env:
             default_env = self._resource_string_for_subconfig(
@@ -828,6 +831,7 @@ class Cluster(Resource):
         restart_ray: bool = True,
         restart_proxy: bool = False,
         logs_level: str = None,
+        enable_telemetry: bool = None,
     ):
         """Restart the RPC server.
 
@@ -836,6 +840,8 @@ class Cluster(Resource):
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
             env (str or Env, optional): Specified environment to restart the server on. (Default: ``None``)
             restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
+            logs_level (str): cluster's log level: INFO, DEBUG, WARNING, ERROR, EXCEPTION
+            enable_telemetry (bool): enable or disable telemetry collection on the cluster
 
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
@@ -918,6 +924,17 @@ class Cluster(Resource):
                 )
                 cluster_cert_path = f"{base_caddy_dir}/{self.cert_config.CERT_NAME}"
 
+        if enable_telemetry is None:
+            enable_telemetry = rh.configs.telemetry_enabled
+
+            # edge case: user disabled telemetry for the cluster and then wants to enable it again.
+            if not enable_telemetry:
+                rh.configs.enable_telemetry()
+                enable_telemetry = rh.configs.telemetry_enabled
+
+        if not enable_telemetry:
+            rh.configs.disable_telemetry()
+
         # Update the cluster config on the cluster
         self.save_config_to_cluster()
 
@@ -971,6 +988,7 @@ class Cluster(Resource):
             )
             + " --from-python"
             + f" --log-level {logs_level}"
+            + (" --disable-telemetry" if not enable_telemetry else "")
         )
 
         status_codes = self._run_cli_commands_on_cluster_helper(commands=[restart_cmd])
