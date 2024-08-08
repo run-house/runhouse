@@ -309,10 +309,15 @@ class HTTPClient:
         path: Union[str, Path],
         contents: Union[Dict[str, Any], Resource, List[Resource]],
         mode: str,
+        overwrite: bool,
         serialization: str,
     ):
         folder_params = FolderPutParams(
-            path=path, contents=contents, mode=mode, serialization=serialization
+            path=path,
+            contents=contents,
+            mode=mode,
+            overwrite=overwrite,
+            serialization=serialization,
         ).dict()
         return self.request_json(
             "/folder/method/put", req_type="post", json_dict=folder_params
