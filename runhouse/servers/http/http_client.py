@@ -278,7 +278,7 @@ class HTTPClient:
         # Note: Resource address must be specified in order to construct the cluster subtoken
         return self.request("status", req_type="get", resource_address=resource_address)
 
-    def folder_ls(self, path: Union[str, Path], full_paths: bool, sort: bool):
+    def folder_ls(self, path: str, full_paths: bool, sort: bool):
         folder_params = FolderLsParams(
             path=path, full_paths=full_paths, sort=sort
         ).dict()
@@ -286,19 +286,19 @@ class HTTPClient:
             "/folder/method/ls", req_type="post", json_dict=folder_params
         )
 
-    def folder_mkdir(self, path: Union[str, Path]):
+    def folder_mkdir(self, path: str):
         folder_params = FolderParams(path=path).dict()
         return self.request_json(
             "/folder/method/mkdir", req_type="post", json_dict=folder_params
         )
 
-    def folder_mv(self, path: Union[str, Path], dest_path: str):
+    def folder_mv(self, path: str, dest_path: str):
         folder_params = FolderMvParams(path=path, dest_path=dest_path).dict()
         return self.request_json(
             "/folder/method/mv", req_type="post", json_dict=folder_params
         )
 
-    def folder_get(self, path: Union[str, Path], encoding: str, mode: str):
+    def folder_get(self, path: str, encoding: str, mode: str):
         folder_params = FolderGetParams(path=path, encoding=encoding, mode=mode).dict()
         return self.request_json(
             "/folder/method/get", req_type="post", json_dict=folder_params
@@ -306,19 +306,24 @@ class HTTPClient:
 
     def folder_put(
         self,
-        path: Union[str, Path],
+        path: str,
         contents: Union[Dict[str, Any], Resource, List[Resource]],
+        overwrite: bool,
         mode: str,
         serialization: str,
     ):
         folder_params = FolderPutParams(
-            path=path, contents=contents, mode=mode, serialization=serialization
+            path=path,
+            contents=contents,
+            mode=mode,
+            overwrite=overwrite,
+            serialization=serialization,
         ).dict()
         return self.request_json(
             "/folder/method/put", req_type="post", json_dict=folder_params
         )
 
-    def folder_rm(self, path: Union[str, Path], contents: List, recursive: bool):
+    def folder_rm(self, path: str, contents: List, recursive: bool):
         folder_params = FolderRmParams(
             path=path, recursive=recursive, contents=contents
         ).dict()
@@ -326,7 +331,7 @@ class HTTPClient:
             "/folder/method/rm", req_type="post", json_dict=folder_params
         )
 
-    def folder_exists(self, path: Union[str, Path]):
+    def folder_exists(self, path: str):
         folder_params = FolderParams(path=path).dict()
         return self.request_json(
             "/folder/method/exists", req_type="post", json_dict=folder_params

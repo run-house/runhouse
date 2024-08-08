@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Union
 import requests
 
 from fastapi import HTTPException
-from pydantic import BaseModel, validator
+from pydantic import BaseModel
 from ray import cloudpickle as pickle
 from ray.exceptions import RayTaskError
 
@@ -91,10 +91,6 @@ class OutputType:
 class FolderParams(BaseModel):
     path: str
 
-    @validator("path", pre=True, always=True)
-    def convert_path_to_string(cls, v):
-        return str(v) if v is not None else v
-
 
 class FolderLsParams(FolderParams):
     full_paths: Optional[bool] = True
@@ -108,8 +104,8 @@ class FolderGetParams(FolderParams):
 
 class FolderPutParams(FolderParams):
     contents: Optional[Any]
-    mode: Optional[str] = None
     overwrite: Optional[bool] = False
+    mode: Optional[str] = None
     serialization: Optional[str] = None
 
 
@@ -120,10 +116,6 @@ class FolderRmParams(FolderParams):
 
 class FolderMvParams(FolderParams):
     dest_path: Optional[str] = None
-
-    @validator("dest_path", pre=True, always=True)
-    def convert_dest_path_to_string(cls, v):
-        return str(v) if v is not None else v
 
 
 def pickle_b64(picklable):
@@ -349,7 +341,7 @@ def folder_mkdir(path: Path):
     return Response(output_type=OutputType.SUCCESS)
 
 
-def folder_get(path: Path, mode: str = None, encoding: str = None):
+def folder_get(path: Path, encoding: str = None, mode: str = None):
     mode = mode or "rb"
     binary_mode = "b" in mode
 
@@ -385,10 +377,10 @@ def folder_get(path: Path, mode: str = None, encoding: str = None):
 
 def folder_put(
     path: Path,
+    contents: Dict[str, Any],
     overwrite: bool,
     mode: str = None,
     serialization: str = None,
-    contents: Dict[str, Any] = None,
 ):
     mode = mode or "wb"
 
