@@ -23,7 +23,6 @@ pip_pkgs = "\n".join(
             "wheel",
             "rich",
             "pyarrow",
-            "sshfs",
             "typer",
             "skypilot",
             "fastapi",

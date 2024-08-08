@@ -71,7 +71,6 @@ install_requires = [
     "rich",
     "sentry-sdk",
     "setuptools < 70.0.0",  # Bug in setuptools 70.0.0: https://github.com/AUTOMATIC1111/stable-diffusion-webui/issues/15863 noqa
-    "sshfs >= 2023.1.0, <= 2023.4.1",
     "typer",
     "uvicorn",
     "wheel",
