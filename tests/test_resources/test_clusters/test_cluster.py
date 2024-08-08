@@ -1,3 +1,4 @@
+import os
 import subprocess
 import time
 from threading import Thread
@@ -872,6 +873,55 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # Can't run on a node that is on the cluster
         with pytest.raises(Exception):
             remote_run("echo hello")[0]
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_put_and_get(self, cluster):
+        cluster._mkdir(path="~/.rh/new-folder")
+        file_names: list = cluster._ls(path="~/.rh")
+        assert "new-folder" in [os.path.basename(f) for f in file_names]
+
+        cluster._put(
+            path="~/.rh/new-folder",
+            contents={"sample.txt": "Hello World!"},
+            overwrite=True,
+        )
+
+        file_contents = cluster._get(path="~/.rh/new-folder/sample.txt")
+        assert file_contents == "Hello World!"
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_put_and_get_serialized_object(self, cluster):
+        from runhouse.servers.http.http_utils import deserialize_data, serialize_data
+
+        raw_data = [1, 2, 3]
+        serialization = "pickle"
+        serialized_data = serialize_data(raw_data, serialization)
+        cluster._put(
+            path="~/.rh/new-folder",
+            contents={"sample.pickle": serialized_data},
+            overwrite=True,
+        )
+
+        file_contents = cluster._get(path="~/.rh/new-folder/sample.pickle")
+        assert deserialize_data(file_contents, serialization) == raw_data
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_mkdir_mv_and_rm(self, cluster):
+        cluster._mkdir(path="~/.rh/new-folder")
+
+        cluster._mv(path="~/.rh/new-folder", dest_path="~/new-folder")
+        file_contents = cluster._ls(path="~")
+
+        assert "new-folder" in [os.path.basename(f) for f in file_contents]
+
+        # Delete folder contents and directory itself
+        cluster._rm(path="~/new-folder", recursive=True)
+
+        file_names: list = cluster._ls(path="~")
+        assert "new-folder" not in [os.path.basename(f) for f in file_names]
 
     @pytest.mark.level("release")
     @pytest.mark.clustertest
