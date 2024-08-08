@@ -179,7 +179,7 @@ if __name__ == '__main__':
     
     # Define a cluster type - here we launch an on-demand AWS cluster with 1 NVIDIA A10G GPU. 
     # You can use any cloud you want, or existing compute
-    cluster = rh.ondemand_cluster(name="a10g-jason", instance_type="A10G:1", provider="aws").up_if_not()
+    cluster = rh.ondemand_cluster(name="a10g-rh", instance_type="A10G:1", provider="aws").up_if_not()
 
 
     # Next, we define the environment for our module. This includes the required dependencies that need

@@ -13,15 +13,17 @@ def bring_up_cluster_callable(**kwargs):
     #cluster.save() ## Use if you have a Runhouse Den account to save and monitor the resource. 
 
 def access_data_callable(**kwargs):
+    logger.info("Step 2: Access data")
     env = rh.env(
         name="test_env",
         reqs=["torch", "torchvision"]
     )
 
     cluster = rh.cluster(name="a10g-cluster").up_if_not()
-    
     remote_download = rh.function(DownloadData).to(cluster, env=env)
+    logger.info("Download function sent to remote")
     remote_download()
+    logger.info("Downloaded")
 
 def train_model_callable(**kwargs):    
     cluster = rh.cluster(name="a10g-cluster").up_if_not()

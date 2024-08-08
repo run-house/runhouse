@@ -25,8 +25,9 @@ class TorchExampleBasic(nn.Module):
     
 
 def DownloadData(path = './data'):
-    train_dataset = datasets.MNIST(path, train=True, download=True)
+    train_dataset = datasets.MNIST(path, train=True, download = True)
     test_dataset = datasets.MNIST(path, train=False, download = True)
+    print('Done with data download')
 
 
 class SimpleTrainer():

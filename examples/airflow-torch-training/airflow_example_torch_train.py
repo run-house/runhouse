@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.operators.bash_operator import BashOperator 
 from datetime import datetime, timedelta
 
 # Import the functions from the training script
@@ -24,6 +25,11 @@ dag = DAG(
     schedule=timedelta(days=1),
 )
 
+run_sky_status = BashOperator(
+    task_id='run_sky_status',
+    bash_command='sky status',
+    dag=dag,
+)
 
 bring_up_cluster_task = PythonOperator(
     task_id='bring_up_cluster_task',
@@ -52,4 +58,5 @@ down_cluster_task = PythonOperator(
 )
 
 
-bring_up_cluster_task >> access_data_task >> train_model_task >> down_cluster_task
+
+run_sky_status >> bring_up_cluster_task >> access_data_task >> train_model_task >> down_cluster_task
