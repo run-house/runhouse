@@ -209,6 +209,7 @@ def _print_cluster_config(cluster_config: Dict):
         "server_host",
         "ips",
         "resource_subtype",
+        "enable_telemetry",
     ]
 
     if cluster_config.get("resource_subtype") != "Cluster":
@@ -537,6 +538,7 @@ def _start_server(
     conda_env=None,
     from_python=None,
     log_level=None,
+    disable_telemetry=None,
 ):
     ############################################
     # Build CLI commands to start the server
@@ -631,6 +633,11 @@ def _start_server(
         if log_level
         else f" --log-level {DEFAULT_LOG_LEVEL}"
     )
+
+    disable_telemetry_flag = " --disable-telemetry" if disable_telemetry is True else ""
+    # else => disable_telemetry is None or disable_telemetry is False
+    if disable_telemetry_flag:
+        flags.append(disable_telemetry_flag)
 
     # Check if screen or nohup are available
     screen = screen and _check_if_command_exists("screen")
@@ -836,12 +843,23 @@ def restart(
         help="Minimum log level for logs to be printed",
         callback=lambda value: value.upper(),
     ),
+    disable_telemetry: bool = typer.Option(
+        None, help="Disable telemetry collection on the cluster."
+    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
         c = cluster(name=name)
+        enable_telemetry = (
+            not disable_telemetry
+            if disable_telemetry is not None
+            else disable_telemetry
+        )
         c.restart_server(
-            resync_rh=resync_rh, restart_ray=restart_ray, logs_level=log_level
+            resync_rh=resync_rh,
+            restart_ray=restart_ray,
+            logs_level=log_level,
+            enable_telemetry=enable_telemetry,
         )
         return
 
@@ -866,6 +884,7 @@ def restart(
         conda_env=conda_env,
         from_python=from_python,
         log_level=log_level,
+        disable_telemetry=disable_telemetry,
     )
 
 

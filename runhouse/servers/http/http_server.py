@@ -16,6 +16,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import StreamingResponse
 
+import runhouse as rh
+
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
@@ -115,14 +117,19 @@ class HTTPServer:
         default_env_name=None,
         conda_env=None,
         from_test: bool = False,
+        disable_telemetry: bool = False,
+        logs_level: str = DEFAULT_LOG_LEVEL,
         *args,
         **kwargs,
     ):
-        log_level = kwargs.get("logs_level", DEFAULT_LOG_LEVEL)
-        logger.setLevel(log_level)
-        if log_level != DEFAULT_LOG_LEVEL:
-            logger.info(f"setting logs level to {log_level}")
+        logger.setLevel(logs_level)
+        if logs_level != DEFAULT_LOG_LEVEL:
+            logger.info(f"setting logs level to {logs_level}")
         runtime_env = {"conda": conda_env} if conda_env else None
+
+        if disable_telemetry:
+            rh.configs.disable_telemetry()
+            logger.info("disabled telemetry collection")
 
         default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
 
@@ -135,7 +142,8 @@ class HTTPServer:
                 default_env_name,
                 setup_ray=RaySetupOption.TEST_PROCESS,
                 runtime_env=runtime_env,
-                logs_level=log_level,
+                logs_level=logs_level,
+                disable_telemetry=disable_telemetry,
             )
 
         # TODO disabling due to latency, figure out what to do with this
@@ -150,7 +158,8 @@ class HTTPServer:
             env_name=default_env_name,
             create=True,
             runtime_env=runtime_env,
-            logs_level=log_level,
+            logs_level=logs_level,
+            disable_telemetry=disable_telemetry,
         )
 
         if default_env_name == EMPTY_DEFAULT_ENV_NAME:
@@ -833,6 +842,13 @@ async def main():
         help="The lowest log level of the printed logs",
     )
 
+    parser.add_argument(
+        "--disable-telemetry",
+        action="store_true",  # if providing --disable-telemetry will turn off all telemetry / data collection
+        default=argparse.SUPPRESS,  # If user didn't specify, attribute will not be present (not False)
+        help="Whether to collect telemetry data",
+    )
+
     parse_args = parser.parse_args()
 
     conda_name = parse_args.conda_env
@@ -1021,12 +1037,17 @@ async def main():
         # a local `runhouse start`
         cluster_config["server_connection_type"] = "tls" if use_https else "none"
 
+    disable_telemetry = getattr(parse_args, "disable_telemetry", False)
+    cluster_config["enable_telemetry"] = not disable_telemetry
+
     await obj_store.aset_cluster_config(cluster_config)
+    await obj_store.asave_cluster_config_locally(cluster_config)
 
     await HTTPServer.ainitialize(
         default_env_name=default_env_name,
         conda_env=conda_name,
         logs_level=parse_args.log_level,
+        disable_telemetry=disable_telemetry,
     )
 
     if den_auth:
