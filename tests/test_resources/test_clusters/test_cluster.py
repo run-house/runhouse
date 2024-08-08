@@ -920,8 +920,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # Delete folder contents and directory itself
         cluster._rm(path="~/new-folder", recursive=True)
 
-        file_names: list = cluster._ls(path="~")
-        assert "new-folder" not in [os.path.basename(f) for f in file_names]
+        assert not cluster._exists(path="~/new-folder")
 
     @pytest.mark.level("release")
     @pytest.mark.clustertest

@@ -36,6 +36,7 @@ from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
+    folder_exists,
     folder_get,
     folder_ls,
     folder_mkdir,
@@ -86,6 +87,7 @@ def validate_cluster_access(func):
             "folder_put_cmd",
             "folder_rm_cmd",
             "folder_mv_cmd",
+            "folder_exists_cmd",
         ]
         token = get_token_from_request(request)
 
@@ -714,6 +716,19 @@ class HTTPServer:
         try:
             path = resolve_folder_path(mv_params.path)
             return folder_mv(src_path=path, dest_path=mv_params.dest_path)
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/exists")
+    @validate_cluster_access
+    async def folder_exists_cmd(request: Request, folder_params: FolderParams):
+        try:
+            path = resolve_folder_path(folder_params.path)
+            return folder_exists(path=path)
 
         except Exception as e:
             return handle_exception_response(
