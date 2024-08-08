@@ -2,6 +2,8 @@ import re
 from pathlib import Path
 from typing import Callable, List, Optional, Union
 
+from runhouse.logger import logger
+
 from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.functions.function import Function
 from runhouse.resources.packages import git_package
@@ -53,6 +55,13 @@ def function(
     if name and not any([fn, env]):
         # Try reloading existing function
         return Function.from_name(name, dryrun)
+
+    if env:
+        logger.warning(
+            "The `env` argument is deprecated and will be removed in a future version. Please first "
+            "construct your module and then do `module.to(system=system, system=env)` to set the environment. "
+            "You can do `module.to(system=rh.here, env=env)` to set the environment on the local system."
+        )
 
     if not isinstance(env, Env):
         env = _get_env_from(env) or Env()

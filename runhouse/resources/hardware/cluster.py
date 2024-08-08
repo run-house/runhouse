@@ -1788,9 +1788,7 @@ class Cluster(Resource):
     # Folder Operations
     ##############################################
     def _ls(self, path: Union[str, Path], full_paths: bool = True, sort: bool = False):
-        return self.client.folder_operation(
-            operation="ls", path=path, full_paths=full_paths, sort=sort
-        )
+        return self.client.folder_ls(path=path, full_paths=full_paths, sort=sort)
 
     def _get(
         self,
@@ -1798,8 +1796,7 @@ class Cluster(Resource):
         mode: str = "rb",
         encoding: str = None,
     ):
-        return self.client.folder_operation(
-            operation="get",
+        return self.client.folder_get(
             path=path,
             mode=mode,
             encoding=encoding,
@@ -1813,8 +1810,7 @@ class Cluster(Resource):
         overwrite: bool = False,
         serialization: str = None,
     ):
-        return self.client.folder_operation(
-            operation="put",
+        return self.client.folder_put(
             path=path,
             contents=contents,
             mode=mode,
@@ -1828,17 +1824,13 @@ class Cluster(Resource):
         contents: List[str] = None,
         recursive: bool = False,
     ):
-        return self.client.folder_operation(
-            operation="rm", path=path, contents=contents, recursive=recursive
-        )
+        return self.client.folder_rm(path=path, contents=contents, recursive=recursive)
 
     def _mkdir(self, path: Union[str, Path]):
-        return self.client.folder_operation(operation="mkdir", path=path)
+        return self.client.folder_mkdir(path=path)
 
     def _mv(self, path: Union[str, Path], dest_path: Union[str, Path]):
-        return self.client.folder_operation(
-            operation="mv", path=path, dest_path=dest_path
-        )
+        return self.client.folder_mv(path=path, dest_path=dest_path)
 
     def _exists(self, path: Union[str, Path]):
-        return self.client.folder_operation(operation="exists", path=path)
+        return self.client.folder_exists(path=path)

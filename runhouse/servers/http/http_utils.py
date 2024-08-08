@@ -3,7 +3,6 @@ import json
 import re
 import shutil
 import sys
-from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -89,30 +88,41 @@ class OutputType:
     CONFIG = "config"
 
 
-class FolderOperation(str, Enum):
-    GET = "get"
-    LS = "ls"
-    PUT = "put"
-    MKDIR = "mkdir"
-    RM = "rm"
-    MV = "mv"
-    EXISTS = "exists"
-
-
 class FolderParams(BaseModel):
-    path: Optional[str] = None
-    mode: Optional[str] = None
-    serialization: Optional[str] = None
-    overwrite: Optional[bool] = False
-    recursive: Optional[bool] = False
-    contents: Optional[Any] = None
-    dest_path: Optional[str] = None
-    encoding: Optional[str] = None
-    full_paths: Optional[bool] = True
-    sort: Optional[bool] = False
+    path: str
 
     @validator("path", pre=True, always=True)
     def convert_path_to_string(cls, v):
+        return str(v) if v is not None else v
+
+
+class FolderLsParams(FolderParams):
+    full_paths: Optional[bool] = True
+    sort: Optional[bool] = False
+
+
+class FolderGetParams(FolderParams):
+    encoding: Optional[str] = None
+    mode: Optional[str] = None
+
+
+class FolderPutParams(FolderParams):
+    contents: Optional[Any]
+    mode: Optional[str] = None
+    overwrite: Optional[bool] = False
+    serialization: Optional[str] = None
+
+
+class FolderRmParams(FolderParams):
+    contents: Optional[List] = None
+    recursive: Optional[bool] = False
+
+
+class FolderMvParams(FolderParams):
+    dest_path: Optional[str] = None
+
+    @validator("dest_path", pre=True, always=True)
+    def convert_dest_path_to_string(cls, v):
         return str(v) if v is not None else v
 
 
@@ -339,9 +349,8 @@ def folder_mkdir(path: Path):
     return Response(output_type=OutputType.SUCCESS)
 
 
-def folder_get(path: Path, folder_params: FolderParams):
-    mode = folder_params.mode or "rb"
-    encoding = folder_params.encoding
+def folder_get(path: Path, mode: str = None, encoding: str = None):
+    mode = mode or "rb"
     binary_mode = "b" in mode
 
     if not path.exists():
@@ -374,11 +383,14 @@ def folder_get(path: Path, folder_params: FolderParams):
     )
 
 
-def folder_put(path: Path, folder_params: FolderParams):
-    overwrite = folder_params.overwrite
-    mode = folder_params.mode or "wb"
-    serialization = folder_params.serialization
-    contents = folder_params.contents
+def folder_put(
+    path: Path,
+    overwrite: bool,
+    mode: str = None,
+    serialization: str = None,
+    contents: Dict[str, Any] = None,
+):
+    mode = mode or "wb"
 
     if contents and not isinstance(contents, dict):
         raise HTTPException(
@@ -421,7 +433,7 @@ def folder_put(path: Path, folder_params: FolderParams):
     return Response(output_type=OutputType.SUCCESS)
 
 
-def folder_ls(path: Path, folder_params: FolderParams):
+def folder_ls(path: Path, full_paths: bool, sort: bool):
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"Path {path} does not exist")
 
@@ -431,11 +443,11 @@ def folder_ls(path: Path, folder_params: FolderParams):
     paths = [p for p in path.iterdir()]
 
     # Sort the paths by modification time if sort is True
-    if folder_params.sort:
+    if sort:
         paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
 
     # Convert paths to strings and format them based on full_paths
-    if folder_params.full_paths:
+    if full_paths:
         files = [str(p.resolve()) for p in paths]
     else:
         files = [p.name for p in paths]
@@ -447,9 +459,7 @@ def folder_ls(path: Path, folder_params: FolderParams):
     )
 
 
-def folder_rm(path: Path, folder_params: FolderParams):
-    recursive: bool = folder_params.recursive
-    contents = folder_params.contents
+def folder_rm(path: Path, contents: List[str], recursive: bool):
     if contents:
         for content in contents:
             content_path = path / content
@@ -493,12 +503,12 @@ def folder_rm(path: Path, folder_params: FolderParams):
     return Response(output_type=OutputType.SUCCESS)
 
 
-def folder_mv(path: Path, folder_params: FolderParams):
-    dest_path = resolve_folder_path(folder_params.dest_path)
+def folder_mv(src_path: Path, dest_path: str):
+    dest_path = resolve_folder_path(dest_path)
 
-    if not path.exists():
+    if not src_path.exists():
         raise HTTPException(
-            status_code=404, detail=f"The source path {path} does not exist"
+            status_code=404, detail=f"The source path {src_path} does not exist"
         )
 
     if dest_path.exists():
@@ -510,7 +520,7 @@ def folder_mv(path: Path, folder_params: FolderParams):
     dest_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Move the directory
-    shutil.move(str(path), str(dest_path))
+    shutil.move(str(src_path), str(dest_path))
 
     return Response(output_type=OutputType.SUCCESS)
 
