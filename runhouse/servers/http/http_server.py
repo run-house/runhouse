@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import inspect
 import json
+import time
 import traceback
 import uuid
 from functools import wraps
@@ -14,7 +15,6 @@ import yaml
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
-from fastapi.responses import StreamingResponse
 
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
@@ -29,7 +29,6 @@ from runhouse.constants import (
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import logger
 from runhouse.rns.utils.api import resolve_absolute_path
-from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import averify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
@@ -52,7 +51,6 @@ from runhouse.servers.obj_store import (
     RaySetupOption,
 )
 from runhouse.utils import sync_function
-
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -299,11 +297,7 @@ class HTTPServer:
         params = params or CallParams()
 
         try:
-            params.run_name = params.run_name or _generate_default_name(
-                prefix=key if method_name == "__call__" else f"{key}_{method_name}",
-                precision="ms",  # Higher precision because we see collisions within the same second
-                sep="@",
-            )
+
             # Call async so we can loop to collect logs until the result is ready
 
             fut = asyncio.create_task(
@@ -317,19 +311,9 @@ class HTTPServer:
                     remote=params.remote,
                 )
             )
-            # If stream_logs is False, we'll wait for the result and return it
-            if not params.stream_logs:
-                return await fut
+            await fut
+            return jsonable_encoder(fut.result())
 
-            return StreamingResponse(
-                HTTPServer._get_results_and_logs_generator(
-                    key,
-                    fut=fut,
-                    run_name=params.run_name,
-                    serialization=params.serialization,
-                ),
-                media_type="application/json",
-            )
         except Exception as e:
             return handle_exception_response(
                 e,
@@ -445,6 +429,49 @@ class HTTPServer:
                 data=exception_data,
                 serialization=serialization,
             )
+
+    @staticmethod
+    @app.get("/logs")
+    @validate_cluster_access
+    async def get_call_logs(request: Request, run_name: str):
+
+        output_last_line, err_last_line = 0, 0
+        output_logs, err_logs = obj_store.stream_logs(
+            run_name=run_name,
+            output_logs_start=output_last_line,
+            err_logs_start=err_last_line,
+        )
+
+        output_logs_length = (
+            len(output_logs.split("\n")) if len(output_logs) > 0 else len(output_logs)
+        )
+        err_logs_length = (
+            len(err_logs.split("\n")) if len(err_logs) > 0 else len(err_logs)
+        )
+
+        while output_logs_length > output_last_line or err_logs_length > err_last_line:
+            time.sleep(0.1)  # wait 0.1 sec until we call the obj_store for more logs
+            output_last_line, err_last_line = output_logs_length, err_logs_length
+            # getting the new out_logs and err_logs, and appending them to the logs we already got in
+            # the previous calls.
+            new_output_logs, new_err_logs = obj_store.stream_logs(
+                run_name=run_name,
+                output_logs_start=output_last_line,
+                err_logs_start=err_last_line,
+            )
+            output_logs = output_logs + new_output_logs
+            output_logs_length = (
+                len(output_logs.split("\n"))
+                if len(output_logs) > 0
+                else len(output_logs)
+            )
+            err_logs = err_logs + new_err_logs
+            err_logs_length = (
+                len(err_logs.split("\n")) if len(err_logs) > 0 else len(err_logs)
+            )
+
+        logs = {"output_logs": output_logs, "err_logs": err_logs}
+        return logs
 
     @staticmethod
     def _get_logfiles(log_key, log_type=None):

@@ -34,6 +34,7 @@ DEFAULT_RAY_PORT = 6379
 DEFAULT_SERVER_HOST = "0.0.0.0"
 
 LOGGING_WAIT_TIME = 0.5
+LOGS_CLUSTER_FOLDER = "~/.rh/logs"
 
 # Commands
 SERVER_START_CMD = f"{sys.executable} -m runhouse.servers.http.http_server"

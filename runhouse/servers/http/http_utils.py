@@ -274,10 +274,18 @@ def handle_response(
                 # tqdm lines are always preceded by a \n, so we can use \x1b[1A to move the cursor up one line
                 # For some reason, doesn't work in PyCharm's console, but works in the terminal
                 print(
-                    f"{system_color}\x1b[1A\r" + line + reset_color, end="", flush=True
+                    f"{system_color}\x1b[1A\r" + line + reset_color,
+                    end="",
+                    flush=True,
+                    file=sys.stdout,
                 )
             else:
-                print(system_color + line + reset_color, end="", flush=True)
+                print(
+                    system_color + line + reset_color,
+                    end="",
+                    flush=True,
+                    file=sys.stdout,
+                )
     elif output_type == OutputType.STDERR:
         res = response_data["data"]
         print(system_color + res + reset_color, file=sys.stderr)
