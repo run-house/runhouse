@@ -27,7 +27,7 @@ class URLEmbedder:
             web_paths=paths,
         ).load()
         split_docs = RecursiveCharacterTextSplitter(
-            chunk_size=500, chunk_overlap=100
+            chunk_size=250, chunk_overlap=50
         ).split_documents(docs)
         splits_as_str = [doc.page_content for doc in split_docs]
         embeddings = self.model.encode(splits_as_str, **embed_kwargs)

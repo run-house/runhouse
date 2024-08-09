@@ -5,20 +5,29 @@ class LlamaModel:
         self.engine = None
 
     def load_engine(self):
-        from vllm.engine.arg_utils import AsyncEngineArgs
-        from vllm.engine.async_llm_engine import AsyncLLMEngine
-        from vllm.model_executor.parallel_utils.parallel_state import (
+        import gc
+
+        import torch
+        from vllm.distributed.parallel_state import (
+            destroy_distributed_environment,
             destroy_model_parallel,
         )
+        from vllm.engine.arg_utils import AsyncEngineArgs
+        from vllm.engine.async_llm_engine import AsyncLLMEngine
 
         # This vLLM function resets the global variables, which enables initializing models
         destroy_model_parallel()
+        destroy_distributed_environment()
+        # Cleanup methods in case the vLLM is reloaded in a new LlamaModel instance
+        gc.collect()
+        torch.cuda.empty_cache()
 
         args = AsyncEngineArgs(
             model=self.model_id,  # Hugging Face Model ID
             tensor_parallel_size=1,  # Increase if using additional GPUs
             trust_remote_code=True,  # Trust remote code from Hugging Face
             enforce_eager=True,  # Set to False in production to improve performance
+            max_model_len=7056,  #
         )
         self.engine = AsyncLLMEngine.from_engine_args(args)
 

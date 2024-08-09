@@ -12,6 +12,9 @@ COPY ./requirements.txt /code/requirements.txt
 # but that's not the case when working with containers.
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
+# Rsync is required to run sky commands on the container
+RUN apt-get update && apt-get -y install rsync
+
 # As this has all the code which is what changes most frequently the Docker
 # cache won't be used for this or any following steps easily.
 # So, it's important to put this near the end of the Dockerfile,

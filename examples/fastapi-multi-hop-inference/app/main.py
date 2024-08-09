@@ -1,27 +1,32 @@
-# # RAG App Embedding and LLM Generation
-
+# # RAG App with Vector Embedding and LLM Generation
+#
 # This example defines a retrieval augmented generation (RAG) app that references text from websites
 # to enrich the response from an LLM. Depending on the URLs you use to feed the application database,
 # you'll be able to answer questions more intelligently with explicit context.
+#
 # You could, for example, pass in the URL of a new startup and then ask the app to answer questions
-# about that startup using information on their site. Or pass in several specialize gardening websites and
-# ask specific questions about horticulture.
+# about that startup using information on their site. Or pass in several specialized gardening websites and
+# ask nuanced questions about horticulture.
 #
 # ## Example Overview
 # Deploy a FastAPI app that is able to create and store embeddings from text on public website URLs,
 # and generate answers to questions using related context from stored websites and an open source LLM.
 #
+# #### Indexing:
+# - Send a list of URL paths to the application via a POST endpoint
 # - Use [LangChain](https://python.langchain.com/v0.1/docs/modules/data_connection/document_transformers/)
-#   to **parse text from URLs** sent via a POST endpoint
-# - **Create embeddings from split text** with [Sentence Transformers (SBERT)](https://sbert.net/index.html)
+#   to **parse text from URLs**
+# - **Create vector embeddings from split text** with [Sentence Transformers (SBERT)](https://sbert.net/index.html)
 # - Store embeddings in a **vector database** ([LanceDB](https://lancedb.com/))
-# - Use GET endpoint to send question text and **retrieve related docs** from database
+#
+# #### Retrieval and generation:
+# - Send question text via a GET endpoint on the FastAPI application
+# - Create a vector embedding from the text and **retrieve related docs** from database
 # - **Construct an LLM prompt** from documents and original question
 # - Generate a response using an **LLM (Llama 3)**
 # - **Output response** with source URLs and question input
 #
-# MAYBE AN IMAGE OF THE ARCHITECTURE HERE? HIGHLIGHT THE PARTS HANDLED BY RUNHOUSE
-# (INSPIRED BY THE LANGCHAIN EXAMPLE)
+# ![Graphic displaying the steps of indexing data and the retrieval and generation process](/path/to/image)
 #
 # Note: that some of the steps in this example could be accomplished more simply with platforms like OpenAI and
 # tools such as LangChain, but we break out the components explicitly to fully illustrate each step and make the
@@ -45,7 +50,15 @@
 #
 # To ensure that Runhouse is able to managed deploying services to your cloud provider (AWS in our case)
 # you may need to follow initial setup steps. Please visit the AWS section of
-# our [Installation Guide](https://www.run.house/docs/guide)
+# our [Installation Guide](https://www.run.house/docs/installation)
+#
+# Additionally, we'll be downloading the Llama 3 model from Hugging Face, so we need to set up our Hugging Face token:
+# ```shell
+# $ export HF_TOKEN=<your huggingface token>
+# ```
+#
+# Make sure to sign the waiver on the [Hugging Face model page](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)
+# so that you can access it.
 #
 # ## FastAPI RAG App Setup
 # First, we'll import necessary packages and initialize variables used in the application. The `URLEmbedder` and
@@ -66,6 +79,8 @@ from app.modules.llm import LlamaModel
 dotenv.load_dotenv()
 
 EMBEDDER, TABLE, LLM = None, None, None
+
+DEBUG = True  # In DEBUG mode we will always override Runhouse modules
 
 # Configuration options for our remote cluster
 CLUSTER_NAME = "rh-xa10g"  # Allows the cluster to be reused
@@ -99,10 +114,14 @@ async def lifespan(app):
     yield
 
 
-# ### Create Embedding Service as a Runhouse Module
+# ### Create Vector Embedding Service as a Runhouse Module
 # This method, run durig initialization, will provision a remote machine (A10G on AWS in this case)
 # and deploy our `URLEmbedder` to that machine. The `env` is essentially the worker environment that
 # will run the module.
+#
+# The Python packages required by the embedding service (`langchain` etc.) are defined on the Runhouse `env` so that
+# they can be properly installed on the cluster. Also note that they are imported inside class methods. Those packages
+# do not need to be installed locally.
 def load_embedder():
     """Launch an A10G and send the embedding service to it."""
     # TODO: On production how does this know our AWS credentials to deploy or find the cluster?
@@ -131,55 +150,62 @@ def load_embedder():
             "langchainhub",
             "bs4",
             "sentence_transformers",
+            "torch",
         ],
         compute={"GPU": 1},
     )
 
-    # Change from `.get_or_to` to `.to` to deploy changes while debugging application
-    # TODO: Improve these....
-    RemoteEmbedder = rh.module(URLEmbedder).to(
-        system=cluster, env=env, name="doc_embedder"
-    )
-    remote_url_embedder = RemoteEmbedder(
-        model_name_or_path="BAAI/bge-large-en-v1.5",
-        device="cuda",
-    )
+    module_name = "url_embedder"
+    remote_url_embedder = cluster.get(module_name, default=None, remote=True)
+    if DEBUG or remote_url_embedder is None:
+        RemoteEmbedder = rh.module(URLEmbedder).to(
+            system=cluster, env=env, name="URLEmbedder"
+        )
+        remote_url_embedder = RemoteEmbedder(
+            model_name_or_path="BAAI/bge-large-en-v1.5", device="cuda", name=module_name
+        )
     return remote_url_embedder
 
 
 # ### Initialize LanceDB vector database
-# We'll be using [LanceDB](https://lancedb.com/) to create an embedded database to store the
-# URL embeddings and perform vector search for the retrieval phase. You could alternatively try
-# Chroma, Pinecone, Weaviate, or even MongoDB (yes, they have also vector seearch).
+# We'll be using open source [LanceDB](https://lancedb.com/) to create an embedded database to store
+# the URL embeddings and perform vector search for the retrieval phase. You could alternatively try
+# Chroma, Pinecone, Weaviate, or even MongoDB.
 def load_table():
     db = lancedb.connect("/tmp/db")
     return db.create_table("rag-table", schema=Item.to_arrow_schema(), exist_ok=True)
 
 
-# ### Load LLM Inference Service with Runhouse
+# ### Load RAG LLM Inference Service with Runhouse
 # Deploy an open LLM, Llama 3 in this case, to a GPU on the cloud provider of your choice.
 # We will use vLLM to serve the model due to it's high performance and throughput but there
 # are many other options such as HuggingFace Transforms and TGI.
 #
 # Here we leverage the same A10G cluster we used for the embedding service, but you could also spin
-# up a new remote machine specifically for the LLM service. Alternatively, used a closed model
-# like ChatGPT or Claude
+# up a new remote machine specifically for the LLM service. Alternatively, use a proprietary model
+# like ChatGPT or Claude.
 def load_llm():
     """Use the existing A10G cluster to run an LLM inference service"""
+    # Specifying the same name will reuse our embedding service cluster
     cluster = rh.cluster(
         CLUSTER_NAME, instance_type=INSTANCE_TYPE, provider=CLOUD_PROVIDER
     ).up_if_not()
 
     env = rh.env(
-        reqs=["vllm==0.2.7"],  # >=0.3.0 causes Pydantic version error
+        reqs=["torch", "vllm"],
         secrets=["huggingface"],  # Needed to download Llama 3 from HuggingFace
         name="llama3_inference_env",
     )
 
-    RemoteLlama = rh.module(LlamaModel).get_or_to(
-        system=cluster, env=env, name="llama3_8b_model"
-    )
-    remote_llm = RemoteLlama()
+    module_name = "llama_model"
+    # First check for an instance of the LlamaModel stored on the cluster
+    remote_llm = cluster.get(module_name, default=None, remote=True)
+    if DEBUG or remote_llm is None:
+        # If not found (or debugging) sync up the model and create a fresh instance
+        RemoteLlama = rh.module(LlamaModel).to(
+            system=cluster, env=env, name="LlamaModel"
+        )
+        remote_llm = RemoteLlama(name=module_name)
     return remote_llm
 
 
@@ -196,7 +222,7 @@ def health_check():
     return {"status": "healthy"}
 
 
-# ### Embedding POST Endpoint
+# ### Vector Embedding POST Endpoint
 # To illustrate tehe flexibility of FastAPI, we're allowing embeddings to be added to your database
 # via a POST endpoint. This method will use the embedder service to create database entries with the
 # source, content, and vector embeddings for chunks of text from a provided list of URLs.
@@ -254,13 +280,13 @@ async def format_prompt(text: str, docs: List[Item]) -> str:
     return prompt
 
 
-# ### Generate GET endpoint
+# ### Generation GET endpoint
 # Using the methods above, this endpoint will run inference on our LLM to generate a response to a question.
 # The results are enhanced by first retrieving related documents from the source URLs fed into the POST endpoint.
 # Content from the fetched documents is then formatted into the text prompt sent to our self-hosted LLM.
 # We'll be using a generic prompt template to illustrate how many "chat" tools work behind the scenes.
 @app.get("/generate")
-async def generate_response(text: str, limit: int = 5):
+async def generate_response(text: str, limit: int = 4):
     """Generate a response to a question using an LLM with context from our database"""
     if not text:
         return {"error": "Question text is missing"}
@@ -294,75 +320,70 @@ async def generate_response(text: str, limit: int = 5):
 # $ fastapi run app/main.py
 # ```
 #
-# To debug the application, we recommend you use `fastapi dev`. This will trigger
-# automatic re-deployments from any changes to your code. Be sure to use `rh.module().to` in
-# place of `rh.module().get_or_to` to redeploy any changes to your Runhouse Module as well.
-#
-# ### Example CURL Command to Add Embeddings
-#
-#
-# ```shell
-# curl --header "Content-Type: application/json" \
-#   --request POST \
-#   --data '{"paths":["https://www.run.house", "https://llama.meta.com"]}' \
-#   http://127.0.0.1/embeddings
-# ```
-#
-# Alternatively, we recommend a tool like [Postman](https://www.postman.com/) to test HTTP APIs.
-#
-# ### Test the Generate Endpoint
-# Open your browser and send a prompt to your locally running RAG app by appending your question
-# to the URL as a query param, e.g. `?text=Which bear is best?`
-#
-# ```text
-# "http://127.0.0.1/generate?text=Which%20bear%20is%20best""
-# ```
-#
-# The LlamaModel will need to load on the initial call and may takes a few minutes to generate a
-# response. Subsequent calls will generally take less than a second to generate.
-#
-# ## Deploy Locally via Docker
-#
-# TODO:
-#
-# ### Build the Docker Image
-# TODO:
-#
-# ```shell
-# docker build -t myimage .
-# ```
-#
-# ### Start the Docker Container
-# TODO:
-#
-# ```shell
-# docker run -d --name mycontainer -p 80:80 myimage
-# ```
-#
-# Now you navigate to `http://127.0.0.1/health` to check that your application is running.
+# After a few minutes, you can navigate to `http://127.0.0.1/health` to check that your application is running.
 #
 # You'll see something like:
 # ```json
 # { "status": "healthy" }
 # ```
 #
-# ## Deploy the FastAPI App to a Remote Machine
+# To debug the application, we recommend you use `fastapi dev`. This will trigger
+# automatic re-deployments from any changes to your code. Be sure to set `DEBUG` to `True` to
+# override instances of the embedding and LLM services with updated versions.
 #
-# For production use cases, you'll want to deploy your app to a VM where it can be
-# easily consumed at a public URL (or privately, if you prefer). This would, for example,
-# enable you to use the RAG app as the backend for a website. Or you could build a UI on
-# top of the FastAPI code we've started.
+# ### Example cURL Command to Add Embeddings
+# To populate the LanceDB database with vector embeddings for use in the RAG app, you can send a HTTP request
+# to the `/embeddings` POST endpoint. Let's say you have a question about bears. You could send a cURL
+# command with a list of URLs including essential bear information:
 #
-# [TODO]: How to put your AWS config inside the container? Maybe include in the Dockerfile??
+# ```shell
+# curl --header "Content-Type: application/json" \
+#   --request POST \
+#   --data '{"paths":["https://www.nps.gov/yell/planyourvisit/safety.htm", "https://en.wikipedia.org/wiki/Adventures_of_the_Gummi_Bears"]}' \
+#   http://127.0.0.1:8000/embeddings
+# ```
 #
-
+# Alternatively, we recommend a tool like [Postman](https://www.postman.com/) to test HTTP APIs.
+#
+# ### Test the Generation Endpoint
+# Open your browser and send a prompt to your locally running RAG app by appending your question
+# to the URL as a query param, e.g. `?text=Does%20yellowstone%20have%20gummi%20bears%3F`
+#
+# ```text
+# "http://127.0.0.1/generate?text=Does%20yellowstone%20have%20gummi%20bears%3F"
+# ```
+#
+# The `LlamaModel` will need to load on the initial call and may take a few minutes to generate a
+# response. Subsequent calls will generally take less than a second to generate.
+#
+# Example output:
+#
+# ```json
 # {
-#   "question": "How is Runhouse better than LangChain?",
+#   "question": "Does yellowstone have gummi bears?",
 #   "response": [
-#     " Runhouse is better than LangChain because it allows you to rapidly iterate your AI on your own infrastructure, whereas LangChain is more focused on building context-aware, reasoning applications with its flexible framework. Runhouse provides a modular home for ML infra, allowing you to browse, manage, and grow your ML stack as a living set of shared services and compute, whereas LangChain is more focused on building LLM apps. Thanks for asking!"
+#     " No, Yellowstone is bear country, not gummi bear country. Thanks for asking! "
 #   ],
 #   "sources": [
-#     "https://www.run.house",
-#     "https://www.langchain.com"
+#     "https://www.nps.gov/yell/planyourvisit/safety.htm",
+#     "https://en.wikipedia.org/wiki/Adventures_of_the_Gummi_Bears"
 #   ]
 # }
+# ```
+#
+# ## Deploying to Production
+# There are any methods to deploy a FastAPI application to a production environment. With some modifications
+# to the logic of the app, setting `DEBUG` to `False`, and deploying to a public IP, this example
+# could easily serve as the backend to a RAG app.
+#
+# We won't go into depth on a specific method, but here are a few things to consider:
+# - **Cloud credentials**: Runhouse uses SkyPilot to provision remote machines on various cloud providers. You'll
+#   need to ensure that you have the appropriate permissios available on your production environment.
+# - **ENV Variables**: This example passes your Hugging Face token to a Runhouse `env` to grant permissions to use
+#   Llama 3. Make sure you handle this on your server as well.
+# - **Cluster lifecycle**: Running GPUs can be costly. `sky` commands make it easy to manage remote clusters locally
+#   but you may also want to monitor your cloud provider to avoid unused GPUs running up a bill.
+#
+# If you're running into any problems using Runhouse in production, please reach out to our team at
+# [team@run.house](mailto:team@run.house). We'd be happy to set up a time to help you debug live.
+# Additionally, you can chat with us directly on [Discord](https://discord.com/invite/RnhB6589Hs)
