@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Union
 import requests
 
 from fastapi import HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from ray import cloudpickle as pickle
 from ray.exceptions import RayTaskError
 
@@ -91,6 +91,10 @@ class OutputType:
 class FolderParams(BaseModel):
     path: str
 
+    @validator("path", pre=True, always=True)
+    def convert_path_to_string(cls, v):
+        return str(v) if v is not None else v
+
 
 class FolderLsParams(FolderParams):
     full_paths: Optional[bool] = True
@@ -115,7 +119,12 @@ class FolderRmParams(FolderParams):
 
 
 class FolderMvParams(FolderParams):
-    dest_path: Optional[str] = None
+    dest_path: str
+    overwrite: Optional[bool] = True
+
+    @validator("dest_path", pre=True, always=True)
+    def convert_path_to_string(cls, v):
+        return str(v) if v is not None else v
 
 
 def pickle_b64(picklable):
@@ -453,18 +462,15 @@ def folder_ls(path: Path, full_paths: bool, sort: bool):
 
 def folder_rm(path: Path, contents: List[str], recursive: bool):
     if contents:
-        for content in contents:
-            content_path = path / content
-            if content_path.exists():
-                if content_path.is_file():
-                    content_path.unlink()
-                elif content_path.is_dir() and recursive:
-                    shutil.rmtree(content_path)
-                else:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Path {content_path} is a directory and recursive is set to False",
-                    )
+        from runhouse import Folder
+
+        try:
+            Folder._delete_contents(contents, path, recursive)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=str(e),
+            )
 
         return Response(output_type=OutputType.SUCCESS)
 
@@ -495,7 +501,7 @@ def folder_rm(path: Path, contents: List[str], recursive: bool):
     return Response(output_type=OutputType.SUCCESS)
 
 
-def folder_mv(src_path: Path, dest_path: str):
+def folder_mv(src_path: Path, dest_path: str, overwrite: bool):
     dest_path = resolve_folder_path(dest_path)
 
     if not src_path.exists():
@@ -503,13 +509,15 @@ def folder_mv(src_path: Path, dest_path: str):
             status_code=404, detail=f"The source path {src_path} does not exist"
         )
 
-    if dest_path.exists():
+    if not overwrite and dest_path.exists():
         raise HTTPException(
-            status_code=409, detail=f"The destination path {dest_path} already exists"
+            status_code=409,
+            detail=f"The destination path {dest_path} already exists. Set `overwrite` to `True` to "
+            f"overwrite the destination path",
         )
 
-    # Create the destination directory if it doesn't exist
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    # Create the destination directory if it doesn't exist and overwrite is set to `True`
+    dest_path.parent.mkdir(parents=True, exist_ok=overwrite)
 
     # Move the directory
     shutil.move(str(src_path), str(dest_path))

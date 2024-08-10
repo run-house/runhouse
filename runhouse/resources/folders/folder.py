@@ -136,7 +136,7 @@ class Folder(Module):
         """Whether to use system APIs to perform folder operations on the cluster via HTTP."""
         return isinstance(self.system, Cluster) and not self.system.on_this_cluster()
 
-    def mv(self, system, path: Optional[str] = None) -> None:
+    def mv(self, system, path: Optional[str] = None, overwrite: bool = True) -> None:
         """Move the folder to a new filesystem or cluster.
 
         Example:
@@ -151,7 +151,9 @@ class Folder(Module):
         dest_path = Path(path)
 
         if self._use_http_endpoint:
-            self.system._mv(path=src_path, dest_path=dest_path)
+            self.system._folder_mv(
+                path=src_path, dest_path=dest_path, overwrite=overwrite
+            )
         else:
             dest_path = dest_path.expanduser()
             src_path = src_path.expanduser()
@@ -166,7 +168,7 @@ class Folder(Module):
                     )
 
                 # Create the destination directory if it doesn't exist
-                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                dest_path.parent.mkdir(parents=True, exist_ok=overwrite)
 
                 # Move the directory
                 shutil.move(str(src_path), str(dest_path))
@@ -299,7 +301,7 @@ class Folder(Module):
     def mkdir(self):
         """Create the folder in specified file system if it doesn't already exist."""
         if self._use_http_endpoint:
-            self.system._mkdir(self.path)
+            self.system._folder_mkdir(self.path)
         else:
             path = Path(self.path).expanduser()
             if not path.exists():
@@ -482,6 +484,20 @@ class Folder(Module):
             else str(Path(locate_working_dir()) / path)
         )
 
+    @staticmethod
+    def _delete_contents(contents: List, folder_path: Path, recursive: bool):
+        for content in contents:
+            content_path = folder_path / content
+            if content_path.exists():
+                if content_path.is_file():
+                    content_path.unlink()
+                elif content_path.is_dir() and recursive:
+                    shutil.rmtree(content_path)
+                else:
+                    raise ValueError(
+                        f"Path {content_path} is a directory and recursive is set to False"
+                    )
+
     @property
     def fsspec_url(self):
         """Generate the FSSpec style URL using the file system and path of the folder"""
@@ -514,7 +530,7 @@ class Folder(Module):
                 Defaults to ``False``.
         """
         if self._use_http_endpoint:
-            self.system._ls(self.path)
+            self.system._folder_ls(self.path)
         else:
             path = Path(self.path).expanduser()
             paths = [p for p in path.iterdir()]
@@ -538,11 +554,11 @@ class Folder(Module):
         try:
 
             if self._use_http_endpoint:
-                paths = self.system._ls(path=self.path, full_paths=full_paths)
+                paths = self.system._folder_ls(path=self.path, full_paths=full_paths)
                 resources = [
                     path
                     for path in paths
-                    if self.system._exists(path=f"{path}/config.json")
+                    if self.system._folder_exists(path=f"{path}/config.json")
                 ]
                 return resources
             else:
@@ -686,7 +702,7 @@ class Folder(Module):
             >>> contents = my_folder.get(file_name)
         """
         if self._use_http_endpoint:
-            return self.system._get(
+            return self.system._folder_get(
                 path=Path(self.path) / name, mode=mode, encoding=encoding
             )
 
@@ -706,7 +722,7 @@ class Folder(Module):
             >>> exists_on_system = my_folder.exists_in_system()
         """
         if self._use_http_endpoint:
-            return self.system._exists(self.path)
+            return self.system._folder_exists(self.path)
         else:
             full_path = Path(self.path).expanduser()
             return full_path.exists() and full_path.is_dir()
@@ -723,21 +739,11 @@ class Folder(Module):
             >>> my_folder.rm()
         """
         if self._use_http_endpoint:
-            self.system._rm(self.path, contents, recursive)
+            self.system._folder_rm(self.path, contents, recursive)
         else:
             folder_path = Path(self.path).expanduser()
             if contents:
-                for content in contents:
-                    content_path = folder_path / content
-                    if content_path.exists():
-                        if content_path.is_file():
-                            content_path.unlink()
-                        elif content_path.is_dir() and recursive:
-                            shutil.rmtree(content_path)
-                        else:
-                            raise ValueError(
-                                f"Path {content_path} is a directory and recursive is set to False"
-                            )
+                Folder._delete_contents(contents, folder_path, recursive)
             else:
                 if recursive:
                     shutil.rmtree(folder_path)
@@ -774,7 +780,7 @@ class Folder(Module):
             return
 
         if self._use_http_endpoint:
-            self.system._put(
+            self.system._folder_put(
                 path=self.path, contents=contents, overwrite=overwrite, mode=mode
             )
         else:

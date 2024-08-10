@@ -28,7 +28,7 @@ from runhouse.constants import (
 )
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import logger
-from runhouse.rns.utils.api import resolve_absolute_path
+from runhouse.rns.utils.api import resolve_absolute_path, ResourceAccess
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import averify_cluster_access
@@ -80,15 +80,21 @@ def validate_cluster_access(func):
         is_coro = inspect.iscoroutinefunction(func)
 
         func_call: bool = func.__name__ in ["post_call", "get_call"]
-        write_only_access: bool = func.__name__ in [
-            "folder_ls_cmd",
-            "folder_mkdir_cmd",
-            "folder_get_cmd",
-            "folder_put_cmd",
-            "folder_rm_cmd",
-            "folder_mv_cmd",
-            "folder_exists_cmd",
-        ]
+
+        # restrict access for folder APIs
+        access_level_required = (
+            ResourceAccess.WRITE
+            if func.__name__
+            in [
+                "folder_ls_cmd",
+                "folder_mkdir_cmd",
+                "folder_get_cmd",
+                "folder_put_cmd",
+                "folder_rm_cmd",
+                "folder_mv_cmd",
+            ]
+            else None
+        )
         token = get_token_from_request(request)
 
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
@@ -105,7 +111,7 @@ def validate_cluster_access(func):
                     )
                 cluster_uri = (await obj_store.aget_cluster_config()).get("name")
                 cluster_access = await averify_cluster_access(
-                    cluster_uri, token, write_only_access
+                    cluster_uri, token, access_level_required
                 )
                 if not cluster_access:
                     # Must have cluster access for all the non func calls
@@ -715,7 +721,11 @@ class HTTPServer:
     async def folder_mv_cmd(request: Request, mv_params: FolderMvParams):
         try:
             path = resolve_folder_path(mv_params.path)
-            return folder_mv(src_path=path, dest_path=mv_params.dest_path)
+            return folder_mv(
+                src_path=path,
+                dest_path=mv_params.dest_path,
+                overwrite=mv_params.overwrite,
+            )
 
         except Exception as e:
             return handle_exception_response(
