@@ -36,6 +36,7 @@ from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
+    folder_exists,
     folder_get,
     folder_ls,
     folder_mkdir,
@@ -80,19 +81,9 @@ def validate_cluster_access(func):
 
         func_call: bool = func.__name__ in ["post_call", "get_call"]
 
-        # restrict access for folder APIs
+        # restrict access for folder specific APIs
         access_level_required = (
-            ResourceAccess.WRITE
-            if func.__name__
-            in [
-                "folder_ls_cmd",
-                "folder_mkdir_cmd",
-                "folder_get_cmd",
-                "folder_put_cmd",
-                "folder_rm_cmd",
-                "folder_mv_cmd",
-            ]
-            else None
+            ResourceAccess.WRITE if func.__name__.startswith("folder") else None
         )
         token = get_token_from_request(request)
 
@@ -688,10 +679,10 @@ class HTTPServer:
             path = resolve_folder_path(put_params.path)
             return folder_put(
                 path,
+                contents=put_params.contents,
                 overwrite=put_params.overwrite,
                 mode=put_params.mode,
                 serialization=put_params.serialization,
-                contents=put_params.contents,
             )
 
         except Exception as e:
@@ -725,6 +716,19 @@ class HTTPServer:
                 dest_path=mv_params.dest_path,
                 overwrite=mv_params.overwrite,
             )
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/exists")
+    @validate_cluster_access
+    async def folder_exists_cmd(request: Request, folder_params: FolderParams):
+        try:
+            path = resolve_folder_path(folder_params.path)
+            return folder_exists(path=path)
 
         except Exception as e:
             return handle_exception_response(
