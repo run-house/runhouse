@@ -131,7 +131,7 @@ class Folder(Module):
         else:
             return None
 
-    def mv(self, system, path: Optional[str] = None) -> None:
+    def mv(self, system, path: Optional[str] = None, overwrite: bool = True) -> None:
         """Move the folder to a new filesystem or cluster.
 
         Example:
@@ -155,7 +155,7 @@ class Folder(Module):
                 )
 
             # Create the destination directory if it doesn't exist
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.parent.mkdir(parents=True, exist_ok=overwrite)
 
             # Move the directory
             shutil.move(str(src_path), str(dest_path))
