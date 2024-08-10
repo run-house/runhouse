@@ -224,7 +224,7 @@ class TestHTTPServerDocker:
             json={
                 "path": "~/.rh",
                 "contents": {f"{file_name}.txt": "Hello, world!"},
-                "overwrite": True
+                "overwrite": True,
             },
             headers=rns_client.request_headers(cluster.rns_address),
         )
@@ -247,7 +247,11 @@ class TestHTTPServerDocker:
         dest_path = f"~/{file_name}.txt"
         response = http_client.post(
             "/folder/method/mv",
-            json={"path": f"~/.rh/{file_name}.txt", "dest_path": dest_path},
+            json={
+                "path": f"~/.rh/{file_name}.txt",
+                "dest_path": dest_path,
+                "overwrite": True,
+            },
             headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
@@ -273,7 +277,7 @@ class TestHTTPServerDocker:
             json={
                 "path": "~/.rh",
                 "contents": {f"{file_name}.pickle": serialized_data},
-                "overwrite": True
+                "overwrite": True,
             },
             headers=rns_client.request_headers(cluster.rns_address),
         )
@@ -306,7 +310,7 @@ class TestHTTPServerDocker:
             json={
                 "path": "~/.rh",
                 "contents": {"new_file.txt": "Hello, world!"},
-                "overwrite": True
+                "overwrite": True,
             },
             headers=rns_client.request_headers(cluster.rns_address),
         )

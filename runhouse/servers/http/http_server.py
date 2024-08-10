@@ -703,7 +703,11 @@ class HTTPServer:
     async def folder_mv_cmd(request: Request, mv_params: FolderMvParams):
         try:
             path = resolve_folder_path(mv_params.path)
-            return folder_mv(src_path=path, dest_path=mv_params.dest_path)
+            return folder_mv(
+                src_path=path,
+                dest_path=mv_params.dest_path,
+                overwrite=mv_params.overwrite,
+            )
 
         except Exception as e:
             return handle_exception_response(
