@@ -1835,7 +1835,7 @@ class Cluster(Resource):
         self,
         path: Union[str, Path],
         dest_path: Union[str, Path],
-        overwrite: bool = False,
+        overwrite: bool = True,
     ):
         return self.client.folder_mv(
             path=path, dest_path=dest_path, overwrite=overwrite
