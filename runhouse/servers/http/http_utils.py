@@ -120,7 +120,7 @@ class FolderRmParams(FolderParams):
 
 class FolderMvParams(FolderParams):
     dest_path: str
-    overwrite: Optional[bool] = False
+    overwrite: Optional[bool] = True
 
     @validator("dest_path", pre=True, always=True)
     def convert_path_to_string(cls, v):
@@ -350,7 +350,7 @@ def folder_mkdir(path: Path):
     return Response(output_type=OutputType.SUCCESS)
 
 
-def folder_get(path: Path, mode: str = None, encoding: str = None):
+def folder_get(path: Path, encoding: str = None, mode: str = None):
     mode = mode or "rb"
     binary_mode = "b" in mode
 
@@ -386,10 +386,10 @@ def folder_get(path: Path, mode: str = None, encoding: str = None):
 
 def folder_put(
     path: Path,
+    contents: Dict[str, Any],
     overwrite: bool,
     mode: str = None,
     serialization: str = None,
-    contents: Dict[str, Any] = None,
 ):
     mode = mode or "wb"
 
@@ -399,8 +399,6 @@ def folder_put(
             detail="`contents` argument must be a dict mapping filenames to file-like objects",
         )
 
-    path.mkdir(parents=True, exist_ok=True)
-
     if overwrite is False:
         existing_files = {str(item.name) for item in path.iterdir()}
         intersection = existing_files.intersection(set(contents.keys()))
@@ -409,6 +407,8 @@ def folder_put(
                 status_code=409,
                 detail=f"File(s) {intersection} already exist(s) at path: {path}",
             )
+
+    path.mkdir(parents=True, exist_ok=True)
 
     for filename, file_obj in contents.items():
         binary_mode = "b" in mode
@@ -523,3 +523,11 @@ def folder_mv(src_path: Path, dest_path: str, overwrite: bool):
     shutil.move(str(src_path), str(dest_path))
 
     return Response(output_type=OutputType.SUCCESS)
+
+
+def folder_exists(path: Path):
+    return Response(
+        data=path.exists() and path.is_dir(),
+        output_type=OutputType.RESULT_SERIALIZED,
+        serialization=None,
+    )
