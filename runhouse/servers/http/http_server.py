@@ -689,10 +689,10 @@ class HTTPServer:
             path = resolve_folder_path(put_params.path)
             return folder_put(
                 path,
+                contents=put_params.contents,
                 overwrite=put_params.overwrite,
                 mode=put_params.mode,
                 serialization=put_params.serialization,
-                contents=put_params.contents,
             )
 
         except Exception as e:

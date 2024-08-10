@@ -399,8 +399,6 @@ def folder_put(
             detail="`contents` argument must be a dict mapping filenames to file-like objects",
         )
 
-    path.mkdir(parents=True, exist_ok=True)
-
     if overwrite is False:
         existing_files = {str(item.name) for item in path.iterdir()}
         intersection = existing_files.intersection(set(contents.keys()))
@@ -409,6 +407,8 @@ def folder_put(
                 status_code=409,
                 detail=f"File(s) {intersection} already exist(s) at path: {path}",
             )
+
+    path.mkdir(parents=True, exist_ok=True)
 
     for filename, file_obj in contents.items():
         binary_mode = "b" in mode
