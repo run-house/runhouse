@@ -81,19 +81,9 @@ def validate_cluster_access(func):
 
         func_call: bool = func.__name__ in ["post_call", "get_call"]
 
-        # restrict access for folder APIs
+        # restrict access for folder specific APIs
         access_level_required = (
-            ResourceAccess.WRITE
-            if func.__name__
-            in [
-                "folder_ls_cmd",
-                "folder_mkdir_cmd",
-                "folder_get_cmd",
-                "folder_put_cmd",
-                "folder_rm_cmd",
-                "folder_mv_cmd",
-            ]
-            else None
+            ResourceAccess.WRITE if func.__name__.startswith("folder") else None
         )
         token = get_token_from_request(request)
 

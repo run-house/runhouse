@@ -1840,3 +1840,6 @@ class Cluster(Resource):
         return self.client.folder_mv(
             path=path, dest_path=dest_path, overwrite=overwrite
         )
+
+    def _folder_exists(self, path: Union[str, Path]):
+        return self.client.folder_exists(path=path)

@@ -335,6 +335,12 @@ class HTTPClient:
             "/folder/method/rm", req_type="post", json_dict=folder_params
         )
 
+    def folder_exists(self, path: str):
+        folder_params = FolderParams(path=path).dict()
+        return self.request_json(
+            "/folder/method/exists", req_type="post", json_dict=folder_params
+        )
+
     def get_certificate(self):
         cert: bytes = self.request(
             "cert",
