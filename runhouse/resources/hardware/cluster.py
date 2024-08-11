@@ -42,7 +42,7 @@ from runhouse.constants import (
     LOCALHOST,
     RESERVED_SYSTEM_NAMES,
 )
-from runhouse.globals import obj_store, rns_client
+from runhouse.globals import configs, obj_store, rns_client
 
 from runhouse.logger import logger
 from runhouse.resources.envs.utils import _get_env_from
@@ -258,11 +258,25 @@ class Cluster(Resource):
 
         super().delete_configs()
 
-    def _save_sub_resources(self, folder: str = None):
-        from runhouse.resources.envs import Env
+    def _should_save_creds(self, folder: str = None) -> bool:
+        """Checks whether to save the creds associated with the cluster.
+        Only do so as part of the save() if the user making the call is the creator"""
+
         from runhouse.resources.secrets import Secret
 
-        if self._creds and isinstance(self._creds, Secret):
+        local_default_folder = folder or configs.username
+        # if not self.rns_address => we are saving the cluster first time in den
+        # else, need to check if the username of the current saver is included in the rns_address.
+        should_save_creds = (
+            not self.rns_address or local_default_folder in self.rns_address
+        ) and isinstance(self._creds, Secret)
+
+        return should_save_creds
+
+    def _save_sub_resources(self, folder: str = None):
+        from runhouse.resources.envs import Env
+
+        if self._should_save_creds(folder):
             self._creds.save(folder=folder)
 
         if self._default_env and isinstance(self._default_env, Env):
