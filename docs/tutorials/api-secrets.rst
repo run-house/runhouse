@@ -312,7 +312,7 @@ them as part of a ``rh.env()``.
     cluster = rh.ondemand_cluster("example-cluster")
 
 ``secret.to(system, env)``
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: ipython3
 
@@ -463,7 +463,7 @@ them as part of a ``rh.env()``.
 
 
 cluster.sync_secrets()
-^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~
 
 You can pass in a list of secrets along with an env into
 ``cluster.sync_secrets`` to be synced over from local to a cluster. The
@@ -523,7 +523,7 @@ provider/name.
 
 
 rh.env
-^^^^^^
+~~~~~~
 
 You can also include a list of secrets in a Runhouse env object. When
 the env is then sent to a cluster, as part of a function or directly,
