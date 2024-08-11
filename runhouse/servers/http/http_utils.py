@@ -429,7 +429,10 @@ def folder_put(
             with open(file_path, mode) as f:
                 f.write(file_obj)
         except Exception as e:
-            HTTPException(status_code=500, detail=f"Failed to write file: {str(e)}")
+            HTTPException(
+                status_code=500,
+                detail=f"Failed to write file with mode '{mode}': {str(e)}",
+            )
 
     return Response(output_type=OutputType.SUCCESS)
 

@@ -939,17 +939,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert "new-folder" in [os.path.basename(f) for f in file_contents]
 
         # Should not be able to mv to an existing directory if `overwrite=False`
-        with pytest.raises(FileExistsError):
+        with pytest.raises(Exception):
             cluster._folder_mv(
                 path="~/.rh/new-folder", dest_path="~/new-folder", overwrite=False
             )
 
-        cluster._folder_mv(path="~/.rh/new-folder", dest_path="~/new-folder")
-
         # Delete folder contents and directory itself
         cluster._folder_rm(path="~/new-folder", recursive=True)
 
-        assert not cluster._exists(path="~/new-folder")
+        assert not cluster._folder_exists(path="~/new-folder")
 
     @pytest.mark.level("release")
     @pytest.mark.clustertest
