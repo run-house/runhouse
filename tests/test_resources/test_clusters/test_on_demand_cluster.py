@@ -280,7 +280,6 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
     @pytest.mark.level("minimal")
     def test_logs_surfacing_scheduler_basic_flow(self, cluster):
 
-        time.sleep(120)
         cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
         headers = rh.globals.rns_client.request_headers()
         api_server_url = rh.globals.rns_client.api_server_url
