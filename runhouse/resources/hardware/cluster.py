@@ -10,6 +10,8 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import requests
+
 import yaml
 
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
@@ -642,14 +644,14 @@ class Cluster(Resource):
 
     # ----------------- RPC Methods ----------------- #
 
-    def call_client_method(self, method_name, *args, **kwargs):
-        method = getattr(self.client, method_name)
+    def call_client_method(self, client_method_name, *args, **kwargs):
+        method = getattr(self.client, client_method_name)
         try:
             return method(*args, **kwargs)
-        except ConnectionError:
+        except (ConnectionError, requests.exceptions.ConnectionError):
             try:
                 self._http_client = None
-                method = getattr(self.client, method_name)
+                method = getattr(self.client, client_method_name)
             except:
                 raise ConnectionError("Could not connect to Runhouse server.")
 
