@@ -29,13 +29,14 @@ Lambda Function Class
     Lambda Function support is an alpha and under active development.
     Please report any bugs and let us know of any feature requests.
 
-| A `Lambda Function <https://aws.amazon.com/lambda/>`_ is a serverless compute service provided by AWS. It allows  you
+| A `Lambda Function <https://aws.amazon.com/lambda/>`__ is a serverless compute service provided by AWS. It allows  you
  to run applications and backend services without provisioning or managing servers. Runhouse will allow you to
  maintain, invoke and share your Lambda functions and their code. It is comprised of the entry point, configuration, and
  dependencies necessary to run the service.
 
 
 | There are few core options to create an AWS Lambda using Runhouse:
+
 #. Pass a callable Python function to the factory method.
 #. Follow a typical Lambda creation flow (as if you are using AWS APIs). That includes passing path(s) to Python files(s)
    (containing the code) and a handler function name to the from_handler_file() method. Arguments such as runtime,

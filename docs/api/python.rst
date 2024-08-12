@@ -76,9 +76,9 @@ to other data concepts in the future, like kv-stores, time-series, vector and gr
 Secrets
 ------------------------------------
 Runhouse provides a convenient interface for managing your secrets in a secure manner.
-Secrets are stored in `Vault <https://www.vaultproject.io/>`_, an industry standard for
+Secrets are stored in `Vault <https://www.vaultproject.io/>`__, an industry standard for
 secrets management, and never touches Runhouse servers. Please see
-:ref:`Security and Metadata Collection` for more information on security.
+:ref:`Security and Authentication` for more information on security.
 
 .. toctree::
    :maxdepth: 1

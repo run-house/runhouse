@@ -766,7 +766,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         cluster.save()
         # the scheduler start running in a delay of 1 min, so the cluster startup will finish properly.
         # Therefore, the test needs to sleep for a while.
-        time.sleep(60)
         cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"], stream_logs=False)[
             0
         ][1]
