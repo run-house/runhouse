@@ -30,7 +30,7 @@ class ResourceStatusData(BaseModel):
     system_cpu_usage: float
     system_memory_usage: Dict[str, Any]
     system_disk_usage: Dict[str, Any]
-    env_servlet_processes: Dict[str, Dict[str, Any]]
+    env_servlet_processes: Optional[Dict[str, Dict[str, Any]]] = {}
     server_pid: int
     runhouse_version: str
 
