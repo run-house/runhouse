@@ -79,7 +79,9 @@ EMBEDDER, TABLE, LLM = None, None, None
 
 DEBUG = True  # In DEBUG mode we will always override Runhouse modules
 
-# Configuration options for our remote cluster
+# Define configuration options for our remote cluster. If you prefer to use a different
+# cloud provider, be sure to install the appropriate version of Runhouse: e.g.
+# `runhouse[aws]` or `runhouse[gcp]`.
 CLUSTER_NAME = "rh-xa10g"  # Allows the cluster to be reused
 INSTANCE_TYPE = "A10G:1"  # A10G GPU to handle LLM iinference
 CLOUD_PROVIDER = "aws"  # Alternatively "gcp", "azure", or "cheapest"
