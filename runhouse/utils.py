@@ -327,3 +327,36 @@ class ThreadWithException(threading.Thread):
         super().join(timeout=timeout)
         if self._exc:
             raise self._exc
+
+
+####################################################################################################
+# Logging redirection
+####################################################################################################
+class StreamTee(object):
+    def __init__(self, instream, outstreams):
+        self.instream = instream
+        self.outstreams = outstreams
+
+    def write(self, message):
+        self.instream.write(message)
+        for stream in self.outstreams:
+            if message:
+                stream.write(message)
+                # We flush here to ensure that the logs are written to the file immediately
+                # see https://github.com/run-house/runhouse/pull/724
+                stream.flush()
+
+    def writelines(self, lines):
+        self.instream.writelines(lines)
+        for stream in self.outstreams:
+            stream.writelines(lines)
+            stream.flush()
+
+    def flush(self):
+        self.instream.flush()
+        for stream in self.outstreams:
+            stream.flush()
+
+    def __getattr__(self, item):
+        # Needed in case someone calls a method on instream, such as Ray calling sys.stdout.istty()
+        return getattr(self.instream, item)
