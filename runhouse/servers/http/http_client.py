@@ -278,6 +278,10 @@ class HTTPClient:
         # Note: Resource address must be specified in order to construct the cluster subtoken
         return self.request("status", req_type="get", resource_address=resource_address)
 
+    def config(self):
+        """Load the remote cluster's config."""
+        return self.request("config", req_type="get")
+
     def folder_ls(self, path: Union[str, Path], full_paths: bool, sort: bool):
         folder_params = FolderLsParams(
             path=path, full_paths=full_paths, sort=sort

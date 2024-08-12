@@ -118,8 +118,11 @@ def cluster(
                 if den_auth:
                     c.save()
                 return c
-        except ValueError as e:
+        except (ValueError, ConnectionError, TimeoutError) as e:
             if not alt_options:
+                if not load_from_den:
+                    # Cluster might be of type on-demand with metadata saved in the local Sky DB
+                    return OnDemandCluster._from_sky_db(name, dryrun)
                 raise e
 
     if ssh_creds:
@@ -477,12 +480,16 @@ def ondemand_cluster(
                 if den_auth:
                     c.save()
                 return c
-        except ValueError as e:
+        except (ValueError, ConnectionError, TimeoutError) as e:
             import sky
 
             state = sky.status(cluster_names=[name], refresh=False)
             if len(state) == 0 and not alt_options:
                 raise e
+
+            if not load_from_den:
+                # Try loading the cluster using data from the local Sky DB
+                return OnDemandCluster._from_sky_db(name, dryrun)
 
     c = OnDemandCluster(
         instance_type=instance_type,
@@ -684,7 +691,7 @@ def sagemaker_cluster(
             if c:
                 c.set_connection_defaults()
                 return c
-        except ValueError as e:
+        except (ValueError, ConnectionError, TimeoutError) as e:
             if not alt_options:
                 raise e
 

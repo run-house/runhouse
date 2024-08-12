@@ -57,6 +57,15 @@ class TestHTTPServerDocker:
         assert response.status_code == 200
 
     @pytest.mark.level("local")
+    def test_check_cluster_config(self, http_client, cluster):
+        response = http_client.get(
+            "/config", headers=rns_client.request_headers(cluster.rns_address)
+        )
+        assert response.status_code == 200
+        cluster_servlet_config = response.json().get("data")
+        assert cluster_servlet_config["ips"] == cluster.ips
+
+    @pytest.mark.level("local")
     def test_put_resource(self, http_client, blob_data, cluster):
         state = None
         resource = rh.blob(data=blob_data, system=cluster)

@@ -975,3 +975,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # set it back
         cluster.default_env = test_env
         cluster.delete(new_env.name)
+
+    @pytest.mark.level("release")
+    @pytest.mark.clustertest
+    def test_load_cluster_from_sky_db(self, cluster):
+        # Reload based on the IP stored in the Sky DB and config stored on the cluster
+        reloaded_cluster = rh.cluster(name=cluster.rns_address, load_from_den=False)
+        assert reloaded_cluster.ips == cluster.ips

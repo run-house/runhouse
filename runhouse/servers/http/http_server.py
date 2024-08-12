@@ -288,6 +288,22 @@ class HTTPServer:
             )
 
     @staticmethod
+    @app.get("/config")
+    @validate_cluster_access
+    def cluster_config(request: Request):
+        try:
+            cluster_config = obj_store.get_cluster_config()
+            return Response(
+                data=cluster_config,
+                output_type=OutputType.RESULT_SERIALIZED,
+                serialization=None,
+            )
+        except (AttributeError, ObjStoreError) as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
     @app.post("/settings")
     @validate_cluster_access
     async def update_settings(request: Request, message: ServerSettings) -> Response:

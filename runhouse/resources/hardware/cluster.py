@@ -3,6 +3,7 @@ import copy
 import importlib
 import json
 import logging
+import os
 import re
 import subprocess
 import threading
@@ -182,6 +183,7 @@ class Cluster(Resource):
     ):
         cluster = super().from_name(
             name=name,
+            load_from_den=load_from_den,
             dryrun=dryrun,
             alt_options=alt_options,
             _resolve_children=_resolve_children,
@@ -192,6 +194,41 @@ class Cluster(Resource):
             except:
                 pass
         return cluster
+
+    @classmethod
+    def _from_sky_db(cls, name, dryrun=False):
+        import sky
+
+        from runhouse import OnDemandCluster
+
+        sky_cluster_name = os.path.basename(name)
+        sky_data: dict = sky.global_user_state.get_cluster_from_name(sky_cluster_name)
+        if not sky_data:
+            raise ValueError(f"Cluster {name} not found locally")
+
+        cluster_ip = sky_data["handle"].head_ip
+        if not cluster_ip:
+            raise ValueError(
+                f"Failed to load cluster {name} locally, IP address not found"
+            )
+
+        try:
+            resp = requests.get(
+                f"http://{cluster_ip}:{DEFAULT_SERVER_PORT}/config",
+                headers=rns_client.request_headers(),
+                timeout=5,
+            )
+            if resp.status_code != 200:
+                raise ConnectionError(
+                    f"Failed to load cluster {name} from IP address: {cluster_ip}"
+                )
+
+        except requests.exceptions.Timeout:
+            # Server might not be up, port may not be open
+            raise TimeoutError(f"Request to cluster {name} failed")
+
+        cluster_config = resp.json()
+        return OnDemandCluster(**cluster_config, dryrun=dryrun)
 
     def save_config_to_cluster(
         self,
