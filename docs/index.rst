@@ -20,9 +20,9 @@ Table of Contents
    :maxdepth: 1
    :caption: Getting Started
 
-   tutorials/quick-start-cloud
-   tutorials/quick-start-local
-   tutorials/quick-start-den
+   quick-start-cloud
+   quick-start-local
+   quick-start-den
    architecture
 
 .. toctree::
@@ -47,13 +47,13 @@ Table of Contents
    :maxdepth: 1
    :caption: Other Topics
 
-   tutorials/async.rst
-   installation
-   debugging-logging
-   docker-setup
-   docker-workflows
-   troubleshooting
-   security-and-authentication
+   guides/async.rst
+   guides/installation
+   guides/debugging-logging
+   guides/docker-setup
+   guides/docker-workflows
+   guides/troubleshooting
+   guides/security-and-authentication
 
 
 Contributing and Community
