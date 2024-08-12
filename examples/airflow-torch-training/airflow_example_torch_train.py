@@ -6,8 +6,6 @@ from datetime import datetime, timedelta
 # Import the functions from the training script
 from callables import bring_up_cluster_callable, access_data_callable, train_model_callable, down_cluster
 
-import runhouse as rh 
-
 default_args = {
     'owner': 'paul',
     'depends_on_past': False,
