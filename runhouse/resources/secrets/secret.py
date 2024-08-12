@@ -12,7 +12,7 @@ from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
 from runhouse.resources.secrets.utils import _delete_vault_secrets, load_config
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
-from runhouse.rns.utils.names import _generate_default_name
+from runhouse.utils import generate_default_name
 
 
 class Secret(Resource):
@@ -346,7 +346,7 @@ class Secret(Resource):
         """
 
         new_secret = copy.deepcopy(self)
-        new_secret.name = name or self.name or _generate_default_name(prefix="secret")
+        new_secret.name = name or self.name or generate_default_name(prefix="secret")
 
         system = _get_cluster_from(system)
         if system.on_this_cluster():

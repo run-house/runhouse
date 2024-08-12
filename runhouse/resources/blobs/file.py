@@ -6,7 +6,7 @@ from runhouse.resources.blobs.blob import Blob, blob
 from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.folders import Folder, folder
 from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
-from runhouse.rns.utils.names import _generate_default_name
+from runhouse.utils import generate_default_name
 
 
 class File(Blob):
@@ -103,7 +103,7 @@ class File(Blob):
         env = _get_env_from(env or self.env)
 
         if (not system or isinstance(system, Cluster)) and not path:
-            name = self.name or _generate_default_name(prefix="blob")
+            name = self.name or generate_default_name(prefix="blob")
             data_backup = self.fetch()
             new_blob = Blob(name=name).to(system, env)
             new_blob.data = data_backup

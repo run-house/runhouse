@@ -18,7 +18,12 @@ from runhouse.logger import logger
 
 from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import ResourceVisibility
-from runhouse.utils import arun_in_thread, LogToFolder, sync_function
+from runhouse.utils import (
+    arun_in_thread,
+    generate_default_name,
+    LogToFolder,
+    sync_function,
+)
 
 
 class RaySetupOption(str, Enum):
@@ -1265,11 +1270,9 @@ class ObjStore:
             else None
         )
 
-        from runhouse.rns.utils.names import _generate_default_name
-
         # Make sure there's a run_name (if called through the HTTPServer there will be, but directly
         # through the ObjStore there may not be)
-        run_name = run_name or _generate_default_name(
+        run_name = run_name or generate_default_name(
             prefix=key if method_name == "__call__" else f"{key}_{method_name}",
             precision="ms",  # Higher precision because we see collisions within the same second
             sep="@",
@@ -1515,7 +1518,6 @@ class ObjStore:
     ) -> str:
         from runhouse.resources.module import Module
         from runhouse.resources.resource import Resource
-        from runhouse.rns.utils.names import _generate_default_name
 
         state = state or {}
         # Resolve any sub-resources which are string references to resources already sent to this cluster.
@@ -1540,7 +1542,7 @@ class ObjStore:
         for attr, val in state.items():
             setattr(resource, attr, val)
 
-        name = resource.name or _generate_default_name(prefix=resource.RESOURCE_TYPE)
+        name = resource.name or generate_default_name(prefix=resource.RESOURCE_TYPE)
         if isinstance(resource, Module):
             resource.rename(name)
         else:
