@@ -312,8 +312,8 @@ class HTTPClient:
         self,
         path: Union[str, Path],
         contents: Union[Dict[str, Any], Resource, List[Resource]],
-        mode: str,
         overwrite: bool,
+        mode: str,
         serialization: str,
     ):
         folder_params = FolderPutParams(
