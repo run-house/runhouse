@@ -17,6 +17,7 @@ from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Clu
 from runhouse.resources.resource import Resource
 from runhouse.rns.top_level_rns_fns import resolve_rns_path
 from runhouse.rns.utils.api import log_timestamp, resolve_absolute_path
+from runhouse.utils import StreamTee
 
 # Load the root logger
 logger = logging.getLogger("")
@@ -500,36 +501,6 @@ class Run(Resource):
     def _base_local_folder_path(name: str):
         """Path to the base folder for this Run on a local system."""
         return f"{LOGS_DIR}/{name}"
-
-
-class StreamTee(object):
-    def __init__(self, instream, outstreams):
-        self.instream = instream
-        self.outstreams = outstreams
-
-    def write(self, message):
-        self.instream.write(message)
-        for stream in self.outstreams:
-            if message:
-                stream.write(message)
-                # We flush here to ensure that the logs are written to the file immediately
-                # see https://github.com/run-house/runhouse/pull/724
-                stream.flush()
-
-    def writelines(self, lines):
-        self.instream.writelines(lines)
-        for stream in self.outstreams:
-            stream.writelines(lines)
-            stream.flush()
-
-    def flush(self):
-        self.instream.flush()
-        for stream in self.outstreams:
-            stream.flush()
-
-    def __getattr__(self, item):
-        # Needed in case someone calls a method on instream, such as Ray calling sys.stdout.istty()
-        return getattr(self.instream, item)
 
 
 class capture_stdout:
