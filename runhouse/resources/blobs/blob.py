@@ -6,7 +6,8 @@ from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
 
 from runhouse.resources.module import Module
-from runhouse.rns.utils.names import _generate_default_name, _generate_default_path
+from runhouse.rns.utils.names import _generate_default_path
+from runhouse.utils import generate_default_name
 
 
 class Blob(Module):
@@ -56,7 +57,7 @@ class Blob(Module):
 
         system = _get_cluster_from(system)
         if (not system or isinstance(system, Cluster)) and not path:
-            self.name = self.name or _generate_default_name(prefix="blob")
+            self.name = self.name or generate_default_name(prefix="blob")
             # TODO [DG] if system is the same, bounces off the laptop for no reason. Change to write through a
             #  call_module_method rpc (and same for similar file cases)
             return super().to(system, env)
@@ -184,7 +185,7 @@ def blob(
 
     if (not system or isinstance(system, Cluster)) and not path:
         # Blobs must be named, or we don't have a key for the kv store
-        name = name or _generate_default_name(prefix="blob")
+        name = name or generate_default_name(prefix="blob")
         new_blob = Blob(name=name, dryrun=dryrun).to(system, env)
         if data is not None:
             new_blob.data = data
@@ -194,7 +195,7 @@ def blob(
 
     from runhouse.resources.blobs.file import File
 
-    name = name or _generate_default_name(prefix="file")
+    name = name or generate_default_name(prefix="file")
     new_blob = File(
         name=name,
         path=path,

@@ -29,7 +29,6 @@ from runhouse.constants import (
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import logger
 from runhouse.rns.utils.api import resolve_absolute_path, ResourceAccess
-from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import averify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
@@ -65,7 +64,7 @@ from runhouse.servers.obj_store import (
     ObjStoreError,
     RaySetupOption,
 )
-from runhouse.utils import sync_function
+from runhouse.utils import generate_default_name, sync_function
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -319,7 +318,7 @@ class HTTPServer:
         params = params or CallParams()
 
         try:
-            params.run_name = params.run_name or _generate_default_name(
+            params.run_name = params.run_name or generate_default_name(
                 prefix=key if method_name == "__call__" else f"{key}_{method_name}",
                 precision="ms",  # Higher precision because we see collisions within the same second
                 sep="@",
