@@ -18,7 +18,7 @@ from runhouse.logger import logger
 
 from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import ResourceVisibility
-from runhouse.utils import arun_in_thread, sync_function
+from runhouse.utils import arun_in_thread, LogToFolder, sync_function
 
 
 class RaySetupOption(str, Enum):
@@ -1099,14 +1099,10 @@ class ObjStore:
         if self.servlet_name is None or not self.has_local_storage:
             raise NoLocalObjStoreError()
 
-        from runhouse.resources.provenance import run
-
         log_ctx = None
-        if stream_logs:
-            log_ctx = run(
+        if stream_logs and run_name is not None:
+            log_ctx = LogToFolder(
                 name=run_name,
-                log_dest="file" if run_name else None,
-                load=False,
             )
             log_ctx.__enter__()
 
