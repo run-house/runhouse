@@ -29,6 +29,8 @@ from typing import Callable, Optional, Type, Union
 
 import pexpect
 
+from runhouse.constants import LOGS_DIR
+
 logger = logging.getLogger(__name__)
 
 ####################################################################################################
@@ -360,3 +362,86 @@ class StreamTee(object):
     def __getattr__(self, item):
         # Needed in case someone calls a method on instream, such as Ray calling sys.stdout.istty()
         return getattr(self.instream, item)
+
+
+class LogToFolder:
+    def __init__(self, name: str):
+        self.name = name
+        self.directory = self._base_local_folder_path(name)
+        self.root_logger = logging.getLogger("")
+        # We do exist_ok=True here because generator runs are separate calls to the same directory.
+        os.makedirs(self.directory, exist_ok=True)
+
+    def __enter__(self):
+        # TODO fix the fact that we keep appending and then stream back the full file
+        sys.stdout = StreamTee(sys.stdout, [Path(self._stdout_path).open(mode="a")])
+        sys.stderr = StreamTee(sys.stderr, [Path(self._stderr_path).open(mode="a")])
+
+        # Add the stdout and stderr handlers to the root logger
+        self._stdout_handler = logging.StreamHandler(sys.stdout)
+        self.root_logger.addHandler(self._stdout_handler)
+
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.root_logger.removeHandler(self._stdout_handler)
+
+        # Flush stdout and stderr
+        # sys.stdout.flush()
+        # sys.stderr.flush()
+
+        # Restore stdout and stderr
+        if hasattr(sys.stdout, "instream"):
+            sys.stdout = sys.stdout.instream
+        if hasattr(sys.stderr, "instream"):
+            sys.stderr = sys.stderr.instream
+
+        # return False to propagate any exception that occurred inside the with block
+        return False
+
+    @property
+    def _stdout_path(self) -> str:
+        """Path to the stdout file for the Run."""
+        return self._path_to_file_by_ext(ext=".out")
+
+    @property
+    def _stderr_path(self) -> str:
+        """Path to the stderr file for the Run."""
+        return self._path_to_file_by_ext(ext=".err")
+
+    @staticmethod
+    def _base_local_folder_path(name: str):
+        """Path to the base folder for this Run on a local system."""
+        return f"{LOGS_DIR}/{name}"
+
+    @staticmethod
+    def _filter_files_by_ext(files: list, ext: str):
+        return list(filter(lambda x: x.endswith(ext), files))
+
+    def _find_file_path_by_ext(self, ext: str) -> Union[str, None]:
+        """Get the file path by provided extension. Needed when loading the stdout and stderr files associated
+        with a particular run."""
+        try:
+            # List all files in self.directory
+            folder_contents = os.listdir(self.directory)
+        except FileNotFoundError:
+            return None
+
+        files_with_ext = self._filter_files_by_ext(folder_contents, ext)
+        if not files_with_ext:
+            # No .out / .err file already created in the logs folder for this Run
+            return None
+
+        # Return the most recent file with this extension
+        return f"{self.directory}/{files_with_ext[0]}"
+
+    def _path_to_file_by_ext(self, ext: str) -> str:
+        """Path the file for the Run saved on the system for a provided extension (ex: ``.out`` or ``.err``)."""
+        existing_file = self._find_file_path_by_ext(ext=ext)
+        if existing_file:
+            # If file already exists in file (ex: with function on a Ray cluster this will already be
+            # generated for us)
+            return existing_file
+
+        path_to_ext = f"{self.directory}/{self.name}" + ext
+        return path_to_ext
