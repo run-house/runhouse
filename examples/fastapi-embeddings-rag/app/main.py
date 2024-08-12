@@ -1,8 +1,8 @@
 # # RAG App with Vector Embedding and LLM Generation
 #
 # This example defines a retrieval augmented generation (RAG) app that references text from websites
-# to enrich the response from an LLM. Depending on the URLs you use to feed the application database,
-# you'll be able to answer questions more intelligently with explicit context.
+# to enrich the response from an LLM. Depending on the URLs you use to populate the vector database,
+# you'll be able to answer questions more intelligently with relevant context.
 #
 # You could, for example, pass in the URL of a new startup and then ask the app to answer questions
 # about that startup using information on their site. Or pass in several specialized gardening websites and
@@ -13,14 +13,14 @@
 # and generate answers to questions using related context from stored websites and an open source LLM.
 #
 # #### Indexing:
-# - Send a list of URL paths to the application via a POST endpoint
+# - **Send a list of URL paths** to the application via a POST endpoint
 # - Use [LangChain](https://python.langchain.com/v0.1/docs/modules/data_connection/document_transformers/)
 #   to **parse text from URLs**
 # - **Create vector embeddings from split text** with [Sentence Transformers (SBERT)](https://sbert.net/index.html)
 # - Store embeddings in a **vector database** ([LanceDB](https://lancedb.com/))
 #
 # #### Retrieval and generation:
-# - Send question text via a GET endpoint on the FastAPI application
+# - **Send question text** via a GET endpoint on the FastAPI application
 # - Create a vector embedding from the text and **retrieve related docs** from database
 # - **Construct an LLM prompt** from documents and original question
 # - Generate a response using an **LLM (Llama 3)**
@@ -28,7 +28,7 @@
 #
 # ![Graphic displaying the steps of indexing data and the retrieval and generation process](https://runhouse-tutorials.s3.amazonaws.com/indexing-retrieval-generation.png)
 #
-# Note: that some of the steps in this example could be accomplished more simply with platforms like OpenAI and
+# Note: Some of the steps in this example could also be accomplished with platforms like OpenAI and
 # tools such as LangChain, but we break out the components explicitly to fully illustrate each step and make the
 # example easily adaptible to other use cases. Swap out components as you see fit!
 #
@@ -36,19 +36,19 @@
 # Runhouse allows you to turn complex operations such as preprocessing and inference into independent services.
 # Servicifying with Runhouse enables:
 # - **Decoupling**: AI/ML or compute-heavy heavy tasks can be separated from your main application.
-#   This keeps the FastAPI app light and allows your service to scale independently.
-# - **Multi-cloud**: Host each service on remote machies from any cloud provider (or even on the same GPU).
+#   This keeps the FastAPI app light and allows each service to scale independently.
+# - **Multi-cloud**: Host Runhouse modules on remote machines from any cloud provider (even on the same GPU).
 #   Take advantage of unused cloud credits and avoid platform dependence.
 # - **Sharing**: Running on GPUs can be expensive, especially if they aren't fully utilized. By sharing services within
 #   your organization, you can substantially cut costs.
 #
 # ### Why FastAPI?
-# We choose FastAPI as our platform because of its popularity and simplicity. However, we could
+# We chose FastAPI as our platform because of its popularity and simplicity. However, we could
 # easily use any other *Python-based* platform with Runhouse. Streamlit, Flask, `<your_favorite>`, we got you!
 #
 # ## Setup credentials and dependencies
 #
-# To ensure that Runhouse is able to managed deploying services to your cloud provider (AWS in our case)
+# To ensure that Runhouse is able to manage deploying services to your cloud provider (AWS in this case)
 # you may need to follow initial setup steps. Please visit the AWS section of
 # our [Installation Guide](https://www.run.house/docs/installation)
 #
@@ -66,7 +66,6 @@
 from contextlib import asynccontextmanager
 from typing import Dict, List
 
-import dotenv
 import lancedb
 
 import runhouse as rh
@@ -75,8 +74,6 @@ from fastapi import Body, FastAPI, HTTPException
 
 from app.modules.embedding import Item, URLEmbedder
 from app.modules.llm import LlamaModel
-
-dotenv.load_dotenv()
 
 EMBEDDER, TABLE, LLM = None, None, None
 
@@ -115,28 +112,16 @@ async def lifespan(app):
 
 
 # ### Create Vector Embedding Service as a Runhouse Module
-# This method, run durig initialization, will provision a remote machine (A10G on AWS in this case)
+# This method, run during initialization, will provision a remote machine (A10G on AWS in this case)
 # and deploy our `URLEmbedder` to that machine. The `env` is essentially the worker environment that
 # will run the module.
 #
-# The Python packages required by the embedding service (`langchain` etc.) are defined on the Runhouse `env` so that
-# they can be properly installed on the cluster. Also note that they are imported inside class methods. Those packages
-# do not need to be installed locally.
+# The Python packages required by the embedding service (`langchain` etc.) are defined on the
+# Runhouse [`env`](https://www.run.house/docs/tutorials/api-envs) so that they can be properly installed
+# on the cluster. Also note that they are imported inside class methods. Those packages do not need
+# to be installed locally.
 def load_embedder():
     """Launch an A10G and send the embedding service to it."""
-    # TODO: On production how does this know our AWS credentials to deploy or find the cluster?
-    # Is there a good way to pass those in through a Docker container?
-    # We *could* update the Dockerfile but is that a little janky?
-
-    # TODO: If we DO replace the existing embedder, we should del the instance and run garbage
-    # collection
-
-    # TODO:
-    # rh.login(YOUR_TOKEN)
-    # rh.sky(aws_key=AWS_KEY)
-    # rh.sky(creds="/path/to/folder/with/creds/in/repo")
-    # rh.login(YOUR_TOKEN, AWS_CREDENTIALS="/path/in/local/files") # like how boto does it.
-
     cluster = rh.cluster(
         CLUSTER_NAME, instance_type=INSTANCE_TYPE, provider=CLOUD_PROVIDER
     ).up_if_not()
@@ -167,11 +152,12 @@ def load_embedder():
     return remote_url_embedder
 
 
-# ### Initialize LanceDB vector database
+# ### Initialize LanceDB Vector Database
 # We'll be using open source [LanceDB](https://lancedb.com/) to create an embedded database to store
 # the URL embeddings and perform vector search for the retrieval phase. You could alternatively try
 # Chroma, Pinecone, Weaviate, or even MongoDB.
 def load_table():
+    # Initialize LanceDB database directly on the FastAPI app's machine
     db = lancedb.connect("/tmp/db")
     return db.create_table("rag-table", schema=Item.to_arrow_schema(), exist_ok=True)
 
@@ -209,7 +195,7 @@ def load_llm():
     return remote_llm
 
 
-### Initialize the FastAPI application
+### Initialize the FastAPI Application
 # Before defining endpoints, we'll initialize the application and set the lifespan events defined
 # above. This will load in the various services we've defined on start-up.
 app = FastAPI(lifespan=lifespan)
@@ -223,7 +209,7 @@ def health_check():
 
 
 # ### Vector Embedding POST Endpoint
-# To illustrate tehe flexibility of FastAPI, we're allowing embeddings to be added to your database
+# To illustrate the flexibility of FastAPI, we're allowing embeddings to be added to your database
 # via a POST endpoint. This method will use the embedder service to create database entries with the
 # source, content, and vector embeddings for chunks of text from a provided list of URLs.
 @app.post("/embeddings")
@@ -245,12 +231,12 @@ async def generate_embeddings(paths: List[str] = Body([]), kwargs: Dict = Body({
     return {"status": "success"}
 
 
-# ## Retrieval augmented generation (RAG) steps:
+# ## Retrieval Augmented Generation (RAG) Steps:
 # Now that we've defined our services and created an endpoint to populate data for retrieval, the remaining
 # components of the application will focus on the generative phases of the RAG app.
 
 # ### Retrieval with Sentence Transformers and LanceDB
-# In the retrieval phase we'll first use the Embedder service to create an embedding from the input text
+# In the retrieval phase we'll first use the Embedder service to create an embedding from input text
 # to search our LanceDB vector database with. LanceDB is optimized for vector searches in this manner.
 async def retrieve_documents(text: str, limit: int) -> List[Item]:
     """Retrieve documents from vector DB related to input text"""
@@ -271,7 +257,7 @@ async def retrieve_documents(text: str, limit: int) -> List[Item]:
 
 # ### Format an Augmented Prompt
 # To leverage the documents retrieved from the previous step, we'll format a prompt that provides text from
-# related documents as "context" for the LLM prompt. This allows a general purpose LLM (like Llama) to provide
+# related documents as "context" for the LLM. This allows a general purpose LLM (like Llama) to provide
 # more specific responses to a particular question.
 async def format_prompt(text: str, docs: List[Item]) -> str:
     """Retrieve documents from vector DB related to input text"""
@@ -301,6 +287,8 @@ async def generate_response(text: str, limit: int = 4):
         # Create a prompt using the documents and search text
         prompt = await format_prompt(text, documents)
 
+        # Send prompt with optional sampling parameters for vLLM
+        # More info: https://github.com/vllm-project/vllm/blob/main/vllm/sampling_params.py
         response = await LLM.generate(
             prompt=prompt, temperature=0.8, top_p=0.95, max_tokens=100
         )
@@ -321,13 +309,14 @@ async def generate_response(text: str, limit: int = 4):
 # ```
 #
 # After a few minutes, you can navigate to `http://127.0.0.1/health` to check that your application is running.
+# This may take a while due to initialization logic in the lifespan.
 #
 # You'll see something like:
 # ```json
 # { "status": "healthy" }
 # ```
 #
-# To debug the application, we recommend you use `fastapi dev`. This will trigger
+# To debug the application, you may prefer running `fastapi dev`. This will trigger
 # automatic re-deployments from any changes to your code. Be sure to set `DEBUG` to `True` to
 # override instances of the embedding and LLM services with updated versions.
 #
@@ -354,7 +343,7 @@ async def generate_response(text: str, limit: int = 4):
 # ```
 #
 # The `LlamaModel` will need to load on the initial call and may take a few minutes to generate a
-# response. Subsequent calls will generally take less than a second to generate.
+# response. Subsequent calls will generally take less than a second.
 #
 # Example output:
 #
@@ -377,8 +366,9 @@ async def generate_response(text: str, limit: int = 4):
 # could easily serve as the backend to a RAG app.
 #
 # We won't go into depth on a specific method, but here are a few things to consider:
-# - **Cloud credentials**: Runhouse uses SkyPilot to provision remote machines on various cloud providers. You'll
-#   need to ensure that you have the appropriate permissios available on your production environment.
+# - **Cloud credentials**: Runhouse uses [SkyPilot](https://github.com/skypilot-org/skypilot) to provision remote
+#   machines on various cloud providers. You'll need to ensure that you have the appropriate permissions available
+#   on your production environment.
 # - **ENV Variables**: This example passes your Hugging Face token to a Runhouse `env` to grant permissions to use
 #   Llama 3. Make sure you handle this on your server as well.
 # - **Cluster lifecycle**: Running GPUs can be costly. `sky` commands make it easy to manage remote clusters locally
@@ -386,4 +376,4 @@ async def generate_response(text: str, limit: int = 4):
 #
 # If you're running into any problems using Runhouse in production, please reach out to our team at
 # [team@run.house](mailto:team@run.house). We'd be happy to set up a time to help you debug live.
-# Additionally, you can chat with us directly on [Discord](https://discord.com/invite/RnhB6589Hs)
+# Additionally, you can chat with us directly on [Discord](https://discord.com/invite/RnhB6589Hs).

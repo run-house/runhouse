@@ -17,8 +17,8 @@ class LlamaModel:
 
         # This vLLM function resets the global variables, which enables initializing models
         destroy_model_parallel()
+        # Cleanup methods in case vLLM is reloaded in a new LlamaModel instance
         destroy_distributed_environment()
-        # Cleanup methods in case the vLLM is reloaded in a new LlamaModel instance
         gc.collect()
         torch.cuda.empty_cache()
 
