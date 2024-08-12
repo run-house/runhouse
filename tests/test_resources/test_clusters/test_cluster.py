@@ -1,3 +1,4 @@
+import os
 import subprocess
 import time
 from threading import Thread
@@ -871,6 +872,85 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # Can't run on a node that is on the cluster
         with pytest.raises(Exception):
             remote_run("echo hello")[0]
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_put_and_get(self, cluster):
+        cluster._folder_mkdir(path="~/.rh/new-folder")
+        folder_contents: list = cluster._folder_ls(path="~/.rh")
+        assert "new-folder" in [os.path.basename(f) for f in folder_contents]
+
+        cluster._folder_put(
+            path="~/.rh/new-folder",
+            contents={"sample.txt": "Hello World!"},
+            overwrite=True,
+        )
+
+        file_contents = cluster._folder_get(path="~/.rh/new-folder/sample.txt")
+        assert file_contents == "Hello World!"
+
+        # Should not be able to put to an existing file unless `overwrite=True`
+        with pytest.raises(ValueError):
+            cluster._folder_put(
+                path="~/.rh/new-folder",
+                contents={"sample.txt": "Hello World!"},
+            )
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_put_and_get_serialized_object(self, cluster):
+        from runhouse.servers.http.http_utils import deserialize_data, serialize_data
+
+        raw_data = [1, 2, 3]
+        serialization = "pickle"
+        serialized_data = serialize_data(raw_data, serialization)
+        cluster._folder_put(
+            path="~/.rh/new-folder",
+            contents={"sample.pickle": serialized_data},
+            overwrite=True,
+        )
+
+        file_contents = cluster._folder_get(path="~/.rh/new-folder/sample.pickle")
+        assert deserialize_data(file_contents, serialization) == raw_data
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_put_and_rm_with_contents(self, cluster):
+        raw_data = "Hello World!"
+        cluster._folder_put(
+            path="~/.rh/new-folder",
+            contents={"sample.txt": raw_data},
+            overwrite=True,
+        )
+
+        cluster._folder_rm(path="~/.rh/new-folder", contents=["sample.txt"])
+        folder_contents = cluster._folder_ls(path="~/.rh/new-folder")
+        assert "sample.txt" not in [os.path.basename(f) for f in folder_contents]
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_mkdir_mv_and_rm(self, cluster):
+        cluster._folder_mkdir(path="~/.rh/new-folder")
+
+        cluster._folder_mv(path="~/.rh/new-folder", dest_path="~/new-folder")
+        file_contents = cluster._folder_ls(path="~")
+
+        assert "new-folder" in [os.path.basename(f) for f in file_contents]
+
+        # Should not be able to mv to an existing directory if `overwrite=False`
+        cluster._folder_mkdir(path="~/.rh/another-new-folder")
+        with pytest.raises(Exception):
+            cluster._folder_mv(
+                path="~/.rh/another-new-folder",
+                dest_path="~/new-folder",
+                overwrite=False,
+            )
+
+        # Delete folder contents and directory itself
+        cluster._folder_rm(path="~/new-folder", recursive=True)
+
+        folder_contents: list = cluster._folder_ls(path="~")
+        assert "new-folder" not in [os.path.basename(f) for f in folder_contents]
 
     @pytest.mark.level("release")
     @pytest.mark.clustertest

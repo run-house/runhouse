@@ -1783,3 +1783,63 @@ class Cluster(Resource):
             self.call_client_method(
                 "set_settings", {"status_check_interval": new_interval}
             )
+
+    ##############################################
+    # Folder Operations
+    ##############################################
+    def _folder_ls(
+        self, path: Union[str, Path], full_paths: bool = True, sort: bool = False
+    ):
+        return self.client.folder_ls(path=path, full_paths=full_paths, sort=sort)
+
+    def _folder_get(
+        self,
+        path: Union[str, Path],
+        mode: str = "rb",
+        encoding: str = None,
+    ):
+        return self.client.folder_get(
+            path=path,
+            mode=mode,
+            encoding=encoding,
+        )
+
+    def _folder_put(
+        self,
+        path: Union[str, Path],
+        contents: Union[Dict[str, Any], Resource, List[Resource]],
+        mode: str = "wb",
+        overwrite: bool = False,
+        serialization: str = None,
+    ):
+        return self.client.folder_put(
+            path=path,
+            contents=contents,
+            mode=mode,
+            overwrite=overwrite,
+            serialization=serialization,
+        )
+
+    def _folder_rm(
+        self,
+        path: Union[str, Path],
+        contents: List[str] = None,
+        recursive: bool = False,
+    ):
+        return self.client.folder_rm(path=path, contents=contents, recursive=recursive)
+
+    def _folder_mkdir(self, path: Union[str, Path]):
+        return self.client.folder_mkdir(path=path)
+
+    def _folder_mv(
+        self,
+        path: Union[str, Path],
+        dest_path: Union[str, Path],
+        overwrite: bool = True,
+    ):
+        return self.client.folder_mv(
+            path=path, dest_path=dest_path, overwrite=overwrite
+        )
+
+    def _folder_exists(self, path: Union[str, Path]):
+        return self.client.folder_exists(path=path)
