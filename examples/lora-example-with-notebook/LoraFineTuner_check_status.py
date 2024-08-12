@@ -1,7 +1,12 @@
 import runhouse as rh 
 
 # We check if we have already created a "rh_finetuner" on the remote which is an *instance* of the remote fine tuner class
-cluster = rh.cluster(name="/rh-alpha-testers/jamesb")
+cluster = rh.cluster(
+    name="rh-a10x",
+    instance_type="A10G:1",
+    memory="32+",
+    provider="aws",
+).up_if_not()
 
 fine_tuner_remote_name = "rh_finetuner"
 fine_tuner_remote = cluster.get(fine_tuner_remote_name, default=None, remote=True)
