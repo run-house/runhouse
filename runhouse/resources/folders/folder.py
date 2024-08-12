@@ -131,7 +131,7 @@ class Folder(Module):
         else:
             return None
 
-    def mv(self, system, path: Optional[str] = None) -> None:
+    def mv(self, system, path: Optional[str] = None, overwrite: bool = True) -> None:
         """Move the folder to a new filesystem or cluster.
 
         Example:
@@ -155,7 +155,7 @@ class Folder(Module):
                 )
 
             # Create the destination directory if it doesn't exist
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.parent.mkdir(parents=True, exist_ok=overwrite)
 
             # Move the directory
             shutil.move(str(src_path), str(dest_path))
@@ -467,6 +467,20 @@ class Folder(Module):
             else str(Path(locate_working_dir()) / path)
         )
 
+    @staticmethod
+    def _delete_contents(contents: List, folder_path: Path, recursive: bool):
+        for content in contents:
+            content_path = folder_path / content
+            if content_path.exists():
+                if content_path.is_file():
+                    content_path.unlink()
+                elif content_path.is_dir() and recursive:
+                    shutil.rmtree(content_path)
+                else:
+                    raise ValueError(
+                        f"Path {content_path} is a directory and recursive is set to False"
+                    )
+
     @property
     def fsspec_url(self):
         """Generate the FSSpec style URL using the file system and path of the folder"""
@@ -685,17 +699,7 @@ class Folder(Module):
         folder_path = Path(self.path).expanduser()
 
         if contents:
-            for content in contents:
-                content_path = folder_path / content
-                if content_path.exists():
-                    if content_path.is_file():
-                        content_path.unlink()
-                    elif content_path.is_dir() and recursive:
-                        shutil.rmtree(content_path)
-                    else:
-                        raise ValueError(
-                            f"Path {content_path} is a directory and recursive is set to False"
-                        )
+            Folder._delete_contents(contents, folder_path, recursive)
         else:
             if recursive:
                 shutil.rmtree(folder_path)
