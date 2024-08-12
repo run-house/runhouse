@@ -65,8 +65,6 @@ annotated code snippet:
     # [6]
     gpu.teardown()
 
-.. note::
-
 
 1. Specify and/or Allocate Compute
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -74,8 +72,6 @@ annotated code snippet:
 .. code-block:: python
 
     gpu = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws").up_if_not()
-
-.. note::
 
 Runhouse can allocate compute to the application on the fly, either by
 utilizing an existing VM or Ray cluster, or allocating a new one using local cloud or K8s credentials. The
@@ -111,8 +107,6 @@ installed before starting the daemon.
     sd_worker = rh.env(reqs=["torch", "transformers", "diffusers"], name="sd_generate")
     remote_sd_generate = rh.function(sd_generate).to(gpu, env=sd_worker)
 
-.. note::
-
 The user specifies a function or class to be deployed to the remote compute
 using the ``rh.function`` or ``rh.module`` constructors (or by subclassing ``rh.Module``), and calling
 ``remote_obj = my_obj.to(my_cluster, env=my_env)``. The Runhouse client library extracts the path, module name,
@@ -126,8 +120,6 @@ construct the function or class in a particular worker and upserts it into the k
 
     imgs = remote_sd_generate("A hot dog made out of matcha.")
     imgs[0].show()
-
-.. note::
 
 After deploying the function, class, or object into the server, the Runhouse
 Python client returns a local callable stub which behaves like the original object but forwards method calls
@@ -152,8 +144,6 @@ over HTTP to the remote object on the cluster.
     sd_upsampler = rh.function(name="/my_username/sd_upsampler")
     high_res_imgs = sd_upsampler(imgs)
 
-.. note::
-
 The Runhouse client can save and load objects to and from the local filesystem, or to a
 remote metadata store. This allows for easy sharing of clusters and services across users and environments,
 and for versioning and rollback of objects. The metadata store can be accessed from any Python interpreter,
@@ -164,8 +154,6 @@ and is backed by UIs and APIs to view, monitor, and manage all resources.
 .. code-block:: python
 
     gpu.teardown()
-
-.. note::
 
 When a remote object is no longer needed, it can be deallocated from
 the remote compute by calling ``cluster.delete(obj_name)``. This will remove the object from the key-value store and
@@ -195,7 +183,7 @@ more than one cluster in an application or sharing a cluster between multiple ca
 remote compute are largely decoupled, with no shared runtime which will break if one disconnects or goes down.
 
 Workflow orchestrators (e.g. Airflow, Prefect, Dagster, Flyte, Metaflow, Argo)
-^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Workflow orchestrators can allocate heterogeneous compute
 on the the fly but act as the runtime itself for the program and only support certain pre-defined and highly
 constrained DAGs. By allocating services Runhouse allows for arbitrary control flow and utilization of remote
@@ -238,7 +226,7 @@ Saving, Loading, and Sharing
 Runhouse resources (clusters, functions, modules, environments) can be saved, shared, and reused based on a compact
 JSON metadata signature. This allows for easy sharing of clusters and services across users and environments, which
 can often lead to massive cost savings. Runhouse comes with a built-in metadata store / service registry called
-`Den <https://www.run.house/dashboard>`_ to facilitate convenient saving, loading, sharing, and management of these
+`Den <https://www.run.house/dashboard>`__ to facilitate convenient saving, loading, sharing, and management of these
 resources. Den can be accessed via an HTTP API or from any Python interpreter with a Runhouse token
 (either in ``~/.rh/config.yaml`` or an ``RH_TOKEN`` environment variable) like so:
 
@@ -257,8 +245,6 @@ resources. Den can be accessed via an HTTP API or from any Python interpreter wi
 
     # Share the function with another user, giving them access to call or modify the resource
     remote_func.share("user_a@gmail.com", access_level="write")
-
-.. note::
 
 You can access the metadata directly by calling ``resource.config()`` and reconstruct the resource with
 ``<Resource Type>.from_config(config)``.

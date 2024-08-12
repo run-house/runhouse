@@ -22,7 +22,7 @@ This data is collected and sent to `Sentry <https://sentry.io/>`_, a third-party
 Removing Collected Data
 ------------------------------------
 If you would like us to remove your collected data, please contact
-the `Runhouse team <https://www.run.house/about>`_ (first name at run.house)
+the `Runhouse team <https://www.run.house/about>`__ (first name at run.house)
 
 Disabling Data Collection
 -----------------------------------

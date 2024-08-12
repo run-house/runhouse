@@ -327,7 +327,7 @@ def ondemand_cluster(
     """
     Builds an instance of :class:`OnDemandCluster`. Note that image_id, region, memory, disk_size, and open_ports
     are all passed through to SkyPilot's `Resource constructor
-    <https://skypilot.readthedocs.io/en/latest/reference/api.html#resources>`_.
+    <https://skypilot.readthedocs.io/en/latest/reference/api.html#resources>`__.
 
     Args:
         name (str): Name for the cluster, to re-use later on.
@@ -350,9 +350,9 @@ def ondemand_cluster(
             `launch` APIs. Should be a dict of the form
             `{"resources": {<resources_kwargs>}, "launch": {<launch_kwargs>}}`, where resources_kwargs and
             launch_kwargs will be passed to the SkyPilot Resources API
-            (See `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/reference/api.html#resources>`_)
+            (See `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/reference/api.html#resources>`__)
             and `launch` API (See
-            `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/reference/api.html#sky-launch>`_), respectively.
+            `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/reference/api.html#sky-launch>`__), respectively.
             Any arguments which duplicate those passed to the `ondemand_cluster` factory method will raise an error.
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
@@ -536,7 +536,7 @@ def sagemaker_cluster(
             Can be passed in explicitly as an argument or provided via an estimator. If not specified will try
             using the ``profile`` attribute or environment variable ``AWS_PROFILE`` to extract the relevant role ARN.
             More info on configuring an IAM role for SageMaker
-            `here <https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html>`_.
+            `here <https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html>`__.
         profile (str, optional): AWS profile to use for the cluster. If provided instead of a ``role``, will lookup
             the role ARN associated with the profile in the local AWS credentials.
             If not provided, will use the ``default`` profile.
@@ -546,7 +546,7 @@ def sagemaker_cluster(
         instance_id (str, optional): ID of the AWS instance to use for the cluster. SageMaker does not expose
             IP addresses of its instance, so we use an instance ID as a unique identifier for the cluster.
         instance_type (str, optional): Type of AWS instance to use for the cluster. More info on supported
-            instance options `here <https://aws.amazon.com/sagemaker/pricing/instance-types>`_.
+            instance options `here <https://aws.amazon.com/sagemaker/pricing/instance-types>`__.
             (Default: ``ml.m5.large``.)
         num_instances (int, optional): Number of instances to use for the cluster.
             (Default: ``1``.)
@@ -555,7 +555,7 @@ def sagemaker_cluster(
         estimator (Union[str, sagemaker.estimator.EstimatorBase], optional): Estimator to use for a dedicated
             training job. Leave as ``None`` if launching the compute without running a dedicated job.
             More info on creating an estimator `here
-            <https://sagemaker.readthedocs.io/en/stable/frameworks/pytorch/using_pytorch.html#create-an-estimator>`_.
+            <https://sagemaker.readthedocs.io/en/stable/frameworks/pytorch/using_pytorch.html#create-an-estimator>`__.
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
             or ``-1`` to keep cluster up indefinitely. *Note: this will keep the cluster up even if a dedicated
             training job has finished running or failed*.

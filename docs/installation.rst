@@ -48,7 +48,7 @@ Configure Cloud Credentials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Optionally, for `on-demand clusters </docs/tutorials/api-clusters#on-demand-clusters>`_, Runhouse uses
-`SkyPilot <https://github.com/skypilot-org/skypilot>`_ to launch and manage virtual machine instances on your cloud providers.
+`SkyPilot <https://github.com/skypilot-org/skypilot>`__ to launch and manage virtual machine instances on your cloud providers.
 These steps are not necessary when using static clusters that can be accessed with SSH credentials.
 
 For each provider, we recommend you begin by checking your configuration with SkyPilot.
@@ -63,7 +63,7 @@ AWS
 ---
 
 Start by installing the AWS CLI. Follow this
-`Getting Started <https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html>`_ guide
+`Getting Started <https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html>`__ guide
 or use ``pip install "runhouse[aws]"`` to include it with the Runhouse library.
 
 Next, configure AWS with the following command:
@@ -73,7 +73,7 @@ Next, configure AWS with the following command:
     $ aws configure
 
 You'll be prompted to enter your AWS Access ID. This can be found by logging into
-the `AWS Console <https://console.aws.amazon.com/console/home>`_. Click on the name
+the `AWS Console <https://console.aws.amazon.com/console/home>`__. Click on the name
 of your account in the top-left corner of the screen and then select
 "Securtiy credentials" from the dropdown.
 
@@ -139,7 +139,7 @@ For more info: `SkyPilot Azure <https://skypilot.readthedocs.io/en/latest/gettin
 Other Providers
 ---------------
 
-For a full list of providers and configuration details: `SkyPilot documentation <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`_.
+For a full list of providers and configuration details: `SkyPilot documentation <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`__.
 Some additional providers supported by Runhouse via SkyPilot include:
 
 - Kubernetes
@@ -150,7 +150,7 @@ On-Demand Cluster Lifecycle Management
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To ensure that you have full control over the availability of on-demand clusters, and the cost associated with maintaining them,
-you may find the following `SkyPilot commands <https://skypilot.readthedocs.io/en/latest/reference/cli.html#cluster-cli>`_ helpful:
+you may find the following `SkyPilot commands <https://skypilot.readthedocs.io/en/latest/reference/cli.html#cluster-cli>`__ helpful:
 
 - ``sky status`` - Displays a list of all your clusters by name.
 - ``sky stop <NAME>`` - Stops an instance. This will not fully tear down the cluster in case you need to restart it.
@@ -178,10 +178,10 @@ Authenticate with Runhouse Den
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To enable sharing features through Runhouse Den, you can log in to your
-Runhouse Den account. Start by creating one via our `signup page <https://www.run.house/signup>`_.
+Runhouse Den account. Start by creating one via our `signup page <https://www.run.house/signup>`__.
 You'll have the option to authenticate with your Google or Github account.
 
-Once you've created an account, you'll be able to access your Runhouse token on your `account page <https://www.run.house//account>`_.
+Once you've created an account, you'll be able to access your Runhouse token on your `account page <https://www.run.house//account>`__.
 
 Login to Runhouse in your terminal with the following command:
 

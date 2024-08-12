@@ -44,4 +44,4 @@ For debugging remote functions, which are launched using ``ray``, we can utilize
 ``breakpoint()`` call inside the function where you want to start the debugging session, then ssh into the
 cluster with ``ssh cluster-name``, and call ``ray debug`` to view select the breakpoint to enter. You can run
 normal ``pdb`` commands within the debugging session, and can refer to
-`Ray Debugger <https://docs.ray.io/en/latest/ray-contribute/debugging.html>`_ for more information.
+`Ray Debugger <https://docs.ray.io/en/latest/ray-contribute/debugging.html>`__ for more information.

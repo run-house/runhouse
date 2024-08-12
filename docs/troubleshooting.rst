@@ -2,8 +2,8 @@ Manual Setup and Troubleshooting
 ================================
 Below we document steps for manually setting up SSH tunnel and syncing files/packages,
 as well as some commonly encountered errors and solutions. Please create an issue on
-`Github <https://github.com/run-house/runhouse/issues>`_ or message us on
-`Discord <https://discord.gg/RnhB6589Hs>`_ for more support.
+`Github <https://github.com/run-house/runhouse/issues>`__ or message us on
+`Discord <https://discord.gg/RnhB6589Hs>`__ for more support.
 
 Manual SSH Tunneling
 --------------------
@@ -122,7 +122,7 @@ Q: I'm running into an rsync error.
 
    Rsync is finicky and we are working to support more reliable file syncing. In the meantime, please refer to the
    Manual Package syncing instructions above. It is also worth noting that rsync will throw an error if ``.bashrc``
-   outputs anything to the terminal. See `Issue <https://github.com/run-house/runhouse/issues/91>`_.
+   outputs anything to the terminal. See `Issue <https://github.com/run-house/runhouse/issues/91>`__.
 
 Q: I'm running into a few (usually 5) consecutive errors of the following form:
 
