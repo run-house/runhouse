@@ -28,7 +28,7 @@ from runhouse.constants import (
 )
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import logger
-from runhouse.rns.utils.api import resolve_absolute_path
+from runhouse.rns.utils.api import resolve_absolute_path, ResourceAccess
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import averify_cluster_access
@@ -80,6 +80,11 @@ def validate_cluster_access(func):
         is_coro = inspect.iscoroutinefunction(func)
 
         func_call: bool = func.__name__ in ["post_call", "get_call"]
+
+        # restrict access for folder specific APIs
+        access_level_required = (
+            ResourceAccess.WRITE if func.__name__.startswith("folder") else None
+        )
         token = get_token_from_request(request)
 
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
@@ -95,7 +100,9 @@ def validate_cluster_access(func):
                         "provide a valid token in the Authorization header.",
                     )
                 cluster_uri = (await obj_store.aget_cluster_config()).get("name")
-                cluster_access = await averify_cluster_access(cluster_uri, token)
+                cluster_access = await averify_cluster_access(
+                    cluster_uri, token, access_level_required
+                )
                 if not cluster_access:
                     # Must have cluster access for all the non func calls
                     # Note: for func calls we handle the auth in the object store
