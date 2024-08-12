@@ -103,6 +103,7 @@ class OnDemandCluster(Cluster):
         self.stable_internal_external_ips = kwargs.get(
             "stable_internal_external_ips", None
         )
+        self.launched_properties = kwargs.get("launched_properties", {})
         self._docker_user = None
 
         # Checks if state info is in local sky db, populates if so.
@@ -181,6 +182,7 @@ class OnDemandCluster(Cluster):
                 "memory",
                 "disk_size",
                 "sky_kwargs",
+                "launched_properties",
             ],
         )
         config["autostop_mins"] = self._autostop_mins
@@ -392,10 +394,27 @@ class OnDemandCluster(Cluster):
 
             # Add worker IPs if multi-node cluster - keep the head node as the first IP
             self.ips = [ext for _, ext in self.stable_internal_external_ips]
+
+            launched_resource = handle.launched_resources
+            cloud = str(launched_resource.cloud).lower()
+            instance_type = launched_resource.instance_type
+            region = launched_resource.region
+            cost_per_hr = launched_resource.get_cost(60 * 60)
+            self.launched_properties = {
+                "cloud": cloud,
+                "instance_type": instance_type,
+                "region": region,
+                "cost_per_hour": cost_per_hr,
+            }
+            if handle.ssh_user:
+                self.launched_properties["ssh_user"] = handle.ssh_user
+            if handle.docker_user:
+                self.launched_properties["docker_user"] = handle.docker_user
         else:
             self.address = None
             self._creds = None
             self.stable_internal_external_ips = None
+            self.launched_properties = {}
 
     def _update_from_sky_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
