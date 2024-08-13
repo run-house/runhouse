@@ -36,6 +36,8 @@ from runhouse.servers.http.http_utils import (
     serialize_data,
 )
 
+from runhouse.utils import generate_default_name
+
 
 # Make this global so connections are pooled across instances of HTTPClient
 session = requests.Session()
@@ -395,6 +397,13 @@ class HTTPClient:
         """
         Client function to call the rpc for call_module_method
         """
+        if run_name is None:
+            run_name = generate_default_name(
+                prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+                precision="ms",  # Higher precision because we see collisions within the same second
+                sep="@",
+            )
+
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(
@@ -528,6 +537,13 @@ class HTTPClient:
         """
         Client function to call the rpc for call_module_method
         """
+        if run_name is None:
+            run_name = generate_default_name(
+                prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+                precision="ms",  # Higher precision because we see collisions within the same second
+                sep="@",
+            )
+
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(
