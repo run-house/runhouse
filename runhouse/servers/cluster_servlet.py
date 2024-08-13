@@ -13,7 +13,6 @@ import runhouse
 from runhouse.constants import (
     DEFAULT_LOG_LEVEL,
     DEFAULT_STATUS_CHECK_INTERVAL,
-    INCREASED_INTERVAL,
     INCREASED_STATUS_CHECK_INTERVAL,
     SERVER_LOGFILE,
     SERVER_LOGS_FILE_NAME,
@@ -313,15 +312,12 @@ class ClusterServlet:
                             key="end_log_line", value=new_end_log_line
                         )
 
-            except Exception as e:
+            except Exception:
                 self.logger.error(
-                    f"Cluster checks have failed: {str(e)}\n.Please check cluster logs for more info."
+                    "Cluster checks have failed.\nPlease check cluster logs for more info."
                 )
                 self.logger.warning(
-                    f"Temporarily increasing the interval between two consecutive status checks. "
-                    f"Next status check will be in {round(INCREASED_INTERVAL / 60, 2)} minutes. "
-                    f"For changing the interval size, please run cluster._enable_or_update_status_check(new_interval). "
-                    f"If a value is not provided, interval size will be set to {round(DEFAULT_STATUS_CHECK_INTERVAL / 60, 2)} minutes."
+                    "Temporarily increasing the interval between status checks."
                 )
                 await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
             finally:
