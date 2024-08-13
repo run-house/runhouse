@@ -366,6 +366,7 @@ class TestFunction:
                     "kwargs": {},
                 },
                 "serialization": None,
+                "run_name": "test_http_url",
             },
             headers=rns_client.request_headers(cluster.rns_address)
             if cluster.den_auth
@@ -382,6 +383,7 @@ class TestFunction:
                     "kwargs": {"a": 1, "b": 2},
                 },
                 "serialization": None,
+                "run_name": "test_http_url",
             },
             headers=rns_client.request_headers(cluster.rns_address)
             if cluster.den_auth
