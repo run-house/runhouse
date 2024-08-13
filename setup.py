@@ -67,6 +67,7 @@ install_requires = [
     "opentelemetry-api",
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp-proto-http",
+    "opentelemetry-instrumentation-system-metrics",  # according tp PyPi it is PRE-RELEASE
     "pexpect",
     "pyOpenSSL>=23.3.0",
     "ray[default] >= 2.2.0, != 2.6.0",
