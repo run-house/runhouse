@@ -107,7 +107,7 @@ class FolderGetParams(FolderParams):
 
 
 class FolderPutParams(FolderParams):
-    contents: Optional[Any]
+    contents: Any
     overwrite: Optional[bool] = False
     mode: Optional[str] = None
     serialization: Optional[str] = None

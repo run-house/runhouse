@@ -238,9 +238,8 @@ class TestHTTPServerDocker:
         assert response.status_code == 200
 
         resp_json = response.json()
-        serialization = resp_json["serialization"]
 
-        assert serialization is None
+        assert resp_json["serialization"] is None
         assert resp_json["output_type"] == "result_serialized"
         assert resp_json["data"] == "Hello, world!"
 
@@ -265,19 +264,111 @@ class TestHTTPServerDocker:
         assert response.json()["data"] == "Hello, world!"
 
     @pytest.mark.level("local")
+    def test_folder_content_serialization_methods(self, http_client, cluster):
+        file_name = str(uuid.uuid4())
+
+        # Save data with "pickle" serialization
+        pickle_serialization = "pickle"
+        response = http_client.post(
+            "/folder/method/put",
+            json={
+                "path": "~/.rh",
+                "contents": serialize_data(
+                    data={f"{file_name}.txt": "Hello, world!"},
+                    serialization=pickle_serialization,
+                ),
+                "serialization": pickle_serialization,
+                "overwrite": True,
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        # Result should be returned as pickled data
+        response = http_client.post(
+            "/folder/method/get",
+            json={"path": f"~/.rh/{file_name}.txt"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+
+        resp_json = response.json()
+        assert resp_json["serialization"] is None
+        assert resp_json["output_type"] == "result_serialized"
+        assert (
+            deserialize_data(resp_json["data"], pickle_serialization) == "Hello, world!"
+        )
+
+        # Save data with "json" serialization
+        json_serialization = "json"
+        response = http_client.post(
+            "/folder/method/put",
+            json={
+                "path": "~/.rh",
+                "contents": serialize_data(
+                    {"new_file.txt": "Hello, world!"}, json_serialization
+                ),
+                "serialization": json_serialization,
+                "overwrite": True,
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        response = http_client.post(
+            "/folder/method/get",
+            json={"path": "~/.rh/new_file.txt"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+
+        resp_json = response.json()
+        assert resp_json["serialization"] is None
+        assert resp_json["output_type"] == "result_serialized"
+        assert (
+            deserialize_data(resp_json["data"], json_serialization) == "Hello, world!"
+        )
+
+        # Save data with no serialization
+        response = http_client.post(
+            "/folder/method/put",
+            json={
+                "path": "~/.rh",
+                "contents": {"new_file.txt": "Hello, world!"},
+                "overwrite": True,
+                "serialization": None,
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        response = http_client.post(
+            "/folder/method/get",
+            json={"path": "~/.rh/new_file.txt"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+
+        resp_json = response.json()
+        assert resp_json["serialization"] is None
+        assert resp_json["output_type"] == "result_serialized"
+        assert resp_json["data"] == "Hello, world!"
+
+    @pytest.mark.level("local")
     def test_folder_put_pickle_object(self, http_client, cluster):
         file_name = str(uuid.uuid4())
 
         raw_data = [1, 2, 3]
         serialization = "pickle"
-        serialized_data = serialize_data(raw_data, serialization)
+        serialized_contents = serialize_data(
+            {f"{file_name}.pickle": raw_data}, serialization=serialization
+        )
 
+        # need to specify the serialization method here
         response = http_client.post(
             "/folder/method/put",
             json={
                 "path": "~/.rh",
-                "contents": {f"{file_name}.pickle": serialized_data},
+                "contents": serialized_contents,
                 "overwrite": True,
+                "serialization": serialization,
             },
             headers=rns_client.request_headers(cluster.rns_address),
         )
@@ -292,26 +383,13 @@ class TestHTTPServerDocker:
 
         resp_json = response.json()
         assert resp_json["output_type"] == "result_serialized"
-
         assert deserialize_data(resp_json["data"], serialization) == raw_data
 
     @pytest.mark.level("local")
-    def test_folder_mkdir_rm_and_ls(self, http_client, docker_cluster_pk_ssh_no_auth):
-        cluster = docker_cluster_pk_ssh_no_auth
+    def test_folder_mkdir_rm_and_ls(self, http_client, cluster):
         response = http_client.post(
             "/folder/method/mkdir",
             json={"path": "~/.rh/new-folder"},
-            headers=rns_client.request_headers(cluster.rns_address),
-        )
-        assert response.status_code == 200
-
-        response = http_client.post(
-            "/folder/method/put",
-            json={
-                "path": "~/.rh",
-                "contents": {"new_file.txt": "Hello, world!"},
-                "overwrite": True,
-            },
             headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
