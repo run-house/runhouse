@@ -27,7 +27,7 @@ from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import CallParams
-from runhouse.utils import get_module_import_info, locate_working_dir
+from runhouse.utils import get_module_import_info, locate_working_dir, sync_function
 
 
 # These are attributes that the Module's __getattribute__ logic should not intercept to run remotely
@@ -620,13 +620,15 @@ class Module(Resource):
                         data={"args": args, "kwargs": kwargs},
                     )
                 else:
-                    return client.call(
-                        name,
-                        item,
-                        run_name=kwargs.pop("run_name", None),
-                        stream_logs=kwargs.pop("stream_logs", True),
-                        remote=kwargs.pop("remote", False),
-                        data={"args": args, "kwargs": kwargs},
+                    return sync_function(
+                        client.acall(
+                            name,
+                            item,
+                            run_name=kwargs.pop("run_name", None),
+                            stream_logs=kwargs.pop("stream_logs", True),
+                            remote=kwargs.pop("remote", False),
+                            data={"args": args, "kwargs": kwargs},
+                        )
                     )
 
             def remote(self, *args, stream_logs=True, run_name=None, **kwargs):
