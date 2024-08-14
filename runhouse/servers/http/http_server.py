@@ -6,7 +6,7 @@ import traceback
 import uuid
 from functools import wraps
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 import ray
 import requests
@@ -23,6 +23,8 @@ from runhouse.constants import (
     DEFAULT_SERVER_PORT,
     EMPTY_DEFAULT_ENV_NAME,
     LOGGING_WAIT_TIME,
+    LOGS_TO_SHOW_UP_CHECK_TIME,
+    MAX_LOGS_TO_SHOW_UP_WAIT_TIME,
     RH_LOGFILE_PATH,
 )
 from runhouse.globals import configs, obj_store, rns_client
@@ -69,6 +71,8 @@ from runhouse.utils import generate_default_name, sync_function
 app = FastAPI(docs_url=None, redoc_url=None)
 
 logger = get_logger(__name__)
+# TODO: Better way to store this than a global here?
+running_futures: Dict[str, asyncio.Task] = {}
 
 
 def validate_cluster_access(func):
@@ -325,18 +329,13 @@ class HTTPServer:
                     remote=params.remote,
                 )
             )
-            # If stream_logs is False, we'll wait for the result and return it
-            if not params.stream_logs:
-                return await fut
+            if params.stream_logs:
+                # We'll store this future in a dictionary and just call result on it. The dictionary
+                # is so the logs functionality can check if it's done and stream logs. The logs function
+                # will be responsible for removing the future from memory so we don't store them indefinitely.
+                running_futures[params.run_name] = fut
 
-            return StreamingResponse(
-                HTTPServer._get_results_and_logs_generator(
-                    fut=fut,
-                    run_name=params.run_name,
-                    serialization=params.serialization,
-                ),
-                media_type="application/json",
-            )
+            return await fut
         except Exception as e:
             return handle_exception_response(
                 e,
@@ -463,6 +462,32 @@ class HTTPServer:
                 serialization=serialization,
             )
 
+    # `/logs` POST endpoint that takes in request and LogParams
+    @staticmethod
+    @app.get("/logs/{run_name}/{serialization}")
+    @validate_cluster_access
+    async def get_logs(
+        request: Request,
+        run_name: str,
+        serialization: str,
+    ):
+        # This call could've been made fast enough that the future hasn't been stored yet
+        sleeps = 0
+        while run_name not in running_futures:
+            if sleeps * LOGS_TO_SHOW_UP_CHECK_TIME >= MAX_LOGS_TO_SHOW_UP_WAIT_TIME:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Logs for call {run_name} not found.",
+                )
+            await asyncio.sleep(LOGS_TO_SHOW_UP_CHECK_TIME)
+
+        return StreamingResponse(
+            HTTPServer._get_results_and_logs_generator(
+                running_futures[run_name], run_name, serialization
+            ),
+            media_type="application/json",
+        )
+
     @staticmethod
     def _get_logfiles(log_key, log_type=None):
         if not log_key:
@@ -501,8 +526,7 @@ class HTTPServer:
             while waiting_for_results:
                 if fut.done():
                     waiting_for_results = False
-                    ret_val = fut.result()
-                    yield json.dumps(jsonable_encoder(ret_val)) + "\n"
+                    del running_futures[run_name]
                 else:
                     await asyncio.sleep(LOGGING_WAIT_TIME)
                 # Grab all the lines written to all the log files since the last time we checked, including
