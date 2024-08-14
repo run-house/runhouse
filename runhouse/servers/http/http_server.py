@@ -69,6 +69,8 @@ from runhouse.utils import generate_default_name, sync_function
 app = FastAPI(docs_url=None, redoc_url=None)
 
 logger = get_logger(__name__)
+# TODO: Better way to store this than a global here?
+running_futures: Dict[str, asyncio.Task] = {}
 
 
 def validate_cluster_access(func):
