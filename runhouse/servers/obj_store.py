@@ -151,7 +151,6 @@ class ObjStore:
         self.installed_envs = {}  # TODO: consider deleting it?
         self._kv_store: Dict[Any, Any] = None
         self.env_servlet_cache = {}
-        self.active_function_calls = {}
 
     async def ainitialize(
         self,
@@ -1119,11 +1118,14 @@ class ObjStore:
         # We store with this func_call_id so we can easily pop the active call info out after the function
         # concludes. In theory we could use a tuple of (key, start_time, etc), but it doesn't accomplish much
         func_call_id = uuid.uuid4()
-        self.active_function_calls[func_call_id] = ActiveFunctionCallInfo(
-            key=key,
-            method_name=method_name,
-            request_id=request_id,
-            start_time=time.time(),
+        await self.aregister_active_function_call(
+            func_call_id,
+            ActiveFunctionCallInfo(
+                key=key,
+                method_name=method_name,
+                request_id=request_id,
+                start_time=time.time(),
+            ),
         )
         try:
             res = await self._acall_local_helper(
@@ -1136,7 +1138,7 @@ class ObjStore:
                 **kwargs,
             )
         finally:
-            del self.active_function_calls[func_call_id]
+            await self.aremove_active_function_call(func_call_id)
             if log_ctx:
                 log_ctx.__exit__(None, None, None)
 
@@ -1591,3 +1593,21 @@ class ObjStore:
 
     def status(self):
         return sync_function(self.astatus)()
+
+    ##############################################
+    # Registering currently active function calls
+    ##############################################
+    async def aregister_active_function_call(
+        self, func_call_uuid: str, function_call_info: ActiveFunctionCallInfo
+    ):
+        self.acall_actor_method(
+            self.cluster_servlet,
+            "aregister_active_function_call",
+            func_call_uuid,
+            function_call_info,
+        )
+
+    async def aremove_active_function_call(self, func_call_uuid: str):
+        self.acall_actor_method(
+            self.cluster_servlet, "aremove_active_function_call", func_call_uuid
+        )

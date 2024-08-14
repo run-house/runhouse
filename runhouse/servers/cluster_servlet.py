@@ -50,6 +50,7 @@ class ClusterServlet:
         self._initialized_env_servlet_names: Set[str] = set()
         self._key_to_env_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache(cluster_config)
+        self.active_function_calls = {}
         self.autostop_helper = None
 
         logger.setLevel(kwargs.get("logs_level", DEFAULT_LOG_LEVEL))
@@ -492,3 +493,14 @@ class ClusterServlet:
             )
 
         return resp_status_code, prev_end_log_line, new_end_log_line
+
+    ##############################################
+    # Active Function Calls Tracking
+    ##############################################
+    async def aregister_active_function_call(
+        self, func_call_uuid: str, function_call_info: "ActiveFunctionCallInfo"
+    ):
+        self.active_function_calls[func_call_uuid] = function_call_info
+
+    async def aremove_active_function_call(self, func_call_uuid: str):
+        self.active_function_calls.pop(func_call_uuid)
