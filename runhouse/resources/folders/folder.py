@@ -10,13 +10,12 @@ from runhouse.globals import rns_client
 
 from runhouse.logger import logger
 from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
-from runhouse.resources.module import Module
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import generate_uuid, relative_file_path
 from runhouse.utils import locate_working_dir
 
 
-class Folder(Module):
+class Folder(Resource):
     RESOURCE_TYPE = "folder"
     DEFAULT_FS = "file"
     CLUSTER_FS = "ssh"
@@ -37,17 +36,21 @@ class Folder(Module):
         .. note::
             To build a folder, please use the factory method :func:`folder`.
         """
-        super().__init__(name=name, dryrun=dryrun, system=system)
+        super().__init__(name=name, dryrun=dryrun)
 
         # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.gui.FileSelector.urlpath
         # Note: no longer needed as part of previous fsspec usage, but still used by some s3 / gsutil commands
         self._urlpath = None
 
+        self._system = _get_cluster_from(
+            system or _current_cluster(key="config"), dryrun=dryrun
+        )
+
         # TODO [DG] Should we ever be allowing this to be None?
         if path is None:
-            self._path = Folder.default_path(self.rns_address, system)
+            self._path = Folder.default_path(self.rns_address, self._system)
         else:
-            if system != self.DEFAULT_FS:
+            if self._system != self.DEFAULT_FS:
                 self._path = path
             else:
                 self._path = self._path_absolute_to_rh_workdir(path)
@@ -116,8 +119,16 @@ class Folder(Module):
         self._path = path
 
     @property
+    def system(self):
+        return self._system
+
+    @system.setter
+    def system(self, new_system: Union[str, Cluster]):
+        self._system = _get_cluster_from(new_system)
+
+    @property
     def _fs_str(self):
-        if isinstance(self.system, Resource):  # if system is a cluster
+        if isinstance(self.system, Cluster):
             if self.system.on_this_cluster():
                 return self.DEFAULT_FS
             return self.CLUSTER_FS
@@ -217,17 +228,7 @@ class Folder(Module):
 
             # rsync the folder contents to the cluster's destination path
             logger.debug(f"Syncing folder contents to cluster in path: {dest_path}")
-            self._to_cluster(system, path=dest_path)
-
-            # update the folder's system + path to the relative path on the cluster, since we'll return a
-            # new folder module which points to the cluster's file system
-            self.system = system
-            self.path = dest_path
-
-            # Note: setting `force_install` to ensure the module gets installed the cluster
-            # the folder's system may already be set to a cluster, which would skip the install
-            logger.debug("Sending folder module to cluster")
-            return super().to(system=system, force_install=True)
+            return self._to_cluster(system, path=dest_path)
 
         path = str(
             path or Folder.default_path(self.rns_address, system)
@@ -530,7 +531,7 @@ class Folder(Module):
                 Defaults to ``False``.
         """
         if self._use_http_endpoint:
-            self.system._folder_ls(self.path)
+            return self.system._folder_ls(self.path, full_paths=full_paths, sort=sort)
         else:
             path = Path(self.path).expanduser()
             paths = [p for p in path.iterdir()]
