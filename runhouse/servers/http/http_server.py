@@ -58,6 +58,7 @@ from runhouse.servers.http.http_utils import (
     resolve_folder_path,
     Response,
     serialize_data,
+    deserialize_data,
     ServerSettings,
 )
 from runhouse.servers.obj_store import (
@@ -677,12 +678,16 @@ class HTTPServer:
     async def folder_put_cmd(request: Request, put_params: FolderPutParams):
         try:
             path = resolve_folder_path(put_params.path)
+            serialization = put_params.serialization or "pickle"
+            serialized_contents = put_params.contents
+            contents = deserialize_data(serialized_contents, serialization)
+
             return folder_put(
                 path,
-                contents=put_params.contents,
+                contents=contents,
                 overwrite=put_params.overwrite,
                 mode=put_params.mode,
-                serialization=put_params.serialization,
+                serialization=serialization,
             )
 
         except Exception as e:

@@ -316,9 +316,10 @@ class HTTPClient:
         mode: str,
         serialization: str,
     ):
+        serialization = serialization or "pickle"
         folder_params = FolderPutParams(
             path=path,
-            contents=contents,
+            contents=serialize_data(contents, serialization),
             mode=mode,
             overwrite=overwrite,
             serialization=serialization,
