@@ -1,9 +1,6 @@
-from pathlib import Path
-
 import pytest
 
 import runhouse as rh
-from runhouse.constants import TEST_ORG
 
 from tests.conftest import init_args
 
@@ -37,25 +34,18 @@ def local_folder():
 
 @pytest.fixture
 def docker_cluster_folder(docker_cluster_pk_ssh_no_auth):
-    local_path = Path.cwd()
-    dest_path = "rh-folder"
-
     args = {
-        "name": f"/{TEST_ORG}/test_docker_folder",
-        "path": local_path,
+        "name": "test_docker_folder",
+        "system": docker_cluster_pk_ssh_no_auth,
+        "path": "rh-folder",
     }
 
-    # Create a local folder based on the current working dir, then send it to the docker cluster as a module
-    docker_folder = rh.folder(**args).to(
-        system=docker_cluster_pk_ssh_no_auth, path=dest_path
-    )
-    assert docker_folder.system == docker_cluster_pk_ssh_no_auth
-
-    init_args[id(docker_folder)] = args
-    docker_folder.put(
+    local_folder_docker = rh.folder(**args)
+    init_args[id(local_folder_docker)] = args
+    local_folder_docker.put(
         {f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)}, overwrite=True
     )
-    return docker_folder
+    return local_folder_docker
 
 
 @pytest.fixture

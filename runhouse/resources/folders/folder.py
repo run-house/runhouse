@@ -531,7 +531,7 @@ class Folder(Resource):
                 Defaults to ``False``.
         """
         if self._use_http_endpoint:
-            self.system._folder_ls(self.path)
+            return self.system._folder_ls(self.path, full_paths=full_paths, sort=sort)
         else:
             path = Path(self.path).expanduser()
             paths = [p for p in path.iterdir()]
