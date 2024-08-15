@@ -27,7 +27,11 @@ from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import CallParams
-from runhouse.utils import get_module_import_info, locate_working_dir
+from runhouse.utils import (
+    client_call_wrapper,
+    get_module_import_info,
+    locate_working_dir,
+)
 
 
 # These are attributes that the Module's __getattribute__ logic should not intercept to run remotely
@@ -591,6 +595,8 @@ class Module(Resource):
         if not client:
             return super().__getattribute__(item)
 
+        system = super().__getattribute__("_system")
+
         is_coroutine_function = (
             self.signature(rich=True)[item]["async"]
             and not self.signature(rich=True)[item]["gen"]
@@ -611,7 +617,10 @@ class Module(Resource):
                     run_async = is_coroutine_function
 
                 if run_async:
-                    return client.acall(
+                    return client_call_wrapper(
+                        client,
+                        system,
+                        "acall",
                         name,
                         item,
                         run_name=kwargs.pop("run_name", None),
@@ -620,7 +629,10 @@ class Module(Resource):
                         data={"args": args, "kwargs": kwargs},
                     )
                 else:
-                    return client.call(
+                    return client_call_wrapper(
+                        client,
+                        system,
+                        "call",
                         name,
                         item,
                         run_name=kwargs.pop("run_name", None),
@@ -729,14 +741,19 @@ class Module(Resource):
                 if not client or not name:
                     return outer_super_gettattr(item)
 
-                return client.call(name, item, stream_logs=False)
+                return client_call_wrapper(
+                    client, system, "call", name, item, stream_logs=False
+                )
 
             @classmethod
             def __setattr__(cls, key, value):
                 if not client or not name:
                     return outer_super_setattr(key, value)
 
-                return client.call(
+                return client_call_wrapper(
+                    client,
+                    system,
+                    "call",
                     key=name,
                     method_name=key,
                     data={"args": [value], "kwargs": {}},
@@ -793,16 +810,22 @@ class Module(Resource):
         name = super().__getattribute__("_name")
 
         client = super().__getattribute__("_client")()
+        system = super().__getattribute__("_system")
 
         if item is not None:
             if not client or not name:
                 return super().__getattribute__(item)
-            return client.call(name, item)
+            return client_call_wrapper(client, system, "call", name, item)
         else:
             if not client or not name:
                 return self.resolved_state(**kwargs)
-            return client.call(
-                name, "resolved_state", data={"args": [], "kwargs": kwargs}
+            return client_call_wrapper(
+                client,
+                system,
+                "call",
+                name,
+                "resolved_state",
+                data={"args": [], "kwargs": kwargs},
             )
 
     async def fetch_async(
@@ -820,7 +843,7 @@ class Module(Resource):
 
         def call_wrapper():
             if not key:
-                return client.get(name, remote=remote)
+                return client_call_wrapper(client, system, "get", name, remote=remote)
 
             if isinstance(system, Cluster) and name and system.on_this_cluster():
                 obj_store_obj = obj_store.get(name, default=None)
@@ -828,7 +851,7 @@ class Module(Resource):
                     return obj_store_obj.__getattribute__(key)
                 else:
                     return self.__getattribute__(key)
-            return client.call(name, key, remote=remote)
+            return client_call_wrapper(client, system, "call", name, key, remote=remote)
 
         try:
             is_gen = (key and hasattr(self, key)) and inspect.isasyncgenfunction(

@@ -327,3 +327,12 @@ class ThreadWithException(threading.Thread):
         super().join(timeout=timeout)
         if self._exc:
             raise self._exc
+
+
+def client_call_wrapper(client, system, client_method_name, *args, **kwargs):
+    from runhouse.resources.hardware import Cluster
+
+    if system and isinstance(system, Cluster) and not system.on_this_cluster():
+        return system.call_client_method(client_method_name, *args, **kwargs)
+    method = getattr(client, client_method_name)
+    return method(*args, **kwargs)
