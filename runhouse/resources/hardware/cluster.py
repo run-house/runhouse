@@ -6,7 +6,6 @@ import logging
 import re
 import subprocess
 import threading
-import time
 import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -126,8 +125,12 @@ class Cluster(Resource):
     @property
     def client(self):
         if not self._http_client:
-            if not self.address:
-                raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
+            if not self._ping(retry=True):
+                # ping cluster, and refresh ips if ondemand cluster and first ping fails
+                raise Exception(
+                    f"Could not reach cluster {self.name} ({self.ips}). Is it up?"
+                )
+
             connect_call = threading.Thread(target=self.connect_server_client)
             connect_call.start()
             connect_call.join(timeout=5)
@@ -135,6 +138,20 @@ class Cluster(Resource):
                 raise ConnectionError(
                     f"Could not connect to client. Please check that the cluster {self.name} is up."
                 )
+            if not self._http_client:
+                raise ConnectionError(
+                    f"Error occured trying to form connection for cluster {self.name}."
+                )
+
+            try:
+                self._http_client.check_server()
+            except (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.ReadTimeout,
+                requests.exceptions.ChunkedEncodingError,
+                ValueError,
+            ) as e:
+                raise ConnectionError(f"Check server failed: {e}.")
         return self._http_client
 
     @property
@@ -625,51 +642,20 @@ class Cluster(Resource):
 
     # ----------------- RPC Methods ----------------- #
 
-    def call_client_method(self, method_name, *args, restart_server=True, **kwargs):
-        def check_and_call():
-            try:
-                self.client.check_server()
-                method = getattr(self.client, method_name)
-                return method(*args, **kwargs)
-            except (
-                requests.exceptions.ConnectionError,
-                requests.exceptions.ReadTimeout,
-                requests.exceptions.ChunkedEncodingError,
-                ValueError,
-            ) as e:
-                if isinstance(e, ValueError) and "Error checking server:" not in str(e):
-                    raise e
-                raise ConnectionError(f"Check server failed: {e}.")
-
+    def call_client_method(self, method_name, *args, **kwargs):
+        method = getattr(self.client, method_name)
         try:
-            return check_and_call()
-        except ConnectionError as e:
-            if not restart_server:
-                raise ConnectionError(f"Could not connect to server {self.name}: {e}")
-            elif "Check server failed: " not in str(e):
-                raise e
+            return method(*args, **kwargs)
+        except ConnectionError:
+            try:
+                self._http_client = None
+                method = getattr(self.client, method_name)
+            except:
+                raise ConnectionError("Could not connect to Runhouse server.")
 
-            if not self._ping(retry=True):
-                raise Exception(f"Could not reach cluster {self.name}. Is it up?")
-
-            logger.info(
-                f"Cluster {self.name} is up, but the Runhouse API server may not be up."
-            )
-
-            self._http_client = None
-            self.restart_server()
-            for i in range(3):
-                logger.info(f"Checking server {self.name} again [{i + 1}/3]")
-
-                try:
-                    return self.call_client_method(
-                        method_name, *args, restart_server=False, **kwargs
-                    )
-                except ConnectionError as e:
-                    if i == 2:
-                        raise e
-                    time.sleep(5)
-        return
+            return method(*args, **kwargs)
+        except Exception as e:
+            raise e
 
     def connect_tunnel(self, force_reconnect=False):
         if self._rpc_tunnel and force_reconnect:
@@ -748,7 +734,6 @@ class Cluster(Resource):
         else:
             status = self.call_client_method(
                 "status",
-                restart_server=False,
                 resource_address=resource_address or self.rns_address,
             )
         return status
