@@ -1,4 +1,4 @@
-Data: Folders & Blobs
+Data: Folders
 =====================
 
 .. raw:: html
@@ -10,7 +10,7 @@ Runhouse has several abstractions to provide a simple interface for
 storing, recalling, and moving data between the user’s laptop, remote
 compute, cloud storage, and specialized storage (e.g. data warehouses).
 
-The Folder and Blob APIs provide least-common-denominator APIs across
+The Folder APIs provide least-common-denominator APIs across
 providers, allowing users to easily specify the actions they want to
 take on the data without needed to dig into provider-specific APIs.
 
@@ -50,8 +50,7 @@ Folders
 -------
 
 The Runhouse Folder API allows for creating references to folders, and
-syncing them between local, remote clusters, or file storage (S3, GS,
-Azure).
+syncing them between local, remote clusters, or file storage (S3 and GCS).
 
 Let’s construct a sample dummy folder locally, that we’ll use to
 demonstrate.
@@ -140,74 +139,6 @@ bouncing the folder off local.
     cluster_folder.to(system="s3")             # cluster to fs
     s3_folder.to(system=cluster)               # fs to cluster
     s3_folder.to(system="gs")                  # fs to fs
-
-Blobs
------
-
-The Runhouse Blob API represents an entity for storing arbitrary data.
-Blobs are associated with a system (local, remote, or file storage), and
-can be written down or synced to systems.
-
-.. code:: ipython3
-
-    import json
-    import pickle
-
-    blob_data = list(range(50))
-
-.. code:: ipython3
-
-    # create and save local blob
-    local_blob = rh.blob(
-            name="local_blob",
-            data=blob_data,
-            system="file",
-            path="local_blob.pickle"
-        ).save()
-
-
-.. parsed-literal::
-    :class: code-output
-
-    INFO | 2023-08-29 20:57:10.570715 | Creating new file folder if it does not already exist in path: /Users/caroline/Documents/runhouse/runhouse
-
-
-.. code:: ipython3
-
-    # to sync the blob to remote or fs
-    local_blob.to(system=cluster)
-    local_blob.to(system="s3")
-
-.. code:: ipython3
-
-    # create blob on s3
-    rh.blob(
-        data=blob_data,
-        system="s3",
-        path=f"/runhouse-blob/sample_blob.pickle",
-    )
-
-    # create blob on cluster
-    rh.blob(
-        data=blob_data,
-        system=cluster,
-    )
-
-To get the contents from a blob, use ``.fetch()``:
-
-.. code:: ipython3
-
-    print(local_blob.fetch())
-
-
-
-
-.. parsed-literal::
-    :class: code-output
-
-    '[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]'
-
-
 
 Now that you understand the basics, feel free to play around with more
 complicated scenarios! You can also check out our additional API and

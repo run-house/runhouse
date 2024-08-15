@@ -520,7 +520,7 @@ class RNSClient:
     def resolve_rns_data_resource_name(self, name: str):
         """If no name is explicitly provided for the data resource, we need to create one based on the relevant
         rns path. If name is None, return a hex uuid.
-        For example: my_blob -> my_username/my_blob"
+        For example: my_func -> my_username/my_func"
         """
         if name is None:
             return generate_uuid()
