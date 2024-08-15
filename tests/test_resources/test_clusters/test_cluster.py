@@ -214,6 +214,24 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
+    def test_cluster_request_timeout(self, cluster):
+        with pytest.raises(requests.exceptions.ReadTimeout):
+            cluster._http_client.request_json(
+                endpoint="/status",
+                req_type="get",
+                timeout=0.01,
+                headers=rh.globals.rns_client.request_headers(),
+            )
+
+        status_res = cluster._http_client.request_json(
+            endpoint="/status",
+            req_type="get",
+            headers=rh.globals.rns_client.request_headers(),
+        )
+        assert status_res
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
     def test_cluster_objects(self, cluster):
         k1 = get_random_str()
         k2 = get_random_str()

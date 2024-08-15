@@ -229,6 +229,7 @@ class HTTPClient:
                 headers=headers,
                 auth=self.auth,
                 verify=self.verify,
+                timeout=timeout,
             )
         else:
             response = retry_with_exponential_backoff(req_fn)(
