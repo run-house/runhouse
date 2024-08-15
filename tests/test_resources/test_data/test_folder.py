@@ -95,6 +95,52 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         "dest": _all_folder_fixtures,
     }
 
+    @pytest.mark.level("local")
+    def test_cluster_folder_put_and_get_and_ls(self, docker_cluster_folder):
+        docker_cluster_folder.put({"some_file.txt": "Hello world"})
+        file_contents = docker_cluster_folder.get(name="some_file.txt")
+        assert file_contents == "Hello world"
+
+        folder_contents = docker_cluster_folder.ls(full_paths=False)
+        assert "some_file.txt" in folder_contents
+
+    @pytest.mark.level("local")
+    def test_cluster_folder_exists_and_mkdir_and_rm(self, docker_cluster_folder):
+        assert docker_cluster_folder.exists_in_system()
+        docker_cluster_folder.rm()
+
+        assert not docker_cluster_folder.exists_in_system()
+
+        docker_cluster_folder.mkdir()
+        assert docker_cluster_folder.exists_in_system()
+
+    @pytest.mark.level("local")
+    def test_cluster_folder_put_and_get_serialization_methods(
+        self, docker_cluster_folder
+    ):
+        from runhouse.servers.http.http_utils import deserialize_data, serialize_data
+
+        pickle_serialization = "pickle"
+        raw_data = [1, 2, 3]
+        docker_cluster_folder.put(
+            {"some_file.pickle": serialize_data(raw_data, pickle_serialization)}
+        )
+
+        file_contents = docker_cluster_folder.get(name="some_file.pickle")
+        assert deserialize_data(file_contents, pickle_serialization) == raw_data
+
+        with pytest.raises(Exception):
+            docker_cluster_folder.put({"some_file.pickle": pickle.dumps(raw_data)})
+
+        json_serialization = "json"
+        raw_data = {"name": "Runhouse"}
+        docker_cluster_folder.put(
+            {"some_file.text": serialize_data(raw_data, json_serialization)}
+        )
+
+        file_contents = docker_cluster_folder.get(name="some_file.text")
+        assert deserialize_data(file_contents, json_serialization) == raw_data
+
     @pytest.mark.level("minimal")
     def test_send_folder_to_dest(self, folder, dest):
         _check_skip_test(folder, dest)

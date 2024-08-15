@@ -319,7 +319,7 @@ class HTTPClient:
     ):
         folder_params = FolderPutParams(
             path=path,
-            contents=contents,
+            contents=serialize_data(contents, serialization),
             mode=mode,
             overwrite=overwrite,
             serialization=serialization,

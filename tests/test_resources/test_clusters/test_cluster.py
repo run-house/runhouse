@@ -916,34 +916,51 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_cluster_put_and_get_serialized_object(self, cluster):
-        from runhouse.servers.http.http_utils import deserialize_data, serialize_data
+    def test_cluster_put_and_get_serialization_methods(self, cluster):
+        from runhouse.servers.http.http_utils import deserialize_data
 
         raw_data = [1, 2, 3]
-        serialization = "pickle"
-        serialized_data = serialize_data(raw_data, serialization)
+        pickle_serialization = "pickle"
+
         cluster._folder_put(
             path="~/.rh/new-folder",
-            contents={"sample.pickle": serialized_data},
+            contents={"sample.pickle": raw_data},
             overwrite=True,
+            serialization=pickle_serialization,
         )
 
         file_contents = cluster._folder_get(path="~/.rh/new-folder/sample.pickle")
-        assert deserialize_data(file_contents, serialization) == raw_data
+        assert deserialize_data(file_contents, pickle_serialization) == raw_data
 
-    @pytest.mark.level("local")
-    @pytest.mark.clustertest
-    def test_cluster_put_and_rm_with_contents(self, cluster):
-        raw_data = "Hello World!"
+        json_serialization = "json"
+        cluster._folder_put(
+            path="~/.rh/new-folder",
+            contents={"sample.text": raw_data},
+            overwrite=True,
+            serialization=json_serialization,
+        )
+
+        file_contents = cluster._folder_get(path="~/.rh/new-folder/sample.text")
+        assert deserialize_data(file_contents, json_serialization) == raw_data
+
+        with pytest.raises(AttributeError):
+            # No serialization specified, default mode of "wb" used which is not supported for a list
+            cluster._folder_put(
+                path="~/.rh/new-folder",
+                contents={"sample.pickle": raw_data},
+                overwrite=True,
+            )
+
+        # with no serialization specified, but with "w" mode
         cluster._folder_put(
             path="~/.rh/new-folder",
             contents={"sample.txt": raw_data},
             overwrite=True,
+            mode="w",
         )
 
-        cluster._folder_rm(path="~/.rh/new-folder", contents=["sample.txt"])
-        folder_contents = cluster._folder_ls(path="~/.rh/new-folder")
-        assert "sample.txt" not in [os.path.basename(f) for f in folder_contents]
+        file_contents = cluster._folder_get(path="~/.rh/new-folder/sample.text")
+        assert deserialize_data(file_contents, json_serialization) == raw_data
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
