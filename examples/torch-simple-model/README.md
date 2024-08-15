@@ -1,5 +1,5 @@
 # Deploy and Train a Model with Torch
-This example demonstrates how to use the `SimpleTrainer` class to train and test a machine learning model using PyTorch and the MNIST dataset. The `SimpleTrainer` class handles model training, evaluation, and prediction tasks and shows you how you can send model classes to train and execute on remote compute. 
+This example demonstrates how to use the `SimpleTrainer` class to train and test a machine learning model using PyTorch and the MNIST dataset. The `SimpleTrainer` class handles model training, evaluation, and prediction tasks and shows you how you can send model classes to train and execute on remote compute.
 
 ## Setup and Installation
 
