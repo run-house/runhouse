@@ -1,7 +1,8 @@
-import runhouse as rh 
 import logging
 
-from torch_example_for_airflow import SimpleTrainer, DownloadData
+import runhouse as rh
+
+from torch_example_for_airflow import DownloadData, SimpleTrainer
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -9,15 +10,15 @@ logger = logging.getLogger(__name__)
 
 def bring_up_cluster_callable(**kwargs):
     logger.info("Connecting to remote cluster")
-    cluster = rh.ondemand_cluster(name="a10g-cluster", instance_type="A10G:1", provider="aws").up_if_not()
-    #cluster.save() ## Use if you have a Runhouse Den account to save and monitor the resource. 
+    rh.ondemand_cluster(
+        name="a10g-cluster", instance_type="A10G:1", provider="aws"
+    ).up_if_not()
+    # cluster.save() ## Use if you have a Runhouse Den account to save and monitor the resource.
+
 
 def access_data_callable(**kwargs):
     logger.info("Step 2: Access data")
-    env = rh.env(
-        name="test_env",
-        reqs=["torch", "torchvision"]
-    )
+    env = rh.env(name="test_env", reqs=["torch", "torchvision"])
 
     cluster = rh.cluster(name="a10g-cluster").up_if_not()
     remote_download = rh.function(DownloadData).to(cluster, env=env)
@@ -25,15 +26,15 @@ def access_data_callable(**kwargs):
     remote_download()
     logger.info("Downloaded")
 
-def train_model_callable(**kwargs):    
+
+def train_model_callable(**kwargs):
     cluster = rh.cluster(name="a10g-cluster").up_if_not()
 
-    env = rh.env(
-        name="test_env",
-        reqs=["torch", "torchvision"]
+    env = rh.env(name="test_env", reqs=["torch", "torchvision"])
+
+    remote_torch_example = rh.module(SimpleTrainer).to(
+        cluster, env=env, name="torch-basic-training"
     )
-    
-    remote_torch_example = rh.module(SimpleTrainer).to(cluster, env=env, name="torch-basic-training")
 
     model = remote_torch_example()
 
@@ -41,14 +42,18 @@ def train_model_callable(**kwargs):
     epochs = 5
     learning_rate = 0.01
 
-    model.load_train('./data', batch_size)
-    model.load_test('./data', batch_size)
+    model.load_train("./data", batch_size)
+    model.load_test("./data", batch_size)
 
-    for epoch in range(epochs): 
+    for epoch in range(epochs):
         model.train_model(learning_rate=learning_rate)
         model.test_model()
-        model.save_model(bucket_name="my-simple-torch-model-example", s3_file_path=f'checkpoints/model_epoch_{epoch + 1}.pth')
+        model.save_model(
+            bucket_name="my-simple-torch-model-example",
+            s3_file_path=f"checkpoints/model_epoch_{epoch + 1}.pth",
+        )
 
-def down_cluster(**kwargs):    
+
+def down_cluster(**kwargs):
     cluster = rh.cluster(name="a10g-cluster")
     cluster.teardown()

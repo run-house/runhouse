@@ -1,4 +1,4 @@
-import runhouse as rh 
+import runhouse as rh
 
 # We check if we have already created a "rh_finetuner" on the remote which is an *instance* of the remote fine tuner class
 cluster = rh.cluster(

@@ -344,6 +344,12 @@ class OnDemandCluster(Cluster):
             return None
         return state[0]
 
+    @property
+    def internal_ips(self):
+        if not self.stable_internal_external_ips:
+            self._update_from_sky_status()
+        return [int_ip for int_ip, _ in self.stable_internal_external_ips]
+
     def _start_ray_workers(self, ray_port, env):
         # Find the internal IP corresponding to the public_head_ip and the rest are workers
         internal_head_ip = None

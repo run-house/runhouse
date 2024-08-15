@@ -7,32 +7,32 @@
 [![Den](https://img.shields.io/badge/runhouse_den-purple)](https://www.run.house/login)
 
 ## 👵 Welcome Home!
-Runhouse enables rapid, cost-effective Machine Learning development across research and production. 
-It allows you to dispatch Python functions and classes to any of your own cloud compute infrastructure, and call them 
+Runhouse enables rapid, cost-effective Machine Learning development across research and production.
+It allows you to dispatch Python functions and classes to any of your own cloud compute infrastructure, and call them
 eagerly as if they were local. This means:
-1. You can natively run and debug your code on remote GPUs or other powerful infra, like Ray, Spark, or Kubernetes, 
+1. You can natively run and debug your code on remote GPUs or other powerful infra, like Ray, Spark, or Kubernetes,
 from your laptop. Your application code then runs as-is in CI/CD or production, still dispatching work to remote infra.
-2. Your application, including the infrastructure steps, is captured in code in a way that eliminates manual gruntwork 
-and is exactly reproducible across your team and across research and production. 
-3. Your flexibility to scale and cost-optimize is unmatched, with teams often seeing cost savings of ~50%. 
+2. Your application, including the infrastructure steps, is captured in code in a way that eliminates manual gruntwork
+and is exactly reproducible across your team and across research and production.
+3. Your flexibility to scale and cost-optimize is unmatched, with teams often seeing cost savings of ~50%.
 
-Orchestrating across clusters, regions, or clouds is trivial, as is complex logic like scaling, fault 
+Orchestrating across clusters, regions, or clouds is trivial, as is complex logic like scaling, fault
 tolerance, or multi-step workflows.
 
 ## What is Runhouse For?
-* When research-to-production is slow and painful, both due to mismatched research & production data/environments and orchestrator pipelines' lack of debugabillity. 
-* If teams need an infra-agnostic way to execute Python to flexibly run a single workflow across heterogenous compute, even running on multiple cloud providers. 
-* Ending frustration at platforms-in-a-box like SageMaker or Vertex, and moving to a more flexible solution to develop and deploy ML code. 
+* When research-to-production is slow and painful, both due to mismatched research & production data/environments and orchestrator pipelines' lack of debugabillity.
+* If teams need an infra-agnostic way to execute Python to flexibly run a single workflow across heterogenous compute, even running on multiple cloud providers.
+* Ending frustration at platforms-in-a-box like SageMaker or Vertex, and moving to a more flexible solution to develop and deploy ML code.
 * Growing ML maturity, as organizations move from one-off ML projects to at-scale ML flywheel.
 
 ## Highlights:
-* 🚀 Dispatch Python functions, classes, and data to remote infra instantly, and call them eagerly as if they were local. Deployment/redeployment is nearly instant and logs are streamed back, making iteration extremely fast. 
+* 🚀 Dispatch Python functions, classes, and data to remote infra instantly, and call them eagerly as if they were local. Deployment/redeployment is nearly instant and logs are streamed back, making iteration extremely fast.
 * 🐍 No DSL, decorators, yaml, CLI incantations, or boilerplate. Just your own regular Python, deployable to anywhere you run Python.
-* 👩‍🔬 No special packaging or deployment processing is needed; research and production code are identical. Call Runhouse-deployed functions from CI/CD, Orchestrators, or applications like a micro-service. 
+* 👩‍🔬 No special packaging or deployment processing is needed; research and production code are identical. Call Runhouse-deployed functions from CI/CD, Orchestrators, or applications like a micro-service.
 * 👩‍🎓 BYO-infra with extensive and growing support - Ray, Kubernetes, AWS, GCP, Azure, local, on-prem, and more.
 * 👩‍🚀 Extreme reproducibility and portability. There's no lock-in, because when you want to shift, scale, or pick the cheapest pricing, changing infra is as easy as changing 1 line specifying a different cluster.
 * 👷‍♀️ Share Python functions or classes as robust services, including HTTPS, auth, observability, scaling, custom domains, secrets, versioning, and more.
-* 👩‍🍳 Support complex workflows or services and advanced logic since your components are de-coupled and infra/modules are interactable with code.  
+* 👩‍🍳 Support complex workflows or services and advanced logic since your components are de-coupled and infra/modules are interactable with code.
 
 The Runhouse API is simple. Send your **modules** (functions and classes) into **environments** (worker processes) on compute
 **infra**, like this:
@@ -46,8 +46,8 @@ def sd_generate(prompt, **inference_kwargs):
     return model(prompt, **inference_kwargs).images
 
 if __name__ == "__main__":
-    gpu = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws")
-    sd_env = rh.env(reqs=["torch", "transformers", "diffusers"], name="sd_generate")
+    gpu = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws").up_if_not()
+    sd_env = rh.env(reqs=["torch", "transformers", "diffusers"], name="sd_env")
 
     # Deploy the function and environment (syncing over local code changes and installing dependencies)
     remote_sd_generate = rh.function(sd_generate).to(gpu, env=sd_env)

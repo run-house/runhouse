@@ -1,24 +1,28 @@
+import gc
+from pathlib import Path
+
 import runhouse as rh
 
 import torch
-from torch.nn import CrossEntropyLoss
-from torch.utils.data import DataLoader
 from datasets import load_dataset
-from transformers import AutoModelForCausalLM, BitsAndBytesConfig, AutoTokenizer, TrainingArguments, default_data_collator
-from pathlib import Path
 from peft import AutoPeftModelForCausalLM, LoraConfig
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    TrainingArguments,
+)
 
 from trl import SFTTrainer
-import gc
 
 
 DEFAULT_MAX_LENGTH = 200
 
 
-## This is the class that we will send to remote and do all the work 
-## It is just a normal Python class defined without any special RH code or DSL 
+## This is the class that we will send to remote and do all the work
+## It is just a normal Python class defined without any special RH code or DSL
 ## The only thing to remember is that the work is happening remotely, so saving and accessing state is necessary within the instance
-class FineTuner():
+class FineTuner:
     def __init__(
         self,
         dataset_name="Shekswess/medical_llama3_instruct_dataset_short",
@@ -36,9 +40,8 @@ class FineTuner():
         self.epochs_trained = 0
 
         self.train_data = None
-        self.test_data = None 
+        self.test_data = None
         self.eval_results = None
-        
 
     def load_base_model(self):
         # configure the model for efficient training
@@ -75,8 +78,8 @@ class FineTuner():
             max_length=max_length,
         )
 
-    def load_train_and_test(self, dataset_name_new = None):
-        if dataset_name_new is not None: 
+    def load_train_and_test(self, dataset_name_new=None):
+        if dataset_name_new is not None:
             self.dataset_name = dataset_name_new
 
         self.train_data = load_dataset(self.dataset_name, split="train")
@@ -126,7 +129,9 @@ class FineTuner():
             report_to="tensorboard",
         )
 
-    def sft_trainer(self, training_data, evaluation_data, peft_parameters, train_params):
+    def sft_trainer(
+        self, training_data, evaluation_data, peft_parameters, train_params
+    ):
         # Set up the SFTTrainer with the model, training data, and parameters to learn from the new dataset
         return SFTTrainer(
             model=self.model,
@@ -138,9 +143,9 @@ class FineTuner():
             args=train_params,
         )
 
-    def tune(self, num_train_epochs = 1):
+    def tune(self, num_train_epochs=1):
         # Load the training data, tokenizer and model to be used by the trainer
-        
+
         if self.train_data is None:
             self.load_train_and_test()
 
@@ -156,7 +161,9 @@ class FineTuner():
         )
 
         train_params = self.training_params(num_train_epochs)
-        trainer = self.sft_trainer(self.train_data, self.test_data, peft_parameters, train_params)
+        trainer = self.sft_trainer(
+            self.train_data, self.test_data, peft_parameters, train_params
+        )
 
         # Force clean the pytorch cache
         gc.collect()
@@ -168,8 +175,8 @@ class FineTuner():
         trainer.model.save_pretrained(self.fine_tuned_model_name)
         trainer.tokenizer.save_pretrained(self.fine_tuned_model_name)
 
-        #self.eval_results = trainer.evaluate() #not enough memory on cluster
-        
+        # self.eval_results = trainer.evaluate() #not enough memory on cluster
+
         # Clear VRAM from training
         del trainer
         del train_params
@@ -178,7 +185,6 @@ class FineTuner():
 
         self.epochs_trained = self.epochs_trained + num_train_epochs
         print("Saved model weights and tokenizer on the cluster.")
-
 
     def generate(self, query: str, max_length: int = DEFAULT_MAX_LENGTH):
         if self.model is None:
@@ -210,40 +216,43 @@ class FineTuner():
         return status
 
     def save_model_s3(self, s3_bucket, s3_directory):
-        try: ## Avoid failing if you're just trying the example and don't have S3 setup
+        try:  ## Avoid failing if you're just trying the example and don't have S3 setup
             import os
+
             import boto3
 
-            s3 = boto3.client('s3')
+            s3_client = boto3.client("s3")
 
             for root, dirs, files in os.walk(self.fine_tuned_model_name):
                 for file in files:
                     local_path = os.path.join(root, file)
-                    relative_path = os.path.relpath(local_path, self.fine_tuned_model_name)
+                    relative_path = os.path.relpath(
+                        local_path, self.fine_tuned_model_name
+                    )
                     s3_path = os.path.join(s3_directory, relative_path)
                     s3_client.upload_file(local_path, s3_bucket, s3_path)
 
-            print('uploaded fine tuned model')
-        except: 
-            print('did not upload fine tuned model - check s3 configs')
+            print("uploaded fine tuned model")
+        except:
+            print("did not upload fine tuned model - check s3 configs")
 
 
-### This is the code that runs locally 
+### This is the code that runs locally
 if __name__ == "__main__":
 
-    ## Launch a cluster 
+    ## Launch a cluster
     # You will need to `pip install "runhouse[aws]"` first
     # You can run `sky check` to confirm AWS credentials are setup
     cluster = rh.cluster(
         name="a10g-rh",
-        instance_type="A10G:1", 
-        memory = "32+",
+        instance_type="A10G:1",
+        memory="32+",
         provider="aws",
     ).up_if_not()
 
-    # You will need a HF_TOKEN as an env variable 
+    # You will need a HF_TOKEN as an env variable
     # Reqs will be installed by Runhouse on remote
-    # We can also show you how to launch with a Docker container / conda env 
+    # We can also show you how to launch with a Docker container / conda env
     env = rh.env(
         name="ft_env",
         reqs=[
@@ -258,7 +267,6 @@ if __name__ == "__main__":
         ],
         secrets=["huggingface"],  # Needed to download Llama 3 from Hugging Face
     )
-    
 
     ## Here, we will access a remote instance of our fine tuner class
     fine_tuner_remote_name = "rh_finetuner"
@@ -274,10 +282,10 @@ if __name__ == "__main__":
         )
         fine_tuner_remote = fine_tuner(name=fine_tuner_remote_name)
 
-    ## Once we have accessed the remote class, we can call against it as if it were a local object 
+    ## Once we have accessed the remote class, we can call against it as if it were a local object
     fine_tuner_remote.tune()
 
-    # Once the fine tuner is complete, we can query against it 
+    # Once the fine tuner is complete, we can query against it
     query = "What's the best treatment for sunburn?"
     generated_text = fine_tuner_remote.generate(query)
     print(generated_text)
