@@ -26,6 +26,7 @@ from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.autostop_helper import AutostopHelper
 from runhouse.servers.http.auth import AuthCache
+from runhouse.servers.telemetry.utils import send_status_to_den_succeeded
 
 from runhouse.utils import sync_function
 
@@ -279,17 +280,7 @@ class ClusterServlet:
                 if not should_send_status_and_logs_to_den:
                     break
 
-                status_code = den_resp.status_code
-
-                if status_code == 404:
-                    logger.info(
-                        "Cluster has not yet been saved to Den, cannot update status or logs."
-                    )
-                elif status_code != 200:
-                    logger.error(
-                        f"Failed to send cluster status to Den: {den_resp.json()}"
-                    )
-                else:
+                if send_status_to_den_succeeded(den_resp):
 
                     logger.debug("Successfully sent cluster status to Den.")
 

@@ -56,6 +56,8 @@ from runhouse.resources.resource import Resource
 
 from runhouse.servers.http import HTTPClient
 
+from runhouse.servers.telemetry.utils import send_status_to_den_succeeded
+
 
 class Cluster(Resource):
     RESOURCE_TYPE = "cluster"
@@ -754,6 +756,8 @@ class Cluster(Resource):
                 logger.warning(
                     f"Failed to send cluster status to den: {den_resp.json()}"
                 )
+
+            send_status_to_den_succeeded(send_to_den_resp=den_resp)
 
         return status
 
