@@ -10,7 +10,7 @@ from runhouse.globals import obj_store
 from runhouse.logger import logger
 from runhouse.resources.envs.utils import _process_env_vars, run_setup_command
 from runhouse.resources.hardware import _get_cluster_from, Cluster
-from runhouse.resources.packages import Package
+from runhouse.resources.packages import InstallTarget, Package
 from runhouse.resources.resource import Resource
 from runhouse.utils import run_with_logs
 
@@ -106,15 +106,15 @@ class Env(Resource):
 
     def _reqs_to(self, system: Union[str, Cluster], path=None):
         """Send self.reqs to the system (cluster or file system)"""
-        from runhouse.resources.folders import Folder
-
         new_reqs = []
         for req in self.reqs:
             if isinstance(req, str):
                 new_req = Package.from_string(req)
                 req = new_req
 
-            if isinstance(req, Package) and isinstance(req.install_target, Folder):
+            if isinstance(req, Package) and isinstance(
+                req.install_target, InstallTarget
+            ):
                 req = (
                     req.to(system, path=path)
                     if isinstance(system, Cluster)

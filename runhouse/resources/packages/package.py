@@ -1,6 +1,7 @@
 import copy
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Union
 
@@ -26,6 +27,26 @@ from runhouse.logger import logger
 
 class CodeSyncError(Exception):
     pass
+
+
+@dataclass
+class InstallTarget:
+    local_path: str
+    _path_to_sync_to_on_cluster: Optional[str] = None
+
+    @property
+    def path_to_sync_to_on_cluster(self) -> str:
+        return (
+            self._path_to_sync_to_on_cluster
+            if self._path_to_sync_to_on_cluster
+            else f"~/{Path(self.local_path).name}"
+        )
+
+    def full_local_path_str(self) -> str:
+        return str(Path(self.local_path).expanduser())
+
+    def __str__(self):
+        return f"InstallTarget(local_path={self.local_path}, path_to_sync_to_on_cluster={self._path_to_sync_to_on_cluster})"
 
 
 class Package(Resource):
@@ -73,21 +94,20 @@ class Package(Resource):
         #     return f'{self.install_method}:{self.name}'
         config = super().config(condensed)
         config["install_method"] = self.install_method
-        config["install_target"] = self._resource_string_for_subconfig(
-            self.install_target, condensed
+        config["install_target"] = (
+            (
+                self.install_target.local_path,
+                self.install_target._path_to_sync_to_on_cluster,
+            )
+            if isinstance(self.install_target, InstallTarget)
+            else self.install_target
         )
         config["install_args"] = self.install_args
         return config
 
     def __str__(self):
-        from runhouse.resources.folders import Folder
-
         if self.name:
             return f"Package: {self.name}"
-        if isinstance(self.install_target, Folder):
-            # if self.install_target.name:
-            #     return f'Package: {self.install_target.name}'
-            return f"Package: {self.install_target.path}"
         return f"Package: {self.install_target}"
 
     @staticmethod
@@ -113,9 +133,11 @@ class Package(Resource):
     def _validate_folder_path(self):
         # If self.path is the same as the user's home directory, raise an error.
         # Check this with Path and expanduser to handle both relative and absolute paths.
-        if Path(self.install_target.path).expanduser() in [
-            Path("~").expanduser(),
-            Path("/"),
+        if isinstance(
+            self.install_target, InstallTarget
+        ) and self.install_target.full_local_path_str() in [
+            str(Path("~").expanduser()),
+            str(Path("/")),
         ]:
             raise CodeSyncError(
                 "Cannot sync the home directory. Please include a Python configuration file in a subdirectory."
@@ -124,10 +146,8 @@ class Package(Resource):
     def _pip_install_cmd(
         self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
     ):
-        from runhouse.resources.folders import Folder
-
         install_args = f" {self.install_args}" if self.install_args else ""
-        if isinstance(self.install_target, Folder):
+        if isinstance(self.install_target, InstallTarget):
             install_cmd = (
                 f"{str(Path(self.install_target.local_path).absolute())}" + install_args
             )
@@ -145,10 +165,8 @@ class Package(Resource):
     def _conda_install_cmd(
         self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
     ):
-        from runhouse.resources.folders import Folder
-
         install_args = f" {self.install_args}" if self.install_args else ""
-        if isinstance(self.install_target, Folder):
+        if isinstance(self.install_target, InstallTarget):
             install_cmd = f"{self.install_target.local_path}" + install_args
         else:
             install_cmd = self.install_target + install_args
@@ -161,42 +179,35 @@ class Package(Resource):
     def _reqs_install_cmd(
         self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
     ):
-        from runhouse.resources.folders import Folder
-
         install_args = f" {self.install_args}" if self.install_args else ""
-        if not isinstance(self.install_target, Folder):
+        if not isinstance(self.install_target, InstallTarget):
             install_cmd = self.install_target + install_args
         else:
-            path = self.install_target.local_path
+            on_cluster_path = self.install_target.local_path
 
-            # Read reqs_path and reqs from local if not cluster
+            # If not cluster, we're on the cluster, and we must deal with the path locally
             if not cluster:
-                reqs_path = f"{path}/requirements.txt"
+                reqs_path = f"{on_cluster_path}/requirements.txt"
                 if not Path(reqs_path).expanduser().exists():
                     return None
 
-                with open(reqs_path) as f:
+                with open(str(Path(reqs_path).expanduser())) as f:
                     reqs_list = f.readlines()
 
             # Otherwise, make sure the target folder is on the cluster,
             # and read reqs from the cluster
             else:
-                if not self.install_target.system == cluster:
-                    install_target = self.to(cluster).install_target
-                else:
-                    install_target = self.install_target
-
-                if not install_target.exists_in_system():
-                    return None
-                elif "requirements.txt" not in install_target.ls(full_paths=False):
+                if "requirements.txt" not in cluster._folder_ls(
+                    path=on_cluster_path, full_paths=False
+                ):
                     return None
 
                 reqs_list = (
-                    install_target.get("requirements.txt", mode="r")
+                    cluster._folder_get(f"{on_cluster_path}/requirements.txt", mode="r")
                     .strip("\n")
                     .split("\n")
                 )
-                reqs_path = f"{install_target.path}/requirements.txt"
+                reqs_path = f"{on_cluster_path}/requirements.txt"
 
             install_cmd = self._reqs_install_cmd_for_torch(
                 reqs_path, reqs_list, install_args, cluster=cluster
@@ -217,17 +228,22 @@ class Package(Resource):
                 (Default: ``None``)
             cluster (Optional[Cluster]): If provided, will install package on cluster using SSH.
         """
-        from runhouse.resources.folders import Folder
-
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
 
-        if isinstance(self.install_target, Folder):
-            if not cluster:
-                path = self.install_target.local_path
-            elif self.install_target.exists_in_system():
-                path = self.install_target.path
-            else:
-                path = self.to(cluster).install_target.path
+        if isinstance(self.install_target, InstallTarget):
+            if cluster:
+                cluster.rsync(
+                    source=str(self.install_target.local_path),
+                    dest=str(self.install_target.path_to_sync_to_on_cluster),
+                    up=True,
+                    contents=True,
+                )
+
+                self.install_target.local_path = (
+                    self.install_target.path_to_sync_to_on_cluster
+                )
+
+            path = self.install_target.local_path
 
             if not path:
                 return
@@ -271,9 +287,12 @@ class Package(Resource):
 
         # Need to append to path
         if self.install_method in ["local", "reqs"]:
-            if isinstance(self.install_target, Folder):
-                sys.path.insert(0, path) if not cluster else run_setup_command(
-                    f"export PATH=$PATH;{path}", cluster=cluster
+            if isinstance(self.install_target, InstallTarget):
+                sys.path.insert(
+                    0, self.install_target.full_local_path_str()
+                ) if not cluster else run_setup_command(
+                    f"export PATH=$PATH;{self.install_target.full_local_path_str()}",
+                    cluster=cluster,
                 )
             elif not cluster:
                 if Path(self.install_target).resolve().expanduser().exists():
@@ -376,54 +395,32 @@ class Package(Resource):
         path: Optional[str] = None,
     ):
         """Copy the package onto filesystem or cluster, and return the new Package object."""
-        from runhouse.resources.folders import Folder
-
-        if not isinstance(self.install_target, Folder):
+        if not isinstance(self.install_target, InstallTarget):
             raise TypeError(
-                "`install_target` must be a Folder in order to copy the package to a system."
+                "`install_target` must be an InstallTarget in order to copy the package to a system."
             )
 
-        if (
-            isinstance(self.install_target.system, str)
-            and not self.install_target.system == "file"
-        ):
-            self.install_target.system = _get_cluster_from(self.install_target.system)
-
-        install_system_name = (
-            self.install_target.system.name
-            if isinstance(self.install_target.system, Cluster)
-            else self.install_target.system
-        )
         system = _get_cluster_from(system)
-        system_name = system.name if isinstance(system, Cluster) else system
-
-        if system_name == install_system_name:
+        if isinstance(system, Cluster) and system.on_this_cluster():
             return self
 
-        if isinstance(system, Resource):
-            if isinstance(self.install_target.system, Resource):
-                # if these are both clusters, check if they're pointing to the same address.
-                # We use endpoint instead of address here because if address is localhost, we need to port too
-                if self.install_target.system.endpoint(
-                    external=False
-                ) == system.endpoint(external=False):
-                    # If we're on the target system, just make sure the package is in the Python path
-                    sys.path.insert(0, self.install_target.local_path)
-                    return self
-
-            logger.info(
-                f"Copying package from {self.install_target.fsspec_url} to: {getattr(system, 'name', system)}"
-            )
         self._validate_folder_path()
+        if isinstance(system, Cluster):
+            system.rsync(
+                source=str(self.install_target.full_local_path_str()),
+                dest=str(self.install_target.path_to_sync_to_on_cluster),
+                up=True,
+                contents=True,
+            )
 
-        # sync folder to the fs and create a new module on the fs where relevant
-        new_folder = self.install_target.to(system, path=path)
-        new_folder = new_folder._destination_folder(
-            dest_path=new_folder.path, dest_system=system
-        )
-        new_package = copy.copy(self)
-        new_package.install_target = new_folder
-        return new_package
+            new_package = copy.copy(self)
+            new_package.install_target = InstallTarget(
+                local_path=self.install_target.local_path,
+                _path_to_sync_to_on_cluster=self.install_target.path_to_sync_to_on_cluster,
+            )
+            return new_package
+
+        return self
 
     @staticmethod
     def split_req_install_method(req_str: str):
@@ -433,13 +430,10 @@ class Package(Resource):
 
     @staticmethod
     def from_config(config: dict, dryrun=False, _resolve_children=True):
-        if isinstance(config.get("install_target"), dict):
-            from runhouse.resources.folders import Folder
-
-            config["install_target"] = Folder.from_config(
-                config["install_target"],
-                dryrun=dryrun,
-                _resolve_children=_resolve_children,
+        if isinstance(config.get("install_target"), tuple):
+            config["install_target"] = InstallTarget(
+                local_path=config["install_target"][0],
+                _path_to_sync_to_on_cluster=config["install_target"][1],
             )
         if config.get("resource_subtype") == "GitPackage":
             from runhouse import GitPackage
@@ -483,11 +477,9 @@ class Package(Resource):
             else Path(locate_working_dir()) / rel_target
         )
         if abs_target.exists():
-            from runhouse.resources.folders import Folder
-
-            target = Folder(
-                path=abs_target, system=Folder.DEFAULT_FS, dryrun=True
-            )  # No need to create the folder here
+            target = InstallTarget(
+                local_path=str(abs_target), _path_to_sync_to_on_cluster=None
+            )
         else:
             target = rel_target
 
@@ -507,11 +499,7 @@ class Package(Resource):
                 # Check if this is a package that was installed from local
                 local_install_path = get_local_install_path(target)
                 if local_install_path and Path(local_install_path).exists():
-                    from runhouse.resources.folders import Folder
-
-                    target = Folder(
-                        path=local_install_path, system=Folder.DEFAULT_FS, dryrun=True
-                    )
+                    target = (local_install_path, None)
 
         # "Local" install method is a special case where we just copy a local folder and add to path
         if install_method == "local":
@@ -571,10 +559,7 @@ def package(
     install_target = None
     install_args = None
     if path is not None:
-        from runhouse.resources.folders import Folder, folder
-
-        system = system or Folder.DEFAULT_FS
-        install_target = folder(path=path, system=system)
+        install_target = (path, None)
         install_args = install_str
     elif install_str is not None:
         install_target, install_args = install_str.split(" ", 1)
