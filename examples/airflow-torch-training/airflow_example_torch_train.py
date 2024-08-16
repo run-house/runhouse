@@ -1,4 +1,4 @@
-# # A Basic Airflow Example Using PyTorch to Train an Image Classification NN with the MNIST Dataset
+# ## A Basic Airflow Example Using PyTorch to Train an Image Classification NN with the MNIST Dataset
 
 # ## Using Airflow and Runhouse together 
 # This example demonstrates how to use Airflow along with Runhouse to dispatch the work of training a basic Torch model to a remote GPU. 
@@ -8,7 +8,7 @@
 # debugging and dispatch when used in conjunction with a traditional orchestrator. The model code uses the very popular MNIST dataset which includes a large number of handwritten digits, and create a neural network that accurately identifies
 # what digit is in an image. 
 #
-# # **The usage pattern for Runhouse with Airflow should be as follows:**
+# ## **The usage pattern for Runhouse with Airflow should be as follows:**
 # * Write Python classes and functions using normal, ordinary coding best practices. Do not think about DAGs or DSLs at all, just write great code. 
 # * Send the code for remote execution with Runhouse, and figure out whether the code works, debugging it interactively. Runhouse lets you send the code in seconds, and streams logs back. You can work on remote as if it were local. 
 # * Once you are satisfied with your code, you can write the callables for an Airflow PythonOperator. The code that is actually in the Airflow DAG is the **minimal code** to call out to already working Classes and Functions, defining the order of the steps (or you can even have a one-step Airflow DAG, making Airflow purely for scheduling and observability)
