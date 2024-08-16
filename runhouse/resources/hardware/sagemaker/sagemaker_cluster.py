@@ -41,7 +41,7 @@ from runhouse.rns.utils.api import (
     relative_file_path,
     resolve_absolute_path,
 )
-from runhouse.rns.utils.names import _generate_default_name
+from runhouse.utils import generate_default_name
 
 
 ####################################################################################################
@@ -948,7 +948,7 @@ class SageMakerCluster(Cluster):
         # NOTE: underscores not allowed for training job name - must match: ^[a-zA-Z0-9](-*[a-zA-Z0-9]){0,62}
         self.estimator.fit(
             wait=False,
-            job_name=self.job_name or _generate_default_name(self.name, sep="-"),
+            job_name=self.job_name or generate_default_name(self.name, sep="-"),
         )
 
     def _load_base_command_for_ssm_session(self) -> str:

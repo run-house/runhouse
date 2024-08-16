@@ -24,11 +24,11 @@ from runhouse.resources.hardware import (
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
-from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import CallParams
 from runhouse.utils import (
     client_call_wrapper,
+    generate_default_name,
     get_module_import_info,
     locate_working_dir,
 )
@@ -420,9 +420,9 @@ class Module(Resource):
         return state
 
     def default_name(self):
-        return (
-            self._pointers[2] if self._pointers else None
-        ) or _generate_default_name(prefix=self.__class__.__qualname__.lower())
+        return (self._pointers[2] if self._pointers else None) or generate_default_name(
+            prefix=self.__class__.__qualname__.lower()
+        )
 
     def to(
         self,
@@ -1402,7 +1402,7 @@ def module(
             env.reqs = [str(local_path_containing_module)] + env.reqs
 
     name = name or (
-        cls_pointers[2] if cls_pointers else _generate_default_name(prefix="module")
+        cls_pointers[2] if cls_pointers else generate_default_name(prefix="module")
     )
 
     module_subclass = _module_subclass_factory(cls, cls_pointers)
