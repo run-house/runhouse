@@ -18,7 +18,7 @@ import runhouse as rh
 import tensorflow as tf
 
 
-# ## Define the TensorFlow distributed training script
+# ## Define the TensorFlow distributed training logic
 # This is the function that will be run on each worker. It initializes the distributed training environment,
 # creates a simple model and optimizer, and runs a training loop.
 def train_process():
