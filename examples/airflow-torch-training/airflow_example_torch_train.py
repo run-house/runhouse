@@ -1,19 +1,15 @@
 # # A Basic Airflow Example Using PyTorch to Train an Image Classification NN with the MNIST Dataset
 
-# **Use Airflow for what Airflow is good for** 
-# * Scheduling 
-# * Ensuring reliable execution 
-# * Observability of runs 
+# ## Using Airflow and Runhouse together 
+# This example demonstrates how to use Airflow along with Runhouse to dispatch the work of training a basic Torch model to a remote GPU. 
+# The Airflow pipeline can be run from anywhere, including local, but it will bring up an cluster on AWS with a GPU and send the training job there. 
 
-# The usage pattern for Runhouse with Airflow should be as follows:
+# **The usage pattern for Runhouse with Airflow should be as follows:**
 # * Write Python classes and functions using normal, ordinary coding best practices. Do not think about DAGs or DSLs at all, just write great code. 
 # * Send the code for remote execution with Runhouse, and figure out whether the code works, debugging it interactively. Runhouse lets you send the code in seconds, and streams logs back. You can work on remote as if it were local. 
 # * Once you are satisfied with your code, you can write the callables for an Airflow PythonOperator. The code that is actually in the Airflow DAG is the **minimal code** to call out to already working Classes and Functions, defining the order of the steps (or you can even have a one-step Airflow DAG, making Airflow purely for scheduling and observability)
 # * And you can easily iterate further on your code, or test the pipeline end-to-end from local with no Airflow participation 
 
-# This example demonstrates how to use Airflow along with Runhouse to dispatch the work of training a basic Torch model to a remote GPU. 
-# The Airflow pipeline can be run from anywhere, including local, but it will bring up an cluster on AWS with a GPU and send the training job there. 
-#
 # This code is identical to our Torch training example, but placed within the context of an orchestrator to show how Runhouse allows for more flexible 
 # debugging and dispatch when used in conjunction with a traditional orchestrator. 
 # 
