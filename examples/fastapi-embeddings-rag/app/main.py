@@ -180,7 +180,7 @@ def load_llm():
     ).up_if_not()
 
     env = rh.env(
-        reqs=["torch", "vllm"],
+        reqs=["torch", "vllm==0.5.4"],
         secrets=["huggingface"],  # Needed to download Llama 3 from HuggingFace
         name="llama3_inference_env",
     )
