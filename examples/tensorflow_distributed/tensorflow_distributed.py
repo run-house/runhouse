@@ -3,7 +3,7 @@
 # cluster of GPUs. We use the TF_CONFIG environment variable to set up the distributed training environment, and
 # create a separate worker (env) for each rank. We then call the replicas concurrently to trigger coordinated
 # multi-node training. We're using two single-GPU instances (and therefore two ranks) with the
-# MultiWorkerMirroredStrategy, but this same strategy could be use for other TensorFlow distributed strategies.
+# MultiWorkerMirroredStrategy, but this same strategy could be used for other TensorFlow distributed strategies.
 #
 # Despite it being common to use a launcher script to start distributed training, this approach is more flexible and
 # allows for more complex orchestration, such as running multiple training jobs concurrently, handling exceptions,
