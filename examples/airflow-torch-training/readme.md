@@ -15,5 +15,5 @@ The usage pattern for Runhouse with Airflow should be as follows:
 
 **Examples**
 * **torch_example_for_airflow.py:** Normally written Python code with no DSL, defining a simple neural network. 
-* **local_run_of_callables.py:** An example of how Runhouse lets you test your functions and Airflow callables from local, since it's all happening on "remote" execution. You can update code, and experiment with calling just that step. 
 * **airflow_example_torch_train.py:** The Airflow DAG, which simply orchestrates the pipeline. 
+* **local_run_of_callables.py:** An example of how Runhouse lets you test your functions and Airflow callables from local, since it's all happening on "remote" execution. You can update code, and experiment with calling just that step. 
