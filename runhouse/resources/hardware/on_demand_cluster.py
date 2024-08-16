@@ -410,7 +410,7 @@ class OnDemandCluster(Cluster):
                 "cloud": cloud,
                 "instance_type": instance_type,
                 "region": region,
-                "cost_per_hour": cost_per_hr,
+                "cost_per_hour": str(cost_per_hr),
             }
             if handle.ssh_user:
                 self.launched_properties["ssh_user"] = handle.ssh_user
