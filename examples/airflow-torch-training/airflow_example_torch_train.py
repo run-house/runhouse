@@ -2,20 +2,18 @@
 
 # ## Using Airflow and Runhouse together 
 # This example demonstrates how to use Airflow along with Runhouse to dispatch the work of training a basic Torch model to a remote GPU. 
-# The Airflow pipeline can be run from anywhere, including local, but it will bring up an cluster on AWS with a GPU and send the training job there. 
+# The Airflow pipeline and all the callables can be run from anywhere, including local, but it will bring up an cluster on AWS with a GPU and send the training job there. 
 
-# **The usage pattern for Runhouse with Airflow should be as follows:**
+# This code is identical to our Torch training example, but placed within the context of an orchestrator to show how Runhouse allows for more flexible 
+# debugging and dispatch when used in conjunction with a traditional orchestrator. The model code uses the very popular MNIST dataset which includes a large number of handwritten digits, and create a neural network that accurately identifies
+# what digit is in an image. 
+#
+# # **The usage pattern for Runhouse with Airflow should be as follows:**
 # * Write Python classes and functions using normal, ordinary coding best practices. Do not think about DAGs or DSLs at all, just write great code. 
 # * Send the code for remote execution with Runhouse, and figure out whether the code works, debugging it interactively. Runhouse lets you send the code in seconds, and streams logs back. You can work on remote as if it were local. 
 # * Once you are satisfied with your code, you can write the callables for an Airflow PythonOperator. The code that is actually in the Airflow DAG is the **minimal code** to call out to already working Classes and Functions, defining the order of the steps (or you can even have a one-step Airflow DAG, making Airflow purely for scheduling and observability)
 # * And you can easily iterate further on your code, or test the pipeline end-to-end from local with no Airflow participation 
 
-# This code is identical to our Torch training example, but placed within the context of an orchestrator to show how Runhouse allows for more flexible 
-# debugging and dispatch when used in conjunction with a traditional orchestrator. 
-# 
-# The model code uses the very popular MNIST dataset which includes a large number of handwritten digits, and create a neural network that accurately identifies
-# what digit is in an image. 
-#
 # ## Setup credentials and dependencies
 #
 # Optionally, set up a virtual environment:
@@ -157,5 +155,5 @@ down_cluster_task = PythonOperator(
 )
 
 
-## You can see that this is an incredibly minimal amount of code in Airflow. The callables are callable from the DAG. But you can also run them from a Python script, from a notebook, or anywhere else - so you can instantly iterate on the underlying classes, the functions, and by the time they run locally, they are ready for prime time in your DAG. 
+# You can see that this is an incredibly minimal amount of code in Airflow. The callables are callable from the DAG. But you can also run them from a Python script, from a notebook, or anywhere else - so you can instantly iterate on the underlying classes, the functions, and by the time they run locally, they are ready for prime time in your DAG. 
 run_sky_status >> bring_up_cluster_task >> access_data_task >> train_model_task >> down_cluster_task
