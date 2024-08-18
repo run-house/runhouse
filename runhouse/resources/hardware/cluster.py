@@ -142,7 +142,7 @@ class Cluster(Resource):
                 )
             if not self._http_client:
                 raise ConnectionError(
-                    f"Error occured trying to form connection for cluster {self.name}."
+                    f"Error occurred trying to form connection for cluster {self.name}."
                 )
 
             try:
@@ -1264,6 +1264,12 @@ class Cluster(Resource):
 
         if retry:
             return self._ping(retry=False)
+
+        # Try to initialize the http client directly if the ssh threading call failed
+        self.connect_server_client()
+        if self._http_client:
+            return True
+
         return False
 
     def _copy_certs_to_cluster(self):
@@ -1421,7 +1427,6 @@ class Cluster(Resource):
 
             # set env vars after log statement
             command = f"{env_var_prefix} {command}" if env_var_prefix else command
-
             if not pwd:
                 ssh_mode = (
                     SshMode.INTERACTIVE
