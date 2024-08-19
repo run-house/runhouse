@@ -15,6 +15,7 @@ from runhouse.resources.hardware.utils import (
     _generate_ssh_control_hash,
     _ssh_base_command,
 )
+from runhouse.resources.hardware.utils import _ssh_base_command
 
 logger = get_logger(__name__)
 
@@ -55,6 +56,7 @@ class SshTunnel:
             if ssh_control_name is None
             else _generate_ssh_control_hash(ssh_control_name)
         )
+        self.ssh_control_name = ssh_control_name
         self.ssh_proxy_command = ssh_proxy_command
         self.disable_control_master = disable_control_master
 
