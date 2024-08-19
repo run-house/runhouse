@@ -3,16 +3,19 @@ import subprocess
 
 from enum import Enum
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Optional
 
 from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
     EMPTY_DEFAULT_ENV_NAME,
     RESERVED_SYSTEM_NAMES,
 )
+
+from runhouse.logger import get_logger
 from runhouse.resources.envs.utils import _get_env_from, run_setup_command
-from runhouse.resources.hardware.sky.command_runner import SshMode
-from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner
+from runhouse.resources.hardware.sky.command_runner import ssh_options_list, SshMode
+
+logger = get_logger(__name__)
 
 
 class ServerConnectionType(str, Enum):
@@ -142,6 +145,8 @@ def _run_ssh_command(
     ssh_private_key: str,
     docker_user: str,
 ):
+    from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner
+
     runner = SkySSHRunner(
         ip=address,
         ssh_user=ssh_user,
@@ -153,3 +158,52 @@ def _run_ssh_command(
         ssh_mode=SshMode.INTERACTIVE, port_forward=None
     )
     subprocess.run(ssh_command)
+
+
+# Adapted from SkyPilot Command Runner
+def _ssh_base_command(
+    address: str,
+    ssh_user: str,
+    ssh_private_key: str,
+    ssh_control_name: Optional[str] = "__default__",
+    ssh_proxy_command: Optional[str] = None,
+    ssh_port: int = 22,
+    docker_ssh_proxy_command: Optional[str] = None,
+    disable_control_master: Optional[bool] = False,
+    ssh_mode: SshMode = SshMode.INTERACTIVE,
+    port_forward: Optional[List[int]] = None,
+    timeout: Optional[int] = 30,
+):
+    ssh = ["ssh"]
+    if ssh_mode == SshMode.NON_INTERACTIVE:
+        # Disable pseudo-terminal allocation. Otherwise, the output of
+        # ssh will be corrupted by the user's input.
+        ssh += ["-T"]
+    else:
+        # Force pseudo-terminal allocation for interactive/login mode.
+        ssh += ["-tt"]
+
+    if port_forward is not None:
+        # RH MODIFIED: Accept port int (to forward same port) or pair of ports
+        for fwd in port_forward:
+            if isinstance(fwd, int):
+                local, remote = fwd, fwd
+            else:
+                local, remote = fwd
+            logger.debug(f"Forwarding port {local} to port {remote} on localhost.")
+            ssh += ["-L", f"{local}:localhost:{remote}"]
+
+    return (
+        ssh
+        + ssh_options_list(
+            ssh_private_key,
+            ssh_control_name,
+            ssh_proxy_command=ssh_proxy_command,
+            docker_ssh_proxy_command=docker_ssh_proxy_command,
+            # TODO change to None like before?
+            port=ssh_port,
+            timeout=timeout,
+            disable_control_master=disable_control_master,
+        )
+        + [f"{ssh_user}@{address}"]
+    )
