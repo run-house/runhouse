@@ -166,7 +166,7 @@ class SimpleTrainer:
             print("did not upload checkpoint")
 
 
-# ## Setting up Runhouse to run the defined class and functions remotely. 
+# ## Setting up Runhouse to run the defined class and functions remotely.
 #
 # Now, we define the main function that will run locally when we run this script, and set up
 # our Runhouse module on a remote cluster. First, we create a cluster with the desired instance type and provider.
