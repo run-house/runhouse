@@ -4,7 +4,7 @@
 # This example demonstrates how to use Airflow along with Runhouse to dispatch the work of training a basic Torch model to a remote GPU. 
 # The Airflow pipeline and all the callables can be run from anywhere, including local, but it will bring up an cluster on AWS with a GPU and send the training job there. 
 
-# This code is identical to our Torch training example, but placed within the context of an orchestrator to show how Runhouse allows for more flexible 
+# The Torch model is identical to our [Torch training example](https://www.run.house/examples/torch-vision-mnist-basic-model-train-test), but placed within the context of an orchestrator to show how Runhouse allows for more flexible 
 # debugging and dispatch when used in conjunction with a traditional orchestrator. The model code uses the very popular MNIST dataset which includes a large number of handwritten digits, and create a neural network that accurately identifies
 # what digit is in an image. 
 #
