@@ -135,13 +135,13 @@ class HTTPServer:
         default_env_name=None,
         conda_env=None,
         from_test: bool = False,
+        logs_level: str = DEFAULT_LOG_LEVEL,
         *args,
         **kwargs,
     ):
-        log_level = kwargs.get("logs_level", DEFAULT_LOG_LEVEL)
-        logger.setLevel(log_level)
-        if log_level != DEFAULT_LOG_LEVEL:
-            logger.info(f"setting logs level to {log_level}")
+        logger.setLevel(logs_level)
+        if logs_level != DEFAULT_LOG_LEVEL:
+            logger.info(f"setting logs level to {logs_level}")
         runtime_env = {"conda": conda_env} if conda_env else None
 
         default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
@@ -155,7 +155,7 @@ class HTTPServer:
                 default_env_name,
                 setup_ray=RaySetupOption.TEST_PROCESS,
                 runtime_env=runtime_env,
-                logs_level=log_level,
+                logs_level=logs_level,
             )
 
         # TODO disabling due to latency, figure out what to do with this
@@ -170,7 +170,7 @@ class HTTPServer:
             env_name=default_env_name,
             create=True,
             runtime_env=runtime_env,
-            logs_level=log_level,
+            logs_level=logs_level,
         )
 
         if default_env_name == EMPTY_DEFAULT_ENV_NAME:
