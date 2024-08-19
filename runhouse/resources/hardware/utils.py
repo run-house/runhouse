@@ -150,14 +150,24 @@ def _run_ssh_command(
     runner = SkySSHRunner(
         ip=address,
         ssh_user=ssh_user,
-        port=ssh_port,
         ssh_private_key=ssh_private_key,
+        ssh_mode=SshMode.INTERACTIVE,
+        ssh_port=ssh_port,
         docker_user=docker_user,
     )
-    ssh_command = runner._ssh_base_command(
-        ssh_mode=SshMode.INTERACTIVE, port_forward=None
-    )
     subprocess.run(ssh_command)
+
+
+def _docker_ssh_proxy_command(
+    address: str,
+    ssh_user: str,
+    ssh_private_key: str,
+):
+    return lambda ssh: " ".join(
+        ssh
+        + ssh_options_list(ssh_private_key, None)
+        + ["-W", "%h:%p", f"{ssh_user}@{address}"]
+    )
 
 
 # Adapted from SkyPilot Command Runner
