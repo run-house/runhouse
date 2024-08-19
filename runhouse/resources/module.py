@@ -1068,7 +1068,7 @@ class Module(Resource):
             if (
                 isinstance(req, Package)
                 and not isinstance(req.install_target, str)
-                and req.install_target.is_local()
+                # and req.install_target.is_local()
             ):
                 local_path_containing_module = Path(req.install_target.local_path)
 

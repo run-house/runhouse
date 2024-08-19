@@ -5,6 +5,7 @@ import pytest
 
 import runhouse as rh
 import tests.test_resources.test_resource
+from runhouse.resources.packages import InstallTarget
 from runhouse.utils import run_with_logs
 
 
@@ -69,7 +70,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         assert package.install_method in ["pip", "conda", "reqs", "local"]
 
         if package.install_method in ["reqs", "local"]:
-            assert isinstance(package.install_target, rh.Folder)
+            assert isinstance(package.install_target, InstallTarget)
 
     # --------- test install command ---------
     @pytest.mark.level("unit")
@@ -132,7 +133,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     def test_remote_reqs_install(self, cluster, reqs_package):
         remote_reqs_package = reqs_package.to(cluster)
-        path = remote_reqs_package.install_target.path
+        path = remote_reqs_package.install_target.local_path
 
         assert remote_reqs_package._reqs_install_cmd(cluster=cluster) in [
             None,
@@ -148,8 +149,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     def test_local_reqs_on_cluster(self, cluster, local_package):
         remote_package = local_package.to(cluster)
 
-        assert isinstance(remote_package.install_target, rh.Folder)
-        assert remote_package.install_target.system == cluster
+        assert isinstance(remote_package.install_target, InstallTarget)
 
     @pytest.mark.level("local")
     @pytest.mark.skip("Feature deprecated for now")

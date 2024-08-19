@@ -5,6 +5,7 @@ import subprocess
 import pytest
 
 import runhouse as rh
+from runhouse.resources.packages import InstallTarget
 
 from tests.conftest import init_args
 
@@ -39,7 +40,7 @@ def conda_package():
 @pytest.fixture(scope="session")
 def reqs_package():
     args = {
-        "install_target": rh.folder(path="."),
+        "install_target": InstallTarget(local_path="."),
         "install_method": "reqs",
     }
     package = rh.Package(**args)
@@ -50,7 +51,7 @@ def reqs_package():
 @pytest.fixture
 def local_package(local_folder):
     args = {
-        "install_target": local_folder,
+        "install_target": InstallTarget(local_path=local_folder.path),
         "install_method": "local",
     }
     package = rh.Package(**args)
