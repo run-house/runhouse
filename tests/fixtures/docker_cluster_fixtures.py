@@ -263,7 +263,7 @@ def set_up_local_cluster(
     rh_cluster = rh.cluster(**cluster_init_args)
     init_args[id(rh_cluster)] = cluster_init_args
 
-    # Save before bringing up so the correct rns_address is written to the cluster config.
+    # We need to save before bringing up so the correct rns_address is written to the cluster config.
     # This is necessary because we're turning on Den auth without saving the config.yaml (containing
     # the "owner's" token) to the container in many cases, so we're relying on authenticating the caller
     # to the server through Den. If the cluster isn't saved before coming up, the config in the cluster servlet
