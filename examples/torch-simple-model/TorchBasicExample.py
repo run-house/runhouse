@@ -166,7 +166,7 @@ class SimpleTrainer:
             print("did not upload checkpoint")
 
 
-# ## Setting up Runhouse primitives
+# ## Setting up Runhouse to run the defined class and functions remotely. 
 #
 # Now, we define the main function that will run locally when we run this script, and set up
 # our Runhouse module on a remote cluster. First, we create a cluster with the desired instance type and provider.
@@ -186,7 +186,7 @@ if __name__ == "__main__":
     # Define a cluster type - here we launch an on-demand AWS cluster with 1 NVIDIA A10G GPU.
     # You can use any cloud you want, or existing compute
     cluster = rh.ondemand_cluster(
-        name="a10g-rh", instance_type="A10G:1", provider="aws"
+        name="a10g-cluster", instance_type="A10G:1", provider="aws"
     ).up_if_not()
 
     # Next, we define the environment for our module. This includes the required dependencies that need

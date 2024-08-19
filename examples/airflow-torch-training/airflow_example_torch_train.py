@@ -44,7 +44,7 @@ import logging
 
 # ## Import the model class
 # This class is the same as the example in https://www.run.house/examples/torch-vision-mnist-basic-model-train-test 
-from torch_example_for_airflow import SimpleTrainer, DownloadData 
+from TorchBasicExample import SimpleTrainer, DownloadData 
 
 logger = logging.getLogger(__name__)
 
