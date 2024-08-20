@@ -45,10 +45,7 @@ class Resource:
             - Env: :py:class:`.env.Env`
 
         - Data Abstractions
-            - Blob :py:class:`.blob.Blob`
-            - File :py:class:`.file.File`
             - Folder :py:class:`.folder.Folder`
-            - Table :py:class:`.table.Table`
 
         - Secret Abstractions
             - Secret :py:class:`.secret.Secret`
@@ -316,7 +313,7 @@ class Resource:
         self._name = None
 
     def history(self, limit: int = None) -> List[Dict]:
-        """Return the history of the resource, including specific config fields (e.g. blob path) and which runs
+        """Return the history of the resource, including specific config fields (e.g. folder path) and which runs
         have overwritten it.
         If ``limit`` is specified, return the last ``limit`` number of entries in the history."""
         if not self.rns_address:

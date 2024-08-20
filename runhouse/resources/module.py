@@ -800,7 +800,7 @@ class Module(Resource):
             >>> MyRemoteClass = rh.module(my_class).to(system)
             >>> MyRemoteClass(*args).fetch() # Returns a my_class instance, populated with the remote state
 
-            >>> my_blob.fetch() # Returns the data of the blob, due to overloaded ``resolved_state`` method
+            >>> my_module.fetch() # Returns the data of the blob, due to overloaded ``resolved_state`` method
 
             >>> class MyModule(rh.Module):
             >>>     # ...
@@ -907,9 +907,9 @@ class Module(Resource):
         """Specify that the module should resolve to a particular state when passed into a remote method. This is
         useful if you want to revert the module's state to some "Runhouse-free" state once it is passed into a
         Runhouse-unaware function. For example, if you call a Runhouse-unaware function with ``.remote()``,
-        you will be returned a Blob which wraps your data. If you want to pass that Blob into another function
+        you will be returned a module which wraps your data. If you want to pass that module into another function
         that operates on the original data (e.g. a function that takes a numpy array), you can call
-        ``my_second_fn(my_blob.resolve())``, and ``my_blob`` will be replaced with the contents of its ``.data`` on the
+        ``my_second_fn(my_func.resolve())``, and ``my_func`` will be replaced with the contents of its ``.data`` on the
         cluster before being passed into ``my_second_fn``.
 
         Resolved state is defined by the ``resolved_state`` method. By default, modules created with the
@@ -921,8 +921,8 @@ class Module(Resource):
             >>> my_module = rh.module(my_class)
             >>> my_remote_fn(my_module.resolve()) # my_module will be replaced with the original class `my_class`
 
-            >>> my_result_blob = my_remote_fn.call.remote(args)
-            >>> my_other_remote_fn(my_result_blob.resolve()) # my_result_blob will be replaced with its data
+            >>> my_result_module = my_remote_fn.call.remote(args)
+            >>> my_other_remote_fn(my_result_module.resolve()) # my_result_module will be replaced with its data
 
         """
         self._resolve = True
@@ -980,7 +980,7 @@ class Module(Resource):
     def save(self, name: str = None, overwrite: bool = True, folder: str = None):
         """Register the resource and save to local working_dir config and RNS config store."""
         # Need to override Resource's save to handle key changes in the obj store
-        # Also check that this is a Blob and not a File
+        # Also check that this is a Module and not a File
 
         # Make sure to generate the openapi spec before saving
         _ = self.openapi_spec()
@@ -1310,7 +1310,7 @@ def module(
         cls: The class to instantiate.
         name (Optional[str]): Name to give the module object, to be reused later on.
         env (Optional[str or Env]): Environment in which the module should live on the cluster, if system is cluster.
-        dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
+        dryrun (bool): Whether to create the Module if it doesn't exist, or load a Module object as a dryrun.
             (Default: ``False``)
 
     Returns:
