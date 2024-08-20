@@ -438,9 +438,6 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
             skip_lines=skip_lines,
             source_bashrc=source_bashrc,
         )
-        # RH MODIFIED
-        if self.docker_user:
-            command_str = f"cd /{self.docker_user} && {command_str}"
         command = kubectl_base_command + [
             # It is important to use /bin/bash -c here to make sure we quote the
             # command to be run properly. Otherwise, directly appending commands

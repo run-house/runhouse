@@ -55,7 +55,6 @@ class SshTunnel:
             if ssh_control_name is None
             else _generate_ssh_control_hash(ssh_control_name)
         )
-        self.ssh_control_name = ssh_control_name
         self.ssh_proxy_command = ssh_proxy_command
         self.disable_control_master = disable_control_master
 
@@ -75,7 +74,6 @@ class SshTunnel:
         self.tunnel_proc = None
 
     def tunnel(self, local_port, remote_port):
-        # TODO - modifications needed for k8s docker command to work
         base_cmd = _ssh_base_command(
             address=self.ip,
             ssh_user=self.ssh_user,
