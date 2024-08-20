@@ -1,7 +1,7 @@
 import os
 import traceback
 from functools import wraps
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from runhouse.constants import DEFAULT_LOG_LEVEL
 from runhouse.globals import obj_store
@@ -188,15 +188,88 @@ class EnvServlet:
     async def aclear_local(self):
         return await obj_store.aclear_local()
 
-    def _get_env_cpu_usage(self, cluster_config: dict = None):
+    def _get_cpu_usage(self, system_cpu_utilization: Iterable):
+        """
+        # TODO [SB]: add documentation
+        :param system_cpu_utilization:
+        :return:
+        """
+        cpus = []
+        percent = []
+        current_val = next(system_cpu_utilization, None)
+        while current_val:
+            percent.append(current_val.value)
+            cpu = current_val.attributes.get("cpu")
+            if cpu not in cpus:
+                cpus.append(cpu)
+            current_val = next(system_cpu_utilization, None)
+        return round(sum(percent) / len(cpus), 2)
 
-        import psutil
+    def _get_system_memory_usage(
+        self, system_memory_usage: Iterable, system_memory_utilization: Iterable
+    ):
+        """
+        # TODO [SB]: add documentation
+        :param system_memory_usage: in bytes
+        :param system_memory_utilization: percent, float
+        :return: dict with the following keys: total_memory, used_memory, free_memory, percent
+        """
+        memory_usage = {
+            "total_memory": 0,  # int
+            "used_memory": 0,  # int
+            "free_memory": 0,  # int
+            "percent": 0,  # float
+        }
+
+        system_memory_usage_val = next(system_memory_usage, None)
+        while system_memory_usage_val:
+            value = system_memory_usage_val.value
+            value_type = system_memory_usage_val.attributes.get("state")
+            if value_type == "used":
+                memory_usage["used_memory"] += value
+            elif value_type == "free":
+                memory_usage["free_memory"] += value
+            elif value_type == "total":
+                memory_usage["total_memory"] += value
+            system_memory_usage_val = next(system_memory_usage, None)
+
+        system_memory_utilization_val = next(system_memory_utilization, None)
+        while system_memory_utilization_val:
+            value = system_memory_utilization_val.value
+            value_type = system_memory_utilization_val.attributes.get("state")
+            if value_type == "used":
+                memory_usage["percent"] = round(value, 4)
+            system_memory_utilization_val = next(system_memory_utilization, None)
+
+        return memory_usage
+
+    def _get_env_memory_usage(self, env_memory_usage: Iterable):
+        """
+        # TODO [SB]: add documentation
+        :param env_memory_usage:
+        :return: dict with the following keys: total_memory, used_memory, free_memory, percent
+        """
+        # rss is the Resident Set Size, which is the actual physical memory the process is using
+        # vms is the Virtual Memory Size which is the virtual memory that process is using
+        # returning rss, because it is more accurate.
+        used_memory = 0
+
+        system_memory_usage_val = next(env_memory_usage, None)
+        while system_memory_usage_val:
+            value = system_memory_usage_val.value
+            value_type = system_memory_usage_val.attributes.get("state")
+            if value_type == "rss":
+                used_memory = value
+                break
+
+        return used_memory
+
+    def _get_env_cpu_usage(self, cluster_config: dict = None):
 
         from runhouse.utils import get_pid
 
         cluster_config = cluster_config or obj_store.cluster_config
 
-        total_memory = psutil.virtual_memory().total
         node_ip = get_node_ip()
         env_servlet_pid = get_pid()
 
@@ -221,16 +294,44 @@ class EnvServlet:
                 node_name = f"worker_{ips.index(node_ip)} ({node_ip})"
 
         try:
-            env_servlet_process = psutil.Process(pid=env_servlet_pid)
-            memory_size_bytes = env_servlet_process.memory_full_info().uss
-            cpu_usage_percent = env_servlet_process.cpu_percent()
+            from opentelemetry.instrumentation.system_metrics import (
+                SystemMetricsInstrumentor,
+            )
+
+            servlet_name = f"{self.env_name}_env_servlet"
+            CPU_FIELDS = (
+                "idle user system irq softirq nice iowait steal interrupt dpc".split()
+            )
+            configuration = {
+                "system.cpu.utilization": CPU_FIELDS,
+                "system.memory.usage": ["used", "free", "cached", "total"],
+                "system.memory.utilization": ["used", "free", "cached"],
+                "process.runtime.memory": ["rss", "vms"],
+                "process.runtime.cpu.utilization": None,
+            }
+            inst = SystemMetricsInstrumentor(
+                config=configuration, labels={"servlet_name": servlet_name}
+            )
+            inst.instrument()
+
+            cpu_usage = self._get_cpu_usage(inst._get_runtime_cpu_utilization(None))
+            memory_system_usage = self._get_system_memory_usage(
+                inst._get_system_memory_usage(None),
+                inst._get_system_memory_utilization(None),
+            )
+            total_memory = memory_system_usage.get("total_memory")
+            env_system_usage = self._get_env_memory_usage(
+                inst._get_runtime_memory(None)
+            )
+
             env_memory_usage = {
-                "used_memory": memory_size_bytes,
-                "utilization_percent": cpu_usage_percent,
+                "used_memory": env_system_usage,
+                "utilization_percent": cpu_usage,
                 "total_memory": total_memory,
             }
-        except psutil.NoSuchProcess:
+        except Exception:
             env_memory_usage = {}
+            total_memory = 0
 
         return (env_memory_usage, node_name, total_memory, env_servlet_pid, node_ip)
 

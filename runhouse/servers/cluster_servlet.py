@@ -3,7 +3,7 @@ import copy
 import datetime
 import json
 import threading
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import httpx
 import requests
@@ -377,6 +377,61 @@ class ClusterServlet:
         except Exception as e:
             return {"env_servlet_name": env_servlet_name, "Exception": e}
 
+    def _get_cpu_usage(self, system_cpu_utilization: Iterable):
+        """
+        # TODO [SB]: add documentation
+        :param system_cpu_utilization:
+        :return:
+        """
+        cpus = []
+        percent = []
+        current_val = next(system_cpu_utilization, None)
+        while current_val:
+            percent.append(current_val.value)
+            cpu = current_val.attributes.get("cpu")
+            if cpu not in cpus:
+                cpus.append(cpu)
+            current_val = next(system_cpu_utilization, None)
+        return round(sum(percent) / len(cpus), 2)
+
+    def _get_memory_usage(
+        self, system_memory_usage: Iterable, system_memory_utilization: Iterable
+    ):
+        """
+        # TODO [SB]: add documentation
+        :param system_memory_usage: in bytes
+        :param system_memory_utilization: percent, float
+        :return: dict with the following keys: total_memory, used_memory, free_memory, percent
+        """
+        memory_usage = {
+            "total_memory": 0,  # int
+            "used_memory": 0,  # int
+            "free_memory": 0,  # int
+            "percent": 0,  # float
+        }
+
+        system_memory_usage_val = next(system_memory_usage, None)
+        while system_memory_usage_val:
+            value = system_memory_usage_val.value
+            value_type = system_memory_usage_val.attributes.get("state")
+            if value_type == "used":
+                memory_usage["used_memory"] += value
+            elif value_type == "free":
+                memory_usage["free_memory"] += value
+            elif value_type == "total":
+                memory_usage["total_memory"] += value
+            system_memory_usage_val = next(system_memory_usage, None)
+
+        system_memory_utilization_val = next(system_memory_utilization, None)
+        while system_memory_utilization_val:
+            value = system_memory_utilization_val.value
+            value_type = system_memory_utilization_val.attributes.get("state")
+            if value_type == "used":
+                memory_usage["percent"] = round(value, 4)
+            system_memory_utilization_val = next(system_memory_utilization, None)
+
+        return memory_usage
+
     async def astatus(self):
         import psutil
 
@@ -416,13 +471,37 @@ class ClusterServlet:
                 )
                 env_servlet_utilization_data[env_servlet_name] = env_memory_info
 
-        # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
-        cpu_usage = psutil.cpu_percent(interval=1)
+        from opentelemetry.instrumentation.system_metrics import (
+            SystemMetricsInstrumentor,
+        )
 
-        # Fields: `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
-        memory_usage = psutil.virtual_memory()._asdict()
+        servlet_name = config_cluster.get("name")[1:].replace(
+            "/", ":"
+        )  # TODO: use the function we use to create uri
+        servlet_name = f"{servlet_name}_cluster_servlet"
+        CPU_FIELDS = (
+            "idle user system irq softirq nice iowait steal interrupt dpc".split()
+        )
+        configuration = {
+            "system.cpu.utilization": CPU_FIELDS,
+            "system.memory.usage": ["used", "free", "cached", "total"],
+            "system.memory.utilization": ["used", "free", "cached"],
+            "process.runtime.memory": ["rss", "vms"],
+            "process.runtime.cpu.utilization": None,
+        }
+        inst = SystemMetricsInstrumentor(
+            config=configuration, labels={"servlet_name": servlet_name}
+        )
+        inst.instrument()
 
-        # Fields: `total`, `used`, `free`, `percent`
+        # TODO: maybe pass other options, and not None.
+        cpu_usage = self._get_cpu_usage(inst._get_system_cpu_utilization(None))
+        memory_usage = self._get_memory_usage(
+            inst._get_system_memory_usage(None),
+            inst._get_system_memory_utilization(None),
+        )
+
+        # Fields: `total`, `used`, `free`, `percent`, THIS WILL BE DEPRECATED IN NEXT PRs
         disk_usage = psutil.disk_usage("/")._asdict()
 
         status_data = {
