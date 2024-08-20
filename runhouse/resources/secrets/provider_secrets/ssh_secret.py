@@ -5,10 +5,12 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from runhouse.globals import rns_client
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.resources.blobs.file import File
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.secrets.provider_secrets.provider_secret import ProviderSecret
+
+logger = get_logger(name=__name__)
 
 
 class SSHSecret(ProviderSecret):

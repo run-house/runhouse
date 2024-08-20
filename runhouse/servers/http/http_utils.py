@@ -13,8 +13,12 @@ from pydantic import BaseModel, validator
 from ray import cloudpickle as pickle
 from ray.exceptions import RayTaskError
 
-from runhouse.logger import ClusterLogsFormatter, logger
+from runhouse.logger import get_logger
+
 from runhouse.servers.obj_store import RunhouseStopIteration
+from runhouse.utils import ClusterLogsFormatter
+
+logger = get_logger(name=__name__)
 
 
 class RequestContext(BaseModel):
