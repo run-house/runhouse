@@ -15,7 +15,6 @@ from runhouse.resources.hardware.utils import (
     _generate_ssh_control_hash,
     _ssh_base_command,
 )
-from runhouse.resources.hardware.utils import _ssh_base_command
 
 logger = get_logger(__name__)
 
@@ -76,6 +75,7 @@ class SshTunnel:
         self.tunnel_proc = None
 
     def tunnel(self, local_port, remote_port):
+        # TODO - modifications needed for k8s docker command to work
         base_cmd = _ssh_base_command(
             address=self.ip,
             ssh_user=self.ssh_user,
