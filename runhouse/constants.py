@@ -57,7 +57,7 @@ RAY_KILL_CMD = 'pkill -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
 CONDA_INSTALL_CMDS = [
     "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh",
     "bash ~/miniconda.sh -b -p ~/miniconda",
-    "source $HOME/miniconda3/bin/activate",
+    "source $HOME/miniconda/bin/activate",
 ]
 
 TEST_ORG = "test-org"
