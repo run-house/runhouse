@@ -340,7 +340,6 @@ class HTTPServer:
 
             return StreamingResponse(
                 HTTPServer._get_results_and_logs_generator(
-                    key,
                     fut=fut,
                     run_name=params.run_name,
                     serialization=params.serialization,
@@ -492,7 +491,7 @@ class HTTPServer:
         return open_files
 
     @staticmethod
-    async def _get_results_and_logs_generator(key, fut, run_name, serialization=None):
+    async def _get_results_and_logs_generator(fut, run_name, serialization=None):
         logger.debug(f"Streaming logs for key {run_name}")
         open_logfiles = []
         waiting_for_results = True
@@ -550,7 +549,7 @@ class HTTPServer:
             )
         finally:
             if not open_logfiles:
-                logger.warning(f"No logfiles found for call {key}")
+                logger.warning(f"No logfiles found for call {run_name}")
             for f in open_logfiles:
                 f.close()
 
