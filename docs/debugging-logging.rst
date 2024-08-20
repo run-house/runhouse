@@ -21,6 +21,10 @@ Alternatively, to see logs on your local machine while running a remote function
     remote_fn = rh.function(fn)
     fn(fn_args, stream_logs=True)
 
+Log Levels
+----------
+You can set the log level to control the verbosity of the logs. The default log level is ``INFO``, and you can adjust
+the log level by setting the environment variable ``RH_LOG_LEVEL`` to your desired level.
 
 Debugging
 ~~~~~~~~~

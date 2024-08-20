@@ -13,7 +13,7 @@ from apispec import APISpec
 from pydantic import create_model
 
 from runhouse.globals import obj_store, rns_client
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.hardware import (
     _current_cluster,
@@ -51,6 +51,8 @@ MODULE_ATTRS = [
     "_signature",
     "_dumb_signature_cache",
 ]
+
+logger = get_logger(name=__name__)
 
 
 class Module(Resource):

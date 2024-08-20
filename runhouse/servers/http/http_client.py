@@ -1,5 +1,4 @@
 import json
-import logging
 import time
 import warnings
 from functools import wraps
@@ -12,8 +11,7 @@ import httpx
 import requests
 
 from runhouse.globals import rns_client
-
-from runhouse.logger import ClusterLogsFormatter, logger
+from runhouse.logger import get_logger
 
 from runhouse.resources.envs.utils import _get_env_from
 
@@ -36,10 +34,14 @@ from runhouse.servers.http.http_utils import (
     serialize_data,
 )
 
+from runhouse.utils import ClusterLogsFormatter
+
 
 # Make this global so connections are pooled across instances of HTTPClient
 session = requests.Session()
 session.timeout = None
+
+logger = get_logger(name=__name__)
 
 
 def retry_with_exponential_backoff(func):
@@ -480,7 +482,7 @@ class HTTPClient:
             )
         else:
             log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
-        logging.info(log_str)
+        logger.info(log_str)
         return result
 
     async def acall(
@@ -599,7 +601,7 @@ class HTTPClient:
                 )
             else:
                 log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
-            logging.info(log_str)
+            logger.info(log_str)
             return result
 
     def put_object(self, key: str, value: Any, env=None):

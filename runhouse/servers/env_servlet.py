@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from runhouse.constants import DEFAULT_LOG_LEVEL
 from runhouse.globals import obj_store
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 
 from runhouse.servers.http.http_utils import (
     deserialize_data,
@@ -15,8 +15,9 @@ from runhouse.servers.http.http_utils import (
     serialize_data,
 )
 from runhouse.servers.obj_store import ClusterServletSetupOption
-
 from runhouse.utils import arun_in_thread, get_node_ip
+
+logger = get_logger(name=__name__)
 
 
 def error_handling_decorator(func):
@@ -69,15 +70,14 @@ class EnvServlet:
     async def __init__(self, env_name: str, *args, **kwargs):
         self.env_name = env_name
 
-        logs_level = kwargs.get("logs_level", DEFAULT_LOG_LEVEL)
-        logger.setLevel(logs_level)
-        # self.logger = logger
+        log_level = kwargs.get("log_level", DEFAULT_LOG_LEVEL)
+        logger.setLevel(log_level)
 
         await obj_store.ainitialize(
             self.env_name,
             has_local_storage=True,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
-            logs_level=logs_level,
+            log_level=log_level,
         )
 
         # Ray defaults to setting OMP_NUM_THREADS to 1, which unexpectedly limit parallelism in user programs.

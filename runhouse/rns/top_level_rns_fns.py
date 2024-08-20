@@ -5,12 +5,12 @@ from typing import Dict
 from runhouse.constants import EMPTY_DEFAULT_ENV_NAME
 
 from runhouse.globals import configs, obj_store, rns_client
-
+from runhouse.logger import get_logger
 from runhouse.servers.obj_store import ClusterServletSetupOption
 
-# Configure the logger once
-logging.getLogger("numexpr").setLevel(logging.WARNING)
+logger = get_logger(name=__name__)
 
+logging.getLogger("numexpr").setLevel(logging.WARNING)
 
 collect_data: bool = configs.data_collection_enabled()
 if collect_data:

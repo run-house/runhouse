@@ -11,7 +11,7 @@ import dotenv
 import requests
 from pydantic import BaseModel
 
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 
 from runhouse.rns.utils.api import (
     generate_uuid,
@@ -22,6 +22,8 @@ from runhouse.rns.utils.api import (
 )
 
 from runhouse.utils import locate_working_dir
+
+logger = get_logger(name=__name__)
 
 
 # This is a copy of the Pydantic model that we use to validate in Den
@@ -102,6 +104,14 @@ class RNSClient:
         if url_as_env_var:
             return url_as_env_var
         return self._configs.get("api_server_url", None)
+
+    @property
+    def log_level(self):
+        import logging
+
+        log_level_env_var = os.getenv("RH_LOG_LEVEL")
+        if log_level_env_var and log_level_env_var.upper() in logging._nameToLevel:
+            return log_level_env_var
 
     def _index_base_folders(self, lst):
         self.rns_base_folders = {}

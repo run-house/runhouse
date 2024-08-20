@@ -32,8 +32,8 @@ except ImportError:
 from runhouse.constants import LOCAL_HOSTS
 
 from runhouse.globals import configs, rns_client
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import (
@@ -44,6 +44,7 @@ from runhouse.rns.utils.api import (
 from runhouse.utils import generate_default_name
 
 
+logger = get_logger(name=__name__)
 ####################################################################################################
 # Caching mechanisms for SSHTunnelForwarder
 ####################################################################################################

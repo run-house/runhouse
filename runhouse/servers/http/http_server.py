@@ -27,7 +27,7 @@ from runhouse.constants import (
     RH_LOGFILE_PATH,
 )
 from runhouse.globals import configs, obj_store, rns_client
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.rns.utils.api import resolve_absolute_path, ResourceAccess
 from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import averify_cluster_access
@@ -68,6 +68,8 @@ from runhouse.servers.obj_store import (
 from runhouse.utils import generate_default_name, sync_function
 
 app = FastAPI(docs_url=None, redoc_url=None)
+
+logger = get_logger(name=__name__)
 
 
 def validate_cluster_access(func):
@@ -135,13 +137,13 @@ class HTTPServer:
         default_env_name=None,
         conda_env=None,
         from_test: bool = False,
-        logs_level: str = DEFAULT_LOG_LEVEL,
+        log_level: str = DEFAULT_LOG_LEVEL,
         *args,
         **kwargs,
     ):
-        logger.setLevel(logs_level)
-        if logs_level != DEFAULT_LOG_LEVEL:
-            logger.info(f"setting logs level to {logs_level}")
+        logger.setLevel(log_level)
+        if log_level != DEFAULT_LOG_LEVEL:
+            logger.info(f"Setting log level to {log_level}")
         runtime_env = {"conda": conda_env} if conda_env else None
 
         default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
@@ -155,7 +157,7 @@ class HTTPServer:
                 default_env_name,
                 setup_ray=RaySetupOption.TEST_PROCESS,
                 runtime_env=runtime_env,
-                logs_level=logs_level,
+                log_level=log_level,
             )
 
         # TODO disabling due to latency, figure out what to do with this
@@ -170,7 +172,7 @@ class HTTPServer:
             env_name=default_env_name,
             create=True,
             runtime_env=runtime_env,
-            logs_level=logs_level,
+            log_level=log_level,
         )
 
         if default_env_name == EMPTY_DEFAULT_ENV_NAME:
@@ -957,7 +959,7 @@ async def main():
         "--log-level",
         type=str,
         default=DEFAULT_LOG_LEVEL,
-        help="The lowest log level of the printed logs",
+        help="Log level for the server",
     )
 
     parse_args = parser.parse_args()
@@ -1153,7 +1155,7 @@ async def main():
     await HTTPServer.ainitialize(
         default_env_name=default_env_name,
         conda_env=conda_name,
-        logs_level=parse_args.log_level,
+        log_level=parse_args.log_level,
     )
 
     if den_auth:

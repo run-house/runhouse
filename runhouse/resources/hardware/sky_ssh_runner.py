@@ -1,4 +1,5 @@
 import copy
+import logging
 import os
 import pathlib
 import shlex
@@ -9,8 +10,7 @@ from typing import Dict, List, Optional, Tuple, Union
 from runhouse.constants import DEFAULT_DOCKER_CONTAINER_NAME, LOCALHOST, TUNNEL_TIMEOUT
 
 from runhouse.globals import sky_ssh_runner_cache
-
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 
 from runhouse.resources.hardware.sky import common_utils, log_lib, subprocess_utils
 
@@ -25,10 +25,10 @@ from runhouse.resources.hardware.sky.command_runner import (
 )
 
 
+logger = get_logger(name=__name__)
+
 # Get rid of the constant "Found credentials in shared credentials file: ~/.aws/credentials" message
 try:
-    import logging
-
     import boto3
 
     boto3.set_stream_logger(name="botocore.credentials", level=logging.ERROR)
@@ -244,7 +244,7 @@ class SkySSHRunner(SSHCommandRunner):
             executable = "/bin/bash"
 
         # RH MODIFIED: Return command instead of running it
-        logging.debug(f"Running command: {' '.join(command)}")
+        logger.debug(f"Running command: {' '.join(command)}")
         if return_cmd:
             return " ".join(command)
 
