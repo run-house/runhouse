@@ -15,7 +15,6 @@ from runhouse.resources.hardware.utils import (
     _generate_ssh_control_hash,
     _ssh_base_command,
 )
-from runhouse.resources.hardware.utils import _ssh_base_command
 
 logger = get_logger(__name__)
 
