@@ -61,7 +61,7 @@ class NoLocalObjStoreError(ObjStoreError):
 def get_cluster_servlet(
     create_if_not_exists: bool = False,
     runtime_env: Optional[Dict] = None,
-    logs_level: str = DEFAULT_LOG_LEVEL,
+    log_level: str = DEFAULT_LOG_LEVEL,
 ):
     from runhouse.servers.cluster_servlet import ClusterServlet
 
@@ -92,7 +92,7 @@ def get_cluster_servlet(
                 num_cpus=0,
                 runtime_env=runtime_env,
             )
-            .remote(logs_level=logs_level)
+            .remote(log_level=log_level)
         )
 
         # Make sure cluster servlet is actually initialized
@@ -162,7 +162,7 @@ class ObjStore:
         ray_address: str = "auto",
         setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
         runtime_env: Optional[Dict] = None,
-        logs_level: str = DEFAULT_LOG_LEVEL,
+        log_level: str = DEFAULT_LOG_LEVEL,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -208,7 +208,7 @@ class ObjStore:
         self.cluster_servlet = get_cluster_servlet(
             create_if_not_exists=create_if_not_exists,
             runtime_env=runtime_env,
-            logs_level=logs_level,
+            log_level=log_level,
         )
         if self.cluster_servlet is None:
             # TODO: logger.<method> is not printing correctly here when doing `runhouse start`.
@@ -401,7 +401,7 @@ class ObjStore:
                 )
                 .remote(
                     env_name=env_name,
-                    logs_level=kwargs.get("logs_level", DEFAULT_LOG_LEVEL),
+                    log_level=kwargs.get("log_level", DEFAULT_LOG_LEVEL),
                 )
             )
 

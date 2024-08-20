@@ -1,4 +1,5 @@
 import copy
+import logging
 import os
 import pathlib
 import shlex
@@ -243,7 +244,7 @@ class SkySSHRunner(SSHCommandRunner):
             executable = "/bin/bash"
 
         # RH MODIFIED: Return command instead of running it
-        logging.debug(f"Running command: {' '.join(command)}")
+        logger.debug(f"Running command: {' '.join(command)}")
         if return_cmd:
             return " ".join(command)
 

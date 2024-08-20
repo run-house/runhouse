@@ -54,7 +54,6 @@ class ClusterServlet:
         self.autostop_helper = None
 
         logger.setLevel(kwargs.get("logs_level", DEFAULT_LOG_LEVEL))
-        self.logger = logger
 
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
             self.autostop_helper = AutostopHelper()
@@ -316,10 +315,9 @@ class ClusterServlet:
                         )
 
             except Exception:
-                self.logger.error(
-                    "Cluster checks have failed.\nPlease check cluster logs for more info."
-                )
-                self.logger.warning(
+                logger.error(
+                    "Cluster checks have failed.\n"
+                    "Please check cluster logs for more info.\n"
                     "Temporarily increasing the interval between status checks."
                 )
                 await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
@@ -406,7 +404,7 @@ class ClusterServlet:
             # Nothing if there was an exception
             if "Exception" in env_status.keys():
                 e = env_status.get("Exception")
-                self.logger.warning(
+                logger.warning(
                     f"Exception {str(e)} in status for env servlet {env_servlet_name}"
                 )
                 env_servlet_utilization_data[env_servlet_name] = {}

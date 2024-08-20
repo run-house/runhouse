@@ -1,7 +1,6 @@
 import contextvars
 import copy
 import json
-import logging
 import os
 from collections import defaultdict
 from pathlib import Path
@@ -134,7 +133,7 @@ class Defaults:
         if Path(config_path).exists():
             with open(config_path, "r") as stream:
                 config = yaml.safe_load(stream)
-            logging.info(f"Loaded Runhouse config from {config_path}")
+            logger.info(f"Loaded Runhouse config from {config_path}")
 
         return config or {}
 
