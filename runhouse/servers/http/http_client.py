@@ -34,7 +34,7 @@ from runhouse.servers.http.http_utils import (
     serialize_data,
 )
 
-from runhouse.utils import ClusterLogsFormatter
+from runhouse.utils import ClusterLogsFormatter, generate_default_name
 
 
 # Make this global so connections are pooled across instances of HTTPClient
@@ -355,6 +355,29 @@ class HTTPClient:
         with open(self.cert_path, "wb") as file:
             file.write(cert)
 
+    def _process_call_result(
+        self,
+        result,
+        system,
+        output_type,
+    ):
+
+        from runhouse.resources.module import Module
+
+        if isinstance(result, Module):
+            if (
+                system
+                and result.system
+                and system.rns_address == result.system.rns_address
+            ):
+                result.system = system
+        elif output_type == OutputType.CONFIG:
+            if system and "system" in result and system.rns_address == result["system"]:
+                result["system"] = system
+            result = Resource.from_config(result, dryrun=True)
+
+        return result
+
     def call(
         self,
         key: str,
@@ -397,6 +420,13 @@ class HTTPClient:
         """
         Client function to call the rpc for call_module_method
         """
+        if run_name is None:
+            run_name = generate_default_name(
+                prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+                precision="ms",  # Higher precision because we see collisions within the same second
+                sep="@",
+            )
+
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(
@@ -447,34 +477,10 @@ class HTTPClient:
             result = handle_response(
                 resp, output_type, error_str, log_formatter=self.log_formatter
             )
-            # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
-            # slow, we can just set it explicitly.
-            from runhouse.resources.module import Module
 
-            if isinstance(result, Module):
-                if (
-                    system
-                    and result.system
-                    and system.rns_address == result.system.rns_address
-                ):
-                    result.system = system
-            elif output_type == OutputType.CONFIG:
-                if (
-                    system
-                    and "system" in result
-                    and system.rns_address == result["system"]
-                ):
-                    result["system"] = system
-                result = Resource.from_config(result, dryrun=True)
+            result = self._process_call_result(result, system, output_type)
 
         end = time.time()
-
-        if (
-            hasattr(result, "system")
-            and system is not None
-            and result.system.rns_address == system.rns_address
-        ):
-            result.system = system
 
         if method_name:
             log_str = (
@@ -482,6 +488,7 @@ class HTTPClient:
             )
         else:
             log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
+
         logger.info(log_str)
         return result
 
@@ -530,6 +537,13 @@ class HTTPClient:
         """
         Client function to call the rpc for call_module_method
         """
+        if run_name is None:
+            run_name = generate_default_name(
+                prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+                precision="ms",  # Higher precision because we see collisions within the same second
+                sep="@",
+            )
+
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(
@@ -566,34 +580,9 @@ class HTTPClient:
                 result = handle_response(
                     resp, output_type, error_str, log_formatter=self.log_formatter
                 )
-                # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
-                # slow, we can just set it explicitly.
-                from runhouse.resources.module import Module
-
-                if isinstance(result, Module):
-                    if (
-                        system
-                        and result.system
-                        and system.rns_address == result.system.rns_address
-                    ):
-                        result.system = system
-                elif output_type == OutputType.CONFIG:
-                    if (
-                        system
-                        and "system" in result
-                        and system.rns_address == result["system"]
-                    ):
-                        result["system"] = system
-                    result = Resource.from_config(result, dryrun=True)
+                result = self._process_call_result(result, system, output_type)
 
             end = time.time()
-
-            if (
-                hasattr(result, "system")
-                and system is not None
-                and result.system.rns_address == system.rns_address
-            ):
-                result.system = system
 
             if method_name:
                 log_str = (
