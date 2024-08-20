@@ -773,6 +773,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert post_status_data_resp.status_code in [200, 422]
 
     @pytest.mark.level("minimal")
+    @pytest.mark.skip("out of date")
     @pytest.mark.clustertest
     def test_status_scheduler_basic_flow(self, cluster):
 

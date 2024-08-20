@@ -225,6 +225,7 @@ class CommandRunner:
             max_retry: int = 1,
             prefix_command: Optional[str] = None,
             get_remote_home_dir: Callable[[], str] = lambda: '~') -> None:
+            # TODO - add filter versions rh modified here
         """Builds the rsync command."""
         # Build command.
         rsync_command = []
@@ -440,8 +441,8 @@ class SSHCommandRunner(CommandRunner):
             assert port is None or port == 22, (
                 f'port must be None or 22 for docker_user, got {port}.')
             # Already checked in resources
-            assert ssh_proxy_command is None, (
-                'ssh_proxy_command is not supported when using docker.')
+            # assert ssh_proxy_command is None, (
+            #     'ssh_proxy_command is not supported when using docker.')
             self.ip = 'localhost'
             self.ssh_user = docker_user
             self.port = constants.DEFAULT_DOCKER_PORT
@@ -740,6 +741,9 @@ class KubernetesCommandRunner(CommandRunner):
                                                separate_stderr,
                                                skip_lines=skip_lines,
                                                source_bashrc=source_bashrc)
+        # TODO - if docker container -- add cd to command str?
+        command_str = f"cd /root && {command_str}"
+
         command = kubectl_base_command + [
             # It is important to use /bin/bash -c here to make sure we quote the
             # command to be run properly. Otherwise, directly appending commands

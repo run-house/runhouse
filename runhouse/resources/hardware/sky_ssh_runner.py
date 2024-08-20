@@ -47,6 +47,9 @@ def is_port_in_use(port: int) -> bool:
 
 def get_docker_user(cluster: "Cluster", ssh_creds: Dict) -> str:
     """Find docker container username."""
+    if hasattr(cluster, "_cloud") and cluster._cloud == "kubernetes":
+        return "root"
+
     runner = SkySSHRunner(
         node=(cluster.address, cluster.ssh_port),
         ssh_user=ssh_creds.get("ssh_user", None),
@@ -437,11 +440,18 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
     def __init__(
         self,
         node: Tuple[str, str],
+        docker_user: str = None,
+        local_bind_port: Optional[int] = None,  # RH MODIFIED
         **kwargs,
     ):
         del kwargs
         super().__init__(node)
         self.namespace, self.pod_name = node
+        self.docker_user = docker_user
+
+        self.tunnel_proc = None
+        self.local_bind_port = local_bind_port
+        self.remote_bind_port = None
 
     def run(
         self,
@@ -494,7 +504,7 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
         """
         # TODO(zhwu): implement port_forward for k8s.
         assert port_forward is None, (
-            "port_forward is not supported for k8s " f"for now, but got: {port_forward}"
+            f"port_forward is not supported for k8s for now, but got: {port_forward}"
         )
         if connect_timeout is None:
             connect_timeout = _DEFAULT_CONNECT_TIMEOUT
@@ -505,12 +515,16 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
             self.namespace,
             self.pod_name,
         ]
-        if ssh_mode == SshMode.LOGIN:
-            assert isinstance(cmd, list), "cmd must be a list for login mode."
-            base_cmd = ["kubectl", "exec", "-it", *kubectl_args, "--"]
-            command = base_cmd + cmd
-            proc = subprocess_utils.run(command, shell=False, check=False)
-            return proc.returncode, "", ""
+        # RH MODIFIED
+        assert ssh_mode is not SshMode.LOGIN, (
+            "ssh mode login is not yet supported for k8s"
+        )
+        # if ssh_mode == SshMode.LOGIN:
+        #     assert isinstance(cmd, list), "cmd must be a list for login mode."
+        #     base_cmd = ["kubectl", "exec", "-it", *kubectl_args, "--"]
+        #     command = base_cmd + cmd
+        #     proc = subprocess_utils.run(command, shell=False, check=False)
+        #     return proc.returncode, "", ""
 
         kubectl_base_command = ["kubectl", "exec"]
 
@@ -525,6 +539,11 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
             skip_lines=skip_lines,
             source_bashrc=source_bashrc,
         )
+
+        # RH MODIFIED
+        if self.docker_user:
+            command_str = f"cd /{self.docker_user} && {command_str}"
+
         command = kubectl_base_command + [
             # It is important to use /bin/bash -c here to make sure we quote the
             # command to be run properly. Otherwise, directly appending commands
@@ -564,6 +583,38 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
             executable=executable,
             **kwargs,
         )
+    
+    def tunnel(self, local_port, remote_port, ssh_private_key, ssh_user):
+        from runhouse.resources.hardware.sky.kubernetes_utils import get_ssh_proxy_command, KubernetesNetworkingMode
+        
+        command = get_ssh_proxy_command(
+           k8s_ssh_target=self.pod_name,
+           network_mode=KubernetesNetworkingMode.PORTFORWARD,
+           private_key_path=ssh_private_key,
+           ssh_user=ssh_user,
+        )
+        # command = " ".join(base_cmd)
+        logger.info(f"Running forwarding command: {command}")
+        proc = subprocess.Popen(
+            shlex.split(command),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        # Wait until tunnel is formed by trying to create a socket in a loop
+
+        start_time = time.time()
+        while not is_port_in_use(local_port):
+            time.sleep(0.1)
+            if time.time() - start_time > TUNNEL_TIMEOUT:
+                raise ConnectionError(
+                    f"Failed to create tunnel from {local_port} to {remote_port} on {self.pod_name}"
+                )
+
+        # Set the tunnel process and ports to be cleaned up later
+        self.tunnel_proc = proc
+        self.local_bind_port = local_port
+        self.remote_bind_port = remote_port
 
     # @timeline.event
     def rsync(
@@ -573,6 +624,7 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
         *,
         up: bool,
         # Advanced options.
+        filter_options: Optional[str] = None,  # RH MODIFIED  # TODO
         log_path: str = os.devnull,
         stream_logs: bool = True,
         max_retry: int = 1,
@@ -650,6 +702,40 @@ def cache_existing_sky_ssh_runner(
     address: str, ssh_port: int, runner: SkySSHRunner
 ) -> None:
     sky_ssh_runner_cache[(address, ssh_port)] = runner
+
+
+def kube_tunnel(
+    namespace: str,
+    pod_name: str,
+    ssh_creds: Dict,
+    local_port: int,
+    remote_port: Optional[int] = None,
+    # num_ports_to_try: int = 0,
+) -> SkyKubernetesRunner:
+    remote_port = remote_port or local_port
+
+    tunnel = get_existing_sky_ssh_runner(namespace, pod_name)
+    if tunnel and tunnel.remote_bind_port == remote_port:
+        logger.info(f"Kube port forwarded to server's port {remote_port} already created with the cluster.")
+
+        return tunnel
+
+    runner = SkyKubernetesRunner(
+        node=(namespace, pod_name),
+    )
+    runner.tunnel(
+        local_port=local_port,
+        remote_port=remote_port,
+        ssh_private_key=ssh_creds.get("ssh_private_key"),
+        ssh_user=ssh_creds.get("ssh_user"),
+    )
+    
+    logger.debug(
+        f"Successfully bound {LOCALHOST}:{remote_port}"
+    )
+
+    cache_existing_sky_ssh_runner(namespace, pod_name, runner)
+    return runner
 
 
 def ssh_tunnel(

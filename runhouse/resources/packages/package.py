@@ -251,8 +251,11 @@ class Package(Resource):
         if self.install_method == "pip":
             install_cmd = self._pip_install_cmd(env=env, cluster=cluster)
             logger.info(f"Running via install_method pip: {install_cmd}")
-            retcode = run_setup_command(install_cmd, cluster=cluster)[0]
+            result = run_setup_command(install_cmd, cluster=cluster)
+            retcode = result[0]
             if retcode != 0:
+                logger.info(f"result: {result}")
+
                 raise RuntimeError(
                     f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
                 )

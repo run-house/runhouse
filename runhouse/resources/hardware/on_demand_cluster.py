@@ -111,6 +111,9 @@ class OnDemandCluster(Cluster):
             # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
             self._update_from_sky_status(dryrun=False)
 
+        if not hasattr(self, "_cloud"):
+            self._cloud = None
+
     @property
     def client(self):
         try:
@@ -154,7 +157,6 @@ class OnDemandCluster(Cluster):
         if (
             not self.image_id
             or "docker:" not in self.image_id
-            or self.provider == "kubernetes"
         ):
             return None
 
@@ -301,7 +303,9 @@ class OnDemandCluster(Cluster):
         """
         if self.on_this_cluster():
             return True
-        return self._ping(retry=True)
+
+        timeout = 10 if (hasattr(self, "_cloud") and self._cloud == "kubernetes") else 5
+        return self._ping(timeout=timeout, retry=True)
 
     def _sky_status(self, refresh: bool = True, retry: bool = True):
         """
@@ -656,7 +660,7 @@ class OnDemandCluster(Cluster):
             >>> rh.ondemand_cluster("rh-cpu").ssh()
             >>> rh.ondemand_cluster("rh-cpu", node="3.89.174.234").ssh()
         """
-        if self.provider == "kubernetes":
+        if self._cloud == "kubernetes":
             command = f"kubectl get pods | grep {self.name}"
 
             try:
