@@ -188,7 +188,7 @@ class Env(Resource):
     def _run_command(self, command: str, **kwargs):
         """Run command locally inside the environment"""
         command = self._full_command(command)
-        logging.info(f"Running command in {self.name}: {command}")
+        logger.info(f"Running command in {self.name}: {command}")
         return run_with_logs(command, **kwargs)
 
     def to(

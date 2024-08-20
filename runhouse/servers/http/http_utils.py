@@ -35,9 +35,9 @@ class ServerSettings(BaseModel):
 
 
 class CallParams(BaseModel):
+    run_name: str
     data: Any = None
     serialization: Optional[str] = "none"
-    run_name: Optional[str] = None
     stream_logs: Optional[bool] = False
     save: Optional[bool] = False
     remote: Optional[bool] = False

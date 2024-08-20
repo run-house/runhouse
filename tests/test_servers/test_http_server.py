@@ -137,6 +137,7 @@ class TestHTTPServerDocker:
                 "data": serialize_data(data, "pickle"),
                 "stream_logs": True,
                 "serialization": "pickle",
+                "run_name": "test_call_module_method",
             },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
@@ -163,6 +164,7 @@ class TestHTTPServerDocker:
             params={
                 "a": 1,
                 "b": 2,
+                "run_name": "test_call_module_method_get_call",
             },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
@@ -192,6 +194,7 @@ class TestHTTPServerDocker:
                 "data": serialize_data(data, "pickle"),
                 "stream_logs": True,
                 "serialization": "pickle",
+                "run_name": "test_log_streaming_call",
             },
             headers=rns_client.request_headers(clus.rns_address),
         ) as r:
@@ -447,6 +450,7 @@ class TestHTTPServerDocker:
                     "kwargs": {},
                 },
                 "serialization": None,
+                "run_name": "test_async_call",
             },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
@@ -468,6 +472,7 @@ class TestHTTPServerDocker:
                     "kwargs": {},
                 },
                 "serialization": "random",
+                "run_name": "test_async_call_with_invalid_serialization",
             },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
@@ -492,6 +497,7 @@ class TestHTTPServerDocker:
                     "pickle",
                 ),
                 "serialization": "pickle",
+                "run_name": "test_async_call_with_pickle_serialization",
             },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
@@ -518,6 +524,7 @@ class TestHTTPServerDocker:
                     }
                 ),
                 "serialization": "json",
+                "run_name": "test_async_call_with_json_serialization",
             },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
@@ -661,6 +668,7 @@ class TestHTTPServerDockerDenAuthOnly:
                 "data": {"args": args, "kwargs": kwargs},
                 "stream_logs": False,
                 "serialization": None,
+                "run_name": "test_call_module_method_with_invalid_token",
             },
             headers=INVALID_HEADERS,
         )
