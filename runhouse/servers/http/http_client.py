@@ -12,8 +12,7 @@ import httpx
 import requests
 
 from runhouse.globals import rns_client
-
-from runhouse.logger import ClusterLogsFormatter, logger
+from runhouse.logger import get_logger
 
 from runhouse.resources.envs.utils import _get_env_from
 
@@ -36,12 +35,14 @@ from runhouse.servers.http.http_utils import (
     serialize_data,
 )
 
-from runhouse.utils import generate_default_name
+from runhouse.utils import ClusterLogsFormatter, generate_default_name
 
 
 # Make this global so connections are pooled across instances of HTTPClient
 session = requests.Session()
 session.timeout = None
+
+logger = get_logger(name=__name__)
 
 
 def retry_with_exponential_backoff(func):

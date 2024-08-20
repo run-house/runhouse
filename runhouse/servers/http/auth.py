@@ -1,9 +1,11 @@
 from typing import Optional, Union
 
 from runhouse.globals import rns_client
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.rns.utils.api import load_resp_content, ResourceAccess
 from runhouse.servers.http.http_utils import username_from_token
+
+logger = get_logger(name=__name__)
 
 
 class AuthCache:

@@ -9,12 +9,14 @@ import pytest_asyncio
 import runhouse as rh
 
 from runhouse.globals import rns_client
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_server import app, HTTPServer
 
 from tests.utils import friend_account, get_ray_servlet_and_obj_store
+
+logger = get_logger(name=__name__)
 
 # -------- HELPERS ----------- #
 def summer(a, b):

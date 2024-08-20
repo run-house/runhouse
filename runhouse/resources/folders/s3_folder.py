@@ -5,13 +5,15 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 
 from .folder import Folder
 
 MAX_POLLS = 120000
 POLL_INTERVAL = 1
 TIMEOUT_SECONDS = 3600
+
+logger = get_logger(name=__name__)
 
 
 class S3Folder(Folder):

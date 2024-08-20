@@ -7,12 +7,14 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 from runhouse.globals import rns_client
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
 from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import generate_uuid, relative_file_path
 from runhouse.utils import locate_working_dir
+
+logger = get_logger(name=__name__)
 
 
 class Folder(Resource):

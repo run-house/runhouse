@@ -1,18 +1,19 @@
 import copy
-import logging
 import os
 import shlex
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.globals import obj_store
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
 from runhouse.resources.envs.utils import _process_env_vars, run_setup_command
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import InstallTarget, Package
 from runhouse.resources.resource import Resource
 from runhouse.utils import run_with_logs
+
+logger = get_logger(name=__name__)
 
 
 class Env(Resource):
