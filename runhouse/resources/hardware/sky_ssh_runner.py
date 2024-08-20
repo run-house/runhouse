@@ -183,7 +183,7 @@ class SkySSHRunner(SSHCommandRunner):
             base_ssh_command.append("-q")
 
         if self.docker_user:  # RH MODIFIED
-            cmd = " ".join(cmd)
+            cmd = " ".join(cmd) if isinstance(cmd, list) else cmd
             cmd = f"conda deactivate && {cmd}"
 
         command_str = self._get_command_to_run(
@@ -428,7 +428,7 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
         kubectl_base_command += [*kubectl_args, "--"]
 
         if self.docker_user:  # RH MODIFIED
-            cmd = " ".join(cmd)
+            cmd = " ".join(cmd) if isinstance(cmd, list) else cmd
             cmd = f"conda deactivate && {cmd}"
 
         command_str = self._get_command_to_run(
@@ -438,9 +438,6 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
             skip_lines=skip_lines,
             source_bashrc=source_bashrc,
         )
-        # RH MODIFIED
-        if self.docker_user:
-            command_str = f"cd /{self.docker_user} && {command_str}"
         command = kubectl_base_command + [
             # It is important to use /bin/bash -c here to make sure we quote the
             # command to be run properly. Otherwise, directly appending commands

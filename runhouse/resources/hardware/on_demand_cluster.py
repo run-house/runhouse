@@ -156,7 +156,9 @@ class OnDemandCluster(Cluster):
             return None
 
         if self.launched_properties["cloud"] == "kubernetes":
-            return "root"
+            return self.launched_properties.get(
+                "docker_user", self.launched_properties.get("ssh_user", "root")
+            )
 
         from runhouse.resources.hardware.sky_ssh_runner import get_docker_user
 

@@ -175,8 +175,12 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         cluster.address = None
         assert not cluster._ping(retry=False)
 
-        cluster.address = "00.00.000.11"
-        assert not cluster._ping(retry=False)
+        if not (
+            hasattr(cluster, "launched_properties")
+            and cluster.launched_properties["cloud"] == "kubernetes"
+        ):  # kubernetes does not use ips in command runner
+            cluster.address = "00.00.000.11"
+            assert not cluster._ping(retry=False)
 
         assert cluster._ping(retry=True)
         assert cluster.is_up()

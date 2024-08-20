@@ -451,14 +451,12 @@ class Cluster(Resource):
             ssh_control_name = ssh_credentials.pop(
                 "ssh_control_name", f"{node}:{self.ssh_port}"
             )
-            ssh_private_key = ssh_credentials.pop(
-                "ssh_private_key", ssh_credentials.pop("private_key", None)
-            )
 
             runner = SkySSHRunner(
                 (node, self.ssh_port),
-                ssh_private_key=ssh_private_key,
-                **ssh_credentials,
+                ssh_user=ssh_credentials.get("ssh_user"),
+                ssh_private_key=ssh_credentials.get("ssh_private_key"),
+                ssh_proxy_command=ssh_credentials.get("ssh_proxy_command"),
                 ssh_control_name=ssh_control_name,
                 docker_user=self.docker_user,
             )

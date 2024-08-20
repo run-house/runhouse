@@ -13,6 +13,7 @@ import ray
 import requests
 
 import typer
+import yaml
 from rich.console import Console
 
 import runhouse as rh
@@ -154,12 +155,28 @@ def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluste
             raise typer.Exit(1)
 
         resource_handle = state[0].get("handle", {})
+
+        sky_ssh_config = Path(f"~/.sky/generated/{cluster_name}.yml").expanduser()
+
+        if sky_ssh_config.exists():
+            with open(sky_ssh_config, "r", encoding="utf-8") as f:
+                ssh_config = yaml.safe_load(f)
+            ssh_proxy_command = ssh_config["auth"].get("ssh_proxy_command", None)
+            if ssh_proxy_command:
+                ssh_proxy_command = ssh_proxy_command.replace(
+                    "skypilot:ssh_user", resource_handle.ssh_user
+                )
+
+        else:
+            ssh_proxy_command = None
+
         _run_ssh_command(
             address=resource_handle.head_ip,
             ssh_user=resource_handle.ssh_user or "ubuntu",
             ssh_port=resource_handle.stable_ssh_ports[0] or DEFAULT_SSH_PORT,
             ssh_private_key=OnDemandCluster.DEFAULT_KEYFILE,
             docker_user=resource_handle.docker_user,
+            ssh_proxy_command=ssh_proxy_command,
         )
 
 
