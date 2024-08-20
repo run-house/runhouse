@@ -75,6 +75,7 @@ class SshTunnel:
         self.tunnel_proc = None
 
     def tunnel(self, local_port, remote_port):
+        # TODO - modifications needed for k8s docker command to work
         base_cmd = _ssh_base_command(
             address=self.ip,
             ssh_user=self.ssh_user,
@@ -87,6 +88,7 @@ class SshTunnel:
             ssh_mode=SshMode.NON_INTERACTIVE,
             port_forward=[(local_port, remote_port)],
         )
+
         command = " ".join(base_cmd)
         logger.info(f"Running forwarding command: {command}")
         proc = subprocess.Popen(

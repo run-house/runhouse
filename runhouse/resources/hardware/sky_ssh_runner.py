@@ -69,7 +69,6 @@ class SkySSHRunner(SSHCommandRunner):
         ssh_private_key: Optional[str] = None,
         ssh_control_name: Optional[str] = "__default__",
         ssh_proxy_command: Optional[str] = None,
-        port: int = 22,
         docker_user: Optional[str] = None,
         disable_control_master: Optional[bool] = False,
         local_bind_port: Optional[int] = None,
@@ -350,11 +349,13 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
     def __init__(
         self,
         node: Tuple[str, str],
+        docker_user: Optional[str] = None,
         **kwargs,
     ):
         del kwargs
         super().__init__(node)
         self.namespace, self.pod_name = node
+        self.docker_user = docker_user
 
     def run(
         self,
@@ -373,6 +374,7 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
         source_bashrc: bool = True,  # RH MODIFIED
         skip_lines: int = 0,
         return_cmd: bool = False,  # RH MODIFIED
+        quiet_ssh: bool = None,  # RH MODIFIED
         **kwargs,
     ) -> Union[int, Tuple[int, str, str]]:
         """Uses 'kubectl exec' to run 'cmd' on a pod by its name and namespace.
@@ -436,6 +438,9 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
             skip_lines=skip_lines,
             source_bashrc=source_bashrc,
         )
+        # RH MODIFIED
+        if self.docker_user:
+            command_str = f"cd /{self.docker_user} && {command_str}"
         command = kubectl_base_command + [
             # It is important to use /bin/bash -c here to make sure we quote the
             # command to be run properly. Otherwise, directly appending commands
@@ -487,6 +492,7 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
         log_path: str = os.devnull,
         stream_logs: bool = True,
         max_retry: int = 1,
+        filter_options: bool = False,  # RH MODIFIED  # TODO
         return_cmd: bool = False,  # RH MODIFIED  # TODO
     ) -> None:
         """Uses 'rsync' to sync 'source' to 'target'.

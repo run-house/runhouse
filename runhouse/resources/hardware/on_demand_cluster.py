@@ -152,12 +152,11 @@ class OnDemandCluster(Cluster):
 
         # TODO detect whether this is a k8s cluster properly, and handle the user setting / SSH properly
         #  (e.g. SkyPilot's new KubernetesCommandRunner)
-        if (
-            not self.image_id
-            or "docker:" not in self.image_id
-            or self.provider == "kubernetes"
-        ):
+        if not self.image_id or "docker:" not in self.image_id:
             return None
+
+        if self.launched_properties["cloud"] == "kubernetes":
+            return "root"
 
         from runhouse.resources.hardware.sky_ssh_runner import get_docker_user
 
@@ -393,7 +392,9 @@ class OnDemandCluster(Cluster):
                 )
             yaml_path = handle.cluster_yaml
             if Path(yaml_path).exists():
-                ssh_values = backend_utils.ssh_credential_from_yaml(yaml_path)
+                ssh_values = backend_utils.ssh_credential_from_yaml(
+                    yaml_path, ssh_user=handle.ssh_user
+                )
                 if not self.creds_values:
                     from runhouse.resources.secrets.utils import setup_cluster_creds
 
@@ -417,6 +418,20 @@ class OnDemandCluster(Cluster):
                 self.launched_properties["ssh_user"] = handle.ssh_user
             if handle.docker_user:
                 self.launched_properties["docker_user"] = handle.docker_user
+            if cloud == "kubernetes":
+                try:
+                    import kubernetes
+
+                    _, context = kubernetes.config.list_kube_config_contexts()
+                    if "namespace" in context["context"]:
+                        namespace = context["context"]["namespace"]
+                    else:
+                        namespace = "default"
+                except:
+                    namespace = "default"
+                pod_name = f"{handle.cluster_name_on_cloud}-head"
+                self.launched_properties["namespace"] = namespace
+                self.launched_properties["pod_name"] = pod_name
         else:
             self.address = None
             self._creds = None
@@ -649,9 +664,8 @@ class OnDemandCluster(Cluster):
 
         else:
             # If SSHing onto a specific node, which requires the default sky public key for verification
-            from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
+            from runhouse.resources.hardware.sky_ssh_runner import SshMode
 
-            ssh_user = self.creds_values.get("ssh_user")
             sky_key = Path(
                 self.creds_values.get("ssh_private_key", self.DEFAULT_KEYFILE)
             ).expanduser()
@@ -659,12 +673,7 @@ class OnDemandCluster(Cluster):
             if not sky_key.exists():
                 raise FileNotFoundError(f"Expected default sky key in path: {sky_key}")
 
-            runner = SkySSHRunner(
-                (node or self.address, self.ssh_port),
-                ssh_user=ssh_user,
-                ssh_private_key=str(sky_key),
-                docker_user=self.docker_user,
-            )
+            runner = self._command_runner(node=node)
             cmd = runner.run(
                 cmd="bash --rcfile <(echo '. ~/.bashrc; conda deactivate')",
                 ssh_mode=SshMode.INTERACTIVE,

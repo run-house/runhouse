@@ -151,7 +151,7 @@ def run_setup_command(
         cmd = cluster.default_env._full_command(cmd)
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
 
-    return cluster._run_commands_with_ssh(
+    return cluster._run_commands_with_runner(
         [cmd], stream_logs=stream_logs, env_vars=env_vars
     )[0]
 
