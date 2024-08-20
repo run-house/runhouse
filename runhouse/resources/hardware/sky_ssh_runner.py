@@ -344,7 +344,6 @@ class SkySSHRunner(SSHCommandRunner):
         subprocess_utils.handle_returncode(
             returncode, command, error_msg, stderr=stderr, stream_logs=stream_logs
         )
-<<<<<<< HEAD
 
 
 class SkyKubernetesRunner(KubernetesCommandRunner):
@@ -538,5 +537,3 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
             # only need to do this when ~ is at the beginning of the path.
             get_remote_home_dir=get_remote_home_dir,
         )
-=======
->>>>>>> 145803b1 (Create separate ssh tunnel class)
