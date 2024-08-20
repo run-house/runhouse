@@ -65,7 +65,7 @@ from runhouse.servers.obj_store import (
     ObjStoreError,
     RaySetupOption,
 )
-from runhouse.utils import generate_default_name, sync_function
+from runhouse.utils import sync_function
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -319,11 +319,8 @@ class HTTPServer:
         params = params or CallParams()
 
         try:
-            params.run_name = params.run_name or generate_default_name(
-                prefix=key if method_name == "__call__" else f"{key}_{method_name}",
-                precision="ms",  # Higher precision because we see collisions within the same second
-                sep="@",
-            )
+            if not params.run_name:
+                raise ValueError("run_name is required for all calls.")
             # Call async so we can loop to collect logs until the result is ready
 
             fut = asyncio.create_task(
