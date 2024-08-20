@@ -246,10 +246,11 @@ def run_command_with_password_login(
 ####################################################################################################
 
 
-def _thread_coroutine(coroutine, context):
+def thread_coroutine(coroutine, context=None):
     # Copy contextvars from the parent thread to the new thread
-    for var, value in context.items():
-        var.set(value)
+    if context is not None:
+        for var, value in context.items():
+            var.set(value)
 
     # Technically, event loop logic is not threadsafe. However, this event loop is only in this thread.
     loop = asyncio.new_event_loop()
@@ -272,7 +273,7 @@ def sync_function(coroutine_func):
         # and the resources are cleaned up
         with ThreadPoolExecutor() as executor:
             future = executor.submit(
-                _thread_coroutine,
+                thread_coroutine,
                 coroutine_func(*args, **kwargs),
                 contextvars.copy_context(),
             )
