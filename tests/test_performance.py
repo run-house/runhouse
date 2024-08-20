@@ -3,8 +3,9 @@ import time
 import requests
 
 from runhouse.globals import rns_client
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
+logger = get_logger(name=__name__)
 
 
 def profile(func, reps=10):

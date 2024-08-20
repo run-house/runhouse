@@ -2,11 +2,13 @@ import re
 from pathlib import Path
 from typing import Callable, List, Optional, Union
 
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 
 from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.functions.function import Function
 from runhouse.resources.packages import git_package
+
+logger = get_logger(name=__name__)
 
 
 def function(

@@ -27,7 +27,7 @@ from runhouse.constants import (
     RH_LOGFILE_PATH,
 )
 from runhouse.globals import configs, obj_store, rns_client
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.rns.utils.api import resolve_absolute_path, ResourceAccess
 from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import averify_cluster_access
@@ -68,6 +68,8 @@ from runhouse.servers.obj_store import (
 from runhouse.utils import generate_default_name, sync_function
 
 app = FastAPI(docs_url=None, redoc_url=None)
+
+logger = get_logger(name=__name__)
 
 
 def validate_cluster_access(func):

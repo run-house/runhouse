@@ -17,15 +17,15 @@ except ImportError:
     pass
 
 from runhouse.globals import rns_client
-
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.resources.envs import _get_env_from, Env
-
 from runhouse.resources.functions.function import Function
 
 
 CRED_PATH = f"{Path.home()}/.aws/credentials"
 LOG_GROUP_PREFIX = "/aws/lambda/"
+
+logger = get_logger(name=__name__)
 
 
 class LambdaFunction(Function):

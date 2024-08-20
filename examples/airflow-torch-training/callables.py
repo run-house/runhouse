@@ -1,11 +1,10 @@
-import logging
-
 import runhouse as rh
+from runhouse.logger import get_logger
 
 from torch_example_for_airflow import DownloadData, SimpleTrainer
 
-# Configure logging
-logger = logging.getLogger(__name__)
+
+logger = get_logger(name=__name__)
 
 
 def bring_up_cluster_callable(**kwargs):

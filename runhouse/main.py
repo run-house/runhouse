@@ -34,17 +34,20 @@ from runhouse.constants import (
     START_SCREEN_CMD,
 )
 from runhouse.globals import obj_store, rns_client
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.resources.hardware.ray_utils import (
     check_for_existing_ray_instance,
     kill_actors,
 )
+
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
 
 # For printing with typer
 console = Console()
+
+logger = get_logger(name=__name__)
 
 
 @app.command()

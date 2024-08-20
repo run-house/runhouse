@@ -13,9 +13,9 @@ import pytest
 import runhouse as rh
 from runhouse import Package
 from runhouse.constants import TEST_ORG
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
-
+logger = get_logger(name=__name__)
 
 """ Tests for runhouse.Module. Structure:
     - Test call_module_method rpc, with various envs

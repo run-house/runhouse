@@ -26,11 +26,12 @@ from runhouse.constants import (
 )
 
 from runhouse.globals import configs, obj_store, rns_client
-
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import ResourceServerStatus, ServerConnectionType
 
 from .cluster import Cluster
+
+logger = get_logger(name=__name__)
 
 
 class OnDemandCluster(Cluster):

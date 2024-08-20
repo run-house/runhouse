@@ -7,10 +7,11 @@ import requests
 
 import runhouse as rh
 from runhouse.globals import rns_client
-
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 
 from tests.utils import friend_account
+
+logger = get_logger(name=__name__)
 
 
 def get_remote_func_name(test_folder):
