@@ -24,8 +24,7 @@ Alternatively, to see logs on your local machine while running a remote function
 Log Levels
 ----------
 You can set the log level to control the verbosity of the Runhouse logs. You can adjust the log level by
-setting the environment variable ``RH_LOG_LEVEL`` to your desired level, or by setting the `rh_log_level` field
-in your local `~/.rh/config.yaml`.
+setting the environment variable ``RH_LOG_LEVEL`` to your desired level.
 
 Debugging
 ~~~~~~~~~

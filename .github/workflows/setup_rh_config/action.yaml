@@ -15,10 +15,6 @@ inputs:
     description: 'The den api server to send the requests to'
     required: true
 
-  rh_log_level:
-    description: 'Cluster log level'
-    required: true
-
 runs:
   using: composite
   steps:
@@ -31,4 +27,3 @@ runs:
         echo "token: ${{ inputs.token }}" >> ~/.rh/config.yaml
         echo "username: ${{ inputs.username }}" >> ~/.rh/config.yaml
         echo "api_server_url: ${{ inputs.api_server_url }}" >> ~/.rh/config.yaml
-        echo "rh_log_level: ${{ inputs.rh_log_level }}" >> ~/.rh/config.yaml

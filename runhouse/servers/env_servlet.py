@@ -69,15 +69,10 @@ class EnvServlet:
     async def __init__(self, env_name: str, *args, **kwargs):
         self.env_name = env_name
 
-        log_level = kwargs.get("log_level")
-        if log_level:
-            logger.setLevel(log_level)
-
         await obj_store.ainitialize(
             self.env_name,
             has_local_storage=True,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
-            log_level=log_level,
         )
 
         # Ray defaults to setting OMP_NUM_THREADS to 1, which unexpectedly limit parallelism in user programs.

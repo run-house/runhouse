@@ -5,7 +5,6 @@ on:
 
 env:
   API_SERVER_URL: https://api-dev.run.house
-  RH_LOG_LEVEL: "INFO"
 
 jobs:
   # TODO: THESE ARE ONLY SEPARATE JOBS BECAUSE THERE ARE
@@ -41,7 +40,7 @@ jobs:
           username: ${{ secrets.CI_ACCOUNT_USERNAME }}
           token: ${{ secrets.CI_ACCOUNT_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
-          rh_log_level: ${{ env.RH_LOG_LEVEL }}
+
 
       - name: pytest -v --level local tests/test_servers/
         env:
@@ -80,7 +79,6 @@ jobs:
           username: ${{ secrets.CI_ACCOUNT_USERNAME }}
           token: ${{ secrets.CI_ACCOUNT_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
-          rh_log_level: ${{ env.RH_LOG_LEVEL }}
 
       - name: pytest -v --level local -k "not servertest and not secrettest and not moduletest and not functiontest and not envtest"
         env:
@@ -121,7 +119,6 @@ jobs:
           username: ${{ secrets.CI_ACCOUNT_USERNAME }}
           token: ${{ secrets.CI_ACCOUNT_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
-          rh_log_level: ${{ env.RH_LOG_LEVEL }}
 
       - name: pytest -v --level local -k "secrettest"
         env:
@@ -147,7 +144,6 @@ jobs:
           username: ${{ secrets.CI_ACCOUNT_USERNAME }}
           token: ${{ secrets.CI_ACCOUNT_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
-          rh_log_level: ${{ env.RH_LOG_LEVEL }}
 
       - name: pytest -v --level local -k "moduletest"
         env:
@@ -173,7 +169,6 @@ jobs:
           username: ${{ secrets.CI_ACCOUNT_USERNAME }}
           token: ${{ secrets.CI_ACCOUNT_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
-          rh_log_level: ${{ env.RH_LOG_LEVEL }}
 
       - name: pytest -v --level local -k "functiontest"
         env:
@@ -199,7 +194,6 @@ jobs:
           username: ${{ secrets.CI_ACCOUNT_USERNAME }}
           token: ${{ secrets.CI_ACCOUNT_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
-          rh_log_level: ${{ env.RH_LOG_LEVEL }}
 
       - name: pytest -v --level local -k "envtest"
         env:

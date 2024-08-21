@@ -92,7 +92,6 @@ async def get_local_cluster_object():
         await obj_store.ainitialize(
             servlet_name=servlet_name,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
-            log_level=rns_client.log_level,
         )
     except ConnectionError:
         return "file"

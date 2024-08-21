@@ -52,10 +52,6 @@ class ClusterServlet:
         self._auth_cache: AuthCache = AuthCache(cluster_config)
         self.autostop_helper = None
 
-        log_level = kwargs.get("log_level")
-        if log_level:
-            logger.setLevel(log_level)
-
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
             self.autostop_helper = AutostopHelper()
 

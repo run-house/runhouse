@@ -538,7 +538,6 @@ def _start_server(
     default_env_name=None,
     conda_env=None,
     from_python=None,
-    log_level=None,
 ):
     ############################################
     # Build CLI commands to start the server
@@ -627,7 +626,6 @@ def _start_server(
         flags.append(conda_env_flag)
 
     flags.append(" --from-python" if from_python else "")
-    flags.append(f" --log-level {log_level}" if log_level else "")
 
     # Check if screen or nohup are available
     screen = screen and _check_if_command_exists("screen")
@@ -745,10 +743,6 @@ def start(
     conda_env: str = typer.Option(
         None, help="Name of conda env corresponding to default env if it is a CondaEnv."
     ),
-    log_level: Optional[str] = typer.Option(
-        default=None,
-        help="Log level for the server",
-    ),
 ):
     """Start the HTTP or HTTPS server on the cluster."""
     _start_server(
@@ -766,7 +760,6 @@ def start(
         certs_address=certs_address,
         default_env_name=default_env_name,
         conda_env=conda_env,
-        log_level=log_level,
     )
 
 
@@ -833,10 +826,6 @@ def restart(
         False,
         help="Whether HTTP server started from inside a Python call rather than CLI.",
     ),
-    log_level: Optional[str] = typer.Option(
-        default=None,
-        help="Log level for the server",
-    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
@@ -864,7 +853,6 @@ def restart(
         default_env_name=default_env_name,
         conda_env=conda_env,
         from_python=from_python,
-        log_level=log_level,
     )
 
 

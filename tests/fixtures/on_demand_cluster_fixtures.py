@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -85,7 +86,11 @@ def ondemand_gcp_cluster(request):
     """
     Note: Also used to test conda default env.
     """
-    env_vars = {"var1": "val1", "var2": "val2"}
+    env_vars = {
+        "var1": "val1",
+        "var2": "val2",
+        "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL", "INFO"),
+    }
     default_env = rh.conda_env(
         name="default_env",
         reqs=test_env().reqs + ["ray==2.30.0"],

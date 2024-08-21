@@ -106,12 +106,6 @@ class RNSClient:
             return url_as_env_var
         return self._configs.get("api_server_url", None)
 
-    @property
-    def log_level(self):
-        log_level = os.getenv("RH_LOG_LEVEL", self._configs.get("rh_log_level", None))
-        if log_level:
-            return log_level.upper()
-
     def _index_base_folders(self, lst):
         self.rns_base_folders = {}
         for folder in lst:

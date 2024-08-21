@@ -11,9 +11,6 @@ on:
         required: false # Allow empty for cases where the release event provides the tag
         default: ''
 
-env:
-  RH_LOG_LEVEL: "INFO"
-
 jobs:
   build-docs-for-tag:
     runs-on: ubuntu-latest

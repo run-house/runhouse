@@ -64,7 +64,6 @@ class Run(Resource):
         run_type: RunType = RunType.CMD_RUN,
         error: Optional[str] = None,
         error_traceback: Optional[str] = None,
-        log_level: Optional[str] = None,
         overwrite: bool = False,
         dryrun: bool = False,
         **kwargs,
@@ -113,7 +112,6 @@ class Run(Resource):
         self.downstream_artifacts = downstream_artifacts or []
         self.fn_name = fn_name
         self.cmds = cmds
-        self.log_level = log_level or "INFO"
         self.run_type = run_type or self._detect_run_type()
         self.error = error
         self.traceback = error_traceback
@@ -135,7 +133,6 @@ class Run(Resource):
 
             # Add the stdout and stderr handlers to the root logger
             self._stdout_handler = logging.StreamHandler(sys.stdout)
-            self._stdout_handler.setLevel(self.log_level)
             logger.addHandler(self._stdout_handler)
 
         return self

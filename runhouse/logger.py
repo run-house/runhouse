@@ -8,7 +8,6 @@ def get_logger(name: str = __name__):
 
     level = os.getenv("RH_LOG_LEVEL")
     if level:
-        # Set the logging level
         logger.setLevel(level.upper())
 
     # Check if the logger already has handlers, add a StreamHandler if not

@@ -2,9 +2,6 @@ name: cluster-tests
 
 on: workflow_dispatch
 
-env:
-  RH_LOG_LEVEL: "INFO"
-
 jobs:
   cluster-tests:
     runs-on: ubuntu-latest

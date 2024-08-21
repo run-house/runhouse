@@ -1,5 +1,6 @@
 import importlib
 import logging
+import os
 import shlex
 import subprocess
 import time
@@ -298,8 +299,6 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
     - Public key authentication
     - Caddy set up on startup to forward Runhouse HTTP server to port 443
     """
-    import os
-
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
@@ -355,8 +354,6 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
     - Nginx set up on startup to forward Runhouse HTTP server to port 443
     - Default env with Ray 2.30.0
     """
-    import os
-
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
@@ -379,6 +376,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
         ],
         working_dir=None,
         name="default_env",
+        env_vars={"RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL", "INFO")},
     )
 
     local_cluster, cleanup = set_up_local_cluster(
@@ -459,8 +457,6 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
     - Caddy set up on startup to forward Runhouse HTTP Server to port 80
     - Default conda_env with Python 3.11 and Ray 2.30.0
     """
-    import os
-
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
@@ -483,7 +479,10 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
             "numpy<=1.26.4",
         ],
         conda_env={"dependencies": ["python=3.11"], "name": "default_env"},
-        env_vars={"OMP_NUM_THREADS": "8"},
+        env_vars={
+            "OMP_NUM_THREADS": "8",
+            "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL", "INFO"),
+        },
         working_dir=None,
         name="default_env",
     )
@@ -530,8 +529,6 @@ def docker_cluster_pwd_ssh_no_auth(request, test_rns_folder):
     - No Den Auth
     - No caddy/port forwarding set up
     """
-    import os
-
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
@@ -579,8 +576,6 @@ def friend_account_logged_in_docker_cluster_pk_ssh(request, test_rns_folder):
     This fixture is not parameterized for every test; it is a separate cluster started with a test account
     (username: kitchen_tester) in order to test sharing resources with other users.
     """
-    import os
-
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")

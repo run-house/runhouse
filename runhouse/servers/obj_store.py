@@ -175,9 +175,6 @@ class ObjStore:
         if self.servlet_name is not None:
             return
 
-        if log_level:
-            logger.setLevel(log_level)
-
         from runhouse.resources.hardware.ray_utils import kill_actors
 
         # Only if ray is not initialized do we attempt a setup process.
@@ -1097,7 +1094,6 @@ class ObjStore:
         run_name: Optional[str] = None,
         stream_logs: bool = False,
         remote: bool = False,
-        log_level: str = None,
         **kwargs,
     ):
         """Base call functionality: Load the module, and call a method on it with args and kwargs. Nothing else.
@@ -1110,7 +1106,7 @@ class ObjStore:
 
         log_ctx = None
         if stream_logs and run_name is not None:
-            log_ctx = LogToFolder(name=run_name, log_level=log_level)
+            log_ctx = LogToFolder(name=run_name)
             log_ctx.__enter__()
 
         # Use a finally to track the active functions so that it is always removed
@@ -1135,7 +1131,6 @@ class ObjStore:
                 run_name=run_name,
                 stream_logs=stream_logs,
                 remote=remote,
-                log_level=log_level,
                 **kwargs,
             )
         finally:
@@ -1153,15 +1148,11 @@ class ObjStore:
         run_name: Optional[str] = None,
         stream_logs: bool = False,
         remote: bool = False,
-        log_level: str = None,
         **kwargs,
     ):
         """acall_local primarily sets up the logging and tracking for the function call, then calls
         _acall_local_helper to actually do the work. This is so we can have a finally block in acall_local to clean up
         the active function calls tracking."""
-        if log_level:
-            logger.setLevel(log_level)
-
         obj = self.get_local(key, default=KeyError)
 
         from runhouse.resources.module import Module
@@ -1348,7 +1339,6 @@ class ObjStore:
         run_name: Optional[str] = None,
         stream_logs: bool = False,
         remote: bool = False,
-        log_level: str = None,
     ):
         env_servlet_name_containing_key = await self.aget_env_servlet_name_for_key(key)
         if not env_servlet_name_containing_key:
@@ -1373,7 +1363,6 @@ class ObjStore:
                 run_name=run_name,
                 stream_logs=stream_logs,
                 remote=remote,
-                log_level=log_level,
                 *args,
                 **kwargs,
             )
