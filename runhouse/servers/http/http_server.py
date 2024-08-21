@@ -65,7 +65,7 @@ from runhouse.servers.obj_store import (
     ObjStoreError,
     RaySetupOption,
 )
-from runhouse.utils import sync_function
+from runhouse.utils import generate_default_name, sync_function
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -422,8 +422,17 @@ class HTTPServer:
         # But, if they didn't pass anything, we want it to be `json` by default.
         serialization = serialization or "json"
         try:
+            if run_name is None and stream_logs:
+                raise ValueError(
+                    "run_name is required for all calls when stream_logs is True."
+                )
+
             if run_name is None:
-                run_name = f"{key}_{method_name}_{serialization}_{remote}"
+                run_name = generate_default_name(
+                    prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+                    precision="ms",  # Higher precision because we see collisions within the same second
+                    sep="@",
+                )
 
             # The types need to be explicitly specified as parameters first so that
             # we can cast Query params to the right type.
