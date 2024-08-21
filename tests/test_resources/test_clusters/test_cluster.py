@@ -207,10 +207,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         status_data = r.json()
         assert status_data["cluster_config"]["resource_type"] == "cluster"
         assert status_data["env_servlet_processes"]
-        assert status_data["system_cpu_usage"]
-        assert status_data["system_memory_usage"]
-        assert status_data["system_disk_usage"]
-        assert not status_data.get("system_gpu_data")
+        assert status_data["server_cpu_utilization"]
+        assert status_data["server_memory_usage"]
+        assert not status_data.get("server_gpu_usage", None)
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -699,7 +698,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_send_status_to_db(self, cluster):
-
         import json
 
         cluster.save()
@@ -722,7 +720,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         assert post_status_data_resp.status_code in [200, 422]
         get_status_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status?limit=1",
             headers=headers,
         )
         assert get_status_data_resp.status_code == 200
@@ -731,15 +729,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "resource_type"
         )
         assert get_status_data["status"] == ResourceServerStatus.running
+
         assert get_status_data["resource_info"] == status
         for k in env_servlet_processes:
             if env_servlet_processes[k]["env_gpu_usage"] == {}:
                 env_servlet_processes[k]["env_gpu_usage"] = {
-                    "allocated_memory": None,
                     "used_memory": None,
                     "utilization_percent": None,
                     "total_memory": None,
-                    "memory_percent_allocated": None,
                 }
         env_servlet_processes = sort_env_servlet_processes(env_servlet_processes)
         get_status_data["env_servlet_processes"] = sort_env_servlet_processes(
@@ -755,7 +752,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         assert post_status_data_resp.status_code == 200
         get_status_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status?limit=1",
             headers=headers,
         )
         assert (

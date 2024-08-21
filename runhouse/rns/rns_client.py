@@ -29,9 +29,10 @@ logger = get_logger(name=__name__)
 # This is a copy of the Pydantic model that we use to validate in Den
 class ResourceStatusData(BaseModel):
     cluster_config: dict
-    system_cpu_usage: float
-    system_memory_usage: Dict[str, Any]
-    system_disk_usage: Dict[str, Any]
+    server_cpu_utilization: float
+    server_gpu_utilization: Optional[float]
+    server_memory_usage: Dict[str, Any]
+    server_gpu_usage: Optional[Dict[str, Any]]
     env_servlet_processes: Dict[str, Dict[str, Any]]
     server_pid: int
     runhouse_version: str
