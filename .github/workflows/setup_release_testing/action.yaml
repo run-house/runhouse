@@ -88,3 +88,4 @@ runs:
         username: ${{ inputs.CI_ACCOUNT_USERNAME }}
         token: ${{ inputs.CI_ACCOUNT_TOKEN }}
         api_server_url: ${{ inputs.API_SERVER_URL }}
+        rh_log_level: ${{ env.RH_LOG_LEVEL }}

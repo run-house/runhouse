@@ -11,7 +11,6 @@ import requests
 import runhouse
 
 from runhouse.constants import (
-    DEFAULT_LOG_LEVEL,
     DEFAULT_STATUS_CHECK_INTERVAL,
     INCREASED_STATUS_CHECK_INTERVAL,
     SERVER_LOGFILE,
@@ -53,7 +52,9 @@ class ClusterServlet:
         self._auth_cache: AuthCache = AuthCache(cluster_config)
         self.autostop_helper = None
 
-        logger.setLevel(kwargs.get("logs_level", DEFAULT_LOG_LEVEL))
+        log_level = kwargs.get("log_level")
+        if log_level:
+            logger.setLevel(log_level)
 
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
             self.autostop_helper = AutostopHelper()
@@ -378,6 +379,37 @@ class ClusterServlet:
         except Exception as e:
             return {"env_servlet_name": env_servlet_name, "Exception": e}
 
+    def _get_node_gpu_usage(self, server_pid: int):
+        import subprocess
+
+        gpu_general_info = (
+            subprocess.run(
+                [
+                    "nvidia-smi",
+                    "--query-gpu=memory.total,memory.used,memory.free,count,utilization.gpu",
+                    "--format=csv,noheader,nounits",
+                ],
+                stdout=subprocess.PIPE,
+            )
+            .stdout.decode("utf-8")
+            .strip()
+            .split(", ")
+        )
+        total_gpu_memory = int(gpu_general_info[0]) * (1024**2)  # in bytes
+        total_used_memory = int(gpu_general_info[1]) * (1024**2)  # in bytes
+        free_memory = int(gpu_general_info[2]) * (1024**2)  # in bytes
+        gpu_count = int(gpu_general_info[3])
+        gpu_utilization_percent = int(gpu_general_info[4]) / 100
+
+        return {
+            "total_memory": total_gpu_memory,
+            "used_memory": total_used_memory,
+            "free_memory": free_memory,
+            "gpu_count": gpu_count,
+            "utilization_percent": gpu_utilization_percent,
+            "server_pid": server_pid,  # will be useful for multi-node clusters.
+        }
+
     async def astatus(self):
         import psutil
 
@@ -418,22 +450,48 @@ class ClusterServlet:
                 env_servlet_utilization_data[env_servlet_name] = env_memory_info
 
         # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
-        cpu_usage = psutil.cpu_percent(interval=1)
+        cpu_utilization = psutil.cpu_percent(interval=1)
 
-        # Fields: `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
+        # A dictionary that match the keys of psutil.virtual_memory()._asdict() to match the keys we expect in Den.
+        relevant_memory_info = {
+            "available": "free_memory",
+            "percent": "percent",
+            "total": "total_memory",
+            "used": "used_memory",
+        }
+
+        # Fields: `total`, `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
+        # according to psutil docs, percent = (total - available) / total * 100
         memory_usage = psutil.virtual_memory()._asdict()
 
-        # Fields: `total`, `used`, `free`, `percent`
-        disk_usage = psutil.disk_usage("/")._asdict()
+        memory_usage = {
+            relevant_memory_info[k]: memory_usage[k]
+            for k in relevant_memory_info.keys()
+        }
+
+        server_pid: int = get_pid()
+
+        # get general gpu usage
+        server_gpu_usage = (
+            self._get_node_gpu_usage(server_pid)
+            if self.cluster_config.get("has_cuda", False)
+            else None
+        )
+        gpu_utilization = (
+            server_gpu_usage.pop("utilization_percent", None)
+            if server_gpu_usage
+            else None
+        )
 
         status_data = {
             "cluster_config": config_cluster,
             "runhouse_version": runhouse.__version__,
-            "server_pid": get_pid(),
+            "server_pid": server_pid,
             "env_servlet_processes": env_servlet_utilization_data,
-            "system_cpu_usage": cpu_usage,
-            "system_memory_usage": memory_usage,
-            "system_disk_usage": disk_usage,
+            "server_cpu_utilization": cpu_utilization,
+            "server_gpu_utilization": gpu_utilization,
+            "server_memory_usage": memory_usage,
+            "server_gpu_usage": server_gpu_usage,
         }
         status_data = ResourceStatusData(**status_data)
         return status_data

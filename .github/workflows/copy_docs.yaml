@@ -6,6 +6,9 @@ on:
     branches:
       - '*'
 
+env:
+  RH_LOG_LEVEL: "INFO"
+
 jobs:
   generate-docs:
     runs-on: ubuntu-latest

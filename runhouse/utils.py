@@ -376,10 +376,11 @@ class StreamTee(object):
 
 
 class LogToFolder:
-    def __init__(self, name: str):
+    def __init__(self, name: str, log_level: str = None):
         self.name = name
         self.directory = self._base_local_folder_path(name)
         self.root_logger = logging.getLogger("")
+        self.log_level = log_level if log_level else "INFO"
         # We do exist_ok=True here because generator runs are separate calls to the same directory.
         os.makedirs(self.directory, exist_ok=True)
 
@@ -390,7 +391,10 @@ class LogToFolder:
 
         # Add the stdout and stderr handlers to the root logger
         self._stdout_handler = logging.StreamHandler(sys.stdout)
+        self._stdout_handler.setLevel(self.log_level)
+
         self.root_logger.addHandler(self._stdout_handler)
+        self.root_logger.setLevel(self.log_level)
 
         return self
 

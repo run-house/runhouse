@@ -19,7 +19,6 @@ from fastapi.responses import StreamingResponse
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
-    DEFAULT_LOG_LEVEL,
     DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
     EMPTY_DEFAULT_ENV_NAME,
@@ -137,13 +136,13 @@ class HTTPServer:
         default_env_name=None,
         conda_env=None,
         from_test: bool = False,
-        log_level: str = DEFAULT_LOG_LEVEL,
+        log_level: str = None,
         *args,
         **kwargs,
     ):
-        logger.setLevel(log_level)
-        if log_level != DEFAULT_LOG_LEVEL:
-            logger.info(f"Setting log level to {log_level}")
+        if log_level:
+            logger.setLevel(log_level)
+
         runtime_env = {"conda": conda_env} if conda_env else None
 
         default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
@@ -954,7 +953,7 @@ async def main():
     parser.add_argument(
         "--log-level",
         type=str,
-        default=DEFAULT_LOG_LEVEL,
+        default=None,
         help="Log level for the server",
     )
 
@@ -980,9 +979,11 @@ async def main():
     # We only want to forcibly start a Ray cluster if asked.
     # We connect this to the "base" env, which we'll initialize later,
     # so writes to the obj_store within the server get proxied to the "base" env.
+    log_level = parse_args.log_level
     await obj_store.ainitialize(
         default_env_name,
         setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
+        log_level=log_level,
     )
 
     cluster_config = await obj_store.aget_cluster_config()
@@ -1151,7 +1152,7 @@ async def main():
     await HTTPServer.ainitialize(
         default_env_name=default_env_name,
         conda_env=conda_name,
-        log_level=parse_args.log_level.upper(),
+        log_level=log_level,
     )
 
     if den_auth:

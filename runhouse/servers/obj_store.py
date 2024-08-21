@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Set, Union
 import ray
 from pydantic import BaseModel
 
-from runhouse.constants import DEFAULT_LOG_LEVEL
 from runhouse.logger import get_logger
 
 from runhouse.rns.defaults import req_ctx
@@ -61,7 +60,7 @@ class NoLocalObjStoreError(ObjStoreError):
 def get_cluster_servlet(
     create_if_not_exists: bool = False,
     runtime_env: Optional[Dict] = None,
-    log_level: str = DEFAULT_LOG_LEVEL,
+    log_level: str = None,
 ):
     from runhouse.servers.cluster_servlet import ClusterServlet
 
@@ -162,7 +161,7 @@ class ObjStore:
         ray_address: str = "auto",
         setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
         runtime_env: Optional[Dict] = None,
-        log_level: str = DEFAULT_LOG_LEVEL,
+        log_level: str = None,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -175,6 +174,9 @@ class ObjStore:
         # If the servlet name is already set, the obj_store has already been initialized
         if self.servlet_name is not None:
             return
+
+        if log_level:
+            logger.setLevel(log_level)
 
         from runhouse.resources.hardware.ray_utils import kill_actors
 
@@ -401,7 +403,7 @@ class ObjStore:
                 )
                 .remote(
                     env_name=env_name,
-                    log_level=kwargs.get("log_level", DEFAULT_LOG_LEVEL),
+                    log_level=kwargs.get("log_level"),
                 )
             )
 
@@ -1095,6 +1097,7 @@ class ObjStore:
         run_name: Optional[str] = None,
         stream_logs: bool = False,
         remote: bool = False,
+        log_level: str = None,
         **kwargs,
     ):
         """Base call functionality: Load the module, and call a method on it with args and kwargs. Nothing else.
@@ -1107,9 +1110,7 @@ class ObjStore:
 
         log_ctx = None
         if stream_logs and run_name is not None:
-            log_ctx = LogToFolder(
-                name=run_name,
-            )
+            log_ctx = LogToFolder(name=run_name, log_level=log_level)
             log_ctx.__enter__()
 
         # Use a finally to track the active functions so that it is always removed
@@ -1134,6 +1135,7 @@ class ObjStore:
                 run_name=run_name,
                 stream_logs=stream_logs,
                 remote=remote,
+                log_level=log_level,
                 **kwargs,
             )
         finally:
@@ -1151,11 +1153,15 @@ class ObjStore:
         run_name: Optional[str] = None,
         stream_logs: bool = False,
         remote: bool = False,
+        log_level: str = None,
         **kwargs,
     ):
         """acall_local primarily sets up the logging and tracking for the function call, then calls
         _acall_local_helper to actually do the work. This is so we can have a finally block in acall_local to clean up
         the active function calls tracking."""
+        if log_level:
+            logger.setLevel(log_level)
+
         obj = self.get_local(key, default=KeyError)
 
         from runhouse.resources.module import Module
@@ -1342,6 +1348,7 @@ class ObjStore:
         run_name: Optional[str] = None,
         stream_logs: bool = False,
         remote: bool = False,
+        log_level: str = None,
     ):
         env_servlet_name_containing_key = await self.aget_env_servlet_name_for_key(key)
         if not env_servlet_name_containing_key:
@@ -1366,6 +1373,7 @@ class ObjStore:
                 run_name=run_name,
                 stream_logs=stream_logs,
                 remote=remote,
+                log_level=log_level,
                 *args,
                 **kwargs,
             )

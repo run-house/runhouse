@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   pull_request:
 
+env:
+  RH_LOG_LEVEL: "INFO"
+
 jobs:
   all-tests-logged-out-level-unit:
     runs-on: ubuntu-latest

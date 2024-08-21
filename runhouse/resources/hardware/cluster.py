@@ -923,7 +923,6 @@ class Cluster(Resource):
 
         # Save a limited version of the local ~/.rh config to the cluster with the user's hashed token,
         # if such does not exist on the cluster
-
         if rns_client.token:
             user_config = yaml.safe_dump(
                 {
@@ -958,6 +957,7 @@ class Cluster(Resource):
             + (f" --domain {domain}" if domain else "")
             + f" --port {self.server_port}"
             + f" --api-server-url {rns_client.api_server_url}"
+            + f" --log-level {rns_client.log_level}"
             + f" --default-env-name {self.default_env.name}"
             + (
                 f" --conda-env {self.default_env.env_name}"

@@ -2,6 +2,9 @@ name: sagemaker-tests
 
 on: workflow_dispatch
 
+env:
+  RH_LOG_LEVEL: "INFO"
+
 jobs:
   sagemaker-tests:
     runs-on: ubuntu-latest

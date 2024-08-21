@@ -29,9 +29,10 @@ logger = get_logger(name=__name__)
 # This is a copy of the Pydantic model that we use to validate in Den
 class ResourceStatusData(BaseModel):
     cluster_config: dict
-    system_cpu_usage: float
-    system_memory_usage: Dict[str, Any]
-    system_disk_usage: Dict[str, Any]
+    server_cpu_utilization: float
+    server_gpu_utilization: Optional[float]
+    server_memory_usage: Dict[str, Any]
+    server_gpu_usage: Optional[Dict[str, Any]]
     env_servlet_processes: Dict[str, Dict[str, Any]]
     server_pid: int
     runhouse_version: str
@@ -107,11 +108,9 @@ class RNSClient:
 
     @property
     def log_level(self):
-        import logging
-
-        log_level_env_var = os.getenv("RH_LOG_LEVEL")
-        if log_level_env_var and log_level_env_var.upper() in logging._nameToLevel:
-            return log_level_env_var
+        log_level = os.getenv("RH_LOG_LEVEL", self._configs.get("rh_log_level", None))
+        if log_level:
+            return log_level.upper()
 
     def _index_base_folders(self, lst):
         self.rns_base_folders = {}
