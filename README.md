@@ -124,7 +124,7 @@ Please reach out (first name at run.house) if you don't see your favorite comput
 
 ## 👨‍🏫 Learn More
 
-[**🐣 Getting Started**](https://www.run.house/docs/tutorials/cloud_quick_start): Installation, setup, and a quick walkthrough.
+[**🐣 Getting Started**](https://www.run.house/docs/tutorials/quick-start-cloud): Installation, setup, and a quick walkthrough.
 
 [**📖 Docs**](https://www.run.house/docs):
 Detailed API references, basic API examples and walkthroughs, end-to-end tutorials, and high-level architecture overview.
