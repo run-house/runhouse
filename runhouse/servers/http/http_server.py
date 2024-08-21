@@ -421,8 +421,9 @@ class HTTPServer:
         # Default argument to json doesn't allow a user to pass in a serialization string if they want
         # But, if they didn't pass anything, we want it to be `json` by default.
         serialization = serialization or "json"
-
         try:
+            if run_name is None:
+                run_name = f"{key}_{method_name}_{serialization}_{remote}"
 
             # The types need to be explicitly specified as parameters first so that
             # we can cast Query params to the right type.
