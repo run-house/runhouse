@@ -39,12 +39,12 @@ import runhouse as rh
 import torch
 
 # Next, we define a class that will hold the model and allow us to send prompts to it.
-# You'll notice this class inherits from `rh.Module`.
+# We'll later wrap this with `rh.module`.
 # This is a Runhouse class that allows you to
 # run code in your class on a remote machine.
 #
 # Learn more in the [Runhouse docs on functions and modules](/docs/tutorials/api-modules).
-class HFChatModel(rh.Module):
+class HFChatModel:
     def __init__(self, model_id="meta-llama/Meta-Llama-3-8B-Instruct", **model_kwargs):
         super().__init__()
         self.model_id, self.model_kwargs = model_id, model_kwargs
@@ -129,15 +129,16 @@ if __name__ == "__main__":
     )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
-    # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
-    # by the name `llama3-8b-model` if it was already put on the cluster. If we want to update the module each
-    # time we run this script, we can use `to` instead of `get_or_to`.
+    # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
+    # by calling `cluster.get(name="llama3-8b-model")`. This would return the remote model after an initial run.
+    # If we want to update the module each time we run this script, we prefer to use `to`.
     #
-    # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
+    # Note that we also pass the `env` object to the `to` method, which will ensure that the environment is
     # set up on the remote machine before the module is run.
-    remote_hf_chat_model = HFChatModel(
-        torch_dtype=torch.bfloat16,
-    ).get_or_to(gpu, env=env, name="llama3-8b-model")
+    RemoteChatModel = rh.module(HFChatModel).to(gpu, env=env, name="HFChatModel")
+    remote_hf_chat_model = RemoteChatModel(
+        torch_dtype=torch.bfloat16, name="llama3-8b-model"
+    )
 
     # ## Calling our remote function
     #
