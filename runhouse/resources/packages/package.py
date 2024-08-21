@@ -66,10 +66,11 @@ class Package(Resource):
 
     def __init__(
         self,
-        name: str = None,
-        install_method: str = None,
-        install_target: Union[str, "Folder"] = None,
-        install_args: str = None,
+        name: Optional[str] = None,
+        install_method: Optional[str] = None,
+        install_target: Optional[Union[str, "Folder"]] = None,
+        install_args: Optional[str] = None,
+        preferred_version: Optional[str] = None,
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -86,6 +87,7 @@ class Package(Resource):
         self.install_method = install_method
         self.install_target = install_target
         self.install_args = install_args
+        self.preferred_version = preferred_version
 
     def config(self, condensed=True):
         # If the package is just a simple Package.from_string string, no
@@ -103,6 +105,7 @@ class Package(Resource):
             else self.install_target
         )
         config["install_args"] = self.install_args
+        config["preferred_version"] = self.preferred_version
         return config
 
     def __str__(self):
@@ -249,6 +252,25 @@ class Package(Resource):
                 return
 
         if self.install_method == "pip":
+
+            # If this is a generic pip package, with no version pinned, we want to check if there is a version
+            # already installed. If there is, then we ignore preferred version and leave the existing version.
+            # The user can always force a version install by doing `numpy==2.0.0` for example. Else, we install
+            # the preferred version, that matches their local.
+            if (
+                is_python_package_string(self.install_target)
+                and self.preferred_version is not None
+            ):
+                # Check if this is installed
+                retcode = run_setup_command(
+                    f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
+                    cluster=cluster,
+                )[0]
+                if retcode != 0:
+                    self.install_target = (
+                        f"{self.install_target}=={self.preferred_version}"
+                    )
+
             install_cmd = self._pip_install_cmd(env=env, cluster=cluster)
             logger.info(f"Running via install_method pip: {install_cmd}")
             retcode = run_setup_command(install_cmd, cluster=cluster)[0]
@@ -493,6 +515,7 @@ class Package(Resource):
         # If we are just defaulting to pip, attempt to install the same version of the package
         # that is already installed locally
         # Check if the target is only letters, nothing else. This means its a string like 'numpy'.
+        preferred_version = None
         if install_method == "pip" and is_python_package_string(target):
             locally_installed_version = find_locally_installed_version(target)
             if locally_installed_version:
@@ -500,6 +523,10 @@ class Package(Resource):
                 local_install_path = get_local_install_path(target)
                 if local_install_path and Path(local_install_path).exists():
                     target = (local_install_path, None)
+
+                else:
+                    # We want to preferrably install this version of the package server-side
+                    preferred_version = locally_installed_version
 
         # "Local" install method is a special case where we just copy a local folder and add to path
         if install_method == "local":
@@ -512,6 +539,7 @@ class Package(Resource):
                 install_target=target,
                 install_args=args,
                 install_method=install_method,
+                preferred_version=preferred_version,
                 dryrun=dryrun,
             )
         elif install_method == "rh":
