@@ -270,7 +270,7 @@ class TestModule:
         results = []
         out = ""
         with rh.capture_stdout() as stdout:
-            for i, val in enumerate(remote_instance.slow_iter()):
+            for val in remote_instance.slow_iter():
                 assert val
                 print(val)
                 results += [val]

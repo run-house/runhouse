@@ -60,6 +60,7 @@ CONDA_INSTALL_CMDS = [
 ]
 
 TEST_ORG = "test-org"
+TESTING_LOG_LEVEL = "INFO"
 
 EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"
 DEFAULT_DOCKER_CONTAINER_NAME = "sky_container"

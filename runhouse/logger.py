@@ -1,26 +1,25 @@
 import logging
 import os
-import sys
 
 
 def get_logger(name: str = __name__):
     logger = logging.getLogger(name)
 
+    # Clear any existing handlers - avoid duplicate logs and maintain consistent log setup across modules
+    logger.handlers.clear()
+
     level = os.getenv("RH_LOG_LEVEL")
     if level:
-        logger.setLevel(level.upper())
+        try:
+            logger.setLevel(getattr(logging, level.upper()))
+        except AttributeError as e:
+            raise e
 
-    # Check if the logger already has handlers, add a StreamHandler if not
-    if not logger.handlers:
-        # Use sys.stdout managed by StreamTee
-        handler = logging.StreamHandler(stream=sys.stdout)
-        formatter = logging.Formatter(
-            fmt="%(levelname)s | %(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-
-    # Prevent the logger from propagating to the root logger
-    logger.propagate = False
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        fmt="%(levelname)s | %(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
     return logger

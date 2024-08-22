@@ -2,6 +2,7 @@ import contextlib
 import copy
 import importlib
 import json
+import os
 import re
 import subprocess
 import threading
@@ -457,6 +458,12 @@ class Cluster(Resource):
         on the cluster or initialize the servlet. It also does not set any env vars."""
         if not self._default_env:
             return
+
+        log_level = os.getenv("RH_LOG_LEVEL")
+        if log_level:
+            # add log level to the default env to ensure it gets set on the cluster when the server is restarted
+            self._default_env.add_env_var("RH_LOG_LEVEL", log_level)
+            logger.info(f"Using log level {log_level} on cluster's default env")
 
         logger.info(f"Syncing default env {self._default_env.name} to cluster")
         self._default_env.install(cluster=self)

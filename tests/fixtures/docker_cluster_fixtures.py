@@ -17,6 +17,7 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_SSH_PORT,
     EMPTY_DEFAULT_ENV_NAME,
+    TESTING_LOG_LEVEL,
 )
 from runhouse.globals import rns_client
 from runhouse.resources.hardware.utils import ResourceServerStatus
@@ -299,6 +300,8 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
     - Public key authentication
     - Caddy set up on startup to forward Runhouse HTTP server to port 443
     """
+    import os
+
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
@@ -351,7 +354,7 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
 def docker_cluster_pk_ssh(request, test_org_rns_folder):
     """This basic cluster fixture is set up with:
     - Public key authentication
-    - Nginx set up on startup to forward Runhouse HTTP server to port 443
+    - Caddy set up on startup to forward Runhouse HTTP server to port 443
     - Default env with Ray 2.30.0
     """
     # From pytest config
@@ -376,7 +379,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
         ],
         working_dir=None,
         name="default_env",
-        env_vars={"RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL", "INFO")},
+        env_vars={"RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL},
     )
 
     local_cluster, cleanup = set_up_local_cluster(
@@ -481,7 +484,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
         conda_env={"dependencies": ["python=3.11"], "name": "default_env"},
         env_vars={
             "OMP_NUM_THREADS": "8",
-            "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL", "INFO"),
+            "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
         },
         working_dir=None,
         name="default_env",
@@ -529,6 +532,8 @@ def docker_cluster_pwd_ssh_no_auth(request, test_rns_folder):
     - No Den Auth
     - No caddy/port forwarding set up
     """
+    import os
+
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
@@ -576,6 +581,8 @@ def friend_account_logged_in_docker_cluster_pk_ssh(request, test_rns_folder):
     This fixture is not parameterized for every test; it is a separate cluster started with a test account
     (username: kitchen_tester) in order to test sharing resources with other users.
     """
+    import os
+
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")

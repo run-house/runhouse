@@ -79,6 +79,9 @@ class Env(Resource):
         for k, v in env_vars.items():
             os.environ[k] = v
 
+    def add_env_var(self, key, value):
+        self.env_vars.update({key: value})
+
     def config(self, condensed=True):
         config = super().config(condensed)
         self.save_attrs_to_config(

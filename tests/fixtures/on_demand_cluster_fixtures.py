@@ -89,7 +89,7 @@ def ondemand_gcp_cluster(request):
     env_vars = {
         "var1": "val1",
         "var2": "val2",
-        "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL", "INFO"),
+        "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
     }
     default_env = rh.conda_env(
         name="default_env",
