@@ -5,6 +5,7 @@ import warnings
 from typing import Dict, List, Optional, Union
 
 from runhouse.constants import DEFAULT_SERVER_PORT, LOCAL_HOSTS, RESERVED_SYSTEM_NAMES
+from runhouse.globals import rns_client
 
 from runhouse.logger import logger
 from runhouse.resources.hardware.utils import ServerConnectionType
@@ -192,7 +193,7 @@ def cluster(
     )
     c.set_connection_defaults(**kwargs)
 
-    if den_auth:
+    if den_auth or rns_client.autosave_resources():
         c.save()
 
     return c
@@ -496,7 +497,7 @@ def ondemand_cluster(
     )
     c.set_connection_defaults()
 
-    if den_auth:
+    if den_auth or rns_client.autosave_resources():
         c.save()
 
     return c
@@ -699,7 +700,7 @@ def sagemaker_cluster(
     )
     sm.set_connection_defaults()
 
-    if den_auth:
+    if den_auth or rns_client.autosave_resources():
         sm.save()
 
     return sm

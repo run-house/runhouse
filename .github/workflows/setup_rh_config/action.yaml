@@ -27,3 +27,4 @@ runs:
         echo "token: ${{ inputs.token }}" >> ~/.rh/config.yaml
         echo "username: ${{ inputs.username }}" >> ~/.rh/config.yaml
         echo "api_server_url: ${{ inputs.api_server_url }}" >> ~/.rh/config.yaml
+        echo "save_to_den: false" >> ~/.rh/config.yaml

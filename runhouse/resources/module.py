@@ -542,6 +542,9 @@ class Module(Resource):
             )
             system.put_resource(new_module, state, dryrun=True)
 
+        if rns_client.autosave_resources():
+            new_module.save()
+
         return new_module
 
     def get_or_to(
