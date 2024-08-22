@@ -72,6 +72,11 @@ default, so if you would like to specify creating a local resource, you
 can do so by explicitly setting the resource name to begin with ``~/``
 to signal that it lives in the current folder.
 
+.. note::
+
+    If you are logged in and would like to turn off saving to Runhouse RNS, you can set ``save_to_den`` to ``false``
+    in your local ``~/.rh/config.yaml`` file.
+
 .. code:: ipython3
 
     my_resource = rh.ondemand_cluster(name='~/aws_cluster', instance_type='V100:1', provider='aws')

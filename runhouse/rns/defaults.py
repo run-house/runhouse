@@ -35,6 +35,7 @@ class Defaults:
         "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
+        "save_to_den": True,
     }
 
     def __init__(self):
