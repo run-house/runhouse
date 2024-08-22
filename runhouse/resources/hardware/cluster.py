@@ -216,12 +216,21 @@ class Cluster(Resource):
 
         json_config = f"{json.dumps(config)}"
 
-        self.run(
+        save_config_outputs: list = self.run(
             [
                 f"mkdir -p ~/.rh; touch {CLUSTER_CONFIG_PATH}; echo '{json_config}' > {CLUSTER_CONFIG_PATH}"
             ],
             node=node or "all",
         )
+
+        for output in save_config_outputs:
+            for res in output:
+                # if run_res[1] or run_res[2] are not empty strings, that means we got an error while saving the
+                # cluster config
+                if res[1] or res[2]:
+                    logger.error("Failed to save cluster config locally")
+                    logger.error(res[1] + res[2])
+                    return
 
     def save(self, name: str = None, overwrite: bool = True, folder: str = None):
         """Overrides the default resource save() method in order to also update
