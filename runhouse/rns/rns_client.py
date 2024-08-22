@@ -104,6 +104,10 @@ class RNSClient:
             return url_as_env_var
         return self._configs.get("api_server_url", None)
 
+    @property
+    def save_to_den(self):
+        return self._configs.get("save_to_den", True)
+
     def _index_base_folders(self, lst):
         self.rns_base_folders = {}
         for folder in lst:
