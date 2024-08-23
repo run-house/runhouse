@@ -151,7 +151,7 @@ def _run_ssh_command(
     ssh_proxy_command: str,
     docker_user: str,
 ):
-    from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner
+    from runhouse.resources.hardware.sky_command_runner import SkySSHRunner
 
     runner = SkySSHRunner(
         (address, ssh_port),

@@ -431,7 +431,7 @@ class Cluster(Resource):
         return f"{self._creds.name}/" in ssh_creds.get("ssh_private_key", "")
 
     def _command_runner(self, node: Optional[str] = None) -> "CommandRunner":
-        from runhouse.resources.hardware.sky_ssh_runner import (
+        from runhouse.resources.hardware.sky_command_runner import (
             SkyKubernetesRunner,
             SkySSHRunner,
         )
@@ -1207,7 +1207,7 @@ class Cluster(Resource):
                 )
             return
 
-        from runhouse.resources.hardware.sky_ssh_runner import SshMode
+        from runhouse.resources.hardware.sky_command_runner import SshMode
 
         # If no address provided explicitly use the head node address
         node = node or self.address
@@ -1442,7 +1442,7 @@ class Cluster(Resource):
         require_outputs: bool = True,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
     ):
-        from runhouse.resources.hardware.sky_ssh_runner import SshMode
+        from runhouse.resources.hardware.sky_command_runner import SshMode
 
         if isinstance(commands, str):
             commands = [commands]
