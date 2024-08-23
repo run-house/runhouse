@@ -94,6 +94,32 @@ remotely on your AWS instance.
     'Run home in cluster!!'
 
 
+On-Demand Clusters within Existing Cloud VPC
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+If you would like to launch on-demand clusters using existing VPCs, 
+you can easily set it up by configuring SkyPilot. Without setting VPC, 
+we launch in the default VPC in the region of the cluster. If you do 
+set a VPC name, we will only launch in regions containing that VPC 
+name. 
+
+You need to create or update the file `~/.sky/config.yaml` to configure
+the VPC. For instance in Amazon Web Services, you need to add 
+
+.. code:: ipython3
+
+    aws:
+        vpc_name: my-vpc-name
+
+And for Google Cloud you need: 
+
+.. code:: ipython3
+
+    gcp:
+      vpc_name: my-vpc-name
+
+If you need support for more advanced enterprise configurations, 
+please email support@run.house for more information. More documentation is 
+also available at SkyPilot's `advanced config page. <https://skypilot.readthedocs.io/en/latest/reference/config.html>`_
 
 On-Demand Clusters with TLS exposed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
