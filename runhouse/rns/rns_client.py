@@ -105,8 +105,8 @@ class RNSClient:
         return self._configs.get("api_server_url", None)
 
     @property
-    def save_to_den(self):
-        return self._configs.get("save_to_den", True)
+    def autosave(self):
+        return self._configs.get("autosave", True)
 
     def _index_base_folders(self, lst):
         self.rns_base_folders = {}
@@ -148,7 +148,7 @@ class RNSClient:
         return rns_address.replace(self.default_folder, "~")
 
     def autosave_resources(self):
-        return bool(self.save_to_den and self.token)
+        return bool(self.autosave and self.token)
 
     def request_headers(
         self, resource_address: str = None, headers: dict = None
