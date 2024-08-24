@@ -309,3 +309,13 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             1:
         ].replace("\n ", "\n")
         assert cluster_logs_from_s3 in cluster_logs
+
+    @pytest.mark.level("minimal")
+    def test_change_autostop_of_saved_cluster(self, cluster):
+        cluster.save()
+        old_autostop_min = cluster.autostop_mins
+        new_autostop_min = 2 if old_autostop_min == -1 else old_autostop_min + 1
+        new_cluster = rh.ondemand_cluster(
+            name=cluster.rns_address, autostop_mins=new_autostop_min
+        )
+        assert new_cluster.autostop_mins == new_autostop_min
