@@ -20,8 +20,8 @@ Orchestrating across clusters, regions, or clouds is trivial, as is complex logi
 tolerance, or multi-step workflows.
 
 ## What is Runhouse For?
-* When research-to-production is slow and painful, both due to mismatched research & production data/environments and orchestrator pipelines' lack of debugabillity.
-* If teams need an infra-agnostic way to execute Python to flexibly run a single workflow across heterogenous compute, even running on multiple cloud providers.
+* When research-to-production is slow and painful, both due to mismatched research & production data/environments and orchestrator pipelines' lack of debuggability.
+* If teams need an infra-agnostic way to execute Python to flexibly run a single workflow across heterogeneous compute, even running on multiple cloud providers.
 * Ending frustration at platforms-in-a-box like SageMaker or Vertex, and moving to a more flexible solution to develop and deploy ML code.
 * Growing ML maturity, as organizations move from one-off ML projects to at-scale ML flywheel.
 

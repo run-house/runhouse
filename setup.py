@@ -157,6 +157,5 @@ setuptools.setup(
     project_urls={
         "Homepage": "https://run.house",
         "Issues": "https://github.com/run-house/runhouse/issues/",
-        # 'Documentation': 'https://runhouse-docs.readthedocs-hosted.com/en/latest/',
     },
 )
