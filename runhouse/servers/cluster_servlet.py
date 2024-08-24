@@ -316,10 +316,9 @@ class ClusterServlet:
 
             except Exception:
                 self.logger.error(
-                    "Cluster checks have failed.\nPlease check cluster logs for more info."
-                )
-                self.logger.warning(
-                    "Temporarily increasing the interval between status checks."
+                    "Cluster checks have failed.\n"
+                    "Please check cluster logs for more info.\n"
+                    "Temporarily increasing the interval between status checks"
                 )
                 await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
             finally:
