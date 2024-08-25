@@ -577,30 +577,33 @@ class HTTPClient:
         else:
             client = self.async_session
 
-        async with client.stream(
-            "GET",
-            self._formatted_url(f"logs/{run_name}/{serialization}"),
-            headers=rns_client.request_headers(resource_address),
-        ) as res:
-            if res.status_code != 200:
-                error_resp = await res.aread()
-                raise ValueError(
-                    f"Error calling logs function on server: {error_resp.decode()}"
-                )
-            async for response_json in res.aiter_lines():
-                resp = json.loads(response_json)
-                output_type = resp["output_type"]
-                if output_type not in [
-                    OutputType.EXCEPTION,
-                    OutputType.STDOUT,
-                    OutputType.STDERR,
-                ]:
+        try:
+            async with client.stream(
+                "GET",
+                self._formatted_url(f"logs/{run_name}/{serialization}"),
+                headers=rns_client.request_headers(resource_address),
+            ) as res:
+                if res.status_code != 200:
+                    error_resp = await res.aread()
                     raise ValueError(
-                        f"Unexpected output type from logs function: {output_type}"
+                        f"Error calling logs function on server: {error_resp.decode()}"
                     )
-                handle_response(
-                    resp, output_type, error_str, log_formatter=self.log_formatter
-                )
+                async for response_json in res.aiter_lines():
+                    resp = json.loads(response_json)
+                    output_type = resp["output_type"]
+                    if output_type not in [
+                        OutputType.EXCEPTION,
+                        OutputType.STDOUT,
+                        OutputType.STDERR,
+                    ]:
+                        raise ValueError(
+                            f"Unexpected output type from logs function: {output_type}"
+                        )
+                    handle_response(
+                        resp, output_type, error_str, log_formatter=self.log_formatter
+                    )
+        except (httpx.TransportError, httpx.HTTPStatusError) as e:
+            raise e
 
     async def acall_module_method(
         self,
