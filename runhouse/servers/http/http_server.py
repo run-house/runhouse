@@ -84,7 +84,7 @@ def validate_cluster_access(func):
         den_auth_enabled: bool = await HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
 
-        func_call: bool = func.__name__ in ["post_call", "get_call"]
+        func_call: bool = func.__name__ in ["post_call", "get_call", "get_logs"]
 
         # restrict access for folder specific APIs
         access_level_required = (

@@ -583,8 +583,9 @@ class HTTPClient:
             headers=rns_client.request_headers(resource_address),
         ) as res:
             if res.status_code != 200:
+                error_resp = await res.aread()
                 raise ValueError(
-                    f"Error calling logs function on server: {res.content.decode()}"
+                    f"Error calling logs function on server: {error_resp.decode()}"
                 )
             async for response_json in res.aiter_lines():
                 resp = json.loads(response_json)
