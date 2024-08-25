@@ -74,8 +74,6 @@ from runhouse.utils import generate_default_name, sync_function
 app = FastAPI(docs_url=None, redoc_url=None)
 
 logger = get_logger(__name__)
-# TODO: Better way to store this than a global here?
-running_futures: Dict[str, asyncio.Task] = {}
 
 # TODO: Better way to store this than a global here?
 running_futures: Dict[str, asyncio.Task] = {}
@@ -90,7 +88,7 @@ def validate_cluster_access(func):
         den_auth_enabled: bool = await HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
 
-        func_call: bool = func.__name__ in ["post_call", "get_call"]
+        func_call: bool = func.__name__ in ["post_call", "get_call", "get_logs"]
 
         # restrict access for folder specific APIs
         access_level_required = (

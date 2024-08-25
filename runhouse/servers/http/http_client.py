@@ -566,7 +566,6 @@ class HTTPClient:
         run_name: str,
         serialization: str,
         error_str: str,
-        headers=None,
         create_async_client=False,
     ) -> None:
         # When running this in another thread, we need to explicitly create an async client here. When running within
@@ -579,11 +578,12 @@ class HTTPClient:
         async with client.stream(
             "GET",
             self._formatted_url(f"logs/{run_name}/{serialization}"),
-            headers=headers or self._request_headers,
+            headers=self._request_headers,
         ) as res:
             if res.status_code != 200:
+                error_resp = await res.aread()
                 raise ValueError(
-                    f"Error calling logs function on server: {res.content.decode()}"
+                    f"Error calling logs function on server: {error_resp.decode()}"
                 )
             async for response_json in res.aiter_lines():
                 resp = json.loads(response_json)

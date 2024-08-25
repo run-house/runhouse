@@ -208,7 +208,6 @@ class TestHTTPClient:
     @pytest.mark.level("unit")
     def test_call_module_method_with_args_kwargs(self, mocker):
         expected_headers = rns_client.request_headers(self.local_cluster.rns_address)
-
         # Mock the response to iter_lines to return our simulated server response
         mock_response = mocker.Mock()
         mock_response.status_code = 200
@@ -282,7 +281,6 @@ class TestHTTPClient:
     def test_call_module_method_config(self, mocker, local_cluster):
         request_headers = rns_client.request_headers(local_cluster.rns_address)
 
-        # Mock the response to iter_lines to return our simulated server response
         test_data = self.local_cluster.config()
         mock_response = mocker.Mock()
         mock_response.status_code = 200
