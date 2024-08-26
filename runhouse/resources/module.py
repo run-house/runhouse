@@ -77,13 +77,18 @@ class Module(Resource):
         )
         self._env = env
         is_builtin = hasattr(sys.modules["runhouse"], self.__class__.__qualname__)
+
+        # If there are no pointers and this isn't a builtin module, we assume this is a user-created subclass
+        # of rh.Module, and we need to do the factory constructor logic here.
         if not pointers and not is_builtin:
-            # If there are no pointers and this isn't a builtin module, we assume this is a user-created subclass
-            # of rh.Module, and we need to do the factory constructor logic here.
+            if not self._env:
+
+                env_for_current_process = obj_store.get_process_env()
+                self._env = env_for_current_process or (
+                    self._system.default_env if self._system else Env()
+                )
 
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
-            if not self._env:
-                self._env = self._system.default_env if self._system else Env()
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
             pointers = Module._extract_pointers(self.__class__)
@@ -1385,10 +1390,14 @@ def module(
 
     if not isinstance(env, Env):
         env = _get_env_from(env)
-        if not env:
-            env = _get_env_from(_default_env_if_on_cluster())
-        if not env:
-            env = Env()
+
+    env_for_current_process = obj_store.get_process_env()
+    env = (
+        env
+        or env_for_current_process
+        or _get_env_from(_default_env_if_on_cluster())
+        or Env()
+    )
 
     cls_pointers = Module._extract_pointers(cls)
 
