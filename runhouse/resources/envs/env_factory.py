@@ -68,6 +68,9 @@ def env(
         except ValueError:
             return Env(name=name)
 
+    if not name and compute:
+        raise ValueError("Cannot specify compute to schedule an env on without a name.")
+
     reqs = _process_reqs(reqs or [])
     conda_yaml = _get_conda_yaml(conda_env)
 
