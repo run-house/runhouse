@@ -697,6 +697,10 @@ class Module(Resource):
             raise ValueError(
                 "If names is a list, it must be the same length as num_replicas."
             )
+        if not envs and (self.env and not self.env.name):
+            raise ValueError(
+                "Cannot replicate the default environment. Please send the module or function to a named env first."
+            )
 
         def create_replica(i):
             name = names[i] if isinstance(names, list) else f"{self.name}_replica_{i}"
