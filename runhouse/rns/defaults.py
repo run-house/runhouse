@@ -253,7 +253,7 @@ class Defaults:
             return env_var
 
         res = self.defaults_cache.get(key, alt)
-        if not res and key in self.BASE_DEFAULTS:
+        if res is None and key in self.BASE_DEFAULTS:
             res = self.BASE_DEFAULTS[key]
         return res
 

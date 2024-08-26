@@ -476,6 +476,9 @@ class SageMakerCluster(Cluster):
         logger.info("Preparing to launch a new SageMaker cluster")
         self._launch_new_cluster()
 
+        if rns_client.autosave_resources():
+            self.save()
+
         return self
 
     def up_if_not(self):

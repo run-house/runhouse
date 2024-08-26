@@ -147,6 +147,9 @@ class RNSClient:
     def remote_to_local_address(self, rns_address):
         return rns_address.replace(self.default_folder, "~")
 
+    def autosave_resources(self):
+        return bool(self.autosave and self.token)
+
     def request_headers(
         self, resource_address: str = None, headers: dict = None
     ) -> Union[dict, None]:

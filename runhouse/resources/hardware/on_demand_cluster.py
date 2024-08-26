@@ -539,6 +539,9 @@ class OnDemandCluster(Cluster):
 
         self.restart_server()
 
+        if rns_client.autosave_resources():
+            self.save()
+
         return self
 
     def keep_warm(self, mins: int = -1):
