@@ -65,7 +65,9 @@ class TestHTTPServerDocker:
         )
         response = http_client.post(
             "/resource",
-            json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
+            json=PutResourceParams(
+                serialized_data=data, serialization="pickle"
+            ).model_dump(),
             headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
@@ -80,7 +82,7 @@ class TestHTTPServerDocker:
                 key=key,
                 serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
@@ -97,7 +99,7 @@ class TestHTTPServerDocker:
         new_key = "key2"
         response = http_client.post(
             "/rename",
-            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            json=RenameObjectParams(key=old_key, new_key=new_key).model_dump(),
             headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
@@ -113,7 +115,7 @@ class TestHTTPServerDocker:
         key = "key2"
         response = http_client.post(
             url="/delete_object",
-            json=DeleteObjectParams(keys=[key]).dict(),
+            json=DeleteObjectParams(keys=[key]).model_dump(),
             headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
@@ -649,7 +651,9 @@ class TestHTTPServerDockerDenAuthOnly:
         )
         response = http_client.post(
             "/resource",
-            json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
+            json=PutResourceParams(
+                serialized_data=data, serialization="pickle"
+            ).model_dump(),
             headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
@@ -684,7 +688,7 @@ class TestHTTPServerDockerDenAuthOnly:
                 key="key1",
                 serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
@@ -696,7 +700,7 @@ class TestHTTPServerDockerDenAuthOnly:
         new_key = "key2"
         response = http_client.post(
             "/rename",
-            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            json=RenameObjectParams(key=old_key, new_key=new_key).model_dump(),
             headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
@@ -754,7 +758,7 @@ class TestHTTPServerNoDocker:
                 "/resource",
                 json=PutResourceParams(
                     serialized_data=data, serialization="pickle"
-                ).dict(),
+                ).model_dump(),
                 headers=rns_client.request_headers(local_cluster.rns_address),
             )
             assert response.status_code == 200
@@ -768,7 +772,7 @@ class TestHTTPServerNoDocker:
                 key="key1",
                 serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             headers=rns_client.request_headers(local_cluster.rns_address),
         )
         assert response.status_code == 200
@@ -779,7 +783,7 @@ class TestHTTPServerNoDocker:
         new_key = "key2"
         response = client.post(
             "/rename",
-            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            json=RenameObjectParams(key=old_key, new_key=new_key).model_dump(),
             headers=rns_client.request_headers(local_cluster.rns_address),
         )
         assert response.status_code == 200
@@ -804,7 +808,7 @@ class TestHTTPServerNoDocker:
         key = "key"
         response = client.post(
             url="/delete_object",
-            json=DeleteObjectParams(keys=[key]).dict(),
+            json=DeleteObjectParams(keys=[key]).model_dump(),
             headers=rns_client.request_headers(local_cluster.rns_address),
         )
         assert response.status_code == 200
@@ -860,7 +864,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
                 "/resource",
                 json=PutResourceParams(
                     serialized_data=data, serialization="pickle"
-                ).dict(),
+                ).model_dump(),
                 headers=INVALID_HEADERS,
             )
 
@@ -875,7 +879,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
                 key="key1",
                 serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             headers=INVALID_HEADERS,
         )
         assert resp.status_code == 403
@@ -886,7 +890,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
         new_key = "key2"
         resp = local_client_with_den_auth.post(
             "/rename",
-            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            json=RenameObjectParams(key=old_key, new_key=new_key).model_dump(),
             headers=INVALID_HEADERS,
         )
         assert resp.status_code == 403

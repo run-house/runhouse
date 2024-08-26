@@ -440,7 +440,7 @@ class HTTPServer:
             )
 
             query_params_remaining = dict(request.query_params)
-            call_params_dict = params.dict()
+            call_params_dict = params.model_dump()
             for k, v in dict(request.query_params).items():
                 # If one of the query_params matches an arg in CallParams, set it
                 # And also remove it from the query_params dict, so the rest
