@@ -150,7 +150,7 @@ class SimpleTrainer:
         return pred.item()
 
     def save_model(self, bucket_name, s3_file_path):
-        try:  ## Avoid failing if you're just trying the example and don't have S3 setup
+        try:  ## Avoid failing if you're just trying the example. Need to setup S3 access.
             import io
 
             import boto3
