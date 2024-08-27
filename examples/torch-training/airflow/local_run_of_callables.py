@@ -9,7 +9,7 @@
 
 import logging
 
-from callables import (
+from airflow_example_torch_train import (
     access_data_callable,
     bring_up_cluster_callable,
     down_cluster,

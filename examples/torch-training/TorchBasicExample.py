@@ -52,7 +52,7 @@ class TorchExampleBasic(nn.Module):
         self.fc1 = nn.Linear(28 * 28, 128)
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, 10)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  #
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def forward(self, x):
         x = x.view(-1, 28 * 28)  # Flatten the input
@@ -81,6 +81,9 @@ class SimpleTrainer:
         self.transform = transforms.Compose(
             [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
         )
+
+        self.accuracy = None
+        self.test_loss = None
 
     def load_train(self, path, batch_size):
         data = datasets.MNIST(
@@ -118,6 +121,7 @@ class SimpleTrainer:
                 )
                 running_loss = 0.0
 
+        self.epoch = self.epoch + 1
         print("Finished Training")
 
     def test_model(self):
@@ -135,10 +139,11 @@ class SimpleTrainer:
                 correct += pred.eq(target.view_as(pred)).sum().item()
 
         test_loss /= len(self.test_loader.dataset)
-        accuracy = 100.0 * correct / len(self.test_loader.dataset)
+        self.test_loss = test_loss
+        self.accuracy = 100.0 * correct / len(self.test_loader.dataset)
 
         print(
-            f"\nTest set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{len(self.test_loader.dataset)} ({accuracy:.2f}%)\n"
+            f"\nTest set: Average loss: {self.test_loss:.4f}, Accuracy: {correct}/{len(self.test_loader.dataset)} ({self.accuracy:.2f}%)\n"
         )
 
     def predict(self, data):
@@ -150,7 +155,7 @@ class SimpleTrainer:
         return pred.item()
 
     def save_model(self, bucket_name, s3_file_path):
-        try:  ## Avoid failing if you're just trying the example and don't have S3 setup
+        try:  ## Avoid failing if you're just trying the example. Need to setup S3 access.
             import io
 
             import boto3
@@ -165,8 +170,17 @@ class SimpleTrainer:
         except:
             print("did not upload checkpoint")
 
+    def return_status(self):
+        status = {
+            "epochs_trained": self.epoch,
+            "loss_test": self.test_loss,
+            "accuracy_test": self.accuracy,
+        }
 
-# ## Setting up Runhouse primitives
+        return status
+
+
+# ## Setting up Runhouse to run the defined class and functions remotely.
 #
 # Now, we define the main function that will run locally when we run this script, and set up
 # our Runhouse module on a remote cluster. First, we create a cluster with the desired instance type and provider.
@@ -186,7 +200,7 @@ if __name__ == "__main__":
     # Define a cluster type - here we launch an on-demand AWS cluster with 1 NVIDIA A10G GPU.
     # You can use any cloud you want, or existing compute
     cluster = rh.ondemand_cluster(
-        name="a10g-rh", instance_type="A10G:1", provider="aws"
+        name="a10g-cluster", instance_type="A10G:1", provider="aws"
     ).up_if_not()
 
     # Next, we define the environment for our module. This includes the required dependencies that need
@@ -206,9 +220,11 @@ if __name__ == "__main__":
 
     # ## Calling our remote Trainer
     # We instantiate the remote class
-    model = remote_torch_example()  # Instantiating it based on the remote RH module
+    model = remote_torch_example(
+        name="torch_model"
+    )  # Instantiating it based on the remote RH module, and naming it "torch_model".
 
-    # Though we could just as easily run identical code on local if my machine is capable of handling it.
+    # Though we could just as easily run identical code on local
     # model = SimpleTrainer()       # If instantiating a local example
 
     # We set some settings for the model training
@@ -242,7 +258,10 @@ if __name__ == "__main__":
     transform = transforms.Compose(
         [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
     )
-    test_dataset = datasets.MNIST("./data", train=False, transform=transform)
-    example_data, example_target = test_dataset[0][0].unsqueeze(0), test_dataset[0][1]
+
+    local_dataset = datasets.MNIST(
+        "./data", train=False, download=True, transform=transform
+    )
+    example_data, example_target = local_dataset[0][0].unsqueeze(0), local_dataset[0][1]
     prediction = model.predict(example_data)
     print(f"Predicted: {prediction}, Actual: {example_target}")
