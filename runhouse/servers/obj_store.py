@@ -399,6 +399,7 @@ class ObjStore:
                     # Default to 0 CPUs if not specified, Ray will default it to 1
                     num_cpus=resources.pop("CPU", 0),
                     num_gpus=resources.pop("GPU", None),
+                    memory=resources.pop("memory", None),
                     resources=resources,
                     lifetime="detached",
                     namespace="runhouse",
