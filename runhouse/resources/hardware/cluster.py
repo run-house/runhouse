@@ -193,7 +193,14 @@ class Cluster(Resource):
             )
 
     @classmethod
-    def from_name(cls, name, dryrun=False, alt_options=None, _resolve_children=True):
+    def from_name(
+        cls,
+        name,
+        load_from_den=True,
+        dryrun=False,
+        alt_options=None,
+        _resolve_children=True,
+    ):
         cluster = super().from_name(
             name=name,
             dryrun=dryrun,
@@ -1753,13 +1760,11 @@ class Cluster(Resource):
     # Send Cluster status to Den methods
     ##############################################
     def _disable_status_check(self):
-        """
-        Stopping sending status to Den.
-        """
+        """Stop sending periodic status checks to Den."""
         if not self.den_auth:
             logger.error(
-                "Cluster must have Den authorization to disable periodic status checks. "
-                "Make sure you have a Den account, and you've created your cluster with den_auth = True."
+                "Cluster must have Den auth enabled to allow periodic status checks. "
+                "Make sure you have a Den account and the cluster has `den_auth=True`."
             )
             return
         if self.on_this_cluster():
@@ -1771,13 +1776,15 @@ class Cluster(Resource):
         self, new_interval: int = DEFAULT_STATUS_CHECK_INTERVAL
     ):
         """
-        Enables a periodic status check or updates the interval between to consecutive cluster status checks.
-        :param new_interval: int, the new interval size.
+        Enables a periodic status check or updates the interval between cluster status checks.
+
+        Args:
+            new_interval (int): Updated number of minutes between status checks.
         """
         if not self.den_auth:
             logger.error(
-                "Cluster must have Den authorization to change periodic status checks interval size. "
-                "Make sure you have a Den account, and you've created your cluster with den_auth = True."
+                "Cluster must have Den auth enabled to update the interval for periodic status checks. "
+                "Make sure you have a Den account and the cluster has `den_auth=True`."
             )
             return
         if self.on_this_cluster():

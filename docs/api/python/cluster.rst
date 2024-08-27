@@ -61,6 +61,20 @@ For a more in depth tutorial on setting up individual cloud credentials, you can
 `SkyPilot setup docs <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#cloud-account-setup>`__.
 
 
+Specifying a VPC
+^^^^^^^^^^^^^^^^
+If you would like to launch an on-demand cluster within a specific VPC, you can specify its name in your local
+``~/.sky/config.yaml`` in the following format:
+
+.. code-block:: yaml
+
+    <cloud-provider>:
+      vpc: <vpc-name>
+
+See the `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/cloud-setup/cloud-permissions/aws.html#using-a-specific-vpc>`__
+for more details on configuring a VPC.
+
+
 SageMakerCluster Class
 ~~~~~~~~~~~~~~~~~~~~~~
 .. note::

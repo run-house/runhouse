@@ -267,6 +267,15 @@ class ObjStore:
             runtime_env,
         )
 
+    def get_process_env(self) -> Optional["Env"]:
+        """
+        If this is an env servlet object store, then we are within a Runhouse env.
+        Return the env so it can be used for Runhouse primitives.
+        """
+        if self.servlet_name is not None and self.has_local_storage:
+            # Each env is stored within itself, I believe
+            return self.get(self.servlet_name)
+
     def get_internal_ips(self):
         """Get list of internal IPs of all nodes in the cluster."""
         cluster_config = self.get_cluster_config()

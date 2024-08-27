@@ -556,7 +556,7 @@ def run(
     log_dest: str = "file",
     path: str = None,
     system: Union[str, Cluster] = None,
-    load: bool = True,
+    load_from_den: bool = True,
     dryrun: bool = False,
     **kwargs,
 ) -> Union["Run", None]:
@@ -570,17 +570,17 @@ def run(
             If providing a file system this must be one of:
             [``file``, ``s3``, ``gs``].
             We are working to add additional file system support.
-        load (bool): Whether to try reloading an existing Run from configs. (Default: ``True``)
-        dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
+        load_from_den (bool): Whether to try loading the run from Den. (Default: ``True``)
+        dryrun (bool): Whether to create the Run if it doesn't exist, or load a Blob object as a dryrun.
             (Default: ``False``)
         **kwargs: Optional kwargs for the Run.
 
     Returns:
         Run: The loaded Run object.
     """
-    if name and load and not any([path, system, kwargs]):
+    if name and not any([path, system, kwargs]):
         # Try reloading existing Run from RNS
-        return Run.from_name(name, dryrun=dryrun)
+        return Run.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
 
     if name and path is None and log_dest == "file":
         path = (

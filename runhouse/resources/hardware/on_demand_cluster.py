@@ -540,6 +540,9 @@ class OnDemandCluster(Cluster):
 
         self.restart_server()
 
+        if rns_client.autosave_resources():
+            self.save()
+
         return self
 
     def keep_warm(self, mins: int = -1):
@@ -558,35 +561,25 @@ class OnDemandCluster(Cluster):
         Example:
             >>> rh.ondemand_cluster("rh-cpu").teardown()
         """
-        # TODO [SB]: remove the den_auth check once we will get status of clusters without den_auth as well.
-        warning_msg = "Failed to update Den with cluster terminated status."
-        if self.den_auth:
-            try:
-                cluster_status_data = self.status()
-                status_data = {
-                    "status": ResourceServerStatus.terminated,
-                    "resource_type": self.__class__.__base__.__name__.lower(),
-                    "data": cluster_status_data,
-                }
-                cluster_uri = rns_client.format_rns_address(self.rns_address)
-                api_server_url = cluster_status_data.get("cluster_config").get(
-                    "api_server_url", rns_client.api_server_url
-                )
-                post_status_data_resp = requests.post(
-                    f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-                    data=json.dumps(status_data),
-                    headers=rns_client.request_headers(),
-                )
-                if post_status_data_resp.status_code != 200:
-                    post_status_data_resp = post_status_data_resp.json()
-                    warning_msg = (
-                        warning_msg
-                        + f' Got {post_status_data_resp.status_code}: {post_status_data_resp.json()["detail"]}'
-                    )
-                    logger.warning(warning_msg)
-            except Exception as e:
-                warning_msg = warning_msg + f" Got {e}"
-                logger.warning(warning_msg)
+        try:
+            cluster_status_data = self.status()
+            status_data = {
+                "status": ResourceServerStatus.terminated,
+                "resource_type": self.__class__.__base__.__name__.lower(),
+                "data": cluster_status_data,
+            }
+            cluster_uri = rns_client.format_rns_address(self.rns_address)
+            api_server_url = rns_client.api_server_url
+            status_resp = requests.post(
+                f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+                data=json.dumps(status_data),
+                headers=rns_client.request_headers(),
+            )
+            # 404 means that the cluster is not saved in den, it is fine that the status is not updated.
+            if status_resp.status_code not in [200, 404]:
+                logger.warning("Failed to update Den with terminated cluster status")
+        except Exception as e:
+            logger.warning(e)
 
         # Stream logs
         sky.down(self.name)

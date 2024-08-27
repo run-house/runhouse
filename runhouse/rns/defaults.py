@@ -37,6 +37,7 @@ class Defaults:
         "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
+        "autosave": True,
     }
 
     def __init__(self):
@@ -254,7 +255,7 @@ class Defaults:
             return env_var
 
         res = self.defaults_cache.get(key, alt)
-        if not res and key in self.BASE_DEFAULTS:
+        if res is None and key in self.BASE_DEFAULTS:
             res = self.BASE_DEFAULTS[key]
         return res
 

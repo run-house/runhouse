@@ -253,7 +253,14 @@ class Resource:
         return config
 
     @classmethod
-    def from_name(cls, name, dryrun=False, alt_options=None, _resolve_children=True):
+    def from_name(
+        cls,
+        name,
+        load_from_den=True,
+        dryrun=False,
+        alt_options=None,
+        _resolve_children=True,
+    ):
         """Load existing Resource via its name."""
         # TODO is this the right priority order?
         from runhouse.resources.hardware.utils import _current_cluster
@@ -261,7 +268,7 @@ class Resource:
         if _current_cluster() and obj_store.contains(name):
             return obj_store.get(name)
 
-        config = rns_client.load_config(name=name)
+        config = rns_client.load_config(name=name, load_from_den=load_from_den)
 
         if alt_options:
             config = cls._compare_config_with_alt_options(config, alt_options)
