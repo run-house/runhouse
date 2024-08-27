@@ -11,7 +11,7 @@ from runhouse.rns.utils.api import load_resp_content, read_resp_data
 USER_ENDPOINT = "user/secret"
 
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 def load_config(name: str, endpoint: str = USER_ENDPOINT):

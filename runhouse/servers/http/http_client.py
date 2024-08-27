@@ -41,7 +41,7 @@ from runhouse.utils import ClusterLogsFormatter, generate_default_name
 session = requests.Session()
 session.timeout = None
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 def retry_with_exponential_backoff(func):

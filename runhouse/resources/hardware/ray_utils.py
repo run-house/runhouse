@@ -6,7 +6,7 @@ from ray.experimental.state.api import list_actors
 
 from runhouse.logger import get_logger
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 def check_for_existing_ray_instance():

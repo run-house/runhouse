@@ -15,7 +15,7 @@ from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
 from .sagemaker.sagemaker_cluster import SageMakerCluster
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 # Cluster factory method
 def cluster(

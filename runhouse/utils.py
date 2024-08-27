@@ -16,7 +16,6 @@ except ImportError as e:
         )
 import inspect
 import json
-import logging
 import os
 import re
 import subprocess
@@ -33,7 +32,7 @@ import pexpect
 from runhouse.constants import LOGS_DIR
 from runhouse.logger import get_logger
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 ####################################################################################################
 # Python package utilities
 ####################################################################################################
@@ -379,7 +378,6 @@ class LogToFolder:
     def __init__(self, name: str):
         self.name = name
         self.directory = self._base_local_folder_path(name)
-        self.root_logger = logging.getLogger("")
         # We do exist_ok=True here because generator runs are separate calls to the same directory.
         os.makedirs(self.directory, exist_ok=True)
 
@@ -388,14 +386,12 @@ class LogToFolder:
         sys.stdout = StreamTee(sys.stdout, [Path(self._stdout_path).open(mode="a")])
         sys.stderr = StreamTee(sys.stderr, [Path(self._stderr_path).open(mode="a")])
 
-        # Add the stdout and stderr handlers to the root logger
-        self._stdout_handler = logging.StreamHandler(sys.stdout)
-        self.root_logger.addHandler(self._stdout_handler)
+        # Reinitialize the universal logger that we're using, so that it points to the new fake sys.stdout
+        get_logger(reinitialize=True)
 
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.root_logger.removeHandler(self._stdout_handler)
 
         # Flush stdout and stderr
         # sys.stdout.flush()
@@ -406,6 +402,9 @@ class LogToFolder:
             sys.stdout = sys.stdout.instream
         if hasattr(sys.stderr, "instream"):
             sys.stderr = sys.stderr.instream
+
+        # Reinitialize this again to be the original sys.stdout
+        get_logger(reinitialize=True)
 
         # return False to propagate any exception that occurred inside the with block
         return False

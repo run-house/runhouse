@@ -52,7 +52,7 @@ MODULE_ATTRS = [
     "_dumb_signature_cache",
 ]
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 class Module(Resource):

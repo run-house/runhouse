@@ -19,7 +19,7 @@ from runhouse.rns.utils.api import (
     ResourceVisibility,
 )
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 class Resource:

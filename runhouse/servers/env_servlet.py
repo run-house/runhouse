@@ -16,7 +16,7 @@ from runhouse.servers.http.http_utils import (
 from runhouse.servers.obj_store import ClusterServletSetupOption
 from runhouse.utils import arun_in_thread, get_node_ip
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 def error_handling_decorator(func):

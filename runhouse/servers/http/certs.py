@@ -12,7 +12,7 @@ from runhouse.logger import get_logger
 
 from runhouse.rns.utils.api import resolve_absolute_path
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 class TLSCertConfig:

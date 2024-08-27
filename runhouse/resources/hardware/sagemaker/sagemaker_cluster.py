@@ -44,7 +44,7 @@ from runhouse.rns.utils.api import (
 from runhouse.utils import generate_default_name
 
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 ####################################################################################################
 # Caching mechanisms for SSHTunnelForwarder
 ####################################################################################################

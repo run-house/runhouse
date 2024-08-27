@@ -13,7 +13,7 @@ MAX_POLLS = 120000
 POLL_INTERVAL = 1
 TIMEOUT_SECONDS = 3600
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 class S3Folder(Folder):

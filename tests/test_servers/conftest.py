@@ -16,7 +16,7 @@ from runhouse.servers.http.http_server import app, HTTPServer
 
 from tests.utils import friend_account, get_ray_servlet_and_obj_store
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 # -------- HELPERS ----------- #
 def summer(a, b):

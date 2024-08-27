@@ -16,7 +16,7 @@ from runhouse.rns.utils.api import read_resp_data, to_bool
 
 req_ctx = contextvars.ContextVar("rh_ctx", default={})
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 class Defaults:

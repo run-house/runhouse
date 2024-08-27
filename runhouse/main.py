@@ -46,7 +46,7 @@ app = typer.Typer(add_completion=False)
 # For printing with typer
 console = Console()
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 @app.command()
