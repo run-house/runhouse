@@ -1144,6 +1144,9 @@ class Cluster(Resource):
         # https://github.com/skypilot-org/skypilot/blob/v0.4.1/sky/backends/cloud_vm_ray_backend.py#L3094
         # This is an interesting policy... by default we're syncing to all nodes if the cluster is multinode.
         # If we need to change it to be greedier we can.
+        if up and not Path(source).expanduser().exists():
+            raise ValueError(f"Could not locate path to sync: {source}.")
+
         if up and (node == "all" or (len(self.ips) > 1 and not node)):
             for node in self.ips:
                 self.rsync(
