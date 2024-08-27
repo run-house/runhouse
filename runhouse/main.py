@@ -244,9 +244,6 @@ def _print_envs_info(
     """
     Prints info about the envs in the current_cluster.
     Prints the resources in each env, and the CPU and GPU usage of the env (if exists).
-
-    :param env_servlet_processes: Dict of cpu and gpu info of the envs.
-    :param current_cluster: The cluster whose status we are printing.
     """
     # Print headline
     envs_in_cluster_headline = "Serving 🍦 :"
@@ -386,13 +383,8 @@ def _print_envs_info(
                     )
 
 
-def _print_status(status_data: dict, current_cluster: Cluster):
-    """
-    Prints the status of the cluster to the console
-    :param config: cluster's  config
-    :return: cluster's  config
-    """
-
+def _print_status(status_data: dict, current_cluster: Cluster) -> None:
+    """Prints the status of the cluster to the console"""
     cluster_config = status_data.get("cluster_config")
     env_servlet_processes = status_data.get("env_servlet_processes")
 
@@ -425,7 +417,6 @@ def status(
     )
 ):
     """Load the status of the Runhouse daemon running on a cluster."""
-
     cluster_or_local = rh.here
 
     if cluster_name:

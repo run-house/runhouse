@@ -21,6 +21,7 @@ def aws_lambda_fn(
     memory_size: Optional[int] = None,
     tmp_size: Optional[int] = None,
     retention_time: Optional[int] = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
 ):
     """Builds an instance of :class:`LambdaFunction`.
@@ -48,6 +49,7 @@ def aws_lambda_fn(
              (Default: ``10240``, Min: ``512``, Max: ``10240``).
         retention_time: Optional[int] The time (in days) the Lambda execution logs will be saved in AWS
             cloudwatch. After that, they will be deleted. (Default: ``30`` days)
+        load_from_den (bool): Whether to try loading the Function resource from Den. (Default: ``True``)
         dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
             (Default: ``False``).
 
@@ -75,7 +77,9 @@ def aws_lambda_fn(
     # TODO: [SB] in the next phase, maybe add the option to create func from git.
     if name and not any([runtime, fn]):
         # Try reloading existing function
-        return LambdaFunction.from_name(name=name)
+        return LambdaFunction.from_name(
+            name=name, load_from_den=load_from_den, dryrun=dryrun
+        )
 
     if not fn or not isinstance(fn, Callable):
         raise RuntimeError(

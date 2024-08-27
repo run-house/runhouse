@@ -106,6 +106,10 @@ class RNSClient:
             return url_as_env_var
         return self._configs.get("api_server_url", None)
 
+    @property
+    def autosave(self):
+        return self._configs.get("autosave", True)
+
     def _index_base_folders(self, lst):
         self.rns_base_folders = {}
         for folder in lst:
@@ -144,6 +148,9 @@ class RNSClient:
 
     def remote_to_local_address(self, rns_address):
         return rns_address.replace(self.default_folder, "~")
+
+    def autosave_resources(self):
+        return bool(self.autosave and self.token)
 
     def request_headers(
         self, resource_address: str = None, headers: dict = None
@@ -340,6 +347,7 @@ class RNSClient:
     def load_config(
         self,
         name,
+        load_from_den=True,
     ) -> dict:
         if not name:
             return {}
@@ -359,7 +367,7 @@ class RNSClient:
             if config:
                 return config
 
-        if rns_address.startswith("/"):
+        if load_from_den and rns_address.startswith("/"):
             request_headers = self.request_headers()
             if not request_headers:
                 raise PermissionError(

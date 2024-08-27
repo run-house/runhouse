@@ -108,6 +108,12 @@ class SlowPandas(rh.Module):
         return os.cpu_count()
 
 
+class ModuleConstructingOtherModule:
+    def construct_and_get_env(self):
+        remote_calc = rh.module(Calculator)()
+        return remote_calc.env
+
+
 class Calculator:
     importer = "Calculators Inc"
 
@@ -953,3 +959,14 @@ class TestModule:
             remote_editable_package_module.hello_world()
             == "Hello from the editable package module!"
         )
+
+    @pytest.mark.level("local")
+    def test_module_constructed_on_cluster_is_in_same_env(self, cluster):
+        env = rh.env(
+            name="special_env",
+            reqs=["pandas", "numpy"],
+        )
+        remote_module = rh.module(ModuleConstructingOtherModule).to(
+            system=cluster, env=env
+        )
+        assert remote_module.construct_and_get_env().name == env.name

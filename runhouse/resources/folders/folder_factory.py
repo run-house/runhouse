@@ -13,6 +13,7 @@ def folder(
     name: Optional[str] = None,
     path: Optional[Union[str, Path]] = None,
     system: Optional[Union[str, "Cluster"]] = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
 ) -> Folder:
     """Creates a Runhouse folder object, which can be used to interact with the folder at the given path.
@@ -22,6 +23,7 @@ def folder(
         path (Optional[str or Path]): Path (or path) that the folder is located at.
         system (Optional[str or Cluster]): File system or cluster name. If prpre-oviding a file system this must be one of:
             [``file``, ``s3``, ``gs``].
+        load_from_den (bool): Whether to try loading the Folder resource from Den. (Default: ``True``)
         dryrun (bool): Whether to create the Folder if it doesn't exist, or load a Folder object as a dryrun.
             (Default: ``False``)
 
@@ -40,7 +42,7 @@ def folder(
     if name and not any([path, system]):
         # If only the name is provided
         try:
-            return Folder.from_name(name, dryrun)
+            return Folder.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
         except ValueError:
             # This is a rare instance where passing no constructor params is actually valid (anonymous folder),
             # so if we don't find the name, the user may still actually want to create a new folder.

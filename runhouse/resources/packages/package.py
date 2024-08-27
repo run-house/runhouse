@@ -153,9 +153,7 @@ class Package(Resource):
     ):
         install_args = f" {self.install_args}" if self.install_args else ""
         if isinstance(self.install_target, InstallTarget):
-            install_cmd = (
-                f"{str(Path(self.install_target.local_path).absolute())}" + install_args
-            )
+            install_cmd = self.install_target.full_local_path_str() + install_args
         else:
             install_target = f'"{self.install_target}"'
             install_cmd = install_target + install_args
@@ -439,7 +437,7 @@ class Package(Resource):
 
             new_package = copy.copy(self)
             new_package.install_target = InstallTarget(
-                local_path=self.install_target.local_path,
+                local_path=self.install_target.path_to_sync_to_on_cluster,
                 _path_to_sync_to_on_cluster=self.install_target.path_to_sync_to_on_cluster,
             )
             return new_package
@@ -524,7 +522,9 @@ class Package(Resource):
                 # Check if this is a package that was installed from local
                 local_install_path = get_local_install_path(target)
                 if local_install_path and Path(local_install_path).exists():
-                    target = (local_install_path, None)
+                    target = InstallTarget(
+                        local_path=local_install_path, _path_to_sync_to_on_cluster=None
+                    )
 
                 else:
                     # We want to preferrably install this version of the package server-side
@@ -559,6 +559,7 @@ def package(
     install_str: str = None,
     path: str = None,
     system: str = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
 ) -> Package:
     """
@@ -571,6 +572,7 @@ def package(
         path (str): URL of the package to install.
         system (str): File system or cluster on which the package lives. Currently this must a cluster or one of:
             [``file``, ``s3``, ``gs``].
+        load_from_den (bool): Whether to try loading the Package from Den. (Default: ``True``)
         dryrun (bool): Whether to create the Package if it doesn't exist, or load the Package object as a dryrun.
             (Default: ``False``)
 
@@ -584,7 +586,7 @@ def package(
     """
     if name and not any([install_method, install_str, path, system]):
         # If only the name is provided and dryrun is set to True
-        return Package.from_name(name, dryrun)
+        return Package.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
 
     install_target = None
     install_args = None

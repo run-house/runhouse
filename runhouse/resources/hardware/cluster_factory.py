@@ -5,8 +5,9 @@ import warnings
 from typing import Dict, List, Optional, Union
 
 from runhouse.constants import DEFAULT_SERVER_PORT, LOCAL_HOSTS, RESERVED_SYSTEM_NAMES
-from runhouse.logger import get_logger
+from runhouse.globals import rns_client
 
+from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import relative_file_path
 
@@ -29,6 +30,7 @@ def cluster(
     domain: str = None,
     den_auth: bool = None,
     default_env: Union["Env", str] = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
     **kwargs,
 ) -> Union[Cluster, OnDemandCluster, SageMakerCluster]:
@@ -59,6 +61,7 @@ def cluster(
         default_env (Env or str, optional): Environment that the Runhouse server is started on in the cluster. Used to
             specify an isolated environment (e.g. conda env) or any setup and requirements prior to starting the Runhouse
             server. (Default: ``None``)
+        load_from_den (bool): Whether to try loading the Cluster resource from Den. (Default: ``True``)
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
 
@@ -106,7 +109,12 @@ def cluster(
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
         try:
-            c = Cluster.from_name(name, dryrun, alt_options=alt_options)
+            c = Cluster.from_name(
+                name,
+                load_from_den=load_from_den,
+                dryrun=dryrun,
+                alt_options=alt_options,
+            )
             if c:
                 c.set_connection_defaults()
                 if den_auth:
@@ -193,7 +201,7 @@ def cluster(
     )
     c.set_connection_defaults(**kwargs)
 
-    if den_auth:
+    if den_auth or rns_client.autosave_resources():
         c.save()
 
     return c
@@ -322,6 +330,7 @@ def ondemand_cluster(
     domain: str = None,
     den_auth: bool = None,
     default_env: Union["Env", str] = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
     **kwargs,
 ) -> OnDemandCluster:
@@ -373,6 +382,7 @@ def ondemand_cluster(
         default_env (Env or str, optional): Environment that the Runhouse server is started on in the cluster. Used to
             specify an isolated environment (e.g. conda env) or any setup and requirements prior to starting the Runhouse
             server. (Default: ``None``)
+        load_from_den (bool): Whether to try loading the Cluster resource from Den. (Default: ``True``)
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
 
@@ -458,7 +468,12 @@ def ondemand_cluster(
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
         try:
-            c = Cluster.from_name(name, dryrun, alt_options=alt_options)
+            c = Cluster.from_name(
+                name,
+                load_from_den=load_from_den,
+                dryrun=dryrun,
+                alt_options=alt_options,
+            )
             if c:
                 c.set_connection_defaults()
                 if den_auth:
@@ -497,7 +512,7 @@ def ondemand_cluster(
     )
     c.set_connection_defaults()
 
-    if den_auth:
+    if den_auth or rns_client.autosave_resources():
         c.save()
 
     return c
@@ -524,6 +539,7 @@ def sagemaker_cluster(
     domain: str = None,
     den_auth: bool = None,
     default_env: Union["Env", str] = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
     **kwargs,
 ) -> SageMakerCluster:
@@ -582,6 +598,7 @@ def sagemaker_cluster(
         default_env (Env or str, optional): Environment that the Runhouse server is started on in the cluster. Used to
             specify an isolated environment (e.g. conda env) or any setup and requirements prior to starting the Runhouse
             server. (Default: ``None``)
+        load_from_den (bool): Whether to try loading the SageMakerCluster resource from Den. (Default: ``True``)
         dryrun (bool): Whether to create the SageMakerCluster if it doesn't exist, or load a SageMakerCluster object
             as a dryrun.
             (Default: ``False``)
@@ -660,7 +677,12 @@ def sagemaker_cluster(
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
         try:
-            c = SageMakerCluster.from_name(name, dryrun, alt_options=alt_options)
+            c = SageMakerCluster.from_name(
+                name,
+                load_from_den=load_from_den,
+                dryrun=dryrun,
+                alt_options=alt_options,
+            )
             if c:
                 c.set_connection_defaults()
                 return c
@@ -700,7 +722,7 @@ def sagemaker_cluster(
     )
     sm.set_connection_defaults()
 
-    if den_auth:
+    if den_auth or rns_client.autosave_resources():
         sm.save()
 
     return sm
