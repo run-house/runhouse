@@ -2,11 +2,11 @@ import asyncio
 import copy
 import datetime
 import json
+import logging
 import threading
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import httpx
-import requests
 
 import runhouse
 
@@ -19,7 +19,8 @@ from runhouse.constants import (
 )
 
 from runhouse.globals import configs, obj_store, rns_client
-from runhouse.logger import ColoredFormatter, logger
+
+from runhouse.logger import ColoredFormatter, get_logger, logger
 from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.resources.hardware.utils import detect_cuda_version_or_cpu
 from runhouse.rns.rns_client import ResourceStatusData
@@ -219,6 +220,11 @@ class ClusterServlet:
         status: ResourceStatusData, cluster_uri: str, api_server_url: str
     ):
         from runhouse.resources.hardware.utils import ResourceServerStatus
+
+        # Setting a separate logger for httpx, so the httpx info logs won't be streamed to the server.log. (Otherwise
+        # they spam the server.log and the log display in den, because the post request is sent every minute).
+        # Setting it "locally" in this method so it won't affect the other httpx clients in another methods.
+        get_logger(name="httpx", log_level=logging.WARNING)
 
         resource_info = dict(status)
         env_servlet_processes = dict(resource_info.pop("env_servlet_processes"))
@@ -515,6 +521,12 @@ class ClusterServlet:
         self, cluster_uri: str, api_server_url: str, prev_end_log_line: int
     ) -> Tuple[Optional[int], Optional[int], Optional[int]]:
         """Load the most recent logs from the server's log file and send them to Den."""
+
+        # Setting a separate logger for httpx, so the httpx info logs won't be streamed to the server.log. (Otherwise
+        # they spam the server.log and the log display in den, because the post request is sent every minute).
+        # Setting it "locally" in this method so it won't affect the other httpx clients in another methods.
+        get_logger(name="httpx", log_level=logging.WARNING)
+
         # setting to a list, so it will be easier to get the end line num  + the logs delta to send to den.
         latest_logs = self._get_logs().split("\n")
 
@@ -537,7 +549,8 @@ class ClusterServlet:
             "end_line": new_end_log_line,
         }
 
-        post_logs_resp = requests.post(
+        client = httpx.AsyncClient()
+        post_logs_resp = await client.post(
             f"{api_server_url}/resource/{cluster_uri}/logs",
             data=json.dumps(logs_data),
             headers=rns_client.request_headers(),
