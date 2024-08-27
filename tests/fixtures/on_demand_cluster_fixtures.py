@@ -5,7 +5,11 @@ import pytest
 
 import runhouse as rh
 
-from runhouse.constants import DEFAULT_HTTPS_PORT, EMPTY_DEFAULT_ENV_NAME
+from runhouse.constants import (
+    DEFAULT_HTTPS_PORT,
+    EMPTY_DEFAULT_ENV_NAME,
+    TESTING_LOG_LEVEL,
+)
 
 from tests.conftest import init_args
 from tests.utils import test_env
