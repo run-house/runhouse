@@ -139,11 +139,11 @@ class Cluster(Resource):
             connect_call.join(timeout=5)
             if connect_call.is_alive():
                 raise ConnectionError(
-                    f"Could not connect to client. Please check that the cluster {self.name} is up."
+                    f"Timed out trying to form connection for cluster {self.name}."
                 )
             if not self._http_client:
                 raise ConnectionError(
-                    f"Error occured trying to form connection for cluster {self.name}."
+                    f"Error occurred trying to form connection for cluster {self.name}."
                 )
 
             try:
