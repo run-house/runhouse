@@ -109,9 +109,7 @@ class CondaEnv(Env):
                 on the cluster using SSH. (default: ``None``)
         """
         if not any(["python" in dep for dep in self.conda_yaml["dependencies"]]):
-            status_codes = run_setup_command(
-                "python --version", cluster=cluster, stream_logs=False
-            )
+            status_codes = run_setup_command("python --version", cluster=cluster)
             base_python_version = (
                 status_codes[1].split()[1] if status_codes[0] == 0 else "3.10.9"
             )
@@ -119,9 +117,7 @@ class CondaEnv(Env):
         install_conda(cluster=cluster)
         local_env_exists = (
             f"\n{self.env_name} "
-            in run_setup_command(
-                "conda info --envs", cluster=cluster, stream_logs=False
-            )[1]
+            in run_setup_command("conda info --envs", cluster=cluster)[1]
         )
 
         # Hash the config_for_rns to check if we need to create/install the conda env

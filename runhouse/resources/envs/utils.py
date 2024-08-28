@@ -130,7 +130,7 @@ def run_setup_command(
     cmd: str,
     cluster: "Cluster" = None,
     env_vars: Dict = None,
-    stream_logs: bool = False,
+    stream_logs: bool = True,
 ):
     """
     Helper function to run a command during possibly the cluster default env setup. If a cluster is provided,
@@ -140,7 +140,7 @@ def run_setup_command(
     Args:
         cmd (str): Command to run on the
         cluster (Optional[Cluster]): (default: None)
-        stream_logs (bool): (default: False)
+        stream_logs (bool): (default: True)
 
     Returns:
        (status code, stdout)

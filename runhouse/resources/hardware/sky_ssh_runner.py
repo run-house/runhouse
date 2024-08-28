@@ -57,7 +57,7 @@ def get_docker_user(cluster: "Cluster", ssh_creds: Dict) -> str:
     container_name = DEFAULT_DOCKER_CONTAINER_NAME
     whoami_returncode, whoami_stdout, whoami_stderr = runner.run(
         f"sudo docker exec {container_name} whoami",
-        stream_logs=False,
+        stream_logs=True,
         require_outputs=True,
     )
     assert whoami_returncode == 0, (

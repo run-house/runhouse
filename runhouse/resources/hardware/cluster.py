@@ -489,9 +489,7 @@ class Cluster(Resource):
 
         env = env or self.default_env
 
-        remote_ray_version_call = self.run(
-            ["ray --version"], node="all", env=env, stream_logs=False
-        )
+        remote_ray_version_call = self.run(["ray --version"], node="all", env=env)
         ray_installed_remotely = remote_ray_version_call[0][0][0] == 0
         if not ray_installed_remotely:
             local_ray_version = find_locally_installed_version("ray")
@@ -895,9 +893,7 @@ class Cluster(Resource):
 
         # If resync_rh is still not confirmed to happen, check if Runhouse is installed on the cluster
         if resync_rh is None:
-            return_codes = self.run(
-                ["runhouse --version"], node="all", stream_logs=False
-            )
+            return_codes = self.run(["runhouse --version"], node="all")
             if return_codes[0][0][0] != 0:
                 logger.debug("Runhouse is not installed on the cluster.")
                 resync_rh = True
@@ -1032,7 +1028,7 @@ class Cluster(Resource):
         """
         cmd = CLI_STOP_CMD if stop_ray else f"{CLI_STOP_CMD} --no-stop-ray"
 
-        status_codes = self.run([cmd], env=env or self._default_env, stream_logs=False)
+        status_codes = self.run([cmd], env=env or self._default_env)
         assert status_codes[0][0] == 1
 
     @contextlib.contextmanager
@@ -1229,7 +1225,6 @@ class Cluster(Resource):
             if up:
                 runner.run(
                     ["mkdir", "-p", dest],
-                    stream_logs=False,
                     ssh_mode=SshMode.INTERACTIVE,
                 )
             else:
@@ -1247,7 +1242,6 @@ class Cluster(Resource):
             if up:
                 ssh_command = runner.run(
                     ["mkdir", "-p", dest],
-                    stream_logs=False,
                     return_cmd=True,
                     ssh_mode=SshMode.INTERACTIVE,
                 )
