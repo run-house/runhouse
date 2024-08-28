@@ -1,24 +1,42 @@
+import os
+import sys
+
 import kfp
-from kfp import dsl
-from kfp.components import func_to_container_op
+from kfp.dsl import component, pipeline
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+import logging
+
+from TorchBasicExample import download_data, preprocess_data, SimpleTrainer
+
 
 # Define the functions for each step in the pipeline
 # We can bring up an on-demand cluster using Runhouse. You can access powerful usage patterns by defining compute in code. All subsequent steps connect to this cluster by name, but you can bring up other clusters for other steps.
+logger = logging.getLogger(__name__)
+
+
+@component
 def bring_up_cluster(cluster_name: str, instance_type: str, provider: str):
+    import runhouse as rh
+
     logger.info("Connecting to remote cluster")
     cluster = rh.ondemand_cluster(
-        name="a10g-cluster", instance_type="A10G:1", provider="aws"
+        name=cluster_name, instance_type=instance_type, provider=provider
     ).up_if_not()
 
     print(cluster.is_up())
     # cluster.save() ## Use if you have a Runhouse Den account to save and monitor the resource.
 
 
+@component
 def access_data(cluster_name: str, instance_type: str, provider: str):
+    import runhouse as rh
+
     logger.info("Step 2: Access data")
     env = rh.env(name="test_env", reqs=["torch", "torchvision"])
 
-    cluster = rh.cluster(name="a10g-cluster").up_if_not()
+    cluster = rh.cluster(name=cluster_name).up_if_not()
     remote_download = rh.function(download_data).to(cluster, env=env)
     remote_preprocess = rh.function(preprocess_data).to(cluster, env=env)
     logger.info("Download function sent to remote")
@@ -27,9 +45,12 @@ def access_data(cluster_name: str, instance_type: str, provider: str):
     logger.info("Downloaded")
 
 
+@component
 def train_model(cluster_name: str, instance_type: str, provider: str):
+    import runhouse as rh
+
     logger.info("Step 3: Train Model")
-    cluster = rh.cluster(name="a10g-cluster").up_if_not()
+    cluster = rh.cluster(name=cluster_name).up_if_not()
 
     env = rh.env(name="test_env", reqs=["torch", "torchvision"])
 
@@ -55,42 +76,37 @@ def train_model(cluster_name: str, instance_type: str, provider: str):
         )
 
 
+@component
 def down_cluster(cluster_name: str, instance_type: str, provider: str):
-    cluster = rh.cluster(name="a10g-cluster")
+    import runhouse as rh
+
+    cluster = rh.cluster(name=cluster_name)
     cluster.teardown()
 
 
-# Convert the functions to Kubeflow Pipelines components
-bring_up_cluster_op = func_to_container_op(bring_up_cluster)
-access_data_op = func_to_container_op(access_data)
-preprocess_data_op = func_to_container_op(preprocess_data)
-download_s3_data_op = func_to_container_op(download_s3_data)
-train_model_op = func_to_container_op(train_model)
-down_cluster_op = func_to_container_op(down_cluster)
-
 # Define the pipeline
-@dsl.pipeline(
+@pipeline(
     name="PyTorch Training Pipeline",
     description="A simple PyTorch training pipeline with multiple steps",
 )
 def pytorch_training_pipeline(cluster_name: str, instance_type: str, provider: str):
-    bring_up_cluster_task = bring_up_cluster_op(cluster_name, instance_type, provider)
-    access_data_task = access_data_op(cluster_name, instance_type, provider).after(
-        bring_up_cluster_task
+    bring_up_cluster_task = bring_up_cluster(
+        cluster_name=cluster_name, instance_type=instance_type, provider=provider
     )
-    preprocess_data_task = preprocess_data_op(
-        cluster_name, instance_type, provider
-    ).after(access_data_task)
-    download_s3_data_task = download_s3_data_op(
-        cluster_name, instance_type, provider
-    ).after(preprocess_data_task)
-    train_model_task = train_model_op(cluster_name, instance_type, provider).after(
-        download_s3_data_task
+    access_data_task = access_data(
+        cluster_name=cluster_name, instance_type=instance_type, provider=provider
     )
-    down_cluster_task = down_cluster_op(cluster_name, instance_type, provider).after(
-        train_model_task
+    train_model_task = train_model(
+        cluster_name=cluster_name, instance_type=instance_type, provider=provider
     )
-    _ = down_cluster_task
+    down_cluster_task = down_cluster(
+        cluster_name=cluster_name, instance_type=instance_type, provider=provider
+    )
+
+    # Define the execution order
+    access_data_task.after(bring_up_cluster_task)
+    train_model_task.after(access_data_task)
+    down_cluster_task.after(train_model_task)
 
 
 # Compile the pipeline
