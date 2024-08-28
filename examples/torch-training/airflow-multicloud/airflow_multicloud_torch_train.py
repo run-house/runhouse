@@ -40,8 +40,6 @@
 import logging
 import os
 
-# ## Import the model class from the parent folder
-# This class is the same as the example in https://www.run.house/examples/torch-vision-mnist-basic-model-train-test
 import sys
 from datetime import datetime, timedelta
 
@@ -50,6 +48,8 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python import PythonOperator
 
+# ## Import the model class from the parent folder
+# This class is the same as the example in https://www.run.house/examples/torch-vision-mnist-basic-model-train-test
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
