@@ -41,11 +41,11 @@ class InstallTarget:
         return (
             self._path_to_sync_to_on_cluster
             if self._path_to_sync_to_on_cluster
-            else f"~/{Path(self.local_path).name}"
+            else f"~/{Path(self.full_local_path_str()).name}"
         )
 
     def full_local_path_str(self) -> str:
-        return str(Path(self.local_path).expanduser())
+        return str(Path(self.local_path).expanduser().resolve())
 
     def __str__(self):
         return f"InstallTarget(local_path={self.local_path}, path_to_sync_to_on_cluster={self._path_to_sync_to_on_cluster})"
@@ -234,7 +234,7 @@ class Package(Resource):
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
 
         if isinstance(self.install_target, InstallTarget):
-            if cluster:
+            if cluster and Path(self.install_target.local_path).expanduser().exists():
                 cluster.rsync(
                     source=str(self.install_target.local_path),
                     dest=str(self.install_target.path_to_sync_to_on_cluster),
