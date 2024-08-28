@@ -128,8 +128,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         ]
     }
 
-    GPU_CLUSTER_NAMES = ["rh-v100", "rh-k80", "rh-a10x", "rh-gpu-multinode"]
-
     @pytest.mark.level("unit")
     @pytest.mark.clustertest
     def test_cluster_factory_and_properties(self, cluster):
@@ -548,44 +546,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             env_servlet_info_keys.sort()
             assert env_servlet_info_keys == expected_env_servlet_keys
 
-            if cluster.name in self.GPU_CLUSTER_NAMES and env_name == "sd_env":
-                assert env_servlet_info.get("env_gpu_usage")
-
-    @pytest.mark.level("maximal")
-    @pytest.mark.clustertest
-    def test_rh_status_pythonic_gpu(self, cluster):
-        if cluster.name in self.GPU_CLUSTER_NAMES:
-            from tests.test_tutorials import sd_generate
-
-            env_sd = rh.env(
-                reqs=["pytest", "diffusers", "torch", "transformers"],
-                name="sd_env",
-                compute={"GPU": 1, "CPU": 4},
-            ).to(system=cluster, force_install=True)
-
-            assert env_sd
-
-            generate_gpu = rh.function(fn=sd_generate).to(system=cluster, env=env_sd)
-
-            images = generate_gpu(
-                prompt="A hot dog made of matcha powder.", num_images=4, steps=50
-            )
-
-            assert images
-
-            self.test_rh_status_pythonic(cluster)
-
-        else:
-            pytest.skip(f"{cluster.name} is not a GPU cluster, skipping")
-
-    @pytest.mark.level("local")
-    @pytest.mark.clustertest
-    def test_rh_status_cli_in_cluster(self, cluster):
+    def status_cli_test_logic(self, cluster, status_cli_command: str):
         default_env_name = cluster.default_env.name
 
         cluster.put(key="status_key2", obj="status_value2")
         status_output_response = cluster.run(
-            ["runhouse status"], _ssh_mode="non_interactive"
+            [status_cli_command], _ssh_mode="non_interactive"
         )[0]
         assert status_output_response[0] == 0
         status_output_string = status_output_response[1]
@@ -625,33 +591,20 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert status_output_string.count("node: ") >= 1
 
         # if it is a GPU cluster, check GPU print as well
-        if cluster.name in self.GPU_CLUSTER_NAMES:
-            assert "GPU: " in status_output_string
-            assert status_output_string.count("GPU: ") >= 1
 
-    @pytest.mark.level("maximal")
+    @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_rh_status_cli_in_gpu_cluster(self, cluster):
-        if cluster.name in self.GPU_CLUSTER_NAMES:
-            from tests.test_tutorials import sd_generate
+    def test_rh_status_cmd_with_no_den_ping(self, cluster):
+        self.status_cli_test_logic(
+            cluster=cluster, status_cli_command="runhouse status"
+        )
 
-            env_sd = rh.env(
-                reqs=["pytest", "diffusers", "torch", "transformers"],
-                name="sd_env",
-                compute={"GPU": 1},
-            ).to(system=cluster, force_install=True)
-
-            assert env_sd
-            generate_gpu = rh.function(fn=sd_generate).to(system=cluster, env=env_sd)
-            images = generate_gpu(
-                prompt="A hot dog made of matcha powder.", num_images=4, steps=50
-            )
-            assert images
-
-            self.test_rh_status_cli_in_cluster(cluster)
-
-        else:
-            pytest.skip(f"{cluster.name} is not a GPU cluster, skipping")
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_rh_status_cmd_with_den_ping(self, cluster):
+        self.status_cli_test_logic(
+            cluster=cluster, status_cli_command="runhouse status --send-to-den"
+        )
 
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")

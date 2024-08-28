@@ -273,7 +273,7 @@ class ClusterServlet:
                     break
 
                 logger.debug("Performing cluster checks")
-                status, den_resp = await self.astatus(
+                status, status_code = await self.astatus(
                     send_to_den=should_send_status_and_logs_to_den
                 )
 
@@ -284,18 +284,14 @@ class ClusterServlet:
                 if not should_send_status_and_logs_to_den:
                     break
 
-                status_code = den_resp.status_code
-
                 if status_code == 404:
                     logger.info(
                         "Cluster has not yet been saved to Den, cannot update status or logs."
                     )
                 elif status_code != 200:
-                    logger.error(
-                        f"Failed to send cluster status to Den: {den_resp.json()}"
-                    )
+                    logger.error("Failed to send cluster status to Den")
                 else:
-                    logger.debug("Successfully sent cluster status to Den.")
+                    logger.debug("Successfully sent cluster status to Den")
 
                     prev_end_log_line = cluster_config.get("end_log_line", 0)
                     (
@@ -417,9 +413,7 @@ class ClusterServlet:
             "server_pid": server_pid,  # will be useful for multi-node clusters.
         }
 
-    async def astatus(
-        self, send_to_den: bool = False
-    ) -> Tuple[Dict, Optional[httpx.Response]]:
+    async def astatus(self, send_to_den: bool = False) -> Tuple[Dict, Optional[int]]:
         import psutil
 
         from runhouse.utils import get_pid
@@ -510,8 +504,7 @@ class ClusterServlet:
 
             logger.debug("Sending cluster status to Den")
             den_resp = self.save_status_metrics_to_den(status=status_data)
-
-            return status_data, den_resp
+            return status_data, den_resp.status_code
 
         return status_data, None
 
