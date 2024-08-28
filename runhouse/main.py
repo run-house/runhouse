@@ -1,4 +1,3 @@
-import copy
 import importlib
 import logging
 import math
@@ -32,7 +31,7 @@ from runhouse.constants import (
     START_NOHUP_CMD,
     START_SCREEN_CMD,
 )
-from runhouse.globals import obj_store, rns_client
+from runhouse.globals import rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.ray_utils import (
     check_for_existing_ray_instance,
@@ -242,9 +241,10 @@ def _print_envs_info(
     env_servlet_processes: Dict[str, Dict[str, Any]], current_cluster: Cluster
 ):
     """
-    Prints info about the envs in the current_cluster.
-    Prints the resources in each env, and the CPU and GPU usage of the env (if exists).
+    Prints info about the envs in the current_cluster: resources in each env, the CPU usage and GPU usage of the env
+    (if exists)
     """
+
     # Print headline
     envs_in_cluster_headline = "Serving 🍦 :"
     console.print(envs_in_cluster_headline)
@@ -397,8 +397,8 @@ def _print_status(status_data: dict, current_cluster: Cluster) -> None:
     )
     console.print(daemon_headline_txt, style="bold royal_blue1")
 
-    console.print(f'Runhouse v{status_data.get("runhouse_version")}')
-    console.print(f'server pid: {status_data.get("server_pid")}')
+    console.print(f"Runhouse v{status_data.get('runhouse_version')}")
+    console.print(f"server pid: {status_data.get('server_pid')}")
 
     # Print relevant info from cluster config.
     _print_cluster_config(cluster_config)
@@ -406,20 +406,27 @@ def _print_status(status_data: dict, current_cluster: Cluster) -> None:
     # print the environments in the cluster, and the resources associated with each environment.
     _print_envs_info(env_servlet_processes, current_cluster)
 
-    return status_data
-
 
 @app.command()
 def status(
     cluster_name: str = typer.Argument(
         None,
         help="Name of cluster to check. If not specified will check the local cluster.",
-    )
+    ),
+    send_to_den: bool = typer.Option(
+        default=False,
+        help="Whether to update Den with the status",
+    ),
 ):
     """Load the status of the Runhouse daemon running on a cluster."""
     cluster_or_local = rh.here
 
-    if cluster_name:
+    if cluster_or_local == "file" and not cluster_name:
+        # If running outside the cluster must specify a cluster name
+        console.print("Missing argument `cluster_name`.")
+        return
+
+    elif cluster_name:
         current_cluster = cluster(name=cluster_name)
         if not current_cluster.is_up():
             console.print(
@@ -436,32 +443,22 @@ def status(
                 f"`runhouse ssh {cluster_name}` or `sky status -r` for on-demand clusters."
             )
             raise typer.Exit(1)
+
+    elif not cluster_or_local:
+        console.print(
+            "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}. "
+            "Start it with `runhouse restart` or specify a remote "
+            "cluster to poll with `runhouse status <cluster_name>`."
+        )
+        raise typer.Exit(1)
+
     else:
-        if not cluster_or_local or cluster_or_local == "file":
-            console.print(
-                "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}. "
-                "Start it with `runhouse restart` or specify a remote "
-                "cluster to poll with `runhouse status <cluster_name>`."
-            )
-            raise typer.Exit(1)
-
-    # case we are inside the cluster
-    if cluster_or_local != "file":
-        # If we are on the cluster load status directly from the object store
-        cluster_status: dict = dict(obj_store.status())
-        cluster_config = copy.deepcopy(cluster_status.get("cluster_config"))
-        current_cluster: Cluster = Cluster.from_config(cluster_config)
-        return _print_status(cluster_status, current_cluster)
-
-    if cluster_name is None:
-        # If running outside the cluster must specify a cluster name
-        console.print("Missing argument `cluster_name`.")
-        return
+        # we are inside the cluster
+        current_cluster = cluster_or_local  # cluster_or_local = rh.here
 
     try:
-        current_cluster: Cluster = Cluster.from_name(name=cluster_name)
-        cluster_status: dict = current_cluster.status(
-            resource_address=current_cluster.rns_address
+        cluster_status = current_cluster.status(
+            resource_address=current_cluster.rns_address, send_to_den=send_to_den
         )
 
     except ValueError:
@@ -472,7 +469,8 @@ def status(
             "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}"
         )
         return
-    return _print_status(cluster_status, current_cluster)
+
+    _print_status(cluster_status, current_cluster)
 
 
 def load_cluster(cluster_name: str):

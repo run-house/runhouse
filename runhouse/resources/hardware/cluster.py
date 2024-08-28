@@ -755,17 +755,33 @@ class Cluster(Resource):
                 system=self,
             )
 
-    def status(self, resource_address: str = None):
-        """Loads the status of the Runhouse daemon running on the cluster."""
+    def status(self, resource_address: str = None, send_to_den: bool = False):
+        """Load the status of the Runhouse daemon running on a cluster."""
+
         # Note: If running outside a local cluster need to include a resource address to construct the cluster subtoken
         # Allow for specifying a resource address explicitly in case the resource has no rns address yet
         if self.on_this_cluster():
-            status = obj_store.status()
+            status, den_resp = obj_store.status(send_to_den=send_to_den)
         else:
-            status = self.call_client_method(
+            status, den_resp = self.call_client_method(
                 "status",
                 resource_address=resource_address or self.rns_address,
+                send_to_den=send_to_den,
             )
+
+        if send_to_den:
+            send_to_den_status_code = den_resp.status_code
+
+            if send_to_den_status_code == 404:
+                logger.info(
+                    "Cluster has not yet been saved to Den, cannot update status or logs."
+                )
+
+            elif send_to_den_status_code != 200:
+                logger.warning(
+                    f"Failed to send cluster status to den: {den_resp.json()}"
+                )
+
         return status
 
     def ssh_tunnel(
