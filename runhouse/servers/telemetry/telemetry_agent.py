@@ -5,6 +5,7 @@ import subprocess
 import tarfile
 import time
 import urllib
+
 from builtins import bool
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -15,6 +16,7 @@ import requests
 import yaml
 
 from runhouse.constants import (
+    OTEL_VERSION,
     TELEMETRY_AGENT_GRPC_PORT,
     TELEMETRY_AGENT_HEALTH_CHECK_PORT,
     TELEMETRY_AGENT_HTTP_PORT,
@@ -36,6 +38,9 @@ class TelemetryAgentConfig:
     health_check_port: int = TELEMETRY_AGENT_HEALTH_CHECK_PORT
     log_level: str = field(
         default_factory=lambda: logging.getLevelName(logger.getEffectiveLevel())
+    )
+    otel_version: str = field(
+        default_factory=lambda: os.getenv("OTEL_VERSION", OTEL_VERSION)
     )
 
 
@@ -294,7 +299,8 @@ class TelemetryAgentExporter:
         """Install the binary for the telemetry agent."""
         logger.debug("Installing OTel agent")
         try:
-            install_url = self._load_install_url()
+            install_url = self._generate_install_url()
+
             logger.debug(f"Downloading OTel agent from url: {install_url}")
 
             # Download and extract
