@@ -8,8 +8,8 @@ import requests
 import runhouse as rh
 from runhouse.constants import SERVER_LOGFILE_PATH
 from runhouse.globals import rns_client
-from runhouse.logger import ColoredFormatter
 from runhouse.resources.hardware.utils import ResourceServerStatus
+from runhouse.utils import ColoredFormatter
 
 import tests.test_resources.test_clusters.test_cluster
 from tests.utils import friend_account

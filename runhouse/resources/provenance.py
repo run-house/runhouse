@@ -9,6 +9,7 @@ from typing import Any, List, Optional, Union
 
 from runhouse.constants import LOGS_DIR
 from runhouse.globals import configs, rns_client
+from runhouse.logger import get_logger
 from runhouse.resources.blobs import file
 
 # Need to alias so it doesn't conflict with the folder property
@@ -19,8 +20,7 @@ from runhouse.rns.top_level_rns_fns import resolve_rns_path
 from runhouse.rns.utils.api import log_timestamp, resolve_absolute_path
 from runhouse.utils import StreamTee
 
-# Load the root logger
-logger = logging.getLogger("")
+logger = get_logger(name=__name__)
 
 
 class RunStatus(str, Enum):

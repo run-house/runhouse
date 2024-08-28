@@ -6,13 +6,15 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.globals import configs, rns_client
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
 from runhouse.resources.secrets.utils import _delete_vault_secrets, load_config
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
 from runhouse.utils import generate_default_name
+
+logger = get_logger(name=__name__)
 
 
 class Secret(Resource):

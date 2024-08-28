@@ -19,15 +19,16 @@ from runhouse.constants import (
 )
 
 from runhouse.globals import configs, obj_store, rns_client
-from runhouse.logger import ColoredFormatter, logger
+from runhouse.logger import get_logger
 from runhouse.resources.hardware import load_cluster_config_from_file
 from runhouse.resources.hardware.utils import detect_cuda_version_or_cpu
 from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.autostop_helper import AutostopHelper
 from runhouse.servers.http.auth import AuthCache
+from runhouse.utils import ColoredFormatter, sync_function
 
-from runhouse.utils import sync_function
+logger = get_logger(name=__name__)
 
 
 class ClusterServletError(Exception):

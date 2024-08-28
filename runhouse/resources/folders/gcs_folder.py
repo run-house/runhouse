@@ -4,9 +4,11 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 
 from .folder import Folder
+
+logger = get_logger(name=__name__)
 
 
 class GCSFolder(Folder):

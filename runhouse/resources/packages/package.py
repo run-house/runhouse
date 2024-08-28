@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Union
 
+from runhouse.logger import get_logger
+
 from runhouse.resources.envs.utils import install_conda, run_setup_command
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import (
@@ -22,7 +24,7 @@ from runhouse.utils import (
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda", "rh"}
 
-from runhouse.logger import logger
+logger = get_logger(name=__name__)
 
 
 class CodeSyncError(Exception):

@@ -1,10 +1,12 @@
 from pathlib import Path
 from typing import Optional, Union
 
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 
 from runhouse.resources.folders.folder import Folder
 from runhouse.resources.hardware.utils import _get_cluster_from
+
+logger = get_logger(name=__name__)
 
 
 def folder(

@@ -13,8 +13,7 @@ import ray
 from pydantic import BaseModel
 
 from runhouse.constants import DEFAULT_LOG_LEVEL
-
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 
 from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import ResourceVisibility
@@ -24,6 +23,8 @@ from runhouse.utils import (
     LogToFolder,
     sync_function,
 )
+
+logger = get_logger(name=__name__)
 
 
 class RaySetupOption(str, Enum):

@@ -4,7 +4,9 @@ from typing import Optional
 import ray
 from ray.experimental.state.api import list_actors
 
-from runhouse.logger import logger
+from runhouse.logger import get_logger
+
+logger = get_logger(name=__name__)
 
 
 def check_for_existing_ray_instance():

@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from runhouse.constants import DEFAULT_LOG_LEVEL
 from runhouse.globals import obj_store
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 
 from runhouse.servers.http.http_utils import (
     deserialize_data,
@@ -15,8 +15,9 @@ from runhouse.servers.http.http_utils import (
     serialize_data,
 )
 from runhouse.servers.obj_store import ClusterServletSetupOption
-
 from runhouse.utils import arun_in_thread, get_node_ip
+
+logger = get_logger(name=__name__)
 
 
 def error_handling_decorator(func):

@@ -43,8 +43,8 @@ from runhouse.constants import (
     RESERVED_SYSTEM_NAMES,
 )
 from runhouse.globals import configs, obj_store, rns_client
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
 from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
     _current_cluster,
@@ -55,6 +55,8 @@ from runhouse.resources.hardware.utils import (
 from runhouse.resources.resource import Resource
 
 from runhouse.servers.http import HTTPClient
+
+logger = get_logger(name=__name__)
 
 
 class Cluster(Resource):

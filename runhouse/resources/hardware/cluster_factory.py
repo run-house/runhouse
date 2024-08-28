@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Union
 from runhouse.constants import DEFAULT_SERVER_PORT, LOCAL_HOSTS, RESERVED_SYSTEM_NAMES
 from runhouse.globals import rns_client
 
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import ServerConnectionType
 from runhouse.rns.utils.api import relative_file_path
 
@@ -15,6 +15,7 @@ from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
 from .sagemaker.sagemaker_cluster import SageMakerCluster
 
+logger = get_logger(name=__name__)
 
 # Cluster factory method
 def cluster(
