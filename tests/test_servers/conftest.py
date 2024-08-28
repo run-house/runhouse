@@ -74,12 +74,10 @@ def local_telemetry_agent_for_local_backend():
     if status_code != 200:
         raise ConnectionError(
             f"Failed to ping collector ({telemetry_agent.collector_config.status_url}), received status code "
-            f"{status_code}. Is the collector up?"
-        )
+            f"{status_code}. Is the collector up?")
 
     # Allow the agent to fully setup before collecting data
     time.sleep(0.5)
-
     yield telemetry_agent
 
     telemetry_agent.stop()

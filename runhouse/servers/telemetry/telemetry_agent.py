@@ -14,7 +14,6 @@ import requests
 import yaml
 
 from runhouse.constants import (
-    OTEL_VERSION,
     TELEMETRY_AGENT_GRPC_PORT,
     TELEMETRY_AGENT_HEALTH_CHECK_PORT,
     TELEMETRY_AGENT_HTTP_PORT,
@@ -22,6 +21,8 @@ from runhouse.constants import (
     TELEMETRY_COLLECTOR_HOST,
     TELEMETRY_COLLECTOR_STATUS_URL,
 )
+from runhouse.globals import configs
+
 from runhouse.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,9 +35,6 @@ class TelemetryAgentConfig:
     health_check_port: int = TELEMETRY_AGENT_HEALTH_CHECK_PORT
     log_level: str = field(
         default_factory=lambda: logging.getLevelName(logger.getEffectiveLevel())
-    )
-    otel_version: str = field(
-        default_factory=lambda: os.getenv("OTEL_VERSION", OTEL_VERSION)
     )
 
 
@@ -85,7 +83,7 @@ class TelemetryAgentExporter:
     @property
     def executable_path(self) -> str:
         """Path to the otel binary."""
-        return f"{self.bin_dir}/otelcol"
+        return f"{self.bin_dir}/otelcol-contrib"
 
     @property
     def local_config_path(self) -> str:
@@ -96,6 +94,21 @@ class TelemetryAgentExporter:
     def agent_status_url(self) -> str:
         """Health check URL of the local agent."""
         return f"http://localhost:{self.agent_config.health_check_port}"
+
+    @classmethod
+    def auth_token(cls):
+        # Use the token saved in the local config file (~/.rh/config.yaml)
+        # Note: this will be the cluster token for the cluster owner
+        cluster_token = configs.token
+        if cluster_token is None:
+            raise ValueError(
+                "No cluster token found, cannot configure telemetry agent auth"
+            )
+        return cluster_token
+
+    @classmethod
+    def request_headers(cls):
+        return {"authorization": f"Bearer {cls.auth_token()}"}
 
     def _setup_directories(self):
         # Note: use paths that are local to the user's home directory and won't necessitate root access on the cluster
@@ -113,15 +126,30 @@ class TelemetryAgentExporter:
 
     def _create_default_config(self):
         """Base config for the local agent, which forwards the collected telemetry data to the collector backend."""
-        # Use insecure connection if the collector endpoint is not HTTPS (ex: localhost)
         collector_endpoint = self.collector_config.endpoint
+
+        # Use insecure connection if the collector is not secured with HTTPS (ex: running on localhost)
         insecure = False if TELEMETRY_COLLECTOR_HOST in collector_endpoint else True
+        service_extensions = ["health_check"]
+
+        # Note: the receiver does not have any auth enabled, as the agent will be running on localhost
+        # The auth is configured on the "exporter", since auth is required to send data to the collector
+        auth_extension = {}
+        if not insecure:
+            auth_extension = {
+                "bearertokenauth/withscheme": {
+                    "scheme": "Bearer",
+                    "token": TelemetryAgentExporter.auth_token(),
+                }
+            }
+            service_extensions.append("bearertokenauth/withscheme")
 
         otel_config = {
             "extensions": {
                 "health_check": {
                     "endpoint": f"0.0.0.0:{self.agent_config.health_check_port}"
-                }
+                },
+                **auth_extension,
             },
             "receivers": {
                 "otlp": {
@@ -137,10 +165,15 @@ class TelemetryAgentExporter:
                 "otlp/grpc": {
                     "endpoint": collector_endpoint,
                     "tls": {"insecure": insecure},
+                    **(
+                        {"auth": {"authenticator": "bearertokenauth/withscheme"}}
+                        if not insecure
+                        else {}
+                    ),
                 },
             },
             "service": {
-                "extensions": ["health_check"],
+                "extensions": service_extensions,
                 "pipelines": {
                     "traces": {
                         "receivers": ["otlp"],
@@ -189,8 +222,8 @@ class TelemetryAgentExporter:
         else:
             raise ValueError(f"Unsupported system: {system}")
 
-        otel_version = self.agent_config.otel_version
-        binary_url = f"https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v{otel_version}/otelcol_{otel_version}_{system}_{arch}.tar.gz"
+        # Note: version used by agent must match the collector version
+        binary_url = f"https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.108.0/otelcol-contrib_0.108.0_{system}_{arch}.tar.gz"
 
         return binary_url
 
@@ -300,7 +333,7 @@ class TelemetryAgentExporter:
             self.install()
 
         if self.is_up() and not reload_config:
-            logger.info("Otel agent is already running")
+            logger.debug("Otel agent is already running")
             return True
 
         try:

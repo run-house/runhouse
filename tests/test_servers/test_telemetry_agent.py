@@ -13,13 +13,16 @@ logger = get_logger(__name__)
 
 
 @pytest.mark.servertest
+@pytest.mark.usefixtures("local_telemetry_collector")
 class TestTelemetryAgent:
     """Sets up a locally running telemetry agent instance, and sends off the telemetry data to a locally running
     collector backend (mocking the Runhouse collector backend)."""
 
     @pytest.mark.level("local")
+
     def test_send_span_to_collector_backend(self, local_telemetry_collector):
-        """Generate a span locally in-memory and send it to a locally running collector backend"""
+        """Generate a span and send it to a locally running collector backend"""
+
         trace.set_tracer_provider(TracerProvider())
         tracer = trace.get_tracer(__name__)
 
