@@ -33,16 +33,37 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from PIL import Image
 
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 
 # Let's define a function that downloads the data. You can imagine this as a generic function to access data.
-def DownloadData(path="./data"):
+def download_data(path="./data"):
     datasets.MNIST(path, train=True, download=True)
     datasets.MNIST(path, train=False, download=True)
     print("Done with data download")
+
+
+def preprocess_data(path):
+    transform = transforms.Compose(
+        [
+            transforms.Resize(
+                (28, 28), interpolation=Image.BILINEAR
+            ),  # Resize to 28x28 using bilinear interpolation
+            transforms.ToTensor(),
+            transforms.Normalize(
+                (0.5,), (0.5,)
+            ),  # Normalize with mean=0.5, std=0.5 for general purposes
+        ]
+    )
+
+    train = datasets.MNIST(path, train=False, download=False, transform=transform)
+    test = datasets.MNIST(path, train=False, download=False, transform=transform)
+    print("Done with data preprocessing")
+    print(f"Number of training samples: {len(train)}")
+    print(f"Number of test samples: {len(test)}")
 
 
 # Next, we define a model class. We define a very basic feedforward neural network with three fully connected layers.
@@ -78,9 +99,7 @@ class SimpleTrainer:
         self.train_loader = None
         self.test_loader = None
 
-        self.transform = transforms.Compose(
-            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-        )
+        self.transform = transforms.Compose([transforms.ToTensor()])
 
         self.accuracy = None
         self.test_loss = None
@@ -216,7 +235,8 @@ if __name__ == "__main__":
     remote_torch_example = rh.module(SimpleTrainer).to(
         cluster, env=env, name="torch-basic-training"
     )
-    remote_download = rh.function(DownloadData).to(cluster, env=env)
+    remote_download = rh.function(download_data).to(cluster, env=env)
+    remote_preprocess = rh.function(preprocess_data).to(cluster, env=env)
 
     # ## Calling our remote Trainer
     # We instantiate the remote class
@@ -235,6 +255,7 @@ if __name__ == "__main__":
     # We create the datasets remotely, and then send them to the remote model / remote .load_train() method. The "preprocessing" happens remotely.
     # They become instance variables of the remote Trainer.
     remote_download()
+    remote_preprocess()
 
     model.load_train("./data", batch_size)
     model.load_test("./data", batch_size)
