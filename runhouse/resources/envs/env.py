@@ -13,7 +13,7 @@ from runhouse.resources.packages import InstallTarget, Package
 from runhouse.resources.resource import Resource
 from runhouse.utils import run_with_logs
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 class Env(Resource):

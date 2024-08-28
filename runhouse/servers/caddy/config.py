@@ -5,7 +5,7 @@ from pathlib import Path
 from runhouse.constants import DEFAULT_SERVER_PORT
 from runhouse.logger import get_logger
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 SYSTEMCTL_ERROR = "systemctl: command not found"
 
 

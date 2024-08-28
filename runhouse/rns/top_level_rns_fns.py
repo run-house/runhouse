@@ -8,7 +8,7 @@ from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
 from runhouse.servers.obj_store import ClusterServletSetupOption
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 logging.getLogger("numexpr").setLevel(logging.WARNING)
 

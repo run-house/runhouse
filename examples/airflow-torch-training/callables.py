@@ -4,7 +4,7 @@ from runhouse.logger import get_logger
 from torch_example_for_airflow import DownloadData, SimpleTrainer
 
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 def bring_up_cluster_callable(**kwargs):

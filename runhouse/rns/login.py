@@ -7,7 +7,7 @@ import typer
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 def is_interactive():

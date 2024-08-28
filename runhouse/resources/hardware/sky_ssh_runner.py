@@ -25,7 +25,7 @@ from runhouse.resources.hardware.sky.command_runner import (
 )
 
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 # Get rid of the constant "Found credentials in shared credentials file: ~/.aws/credentials" message
 try:

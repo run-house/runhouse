@@ -14,7 +14,7 @@ from runhouse.resources.packages import Package
 
 from .env import Env
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 class CondaEnv(Env):

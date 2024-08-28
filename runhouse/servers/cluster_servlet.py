@@ -27,7 +27,7 @@ from runhouse.servers.autostop_helper import AutostopHelper
 from runhouse.servers.http.auth import AuthCache
 from runhouse.utils import ColoredFormatter, sync_function
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 class ClusterServletError(Exception):

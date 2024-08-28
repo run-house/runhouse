@@ -14,7 +14,7 @@ from runhouse.resources.secrets.utils import _delete_vault_secrets, load_config
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
 from runhouse.utils import generate_default_name
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 class Secret(Resource):

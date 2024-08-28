@@ -11,7 +11,7 @@ from runhouse.logger import get_logger
 
 from tests.utils import friend_account
 
-logger = get_logger(name=__name__)
+logger = get_logger()
 
 
 def get_remote_func_name(test_folder):
