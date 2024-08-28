@@ -1192,10 +1192,10 @@ class Module(Resource):
 
             module_method_params = create_model(
                 f"{method_name}_schema", **params
-            ).schema()
+            ).model_json_schema()
             module_method_params["title"] = "kwargs"
 
-            request_body_schema = CallParams.schema()
+            request_body_schema = CallParams.model_json_schema()
             request_body_schema["properties"]["data"] = {
                 "title": "data",
                 "type": "object",

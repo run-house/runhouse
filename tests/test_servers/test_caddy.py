@@ -364,7 +364,7 @@ class TestCaddyServerLocally:
                 serialized_data=serialize_data(test_list, "pickle"),
                 key=key,
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             headers=rns_client.request_headers(cluster.rns_address),
             verify=verify,
         )

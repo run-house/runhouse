@@ -284,13 +284,13 @@ class HTTPClient:
     def folder_ls(self, path: Union[str, Path], full_paths: bool, sort: bool):
         folder_params = FolderLsParams(
             path=path, full_paths=full_paths, sort=sort
-        ).dict()
+        ).model_dump()
         return self.request_json(
             "/folder/method/ls", req_type="post", json_dict=folder_params
         )
 
     def folder_mkdir(self, path: Union[str, Path]):
-        folder_params = FolderParams(path=path).dict()
+        folder_params = FolderParams(path=path).model_dump()
         return self.request_json(
             "/folder/method/mkdir", req_type="post", json_dict=folder_params
         )
@@ -300,13 +300,15 @@ class HTTPClient:
     ):
         folder_params = FolderMvParams(
             path=path, dest_path=dest_path, overwrite=overwrite
-        ).dict()
+        ).model_dump()
         return self.request_json(
             "/folder/method/mv", req_type="post", json_dict=folder_params
         )
 
     def folder_get(self, path: Union[str, Path], encoding: str, mode: str):
-        folder_params = FolderGetParams(path=path, encoding=encoding, mode=mode).dict()
+        folder_params = FolderGetParams(
+            path=path, encoding=encoding, mode=mode
+        ).model_dump()
         return self.request_json(
             "/folder/method/get", req_type="post", json_dict=folder_params
         )
@@ -325,7 +327,7 @@ class HTTPClient:
             mode=mode,
             overwrite=overwrite,
             serialization=serialization,
-        ).dict()
+        ).model_dump()
         return self.request_json(
             "/folder/method/put", req_type="post", json_dict=folder_params
         )
@@ -333,13 +335,13 @@ class HTTPClient:
     def folder_rm(self, path: Union[str, Path], contents: List, recursive: bool):
         folder_params = FolderRmParams(
             path=path, recursive=recursive, contents=contents
-        ).dict()
+        ).model_dump()
         return self.request_json(
             "/folder/method/rm", req_type="post", json_dict=folder_params
         )
 
     def folder_exists(self, path: str):
-        folder_params = FolderParams(path=path).dict()
+        folder_params = FolderParams(path=path).model_dump()
         return self.request_json(
             "/folder/method/exists", req_type="post", json_dict=folder_params
         )
@@ -443,7 +445,7 @@ class HTTPClient:
                 stream_logs=stream_logs,
                 save=save,
                 remote=remote,
-            ).dict(),
+            ).model_dump(),
             stream=True,
             headers=rns_client.request_headers(resource_address),
             auth=self.auth,
@@ -562,7 +564,7 @@ class HTTPClient:
                 save=save,
                 remote=remote,
                 run_async=run_async,
-            ).dict(),
+            ).model_dump(),
             headers=rns_client.request_headers(resource_address),
         ) as res:
             if res.status_code != 200:
@@ -602,7 +604,7 @@ class HTTPClient:
                 serialized_data=serialize_data(value, "pickle"),
                 env_name=env,
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             err_str=f"Error putting object {key}",
         )
 
@@ -618,7 +620,7 @@ class HTTPClient:
                 serialized_data=serialize_data([config, state, dryrun], "pickle"),
                 env_name=env_name,
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             err_str=f"Error putting resource {resource.name or type(resource)}",
         )
 
@@ -638,7 +640,7 @@ class HTTPClient:
                     key=key,
                     serialization="pickle",
                     remote=remote,
-                ).dict(),
+                ).model_dump(),
                 err_str=f"Error getting object {key}",
             )
             if remote and isinstance(res, dict) and "resource_type" in res:
@@ -661,7 +663,7 @@ class HTTPClient:
         self.request_json(
             "rename",
             req_type="post",
-            json_dict=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            json_dict=RenameObjectParams(key=old_key, new_key=new_key).model_dump(),
             err_str=f"Error renaming object {old_key}",
         )
 
@@ -688,7 +690,7 @@ class HTTPClient:
         return self.request_json(
             "delete_object",
             req_type="post",
-            json_dict=DeleteObjectParams(keys=keys or []).dict(),
+            json_dict=DeleteObjectParams(keys=keys or []).model_dump(),
             err_str=f"Error deleting keys {keys}",
         )
 

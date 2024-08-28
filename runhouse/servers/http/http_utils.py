@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Union
 import requests
 
 from fastapi import HTTPException
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 from ray import cloudpickle as pickle
 from ray.exceptions import RayTaskError
 
@@ -95,7 +95,7 @@ class OutputType:
 class FolderParams(BaseModel):
     path: str
 
-    @validator("path", pre=True, always=True)
+    @field_validator("path", mode="before")
     def convert_path_to_string(cls, v):
         return str(v) if v is not None else v
 
@@ -126,7 +126,7 @@ class FolderMvParams(FolderParams):
     dest_path: str
     overwrite: Optional[bool] = True
 
-    @validator("dest_path", pre=True, always=True)
+    @field_validator("dest_path", mode="before")
     def convert_path_to_string(cls, v):
         return str(v) if v is not None else v
 

@@ -1575,7 +1575,7 @@ class ObjStore:
             )
 
             active_fn_calls = [
-                call_info.dict()
+                call_info.model_dump()
                 for call_info in current_active_function_calls.values()
                 if call_info.key == k
             ]
