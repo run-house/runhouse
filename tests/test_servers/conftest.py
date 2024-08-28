@@ -50,6 +50,67 @@ def cert_config():
     Path(cert_config.key_path).unlink(missing_ok=True)
 
 
+@pytest.fixture(scope="session")
+def local_telemetry_agent_for_local_backend():
+    """Local agent which exports to a locally running collector."""
+    from runhouse.servers.telemetry import (
+        TelemetryAgentExporter,
+        TelemetryCollectorConfig,
+    )
+
+    # Note: For local testing purposes the backend collector will run on a different port for HTTP (4319),
+    # GRPC (4316), and health check (13134), to avoid collisions with the locally running agent running on the
+    # same machine on the standard ports (4317, 4318, and 13133).
+    collector_config = TelemetryCollectorConfig(
+        endpoint="localhost:4316", status_url="http://localhost:13134"
+    )
+    telemetry_agent = TelemetryAgentExporter(collector_config=collector_config)
+    telemetry_agent.start(reload_config=True)
+
+    assert telemetry_agent.is_up()
+
+    # Confirm the backend collector is up and running before proceeding
+    status_code = telemetry_agent.collector_health_check()
+    if status_code != 200:
+        raise ConnectionError(
+            f"Failed to ping collector ({telemetry_agent.collector_config.status_url}), received status code "
+            f"{status_code}. Is the collector up?"
+        )
+
+    # Allow the agent to fully setup before collecting data
+    time.sleep(0.5)
+
+    yield telemetry_agent
+
+    telemetry_agent.stop()
+
+
+@pytest.fixture(scope="session")
+def local_telemetry_agent_for_runhouse_backend():
+    """Local agent which exports to the Runhouse collector."""
+    from runhouse.servers.telemetry import TelemetryAgentExporter
+
+    telemetry_agent = TelemetryAgentExporter()
+    telemetry_agent.start(reload_config=True)
+
+    assert telemetry_agent.is_up()
+
+    # Confirm the backend collector is up and running before proceeding
+    status_code = telemetry_agent.collector_health_check()
+    if status_code != 200:
+        raise ConnectionError(
+            f"Failed to ping collector ({telemetry_agent.collector_config.status_url}), received status code "
+            f"{status_code}. Is the collector up?"
+        )
+
+    # Allow the agent to fully setup before collecting data
+    time.sleep(0.5)
+
+    yield telemetry_agent
+
+    telemetry_agent.stop()
+
+
 @pytest.fixture(scope="function")
 def http_client(cluster, cert_config):
     addr = cluster.endpoint()

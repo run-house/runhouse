@@ -233,6 +233,11 @@ from tests.fixtures.docker_cluster_fixtures import (
     shared_function,  # noqa: F401
 )
 
+# ----------------- Telemetry -----------------
+from tests.fixtures.docker_telemetry_fixtures import (
+    local_telemetry_collector,  # noqa: F401
+)
+
 from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
@@ -267,7 +272,6 @@ from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
     sm_cluster_with_auth,  # noqa: F401
     sm_gpu_cluster,  # noqa: F401
 )
-
 
 # ----------------- Folders -----------------
 

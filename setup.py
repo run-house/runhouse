@@ -66,6 +66,9 @@ install_requires = [
     "python-dotenv",
     "fastapi",
     "pexpect",
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp",
     "pyOpenSSL>=23.3.0",
     "ray[default] >= 2.9.0",
     "async_timeout",  # Needed for ray<=2.9
