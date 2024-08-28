@@ -8,6 +8,7 @@ import pytest
 
 import runhouse as rh
 import yaml
+from runhouse.constants import TESTING_LOG_LEVEL
 
 from runhouse.globals import rns_client
 from runhouse.servers.obj_store import ObjStore, RaySetupOption
@@ -103,6 +104,7 @@ def test_env(logged_in=False):
     return rh.env(
         reqs=["pytest", "httpx", "pytest_asyncio", "pandas", "numpy<=1.26.4"],
         working_dir=None,
+        env_vars={"RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL},
         setup_cmds=[
             f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
             f"echo '{yaml.safe_dump(rh.configs.defaults_cache)}' > ~/.rh/config.yaml"

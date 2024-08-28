@@ -1,5 +1,4 @@
 import json
-import logging
 import time
 import warnings
 from functools import wraps
@@ -490,7 +489,7 @@ class HTTPClient:
         else:
             log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
 
-        logging.info(log_str)
+        logger.info(log_str)
         return result
 
     async def acall(
@@ -591,7 +590,7 @@ class HTTPClient:
                 )
             else:
                 log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
-            logging.info(log_str)
+            logger.info(log_str)
             return result
 
     def put_object(self, key: str, value: Any, env=None):

@@ -279,14 +279,14 @@ class Function(Module):
             return "", "notebook", fn
         else:
             module_path = Path.cwd() / (f"{name}_fn.py" if name else "sent_fn.py")
-            logging.info(
+            logger.info(
                 f"Because this function is defined in a notebook, writing it out to {str(module_path)} "
                 f"to make it importable. Please make sure the function does not rely on any local variables, "
                 f"including imports (which should be moved inside the function body). "
                 f"This restriction does not apply to functions defined in normal Python files."
             )
             if not name:
-                logging.warning(
+                logger.warning(
                     "You should name Functions that are created in notebooks to avoid naming collisions "
                     "between the modules that are created to hold their functions "
                     '(i.e. "sent_fn.py" errors.'

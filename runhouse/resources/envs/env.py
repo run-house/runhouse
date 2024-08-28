@@ -79,6 +79,9 @@ class Env(Resource):
         for k, v in env_vars.items():
             os.environ[k] = v
 
+    def add_env_var(self, key, value):
+        self.env_vars.update({key: value})
+
     def config(self, condensed=True):
         config = super().config(condensed)
         self.save_attrs_to_config(
@@ -188,7 +191,7 @@ class Env(Resource):
     def _run_command(self, command: str, **kwargs):
         """Run command locally inside the environment"""
         command = self._full_command(command)
-        logging.info(f"Running command in {self.name}: {command}")
+        logger.info(f"Running command in {self.name}: {command}")
         return run_with_logs(command, **kwargs)
 
     def to(

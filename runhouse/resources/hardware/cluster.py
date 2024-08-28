@@ -2,7 +2,7 @@ import contextlib
 import copy
 import importlib
 import json
-import logging
+import os
 import re
 import subprocess
 import threading
@@ -34,7 +34,6 @@ from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
-    DEFAULT_LOG_LEVEL,
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
     DEFAULT_STATUS_CHECK_INTERVAL,
@@ -467,7 +466,13 @@ class Cluster(Resource):
         if not self._default_env:
             return
 
-        logging.info(f"Syncing default env {self._default_env.name} to cluster")
+        log_level = os.getenv("RH_LOG_LEVEL")
+        if log_level:
+            # add log level to the default env to ensure it gets set on the cluster when the server is restarted
+            self._default_env.add_env_var("RH_LOG_LEVEL", log_level)
+            logger.info(f"Using log level {log_level} on cluster's default env")
+
+        logger.info(f"Syncing default env {self._default_env.name} to cluster")
         self._default_env.install(cluster=self)
 
     def _sync_runhouse_to_cluster(
@@ -837,7 +842,6 @@ class Cluster(Resource):
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
-        logs_level: str = None,
     ):
         """Restart the RPC server.
 
@@ -933,7 +937,6 @@ class Cluster(Resource):
 
         # Save a limited version of the local ~/.rh config to the cluster with the user's hashed token,
         # if such does not exist on the cluster
-
         if rns_client.token:
             user_config = yaml.safe_dump(
                 {
@@ -957,11 +960,6 @@ class Cluster(Resource):
                 self._run_cli_commands_on_cluster_helper([command])
                 logger.debug("Saved user config to cluster")
 
-        allowed_log_levels = logging._nameToLevel.keys()
-        if not logs_level or logs_level not in allowed_log_levels:
-            logs_level = DEFAULT_LOG_LEVEL
-        logger.info(f"Setting cluster log level to: {logs_level}")
-
         restart_cmd = (
             CLI_RESTART_CMD
             + (" --restart-ray" if restart_ray else "")
@@ -980,7 +978,6 @@ class Cluster(Resource):
                 else ""
             )
             + " --from-python"
-            + f" --log-level {logs_level}"
         )
 
         status_codes = self._run_cli_commands_on_cluster_helper(commands=[restart_cmd])
