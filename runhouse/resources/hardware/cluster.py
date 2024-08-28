@@ -761,26 +761,23 @@ class Cluster(Resource):
         # Note: If running outside a local cluster need to include a resource address to construct the cluster subtoken
         # Allow for specifying a resource address explicitly in case the resource has no rns address yet
         if self.on_this_cluster():
-            status, den_resp = obj_store.status(send_to_den=send_to_den)
+            status, den_resp_status_code = obj_store.status(send_to_den=send_to_den)
         else:
-            status, den_resp = self.call_client_method(
+            status, den_resp_status_code = self.call_client_method(
                 "status",
                 resource_address=resource_address or self.rns_address,
                 send_to_den=send_to_den,
             )
 
         if send_to_den:
-            send_to_den_status_code = den_resp.status_code
 
-            if send_to_den_status_code == 404:
+            if den_resp_status_code == 404:
                 logger.info(
                     "Cluster has not yet been saved to Den, cannot update status or logs."
                 )
 
-            elif send_to_den_status_code != 200:
-                logger.warning(
-                    f"Failed to send cluster status to den: {den_resp.json()}"
-                )
+            elif den_resp_status_code != 200:
+                logger.warning("Failed to send cluster status to Den")
 
         return status
 
