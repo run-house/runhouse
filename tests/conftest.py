@@ -42,7 +42,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     RELEASE = {
         "cluster": [
             "ondemand_aws_cluster",
-            "static_cpu_cluster",
+            "static_cpu_pwd_cluster",
         ]
     }
     MAXIMAL = {
@@ -51,7 +51,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pk_ssh_den_auth",
             "docker_cluster_pwd_ssh_no_auth",
             "ondemand_aws_cluster",
-            "static_cpu_cluster",
+            "static_cpu_pwd_cluster",
             "multinode_cpu_cluster"
         ]
     }
@@ -258,7 +258,7 @@ from tests.fixtures.resource_fixtures import (
     unnamed_resource,  # noqa: F401
 )
 
-from tests.fixtures.static_cluster_fixtures import static_cpu_cluster  # noqa: F401
+from tests.fixtures.static_cluster_fixtures import static_cpu_pwd_cluster  # noqa: F401
 
 from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
     other_sm_cluster,  # noqa: F401
@@ -374,7 +374,7 @@ default_fixtures[TestLevels.RELEASE] = {
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "static_cpu_cluster",
+        "static_cpu_pwd_cluster",
     ]
 }
 default_fixtures[TestLevels.MAXIMAL] = {
@@ -387,7 +387,7 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "ondemand_k8s_cluster",
         "ondemand_aws_https_cluster_with_auth",
         "multinode_cpu_cluster",
-        "static_cpu_cluster",
+        "static_cpu_pwd_cluster",
         "multinode_gpu_cluster",  # for testing cluster status on multinode gpu.
     ]
 }

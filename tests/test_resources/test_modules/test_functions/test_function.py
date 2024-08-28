@@ -307,7 +307,7 @@ class TestFunction:
 
     @pytest.mark.level("release")
     def test_load_function_in_new_cluster(
-        self, ondemand_aws_cluster, static_cpu_cluster, test_rns_folder
+        self, ondemand_aws_cluster, static_cpu_pwd_cluster, test_rns_folder
     ):
         remote_func_name = get_remote_func_name(test_rns_folder)
 
@@ -316,22 +316,22 @@ class TestFunction:
         )  # Needs to be saved to rns, right now has a local name by default
         remote_sum = rh.function(summer).to(ondemand_aws_cluster).save(remote_func_name)
 
-        static_cpu_cluster.sync_secrets(["sky"])
+        static_cpu_pwd_cluster.sync_secrets(["sky"])
         remote_python = (
             "import runhouse as rh; "
             f"remote_sum = rh.function(name='{remote_func_name}'); "
             "res = remote_sum(1, 5); "
             "assert res == 6"
         )
-        res = static_cpu_cluster.run_python([remote_python], stream_logs=True)
+        res = static_cpu_pwd_cluster.run_python([remote_python], stream_logs=True)
         assert res[0][0] == 0
 
         remote_sum.delete_configs()
 
     @pytest.mark.level("release")
-    def test_nested_diff_clusters(self, ondemand_aws_cluster, static_cpu_cluster):
+    def test_nested_diff_clusters(self, ondemand_aws_cluster, static_cpu_pwd_cluster):
         summer_cpu = rh.function(summer).to(ondemand_aws_cluster)
-        call_function_diff_cpu = rh.function(call_function).to(static_cpu_cluster)
+        call_function_diff_cpu = rh.function(call_function).to(static_cpu_pwd_cluster)
 
         kwargs = {"a": 1, "b": 5}
         res = call_function_diff_cpu(summer_cpu, **kwargs)
