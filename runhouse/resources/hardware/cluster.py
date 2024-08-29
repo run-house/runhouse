@@ -774,8 +774,14 @@ class Cluster(Resource):
 
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
-    ) -> "SkySSHRunner":
-        from runhouse.resources.hardware.sky_ssh_runner import ssh_tunnel
+    ) -> "SshTunnel":
+        from runhouse.resources.hardware.ssh_tunnel import ssh_tunnel
+
+        cloud = (
+            self.launched_properties["cloud"]
+            if hasattr(self, "launched_properties")
+            else None
+        )
 
         return ssh_tunnel(
             address=self.address,
@@ -785,6 +791,7 @@ class Cluster(Resource):
             ssh_port=self.ssh_port,
             remote_port=remote_port,
             num_ports_to_try=num_ports_to_try,
+            cloud=cloud,
         )
 
     @property

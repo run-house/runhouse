@@ -13,11 +13,11 @@ from runhouse.servers.obj_store import ObjStore
 
 configs = Defaults()
 
-sky_ssh_runner_cache = {}
+ssh_tunnel_cache = {}
 
 
 def clean_up_ssh_connections():
-    for _, v in sky_ssh_runner_cache.items():
+    for _, v in ssh_tunnel_cache.items():
         v.terminate()
 
 

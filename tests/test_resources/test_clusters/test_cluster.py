@@ -163,14 +163,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_cluster_recreate(self, cluster):
         # Create underlying ssh connection if not already
         cluster.run(["echo hello"])
-        num_open_tunnels = len(rh.globals.sky_ssh_runner_cache)
+        num_open_tunnels = len(rh.globals.ssh_tunnel_cache)
 
         # Create a new cluster object for the same remote cluster
         cluster.save()
         new_cluster = rh.cluster(cluster.rns_address)
         new_cluster.run(["echo hello"])
         # Check that the same underlying ssh connection was used
-        assert len(rh.globals.sky_ssh_runner_cache) == num_open_tunnels
+        assert len(rh.globals.ssh_tunnel_cache) == num_open_tunnels
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
