@@ -86,3 +86,39 @@ class TestMultiNodeCluster:
         )
         assert get_pid_0()[1] != get_pid_1()[1]
         assert get_pid_1()[1] == get_pid_2()[1]
+
+    @pytest.mark.level("release")
+    def test_specifying_resources(self, multinode_cpu_cluster):
+        env0 = rh.env(
+            name="worker_env_0",
+            compute={"CPU": 1.75},
+        ).to(multinode_cpu_cluster)
+
+        env1 = rh.env(
+            name="worker_env_1",
+            compute={"CPU": 0.5},
+        ).to(multinode_cpu_cluster)
+
+        env2 = rh.env(
+            name="worker_env_2",
+            compute={"memory": 4 * 1024 * 1024 * 1024},
+        ).to(multinode_cpu_cluster)
+
+        env3 = rh.env(
+            name="worker_env_3",
+            compute={"CPU": 0.1, "memory": 2 * 1024 * 1024 * 1024},
+        ).to(multinode_cpu_cluster)
+
+        status = multinode_cpu_cluster.status()
+
+        env0_node = status["env_servlet_processes"][env0.name]["node_ip"]
+        env1_node = status["env_servlet_processes"][env1.name]["node_ip"]
+        env2_node = status["env_servlet_processes"][env2.name]["node_ip"]
+        env3_node = status["env_servlet_processes"][env3.name]["node_ip"]
+        assert env0_node in multinode_cpu_cluster.internal_ips
+        assert env1_node in multinode_cpu_cluster.internal_ips
+        assert env2_node in multinode_cpu_cluster.internal_ips
+        assert env3_node in multinode_cpu_cluster.internal_ips
+
+        assert env0_node != env1_node  # Too much CPU
+        assert env2_node != env3_node  # Too much memory

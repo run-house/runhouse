@@ -154,6 +154,9 @@ def multinode_cpu_cluster(request):
     args = {
         "name": "rh-cpu-multinode",
         "num_instances": NUM_OF_INSTANCES,
+        "image_id": "docker:rayproject/ray:latest-py311-cpu",
+        "default_env": rh.env(reqs=["ray==2.30.0"], working_dir=None),
+        "provider": "aws",
         "instance_type": "CPU:2+",
     }
     cluster = setup_test_cluster(args, request)
