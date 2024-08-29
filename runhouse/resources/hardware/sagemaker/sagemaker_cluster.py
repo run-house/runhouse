@@ -709,8 +709,7 @@ class SageMakerCluster(Cluster):
                 from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner
 
                 runner = SkySSHRunner(
-                    self.name,
-                    port=self.ssh_port,
+                    (self.name, self.ssh_port),
                     ssh_user=self.DEFAULT_USER,
                     ssh_private_key=self._abs_ssh_key_path,
                     ssh_control_name=f"{self.name}:{self.ssh_port}",

@@ -37,9 +37,8 @@ except ImportError:
 def get_docker_user(cluster: "Cluster", ssh_creds: Dict) -> str:
     """Find docker container username."""
     runner = SkySSHRunner(
-        ip=cluster.address,
+        node=(cluster.address, cluster.ssh_port),
         ssh_user=ssh_creds.get("ssh_user", None),
-        port=cluster.ssh_port,
         ssh_private_key=ssh_creds.get("ssh_private_key", None),
         ssh_control_name=ssh_creds.get(
             "ssh_control_name", f"{cluster.address}:{cluster.ssh_port}"
@@ -63,9 +62,9 @@ def get_docker_user(cluster: "Cluster", ssh_creds: Dict) -> str:
 class SkySSHRunner(SSHCommandRunner):
     def __init__(
         self,
-        ip,
-        ssh_user=None,
-        ssh_private_key=None,
+        node: Tuple[str, int],
+        ssh_user: Optional[str] = None,
+        ssh_private_key: Optional[str] = None,
         ssh_control_name: Optional[str] = "__default__",
         ssh_proxy_command: Optional[str] = None,
         port: int = 22,
@@ -74,12 +73,11 @@ class SkySSHRunner(SSHCommandRunner):
         local_bind_port: Optional[int] = None,
     ):
         super().__init__(
-            ip,
+            node,
             ssh_user,
             ssh_private_key,
             ssh_control_name,
             ssh_proxy_command,
-            port,
             docker_user,
             disable_control_master,
         )
@@ -90,7 +88,11 @@ class SkySSHRunner(SSHCommandRunner):
         self.remote_bind_port = None
 
     def _ssh_base_command(
-        self, *, ssh_mode: SshMode, port_forward: Optional[List[int]]
+        self,
+        *,
+        ssh_mode: SshMode,
+        port_forward: Optional[List[int]],
+        connect_timeout: Optional[int] = None,
     ) -> List[str]:
         docker_ssh_proxy_command = (
             self._docker_ssh_proxy_command(["ssh"])
@@ -109,6 +111,7 @@ class SkySSHRunner(SSHCommandRunner):
             disable_control_master=self.disable_control_master,
             ssh_mode=ssh_mode,
             port_forward=port_forward,
+            connect_timeout=connect_timeout,
         )
 
     def run(
@@ -124,6 +127,9 @@ class SkySSHRunner(SSHCommandRunner):
         stream_logs: bool = True,
         ssh_mode: SshMode = SshMode.NON_INTERACTIVE,
         separate_stderr: bool = False,
+        connect_timeout: Optional[int] = None,
+        source_bashrc: bool = True,  # RH MODIFIED
+        skip_lines: int = 0,
         return_cmd: bool = False,  # RH MODIFIED
         quiet_ssh: bool = False,  # RH MODIFIED
         **kwargs,
@@ -145,6 +151,13 @@ class SkySSHRunner(SSHCommandRunner):
             ssh_mode: The mode to use for ssh.
                 See SSHMode for more details.
             separate_stderr: Whether to separate stderr from stdout.
+                        connect_timeout: timeout in seconds for the ssh connection.
+            source_bashrc: Whether to source the bashrc before running the
+                command.
+            skip_lines: The number of lines to skip at the beginning of the
+                output. This is used when the output is not processed by
+                SkyPilot but we still want to get rid of some warning messages,
+                such as SSH warnings.
             return_cmd: If True, return the command string instead of running it.
             quiet_ssh: If True, do not print the OpenSSH outputs (i.e. add "-q" option to ssh).
 
@@ -155,15 +168,28 @@ class SkySSHRunner(SSHCommandRunner):
             A tuple of (returncode, stdout, stderr).
         """
         base_ssh_command = self._ssh_base_command(
-            ssh_mode=ssh_mode, port_forward=port_forward
+            ssh_mode=ssh_mode,
+            port_forward=port_forward,
+            connect_timeout=connect_timeout,
         )
         if ssh_mode == SshMode.LOGIN:
             assert isinstance(cmd, list), "cmd must be a list for login mode."
             command = base_ssh_command + cmd
             proc = subprocess_utils.run(command, shell=False, check=False)
             return proc.returncode, "", ""
-        if isinstance(cmd, list):
+
+        if self.docker_user:
             cmd = " ".join(cmd)
+            cmd = f"conda deactivate && {cmd}"
+
+        command_str = self._get_command_to_run(
+            cmd,
+            process_stream,
+            separate_stderr,
+            skip_lines=skip_lines,
+            source_bashrc=source_bashrc,
+        )
+        command = base_ssh_command + [shlex.quote(command_str)]
 
         # RH MODIFIED: Add quiet_ssh option
         if quiet_ssh:
@@ -171,38 +197,6 @@ class SkySSHRunner(SSHCommandRunner):
 
         log_dir = os.path.expanduser(os.path.dirname(log_path))
         os.makedirs(log_dir, exist_ok=True)
-        # We need this to correctly run the cmd, and get the output.
-        command = [
-            "bash",
-            "--login",
-            "-c",
-            # Need this `-i` option to make sure `source ~/.bashrc` work.
-            "-i",
-        ]
-
-        cmd = f"conda deactivate && {cmd}" if self.docker_user else cmd
-
-        command += [
-            shlex.quote(
-                f"true && source ~/.bashrc && export OMP_NUM_THREADS=1 "
-                f"PYTHONWARNINGS=ignore && ({cmd})"
-            ),
-        ]
-        if not separate_stderr:
-            command.append("2>&1")
-        if not process_stream and ssh_mode == SshMode.NON_INTERACTIVE:
-            command += [
-                # A hack to remove the following bash warnings (twice):
-                #  bash: cannot set terminal process group
-                #  bash: no job control in this shell
-                "| stdbuf -o0 tail -n +5",
-                # This is required to make sure the executor of command can get
-                # correct returncode, since linux pipe is used.
-                "; exit ${PIPESTATUS[0]}",
-            ]
-
-        command_str = " ".join(command)
-        command = base_ssh_command + [shlex.quote(command_str)]
 
         executable = None
         if not process_stream:
@@ -244,7 +238,7 @@ class SkySSHRunner(SSHCommandRunner):
         log_path: str = os.devnull,
         stream_logs: bool = True,
         max_retry: int = 1,
-        return_cmd: bool = False,
+        return_cmd: bool = False,  # RH MODIFIED
     ) -> None:
         """Uses 'rsync' to sync 'source' to 'target'.
 
@@ -281,7 +275,9 @@ class SkySSHRunner(SSHCommandRunner):
             if (resolved_source / GIT_EXCLUDE).exists():
                 # Ensure file exists; otherwise, rsync will error out.
                 rsync_command.append(
-                    RSYNC_EXCLUDE_OPTION.format(str(resolved_source / GIT_EXCLUDE))
+                    RSYNC_EXCLUDE_OPTION.format(
+                        shlex.quote(str(resolved_source / GIT_EXCLUDE))
+                    )
                 )
 
         if self._docker_ssh_proxy_command is not None:

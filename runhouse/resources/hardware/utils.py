@@ -153,7 +153,7 @@ def _run_ssh_command(
     from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner
 
     runner = SkySSHRunner(
-        ip=address,
+        ip=(address, ssh_port),
         ssh_user=ssh_user,
         ssh_private_key=ssh_private_key,
         ssh_port=ssh_port,
@@ -189,7 +189,7 @@ def _ssh_base_command(
     disable_control_master: Optional[bool] = False,
     ssh_mode: SshMode = SshMode.INTERACTIVE,
     port_forward: Optional[List[int]] = None,
-    timeout: Optional[int] = 30,
+    connect_timeout: Optional[int] = 30,
 ):
     ssh = ["ssh"]
     if ssh_mode == SshMode.NON_INTERACTIVE:
@@ -219,7 +219,7 @@ def _ssh_base_command(
             docker_ssh_proxy_command=docker_ssh_proxy_command,
             # TODO change to None like before?
             port=ssh_port,
-            timeout=timeout,
+            connect_timeout=connect_timeout,
             disable_control_master=disable_control_master,
         )
         + [f"{ssh_user}@{address}"]
