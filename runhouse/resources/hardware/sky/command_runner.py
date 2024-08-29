@@ -230,7 +230,10 @@ class CommandRunner:
             stream_logs: bool = True,
             max_retry: int = 1,
             prefix_command: Optional[str] = None,
-            get_remote_home_dir: Callable[[], str] = lambda: '~') -> None:
+            get_remote_home_dir: Callable[[], str] = lambda: '~',
+            filter_options: Optional[str] = None,  # RH MODIFIED,
+            return_cmd: bool = False,  # RH MODIFIED,
+        ) -> None:
         """Builds the rsync command."""
         # Build command.
         rsync_command = []
@@ -239,7 +242,8 @@ class CommandRunner:
         rsync_command += ['rsync', RSYNC_DISPLAY_OPTION]
 
         # --filter
-        rsync_command.append(RSYNC_FILTER_OPTION)
+        addtl_filter_options = f" --filter='{filter_options}'" if filter_options else ""    # RH MODIFIED
+        rsync_command.append(RSYNC_FILTER_OPTION + addtl_filter_options)
 
         if up:
             # Build --exclude-from argument.
@@ -280,6 +284,10 @@ class CommandRunner:
             ])
         command = ' '.join(rsync_command)
         logger.debug(f'Running rsync command: {command}')
+
+        # RH MODIFIED: return command instead of running it
+        if return_cmd:
+            return command
 
         backoff = common_utils.Backoff(initial_backoff=5, max_backoff_factor=5)
         assert max_retry > 0, f'max_retry {max_retry} must be positive.'
