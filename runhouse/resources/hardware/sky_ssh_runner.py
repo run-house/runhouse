@@ -24,6 +24,7 @@ from runhouse.resources.hardware.sky.command_runner import (
     SshMode,
 )
 
+from runhouse.resources.hardware.utils import _ssh_base_command
 
 logger = get_logger(__name__)
 
@@ -102,39 +103,23 @@ class SkySSHRunner(SSHCommandRunner):
     def _ssh_base_command(
         self, *, ssh_mode: SshMode, port_forward: Optional[List[int]]
     ) -> List[str]:
-        ssh = ["ssh"]
-        if ssh_mode == SshMode.NON_INTERACTIVE:
-            # Disable pseudo-terminal allocation. Otherwise, the output of
-            # ssh will be corrupted by the user's input.
-            ssh += ["-T"]
-        else:
-            # Force pseudo-terminal allocation for interactive/login mode.
-            ssh += ["-tt"]
-        if port_forward is not None:
-            # RH MODIFIED: Accept port int (to forward same port) or pair of ports
-            for fwd in port_forward:
-                if isinstance(fwd, int):
-                    local, remote = fwd, fwd
-                else:
-                    local, remote = fwd
-                logger.debug(f"Forwarding port {local} to port {remote} on localhost.")
-                ssh += ["-L", f"{local}:localhost:{remote}"]
-        if self._docker_ssh_proxy_command is not None:
-            docker_ssh_proxy_command = self._docker_ssh_proxy_command(ssh)
-        else:
-            docker_ssh_proxy_command = None
-        return (
-            ssh
-            + ssh_options_list(
-                self.ssh_private_key,
-                self.ssh_control_name,
-                ssh_proxy_command=self._ssh_proxy_command,
-                docker_ssh_proxy_command=docker_ssh_proxy_command,
-                # TODO change to None like before?
-                port=self.port,
-                disable_control_master=self.disable_control_master,
-            )
-            + [f"{self.ssh_user}@{self.ip}"]
+        docker_ssh_proxy_command = (
+            self._docker_ssh_proxy_command(["ssh"])
+            if self._docker_ssh_proxy_command
+            else None
+        )
+
+        return _ssh_base_command(
+            address=self.ip,
+            ssh_user=self.ssh_user,
+            ssh_private_key=self.ssh_private_key,
+            ssh_control_name=self.ssh_control_name,
+            ssh_proxy_command=self._ssh_proxy_command,
+            ssh_port=self.port,
+            docker_ssh_proxy_command=docker_ssh_proxy_command,
+            disable_control_master=self.disable_control_master,
+            ssh_mode=ssh_mode,
+            port_forward=port_forward,
         )
 
     def run(
