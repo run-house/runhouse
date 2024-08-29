@@ -660,9 +660,8 @@ class OnDemandCluster(Cluster):
                 raise FileNotFoundError(f"Expected default sky key in path: {sky_key}")
 
             runner = SkySSHRunner(
-                ip=node or self.address,
+                (node or self.address, self.ssh_port),
                 ssh_user=ssh_user,
-                port=self.ssh_port,
                 ssh_private_key=str(sky_key),
                 docker_user=self.docker_user,
             )
