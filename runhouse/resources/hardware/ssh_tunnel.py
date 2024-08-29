@@ -86,6 +86,7 @@ class SshTunnel:
             ssh_mode=SshMode.NON_INTERACTIVE,
             port_forward=[(local_port, remote_port)],
         )
+
         command = " ".join(base_cmd)
         logger.info(f"Running forwarding command: {command}")
         proc = subprocess.Popen(

@@ -679,7 +679,7 @@ class SageMakerCluster(Cluster):
             os.close(head_fd)
             ssh_process.terminate()
 
-    def _run_commands_with_ssh(
+    def _run_commands_with_runner(
         self,
         commands: list,
         cmd_prefix: str,
@@ -733,7 +733,7 @@ class SageMakerCluster(Cluster):
                     # https://askubuntu.com/questions/1034961/cant-upgrade-error-etc-environment-source-not-found-and-error-processin
                     # /etc/environment file may also be corrupt, replacing with an empty file allows
                     # subsequent python commands to run
-                    self._run_commands_with_ssh(
+                    self._run_commands_with_runner(
                         commands=[
                             "cd /var/lib/dpkg/info && sudo rm *.postinst "
                             "&& sudo mv /etc/environment /etc/environment_broken "

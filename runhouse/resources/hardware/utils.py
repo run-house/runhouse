@@ -148,15 +148,16 @@ def _run_ssh_command(
     ssh_user: str,
     ssh_port: int,
     ssh_private_key: str,
+    ssh_proxy_command: str,
     docker_user: str,
 ):
     from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner
 
     runner = SkySSHRunner(
-        ip=(address, ssh_port),
+        (address, ssh_port),
         ssh_user=ssh_user,
         ssh_private_key=ssh_private_key,
-        ssh_port=ssh_port,
+        ssh_proxy_command=ssh_proxy_command,
         docker_user=docker_user,
     )
     ssh_command = runner._ssh_base_command(

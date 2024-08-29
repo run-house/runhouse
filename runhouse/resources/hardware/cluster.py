@@ -428,6 +428,41 @@ class Cluster(Resource):
 
         return f"{self._creds.name}/" in ssh_creds.get("ssh_private_key", "")
 
+    def _command_runner(self, node: Optional[str] = None) -> "CommandRunner":
+        from runhouse.resources.hardware.sky_ssh_runner import (
+            SkyKubernetesRunner,
+            SkySSHRunner,
+        )
+
+        node = node or self.address
+
+        if (
+            hasattr(self, "launched_properties")
+            and self.launched_properties["cloud"] == "kubernetes"
+        ):
+            namespace = self.launched_properties.get("namespace", None)
+            pod_name = self.launched_properties.get("pod_name", None)
+
+            runner = SkyKubernetesRunner(
+                (namespace, pod_name), docker_user=self.docker_user
+            )
+        else:
+            ssh_credentials = copy.copy(self.creds_values) or {}
+            ssh_control_name = ssh_credentials.pop(
+                "ssh_control_name", f"{node}:{self.ssh_port}"
+            )
+
+            runner = SkySSHRunner(
+                (node, self.ssh_port),
+                ssh_user=ssh_credentials.get("ssh_user"),
+                ssh_private_key=ssh_credentials.get("ssh_private_key"),
+                ssh_proxy_command=ssh_credentials.get("ssh_proxy_command"),
+                ssh_control_name=ssh_control_name,
+                docker_user=self.docker_user,
+            )
+
+        return runner
+
     def is_up(self) -> bool:
         """Check if the cluster is up.
 
@@ -704,7 +739,9 @@ class Cluster(Resource):
             # re-established, would require a password, and then fail. We should really figure out how to
             # authenticate with a password in the SSH tunnel command. But, this is a fine hack for now.
             if self.creds_values.get("password") is not None:
-                self._run_commands_with_ssh(["echo 'Initiating password connection.'"])
+                self._run_commands_with_runner(
+                    ["echo 'Initiating password connection.'"]
+                )
 
             # Case 1: Server connection requires SSH tunnel
             self.connect_tunnel(force_reconnect=force_reconnect)
@@ -839,7 +876,7 @@ class Cluster(Resource):
         else:
             if self._default_env:
                 commands = [self._default_env._full_command(cmd) for cmd in commands]
-            return self._run_commands_with_ssh(
+            return self._run_commands_with_runner(
                 commands=commands,
                 cmd_prefix="",
                 env_vars=self._default_env.env_vars if self._default_env else {},
@@ -1168,7 +1205,7 @@ class Cluster(Resource):
                 )
             return
 
-        from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
+        from runhouse.resources.hardware.sky_ssh_runner import SshMode
 
         # If no address provided explicitly use the head node address
         node = node or self.address
@@ -1210,16 +1247,8 @@ class Cluster(Resource):
         pwd = ssh_credentials.pop("password", None)
         ssh_credentials.pop("private_key", None)
         ssh_credentials.pop("public_key", None)
-        ssh_control_name = ssh_credentials.pop(
-            "ssh_control_name", f"{node}:{self.ssh_port}"
-        )
 
-        runner = SkySSHRunner(
-            (node, self.ssh_port),
-            **ssh_credentials,
-            ssh_control_name=ssh_control_name,
-            docker_user=self.docker_user,
-        )
+        runner = self._command_runner(node=node)
         if not pwd:
             if up:
                 runner.run(
@@ -1278,7 +1307,7 @@ class Cluster(Resource):
             return False
 
         def run_ssh_call():
-            res = self._run_commands_with_ssh(['echo "hello"'], stream_logs=False)
+            res = self._run_commands_with_runner(['echo "hello"'], stream_logs=False)
             if res[0][0] != 0:
                 raise Exception
 
@@ -1307,7 +1336,7 @@ class Cluster(Resource):
             # Move to the Caddy directory to ensure the daemon has access to the certs
             src = self.cert_config.DEFAULT_CLUSTER_DIR
             dest = self.cert_config.CADDY_CLUSTER_DIR
-            self._run_commands_with_ssh(
+            self._run_commands_with_runner(
                 [
                     f"sudo mkdir -p {dest}",
                     f"sudo mv {src}/* {dest}/",
@@ -1391,7 +1420,7 @@ class Cluster(Resource):
 
                 full_commands = [env._full_command(cmd) for cmd in commands]
 
-                return_codes = self._run_commands_with_ssh(
+                return_codes = self._run_commands_with_runner(
                     full_commands,
                     cmd_prefix="",
                     stream_logs=stream_logs,
@@ -1401,7 +1430,7 @@ class Cluster(Resource):
 
                 return return_codes
 
-    def _run_commands_with_ssh(
+    def _run_commands_with_runner(
         self,
         commands: list,
         env_vars: Dict = {},
@@ -1411,7 +1440,7 @@ class Cluster(Resource):
         require_outputs: bool = True,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
     ):
-        from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
+        from runhouse.resources.hardware.sky_ssh_runner import SshMode
 
         if isinstance(commands, str):
             commands = [commands]
@@ -1422,20 +1451,11 @@ class Cluster(Resource):
         return_codes = []
 
         ssh_credentials = copy.copy(self.creds_values)
-        host = ssh_credentials.pop("ssh_host", node or self.address)
         pwd = ssh_credentials.pop("password", None)
         ssh_credentials.pop("private_key", None)
         ssh_credentials.pop("public_key", None)
-        ssh_control_name = ssh_credentials.pop(
-            "ssh_control_name", f"{node}:{self.ssh_port}"
-        )
 
-        runner = SkySSHRunner(
-            (host, self.ssh_port),
-            **ssh_credentials,
-            ssh_control_name=ssh_control_name,
-            docker_user=self.docker_user,
-        )
+        runner = self._command_runner(node=node)
 
         env_var_prefix = (
             " ".join(f"{key}={val}" for key, val in env_vars.items())

@@ -185,7 +185,7 @@ class Env(Resource):
 
     def _full_command(self, command: str):
         if self._run_cmd:
-            return f"{self._run_cmd} $SHELL -c {shlex.quote(command)}"
+            return f"{self._run_cmd} ${{SHELL:-/bin/bash}} -c {shlex.quote(command)}"
         return command
 
     def _run_command(self, command: str, **kwargs):
