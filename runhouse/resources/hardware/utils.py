@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 
@@ -13,7 +14,11 @@ from runhouse.constants import (
 
 from runhouse.logger import get_logger
 from runhouse.resources.envs.utils import _get_env_from, run_setup_command
-from runhouse.resources.hardware.sky.command_runner import ssh_options_list, SshMode
+from runhouse.resources.hardware.sky.command_runner import (
+    _HASH_MAX_LENGTH,
+    ssh_options_list,
+    SshMode,
+)
 
 logger = get_logger(__name__)
 
@@ -151,9 +156,11 @@ def _run_ssh_command(
         ip=address,
         ssh_user=ssh_user,
         ssh_private_key=ssh_private_key,
-        ssh_mode=SshMode.INTERACTIVE,
         ssh_port=ssh_port,
         docker_user=docker_user,
+    )
+    ssh_command = runner._ssh_base_command(
+        ssh_mode=SshMode.INTERACTIVE, port_forward=None
     )
     subprocess.run(ssh_command)
 
@@ -217,3 +224,7 @@ def _ssh_base_command(
         )
         + [f"{ssh_user}@{address}"]
     )
+
+
+def _generate_ssh_control_hash(ssh_control_name):
+    return hashlib.md5(ssh_control_name.encode()).hexdigest()[:_HASH_MAX_LENGTH]
