@@ -23,7 +23,7 @@ from runhouse.rns.utils.api import (
 
 from runhouse.utils import locate_working_dir
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 # This is a copy of the Pydantic model that we use to validate in Den

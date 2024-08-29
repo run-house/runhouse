@@ -25,7 +25,7 @@ from runhouse.resources.functions.function import Function
 CRED_PATH = f"{Path.home()}/.aws/credentials"
 LOG_GROUP_PREFIX = "/aws/lambda/"
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class LambdaFunction(Function):

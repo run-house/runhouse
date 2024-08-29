@@ -14,7 +14,7 @@ from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import generate_uuid, relative_file_path
 from runhouse.utils import locate_working_dir
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class Folder(Resource):

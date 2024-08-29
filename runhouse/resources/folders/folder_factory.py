@@ -6,7 +6,7 @@ from runhouse.logger import get_logger
 from runhouse.resources.folders.folder import Folder
 from runhouse.resources.hardware.utils import _get_cluster_from
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def folder(

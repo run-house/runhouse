@@ -14,7 +14,7 @@ from tests.test_resources.test_modules.test_functions.test_function import (
 TEMP_FILE = "my_file.txt"
 TEMP_FOLDER = "~/runhouse-tests"
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 UNIT = {"cluster": []}
 LOCAL = {

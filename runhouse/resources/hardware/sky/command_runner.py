@@ -22,7 +22,7 @@ from runhouse.resources.hardware.sky import (
 ##### RH modification #####
 from runhouse.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 ##### RH modification #####
 
 

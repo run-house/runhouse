@@ -8,7 +8,7 @@ from runhouse.logger import get_logger
 
 from .folder import Folder
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class GCSFolder(Folder):

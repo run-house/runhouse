@@ -1,6 +1,7 @@
 import asyncio
 import contextvars
 import functools
+import logging
 
 try:
     import importlib.metadata as metadata
@@ -32,7 +33,7 @@ import pexpect
 from runhouse.constants import LOGS_DIR
 from runhouse.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 ####################################################################################################
 # Python package utilities
 ####################################################################################################
@@ -380,22 +381,26 @@ class LogToFolder:
         self.directory = self._base_local_folder_path(name)
         # We do exist_ok=True here because generator runs are separate calls to the same directory.
         os.makedirs(self.directory, exist_ok=True)
+        self.logger = None
+        self.handler = None
 
     def __enter__(self):
         # TODO fix the fact that we keep appending and then stream back the full file
         sys.stdout = StreamTee(sys.stdout, [Path(self._stdout_path).open(mode="a")])
         sys.stderr = StreamTee(sys.stderr, [Path(self._stderr_path).open(mode="a")])
 
-        # Reinitialize the universal logger that we're using, so that it points to the new fake sys.stdout
-        get_logger(reinitialize=True)
+        # Get the root logger
+        self.logger = logging.getLogger()
+        self.handler = logging.FileHandler(self._stdout_path)
+        self.logger.addHandler(self.handler)
 
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
 
         # Flush stdout and stderr
-        # sys.stdout.flush()
-        # sys.stderr.flush()
+        sys.stdout.flush()
+        sys.stderr.flush()
 
         # Restore stdout and stderr
         if hasattr(sys.stdout, "instream"):
@@ -403,8 +408,9 @@ class LogToFolder:
         if hasattr(sys.stderr, "instream"):
             sys.stderr = sys.stderr.instream
 
-        # Reinitialize this again to be the original sys.stdout
-        get_logger(reinitialize=True)
+        # Close the file handler
+        self.handler.close()
+        self.logger.removeHandler(self.handler)
 
         # return False to propagate any exception that occurred inside the with block
         return False

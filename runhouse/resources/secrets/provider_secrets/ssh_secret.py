@@ -10,7 +10,7 @@ from runhouse.resources.blobs.file import File
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.secrets.provider_secrets.provider_secret import ProviderSecret
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class SSHSecret(ProviderSecret):

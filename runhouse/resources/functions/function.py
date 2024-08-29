@@ -11,7 +11,7 @@ from runhouse.resources.module import Module
 
 from runhouse.resources.resource import Resource
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class Function(Module):
