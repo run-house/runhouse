@@ -1398,6 +1398,7 @@ class Cluster(Resource):
                     stream_logs=stream_logs,
                     node=node,
                     require_outputs=require_outputs,
+                    _ssh_mode=_ssh_mode,
                 )
 
                 return return_codes
