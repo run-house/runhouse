@@ -31,7 +31,7 @@ from typing import Callable, Optional, Type, Union
 import pexpect
 
 from runhouse.constants import LOGS_DIR
-from runhouse.logger import get_logger
+from runhouse.logger import get_logger, init_logger
 
 logger = get_logger(__name__)
 ####################################################################################################
@@ -389,8 +389,8 @@ class LogToFolder:
         sys.stdout = StreamTee(sys.stdout, [Path(self._stdout_path).open(mode="a")])
         sys.stderr = StreamTee(sys.stderr, [Path(self._stderr_path).open(mode="a")])
 
-        # Get the root logger
         self.logger = logging.getLogger()
+        init_logger(self.logger)
         self.handler = logging.FileHandler(self._stdout_path)
         self.logger.addHandler(self.handler)
 
@@ -411,6 +411,7 @@ class LogToFolder:
         # Close the file handler
         self.handler.close()
         self.logger.removeHandler(self.handler)
+        init_logger(self.logger)
 
         # return False to propagate any exception that occurred inside the with block
         return False
