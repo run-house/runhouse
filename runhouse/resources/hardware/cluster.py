@@ -579,13 +579,6 @@ class Cluster(Resource):
     def get_run(self, run_name: str, folder_path: str = None):
         return self.get(run_name, remote=True).provenance
 
-    # TODO This should accept an env (for env var secrets and docker envs).
-    def add_secrets(
-        self, provider_secrets: List[str or "Secret"], env: Union[str, "Env"] = None
-    ):
-        """Copy secrets from current environment onto the cluster"""
-        self.sync_secrets(provider_secrets, env=env or self.default_env)
-
     def put(self, key: str, obj: Any, env=None):
         """Put the given object on the cluster's object store at the given key."""
         if self.on_this_cluster():
