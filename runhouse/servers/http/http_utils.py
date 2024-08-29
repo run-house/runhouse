@@ -18,7 +18,7 @@ from runhouse.logger import get_logger
 from runhouse.servers.obj_store import RunhouseStopIteration
 from runhouse.utils import ClusterLogsFormatter
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class RequestContext(BaseModel):

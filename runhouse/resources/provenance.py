@@ -20,7 +20,7 @@ from runhouse.rns.top_level_rns_fns import resolve_rns_path
 from runhouse.rns.utils.api import log_timestamp, resolve_absolute_path
 from runhouse.utils import StreamTee
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class RunStatus(str, Enum):

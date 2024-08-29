@@ -5,7 +5,7 @@ import requests
 from runhouse.globals import rns_client
 from runhouse.logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def profile(func, reps=10):

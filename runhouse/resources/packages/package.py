@@ -24,7 +24,7 @@ from runhouse.utils import (
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda", "rh"}
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class CodeSyncError(Exception):

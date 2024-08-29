@@ -55,7 +55,7 @@ from runhouse.resources.resource import Resource
 
 from runhouse.servers.http import HTTPClient
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class Cluster(Resource):

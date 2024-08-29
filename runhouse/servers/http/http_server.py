@@ -68,7 +68,7 @@ from runhouse.utils import generate_default_name, sync_function
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def validate_cluster_access(func):

@@ -31,7 +31,7 @@ from runhouse.resources.hardware.utils import ResourceServerStatus, ServerConnec
 
 from .cluster import Cluster
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class OnDemandCluster(Cluster):
@@ -138,10 +138,10 @@ class OnDemandCluster(Cluster):
         if self.on_this_cluster():
             obj_store.set_cluster_config_value("autostop_mins", mins)
         else:
-            if self.run_python(["import skypilot"])[0] != 0:
-                raise ImportError(
-                    "Skypilot must be installed on the cluster in order to set autostop."
-                )
+            # if self.run_python(["import skypilot"])[0] != 0:
+            #     raise ImportError(
+            #         "Skypilot must be installed on the cluster in order to set autostop."
+            #     )
             self.call_client_method("set_settings", {"autostop_mins": mins})
             sky.autostop(self.name, mins, down=True)
 

@@ -8,7 +8,7 @@ from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.functions.function import Function
 from runhouse.resources.packages import git_package
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def function(
