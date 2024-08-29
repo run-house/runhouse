@@ -7,7 +7,7 @@ def get_logger(name) -> logging.Logger:
     Creates and returns a logger with the specified name.
 
     Ensures a universal logger configuration across the codebase with the format:
-    "levelname - asctime - filename:lineno - message"
+    "levelname - asctime - name:lineno - message"
 
     Args:
         name (str): Name of the logger. Defaults to None, which gets the root logger.
@@ -18,6 +18,7 @@ def get_logger(name) -> logging.Logger:
     # Create or retrieve the logger
     logger = logging.getLogger(name)
 
+    logger.handlers.clear()  # Clear existing handlers
     level = os.getenv("RH_LOG_LEVEL") or "INFO"
     level = getattr(logging, level.upper())
     logger.setLevel(level)
