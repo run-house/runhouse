@@ -706,7 +706,7 @@ class SageMakerCluster(Cluster):
                     return_codes.append((255, "", str(e)))
             else:
                 # Host can be replaced with name (as reflected in the ~/.ssh/config file)
-                from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner
+                from runhouse.resources.hardware.sky_command_runner import SkySSHRunner
 
                 runner = SkySSHRunner(
                     (self.name, self.ssh_port),

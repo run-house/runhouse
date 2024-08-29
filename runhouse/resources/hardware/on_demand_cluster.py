@@ -160,7 +160,7 @@ class OnDemandCluster(Cluster):
                 "docker_user", self.launched_properties.get("ssh_user", "root")
             )
 
-        from runhouse.resources.hardware.sky_ssh_runner import get_docker_user
+        from runhouse.resources.hardware.sky_command_runner import get_docker_user
 
         if not self._creds:
             return
@@ -666,7 +666,7 @@ class OnDemandCluster(Cluster):
 
         else:
             # If SSHing onto a specific node, which requires the default sky public key for verification
-            from runhouse.resources.hardware.sky_ssh_runner import SshMode
+            from runhouse.resources.hardware.sky_command_runner import SshMode
 
             sky_key = Path(
                 self.creds_values.get("ssh_private_key", self.DEFAULT_KEYFILE)
