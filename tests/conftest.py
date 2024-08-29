@@ -326,20 +326,6 @@ from tests.test_resources.test_envs.conftest import (
     unnamed_env,  # noqa: F401
 )
 
-# ----------------- Blobs -----------------
-
-from tests.test_resources.test_modules.test_blobs.conftest import (
-    blob,  # noqa: F401
-    blob_data,  # noqa: F401
-    cluster_blob,  # noqa: F401
-    cluster_file,  # noqa: F401
-    file,  # noqa: F401
-    gcs_blob,  # noqa: F401
-    local_blob,  # noqa: F401
-    local_file,  # noqa: F401
-    s3_blob,  # noqa: F401
-)
-
 # ----------------- Modules -----------------
 
 # ----------------- Functions -----------------

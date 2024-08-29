@@ -280,7 +280,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
                 secret = rh.Secret.from_name(secret)
 
             if secret.path:
-                assert rh.file(path=secret.path, system=cluster).exists_in_system()
+                assert rh.folder(path=secret.path, system=cluster).exists_in_system()
             else:
                 env_vars = secret.env_vars or secret._DEFAULT_ENV_VARS
                 for _, var in env_vars.items():

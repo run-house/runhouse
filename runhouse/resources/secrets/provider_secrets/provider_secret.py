@@ -5,13 +5,12 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from runhouse.globals import configs, rns_client
-from runhouse.resources.blobs import file
-from runhouse.resources.blobs.file import File
 from runhouse.resources.envs.env import Env
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import _get_cluster_from
 from runhouse.resources.secrets.secret import Secret
 from runhouse.resources.secrets.utils import _check_file_for_mismatches
+from runhouse.utils import create_local_dir
 
 
 class ProviderSecret(Secret):
@@ -95,13 +94,8 @@ class ProviderSecret(Secret):
         """Delete the secret config from Den and from Vault/local. Optionally also delete contents of secret file
         or env vars."""
         headers = headers or rns_client.request_headers()
-        if self.path and contents:
-            if isinstance(self.path, File):
-                if self.path.exists_in_system():
-                    self.path.rm()
-            else:
-                if os.path.exists(os.path.expanduser(self.path)):
-                    os.remove(os.path.expanduser(self.path))
+        if self.path and contents and os.path.exists(os.path.expanduser(self.path)):
+            os.remove(os.path.expanduser(self.path))
         elif self.env_vars and contents:
             for (_, env_var) in self.env_vars.keys():
                 if env_var in os.environ:
@@ -110,7 +104,7 @@ class ProviderSecret(Secret):
 
     def write(
         self,
-        path: Union[str, File] = None,
+        path: str = None,
         env_vars: Dict = None,
         file: bool = False,
         env: bool = False,
@@ -133,7 +127,7 @@ class ProviderSecret(Secret):
     def to(
         self,
         system: Union[str, Cluster],
-        path: Union[str, File] = None,
+        path: str = None,
         env: Union[str, Env] = None,
         values: bool = None,
         name: Optional[str] = None,
@@ -206,30 +200,21 @@ class ProviderSecret(Secret):
         self,
         key: str,
         system: Union[str, Cluster],
-        path: Union[str, File] = None,
+        path: str = None,
         values: Any = None,
     ):
-        if isinstance(path, File):
-            path = path.path
         system.call(key, "_write_to_file", path=path, values=values)
-        remote_file = file(path=path, system=system)
-        return remote_file
+        return path
 
-    def _write_to_file(
-        self, path: Union[str, File], values: Any, overwrite: bool = False
-    ):
+    def _write_to_file(self, path: str, values: Any, overwrite: bool = False):
         new_secret = copy.deepcopy(self)
         if not _check_file_for_mismatches(
             path, self._from_path(path), values, overwrite
         ):
-            if isinstance(path, File):
-                path.write(data=values, mode="w")
-            else:
-                full_path = os.path.expanduser(path)
-                os.makedirs(os.path.dirname(full_path), exist_ok=True)
-                with open(full_path, "w") as f:
-                    json.dump(values, f, indent=4)
-                self._add_to_rh_config(path)
+            full_path = create_local_dir(path)
+            with open(full_path, "w") as f:
+                json.dump(values, f, indent=4)
+            self._add_to_rh_config(path)
 
         new_secret._values = None
         new_secret.path = path
@@ -265,26 +250,19 @@ class ProviderSecret(Secret):
                 return {}
         return values
 
-    def _from_path(self, path: Union[str, File] = None):
+    def _from_path(self, path: str = None):
         path = path or self.path
         if not path:
             return ""
 
-        if isinstance(path, File):
-            contents = path.fetch(mode="r", deserialize=False)
-            try:
-                return json.loads(contents)
-            except json.decoder.JSONDecodeError:
+        path = os.path.expanduser(path)
+        if os.path.exists(path):
+            with open(path) as f:
+                try:
+                    contents = json.load(f)
+                except json.decoder.JSONDecodeError:
+                    contents = f.read()
                 return contents
-        else:
-            path = os.path.expanduser(path)
-            if os.path.exists(path):
-                with open(path) as f:
-                    try:
-                        contents = json.load(f)
-                    except json.decoder.JSONDecodeError:
-                        contents = f.read()
-                    return contents
         return {}
 
     @staticmethod

@@ -94,6 +94,7 @@ class OutputType:
 
 class FolderParams(BaseModel):
     path: str
+    is_file: bool = False
 
     @field_validator("path", mode="before")
     def convert_path_to_string(cls, v):
@@ -533,8 +534,11 @@ def folder_mv(src_path: Path, dest_path: str, overwrite: bool):
 
 
 def folder_exists(path: Path):
+    folder_exists_resp = path.exists()
+    if not path.is_file():
+        folder_exists_resp = folder_exists_resp and path.is_dir()
     return Response(
-        data=path.exists() and path.is_dir(),
+        data=folder_exists_resp,
         output_type=OutputType.RESULT_SERIALIZED,
         serialization=None,
     )

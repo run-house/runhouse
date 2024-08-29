@@ -1,14 +1,11 @@
 import json
 import os
-import tempfile
 import uuid
-from pathlib import Path
 
 import pytest
 
-import runhouse as rh
-
 from runhouse.globals import rns_client
+from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import (
     DeleteObjectParams,
     deserialize_data,
@@ -57,9 +54,9 @@ class TestHTTPServerDocker:
         assert response.status_code == 200
 
     @pytest.mark.level("local")
-    def test_put_resource(self, http_client, blob_data, cluster):
+    def test_put_resource(self, http_client, cluster):
         state = None
-        resource = rh.blob(data=blob_data, system=cluster)
+        resource = Resource(name="test_resource3", system=cluster)
         data = serialize_data(
             (resource.config(condensed=False), state, resource.dryrun), "pickle"
         )
@@ -643,9 +640,9 @@ class TestHTTPServerDockerDenAuthOnly:
         assert response.status_code == 200
 
     @pytest.mark.level("local")
-    def test_put_resource_with_invalid_token(self, http_client, blob_data, cluster):
+    def test_put_resource_with_invalid_token(self, http_client, cluster):
         state = None
-        resource = rh.blob(blob_data, system=cluster)
+        resource = Resource(name="test_resource1", system=cluster)
         data = serialize_data(
             (resource.config(condensed=False), state, resource.dryrun), "pickle"
         )
@@ -744,24 +741,20 @@ class TestHTTPServerNoDocker:
         assert response.status_code == 200
 
     @pytest.mark.level("unit")
-    def test_put_resource(self, client, blob_data, local_cluster):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            resource_path = Path(temp_dir, "local-blob")
-            local_blob = rh.blob(blob_data, path=resource_path)
-            resource = local_blob.to(system="file", path=resource_path)
-
-            state = None
-            data = serialize_data(
-                (resource.config(condensed=False), state, resource.dryrun), "pickle"
-            )
-            response = client.post(
-                "/resource",
-                json=PutResourceParams(
-                    serialized_data=data, serialization="pickle"
-                ).model_dump(),
-                headers=rns_client.request_headers(local_cluster.rns_address),
-            )
-            assert response.status_code == 200
+    def test_put_resource(self, client, local_cluster):
+        resource = Resource(name="local-resource")
+        state = None
+        data = serialize_data(
+            (resource.config(condensed=False), state, resource.dryrun), "pickle"
+        )
+        response = client.post(
+            "/resource",
+            json=PutResourceParams(
+                serialized_data=data, serialization="pickle"
+            ).model_dump(),
+            headers=rns_client.request_headers(local_cluster.rns_address),
+        )
+        assert response.status_code == 200
 
     @pytest.mark.level("unit")
     def test_put_object(self, client, local_cluster):
@@ -849,26 +842,21 @@ class TestHTTPServerNoDockerDenAuthOnly:
         assert response.status_code == 200
 
     @pytest.mark.level("unit")
-    def test_put_resource_with_invalid_token(
-        self, local_client_with_den_auth, blob_data
-    ):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            resource_path = Path(temp_dir, "local-blob")
-            local_blob = rh.blob(blob_data, path=resource_path)
-            resource = local_blob.to(system="file", path=resource_path)
-            state = None
-            data = serialize_data(
-                (resource.config(condensed=False), state, resource.dryrun), "pickle"
-            )
-            resp = local_client_with_den_auth.post(
-                "/resource",
-                json=PutResourceParams(
-                    serialized_data=data, serialization="pickle"
-                ).model_dump(),
-                headers=INVALID_HEADERS,
-            )
+    def test_put_resource_with_invalid_token(self, local_client_with_den_auth):
+        resource = Resource(name="test_resource2")
+        state = None
+        data = serialize_data(
+            (resource.config(condensed=False), state, resource.dryrun), "pickle"
+        )
+        resp = local_client_with_den_auth.post(
+            "/resource",
+            json=PutResourceParams(
+                serialized_data=data, serialization="pickle"
+            ).model_dump(),
+            headers=INVALID_HEADERS,
+        )
 
-            assert resp.status_code == 403
+        assert resp.status_code == 403
 
     @pytest.mark.level("unit")
     def test_put_object_with_invalid_token(self, local_client_with_den_auth):

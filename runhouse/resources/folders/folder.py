@@ -725,7 +725,7 @@ class Folder(Resource):
             >>> exists_on_system = my_folder.exists_in_system()
         """
         if self._use_http_endpoint:
-            return self.system._folder_exists(self.path)
+            return self.system._folder_exists(path=self.path)
         else:
             full_path = Path(self.path).expanduser()
             return full_path.exists() and full_path.is_dir()
