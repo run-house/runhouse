@@ -159,6 +159,9 @@ def _run_ssh_command(
         ssh_port=ssh_port,
         docker_user=docker_user,
     )
+    ssh_command = runner._ssh_base_command(
+        ssh_mode=SshMode.INTERACTIVE, port_forward=None
+    )
     subprocess.run(ssh_command)
 
 
