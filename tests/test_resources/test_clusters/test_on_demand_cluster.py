@@ -71,6 +71,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             "ondemand_gcp_cluster",
             "ondemand_aws_https_cluster_with_auth",
             "ondemand_k8s_cluster",
+            "ondemand_k8s_docker_cluster",
         ]
     }
     MAXIMAL = {
@@ -78,6 +79,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             "ondemand_aws_cluster",
             "ondemand_gcp_cluster",
             "ondemand_k8s_cluster",
+            "ondemand_k8s_docker_cluster",
             "ondemand_aws_https_cluster_with_auth",
             "v100_gpu_cluster",
             "k80_gpu_cluster",

@@ -134,7 +134,9 @@ class Cluster(Resource):
                     f"Could not reach cluster {self.name} ({self.ips}). Is it up?"
                 )
 
-            connect_call = threading.Thread(target=self.connect_server_client)
+            connect_call = threading.Thread(
+                target=self.connect_server_client, kwargs={"force_reconnect": True}
+            )
             connect_call.start()
             connect_call.join(timeout=5)
             if connect_call.is_alive():

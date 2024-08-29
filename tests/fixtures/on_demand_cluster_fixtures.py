@@ -41,11 +41,12 @@ def setup_test_cluster(args, request, create_env=False):
         "ondemand_aws_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
+        "ondemand_k8s_docker_cluster",
         "v100_gpu_cluster",
         "k80_gpu_cluster",
         "a10g_gpu_cluster",
     ],
-    ids=["aws_cpu", "gcp_cpu", "k8s_cpu", "v100", "k80", "a10g"],
+    ids=["aws_cpu", "gcp_cpu", "k8s_cpu", "k8s_docker_cpu", "v100", "k80", "a10g"],
 )
 def ondemand_cluster(request):
     return request.getfixturevalue(request.param)
@@ -123,6 +124,24 @@ def ondemand_k8s_cluster(request):
         "provider": "kubernetes",
         "instance_type": "CPU:1",
         "memory": ".2",
+    }
+    cluster = setup_test_cluster(args, request)
+    return cluster
+
+
+@pytest.fixture(scope="session")
+def ondemand_k8s_docker_cluster(request):
+    kube_config_path = Path.home() / ".kube" / "config"
+
+    if not kube_config_path.exists():
+        pytest.skip("no kubeconfig found")
+
+    args = {
+        "name": "k8s-docker-cpu",
+        "provider": "kubernetes",
+        "instance_type": "CPU:1",
+        "memory": ".2",
+        "image_id": "docker:rayproject/ray:latest-py311-cpu",
     }
     cluster = setup_test_cluster(args, request)
     return cluster
