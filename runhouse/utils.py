@@ -2,6 +2,7 @@ import asyncio
 import contextvars
 import functools
 import logging
+from io import StringIO
 
 try:
     import importlib.metadata as metadata
@@ -373,6 +374,54 @@ class StreamTee(object):
     def __getattr__(self, item):
         # Needed in case someone calls a method on instream, such as Ray calling sys.stdout.istty()
         return getattr(self.instream, item)
+
+
+class capture_stdout:
+    """Context manager for capturing stdout to a file, list, or stream, while still printing to stdout."""
+
+    def __init__(self, output=None):
+        self.output = output
+        self._stream = None
+
+    def __enter__(self):
+        if self.output is None:
+            self.output = StringIO()
+
+        if isinstance(self.output, str):
+            self._stream = open(self.output, "w")
+        else:
+            self._stream = self.output
+        sys.stdout = StreamTee(sys.stdout, [self])
+        sys.stderr = StreamTee(sys.stderr, [self])
+        return self
+
+    def write(self, message):
+        self._stream.write(message)
+
+    def flush(self):
+        self._stream.flush()
+
+    @property
+    def stream(self):
+        if isinstance(self.output, str):
+            return open(self.output, "r")
+        return self._stream
+
+    def list(self):
+        if isinstance(self.output, str):
+            return self.stream.readlines()
+        return (self.stream.getvalue() or "").splitlines()
+
+    def __str__(self):
+        return self.stream.getvalue()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if hasattr(sys.stdout, "instream"):
+            sys.stdout = sys.stdout.instream
+        if hasattr(sys.stderr, "instream"):
+            sys.stderr = sys.stderr.instream
+        self._stream.close()
+        return False
 
 
 class LogToFolder:

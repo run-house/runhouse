@@ -47,7 +47,6 @@ MODULE_ATTRS = [
     "_system",
     "dryrun",
     "_resolve",
-    "provenance",
     "_signature",
     "_dumb_signature_cache",
 ]
@@ -67,13 +66,12 @@ class Module(Resource):
         system: Union[Cluster, str] = None,
         env: Optional[Env] = None,
         dryrun: bool = False,
-        provenance: Optional[dict] = None,
         **kwargs,
     ):
         """
         Runhouse Module object
         """
-        super().__init__(name=name, dryrun=dryrun, provenance=provenance, **kwargs)
+        super().__init__(name=name, dryrun=dryrun, **kwargs)
         self._system = _get_cluster_from(
             system or _current_cluster(key="config"), dryrun=dryrun
         )
@@ -222,7 +220,6 @@ class Module(Resource):
             new_module._pointers = config.pop("pointers", None)
             new_module._signature = config.pop("signature", None)
             new_module.dryrun = config.pop("dryrun", False)
-            new_module.provenance = config.pop("provenance", None)
             new_module._openapi_spec = config.pop("openapi_spec", None)
             return new_module
 
@@ -1229,7 +1226,6 @@ def _module_subclass_factory(cls, cls_pointers):
         pointers=cls_pointers,
         signature=None,
         name=None,
-        provenance=None,
         **kwargs,
     ):
         # args and kwargs are passed to the cls's __init__ method if this is being called on a cluster. They
@@ -1242,7 +1238,6 @@ def _module_subclass_factory(cls, cls_pointers):
             system=system,
             env=env,
             dryrun=dryrun,
-            provenance=provenance,
         )
         # This allows a class which is already on the cluster to construct an instance of itself with a factory
         # method, e.g. my_module = MyModuleCls.factory_constructor(*args, **kwargs)
