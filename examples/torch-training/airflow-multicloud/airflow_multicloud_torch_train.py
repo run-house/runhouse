@@ -115,7 +115,7 @@ def preprocess_data_callable(**kwargs):
     logger.info("Saved to S3")
 
 
-# Download the data from S3, onto a newly launched cluster. 
+# Download the data from S3, onto a newly launched cluster.
 def download_s3_data_callable(**kwargs):
     cluster = get_cluster(**kwargs)
     env = rh.env(name="test_env", secrets=["aws"], reqs=["torch", "torchvision"])
