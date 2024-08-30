@@ -1,4 +1,4 @@
-# ## Using Multi-Cloud with Airflow
+# # Using Multi-Cloud with Airflow
 
 # This basic Airflow example combines CPU processing on AWS, storage on S3, and GPU processing on Google Cloud.
 # There are several reasons why you might want to use multiple clouds in a single workflow:
@@ -115,11 +115,11 @@ def preprocess_data_callable(**kwargs):
     logger.info("Saved to S3")
 
 
-# Download the data from S3. This is runnable from anywhere (including local), but also on a newly launched instance
+# Download the data from S3, onto a newly launched cluster. 
 def download_s3_data_callable(**kwargs):
     cluster = get_cluster(**kwargs)
-
-    s3_download = rh.function(download_folder_from_s3).to(cluster)
+    env = rh.env(name="test_env", secrets=["aws"], reqs=["torch", "torchvision"])
+    s3_download = rh.function(download_folder_from_s3).to(cluster, env=env)
     s3_download("rh-demo-external", "torch-training-example", "./data")
 
 

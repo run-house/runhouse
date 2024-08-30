@@ -1,4 +1,4 @@
-# ## A Basic Airflow Example Using PyTorch to Train an Image Classification NN with the MNIST Dataset
+# # A Basic Airflow Example Using PyTorch to Train an Image Classification NN with the MNIST Dataset
 
 # ## Using Airflow and Runhouse together
 # This example demonstrates how to use Airflow along with Runhouse to dispatch the work of training a basic Torch model to a remote GPU.
