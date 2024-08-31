@@ -501,34 +501,6 @@ class TestFunction:
         self.function.system = None
 
     @pytest.mark.level("unit")
-    def test_keep_warm_unittest_sagemaker(self, mocker):
-        mock_function = mocker.patch("runhouse.Function.keep_warm")
-        mock_function.return_value = self.function
-
-        # Create a Mock instance for cluster
-        mock_cluster = mocker.patch("runhouse.SageMakerCluster")
-        sagemaker_cluster = mock_cluster(name="Sagemaker_cluster")
-        sagemaker_cluster.autostop_mins.return_value = 3
-
-        # Set the system attribute
-        self.function.system = sagemaker_cluster
-
-        # Call the method under test
-        response_sagemaker = self.function.keep_warm(autostop_mins=3)
-
-        # Assertions
-        mock_function.assert_called_once_with(autostop_mins=3)
-        assert (
-            response_sagemaker.system.autostop_mins.return_value
-            == self.function.system.autostop_mins.return_value
-        )
-        assert self.function.system.autostop_mins.return_value == 3
-        assert response_sagemaker.system.autostop_mins.return_value == 3
-
-        # Reset the system attribute
-        self.function.system = None
-
-    @pytest.mark.level("unit")
     def test_notebook_unittest(self, mocker):
         mock_function = mocker.patch("runhouse.Function.notebook")
         mock_function.return_value = None

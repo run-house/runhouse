@@ -306,10 +306,6 @@ class Cluster(Resource):
             from .on_demand_cluster import OnDemandCluster
 
             return OnDemandCluster(**config, dryrun=dryrun)
-        elif resource_subtype == "SageMakerCluster":
-            from .sagemaker.sagemaker_cluster import SageMakerCluster
-
-            return SageMakerCluster(**config, dryrun=dryrun)
         else:
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 
@@ -384,10 +380,7 @@ class Cluster(Resource):
         if external:
             return None
 
-        if self.server_connection_type in [
-            ServerConnectionType.SSH,
-            ServerConnectionType.AWS_SSM,
-        ]:
+        if self.server_connection_type == ServerConnectionType.SSH:
             self.client.check_server()
             return f"http://{LOCALHOST}:{client_port}"
 
@@ -731,10 +724,7 @@ class Cluster(Resource):
         if not self.address:
             raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
 
-        if self.server_connection_type in [
-            ServerConnectionType.SSH,
-            ServerConnectionType.AWS_SSM,
-        ]:
+        if self.server_connection_type == ServerConnectionType.SSH:
             # For a password cluster, the 'ssh_tunnel' command assumes a Control Master is already set up with
             # an authenticated password.
             # TODO: I wonder if this authentication ever goes dry, and our SSH tunnel would need to be

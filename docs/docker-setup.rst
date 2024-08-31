@@ -17,8 +17,7 @@ is automatically built and set up remotely on the cluster. The Runhouse
 server will start directly inside the remote container.
 
 **NOTE:** This guide details the setup and usage for on-demand clusters
-only. Docker container is also supported for Sagemaker clusters, and it
-is not yet supported for static clusters.
+only. It is not yet supported for static clusters.
 
 Cluster & Docker Setup
 ----------------------
