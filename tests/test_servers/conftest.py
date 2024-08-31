@@ -53,9 +53,19 @@ def cert_config():
 @pytest.fixture(scope="session")
 def local_telemetry_agent_for_local_backend():
     """Local agent which exports to a locally running collector."""
+<<<<<<< HEAD
     from runhouse.servers.telemetry import (
         TelemetryAgentExporter,
         TelemetryCollectorConfig,
+=======
+    from runhouse.servers.telemetry import TelemetryAgent, TelemetryAgentConfig
+
+    # Note: For local testing purposes the backend collector will run on a lower port for HTTP (4319) and
+    # GRPC (4316) to avoid collisions with the locally running agent
+    agent_config = TelemetryAgentConfig(
+        backend_collector_endpoint="localhost:4316",
+        backend_collector_status_url="http://localhost:13133",
+>>>>>>> ae221199 (instrument obj store method with otel agent)
     )
 
     # Note: For local testing purposes the backend collector will run on a different port for HTTP (4319),
@@ -73,6 +83,7 @@ def local_telemetry_agent_for_local_backend():
     status_code = telemetry_agent.collector_health_check()
     if status_code != 200:
         raise ConnectionError(
+<<<<<<< HEAD
             f"Failed to ping collector ({telemetry_agent.collector_config.status_url}), received status code "
             f"{status_code}. Is the collector up?")
 
@@ -81,11 +92,24 @@ def local_telemetry_agent_for_local_backend():
     yield telemetry_agent
 
     telemetry_agent.stop()
+=======
+            f"Failed to ping collector ({ta.config.backend_collector_status_url}), received status code "
+            f"{status_code}. Is the collector up?"
+        )
+
+    # Allow the agent to fully setup before collecting data
+    time.sleep(0.5)
+
+    yield ta
+
+    ta.stop()
+>>>>>>> ae221199 (instrument obj store method with otel agent)
 
 
 @pytest.fixture(scope="session")
 def local_telemetry_agent_for_runhouse_backend():
     """Local agent which exports to the Runhouse collector."""
+<<<<<<< HEAD
     from runhouse.servers.telemetry import TelemetryAgentExporter
 
     telemetry_agent = TelemetryAgentExporter()
@@ -98,6 +122,20 @@ def local_telemetry_agent_for_runhouse_backend():
     if status_code != 200:
         raise ConnectionError(
             f"Failed to ping collector ({telemetry_agent.collector_config.status_url}), received status code "
+=======
+    from runhouse.servers.telemetry import TelemetryAgent
+
+    ta = TelemetryAgent()
+    ta.start(reload_config=True)
+
+    assert ta.is_up()
+
+    # Confirm the backend collector is up and running before proceeding
+    status_code = ta.collector_health_check()
+    if status_code != 200:
+        raise ConnectionError(
+            f"Failed to ping collector ({ta.config.backend_collector_status_url}), received status code "
+>>>>>>> ae221199 (instrument obj store method with otel agent)
             f"{status_code}. Is the collector up?"
         )
 

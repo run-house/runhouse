@@ -5,6 +5,7 @@ import subprocess
 import tarfile
 import time
 import urllib
+from builtins import bool
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path

@@ -10,12 +10,18 @@ from functools import wraps
 from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
+
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
 from pydantic import BaseModel
 
 from runhouse.logger import get_logger
 
 from runhouse.rns.defaults import req_ctx
-from runhouse.rns.utils.api import ResourceVisibility
+from runhouse.rns.utils.api import generate_uuid, ResourceVisibility
 from runhouse.utils import (
     arun_in_thread,
     generate_default_name,
@@ -119,6 +125,70 @@ def context_wrapper(func):
     return wrapper
 
 
+def trace_method():
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(self, *args, **kwargs):
+            tracer = self._tracer
+            if tracer is None:
+                return await func(self, *args, **kwargs)
+
+            span_id = kwargs.pop("span_id", None) or generate_uuid()
+            span_name = f"{self.__class__.__name__}.{func.__name__}"
+            func_name = func.__name__
+
+            try:
+                from opentelemetry.trace.status import Status, StatusCode
+
+                with tracer.start_as_current_span(span_name) as span:
+                    try:
+                        span.set_attribute("function_name", func_name)
+                        span.set_attribute("span_id", span_id)
+
+                        # Set attributes for arguments
+                        sig = inspect.signature(func)
+                        param_names = list(sig.parameters.keys())
+                        for i, arg in enumerate(args, start=1):
+                            if i < len(param_names):
+                                span.set_attribute(param_names[i], str(arg))
+                        for arg_name, arg_value in kwargs.items():
+                            span.set_attribute(arg_name, str(arg_value))
+
+                        # Manually add log to the span
+                        span.add_event(f"Starting execution for func: {func_name}")
+
+                        result = await func(self, *args, **kwargs)
+
+                        # Add another log event for successful execution
+                        span.add_event(f"Finished execution for func: {func_name}")
+                        span.set_status(Status(StatusCode.OK))
+                        return result
+
+                    except Exception as e:
+                        # Log the exception in the span
+                        span.add_event(
+                            "Exception occurred",
+                            {
+                                "exception.type": type(e).__name__,
+                                "exception.message": str(e),
+                            },
+                        )
+                        span.record_exception(e)
+                        span.set_status(Status(StatusCode.ERROR, str(e)))
+                        raise Exception
+
+            except Exception as otel_error:
+                # Catch any OpenTelemetry-related exceptions
+                logger.warning(f"OpenTelemetry error in {func_name}: {otel_error}")
+
+                # Execute the function without tracing
+                return await func(self, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 class ObjStore:
     """Class to handle internal IPC and storage for Runhouse.
 
@@ -148,9 +218,50 @@ class ObjStore:
         self.cluster_config: Optional[Dict[str, Any]] = None
         self.imported_modules = {}
         self.installed_envs = {}  # TODO: consider deleting it?
-        self._kv_store: Dict[Any, Any] = None
         self.env_servlet_cache = {}
         self.active_function_calls = {}
+        self._kv_store: Dict[Any, Any] = None
+        self._telemetry_agent = None
+        self._tracer = None
+
+        enable_observability = (
+            self.cluster_config.get("enable_observability", True)
+            if self.cluster_config
+            else True
+        )
+        if enable_observability:
+            self._telemetry_agent = self._initialize_telemetry_agent()
+            self._tracer = self._initialize_tracer() if self._telemetry_agent else None
+
+    ##############################################
+    # Telemetry setup
+    ##############################################
+    def _initialize_telemetry_agent(self):
+        from runhouse.servers.telemetry import TelemetryAgent
+
+        try:
+            ta = TelemetryAgent()
+            ta.start()
+            return ta
+
+        except Exception as e:
+            logger.warning(f"Failed to start telemetry agent: {e}")
+            return None
+
+    def _initialize_tracer(self):
+        trace.set_tracer_provider(TracerProvider())
+        tracer = trace.get_tracer(__name__)
+
+        # Export to local agent, which handles sending to the backend collector
+        span_processor = BatchSpanProcessor(
+            OTLPSpanExporter(
+                endpoint=f"localhost:{self._telemetry_agent.config.grpc_port}",
+                insecure=True,
+            )
+        )
+        trace.get_tracer_provider().add_span_processor(span_processor)
+
+        return tracer
 
     async def ainitialize(
         self,
@@ -765,15 +876,16 @@ class ObjStore:
                 raise KeyError(f"No local store exists; key {key} not found.")
             return default
 
+    @trace_method()
     async def aget(
         self,
         key: Any,
         serialization: Optional[str] = None,
         remote: bool = False,
         default: Optional[Any] = None,
+        request_id: Optional[str] = None,
     ):
         env_servlet_name_containing_key = await self.aget_env_servlet_name_for_key(key)
-
         if not env_servlet_name_containing_key:
             if default == KeyError:
                 raise KeyError(f"No local store exists; key {key} not found.")
