@@ -429,6 +429,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             unassumed_token, assumed_token = remote_assume_caller_and_get_token()
             # "Local token" is the token the cluster accesses in rh.configs.token; this is what will be used
             # in subsequent rns_client calls
+            if "+" not in assumed_token:
+                assumed_token = rh.globals.rns_client.cluster_token(
+                    assumed_token, cluster.rns_address
+                )
             assert assumed_token == rh.globals.rns_client.cluster_token(
                 rh.configs.token, cluster.rns_address
             )
