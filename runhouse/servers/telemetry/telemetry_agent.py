@@ -294,7 +294,7 @@ class TelemetryAgentExporter:
         """Install the binary for the telemetry agent."""
         logger.debug("Installing OTel agent")
         try:
-            install_url = self._generate_install_url()
+            install_url = self._load_install_url()
             logger.debug(f"Downloading OTel agent from url: {install_url}")
 
             # Download and extract
