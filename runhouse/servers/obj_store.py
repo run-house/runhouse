@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import inspect
+import json
 import logging
 import os
 import time
@@ -18,6 +19,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 from pydantic import BaseModel
 
+import runhouse as rh
 from runhouse.logger import get_logger
 
 from runhouse.rns.defaults import req_ctx
@@ -129,13 +131,14 @@ def trace_method():
     def decorator(func):
         @wraps(func)
         async def wrapper(self, *args, **kwargs):
-            tracer = self._tracer
+            tracer = self.tracer
             if tracer is None:
                 return await func(self, *args, **kwargs)
 
             span_id = kwargs.pop("span_id", None) or generate_uuid()
             span_name = f"{self.__class__.__name__}.{func.__name__}"
             func_name = func.__name__
+            cluster_config = self.cluster_config
 
             try:
                 from opentelemetry.trace.status import Status, StatusCode
@@ -144,10 +147,25 @@ def trace_method():
                     try:
                         span.set_attribute("function_name", func_name)
                         span.set_attribute("span_id", span_id)
+                        for k, v in cluster_config.items():
+                            if isinstance(v, rh.Resource):
+                                v = {
+                                    "name": v.name,
+                                    "rns_address": v.rns_address,
+                                    "resource_type": v.RESOURCE_TYPE,
+                                }
+                            span_key = f"rh.{k}"
+                            try:
+                                json_value = json.dumps(v)
+                                span.set_attribute(span_key, json_value)
+                            except TypeError:
+                                # If the value is not JSON serializable, convert it to a string
+                                span.set_attribute(span_key, str(v))
 
                         # Set attributes for arguments
                         sig = inspect.signature(func)
                         param_names = list(sig.parameters.keys())
+                        # Ignore the 'self' arg
                         for i, arg in enumerate(args, start=1):
                             if i < len(param_names):
                                 span.set_attribute(param_names[i], str(arg))
@@ -177,9 +195,9 @@ def trace_method():
                         span.set_status(Status(StatusCode.ERROR, str(e)))
                         raise Exception
 
-            except Exception as otel_error:
+            except Exception as e:
                 # Catch any OpenTelemetry-related exceptions
-                logger.warning(f"OpenTelemetry error in {func_name}: {otel_error}")
+                logger.warning(f"OpenTelemetry error in {func_name}: {e}")
 
                 # Execute the function without tracing
                 return await func(self, *args, **kwargs)
@@ -221,21 +239,40 @@ class ObjStore:
         self.env_servlet_cache = {}
         self.active_function_calls = {}
         self._kv_store: Dict[Any, Any] = None
+        self._enable_observability = None
         self._telemetry_agent = None
         self._tracer = None
 
-        enable_observability = (
-            self.cluster_config.get("enable_observability", True)
-            if self.cluster_config
-            else True
-        )
-        if enable_observability:
-            self._telemetry_agent = self._initialize_telemetry_agent()
-            self._tracer = self._initialize_tracer() if self._telemetry_agent else None
+    ##############################################
+    # Telemetry
+    ##############################################
+    @property
+    def enable_observability(self):
+        if self._enable_observability is None:
+            # If cluster config is None don't enable - means the cluster is not fully set up or in logged out scenario
+            self._enable_observability = (
+                self.cluster_config.get("enable_observability", True)
+                if self.cluster_config
+                else False
+            )
+        return self._enable_observability
 
-    ##############################################
-    # Telemetry setup
-    ##############################################
+    @property
+    def telemetry_agent(self):
+        if (
+            rh.here.on_this_cluster()
+            and self.enable_observability
+            and self._telemetry_agent is None
+        ):
+            self._telemetry_agent = self._initialize_telemetry_agent()
+        return self._telemetry_agent
+
+    @property
+    def tracer(self):
+        if self.telemetry_agent and self._tracer is None:
+            self._tracer = self._initialize_tracer()
+        return self._tracer
+
     def _initialize_telemetry_agent(self):
         from runhouse.servers.telemetry import TelemetryAgent
 
@@ -255,7 +292,7 @@ class ObjStore:
         # Export to local agent, which handles sending to the backend collector
         span_processor = BatchSpanProcessor(
             OTLPSpanExporter(
-                endpoint=f"localhost:{self._telemetry_agent.config.grpc_port}",
+                endpoint=f"localhost:{self.telemetry_agent.config.grpc_port}",
                 insecure=True,
             )
         )
@@ -263,6 +300,7 @@ class ObjStore:
 
         return tracer
 
+    # ----------------------------------------------------
     async def ainitialize(
         self,
         servlet_name: Optional[str] = None,
