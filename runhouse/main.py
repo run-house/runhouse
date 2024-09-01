@@ -1,3 +1,4 @@
+import datetime
 import importlib
 import logging
 import math
@@ -391,11 +392,46 @@ def _print_envs_info(
             for resource in resources_in_env:
                 for resource_name, resource_info in resource.items():
                     resource_type = _adjust_resource_type(
-                        resource_info["resource_type"]
+                        resource_info.get("resource_type")
                     )
-                    console.print(
-                        f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {resource_name} ({resource_type})"
-                    )
+
+                    active_function_calls = resource_info.get("active_function_calls")
+                    resource_info_str = f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {resource_name} ({resource_type})"
+
+                    if resource_type == "runhouse.Function" and active_function_calls:
+                        func_start_time_utc = active_function_calls[0].get(
+                            "start_time", None
+                        )
+
+                        # casting func_start_time_utc to datetime format
+                        func_start_time_utc = datetime.datetime.fromtimestamp(
+                            func_start_time_utc, tz=datetime.timezone.utc
+                        )
+
+                        # func_end_time_utc = current time. Making sure it is in the same format as func_start_time_utc,
+                        # so we could calculate function's running time.
+                        func_end_time_utc = datetime.datetime.fromtimestamp(
+                            time.time(), tz=datetime.timezone.utc
+                        )
+
+                        func_running_time = (
+                            func_end_time_utc - func_start_time_utc
+                        ).total_seconds()
+
+                        is_func_running: str = f" [italic bright_green]Running for {func_running_time} seconds[/italic bright_green]"
+
+                    elif (
+                        resource_type == "runhouse.Function"
+                        and not active_function_calls
+                    ):
+                        is_func_running: str = " [italic bright_yellow]Currently not running[/italic bright_yellow]"
+
+                    else:
+                        is_func_running: str = ""
+
+                    resource_info_str = resource_info_str + is_func_running
+
+                    console.print(resource_info_str)
 
 
 def _print_cloud_properties(cluster_config: dict):
