@@ -705,3 +705,15 @@ def get_gpu_usage(collected_gpus_info: dict, servlet_type: ServletType):
         gpu_usage["utilization_percent"] = gpu_utilization_percent
 
     return gpu_usage
+
+
+class StatusColors(str, Enum):
+    RUNNING = "[green]Running[/green]"
+    SERVER_DOWN = "[orange1]Runhouse server down[/orange1]"
+    TERMINATED = "[red]Terminated[/red]"
+    UNKNOWN = "Unknown"
+    LOCAL_CLUSTER = "[bright_yellow]Local cluster[/bright_yellow]"
+
+    @classmethod
+    def get_status_color(cls, status: str):
+        return getattr(cls, status.upper()).value
