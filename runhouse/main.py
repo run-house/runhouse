@@ -17,6 +17,7 @@ import rich.markdown
 import typer
 import yaml
 from rich.console import Console
+from rich.table import Table
 
 import runhouse as rh
 
@@ -41,8 +42,17 @@ from runhouse.resources.hardware.ray_utils import (
     kill_actors,
 )
 
+from runhouse.utils import StatusColors
+
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
+
+# creating a cluster app so we could create subcommands of cluster (i.e runhouse cluster list)
+italic_bold_ansi = "\x1B[3m\x1B[1m"
+reset_format = "\x1B[0m"
+cluster_app = typer.Typer(
+    help=f"Cluster information commands. For more info run {italic_bold_ansi}runhouse cluster --help{reset_format}"
+)
 
 # For printing with typer
 console = Console()
@@ -512,6 +522,9 @@ def _print_status(status_data: dict, current_cluster: Cluster) -> None:
     _print_envs_info(env_servlet_processes, current_cluster)
 
 
+###############################
+# Cluster CLI commands
+###############################
 @app.command()
 def status(
     cluster_name: str = typer.Argument(
@@ -574,6 +587,89 @@ def status(
         return
 
     _print_status(cluster_status, current_cluster)
+
+
+def get_clusters_from_den():
+    get_clusters_params = {"resource_type": "cluster", "folder": rns_client.username}
+    clusters_in_den_resp = rns_client.session.get(
+        f"{rns_client.api_server_url}/resource",
+        params=get_clusters_params,
+        headers=rns_client.request_headers(),
+    )
+
+    return clusters_in_den_resp
+
+
+@cluster_app.command("list")
+def cluster_list():
+    """List all Runhouse clusters saved in Den"""
+    import sky
+
+    # logged out case
+    if not rh.configs.token:
+        # TODO [SB]: adjust msg formatting (coloring etc)
+        sky_cli_command_formatted = f"{italic_bold_ansi}sky status -r{reset_format}"  # will be printed bold and italic
+        console.print(
+            f"Runhouse token required to view all clusters. Please run `runhouse login` to load your token. To view on-demand clusters run {sky_cli_command_formatted}"
+        )
+        return
+
+    sky_clusters = sky.status()
+
+    clusters_in_den_resp = get_clusters_from_den()
+
+    if clusters_in_den_resp.status_code != 200:
+        logger.error(
+            f"Failed to load clusters from Den for username: {rns_client.username}"
+        )
+        clusters_in_den = []
+    else:
+        clusters_in_den = clusters_in_den_resp.json().get("data")
+
+    clusters_in_den_names = [cluster.get("name") for cluster in clusters_in_den]
+
+    if not sky_clusters and not clusters_in_den:
+        console.print("No existing clusters.")
+
+    if sky_clusters:
+        # getting the on-demand clusters that are not saved in den.
+        sky_clusters = [
+            cluster
+            for cluster in sky_clusters
+            if f'/{rns_client.username}/{cluster.get("name")}'
+            not in clusters_in_den_names
+        ]
+
+    total_clusters = len(clusters_in_den)
+    table_title = f"[bold cyan]Clusters for {rns_client.username} (Total: {total_clusters})[/bold cyan]"
+
+    table = Table(title=table_title, title_justify="left")
+
+    # Add columns to the table
+    table.add_column("Name", justify="left", no_wrap=True)
+    table.add_column("Cluster Type", justify="center", no_wrap=True)
+    table.add_column("Status", justify="left")
+
+    for den_cluster in clusters_in_den:
+        # get just name, not full rns address. reset is used so the name will be printed all in white.
+        cluster_name = f'[reset]{den_cluster.get("name").split("/")[-1]}'
+        cluster_type = den_cluster.get("data").get("resource_subtype")
+        cluster_status = (
+            den_cluster.get("status") if den_cluster.get("status") else "unknown"
+        )
+        cluster_status_colored = StatusColors.get_status_color(cluster_status)
+        table.add_row(cluster_name, cluster_type, cluster_status_colored)
+
+    console.print(table)
+
+    if len(sky_clusters) > 0:
+        console.print(
+            f"There are {len(sky_clusters)} live clusters that are not saved in Den. For more information, please run [bold italic]sky status -r[/bold italic]."
+        )
+
+
+# Register the 'cluster' command group with the main runhouse application
+app.add_typer(cluster_app, name="cluster")
 
 
 def load_cluster(cluster_name: str):
