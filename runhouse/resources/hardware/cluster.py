@@ -621,6 +621,7 @@ class Cluster(Resource):
             obj (Any): Object to put in the object store
             env (str, optional): Env of the object store to put the object in. (Default: ``None``)
         """
+
         if self.on_this_cluster():
             return obj_store.put(key, obj, env=env)
         return self.call_client_method(
