@@ -63,7 +63,6 @@ class TestResourceSharing:
 
     @pytest.mark.level("local")
     def test_calling_shared_resource(self, resource):
-        current_token = rh.configs.token
         cluster = resource.system
 
         # Run commands on cluster with current token
@@ -71,7 +70,7 @@ class TestResourceSharing:
         assert return_codes[0][0] == 0
 
         # Call function with current token via CURL
-        cluster_token = rns_client.cluster_token(current_token, cluster.rns_address)
+        cluster_token = rns_client.cluster_token(cluster.rns_address)
         res = self.call_func_with_curl(
             cluster, resource.name, cluster_token, **{"a": 1, "b": 2}
         )
@@ -119,14 +118,18 @@ class TestResourceSharing:
 
         # Use invalid token to confirm no function access
         rh.configs.token = "abc123"
-        try:
-            resource(2, 2) == 4
-        except Exception as e:
-            assert "Unauthorized access to resource summer." in str(e)
+        with pytest.raises(Exception):
+            # cluster will throw error since the cluster token is invalid
+            # note: use the "call" method directly in order to pass new request headers with invalid token
+            cluster._http_client.call(
+                key=reloaded_func.name,
+                method_name="call",
+                headers=rns_client.request_headers(resource.rns_address),
+            )
 
         # Reset back to valid token and confirm we can call function again
         rh.configs.token = current_token
-        cluster_token = rns_client.cluster_token(current_token, cluster.rns_address)
+        cluster_token = rns_client.cluster_token(cluster.rns_address)
 
         res = self.call_func_with_curl(
             cluster, resource.name, cluster_token, **{"a": 1, "b": 2}
@@ -138,7 +141,6 @@ class TestResourceSharing:
         """Check that a user with write access to a cluster can call a function on that cluster, even without having
         explicit access to the function."""
         current_username = rh.configs.username
-        current_token = rh.configs.token
         cluster = resource.system
 
         cluster_uri = rns_client.resource_uri(cluster.rns_address)
@@ -170,7 +172,7 @@ class TestResourceSharing:
             )
 
         # Confirm user can still call the function with write access to the cluster
-        cluster_token = rns_client.cluster_token(current_token, cluster.rns_address)
+        cluster_token = rns_client.cluster_token(cluster.rns_address)
         res = self.call_func_with_curl(
             cluster,
             resource.name,
@@ -188,7 +190,6 @@ class TestResourceSharing:
         """Check that a user with no access to the cluster can still call a function on that cluster if they were
         given explicit access to the function."""
         current_username = rh.configs.username
-        current_token = rh.configs.token
         cluster = resource.system
 
         cluster_uri = rns_client.resource_uri(cluster.rns_address)
@@ -205,7 +206,7 @@ class TestResourceSharing:
                 ), f"Failed to remove access to the cluster for user: {current_username}: {resp.text}"
 
         # Confirm current user can still call the function (which they still have explicit access to)
-        cluster_token = rns_client.cluster_token(current_token, cluster.rns_address)
+        cluster_token = rns_client.cluster_token(cluster.rns_address)
         res = self.call_func_with_curl(
             cluster, resource.name, cluster_token, **{"a": 1, "b": 2}
         )
@@ -219,7 +220,6 @@ class TestResourceSharing:
         """Check that a user with read only access to the cluster cannot call a function on that cluster if they do not
         explicitly have access to the function itself."""
         current_username = rh.configs.username
-        current_token = rh.configs.token
         cluster = resource.system
 
         cluster_uri = rns_client.resource_uri(cluster.rns_address)
@@ -259,7 +259,7 @@ class TestResourceSharing:
         cluster.enable_den_auth(flush=True)
 
         # Confirm user can no longer call the function with read only access to the cluster and no function access
-        cluster_token = rns_client.cluster_token(current_token, cluster.rns_address)
+        cluster_token = rns_client.cluster_token(cluster.rns_address)
         res = self.call_func_with_curl(
             cluster, resource.name, cluster_token, **{"a": 1, "b": 2}
         )

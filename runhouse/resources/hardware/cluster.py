@@ -832,11 +832,10 @@ class Cluster(Resource):
                 system=self,
             )
 
-    def status(self, resource_address: str = None, send_to_den: bool = False):
+    def status(self, send_to_den: bool = False):
         """Load the status of the Runhouse daemon running on a cluster.
 
         Args:
-            resource_address (str, optional):
             send_to_den (bool, optional): Whether to send and update the status in Den. Only applies to
                 clusters that are saved to Den. (Default: ``False``)
         """
@@ -848,7 +847,6 @@ class Cluster(Resource):
         else:
             status, den_resp_status_code = self.call_client_method(
                 "status",
-                resource_address=resource_address or self.rns_address,
                 send_to_den=send_to_den,
             )
 
@@ -1041,7 +1039,7 @@ class Cluster(Resource):
             user_config = yaml.safe_dump(
                 {
                     "token": rns_client.cluster_token(
-                        rns_client.token, rns_client.username
+                        resource_address=rns_client.username
                     ),
                     "username": rns_client.username,
                     "default_folder": rns_client.default_folder,
@@ -1174,7 +1172,6 @@ class Cluster(Resource):
             method_to_call,
             module_name,
             method_name,
-            resource_address=self.rns_address,
             stream_logs=stream_logs,
             data={"args": args, "kwargs": kwargs},
             run_name=run_name,

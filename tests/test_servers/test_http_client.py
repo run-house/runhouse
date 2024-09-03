@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 import pytest
 
@@ -82,7 +83,11 @@ class TestHTTPClient:
         mock_file_open().write.assert_called_once_with(b"certificate_content")
 
     @pytest.mark.level("unit")
-    def test_use_cert_verification(self, mocker):
+    @patch("runhouse.globals.rns_client.request_headers")
+    def test_use_cert_verification(self, mock_request_headers, mocker):
+        # Mock the request_headers to avoid actual HTTP requests in the test for loading the cluster token
+        mock_request_headers.return_value = {"Authorization": "Bearer mock_token"}
+
         # Mock a certificate where the issuer is different from the subject
         mock_cert = mocker.MagicMock()
         mock_cert.issuer = "issuer"
@@ -136,6 +141,9 @@ class TestHTTPClient:
 
     @pytest.mark.level("unit")
     def test_call_module_method(self, mocker):
+        expected_headers = rns_client.request_headers(
+            resource_address=self.local_cluster.rns_address
+        )
         response_sequence = [
             json.dumps({"output_type": "stdout", "data": "Log message"}),
             json.dumps(
@@ -161,7 +169,6 @@ class TestHTTPClient:
         result = self.client.call(
             module_name,
             method_name,
-            resource_address=self.local_cluster.rns_address,
             run_name="test_run_name",
         )
 
@@ -177,9 +184,7 @@ class TestHTTPClient:
             "save": False,
             "remote": False,
         }
-        expected_headers = rns_client.request_headers(
-            resource_address=self.local_cluster.rns_address
-        )
+
         expected_verify = self.client.verify
 
         mock_post.assert_called_once_with(
@@ -193,6 +198,8 @@ class TestHTTPClient:
 
     @pytest.mark.level("unit")
     def test_call_module_method_with_args_kwargs(self, mocker):
+        expected_headers = rns_client.request_headers(self.local_cluster.rns_address)
+
         mock_response = mocker.MagicMock()
         mock_response.status_code = 200
         # Set up iter_lines to return an iterator
@@ -212,7 +219,6 @@ class TestHTTPClient:
             module_name,
             method_name,
             data=data,
-            resource_address=self.local_cluster.rns_address,
             run_name="test_run_name",
         )
 
@@ -226,7 +232,6 @@ class TestHTTPClient:
             "remote": False,
         }
         expected_url = f"http://localhost:32300/{module_name}/{method_name}"
-        expected_headers = rns_client.request_headers(self.local_cluster.rns_address)
         expected_verify = self.client.verify
 
         mock_post.assert_called_with(
@@ -246,12 +251,12 @@ class TestHTTPClient:
         mocker.patch("requests.Session.post", return_value=mock_response)
 
         with pytest.raises(ValueError):
-            self.client.call(
-                "module", "method", resource_address=local_cluster.rns_address
-            )
+            self.client.call("module", "method")
 
     @pytest.mark.level("unit")
     def test_call_module_method_config(self, mocker, local_cluster):
+        request_headers = rns_client.request_headers(local_cluster.rns_address)
+
         test_data = self.local_cluster.config()
         mock_response = mocker.Mock()
         mock_response.status_code = 200
@@ -265,7 +270,7 @@ class TestHTTPClient:
         cluster = self.client.call(
             EMPTY_DEFAULT_ENV_NAME,
             "install",
-            resource_address=local_cluster.rns_address,
+            headers=request_headers,
         )
         assert cluster.config() == test_data
 

@@ -1,4 +1,3 @@
-import hashlib
 import importlib
 import json
 import os
@@ -197,7 +196,6 @@ class RNSClient:
             headers: dict = self._configs.request_headers
 
         if not headers:
-            # TODO: allow this? means we failed to load token from configs
             return None
 
         if "Authorization" not in headers:
@@ -220,18 +218,52 @@ class RNSClient:
                 "Failed to extract token from request auth header. Expected in format: Bearer <token>"
             )
 
-        hashed_token = self.cluster_token(den_token, resource_address)
+        hashed_token = self.cluster_token(resource_address)
 
         return {"Authorization": f"Bearer {hashed_token}"}
 
-    def cluster_token(self, den_token: str, resource_address: str):
+    def cluster_token(
+        self, resource_address: str, username: str = None, den_token: str = None
+    ):
+        """Load the hashed token as generated in Den. Cache the token value in-memory for a given resource address.
+        Optionally provide a username and den token instead of using the default values stored in local configs."""
         if resource_address and "/" in resource_address:
             # If provided as a full rns address, extract the top level directory
             resource_address = self.base_folder(resource_address)
 
-        hash_input = (den_token + resource_address).encode("utf-8")
-        hash_hex = hashlib.sha256(hash_input).hexdigest()
-        return f"{hash_hex}+{resource_address}+{self._configs.username}"
+        uri = f"{self.api_server_url}/auth/token/cluster"
+        token_payload = {
+            "resource_address": resource_address,
+            "username": username or self._configs.username,
+        }
+
+        headers = (
+            {"Authorization": f"Bearer {den_token}"}
+            if den_token
+            else self._configs.request_headers
+        )
+        resp = self.session.post(
+            uri,
+            data=json.dumps(token_payload),
+            headers=headers,
+        )
+        if resp.status_code != 200:
+            raise Exception(
+                f"Received [{resp.status_code}] from Den POST '{uri}': Failed to load cluster token: {load_resp_content(resp)}"
+            )
+
+        resp_data = read_resp_data(resp)
+        return resp_data.get("token")
+
+    def validate_cluster_token(self, cluster_token: str, cluster_uri: str) -> bool:
+        """Checks whether a particular cluster token is valid for the given cluster URI"""
+        request_uri = self.resource_uri(cluster_uri)
+        uri = f"{self.api_server_url}/auth/token/cluster/{request_uri}"
+        resp = self.session.get(
+            uri,
+            headers={"Authorization": f"Bearer {cluster_token}"},
+        )
+        return resp.status_code == 200
 
     def resource_request_payload(self, payload) -> dict:
         payload = remove_null_values_from_dict(payload)
