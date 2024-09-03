@@ -99,6 +99,7 @@ class HTTPClient:
         )
 
         self.log_formatter = ClusterLogsFormatter(self.system)
+        self._request_headers = rns_client.request_headers(self.resource_address)
 
     def _certs_are_self_signed(self) -> bool:
         """Checks whether the cert provided is self-signed. If it is, all client requests will include the path
@@ -165,7 +166,6 @@ class HTTPClient:
         self,
         endpoint,
         req_type="post",
-        resource_address=None,
         data=None,
         env=None,
         stream_logs=True,
@@ -175,7 +175,7 @@ class HTTPClient:
         timeout=None,
         headers: Union[Dict, None] = None,
     ):
-        headers = rns_client.request_headers(resource_address, headers)
+        headers = headers or self._request_headers
         json_dict = {
             "data": data,
             "env": env,
@@ -202,11 +202,7 @@ class HTTPClient:
         headers: Union[Dict, None] = None,
     ):
         # Support use case where we explicitly do not want to provide headers (e.g. requesting a cert)
-        headers = (
-            rns_client.request_headers(self.resource_address)
-            if headers != {}
-            else headers
-        )
+        headers = self._request_headers if headers != {} else headers
         req_fn = (
             session.get
             if req_type == "get"
@@ -276,13 +272,11 @@ class HTTPClient:
                 f"but local Runhouse version is ({runhouse.__version__})"
             )
 
-    def status(self, resource_address: str, send_to_den: bool = False):
+    def status(self, send_to_den: bool = False):
         """Load the remote cluster's status."""
-        # Note: Resource address must be specified in order to construct the cluster subtoken
         return self.request(
             f"status?send_to_den={send_to_den}",
             req_type="get",
-            resource_address=resource_address,
         )
 
     def folder_ls(self, path: Union[str, Path], full_paths: bool, sort: bool):
@@ -390,11 +384,11 @@ class HTTPClient:
         method_name: str,
         data: Any = None,
         serialization: Optional[str] = None,
-        resource_address=None,
         run_name: Optional[str] = None,
         stream_logs: bool = True,
         remote: bool = False,
         save=False,
+        headers=None,
     ):
         """wrapper to temporarily support cluster's call signature"""
         return self.call_module_method(
@@ -402,12 +396,12 @@ class HTTPClient:
             method_name,
             data=data,
             serialization=serialization,
-            resource_address=resource_address or self.resource_address,
             run_name=run_name,
             stream_logs=stream_logs,
             remote=remote,
             save=save,
             system=self.system,
+            headers=headers,
         )
 
     def call_module_method(
@@ -416,12 +410,12 @@ class HTTPClient:
         method_name: str,
         data: Any = None,
         serialization: Optional[str] = None,
-        resource_address=None,
         run_name: Optional[str] = None,
         stream_logs: bool = True,
         remote: bool = False,
         save=False,
         system=None,
+        headers=None,
     ):
         """
         Client function to call the rpc for call_module_method
@@ -451,7 +445,7 @@ class HTTPClient:
                 remote=remote,
             ).model_dump(),
             stream=True,
-            headers=rns_client.request_headers(resource_address),
+            headers=headers or self._request_headers,
             auth=self.auth,
             verify=self.verify,
         )
@@ -504,7 +498,6 @@ class HTTPClient:
         method_name: str,
         data: Any = None,
         serialization: Optional[str] = None,
-        resource_address=None,
         run_name: Optional[str] = None,
         stream_logs: bool = True,
         remote: bool = False,
@@ -517,7 +510,6 @@ class HTTPClient:
             method_name,
             data=data,
             serialization=serialization,
-            resource_address=resource_address or self.resource_address,
             run_name=run_name,
             stream_logs=stream_logs,
             remote=remote,
@@ -532,7 +524,6 @@ class HTTPClient:
         method_name: str,
         data: Any = None,
         serialization: Optional[str] = None,
-        resource_address=None,
         run_name: Optional[str] = None,
         stream_logs: bool = True,
         remote: bool = False,
@@ -569,7 +560,7 @@ class HTTPClient:
                 remote=remote,
                 run_async=run_async,
             ).model_dump(),
-            headers=rns_client.request_headers(resource_address),
+            headers=self._request_headers,
         ) as res:
             if res.status_code != 200:
                 raise ValueError(
@@ -675,7 +666,7 @@ class HTTPClient:
         res = retry_with_exponential_backoff(session.post)(
             self._formatted_url("settings"),
             json=new_settings,
-            headers=rns_client.request_headers(self.resource_address),
+            headers=self._request_headers,
             auth=self.auth,
             verify=self.verify,
         )

@@ -85,14 +85,13 @@ async def averify_cluster_access(
     from runhouse.globals import configs, obj_store
 
     # The logged-in user always has full access to the cluster. This is especially important if they flip on
-    # Den Auth without saving the cluster. We may need to generate a subtoken here to check.
+    # Den Auth without saving the cluster. Note: The token saved in the cluster config is a hashed cluster token,
+    # which may match the token provided in the request headers.
     if configs.token:
         if configs.token == token:
             return True
-        if (
-            cluster_uri
-            and rns_client.cluster_token(configs.token, cluster_uri) == token
-        ):
+
+        if cluster_uri and rns_client.cluster_token(cluster_uri) == token:
             return True
 
     cluster_access_level = await obj_store.aresource_access_level(token, cluster_uri)

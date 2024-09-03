@@ -522,14 +522,12 @@ class ObjStore:
         # The logged-in user always has full access to the cluster and its resources. This is especially
         # important if they flip on Den Auth without saving the cluster.
 
-        # configs.token is the token stored on the cluster itself
+        # configs.token is the token stored on the cluster itself, which is itself a hashed subtoken
         if configs.token:
             if configs.token == token:
                 return True
-            if (
-                resource_uri
-                and rns_client.cluster_token(configs.token, resource_uri) == token
-            ):
+
+            if resource_uri and rns_client.cluster_token(resource_uri) == token:
                 return True
 
         cluster_uri = load_current_cluster_rns_address()
