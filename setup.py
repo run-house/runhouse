@@ -90,7 +90,6 @@ extras_require = {
         # If you don't want to use these exact versions, you can install runhouse without the aws extras, then
         # install your desired versions of awscli and boto3
         "pycryptodome==3.12.0",
-        "sshtunnel>=0.3.0",  # required for sagemaker
     ],
     "azure": ["skypilot[azure]==0.6.0"],
     "gcp": [
@@ -98,13 +97,6 @@ extras_require = {
         "gcsfs",
     ],
     "docker": ["docker"],
-    "sagemaker": [
-        "skypilot==0.6.0",
-        # https://github.com/aws-samples/sagemaker-ssh-helper
-        "sagemaker_ssh_helper",
-        "sagemaker",
-        "paramiko>=3.2.0",
-    ],
     "kubernetes": ["skypilot==0.6.0", "kubernetes"],
 }
 

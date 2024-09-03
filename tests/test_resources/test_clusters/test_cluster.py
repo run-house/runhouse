@@ -180,7 +180,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             return
 
         endpoint = cluster.endpoint()
-        if cluster.server_connection_type in ["ssh", "aws_ssm"]:
+        if cluster.server_connection_type == "ssh":
             assert cluster.endpoint(external=True) is None
             assert endpoint == f"http://{LOCALHOST}:{cluster.client_port}"
         else:

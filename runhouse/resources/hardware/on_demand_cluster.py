@@ -219,13 +219,6 @@ class OnDemandCluster(Cluster):
         return yaml_path
 
     def set_connection_defaults(self):
-        if self.server_connection_type in [
-            ServerConnectionType.AWS_SSM,
-        ]:
-            raise ValueError(
-                f"OnDemandCluster does not support server connection type {self.server_connection_type}"
-            )
-
         if not self.server_connection_type:
             if self.ssl_keyfile or self.ssl_certfile:
                 self.server_connection_type = ServerConnectionType.TLS

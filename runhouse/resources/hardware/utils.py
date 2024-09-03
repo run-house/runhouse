@@ -29,13 +29,11 @@ class ServerConnectionType(str, Enum):
     ``tls``: Do not use port forwarding and start the server with HTTPS (using custom or fresh TLS certs), by default
         on port 443.
     ``none``: Do not use port forwarding, and start the server with HTTP, by default on port 80.
-    ``aws_ssm``: Use AWS SSM to connect to the server, by default on port 32300.
     """
 
     SSH = "ssh"
     TLS = "tls"
     NONE = "none"
-    AWS_SSM = "aws_ssm"
 
 
 class ResourceServerStatus(str, Enum):
