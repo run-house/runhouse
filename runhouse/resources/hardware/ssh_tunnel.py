@@ -35,17 +35,17 @@ class SshTunnel:
         """Initialize an ssh tunnel from a remote server to localhost
 
         Args:
-            address (str): The address of the server we are trying to port forward an address to our local machine with.
-            ssh_creds (Dict): A dictionary of ssh credentials used to connect to the remote server.
-            local_port (int): The port locally where we are attempting to bind the remote server address to.
-            ssh_port (int): The port on the machine where the ssh server is running.
-                This is generally port 22, but occasionally
-                we may forward a container's ssh port to a different port
-                on the actual machine itself (for example on a Docker VM). Defaults to 22.
-            remote_port (Optional[int], optional): The port of the remote server
-                we're attempting to port forward. Defaults to None.
-            num_ports_to_try (int, optional): The number of local ports to attempt to bind to,
-                starting at local_port and incrementing by 1 till we hit the max. Defaults to 0.
+            ip (str): The address of the server we are trying to port forward an address to our local machine with.
+            ssh_user (str, optional): The SSH username to use for connecting to the remote server. Defaults to None.
+            ssh_private_key (str, optional): The path to the SSH private key file. Defaults to None.
+            ssh_control_name (str, optional): The name for the SSH control connection.
+                Defaults to `"__default__"`.
+            ssh_proxy_command (str, optional): The SSH proxy command to use for connecting to the remote
+                server. Defaults to None.
+            ssh_port (int, optional): The port on the remote machine where the SSH server is running. Defaults to 22.
+            disable_control_master (bool, optional): Whether to disable SSH ControlMaster. Defaults to False.
+            docker_user (str, optional): The Docker username to use if connecting through Docker. Defaults to None.
+            cloud (str, optional): The cloud provider, if applicable. Defaults to None.
         """
         self.ip = ip
         self.ssh_port = ssh_port
@@ -207,10 +207,11 @@ def ssh_tunnel(
             This is generally port 22, but occasionally
             we may forward a container's ssh port to a different port
             on the actual machine itself (for example on a Docker VM). Defaults to 22.
-        remote_port (Optional[int], optional): The port of the remote server
+        remote_port (int, optional): The port of the remote server
             we're attempting to port forward. Defaults to None.
         num_ports_to_try (int, optional): The number of local ports to attempt to bind to,
             starting at local_port and incrementing by 1 till we hit the max. Defaults to 0.
+        docker_user (str, optional): The Docker username to use if connecting through Docker. Defaults to None.
         cloud (str, Optional): Cluster cloud, if an on-demand cluster.
 
     Returns:
