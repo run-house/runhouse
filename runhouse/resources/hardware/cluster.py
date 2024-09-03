@@ -605,10 +605,6 @@ class Cluster(Resource):
             return default
         return res
 
-    # TODO deprecate
-    def get_run(self, run_name: str, folder_path: str = None):
-        return self.get(run_name, remote=True).provenance
-
     def put(self, key: str, obj: Any, env=None):
         """Put the given object on the cluster's object store at the given key."""
         if self.on_this_cluster():

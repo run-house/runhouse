@@ -24,7 +24,6 @@ from runhouse.resources.packages import (
     package,
     Package,
 )
-from runhouse.resources.provenance import capture_stdout, Run, run, RunStatus, RunType
 from runhouse.resources.resource import Resource
 from runhouse.resources.secrets import provider_secret, ProviderSecret, Secret, secret
 

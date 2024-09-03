@@ -29,7 +29,6 @@ class Resource:
         self,
         name: Optional[str] = None,
         dryrun: bool = False,
-        provenance=None,
         access_level: Optional[ResourceAccess] = ResourceAccess.WRITE,
         visibility: Optional[ResourceVisibility] = ResourceVisibility.PRIVATE,
         **kwargs,
@@ -63,16 +62,7 @@ class Resource:
                 rns_client.resolve_rns_path(name)
             )
 
-        from runhouse.resources.provenance import Run
-
         self.dryrun = dryrun
-        # dryrun is true here so we don't spend time calling check on the server
-        # if we're just loading down the resource (e.g. with .remote)
-        self.provenance = (
-            Run.from_config(provenance, dryrun=True)
-            if isinstance(provenance, Dict)
-            else provenance
-        )
         self.access_level = access_level
         self._visibility = visibility
 
@@ -88,7 +78,6 @@ class Resource:
             "name": self.rns_address or self.name,
             "resource_type": self.RESOURCE_TYPE,
             "resource_subtype": self.__class__.__name__,
-            "provenance": self.provenance.config if self.provenance else None,
         }
         self.save_attrs_to_config(
             config,
