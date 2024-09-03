@@ -35,6 +35,8 @@ from runhouse.constants import LOGS_DIR
 from runhouse.logger import get_logger, init_logger
 
 logger = get_logger(__name__)
+
+
 ####################################################################################################
 # Python package utilities
 ####################################################################################################
@@ -593,3 +595,9 @@ class ClusterLogsFormatter:
             self._display_title = True
 
         return system_color, reset_color
+
+
+def create_local_dir(path: Union[str, Path]):
+    full_path = os.path.expanduser(path) if isinstance(path, str) else path.expanduser()
+    Path(full_path).parent.mkdir(parents=True, exist_ok=True)
+    return full_path

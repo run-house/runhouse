@@ -200,12 +200,12 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
             secret = secret.write(path=test_path)
             cluster.sync_secrets([secret])
 
-            remote_file = rh.file(path=secret.path, system=cluster)
-            assert remote_file.exists_in_system()
-            assert secret._from_path(remote_file) == secret.values
+            remote_folder = rh.folder(path=secret.path, system=cluster)
+            assert remote_folder.exists_in_system()
+            assert secret._from_path(remote_folder.path) == secret.values
 
             assert_delete_local(secret, contents=True)
-            remote_file.rm()
+            remote_folder.rm()
         else:
             cluster.sync_secrets([secret])
             assert cluster.get(secret.name)

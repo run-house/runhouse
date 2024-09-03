@@ -1,14 +1,12 @@
 import configparser
 import copy
-import io
 import os
-from pathlib import Path
 
-from typing import Dict, Union
+from typing import Dict
 
-from runhouse.resources.blobs.file import File
 from runhouse.resources.secrets.provider_secrets.provider_secret import ProviderSecret
 from runhouse.resources.secrets.utils import _check_file_for_mismatches
+from runhouse.utils import create_local_dir
 
 
 class AWSSecret(ProviderSecret):
@@ -28,9 +26,7 @@ class AWSSecret(ProviderSecret):
     def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         return AWSSecret(**config, dryrun=dryrun)
 
-    def _write_to_file(
-        self, path: Union[str, File], values: Dict, overwrite: bool = False
-    ):
+    def _write_to_file(self, path: str, values: Dict, overwrite: bool = False):
         new_secret = copy.deepcopy(self)
 
         if not _check_file_for_mismatches(
@@ -51,31 +47,18 @@ class AWSSecret(ProviderSecret):
                 value=values["secret_key"],
             )
 
-            if isinstance(path, File):
-                # TODO: may be a better way of getting config parser data?
-                with io.StringIO() as ss:
-                    parser.write(ss)
-                    ss.seek(0)
-                    data = ss.read()
-                path.write(data, serialize=False, mode="w")
-            else:
-                full_path = os.path.expanduser(path)
-                Path(full_path).parent.mkdir(parents=True, exist_ok=True)
-                with open(full_path, "w+") as f:
-                    parser.write(f)
-                new_secret._add_to_rh_config(path)
+            full_path = create_local_dir(path)
+            with open(full_path, "w+") as f:
+                parser.write(f)
+            new_secret._add_to_rh_config(path)
 
         new_secret._values = None
         new_secret.path = path
         return new_secret
 
-    def _from_path(self, path: Union[str, File]):
+    def _from_path(self, path: str):
         config = configparser.ConfigParser()
-        if isinstance(path, File):
-            if not path.exists_in_system():
-                return {}
-            config.read_string(path.fetch(deserialize=False, mode="r"))
-        elif path and os.path.exists(os.path.expanduser(path)):
+        if path and os.path.exists(os.path.expanduser(path)):
             config.read(os.path.expanduser(path))
         else:
             return {}
