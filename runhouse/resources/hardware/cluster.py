@@ -1,5 +1,6 @@
 import contextlib
 import copy
+import datetime
 import importlib
 import json
 import os
@@ -13,6 +14,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import requests
 
 import yaml
+
+from runhouse.resources.hardware.utils import parse_filters, ResourceServerStatus
 
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
@@ -38,6 +41,7 @@ from runhouse.constants import (
     DEFAULT_SERVER_PORT,
     DEFAULT_STATUS_CHECK_INTERVAL,
     EMPTY_DEFAULT_ENV_NAME,
+    LAST_ACTIVE_AT_TIMEFRAME,
     LOCALHOST,
     NUM_PORTS_TO_TRY,
     RESERVED_SYSTEM_NAMES,
@@ -1946,3 +1950,162 @@ class Cluster(Resource):
 
     def _folder_exists(self, path: Union[str, Path]):
         return self.client.folder_exists(path=path)
+
+    @staticmethod
+    def get_clusters_from_den(cluster_filters: dict):
+        get_clusters_params = {
+            "resource_type": "cluster",
+            "folder": rns_client.username,
+        }
+
+        # send den request with filters if the user specifies filters.
+        # If "all" filter is specified - get all clusters (no filters are added to get_clusters_params)
+        if cluster_filters and "all" not in cluster_filters.keys():
+            get_clusters_params.update(cluster_filters)
+
+        # If not filters are specified, get only running clusters.
+        elif not cluster_filters:
+            get_clusters_params.update(
+                {"cluster_status": "running", "since": LAST_ACTIVE_AT_TIMEFRAME}
+            )
+
+        clusters_in_den_resp = rns_client.session.get(
+            f"{rns_client.api_server_url}/resource",
+            params=get_clusters_params,
+            headers=rns_client.request_headers(),
+        )
+
+        return clusters_in_den_resp
+
+    @staticmethod
+    def _get_unsaved_live_clusters(den_clusters: list[Dict], sky_live_clusters: list):
+        den_clusters_names = [c.get("name") for c in den_clusters]
+
+        # getting the on-demand clusters that are not saved in den.
+        if sky_live_clusters:
+            return [
+                cluster
+                for cluster in sky_live_clusters
+                if f'/{rns_client.username}/{cluster.get("name")}'
+                not in den_clusters_names
+            ]
+        else:
+            return []
+
+    @staticmethod
+    def _get_running_and_not_running_clusters(clusters: list):
+        running_clusters, not_running_clusters = [], []
+
+        for den_cluster in clusters:
+            # get just name, not full rns address. reset is used so the name will be printed all in white.
+            cluster_name = f'[reset]{den_cluster.get("name").split("/")[-1]}'
+            cluster_type = den_cluster.get("data").get("resource_subtype")
+            cluster_status = (
+                den_cluster.get("status") if den_cluster.get("status") else "unknown"
+            )
+
+            # currently relying on status pings to den as a sign of cluster activity.
+            # The split is required to remove milliseconds and the offset (according to UTC) from the timestamp.
+            # (status_last_checked is in the following format: YYYY-MM-DD HH:MM:SS.ssssss±HH:MM)
+
+            last_active_at = den_cluster.get("status_last_checked")
+            last_active_at = (
+                datetime.datetime.fromisoformat(last_active_at.split(".")[0])
+                if isinstance(last_active_at, str)
+                else datetime.datetime(1970, 1, 1)
+            )  # Convert to datetime
+            last_active_at = last_active_at.replace(tzinfo=datetime.timezone.utc)
+
+            if cluster_status == "running" and not last_active_at:
+                # For BC, in case there are clusters that were saved and created before we introduced sending cluster status to den.
+                cluster_status = "unknown"
+
+            cluster_info = {
+                "Name": cluster_name,
+                "Cluster Type": cluster_type,
+                "Status": cluster_status,
+                "Last Active (UTC)": last_active_at,
+            }
+            running_clusters.append(
+                cluster_info
+            ) if cluster_status == "running" else not_running_clusters.append(
+                cluster_info
+            )
+
+        # TODO: will be used if we'll need to print not-running clusters
+
+        # Sort clusters by the 'Last Active (UTC)' and 'Status' column
+        not_running_clusters = sorted(
+            not_running_clusters,
+            key=lambda x: (x["Last Active (UTC)"], x["Status"]),
+            reverse=True,
+        )
+        running_clusters = sorted(
+            running_clusters, key=lambda x: x["Last Active (UTC)"], reverse=True
+        )
+
+        return running_clusters, not_running_clusters
+
+    ###############################
+    # Cluster list
+    ###############################
+    @classmethod
+    def list(
+        cls,
+        show_all: Optional[bool] = False,
+        since: Optional[str] = None,
+        status: Optional[Union[str, ResourceServerStatus]] = None,
+    ):
+        """
+        Returns user's runhouse clusters saved in Den. If filters are provided, only clusters that are matching the
+        filters are returned. If not filters are provided, clusters that were active in the last 24 hours are returned.
+
+        Args:
+            show_all Optional[bool]: Whether to get ALL user's clusters saved in den.
+            since Optional[int]: Clusters that were active in the last N seconds (= the provided value) will be returned.
+            status Optional[str]: Clusters with the provided status will be returned.
+        """
+
+        import sky
+
+        cluster_filters = (
+            parse_filters(since=since, cluster_status=status)
+            if not show_all
+            else {"all": "all"}
+        )
+
+        # get clusters from den
+        den_clusters_resp = Cluster.get_clusters_from_den(
+            cluster_filters=cluster_filters
+        )
+        if den_clusters_resp.status_code != 200:
+            logger.error(f"Failed to load {rns_client.username}'s clusters from Den")
+            den_clusters = []
+        else:
+            den_clusters = den_clusters_resp.json().get("data")
+
+        # get sky live clusters
+        sky_live_clusters = sky.status()
+
+        if not sky_live_clusters and not den_clusters:
+            return {}
+
+        # sky_live_clusters = sky clusters found in the local sky DB but not saved in den
+        sky_live_clusters = Cluster._get_unsaved_live_clusters(
+            den_clusters=den_clusters, sky_live_clusters=sky_live_clusters
+        )
+
+        # running_clusters: running clusters which are saved in Den
+        # not running clusters: clusters that are terminated / unknown / down which are also saved in Den.
+        (
+            running_clusters,
+            not_running_clusters,
+        ) = Cluster._get_running_and_not_running_clusters(clusters=den_clusters)
+        all_clusters = running_clusters + not_running_clusters
+
+        clusters = {
+            "all_clusters": all_clusters,
+            "running_clusters": running_clusters,
+            "sky_clusters": sky_live_clusters,
+        }
+        return clusters

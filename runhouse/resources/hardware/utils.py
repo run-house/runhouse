@@ -9,7 +9,9 @@ from typing import Dict, List, Optional, Union
 from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
     EMPTY_DEFAULT_ENV_NAME,
+    LAST_ACTIVE_AT_TIMEFRAME,
     RESERVED_SYSTEM_NAMES,
+    TIME_UNITS,
 )
 
 from runhouse.logger import get_logger
@@ -248,3 +250,58 @@ def up_cluster_helper(cluster, capture_output: Union[bool, str] = True):
                     f.write(outfile.output)
     else:
         cluster.up()
+
+
+###################################
+# Cluster list helping methods
+###################################
+
+
+def parse_time_duration(duration: str):
+    # A simple parser for duration like "15m", "2h", "3d"
+    try:
+        unit = duration[-1]
+        value = int(duration[:-1])
+
+        # if the user provides a "--since" time filter than is less than a minute, set it by default to one minute.
+        if unit == "s" and value < 60:
+            value = 60
+
+        time_duration = value * TIME_UNITS.get(unit, 0)
+
+        if time_duration == 0 and value != 0:
+            logger.warning(
+                f"Filter is not applied, invalid time unit provided ({unit})."
+            )
+            return
+
+        return time_duration
+    except Exception:
+        return LAST_ACTIVE_AT_TIMEFRAME
+
+
+def parse_filters(since: str, cluster_status: str):
+    cluster_filters = {}
+
+    if since:
+        last_active_in: int = parse_time_duration(
+            duration=since
+        )  # return in representing the "since" filter in seconds
+        if last_active_in:
+            cluster_filters["since"] = last_active_in
+
+    if cluster_status:
+
+        if cluster_status.lower() == "down":
+            # added server_down for BC
+            cluster_status = "runhouse_daemon_down"
+
+        elif cluster_status.lower() not in ResourceServerStatus.__members__.keys():
+            logger.warning(
+                f"Invalid cluster status provided ({cluster_status}), status filter set to 'Running'."
+            )
+            cluster_status = ResourceServerStatus.running.value
+
+        cluster_filters["cluster_status"] = cluster_status
+
+    return cluster_filters
