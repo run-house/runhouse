@@ -1,6 +1,6 @@
 import inspect
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Iterable, List, Optional, Tuple, Union
 
 from runhouse import globals
 from runhouse.logger import get_logger
@@ -55,6 +55,7 @@ class Function(Module):
         return Function(**config, dryrun=dryrun)
 
     def share(self, *args, visibility=None, **kwargs):
+        """Share and grant access to the resource for the specified users."""
         if visibility and not visibility == self.visibility:
             self.visibility = visibility
             super().remote.visibility = (
@@ -74,11 +75,18 @@ class Function(Module):
         name: Optional[str] = None,
         force_install: bool = False,
     ):
-        """to(system: str | Cluster | None = None, env: List[str] | Env = [], force_install: bool = False)
+        """
+        Send the function to the specified env on the cluster. This will sync over relevant code and packages
+        onto the cluster, and set up the environment if it does not yet exist on the cluster.
 
-        Set up a Function and Env on the given system.
-        If the function is sent to AWS, the system should be ``aws_lambda``
-        See the args of the factory method :func:`function` for more information.
+        Args:
+            system (str or Cluster): The system to setup the function and env on.
+            env (str, List[str], or Env, optional): The environment where the function lives on in the cluster,
+                or the set of requirements necessary to run the function. (Default: ``None``)
+            name (Optional[str], optional): Name to give to the function resource, if you wish to rename it.
+                (Default: ``None``)
+            force_install (bool, optional): Whether to re-install and perform the environment setup steps, even
+                if it may already exist on the cluster. (Defualt: ``False``)
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
@@ -103,12 +111,12 @@ class Function(Module):
         """Call the function on its system
 
         Args:
-             *args: Optional args for the Function
-             stream_logs (bool): Whether to stream the logs from the Function's execution.
-                Defaults to ``True``.
-             run_name (Optional[str]): Name of the Run to create. If provided, a Run will be created
-                for this function call, which will be executed synchronously on the cluster before returning its result
-             **kwargs: Optional kwargs for the Function
+            *args: Optional args for the Function
+            stream_logs (bool): Whether to stream the logs from the Function's execution.
+               Defaults to ``True``.
+            run_name (Optional[str]): Name of the Run to create. If provided, a Run will be created
+               for this function call, which will be executed synchronously on the cluster before returning its result
+            **kwargs: Optional kwargs for the Function
 
         Returns:
             The Function's return value
@@ -144,12 +152,15 @@ class Function(Module):
         ray_wrapped_fn = ray.remote(fn)
         return ray.get([ray_wrapped_fn.remote(*args, **kwargs) for args in zip(*args)])
 
-    def starmap(self, args_lists, **kwargs):
+    def starmap(self, args_lists: List[Iterable], **kwargs):
         """Like :func:`map` except that the elements of the iterable are expected to be iterables
         that are unpacked as arguments. An iterable of [(1,2), (3, 4)] results in [func(1,2), func(3,4)].
 
+        Args:
+            arg_lists (List[Iterable]): List containing iterbles of arguments to be passed into the function.
+
         Example:
-            >>> arg_list = [(1,2), (3, 4)]
+            >>> arg_list = [(1, 2), (3, 4)]
             >>> # runs the function twice, once with args (1, 2) and once with args (3, 4)
             >>> remote_fn.starmap(arg_list)
         """
@@ -178,6 +189,12 @@ class Function(Module):
         return self.system.get(run_key)
 
     def config(self, condensed=True):
+        """The config of the function.
+
+        Args:
+            condensed (bool, optional): Whether to return the condensed config without expanding children subresources,
+                or return the whole expanded config. (Default: ``True``)
+        """
         config = super().config(condensed)
         config.update(
             {
@@ -188,6 +205,10 @@ class Function(Module):
 
     def send_secrets(self, providers: Optional[List[str]] = None):
         """Send secrets to the system.
+
+        Args:
+            providers (List[str], optional): List of secret names to send over to the system. If none are provided,
+                syncs over all locally detected provider secrets. (Default: ``None``)
 
         Example:
             >>> remote_fn.send_secrets(providers=["aws", "lambda"])
@@ -212,16 +233,15 @@ class Function(Module):
         )
 
     def get_or_call(
-        self, run_name: str, load_from_den=True, local=True, *args, **kwargs
+        self, run_name: str, load_from_den: bool = True, *args, **kwargs
     ) -> Any:
         """Check if object already exists on cluster or rns, and if so return the result. If not, run the function.
         Keep in mind this can be called with any of the usual method call modifiers - `remote=True`, `run_async=True`,
         `stream_logs=False`, etc.
 
         Args:
-            run_name (Optional[str]): Name of a particular run for this function.
-                If not provided will use the function's name.
-            load_from_den (bool): Whether to try loading the run name from Den.
+            run_name (str): Name of a particular run for this function.
+            load_from_den (bool, optional): Whether to try loading the run name from Den. (Default: ``True``)
             *args: Arguments to pass to the function for the run (relevant if creating a new run).
             **kwargs: Keyword arguments to pass to the function for the run (relevant if creating a new run).
 
@@ -253,7 +273,11 @@ class Function(Module):
         self,
         autostop_mins=None,
     ):
-        """Keep the system warm for autostop_mins. If autostop_mins is ``None`` or -1, keep warm indefinitely.
+        """Keep the system warm for autostop_mins.
+
+        Args:
+            autostop_mins (int): Keep the cluster warm for this amount of time.
+                If ``None`` or -1, keep warm indefinitely.
 
         Example:
             >>> # keep gpu warm for 30 mins

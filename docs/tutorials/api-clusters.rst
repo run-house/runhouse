@@ -95,7 +95,7 @@ remotely on your AWS instance.
 
 
 On-Demand Clusters within Existing Cloud VPC
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 If you would like to launch on-demand clusters using existing VPCs,
 you can easily set it up by configuring SkyPilot. Without setting VPC,
 we launch in the default VPC in the region of the cluster. If you do

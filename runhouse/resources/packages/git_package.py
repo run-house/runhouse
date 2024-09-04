@@ -36,7 +36,7 @@ class GitPackage(Package):
         self.git_url = git_url
         self.revision = revision
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True):
         # If the package is just a simple Package.from_string string, no
         # need to store it in rns, just give back the string.
         # if self.install_method in ['pip', 'conda', 'git']:
@@ -100,14 +100,15 @@ def git_package(
     Builds an instance of :class:`GitPackage`.
 
     Args:
-        name (str): Name to assign the package resource.
-        git_url (str): The GitHub URL of the package to install.
-        revision (str): Version of the Git package to install.
-        install_method (str): Method for installing the package. If left blank, defaults to local installation.
-        install_str (str): Additional arguments to add to installation command.
-        load_from_den (bool): Whether to try loading the package from Den. (Default: ``True``)
-        dryrun (bool): Whether to load the Package object as a dryrun, or create the Package if it doesn't exist.
-            (Default: ``False``)
+        name (str, optional): Name to assign the package resource.
+        git_url (str, optional): The GitHub URL of the package to install.
+        revision (str, optional): Version of the Git package to install.
+        install_method (str, optional): Method for installing the package. If left blank, defaults to
+            local installation.
+        install_str (str, optional): Additional arguments to add to installation command.
+        load_from_den (bool, optional): Whether to try loading the package from Den. (Default: ``True``)
+        dryrun (bool, optional): Whether to load the Package object as a dryrun, or create the Package if
+            it doesn't exist. (Default: ``False``)
 
     Returns:
         GitPackage: The resulting GitHub Package.
