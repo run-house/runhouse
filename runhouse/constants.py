@@ -10,6 +10,7 @@ SERVER_LOGFILE_PATH = "~/.rh/server.log"
 LOCALHOST: str = "127.0.0.1"
 LOCAL_HOSTS: List[str] = ["localhost", LOCALHOST]
 TUNNEL_TIMEOUT = 5
+NUM_PORTS_TO_TRY = 10
 
 LOGS_DIR = ".rh/logs"
 RH_LOGFILE_PATH = Path.home() / LOGS_DIR

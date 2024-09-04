@@ -39,6 +39,7 @@ from runhouse.constants import (
     DEFAULT_STATUS_CHECK_INTERVAL,
     EMPTY_DEFAULT_ENV_NAME,
     LOCALHOST,
+    NUM_PORTS_TO_TRY,
     RESERVED_SYSTEM_NAMES,
 )
 from runhouse.globals import configs, obj_store, rns_client
@@ -763,7 +764,7 @@ class Cluster(Resource):
             self._rpc_tunnel = self.ssh_tunnel(
                 local_port=self.server_port,
                 remote_port=self.server_port,
-                num_ports_to_try=10,
+                num_ports_to_try=NUM_PORTS_TO_TRY,
             )
 
     def connect_server_client(self, force_reconnect=False):
@@ -1678,7 +1679,7 @@ class Cluster(Resource):
 
         tunnel = self.ssh_tunnel(
             local_port=port_forward,
-            num_ports_to_try=10,
+            num_ports_to_try=NUM_PORTS_TO_TRY,
         )
         port_fwd = tunnel.local_bind_port
 
