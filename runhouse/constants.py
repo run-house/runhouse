@@ -101,3 +101,6 @@ SERVER_LOGS_FILE_NAME = "server.log"
 DEFAULT_SURFACED_LOG_LENGTH = 20
 # Constants for schedulers
 INCREASED_INTERVAL = 1 * HOUR
+
+# Constants runhouse cluster list
+LAST_ACTIVE_AT_TIMEFRAME = 24 * HOUR
