@@ -27,6 +27,7 @@ from runhouse import __version__, cluster, Cluster, configs
 from runhouse.constants import (
     BULLET_UNICODE,
     DOUBLE_SPACE_UNICODE,
+    LAST_ACTIVE_AT_TIMEFRAME,
     RAY_KILL_CMD,
     RAY_START_CMD,
     SERVER_LOGFILE,
@@ -658,31 +659,54 @@ def cluster_list():
         cluster_name = f'[reset]{den_cluster.get("name").split("/")[-1]}'
         cluster_type = den_cluster.get("data").get("resource_subtype")
         cluster_status = (
-            den_cluster.get("status") if den_cluster.get("status") else "unknown"
+            den_cluster.get("status") if den_cluster.get("status") else None
         )
 
-        cluster_status_colored = StatusColors.get_status_color(cluster_status)
-        table.add_row(cluster_name, cluster_type, cluster_status_colored)
-        if cluster_status == "running":
-            running_clusters.append(
-                {
-                    "Name": cluster_name,
-                    "Cluster Type": cluster_type,
-                    "Status": cluster_status,
-                }
-            )
-        else:
-            not_running_clusters.append(
-                {
-                    "Name": cluster_name,
-                    "Cluster Type": cluster_type,
-                    "Status": cluster_status,
-                }
-            )
+        # currently relying on status pings to den as a sign of cluster activity.
+        # The split is required to remove milliseconds and the offset (according to UTC) from the timestamp.
+        # (status_last_checked is in the following format: YYYY-MM-DD HH:MM:SS.ssssss±HH:MM)
+
+        last_active_at = den_cluster.get("status_last_checked")
+        last_active_at = (
+            datetime.datetime.fromisoformat(last_active_at.split(".")[0])
+            if isinstance(last_active_at, str)
+            else None
+        )
+        last_active_at = (
+            last_active_at.replace(tzinfo=datetime.timezone.utc)
+            if last_active_at
+            else None
+        )
+
+        if cluster_status == "running" and not last_active_at:
+            # For BC, in case there are clusters that were saved and created before we introduced sending cluster status to den.
+            cluster_status = "unknown"
+
+        cluster_info = {
+            "Name": cluster_name,
+            "Cluster Type": cluster_type,
+            "Status": cluster_status,
+            "Last Active (UTC)": last_active_at,
+        }
+        running_clusters.append(
+            cluster_info
+        ) if cluster_status == "running" else not_running_clusters.append(cluster_info)
 
     # TODO: will be used if we'll need to print not-running clusters
     # Sort not-running clusters by the 'Status' column
     # not_running_clusters = sorted(not_running_clusters, key=lambda x: x["Status"])
+
+    # Sort clusters by the 'Last Active (UTC)' column
+    not_running_clusters = sorted(
+        not_running_clusters,
+        key=lambda x: (x["Last Active (UTC)"] is None, x["Last Active (UTC)"]),
+        reverse=True,
+    )
+    running_clusters = sorted(
+        running_clusters,
+        key=lambda x: (x["Last Active (UTC)"] is None, x["Last Active (UTC)"]),
+        reverse=True,
+    )
 
     # creating the clusters table
     total_clusters = len(clusters_in_den)
@@ -693,16 +717,25 @@ def cluster_list():
     table.add_column("Name", justify="left", no_wrap=True)
     table.add_column("Cluster Type", justify="center", no_wrap=True)
     table.add_column("Status", justify="left")
+    table.add_column("Last Active (UTC)", justify="left")
 
     # TODO: will be used if we'll need to print not-running clusters
     # all_clusters = running_clusters + not_running_clusters
 
     for rh_cluster in running_clusters:
-        table.add_row(
-            rh_cluster.get("Name"),
-            rh_cluster.get("Cluster Type"),
-            StatusColors.get_status_color(rh_cluster.get("Status")),
-        )
+        last_active_at = rh_cluster.get("Last Active (UTC)")
+
+        # Print Running clusters that were active it the last 24 hours
+        now = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+        if (now - last_active_at).total_seconds() <= LAST_ACTIVE_AT_TIMEFRAME:
+            table.add_row(
+                rh_cluster.get("Name"),
+                rh_cluster.get("Cluster Type"),
+                StatusColors.get_status_color(rh_cluster.get("Status")),
+                str(last_active_at).split("+")[
+                    0
+                ],  # The split is required to remove the offset (according to UTC)
+            )
 
     console.print(table)
 
