@@ -479,6 +479,8 @@ def _print_status(status_data: dict, current_cluster: Cluster) -> None:
 
     has_cuda: bool = cluster_config.get("has_cuda")
 
+    has_cuda: bool = cluster_config.get("has_cuda")
+
     # print headline
     daemon_headline_txt = (
         "\N{smiling face with horns} Runhouse Daemon is running \N{Runner}"
