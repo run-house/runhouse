@@ -69,7 +69,10 @@ class Module(Resource):
         **kwargs,
     ):
         """
-        Runhouse Module object
+        Runhouse Module object.
+
+        .. note::
+                To create a Module, please use the factory method :func:`module`.
         """
         super().__init__(name=name, dryrun=dryrun, **kwargs)
         self._system = _get_cluster_from(

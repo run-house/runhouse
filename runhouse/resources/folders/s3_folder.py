@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Union
 
 from runhouse.logger import get_logger
 
@@ -28,7 +28,7 @@ class S3Folder(Folder):
         self._urlpath = "s3://"
 
     @staticmethod
-    def from_config(config: dict, dryrun=False, _resolve_children=True):
+    def from_config(config: Dict, dryrun: bool = False, _resolve_children: bool = True):
         """Load config values into the object."""
         return S3Folder(**config, dryrun=dryrun)
 
@@ -115,7 +115,12 @@ class S3Folder(Folder):
                 Key=new_key,
             )
 
-    def put(self, contents, overwrite=False, mode: str = "wb"):
+    def put(
+        self,
+        contents: Union["S3Folder", Dict],
+        overwrite: bool = False,
+        mode: str = "wb",
+    ):
         """Put given contents in folder."""
         self.mkdir()
         if isinstance(contents, list):
@@ -131,7 +136,7 @@ class S3Folder(Folder):
                 contents.folder_path = key + "/" + contents.folder_path
             return
 
-        if not isinstance(contents, dict):
+        if not isinstance(contents, Dict):
             raise TypeError(
                 "`contents` argument must be a dict mapping filenames to file-like objects"
             )

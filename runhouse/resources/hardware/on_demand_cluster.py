@@ -4,7 +4,7 @@ import subprocess
 import time
 import warnings
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
 
 import requests
 
@@ -46,21 +46,21 @@ class OnDemandCluster(Cluster):
         num_instances: int = None,
         provider: str = None,
         default_env: "Env" = None,
-        dryrun=False,
-        autostop_mins=None,
-        use_spot=False,
-        image_id=None,
-        memory=None,
-        disk_size=None,
-        open_ports=None,
-        server_host: str = None,
+        dryrun: bool = False,
+        autostop_mins: int = None,
+        use_spot: bool = False,
+        image_id: str = None,
+        memory: Union[int, str] = None,
+        disk_size: Union[int, str] = None,
+        open_ports: Union[int, str, List[int]] = None,
+        server_host: int = None,
         server_port: int = None,
         server_connection_type: str = None,
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
         domain: str = None,
         den_auth: bool = False,
-        region=None,
+        region: str = None,
         sky_kwargs: Dict = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):

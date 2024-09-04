@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Union
+from typing import Dict, Union
 
 from runhouse.resources.envs.utils import run_setup_command
 
@@ -83,7 +83,7 @@ class GitPackage(Package):
         super()._install(env, cluster=cluster)
 
     @staticmethod
-    def from_config(config: dict, dryrun=False, _resolve_children=True):
+    def from_config(config: Dict, dryrun: bool = False, _resolve_children: bool = True):
         return GitPackage(**config, dryrun=dryrun)
 
 
