@@ -269,6 +269,7 @@ class EnvServlet:
             node_index,
         )
 
+
     def _get_env_gpu_usage(self):
         # currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
 

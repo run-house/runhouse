@@ -476,11 +476,6 @@ def _print_status(status_data: dict, current_cluster: Cluster) -> None:
             cluster_name, style=f"link {cluster_link_in_den_ui} white"
         )
         console.print(cluster_name_hyperlink)
-<<<<<<< HEAD
-
-    has_cuda: bool = cluster_config.get("has_cuda")
-=======
->>>>>>> 8560211c (status cmd prints cluster name as hyperlink to den (#1226))
 
     has_cuda: bool = cluster_config.get("has_cuda")
 
