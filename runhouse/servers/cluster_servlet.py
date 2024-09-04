@@ -36,7 +36,15 @@ from runhouse.utils import (
     get_gpu_usage,
     get_pid,
     ServletType,
-    sync_function,
+    sync_function
+)
+from runhouse.utils import ColoredFormatter, sync_function, get_pid
+from runhouse.servers.utils import (
+    get_cpu_utilization_percent,
+    get_gpu_usage,
+    get_memory_usage,
+    get_multinode_cpu_usage,
+    get_multinode_gpu_usage,
 )
 
 logger = get_logger(__name__)
@@ -320,7 +328,9 @@ class ClusterServlet:
                         f"Failed to send cluster status to Den, status_code: {status_code}"
                     )
                 else:
+
                     logger.debug("Successfully sent cluster status to Den")
+
 
                     prev_end_log_line = cluster_config.get("end_log_line", 0)
                     (
@@ -489,8 +499,25 @@ class ClusterServlet:
         # Popping out creds because we don't want to show them in the status
         config_cluster.pop("creds", None)
 
+        # getting status data of the head_node (== cluster_servlet)
+
+        cpu_utilization = get_cpu_utilization_percent(interval=1)
+
+        memory_usage = get_memory_usage()
+
+        server_pid: int = get_pid()
+
+        # get general gpu usage
+        server_gpu_usage = (
+            get_gpu_usage(server_pid)
+            if self.cluster_config.get("has_cuda", False)
+            else {}
+        )
+
+        gpu_utilization = server_gpu_usage.get("gpu_utilization_percent", None)
+
         # Getting data from each env servlet about the objects it contains and the utilization data
-        env_servlet_utilization_data = {}
+        envs_servlets_utilization_data = {}
         env_servlets_status = await asyncio.gather(
             *[
                 self._status_for_env_servlet(env_servlet_name)
@@ -508,7 +535,7 @@ class ClusterServlet:
                 logger.warning(
                     f"Exception {str(e)} in status for env servlet {env_servlet_name}"
                 )
-                env_servlet_utilization_data[env_servlet_name] = {}
+                envs_servlets_utilization_data[env_servlet_name] = {}
 
             # Otherwise, store what was in the env and the utilization data
             else:
@@ -516,7 +543,7 @@ class ClusterServlet:
                 env_memory_info["env_resource_mapping"] = env_status.get(
                     "objects_in_env_servlet"
                 )
-                env_servlet_utilization_data[env_servlet_name] = env_memory_info
+                envs_servlets_utilization_data[env_servlet_name] = env_memory_info
 
         # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
         cpu_utilization = psutil.cpu_percent(interval=0)
@@ -549,6 +576,17 @@ class ClusterServlet:
             if server_gpu_usage
             else None
         )
+        gpu_utilization = server_gpu_usage.pop("utilization_percent", None) if gpu_utilization else None
+
+        if len(config_cluster.get("ips")) > 1:
+            # cpu_utilization, memory_usage are dicts
+            cpu_utilization, memory_usage = get_multinode_cpu_usage(
+                memory_usage, cpu_utilization, envs_servlets_utilization_data
+            )
+            if self.cluster_config.get("has_cuda", False):
+                server_gpu_usage = get_multinode_gpu_usage(
+                    server_gpu_usage, gpu_utilization, envs_servlets_utilization_data
+                )
 
         # rest the gpu_info only after the status was sent to den. If we should not send status to den,
         # self.gpu_metrics will not be updated at all, therefore should not be reset.
@@ -560,7 +598,7 @@ class ClusterServlet:
             "cluster_config": config_cluster,
             "runhouse_version": runhouse.__version__,
             "server_pid": self.pid,
-            "env_servlet_processes": env_servlet_utilization_data,
+            "env_servlet_processes": envs_servlets_utilization_data,
             "server_cpu_utilization": cpu_utilization,
             "server_gpu_utilization": gpu_utilization,
             "server_memory_usage": memory_usage,
