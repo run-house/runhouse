@@ -344,12 +344,17 @@ class Cluster(Resource):
                 otherwise (e.g. if a tunnel is required). If set to ``False``, will either return the external url
                 if it exists, or will set up the connection (based on connection_type) and return the internal url
 <<<<<<< HEAD
+<<<<<<< HEAD
                 (including the local connected port rather than the sever port). If cluster is not up, returns
                 `None``. (Default: ``False``)
 =======
                 (including the local connected port rather than the sever port). If cluster is not up, returns None.
                 (Default: ``False``)
 >>>>>>> c2289235 (Update docstrings (#1230))
+=======
+                (including the local connected port rather than the sever port). If cluster is not up, returns
+                `None``. (Default: ``False``)
+>>>>>>> bbbd6411 (More docstrings cleanup (#1232))
         """
         if not self.address or self.on_this_cluster():
             return None

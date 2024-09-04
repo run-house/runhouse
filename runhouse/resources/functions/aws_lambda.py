@@ -172,7 +172,7 @@ class LambdaFunction(Function):
         load_from_den: bool = True,
         dryrun: bool = False,
         _alt_options: Dict = None,
-        _resolve_children: bool = True
+        _resolve_children: bool = True,
     ):
         config = rns_client.load_config(name=name, load_from_den=load_from_den)
         if not config:
