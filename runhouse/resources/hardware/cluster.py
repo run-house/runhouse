@@ -343,8 +343,13 @@ class Cluster(Resource):
             external (bool, optional): If ``True``, will only return the external url, and will return ``None``
                 otherwise (e.g. if a tunnel is required). If set to ``False``, will either return the external url
                 if it exists, or will set up the connection (based on connection_type) and return the internal url
+<<<<<<< HEAD
                 (including the local connected port rather than the sever port). If cluster is not up, returns
                 `None``. (Default: ``False``)
+=======
+                (including the local connected port rather than the sever port). If cluster is not up, returns None.
+                (Default: ``False``)
+>>>>>>> c2289235 (Update docstrings (#1230))
         """
         if not self.address or self.on_this_cluster():
             return None
@@ -809,6 +814,7 @@ class Cluster(Resource):
                 resource_address=self.rns_address,
                 system=self,
             )
+
 
     def status(self, send_to_den: bool = False):
         """Load the status of the Runhouse daemon running on a cluster.
