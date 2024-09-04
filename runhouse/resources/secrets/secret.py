@@ -93,7 +93,7 @@ class Secret(Resource):
         )
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False, _resolve_children=True):
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         if "provider" in config:
             from runhouse.resources.secrets.provider_secrets.providers import (
                 _get_provider_class,
@@ -115,10 +115,10 @@ class Secret(Resource):
     def from_name(
         cls,
         name,
-        load_from_den=True,
-        dryrun=False,
-        _alt_options=None,
-        _resolve_children=True,
+        load_from_den: bool = True,
+        dryrun: bool = False,
+        _alt_options: Dict = None,
+        _resolve_children: bool = True,
     ):
         try:
             config = load_config(name, cls.USER_ENDPOINT)

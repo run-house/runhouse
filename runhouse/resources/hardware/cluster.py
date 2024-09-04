@@ -81,7 +81,7 @@ class Cluster(Resource):
         ssl_certfile: str = None,
         domain: str = None,
         den_auth: bool = False,
-        dryrun=False,
+        dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -197,13 +197,14 @@ class Cluster(Resource):
     def from_name(
         cls,
         name,
-        load_from_den=True,
-        dryrun=False,
-        _alt_options=None,
-        _resolve_children=True,
+        load_from_den: bool = True,
+        dryrun: bool = False,
+        _alt_options: Dict = None,
+        _resolve_children: bool = True,
     ):
         cluster = super().from_name(
             name=name,
+            load_from_den=load_from_den,
             dryrun=dryrun,
             _alt_options=_alt_options,
             _resolve_children=_resolve_children,
@@ -364,8 +365,8 @@ class Cluster(Resource):
             external (bool, optional): If ``True``, will only return the external url, and will return ``None``
                 otherwise (e.g. if a tunnel is required). If set to ``False``, will either return the external url
                 if it exists, or will set up the connection (based on connection_type) and return the internal url
-                (including the local connected port rather than the sever port). If cluster is not up, returns None.
-                (Default: ``False``)
+                (including the local connected port rather than the sever port). If cluster is not up, returns
+                `None``. (Default: ``False``)
         """
         if not self.address or self.on_this_cluster():
             return None
@@ -600,7 +601,7 @@ class Cluster(Resource):
         env.to(self)
 
     def get(self, key: str, default: Any = None, remote=False):
-        """Get the result for a given key from the cluster's object store.`.
+        """Get the result for a given key from the cluster's object store.
 
         Args:
             key (str): Key to get from the cluster's object store.
@@ -1113,8 +1114,8 @@ class Cluster(Resource):
 
     @contextlib.contextmanager
     def pause_autostop(self):
-        """Context manager to temporarily pause autostop. Mainly for OnDemand clusters, for BYO cluster
-        there is no autostop."""
+        """Context manager to temporarily pause autostop. Only for OnDemand clusters. There is no autostop
+        for static clusters."""
         pass
 
     def call(

@@ -374,10 +374,9 @@ class Resource:
         notify_users: bool = True,
         headers: Optional[Dict] = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
-        """Grant access to the resource for a list of users (or a single user). If a user has a Runhouse account they
-        will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
-        also receive instructions on creating one, after which they will be able to have access to the Resource. If
-        ``visibility`` is set to ``public``, users will not be notified.
+        """Grant access to the resource for a list of users (or a single user). By default, the user will
+        receive an email notification of access (if they have a Runhouse account) or instructions on creating
+        an account to access the resource. If ``visibility`` is set to ``public``, users will not be notified.
 
         .. note::
             You can only grant access to other users if you have write access to the resource.

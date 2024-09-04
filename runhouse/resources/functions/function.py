@@ -40,8 +40,9 @@ class Function(Module):
     # ----------------- Constructor helper methods -----------------
 
     @classmethod
-    def from_config(cls, config: dict, dryrun: bool = False, _resolve_children=True):
-        """Create a Function object from a config dictionary."""
+    def from_config(
+        cls, config: dict, dryrun: bool = False, _resolve_children: bool = True
+    ):
         if isinstance(config["system"], dict):
             config["system"] = Cluster.from_config(
                 config["system"], dryrun=dryrun, _resolve_children=_resolve_children
@@ -55,7 +56,6 @@ class Function(Module):
         return Function(**config, dryrun=dryrun)
 
     def share(self, *args, visibility=None, **kwargs):
-        """Share and grant access to the resource for the specified users."""
         if visibility and not visibility == self.visibility:
             self.visibility = visibility
             super().remote.visibility = (

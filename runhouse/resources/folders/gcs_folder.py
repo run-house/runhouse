@@ -2,7 +2,7 @@ import copy
 import shutil
 import subprocess
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from runhouse.logger import get_logger
 
@@ -23,7 +23,7 @@ class GCSFolder(Folder):
         self._urlpath = "gs://"
 
     @staticmethod
-    def from_config(config: dict, dryrun=False, _resolve_children=True):
+    def from_config(config: Dict, dryrun: bool = False, _resolve_children: bool = True):
         """Load config values into the object."""
         return GCSFolder(**config, dryrun=dryrun)
 
