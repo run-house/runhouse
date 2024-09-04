@@ -64,7 +64,7 @@ def provider_secret(
         env_vars (Dict, optional): Dictionary mapping secret keys to the corresponding
             environment variable key.
         load_from_den (bool): Whether to try loading the secret from Den. (Default: ``True``)
-        dryrun (bool): Whether to creat in dryrun mode. (Default: False)
+        dryrun (bool): Whether to create in dryrun mode. (Default: False)
 
     Returns:
         ProviderSecret: The resulting provider secret object.

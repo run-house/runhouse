@@ -91,7 +91,7 @@ class Package(Resource):
         self.install_args = install_args
         self.preferred_version = preferred_version
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True):
         # If the package is just a simple Package.from_string string, no
         # need to store it in rns, just give back the string.
         # if self.install_method in ['pip', 'conda', 'git']:
@@ -416,7 +416,11 @@ class Package(Resource):
         system: Union[str, Dict, "Cluster"],
         path: Optional[str] = None,
     ):
-        """Copy the package onto filesystem or cluster, and return the new Package object."""
+        """Copy the package onto filesystem or cluster, and return the new Package object.
+
+        Args:
+            system (str, Dict, or Cluster): Cluster to send the package to.
+        """
         if not isinstance(self.install_target, InstallTarget):
             raise TypeError(
                 "`install_target` must be an InstallTarget in order to copy the package to a system."
@@ -451,7 +455,7 @@ class Package(Resource):
         return (splat[0], splat[1]) if len(splat) > 1 else ("", splat[0])
 
     @staticmethod
-    def from_config(config: dict, dryrun=False, _resolve_children=True):
+    def from_config(config: Dict, dryrun: bool = False, _resolve_children: bool = True):
         if isinstance(config.get("install_target"), tuple):
             config["install_target"] = InstallTarget(
                 local_path=config["install_target"][0],
@@ -466,7 +470,7 @@ class Package(Resource):
         return Package(**config, dryrun=dryrun)
 
     @staticmethod
-    def from_string(specifier: str, dryrun=False):
+    def from_string(specifier: str, dryrun: bool = False):
         if specifier == "requirements.txt":
             specifier = "reqs:./"
 
@@ -566,15 +570,16 @@ def package(
     Builds an instance of :class:`Package`.
 
     Args:
-        name (str): Name to assign the package resource.
-        install_method (str): Method for installing the package. Options: [``pip``, ``conda``, ``reqs``, ``local``]
-        install_str (str): Additional arguments to install.
-        path (str): URL of the package to install.
-        system (str): File system or cluster on which the package lives. Currently this must a cluster or one of:
-            [``file``, ``s3``, ``gs``].
-        load_from_den (bool): Whether to try loading the Package from Den. (Default: ``True``)
-        dryrun (bool): Whether to create the Package if it doesn't exist, or load the Package object as a dryrun.
-            (Default: ``False``)
+        name (str, optional): Name to assign the package resource.
+        install_method (str, optional): Method for installing the package.
+            Options: [``pip``, ``conda``, ``reqs``, ``local``]
+        install_str (str, optional): Additional arguments to install.
+        path (str, optional): URL of the package to install.
+        system (str, optional): File system or cluster on which the package lives.
+            Currently this must a cluster or one of: [``file``, ``s3``, ``gs``].
+        load_from_den (bool, optional): Whether to try loading the Package from Den. (Default: ``True``)
+        dryrun (bool, optional): Whether to create the Package if it doesn't exist, or load the Package
+            object as a dryrun. (Default: ``False``)
 
     Returns:
         Package: The resulting package.

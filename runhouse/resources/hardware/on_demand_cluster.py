@@ -190,7 +190,7 @@ class OnDemandCluster(Cluster):
         config["autostop_mins"] = self._autostop_mins
         return config
 
-    def endpoint(self, external=False):
+    def endpoint(self, external: bool = False):
         if not self.address or self.on_this_cluster():
             return None
 
@@ -444,6 +444,7 @@ class OnDemandCluster(Cluster):
         self._populate_connection_from_status_dict(cluster_dict)
 
     def get_instance_type(self):
+        """Returns instance type of the cluster."""
         if self.instance_type and "--" in self.instance_type:  # K8s specific syntax
             return self.instance_type
         elif (
@@ -456,6 +457,7 @@ class OnDemandCluster(Cluster):
         return None
 
     def accelerators(self):
+        """Returns the acclerator type, or None if is a CPU."""
         if (
             self.instance_type
             and ":" in self.instance_type
@@ -466,6 +468,7 @@ class OnDemandCluster(Cluster):
         return None
 
     def num_cpus(self):
+        """Return the number of CPUs for a CPU cluster."""
         if (
             self.instance_type
             and ":" in self.instance_type
@@ -619,8 +622,11 @@ class OnDemandCluster(Cluster):
     # ----------------- SSH Methods ----------------- #
 
     @staticmethod
-    def cluster_ssh_key(path_to_file):
+    def cluster_ssh_key(path_to_file: Path):
         """Retrieve SSH key for the cluster.
+
+        Args:
+            path_to_file (Path): Path of the private key associated with the cluster.
 
         Example:
             >>> ssh_priv_key = rh.ondemand_cluster("rh-cpu").cluster_ssh_key("~/.ssh/id_rsa")
@@ -633,7 +639,11 @@ class OnDemandCluster(Cluster):
             raise Exception(f"File with ssh key not found in: {path_to_file}")
 
     def ssh(self, node: str = None):
-        """SSH into the cluster. If no node is specified, will SSH onto the head node.
+        """SSH into the cluster.
+
+        Args:
+            node: Node to SSH into. If no node is specified, will SSH onto the head node.
+                (Default: ``None``)
 
         Example:
             >>> rh.ondemand_cluster("rh-cpu").ssh()

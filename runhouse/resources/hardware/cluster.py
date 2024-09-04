@@ -199,13 +199,13 @@ class Cluster(Resource):
         name,
         load_from_den=True,
         dryrun=False,
-        alt_options=None,
+        _alt_options=None,
         _resolve_children=True,
     ):
         cluster = super().from_name(
             name=name,
             dryrun=dryrun,
-            alt_options=alt_options,
+            _alt_options=_alt_options,
             _resolve_children=_resolve_children,
         )
         if hasattr(cluster, "_update_from_sky_status"):
@@ -236,6 +236,13 @@ class Cluster(Resource):
     def save(self, name: str = None, overwrite: bool = True, folder: str = None):
         """Overrides the default resource save() method in order to also update
         the cluster config on the cluster itself.
+
+        Args:
+            name (str, optional): Name to save the cluster as, if different from its existing name. (Default: ``None``)
+            overwrite (bool, optional): Whether to overwrite the existing saved resource, if it exists.
+                (Default: ``True``)
+            folder (str, optional): Folder to save the config in, if saving locally. If None and saving locally,
+                will be saved in the ``~/.rh`` directory. (Default: ``None``)
         """
         on_this_cluster = self.on_this_cluster()
 
@@ -260,6 +267,7 @@ class Cluster(Resource):
         return self
 
     def delete_configs(self):
+        """Delete configs for the cluster"""
         if self._creds:
             logger.debug(
                 f"Attempting to delete creds associated with cluster {self.name}"
@@ -295,7 +303,9 @@ class Cluster(Resource):
             self._default_env.save(folder=folder)
 
     @classmethod
-    def from_config(cls, config: dict, dryrun=False, _resolve_children=True):
+    def from_config(
+        cls, config: Dict, dryrun: bool = False, _resolve_children: bool = True
+    ):
         resource_subtype = config.get("resource_subtype")
         if _resolve_children:
             config = cls._check_for_child_configs(config)
@@ -309,7 +319,7 @@ class Cluster(Resource):
         else:
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True):
         config = super().config(condensed)
         self.save_attrs_to_config(
             config,
@@ -347,12 +357,15 @@ class Cluster(Resource):
 
         return config
 
-    def endpoint(self, external=False):
-        """Endpoint for the cluster's Daemon server. If external is True, will only return the external url,
-        and will return None otherwise (e.g. if a tunnel is required). If external is False, will either return
-        the external url if it exists, or will set up the connection (based on connection_type) and return
-        the internal url (including the local connected port rather than the sever port). If cluster is not up,
-        returns None.
+    def endpoint(self, external: bool = False):
+        """Endpoint for the cluster's Daemon server.
+
+        Args:
+            external (bool, optional): If ``True``, will only return the external url, and will return ``None``
+                otherwise (e.g. if a tunnel is required). If set to ``False``, will either return the external url
+                if it exists, or will set up the connection (based on connection_type) and return the internal url
+                (including the local connected port rather than the sever port). If cluster is not up, returns None.
+                (Default: ``False``)
         """
         if not self.address or self.on_this_cluster():
             return None
@@ -508,7 +521,7 @@ class Cluster(Resource):
     def _sync_runhouse_to_cluster(
         self,
         _install_url: Optional[str] = None,
-        env=None,
+        env: "Env" = None,
         local_rh_package_path: Optional[Path] = None,
     ):
         if self.on_this_cluster():
@@ -574,7 +587,7 @@ class Cluster(Resource):
         """Install the given packages on the cluster.
 
         Args:
-            reqs (List[Package or str): List of packages to install on cluster and env
+            reqs (List[Package or str]): List of packages to install on cluster and env.
             env (Env or str): Environment to install package on. If left empty, defaults to base environment.
                 (Default: ``None``)
 
@@ -587,8 +600,15 @@ class Cluster(Resource):
         env.to(self)
 
     def get(self, key: str, default: Any = None, remote=False):
-        """Get the result for a given key from the cluster's object store. To raise an error if the key is not found,
-        use `cluster.get(key, default=KeyError)`."""
+        """Get the result for a given key from the cluster's object store.`.
+
+        Args:
+            key (str): Key to get from the cluster's object store.
+            default (Any, optional): What to return if the key is not found. To raise an error, pass in
+                ``KeyError``. (Default: None)
+            remote (bool, optional): Whether to get the remote object, rather than the object in full.
+                (Default: ``False``)
+        """
         if self.on_this_cluster():
             return obj_store.get(key, default=default, remote=remote)
         try:
@@ -605,8 +625,14 @@ class Cluster(Resource):
             return default
         return res
 
-    def put(self, key: str, obj: Any, env=None):
-        """Put the given object on the cluster's object store at the given key."""
+    def put(self, key: str, obj: Any, env: str = None):
+        """Put the given object on the cluster's object store at the given key.
+
+        Args:
+            key (str): Key to assign the object in the object store.
+            obj (Any): Object to put in the object store
+            env (str, optional): Env of the object store to put the object in. (Default: ``None``)
+        """
         if self.on_this_cluster():
             return obj_store.put(key, obj, env=env)
         return self.call_client_method(
@@ -614,9 +640,20 @@ class Cluster(Resource):
         )
 
     def put_resource(
-        self, resource: Resource, state: Dict = None, dryrun: bool = False, env=None
+        self,
+        resource: Resource,
+        state: Dict = None,
+        dryrun: bool = False,
+        env: Union[str, "Env"] = None,
     ):
-        """Put the given resource on the cluster's object store. Returns the key (important if name is not set)."""
+        """Put the given resource on the cluster's object store. Returns the key (important if name is not set).
+
+        Args:
+            resource (Resource): Key to assign the object in the object store.
+            state (Dict, optional): Dict of resource attributes to override. (Default: ``False``)
+            dryrun (bool, optional): Whether to put the resource in dryrun mode or not. (Default: ``False``)
+            env (str, optional): Env of the object store to put the object in. (Default: ``None``)
+        """
         if resource.RESOURCE_TYPE == "env" and not resource.name:
             resource.name = self.default_env.name
 
@@ -654,20 +691,33 @@ class Cluster(Resource):
         )
 
     def rename(self, old_key: str, new_key: str):
-        """Rename a key in the cluster's object store."""
+        """Rename a key in the cluster's object store.
+
+        Args:
+            old_key (str): Original key to rename.
+            new_key (str): Name to reassign the object.
+        """
         if self.on_this_cluster():
             return obj_store.rename(old_key, new_key)
         return self.call_client_method("rename_object", old_key, new_key)
 
-    def keys(self, env=None):
-        """List all keys in the cluster's object store."""
+    def keys(self, env: str = None):
+        """List all keys in the cluster's object store.
+
+        Args:
+            env (str, optional): Env in which to list out the keys for.
+        """
         if self.on_this_cluster():
             return obj_store.keys()
         res = self.call_client_method("keys", env=env)
         return res
 
     def delete(self, keys: Union[None, str, List[str]]):
-        """Delete the given items from the cluster's object store. To delete all items, use `cluster.clear()`"""
+        """Delete the given items from the cluster's object store. To delete all items, use `cluster.clear()`
+
+        Args:
+            keys (str or List[str]): key or list of keys to delete from the object store.
+        """
         if isinstance(keys, str):
             keys = [keys]
         if self.on_this_cluster():
@@ -772,7 +822,13 @@ class Cluster(Resource):
             )
 
     def status(self, resource_address: str = None, send_to_den: bool = False):
-        """Load the status of the Runhouse daemon running on a cluster."""
+        """Load the status of the Runhouse daemon running on a cluster.
+
+        Args:
+            resource_address (str, optional):
+            send_to_den (bool, optional): Whether to send and update the status in Den. Only applies to
+                clusters that are saved to Den. (Default: ``False``)
+        """
 
         # Note: If running outside a local cluster need to include a resource address to construct the cluster subtoken
         # Allow for specifying a resource address explicitly in case the resource has no rns address yet
@@ -884,7 +940,6 @@ class Cluster(Resource):
         Args:
             resync_rh (bool): Whether to resync runhouse. Specifying False will not sync Runhouse under any circumstance. If it is None, then it will sync if Runhouse is not installed on the cluster or if locally it is installed as editable. (Default: ``None``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
-            env (str or Env, optional): Specified environment to restart the server on. (Default: ``None``)
             restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
 
         Example:
@@ -1048,7 +1103,7 @@ class Cluster(Resource):
         """Stop the RPC server.
 
         Args:
-            stop_ray (bool): Whether to stop Ray. (Default: `True`)
+            stop_ray (bool, optional): Whether to stop Ray. (Default: `True`)
             env (str or Env, optional): Specified environment to stop the server on. (Default: ``None``)
         """
         cmd = CLI_STOP_CMD if stop_ray else f"{CLI_STOP_CMD} --no-stop-ray"
@@ -1064,14 +1119,14 @@ class Cluster(Resource):
 
     def call(
         self,
-        module_name,
-        method_name,
+        module_name: str,
+        method_name: str,
         *args,
-        stream_logs=True,
-        run_name=None,
-        remote=False,
-        run_async=False,
-        save=False,
+        stream_logs: bool = True,
+        run_name: str = None,
+        remote: bool = False,
+        run_async: bool = False,
+        save: bool = False,
         **kwargs,
     ):
         """Call a method on a module that is in the cluster's object store.
@@ -1079,10 +1134,12 @@ class Cluster(Resource):
         Args:
             module_name (str): Name of the module saved on system.
             method_name (str): Name of the method.
-            stream_logs (bool): Whether to stream logs from the method call.
-            run_name (str): Name for the run.
-            remote (bool): Return a remote object from the function, rather than the result proper.
-            run_async (bool): Run the method asynchronously and return an awaitable.
+            stream_logs (bool, optional): Whether to stream logs from the method call. (Default: ``True``)
+            run_name (str, optional): Name for the run. (Default: ``None``)
+            remote (bool, optional): Return a remote object from the function, rather than the result proper.
+                (Default: ``False``)
+            run_async (bool, optional): Run the method asynchronously and return an awaitable. (Default: ``False``)
+            save (bool, optional): Whether or not to save the call. (Default: ``False``)
             *args: Positional arguments to pass to the method.
             **kwargs: Keyword arguments to pass to the method.
 
@@ -1158,16 +1215,16 @@ class Cluster(Resource):
             dest (str): The target path.
             up (bool): The direction of the sync. If ``True``, will rsync from local to cluster. If ``False``
               will rsync from cluster to local.
-            node (Optional[str]): Specific cluster node to rsync to. If not specified will use the address of the
-                cluster's head node.
-            contents (Optional[bool]): Whether the contents of the source directory or the directory itself should
-                be copied to destination.
+            node (Optional[str], optional): Specific cluster node to rsync to. If not specified will use the
+                address of the cluster's head node.
+            contents (Optional[bool], optional): Whether the contents of the source directory or the directory
+                itself should be copied to destination.
                 If ``True`` the contents of the source directory are copied to the destination, and the source
                 directory itself is not created at the destination.
                 If ``False`` the source directory along with its contents are copied ot the destination, creating
                 an additional directory layer at the destination. (Default: ``False``).
-            filter_options (Optional[str]): The filter options for rsync.
-            stream_logs (Optional[bool]): Whether to stream logs to the stdout/stderr. (Default: ``False``).
+            filter_options (Optional[str], optional): The filter options for rsync.
+            stream_logs (Optional[bool], optional): Whether to stream logs to the stdout/stderr. (Default: ``False``).
 
         .. note::
             Ending ``source`` with a slash will copy the contents of the directory into dest,
@@ -1336,15 +1393,25 @@ class Cluster(Resource):
 
     def run(
         self,
-        commands: List[str],
+        commands: Union[str, List[str]],
         env: Union["Env", str] = None,
         stream_logs: bool = True,
         require_outputs: bool = True,
         node: Optional[str] = None,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
     ) -> List:
-        """Run a list of shell commands on the cluster. If `run_name` is provided, the commands will be
-        sent over to the cluster before being executed and a Run object will be created.
+        """Run a list of shell commands on the cluster.
+
+        Args:
+            commands (str or List[str]): Command or list of commands to run on the cluster.
+            env (Env or str, optional): Env on the cluster to run the command in. If not provided,
+                will be run in the default env. (Default: ``None``)
+            stream_logs (bool, optional): Whether to stream log output as the command runs.
+                (Default: ``True``)
+            require_outputs (bool, optional): If ``True``, returns a Tuple (returncode, stdout, stderr).
+                If ``False``, returns just the returncode. (Default: ``True``)
+            node (str, optional): Node to run the commands on. If not provided, runs on head node.
+                (Default: ``None``)
 
         Example:
             >>> cpu.run(["pip install numpy"])
@@ -1518,6 +1585,12 @@ class Cluster(Resource):
     ):
         """Run a list of python commands on the cluster, or a specific cluster node if its IP is provided.
 
+        Args:
+            commands (List[str]): List of commands to run.
+            env (Env or str, optional): Env to run the commands in. (Default: ``None``)
+            stream_logs (bool, optional): Whether to stream logs. (Default: ``True``)
+            node (str, optional): Node to run commands on. If not specified, runs on head node. (Default: ``None``)
+
         Example:
             >>> cpu.run_python(['import numpy', 'print(numpy.__version__)'])
             >>> cpu.run_python(["print('hello')"])
@@ -1554,8 +1627,9 @@ class Cluster(Resource):
         """Send secrets for the given providers.
 
         Args:
-            providers(List[str] or None): List of providers to send secrets for.
-                If `None`, all providers configured in the environment will by sent.
+            providers(List[str] or None, optional): List of providers to send secrets for.
+                If `None`, all providers configured in the environment will by sent. (Default: ``None``)
+            env (str, Env, optional): Env to sync secrets into. (Default: ``None``)
 
         Example:
             >>> cpu.sync_secrets(secrets=["aws", "lambda"])
@@ -1633,6 +1707,10 @@ class Cluster(Resource):
     ):
         """Remove conda env from the cluster.
 
+        Args:
+            env (str or Env): Name of conda env to remove from the cluster, or Env resource
+                representing the environment.
+
         Example:
             >>> rh.ondemand_cluster("rh-cpu").remove_conda_env("my_conda_env")
         """
@@ -1646,8 +1724,12 @@ class Cluster(Resource):
             f"Latest TLS certificate for {self.name} saved to local path: {self.cert_config.cert_path}"
         )
 
-    def enable_den_auth(self, flush=True):
-        """Enable Den auth on the cluster."""
+    def enable_den_auth(self, flush: bool = True):
+        """Enable Den auth on the cluster.
+
+        Args:
+            flush (bool, optional): Whether to flush the auth cache. (Default: ``True``)
+        """
         if self.on_this_cluster():
             raise ValueError("Cannot toggle Den Auth live on the cluster.")
         else:

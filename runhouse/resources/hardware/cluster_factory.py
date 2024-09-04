@@ -38,21 +38,23 @@ def cluster(
     Args:
         name (str): Name for the cluster, to re-use later on.
         host (str or List[str], optional): Hostname (e.g. domain or name in .ssh/config), IP address, or list of IP
-            addresses for the cluster (the first of which is the head node).
+            addresses for the cluster (the first of which is the head node). (Default: ``None``).
         ssh_creds (dict or str, optional): SSH credentials, passed as dictionary or the name of an `SSHSecret` object.
-            Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}``
+            Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}`` (Default: ``None``).
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
         server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
             `runhouse start` run on the cluster). Defaults to "0.0.0.0" unless connecting to the server with an SSH
-            connection, in which case ``localhost`` is used.
+            connection, in which case ``localhost`` is used. (Default: ``None``).
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
             API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
             with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
-            without an SSH tunnel.
+            without an SSH tunnel. (Default: ``None``).
         ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
+            (Default: ``None``).
         ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
-        domain(str, optional): Domain name for the cluster. Relevant if enabling HTTPs on the cluster.
+            (Default: ``None``).
+        domain(str, optional): Domain name for the cluster. Relevant if enabling HTTPs on the cluster. (Default: ``None``).
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``None``).
@@ -111,7 +113,7 @@ def cluster(
                 name,
                 load_from_den=load_from_den,
                 dryrun=dryrun,
-                alt_options=alt_options,
+                _alt_options=alt_options,
             )
             if c:
                 c.set_connection_defaults()
@@ -436,7 +438,7 @@ def ondemand_cluster(
                 name,
                 load_from_den=load_from_den,
                 dryrun=dryrun,
-                alt_options=alt_options,
+                _alt_options=alt_options,
             )
             if c:
                 c.set_connection_defaults()

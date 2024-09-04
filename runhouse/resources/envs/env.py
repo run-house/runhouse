@@ -51,7 +51,6 @@ class Env(Resource):
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
-        """Create an Env object from a config dict"""
         config["reqs"] = [
             Package.from_config(req, dryrun=True, _resolve_children=_resolve_children)
             if isinstance(req, dict)
@@ -79,7 +78,9 @@ class Env(Resource):
         for k, v in env_vars.items():
             os.environ[k] = v
 
-    def add_env_var(self, key, value):
+    def add_env_var(self, key: str, value: str):
+        """Add an env var to the environment. Environment must be re-installed to propagate new
+        environment variables if it already lives on a cluster."""
         self.env_vars.update({key: value})
 
     def config(self, condensed=True):
@@ -168,7 +169,14 @@ class Env(Resource):
             )
 
     def install(self, force: bool = False, cluster: Cluster = None):
-        """Locally install packages and run setup commands."""
+        """Locally install packages and run setup commands.
+
+        Args:
+            force (bool, optional): Whether to setup the installation again if the env already exists
+                on the cluster. (Default: ``False``)
+            cluster (Clsuter, optional): Cluster to install the env on. If not provided, env is installed
+                on the current cluster. (Default: ``None``)
+        """
         # Hash the config_for_rns to check if we need to install
         env_config = self.config()
         # Remove the name because auto-generated names will be different, but the installed components are the same
@@ -197,13 +205,21 @@ class Env(Resource):
     def to(
         self,
         system: Union[str, Cluster],
-        node_idx=None,
-        path=None,
-        force_install=False,
+        node_idx: int = None,
+        path: str = None,
+        force_install: bool = False,
     ):
         """
-        Send environment to the system (Cluster or file system).
-        This includes installing packages and running setup commands if system is a cluster.
+        Send environment to the system, and set it up if on a cluster.
+
+        Args:
+            system (str or Cluster): Cluster or file system to send the env to.
+            node_idx (int, optional): Node index of the cluster to send the env to. If not specified,
+                uses the head node. (Default: ``None``)
+            path (str, optional): Path on the cluster to sync the env's working dir to. Uses a default
+                path if not specified. (Default: ``None``)
+            force_install (bool, optional): Whether to setup the installation again if the env already
+                exists on the cluster. (Default: ``False``)
 
         Example:
             >>> env = rh.env(reqs=["numpy", "pip"])

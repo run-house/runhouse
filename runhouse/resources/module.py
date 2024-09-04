@@ -112,7 +112,7 @@ class Module(Resource):
         self._resolve = False
         self._openapi_spec = None
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True):
         if not self.system:
             raise ValueError(
                 "Cannot save an in-memory local module to RNS. Please send the module to a local "
@@ -150,7 +150,9 @@ class Module(Resource):
         return config
 
     @classmethod
-    def from_config(cls, config: dict, dryrun=False, _resolve_children=True):
+    def from_config(
+        cls, config: Dict, dryrun: bool = False, _resolve_children: bool = True
+    ):
         if config.get("pointers"):
             config.pop("resource_subtype", None)
             logger.debug(f"Constructing module from pointers {config['pointers']}")
@@ -294,7 +296,7 @@ class Module(Resource):
         return self._signature
 
     def method_signature(self, method):
-        """Extracts the properties of a method that we want to preserve when sending the method over the wire."""
+        """Method signature, consisting of method properties to preserve when sending the method over the wire."""
         signature = inspect.signature(method)
         signature_metadata = {
             "signature": str(signature),
@@ -318,9 +320,9 @@ class Module(Resource):
         down from a config). If not, request the endpoint from the Module's system.
 
         Args:
-            external: If True and getting the endpoint from the system, only return an endpoint if it's externally
-                accessible (i.e. not on localhost, not connected through as ssh tunnel). If False, return the endpoint
-                even if it's not externally accessible.
+            external (bool, optional): If True and getting the endpoint from the system, only return an endpoint if
+                it's externally accessible (i.e. not on localhost, not connected through as ssh tunnel). If False,
+                return the endpoint even if it's not externally accessible. (Default: ``False``)
         """
         if self._endpoint:
             return self._endpoint
@@ -436,6 +438,15 @@ class Module(Resource):
         force_install: bool = False,
     ):
         """Put a copy of the module on the destination system and env, and return the new module.
+
+        Args:
+            system (str or Cluster): The system to setup the module and env on.
+            env (str, List[str], or Env, optional): The environment where the module lives on in the cluster,
+                or the set of requirements necessary to run the module. (Default: ``None``)
+            name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
+                (Default: ``None``)
+            force_install (bool, optional): Whether to re-install and perform the environment setup steps, even
+                if it may already exist on the cluster. (Defualt: ``False``)
 
         Example:
             >>> local_module = rh.module(my_class)
@@ -560,6 +571,13 @@ class Module(Resource):
         """Check if the module already exists on the cluster, and if so return the module object.
         If not, put the module on the cluster and return the remote module.
 
+        Args:
+            system (str or Cluster): The system to setup the module and env on.
+            env (str, List[str], or Env, optional): The environment where the module lives on in the cluster,
+                or the set of requirements necessary to run the module. (Default: ``None``)
+            name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
+                (Default: ``None``)
+
         Example:
             >>> remote_df = Model().get_or_to(my_cluster, name="remote_model")
         """
@@ -678,8 +696,21 @@ class Module(Resource):
         else:
             return self
 
-    def replicate(self, num_replicas=1, names=None, envs=None, parallel=False):
-        """Replicate the module on the cluster in a new env and return the new modules."""
+    def replicate(
+        self,
+        num_replicas: int = 1,
+        names: List[str] = None,
+        envs: List["Env"] = None,
+        parallel: bool = False,
+    ):
+        """Replicate the module on the cluster in a new env and return the new modules.
+
+        Args:
+            num_relicas (int, optional): Number of replicas of the module to create. (Default: 1)
+            names (List[str], optional): List for the names for the replicas, if specified. (Default: ``None``)
+            envs (List[Env], optional): List of the envs for the replicas, if specified. (Default: ``None``)
+            parallel (bool, optional): Whether to create the replicas in parallel. (Default: ``False``)
+        """
         if not self.system or not self.name:
             raise ValueError(
                 "Cannot replicate a module that is not on a cluster. Please send the module to a cluster first."
@@ -970,7 +1001,11 @@ class Module(Resource):
             self.env.save(folder=folder)
 
     def rename(self, name: str):
-        """Rename the module."""
+        """Rename the module.
+
+        Args:
+            name (str): Name to rename the module to.
+        """
         if self.name == name or self.rns_address == name:
             return
         old_name = self.name
@@ -989,7 +1024,6 @@ class Module(Resource):
             )
 
     def save(self, name: str = None, overwrite: bool = True, folder: str = None):
-        """Register the resource and save to local working_dir config and RNS config store."""
         # Need to override Resource's save to handle key changes in the obj store
         # Also check that this is a Module and not a File
 
@@ -1045,7 +1079,7 @@ class Module(Resource):
     @staticmethod
     def _extract_pointers(raw_cls_or_fn: Union[Type, Callable]):
         """Get the path to the module, module name, and function name to be able to import it on the server"""
-        if not (isinstance(raw_cls_or_fn, type) or isinstance(raw_cls_or_fn, Callable)):
+        if not (isinstance(raw_cls_or_fn, Type) or isinstance(raw_cls_or_fn, Callable)):
             raise TypeError(
                 f"Expected Type or Callable but received {type(raw_cls_or_fn)}"
             )
@@ -1106,7 +1140,11 @@ class Module(Resource):
     def openapi_spec(self, spec_name: Optional[str] = None):
         """Generate an OpenAPI spec for the module.
 
-        TODO: This breaks if the module has type annotations that are classes, and not standard library or
+        Args:
+            spec_name (str, optional): Spec name for the OpenAPI spec.
+        """
+
+        """ TODO: This breaks if the module has type annotations that are classes, and not standard library or
         typing types.
 
         Maybe we can do something using: https://github.com/kuimono/openapi-schema-pydantic to allow
@@ -1114,7 +1152,6 @@ class Module(Resource):
 
         TODO: What happens if there is an empty function, will this work with an empty body even though it is
         marked as required?
-
         """
         if self._openapi_spec is not None:
             return self._openapi_spec
@@ -1318,10 +1355,11 @@ def module(
 
     Args:
         cls: The class to instantiate.
-        name (Optional[str]): Name to give the module object, to be reused later on.
-        env (Optional[str or Env]): Environment in which the module should live on the cluster, if system is cluster.
-        load_from_den (bool): Whether to try loading the module from Den. (Default: ``True``)
-        dryrun (bool): Whether to create the Module if it doesn't exist, or load a Module object as a dryrun.
+        name (Optional[str], optional): Name to give the module object, to be reused later on. (Default: ``None``)
+        env (Optional[str or Env], optional): Environment in which the module should live on the cluster, if system
+            is cluster. (Default: ``None``)
+        load_from_den (bool, optional): Whether to try loading the module from Den. (Default: ``True``)
+        dryrun (bool, optional): Whether to create the Module if it doesn't exist, or load a Module object as a dryrun.
             (Default: ``False``)
 
     Returns:
