@@ -6,13 +6,19 @@ import threading
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import httpx
+
+import psutil
+import pynvml
 import requests
 
 import runhouse
 
 from runhouse.constants import (
     DEFAULT_STATUS_CHECK_INTERVAL,
+    GPU_COLLECTION_INTERVAL,
     INCREASED_STATUS_CHECK_INTERVAL,
+    MAX_GPU_INFO_LEN,
+    REDUCED_GPU_INFO_LEN,
     SERVER_LOGFILE,
     SERVER_LOGS_FILE_NAME,
 )
@@ -25,7 +31,13 @@ from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.autostop_helper import AutostopHelper
 from runhouse.servers.http.auth import AuthCache
-from runhouse.utils import ColoredFormatter, sync_function
+from runhouse.utils import (
+    ColoredFormatter,
+    get_gpu_usage,
+    get_pid,
+    ServletType,
+    sync_function,
+)
 
 logger = get_logger(__name__)
 
@@ -47,6 +59,8 @@ class ClusterServlet:
         self.cluster_config: Optional[Dict[str, Any]] = (
             cluster_config if cluster_config else {}
         )
+        self.cluster_config["has_cuda"] = detect_cuda_version_or_cpu() != "cpu"
+
         self._initialized_env_servlet_names: Set[str] = set()
         self._key_to_env_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache(cluster_config)
@@ -65,6 +79,19 @@ class ClusterServlet:
         self._api_server_url = self.cluster_config.get(
             "api_server_url", rns_client.api_server_url
         )
+        self.pid = get_pid()
+        self.process = psutil.Process(pid=self.pid)
+        self.gpu_metrics = None  # will be updated only if this is a gpu cluster.
+        self.lock = (
+            threading.Lock()
+        )  # will be used when self.gpu_metrics will be updated by different threads.
+
+        if self.cluster_config.get("has_cuda"):
+            logger.debug("Creating _periodic_gpu_check thread.")
+            collect_gpu_thread = threading.Thread(
+                target=self._periodic_gpu_check, daemon=True
+            )
+            collect_gpu_thread.start()
 
         logger.info("Creating periodic_cluster_checks thread.")
         cluster_checks_thread = threading.Thread(
@@ -289,7 +316,9 @@ class ClusterServlet:
                         "Cluster has not yet been saved to Den, cannot update status or logs."
                     )
                 elif status_code != 200:
-                    logger.error("Failed to send cluster status to Den")
+                    logger.error(
+                        f"Failed to send cluster status to Den, status_code: {status_code}"
+                    )
                 else:
                     logger.debug("Successfully sent cluster status to Den")
 
@@ -382,41 +411,78 @@ class ClusterServlet:
         except Exception as e:
             return {"env_servlet_name": env_servlet_name, "Exception": e}
 
+    async def _aperiodic_gpu_check(self):
+        """periodically collects cluster gpu usage"""
+
+        pynvml.nvmlInit()  # init nvidia ml info collection
+
+        while True:
+            try:
+
+                gpu_count = pynvml.nvmlDeviceGetCount()
+                with self.lock:
+                    if not self.gpu_metrics:
+                        self.gpu_metrics = {device: [] for device in range(gpu_count)}
+
+                    for gpu_index in range(gpu_count):
+                        handle = pynvml.nvmlDeviceGetHandleByIndex(gpu_index)
+                        util_info = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                        memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+
+                        total_memory = memory_info.total  # in bytes
+                        used_memory = memory_info.used  # in bytes
+                        free_memory = memory_info.free  # in bytes
+                        utilization_percent = util_info.gpu / 1.0  # make it float
+
+                        # to reduce cluster memory usage (we are saving the gpu_usage info on the cluster),
+                        # we save only the most updated gpu usage. If for some reason the size of updated_gpu_info is
+                        # too big, we remove the older gpu usage info.
+                        # This is relevant when using cluster.status() directly and not relying on status being sent to den.
+                        updated_gpu_info = self.gpu_metrics[gpu_index]
+                        if len(updated_gpu_info) + 1 > MAX_GPU_INFO_LEN:
+                            updated_gpu_info = updated_gpu_info[REDUCED_GPU_INFO_LEN:]
+                        updated_gpu_info.append(
+                            {
+                                "total_memory": total_memory,
+                                "used_memory": used_memory,
+                                "free_memory": free_memory,
+                                "utilization_percent": utilization_percent,
+                            }
+                        )
+                        self.gpu_metrics[gpu_index] = updated_gpu_info
+            except Exception as e:
+                logger.error(str(e))
+                pynvml.nvmlShutdown()
+                break
+            finally:
+                # collects gpu usage every 5 seconds.
+                await asyncio.sleep(GPU_COLLECTION_INTERVAL)
+
+    def _periodic_gpu_check(self):
+        # This is only ever called once in its own thread, so we can do asyncio.run here instead of
+        # sync_function.
+        asyncio.run(self._aperiodic_gpu_check())
+
     def _get_node_gpu_usage(self, server_pid: int):
-        import subprocess
 
-        gpu_general_info = (
-            subprocess.run(
-                [
-                    "nvidia-smi",
-                    "--query-gpu=memory.total,memory.used,memory.free,count,utilization.gpu",
-                    "--format=csv,noheader,nounits",
-                ],
-                stdout=subprocess.PIPE,
-            )
-            .stdout.decode("utf-8")
-            .strip()
-            .split(", ")
+        # currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
+
+        collected_gpus_info = copy.deepcopy(self.gpu_metrics)
+
+        if collected_gpus_info is None or not collected_gpus_info[0]:
+            return None
+
+        cluster_gpu_usage = get_gpu_usage(
+            collected_gpus_info=collected_gpus_info, servlet_type=ServletType.cluster
         )
-        total_gpu_memory = int(gpu_general_info[0]) * (1024**2)  # in bytes
-        total_used_memory = int(gpu_general_info[1]) * (1024**2)  # in bytes
-        free_memory = int(gpu_general_info[2]) * (1024**2)  # in bytes
-        gpu_count = int(gpu_general_info[3])
-        gpu_utilization_percent = int(gpu_general_info[4]) / 100
+        cluster_gpu_usage[
+            "server_pid"
+        ] = server_pid  # will be useful for multi-node clusters.
 
-        return {
-            "total_memory": total_gpu_memory,
-            "used_memory": total_used_memory,
-            "free_memory": free_memory,
-            "gpu_count": gpu_count,
-            "utilization_percent": gpu_utilization_percent,
-            "server_pid": server_pid,  # will be useful for multi-node clusters.
-        }
+        return cluster_gpu_usage
 
     async def astatus(self, send_to_den: bool = False) -> Tuple[Dict, Optional[int]]:
         import psutil
-
-        from runhouse.utils import get_pid
 
         config_cluster = copy.deepcopy(self.cluster_config)
 
@@ -453,7 +519,7 @@ class ClusterServlet:
                 env_servlet_utilization_data[env_servlet_name] = env_memory_info
 
         # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
-        cpu_utilization = psutil.cpu_percent(interval=1)
+        cpu_utilization = psutil.cpu_percent(interval=0)
 
         # A dictionary that match the keys of psutil.virtual_memory()._asdict() to match the keys we expect in Den.
         relevant_memory_info = {
@@ -472,11 +538,9 @@ class ClusterServlet:
             for k in relevant_memory_info.keys()
         }
 
-        server_pid: int = get_pid()
-
         # get general gpu usage
         server_gpu_usage = (
-            self._get_node_gpu_usage(server_pid)
+            self._get_node_gpu_usage(self.pid)
             if self.cluster_config.get("has_cuda", False)
             else None
         )
@@ -486,10 +550,16 @@ class ClusterServlet:
             else None
         )
 
+        # rest the gpu_info only after the status was sent to den. If we should not send status to den,
+        # self.gpu_metrics will not be updated at all, therefore should not be reset.
+        if send_to_den:
+            with self.lock:
+                self.gpu_metrics = None
+
         status_data = {
             "cluster_config": config_cluster,
             "runhouse_version": runhouse.__version__,
-            "server_pid": server_pid,
+            "server_pid": self.pid,
             "env_servlet_processes": env_servlet_utilization_data,
             "server_cpu_utilization": cpu_utilization,
             "server_gpu_utilization": gpu_utilization,

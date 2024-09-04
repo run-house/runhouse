@@ -366,14 +366,13 @@ def _print_envs_info(
             total_gpu_memory = math.ceil(
                 float(env_gpu_info.get("total_memory")) / (1024**3)
             )
-            gpu_util_percent = round(float(env_gpu_info.get("utilization_percent")), 2)
             used_gpu_memory = round(
                 float(env_gpu_info.get("used_memory")) / (1024**3), 2
             )
             gpu_memory_usage_percent = round(
                 float(used_gpu_memory / total_gpu_memory) * 100, 2
             )
-            gpu_usage_summery = f"{DOUBLE_SPACE_UNICODE}GPU: {gpu_util_percent}% | Memory: {used_gpu_memory} / {total_gpu_memory} Gb ({gpu_memory_usage_percent}%)"
+            gpu_usage_summery = f"{DOUBLE_SPACE_UNICODE}GPU Memory: {used_gpu_memory} / {total_gpu_memory} Gb ({gpu_memory_usage_percent}%)"
             console.print(gpu_usage_summery)
 
         resources_in_env = [
@@ -408,6 +407,8 @@ def _print_status(status_data: dict, current_cluster: Cluster) -> None:
     if "name" in cluster_config.keys():
         console.print(cluster_config.get("name"))
 
+    has_cuda: bool = cluster_config.get("has_cuda")
+
     # print headline
     daemon_headline_txt = (
         "\N{smiling face with horns} Runhouse Daemon is running \N{Runner}"
@@ -419,6 +420,22 @@ def _print_status(status_data: dict, current_cluster: Cluster) -> None:
 
     # Print relevant info from cluster config.
     _print_cluster_config(cluster_config)
+
+    # print general cpu and gpu utilization
+    cluster_gpu_utilization: float = status_data.get("server_gpu_utilization")
+
+    # cluster_gpu_utilization can be none, if the cluster was not using its GPU at the moment cluster.status() was invoked.
+    if cluster_gpu_utilization is None and has_cuda:
+        cluster_gpu_utilization: float = 0.0
+
+    cluster_cpu_utilization: float = status_data.get("server_cpu_utilization")
+
+    server_util_info = (
+        f"CPU Utilization: {round(cluster_cpu_utilization, 2)}% | GPU Utilization: {round(cluster_gpu_utilization,2)}%"
+        if has_cuda
+        else f"CPU Utilization: {round(cluster_cpu_utilization, 2)}%"
+    )
+    console.print(server_util_info)
 
     # print the environments in the cluster, and the resources associated with each environment.
     _print_envs_info(env_servlet_processes, current_cluster)

@@ -12,3 +12,4 @@ wheel
 apispec
 httpx
 pydantic >=2.5.0
+pynvml

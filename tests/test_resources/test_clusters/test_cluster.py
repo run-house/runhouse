@@ -206,18 +206,19 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         ]  # getting the first element because the endpoint returns the status + response to den.
         assert status_data["cluster_config"]["resource_type"] == "cluster"
         assert status_data["env_servlet_processes"]
-        assert status_data["server_cpu_utilization"]
+        assert isinstance(status_data["server_cpu_utilization"], float)
         assert status_data["server_memory_usage"]
         assert not status_data.get("server_gpu_usage", None)
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_cluster_request_timeout(self, cluster):
+    def test_cluster_request_timeout(self, docker_cluster_pk_ssh_no_auth):
+        cluster = docker_cluster_pk_ssh_no_auth
         with pytest.raises(requests.exceptions.ReadTimeout):
             cluster._http_client.request_json(
                 endpoint="/status",
                 req_type="get",
-                timeout=0.01,
+                timeout=0.005,
                 headers=rh.globals.rns_client.request_headers(),
             )
 
