@@ -56,6 +56,7 @@ class Function(Module):
         return Function(**config, dryrun=dryrun)
 
     def share(self, *args, visibility=None, **kwargs):
+        """Share and grant access to the resource for the specified users."""
         if visibility and not visibility == self.visibility:
             self.visibility = visibility
             super().remote.visibility = (

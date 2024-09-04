@@ -183,8 +183,17 @@ class Env(Resource):
                 on the cluster. (Default: ``False``)
             cluster (Clsuter, optional): Cluster to install the env on. If not provided, env is installed
                 on the current cluster. (Default: ``None``)
-            node (str, optional): Node to install the env on. (Default: ``"all"``)
         """
+        # Hash the config_for_rns to check if we need to install
+        env_config = self.config()
+        # Remove the name because auto-generated names will be different, but the installed components are the same
+        env_config.pop("name")
+        install_hash = hash(str(env_config))
+        # Check the existing hash
+        if install_hash in obj_store.installed_envs and not force:
+            logger.debug("Env already installed, skipping")
+            return
+        obj_store.installed_envs[install_hash] = self.name
         # If we're doing the install remotely via SSH (e.g. for default_env), there is no cache
         if not cluster:
             # Hash the config_for_rns to check if we need to install
