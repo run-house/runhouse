@@ -93,6 +93,7 @@ class ClusterServlet:
             )
             collect_gpu_thread.start()
 
+
         if self.cluster_config.get("has_cuda"):
             logger.debug("Creating _periodic_gpu_check thread.")
             collect_gpu_thread = threading.Thread(
