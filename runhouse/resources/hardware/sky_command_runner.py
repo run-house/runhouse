@@ -66,6 +66,7 @@ class SkySSHRunner(SSHCommandRunner):
         docker_user: Optional[str] = None,
         disable_control_master: Optional[bool] = False,
         local_bind_port: Optional[int] = None,
+        use_docker_exec: Optional[bool] = False,
     ):
         super().__init__(
             node,
@@ -81,6 +82,7 @@ class SkySSHRunner(SSHCommandRunner):
         self.docker_user = docker_user
         self.local_bind_port = local_bind_port
         self.remote_bind_port = None
+        self.use_docker_exec = use_docker_exec
 
     def _ssh_base_command(
         self,
@@ -176,9 +178,9 @@ class SkySSHRunner(SSHCommandRunner):
         if quiet_ssh:  # RH MODIFIED
             base_ssh_command.append("-q")
 
-        if self.docker_user:  # RH MODIFIED
+        if self.use_docker_exec:  # RH MODIFIED
             cmd = " ".join(cmd) if isinstance(cmd, list) else cmd
-            cmd = f"conda deactivate && {cmd}"
+            cmd = f"sudo docker exec {DEFAULT_DOCKER_CONTAINER_NAME} bash -c {shlex.quote(cmd)}"
 
         command_str = self._get_command_to_run(
             cmd,

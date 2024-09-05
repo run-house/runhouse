@@ -438,7 +438,9 @@ class Cluster(Resource):
 
         return f"{self._creds.name}/" in ssh_creds.get("ssh_private_key", "")
 
-    def _command_runner(self, node: Optional[str] = None) -> "CommandRunner":
+    def _command_runner(
+        self, node: Optional[str] = None, use_docker_exec: Optional[bool] = False
+    ) -> "CommandRunner":
         from runhouse.resources.hardware.sky_command_runner import (
             SkyKubernetesRunner,
             SkySSHRunner,
@@ -473,7 +475,8 @@ class Cluster(Resource):
                 ssh_private_key=ssh_credentials.get("ssh_private_key"),
                 ssh_proxy_command=ssh_credentials.get("ssh_proxy_command"),
                 ssh_control_name=ssh_control_name,
-                docker_user=self.docker_user,
+                docker_user=self.docker_user if not use_docker_exec else None,
+                use_docker_exec=use_docker_exec,
             )
 
         return runner
@@ -1519,7 +1522,9 @@ class Cluster(Resource):
         ssh_credentials.pop("private_key", None)
         ssh_credentials.pop("public_key", None)
 
-        runner = self._command_runner(node=node)
+        runner = self._command_runner(
+            node=node, use_docker_exec=self.docker_user is not None
+        )
 
         env_var_prefix = (
             " ".join(f"{key}={val}" for key, val in env_vars.items())
