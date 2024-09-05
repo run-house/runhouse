@@ -93,11 +93,11 @@ class ClusterServlet:
             )
             collect_gpu_thread.start()
 
-        logger.info("Creating periodic_cluster_checks thread.")
-        cluster_checks_thread = threading.Thread(
+        logger.debug("Creating periodic_cluster_checks thread.")
+        self.cluster_checks_thread = threading.Thread(
             target=self.periodic_cluster_checks, daemon=True
         )
-        cluster_checks_thread.start()
+        self.cluster_checks_thread.start()
 
     ##############################################
     # Cluster config state storage methods
@@ -259,7 +259,9 @@ class ClusterServlet:
 
         status_data = {
             "status": ResourceServerStatus.running,
-            "resource_type": status_copy.get("cluster_config").pop("resource_type"),
+            "resource_type": status_copy.get("cluster_config").pop(
+                "resource_type", "cluster"
+            ),
             "resource_info": status_copy,
             "env_servlet_processes": env_servlet_processes,
         }
@@ -275,6 +277,56 @@ class ClusterServlet:
     def save_status_metrics_to_den(self, status: dict):
         return sync_function(self.asave_status_metrics_to_den)(status)
 
+    async def acheck_cluster_status(self, send_to_den: bool = True):
+
+        logger.debug("Performing cluster status checks")
+        status, den_resp_status_code = await self.astatus(send_to_den=send_to_den)
+
+        if not send_to_den:
+            return status, den_resp_status_code
+
+        if den_resp_status_code == 404:
+            logger.info(
+                "Cluster has not yet been saved to Den, cannot update status or logs"
+            )
+        elif den_resp_status_code != 200:
+            logger.error("Failed to send cluster status to Den")
+        else:
+            logger.debug("Successfully sent cluster status to Den")
+
+        return status, den_resp_status_code
+
+    async def acheck_cluster_logs(self, interval_size: int):
+
+        logger.debug("Performing logs checks")
+
+        cluster_config = await self.aget_cluster_config()
+        prev_end_log_line = cluster_config.get("end_log_line", 0)
+        (
+            logs_den_resp,
+            new_start_log_line,
+            new_end_log_line,
+        ) = await self.send_cluster_logs_to_den(
+            prev_end_log_line=prev_end_log_line,
+        )
+        if not logs_den_resp:
+            logger.debug(
+                f"No logs were generated in the past {interval_size} minute(s), logs were not sent to Den"
+            )
+
+        elif logs_den_resp.status_code == 200:
+            logger.debug("Successfully sent cluster logs to Den")
+            await self.aset_cluster_config_value(
+                key="start_log_line", value=new_start_log_line
+            )
+            await self.aset_cluster_config_value(
+                key="end_log_line", value=new_end_log_line
+            )
+        else:
+            logger.error("Failed to send logs to Den")
+
+        return logs_den_resp, new_start_log_line, new_end_log_line
+
     async def aperiodic_cluster_checks(self):
         """Periodically check the status of the cluster, gather metrics about the cluster's utilization & memory,
         and save it to Den."""
@@ -284,6 +336,16 @@ class ClusterServlet:
             "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
         )
         while True:
+            should_send_status_and_logs_to_den: bool = (
+                configs.token is not None
+                and interval_size != -1
+                and self._cluster_uri is not None
+            )
+            should_update_autostop: bool = self.autostop_helper is not None
+
+            if not should_send_status_and_logs_to_den and not should_update_autostop:
+                break
+
             try:
                 # Only if one of these is true, do we actually need to get the status from each EnvServlet
                 should_send_status_and_logs_to_den: bool = (
@@ -300,7 +362,7 @@ class ClusterServlet:
                     break
 
                 logger.debug("Performing cluster checks")
-                status, status_code = await self.astatus(
+                status, den_resp_code = await self.acheck_cluster_status(
                     send_to_den=should_send_status_and_logs_to_den
                 )
 
@@ -311,13 +373,13 @@ class ClusterServlet:
                 if not should_send_status_and_logs_to_den:
                     break
 
-                if status_code == 404:
+                if den_resp_code == 404:
                     logger.info(
                         "Cluster has not yet been saved to Den, cannot update status or logs."
                     )
-                elif status_code != 200:
+                elif den_resp_code != 200:
                     logger.error(
-                        f"Failed to send cluster status to Den, status_code: {status_code}"
+                        f"Failed to send cluster status to Den, status_code: {den_resp_code}"
                     )
                 else:
                     logger.debug("Successfully sent cluster status to Den")
@@ -346,6 +408,8 @@ class ClusterServlet:
                         # since we are setting a new values to the cluster_config, we need to reload it so the next
                         # cluster check iteration will reference to the updated cluster config.
                         cluster_config = await self.aget_cluster_config()
+                if den_resp_code == 200:
+                    await self.acheck_cluster_logs(interval_size=interval_size)
 
             except Exception:
                 logger.error(
@@ -585,6 +649,7 @@ class ClusterServlet:
     # Save cluster logs to Den
     ##############################################
     def _get_logs(self):
+
         with open(SERVER_LOGFILE) as log_file:
             log_lines = log_file.readlines()
         cleaned_log_lines = [ColoredFormatter.format_log(line) for line in log_lines]
@@ -596,7 +661,7 @@ class ClusterServlet:
 
     async def send_cluster_logs_to_den(
         self, prev_end_log_line: int
-    ) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+    ) -> Tuple[Optional[requests.Response], Optional[int], Optional[int]]:
         """Load the most recent logs from the server's log file and send them to Den."""
         # setting to a list, so it will be easier to get the end line num  + the logs delta to send to den.
         latest_logs = self._get_logs().split("\n")
@@ -632,4 +697,4 @@ class ClusterServlet:
                 f"{resp_status_code}: Failed to send cluster logs to Den: {post_logs_resp.json()}"
             )
 
-        return resp_status_code, prev_end_log_line, new_end_log_line
+        return post_logs_resp, prev_end_log_line, new_end_log_line

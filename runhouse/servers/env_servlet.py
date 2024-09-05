@@ -229,7 +229,7 @@ class EnvServlet:
 
         if not cluster_config.get("resource_subtype") == "Cluster":
             stable_internal_external_ips = cluster_config.get(
-                "stable_internal_external_ips"
+                "stable_internal_external_ips", []
             )
             for ips_set in stable_internal_external_ips:
                 internal_ip, external_ip = ips_set[0], ips_set[1]
@@ -241,7 +241,7 @@ class EnvServlet:
                         node_name = f"worker_{stable_internal_external_ips.index(ips_set)} ({external_ip})"
         else:
             # a case it is a BYO cluster, assume that first ip in the ips list is the head.
-            ips = cluster_config.get("ips")
+            ips = cluster_config.get("ips", [])
             if len(ips) == 1 or node_ip == ips[0]:
                 node_name = f"head ({node_ip})"
             else:
