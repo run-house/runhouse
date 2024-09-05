@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 import ray
 
 import requests
+import rich.markdown
 
 import typer
 import yaml
@@ -454,24 +455,10 @@ def _print_cloud_properties(cluster_config: dict):
     )
 
 
-def _print_cloud_properties(cluster_config: dict):
-    cloud_properties = cluster_config.get("launched_properties", None)
-    if not cloud_properties:
-        return
-    cloud = cloud_properties.get("cloud")
-    instance_type = cloud_properties.get("instance_type")
-    region = cloud_properties.get("region")
-    cost_per_hour = cloud_properties.get("cost_per_hour")
-
-    has_cuda = cluster_config.get("has_cuda", False)
-    cost_emoji = "💰" if has_cuda else "💸"
-
-    num_of_instances = len(cluster_config.get("ips"))
-    num_of_instances_str = f"{num_of_instances}x " if num_of_instances > 1 else ""
-
-    print(
-        f"🤖 {num_of_instances_str}{cloud} {instance_type} cluster | 🌍 {region} | {cost_emoji} ${cost_per_hour}/hr"
-    )
+def _get_resource_link_in_den_ui(cluster_name: str, api_server_url: str):
+    cluster_uri = rns_client.format_rns_address(cluster_name)
+    link_to_den_dashboard = f"{api_server_url}/resources/{cluster_uri}"
+    return link_to_den_dashboard
 
 
 def _print_status(status_data: dict, current_cluster: Cluster) -> None:
@@ -479,8 +466,22 @@ def _print_status(status_data: dict, current_cluster: Cluster) -> None:
     cluster_config = status_data.get("cluster_config")
     env_servlet_processes = status_data.get("env_servlet_processes")
 
-    if "name" in cluster_config.keys():
-        console.print(cluster_config.get("name"))
+    cluster_name = cluster_config.get("name", None)
+
+    if cluster_name:
+        api_server_url = cluster_config.get(
+            "api_server_url", rh.configs.get("api_server_url")
+        )
+        api_server_url = api_server_url.replace(
+            "api", "www"
+        )  # convert the api link to the ui link.
+        cluster_link_in_den_ui = _get_resource_link_in_den_ui(
+            cluster_name=cluster_name, api_server_url=api_server_url
+        )
+        cluster_name_hyperlink = rich.markdown.Text(
+            cluster_name, style=f"link {cluster_link_in_den_ui} white"
+        )
+        console.print(cluster_name_hyperlink)
 
     has_cuda: bool = cluster_config.get("has_cuda")
 
@@ -507,7 +508,7 @@ def _print_status(status_data: dict, current_cluster: Cluster) -> None:
     cluster_cpu_utilization: float = status_data.get("server_cpu_utilization")
 
     server_util_info = (
-        f"CPU Utilization: {round(cluster_cpu_utilization, 2)}% | GPU Utilization: {round(cluster_gpu_utilization,2)}%"
+        f"CPU Utilization: {round(cluster_cpu_utilization, 2)}% | GPU Utilization: {round(cluster_gpu_utilization, 2)}%"
         if has_cuda
         else f"CPU Utilization: {round(cluster_cpu_utilization, 2)}%"
     )
