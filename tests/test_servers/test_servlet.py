@@ -78,7 +78,6 @@ class TestServlet:
     def test_get_obj_remote(self, test_env_servlet):
         resp = ObjStore.call_actor_method(
             test_env_servlet,
-
             "aget_local",
             key="key1",
             default=KeyError,
