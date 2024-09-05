@@ -259,6 +259,20 @@ class TestFunction:
         assert int(res) == 10
 
     @pytest.mark.skip("Runs indefinitely.")
+    # originally used ondemand_aws_docker_cluster, therefore marked as minimal
+    @pytest.mark.level("minimal")
+    def test_notebook(self, cluster):
+        nb_sum = lambda x: multiproc_np_sum(x)
+        re_fn = rh.function(nb_sum).to(cluster, env=["numpy"])
+
+        re_fn.notebook()
+        summands = list(zip(range(5), range(4, 9)))
+        res = re_fn(summands)
+
+        assert res == [4, 6, 8, 10, 12]
+        re_fn.delete_configs()
+
+    @pytest.mark.skip("Runs indefinitely.")
     def test_ssh(self):
         # TODO do this properly
         my_function = rh.function(name="local_function")
@@ -293,14 +307,16 @@ class TestFunction:
 
     @pytest.mark.level("release")
     def test_load_function_in_new_cluster(
-        self, ondemand_aws_cluster, static_cpu_pwd_cluster, test_rns_folder
+        self, ondemand_aws_docker_cluster, static_cpu_pwd_cluster, test_rns_folder
     ):
         remote_func_name = get_remote_func_name(test_rns_folder)
 
-        ondemand_aws_cluster.save(
-            f"@/{ondemand_aws_cluster.name}"
+        ondemand_aws_docker_cluster.save(
+            f"@/{ondemand_aws_docker_cluster.name}"
         )  # Needs to be saved to rns, right now has a local name by default
-        remote_sum = rh.function(summer).to(ondemand_aws_cluster).save(remote_func_name)
+        remote_sum = (
+            rh.function(summer).to(ondemand_aws_docker_cluster).save(remote_func_name)
+        )
 
         static_cpu_pwd_cluster.sync_secrets(["sky"])
         remote_python = (
@@ -315,8 +331,10 @@ class TestFunction:
         remote_sum.delete_configs()
 
     @pytest.mark.level("release")
-    def test_nested_diff_clusters(self, ondemand_aws_cluster, static_cpu_pwd_cluster):
-        summer_cpu = rh.function(summer).to(ondemand_aws_cluster)
+    def test_nested_diff_clusters(
+        self, ondemand_aws_docker_cluster, static_cpu_pwd_cluster
+    ):
+        summer_cpu = rh.function(summer).to(ondemand_aws_docker_cluster)
         call_function_diff_cpu = rh.function(call_function).to(static_cpu_pwd_cluster)
 
         kwargs = {"a": 1, "b": 5}

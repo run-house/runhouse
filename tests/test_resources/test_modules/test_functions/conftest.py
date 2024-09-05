@@ -24,9 +24,9 @@ def slow_running_func(a, b):
 
 
 @pytest.fixture(scope="session")
-def summer_func(ondemand_aws_cluster):
+def summer_func(ondemand_aws_docker_cluster):
     args = {"name": "summer_func", "fn": summer}
-    f = rh.function(**args).to(ondemand_aws_cluster, env=["pytest"])
+    f = rh.function(**args).to(ondemand_aws_docker_cluster, env=["pytest"])
     init_args[id(f)] = args
     return f
 
@@ -44,14 +44,14 @@ def summer_func_shared(shared_cluster):
 
 
 @pytest.fixture(scope="session")
-def func_with_artifacts(ondemand_aws_cluster):
+def func_with_artifacts(ondemand_aws_docker_cluster):
     return rh.function(save_and_load_artifacts, name="artifacts_func").to(
-        ondemand_aws_cluster, env=["pytest"]
+        ondemand_aws_docker_cluster, env=["pytest"]
     )
 
 
 @pytest.fixture(scope="session")
-def slow_func(ondemand_aws_cluster):
+def slow_func(ondemand_aws_docker_cluster):
     return rh.function(slow_running_func, name="slow_func").to(
-        ondemand_aws_cluster, env=["pytest"]
+        ondemand_aws_docker_cluster, env=["pytest"]
     )

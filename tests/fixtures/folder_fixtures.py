@@ -49,13 +49,13 @@ def docker_cluster_folder(docker_cluster_pk_ssh_no_auth):
 
 
 @pytest.fixture
-def cluster_folder(ondemand_aws_cluster):
+def cluster_folder(ondemand_aws_docker_cluster):
     args = {
         "name": "test_cluster_folder",
         "path": "rh-folder",
     }
 
-    cluster_folder = rh.folder(**args).to(system=ondemand_aws_cluster)
+    cluster_folder = rh.folder(**args).to(system=ondemand_aws_docker_cluster)
     init_args[id(cluster_folder)] = args
     cluster_folder.put(
         {f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)}, overwrite=True

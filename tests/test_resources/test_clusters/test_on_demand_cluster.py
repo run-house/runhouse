@@ -64,14 +64,14 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
     LOCAL = {"cluster": []}
     MINIMAL = {
         "cluster": [
-            "ondemand_aws_cluster",
+            "ondemand_aws_docker_cluster",
             "ondemand_gcp_cluster",
             "ondemand_k8s_cluster",
         ]
     }
     RELEASE = {
         "cluster": [
-            "ondemand_aws_cluster",
+            "ondemand_aws_docker_cluster",
             "ondemand_gcp_cluster",
             "ondemand_aws_https_cluster_with_auth",
             "ondemand_k8s_cluster",
@@ -80,7 +80,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
     }
     MAXIMAL = {
         "cluster": [
-            "ondemand_aws_cluster",
+            "ondemand_aws_docker_cluster",
             "ondemand_gcp_cluster",
             "ondemand_k8s_cluster",
             "ondemand_k8s_docker_cluster",
@@ -193,13 +193,13 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         assert cluster.ips == original_ips
 
     @pytest.mark.level("release")
-    def test_docker_container_reqs(self, ondemand_aws_cluster):
-        ret_code = ondemand_aws_cluster.run("pip freeze | grep torch")[0][0]
+    def test_docker_container_reqs(self, ondemand_aws_docker_cluster):
+        ret_code = ondemand_aws_docker_cluster.run("pip freeze | grep torch")[0][0]
         assert ret_code == 0
 
     @pytest.mark.level("release")
-    def test_fn_to_docker_container(self, ondemand_aws_cluster):
-        remote_torch_exists = rh.function(torch_exists).to(ondemand_aws_cluster)
+    def test_fn_to_docker_container(self, ondemand_aws_docker_cluster):
+        remote_torch_exists = rh.function(torch_exists).to(ondemand_aws_docker_cluster)
         assert remote_torch_exists()
 
     ####################################################################################################
