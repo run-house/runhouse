@@ -455,24 +455,6 @@ def _get_resource_link_in_den_ui(cluster_name: str, api_server_url: str):
     return link_to_den_dashboard
 
 
-def _print_cloud_properties(cluster_config: dict):
-    cloud_properties = cluster_config.get("launched_properties", None)
-    if not cloud_properties:
-        return
-    cloud = cloud_properties.get("cloud")
-    instance_type = cloud_properties.get("instance_type")
-    region = cloud_properties.get("region")
-    cost_per_hour = cloud_properties.get("cost_per_hour")
-
-    has_cuda = cluster_config.get("has_cuda", False)
-    cost_emoji = "💰" if has_cuda else "💸"
-
-    num_of_instances = len(cluster_config.get("ips"))
-    num_of_instances_str = f"{num_of_instances}x " if num_of_instances > 1 else ""
-
-    print(
-        f"🤖 {num_of_instances_str}{cloud} {instance_type} cluster | 🌍 {region} | {cost_emoji} ${cost_per_hour}/hr"
-    )
 
 
 def _print_status(status_data: dict, current_cluster: Cluster) -> None:
