@@ -591,7 +591,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert "node: " in status_output_string
         assert status_output_string.count("node: ") >= 1
 
-        # if it is a GPU cluster, check GPU print as well
+        cloud_properties = cluster.config().get("launched_properties", None)
+        if cloud_properties:
+            properties_to_check = ["cloud", "instance_type", "region", "cost_per_hour"]
+            for p in properties_to_check:
+                property_value = cloud_properties.get(p)
+                assert property_value in status_output_string
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
