@@ -223,7 +223,12 @@ class Package(Resource):
         install_cmd = self._prepend_env_command(install_cmd, env=env)
         return install_cmd
 
-    def _install(self, env: Union[str, "Env"] = None, cluster: "Cluster" = None):
+    def _install(
+        self,
+        env: Union[str, "Env"] = None,
+        cluster: "Cluster" = None,
+        node: Optional[str] = None,
+    ):
         """Install package.
 
         Args:
@@ -240,6 +245,7 @@ class Package(Resource):
                     dest=str(self.install_target.path_to_sync_to_on_cluster),
                     up=True,
                     contents=True,
+                    node=node,
                 )
 
                 self.install_target.local_path = (
@@ -265,6 +271,7 @@ class Package(Resource):
                 retcode = run_setup_command(
                     f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
                     cluster=cluster,
+                    node=node,
                 )[0]
                 if retcode != 0:
                     self.install_target = (
@@ -273,7 +280,7 @@ class Package(Resource):
 
             install_cmd = self._pip_install_cmd(env=env, cluster=cluster)
             logger.info(f"Running via install_method pip: {install_cmd}")
-            retcode = run_setup_command(install_cmd, cluster=cluster)[0]
+            retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
             if retcode != 0:
                 raise RuntimeError(
                     f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
@@ -282,7 +289,7 @@ class Package(Resource):
         elif self.install_method == "conda":
             install_cmd = self._conda_install_cmd(env=env, cluster=cluster)
             logger.info(f"Running via install_method conda: {install_cmd}")
-            retcode = run_setup_command(install_cmd, cluster=cluster)[0]
+            retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
             if retcode != 0:
                 raise RuntimeError(
                     f"Conda install {install_cmd} failed, check that the package exists and is "
@@ -293,7 +300,7 @@ class Package(Resource):
             install_cmd = self._reqs_install_cmd(env=env, cluster=cluster)
             if install_cmd:
                 logger.info(f"Running via install_method reqs: {install_cmd}")
-                retcode = run_setup_command(install_cmd, cluster=cluster)[0]
+                retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
                 if retcode != 0:
                     raise RuntimeError(
                         f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
@@ -315,6 +322,7 @@ class Package(Resource):
                 ) if not cluster else run_setup_command(
                     f"export PATH=$PATH;{self.install_target.full_local_path_str()}",
                     cluster=cluster,
+                    node=node,
                 )
             elif not cluster:
                 if Path(self.install_target).resolve().expanduser().exists():

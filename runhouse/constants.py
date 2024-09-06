@@ -59,6 +59,9 @@ CONDA_INSTALL_CMDS = [
     "bash ~/miniconda.sh -b -p ~/miniconda",
     "source $HOME/miniconda/bin/activate",
 ]
+# TODO should default to user's local Python version?
+# from platform import python_version; python_version()
+CONDA_PREFERRED_PYTHON_VERSION = "3.10.9"
 
 TEST_ORG = "test-org"
 TESTING_LOG_LEVEL = "INFO"

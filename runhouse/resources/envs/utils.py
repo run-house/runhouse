@@ -2,7 +2,7 @@ import logging
 import subprocess
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import yaml
 
@@ -131,6 +131,7 @@ def run_setup_command(
     cluster: "Cluster" = None,
     env_vars: Dict = None,
     stream_logs: bool = True,
+    node: Optional[str] = None,
 ):
     """
     Helper function to run a command during possibly the cluster default env setup. If a cluster is provided,
@@ -152,14 +153,14 @@ def run_setup_command(
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
 
     return cluster._run_commands_with_runner(
-        [cmd], stream_logs=stream_logs, env_vars=env_vars
+        [cmd], stream_logs=stream_logs, env_vars=env_vars, node=node
     )[0]
 
 
-def install_conda(cluster: "Cluster" = None):
-    if run_setup_command("conda --version", cluster=cluster)[0] != 0:
+def install_conda(cluster: "Cluster" = None, node: Optional[str] = None):
+    if run_setup_command("conda --version", cluster=cluster, node=node)[0] != 0:
         logging.info("Conda is not installed. Installing...")
         for cmd in CONDA_INSTALL_CMDS:
-            run_setup_command(cmd, cluster=cluster, stream_logs=True)
-        if run_setup_command("conda --version", cluster=cluster)[0] != 0:
+            run_setup_command(cmd, cluster=cluster, node=node, stream_logs=True)
+        if run_setup_command("conda --version", cluster=cluster, node=node)[0] != 0:
             raise RuntimeError("Could not install Conda.")
