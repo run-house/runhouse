@@ -183,7 +183,9 @@ class Env(Resource):
                 on the cluster. (Default: ``False``)
             cluster (Clsuter, optional): Cluster to install the env on. If not provided, env is installed
                 on the current cluster. (Default: ``None``)
+            node (str, optional): Node to install the env on. (Default: ``"all"``)
         """
+
         # Hash the config_for_rns to check if we need to install
         env_config = self.config()
         # Remove the name because auto-generated names will be different, but the installed components are the same
