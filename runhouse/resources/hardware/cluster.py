@@ -444,6 +444,11 @@ class Cluster(Resource):
             SkySSHRunner,
         )
 
+        if node == "all":
+            raise ValueError(
+                "CommandRunner can only be instantiated for individual nodes"
+            )
+
         node = node or self.address
 
         if (
@@ -518,7 +523,8 @@ class Cluster(Resource):
             logger.info(f"Using log level {log_level} on cluster's default env")
 
         logger.info(f"Syncing default env {self._default_env.name} to cluster")
-        self._default_env.install(cluster=self)
+        for node in self.ips:
+            self._default_env.install(cluster=self, node=node)
 
     def _sync_runhouse_to_cluster(
         self,

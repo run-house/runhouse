@@ -140,7 +140,9 @@ class Env(Resource):
             new_secrets.append(secret.to(system=system, env=self))
         return new_secrets
 
-    def _install_reqs(self, cluster: Cluster = None, reqs: List = None):
+    def _install_reqs(
+        self, cluster: Cluster = None, reqs: List = None, node: str = "all"
+    ):
         reqs = reqs or self.reqs
         if reqs:
             for package in reqs:
@@ -154,9 +156,11 @@ class Env(Resource):
                     raise ValueError(f"package {package} not recognized")
 
                 logger.debug(f"Installing package: {str(pkg)}")
-                pkg._install(env=self, cluster=cluster)
+                pkg._install(env=self, cluster=cluster, node=node)
 
-    def _run_setup_cmds(self, cluster: Cluster = None, setup_cmds: List = None):
+    def _run_setup_cmds(
+        self, cluster: Cluster = None, setup_cmds: List = None, node: str = "all"
+    ):
         setup_cmds = setup_cmds or self.setup_cmds
 
         if not setup_cmds:
@@ -165,10 +169,13 @@ class Env(Resource):
         for cmd in setup_cmds:
             cmd = self._full_command(cmd)
             run_setup_command(
-                cmd, cluster=cluster, env_vars=_process_env_vars(self.env_vars)
+                cmd,
+                cluster=cluster,
+                env_vars=_process_env_vars(self.env_vars),
+                node=node,
             )
 
-    def install(self, force: bool = False, cluster: Cluster = None):
+    def install(self, force: bool = False, cluster: Cluster = None, node: str = "all"):
         """Locally install packages and run setup commands.
 
         Args:
@@ -176,20 +183,23 @@ class Env(Resource):
                 on the cluster. (Default: ``False``)
             cluster (Clsuter, optional): Cluster to install the env on. If not provided, env is installed
                 on the current cluster. (Default: ``None``)
+            node (str, optional): Node to install the env on. (Default: ``"all"``)
         """
-        # Hash the config_for_rns to check if we need to install
-        env_config = self.config()
-        # Remove the name because auto-generated names will be different, but the installed components are the same
-        env_config.pop("name")
-        install_hash = hash(str(env_config))
-        # Check the existing hash
-        if install_hash in obj_store.installed_envs and not force:
-            logger.debug("Env already installed, skipping")
-            return
-        obj_store.installed_envs[install_hash] = self.name
+        # If we're doing the install remotely via SSH (e.g. for default_env), there is no cache
+        if not cluster:
+            # Hash the config_for_rns to check if we need to install
+            env_config = self.config()
+            # Remove the name because auto-generated names will be different, but the installed components are the same
+            env_config.pop("name")
+            install_hash = hash(str(env_config))
+            # Check the existing hash
+            if install_hash in obj_store.installed_envs and not force:
+                logger.debug("Env already installed, skipping")
+                return
+            obj_store.installed_envs[install_hash] = self.name
 
-        self._install_reqs(cluster=cluster)
-        self._run_setup_cmds(cluster=cluster)
+        self._install_reqs(cluster=cluster, node=node)
+        self._run_setup_cmds(cluster=cluster, node=node)
 
     def _full_command(self, command: str):
         if self._run_cmd:
@@ -205,7 +215,7 @@ class Env(Resource):
     def to(
         self,
         system: Union[str, Cluster],
-        node_idx: int = None,
+        node_idx: Optional[int] = None,
         path: str = None,
         force_install: bool = False,
     ):
@@ -227,19 +237,21 @@ class Env(Resource):
             >>> s3_env = env.to("s3", path="s3_bucket/my_env")
         """
         system = _get_cluster_from(system)
+        if (
+            isinstance(system, Cluster)
+            and node_idx is not None
+            and node_idx >= len(system.ips)
+        ):
+            raise ValueError(
+                f"Cluster {system.name} has only {len(system.ips)} nodes. Requested node index {node_idx} is out of bounds."
+            )
+
         new_env = copy.deepcopy(self)
         new_env.reqs, new_env.working_dir = self._reqs_to(system, path)
 
         if isinstance(system, Cluster):
             if node_idx is not None:
-                if node_idx >= len(system.ips):
-                    raise ValueError(
-                        f"Cluster {system.name} has only {len(system.ips)} nodes. Requested node index {node_idx} is out of bounds."
-                    )
-
-                if new_env.compute is None:
-                    new_env.compute = {}
-
+                new_env.compute = new_env.compute or {}
                 new_env.compute["node_idx"] = node_idx
 
             key = (
