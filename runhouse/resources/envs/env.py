@@ -215,7 +215,7 @@ class Env(Resource):
     def to(
         self,
         system: Union[str, Cluster],
-        node_idx: int = None,
+        node_idx: Optional[int] = None,
         path: str = None,
         force_install: bool = False,
     ):
@@ -237,19 +237,21 @@ class Env(Resource):
             >>> s3_env = env.to("s3", path="s3_bucket/my_env")
         """
         system = _get_cluster_from(system)
+        if (
+            isinstance(system, Cluster)
+            and node_idx is not None
+            and node_idx >= len(system.ips)
+        ):
+            raise ValueError(
+                f"Cluster {system.name} has only {len(system.ips)} nodes. Requested node index {node_idx} is out of bounds."
+            )
+
         new_env = copy.deepcopy(self)
         new_env.reqs, new_env.working_dir = self._reqs_to(system, path)
 
         if isinstance(system, Cluster):
             if node_idx is not None:
-                if node_idx >= len(system.ips):
-                    raise ValueError(
-                        f"Cluster {system.name} has only {len(system.ips)} nodes. Requested node index {node_idx} is out of bounds."
-                    )
-
-                if new_env.compute is None:
-                    new_env.compute = {}
-
+                new_env.compute = new_env.compute or {}
                 new_env.compute["node_idx"] = node_idx
 
             key = (
