@@ -222,13 +222,7 @@ def _print_cluster_config(cluster_config: Dict):
         "server_connection_type",
     ]
 
-    backend_config = [
-        "resource_subtype",
-        "domain",
-        "server_host",
-        "ips",
-        "resource_subtype",
-    ]
+    backend_config = ["resource_subtype", "domain", "server_host", "ips"]
 
     if cluster_config.get("resource_subtype") != "Cluster":
         backend_config.append("autostop_mins")
@@ -283,7 +277,7 @@ def _print_envs_info(
         # case where the default env doesn't hve any other resources, apart from the default env itself.
         console.print(f"{BULLET_UNICODE} {default_env_name} (runhouse.Env)")
         console.print(
-            f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if such provided. No "
+            f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if provided. No "
             "resources were found."
         )
 
@@ -385,7 +379,7 @@ def _print_envs_info(
         if len(resources_in_env) == 0:
             # No resources were found in the env, only the associated installed python reqs were installed.
             console.print(
-                f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if such provided. No resources were "
+                f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if provided. No resources were "
                 "found."
             )
 
