@@ -20,11 +20,11 @@ inputs:
   KUBECONFIG:
     description: 'Kubeconfig'
     required: false
-  CI_ACCOUNT_TOKEN:
-    description: 'CI Token'
+  DEN_TESTER_TOKEN:
+    description: 'Den Tester Token'
     required: true
-  CI_ACCOUNT_USERNAME:
-    description: 'CI Username'
+  DEN_TESTER_USERNAME:
+    description: 'Den Tester Username'
     required: true
   API_SERVER_URL:
     description: 'API Server URL'
@@ -85,6 +85,6 @@ runs:
     - name: Setup ~/.rh/config.yaml
       uses: ./.github/workflows/setup_rh_config
       with:
-        username: ${{ inputs.CI_ACCOUNT_USERNAME }}
-        token: ${{ inputs.CI_ACCOUNT_TOKEN }}
+        username: ${{ inputs.DEN_TESTER_USERNAME }}
+        token: ${{ inputs.DEN_TESTER_TOKEN }}
         api_server_url: ${{ inputs.API_SERVER_URL }}
