@@ -403,12 +403,21 @@ class OnDemandCluster(Cluster):
             instance_type = launched_resource.instance_type
             region = launched_resource.region
             cost_per_hr = launched_resource.get_cost(60 * 60)
+            disk_size = launched_resource.get("disk_size")
+            num_cpus = launched_resource.cpus
+
             self.launched_properties = {
                 "cloud": cloud,
                 "instance_type": instance_type,
                 "region": region,
                 "cost_per_hour": str(cost_per_hr),
+                "disk_size": disk_size,
+                "num_cpus": num_cpus,
             }
+            if launched_resource.accelerators:
+                self.launched_properties[
+                    "accelerators"
+                ] = launched_resource.accelerators
             if handle.ssh_user:
                 self.launched_properties["ssh_user"] = handle.ssh_user
             if handle.docker_user:
