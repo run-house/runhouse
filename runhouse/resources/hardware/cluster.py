@@ -563,7 +563,7 @@ class Cluster(Resource):
                 contents=True,
                 filter_options="- docs/",
             )
-            rh_install_cmd = "python3 -m pip install ./runhouse"
+            rh_install_cmd = f"python3 -m pip install {dest_path}"
 
         else:
             # Package is installed in site-packages
