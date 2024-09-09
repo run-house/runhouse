@@ -203,18 +203,6 @@ class Function(Module):
         )
         return config
 
-    def send_secrets(self, providers: Optional[List[str]] = None):
-        """Send secrets to the system.
-
-        Args:
-            providers (List[str], optional): List of secret names to send over to the system. If none are provided,
-                syncs over all locally detected provider secrets. (Default: ``None``)
-
-        Example:
-            >>> remote_fn.send_secrets(providers=["aws", "lambda"])
-        """
-        self.system.sync_secrets(providers=providers)
-
     def http_url(self, curl_command=False, *args, **kwargs) -> str:
         """
         Return the endpoint needed to run the Function on the remote cluster, or provide the curl command if requested.
