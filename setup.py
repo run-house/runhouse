@@ -62,6 +62,7 @@ def parse_readme(readme: str) -> str:
 
 
 install_requires = [
+    "annotated-types>=0.6.0",
     "python-dotenv",
     "fastapi",
     "pexpect",
