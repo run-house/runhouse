@@ -608,7 +608,7 @@ def _create_output_table(
     table = Table(title=table_title)
 
     if not filters_requested:
-        table.caption = f"[reset]Showing clusters that were active in the last {LAST_ACTIVE_AT_TIMEFRAME / HOUR} hours."
+        table.caption = f"[reset]Note: the above clusters have registered activity in the last {int(LAST_ACTIVE_AT_TIMEFRAME / HOUR)} hours."
         table.caption_justify = "left"
 
     # Add columns to the table
@@ -645,6 +645,9 @@ def _add_clusters_to_output_table(
         rh_cluster["Status"] = StatusColors.get_status_color(rh_cluster.get("Status"))
 
         table = _add_cluster_as_table_row(table, rh_cluster)
+
+        # adding reset so the name will be printed nicely in the console.
+        rh_cluster["Name"] = f'[reset]{rh_cluster.get("Name")}'
 
 
 def _print_msg_live_sky_clusters(sky_clusters: int):

@@ -1952,10 +1952,10 @@ class Cluster(Resource):
         return self.client.folder_exists(path=path)
 
     @staticmethod
-    def get_clusters_from_den(cluster_filters: dict):
+    def get_clusters_from_den(cluster_filters: dict, org_name: Optional[str] = None):
         get_clusters_params = {
             "resource_type": "cluster",
-            "folder": rns_client.username,
+            "folder": org_name if org_name else rns_client.username,
         }
 
         # send den request with filters if the user specifies filters.
@@ -1998,7 +1998,7 @@ class Cluster(Resource):
 
         for den_cluster in clusters:
             # get just name, not full rns address. reset is used so the name will be printed all in white.
-            cluster_name = f'[reset]{den_cluster.get("name").split("/")[-1]}'
+            cluster_name = f'{den_cluster.get("name").split("/")[-1]}'
             cluster_type = den_cluster.get("data").get("resource_subtype")
             cluster_status = (
                 den_cluster.get("status") if den_cluster.get("status") else "unknown"
@@ -2055,6 +2055,7 @@ class Cluster(Resource):
         show_all: Optional[bool] = False,
         since: Optional[str] = None,
         status: Optional[Union[str, ResourceServerStatus]] = None,
+        org_name: Optional[str] = None,
     ):
         """
         Returns user's runhouse clusters saved in Den. If filters are provided, only clusters that are matching the
@@ -2076,7 +2077,7 @@ class Cluster(Resource):
 
         # get clusters from den
         den_clusters_resp = Cluster.get_clusters_from_den(
-            cluster_filters=cluster_filters
+            cluster_filters=cluster_filters, org_name=org_name
         )
         if den_clusters_resp.status_code != 200:
             logger.error(f"Failed to load {rns_client.username}'s clusters from Den")
