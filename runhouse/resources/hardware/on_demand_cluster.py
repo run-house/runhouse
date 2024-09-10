@@ -1,8 +1,10 @@
+import asyncio
 import contextlib
 import json
 import subprocess
 import time
 import warnings
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
@@ -27,7 +29,11 @@ from runhouse.constants import (
 
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
-from runhouse.resources.hardware.utils import ResourceServerStatus, ServerConnectionType
+from runhouse.resources.hardware.utils import (
+    ResourceServerStatus,
+    ServerConnectionType,
+    up_cluster_helper,
+)
 
 from .cluster import Cluster
 
@@ -477,6 +483,34 @@ class OnDemandCluster(Cluster):
             return self.instance_type.rsplit(":", 1)[1]
 
         return None
+
+    async def a_up(self, capture_output: Union[bool, str] = True):
+        """Up the cluster async in another process, so it can be parallelized and logs can be captured sanely.
+
+        capture_output: If True, supress the output of the cluster creation process. If False, print the output
+        normally. If a string, write the output to the file at that path.
+        """
+
+        with ProcessPoolExecutor() as executor:
+            loop = asyncio.get_running_loop()
+            future = loop.run_in_executor(
+                executor, up_cluster_helper, self, capture_output
+            )
+
+            # Await the result from the separate process
+            result = await future
+            if isinstance(capture_output, str):
+                with open(capture_output, "w") as f:
+                    f.write(result)
+
+        return self
+
+    async def a_up_if_not(self, capture_output: Union[bool, str] = True):
+        if not self.is_up():
+            # Don't store stale IPs
+            self.ips = None
+            await self.a_up(capture_output=capture_output)
+        return self
 
     def up(self):
         """Up the cluster.
