@@ -23,10 +23,10 @@ LOCAL = {
         "docker_cluster_pk_ssh_no_auth",
     ]
 }
-MINIMAL = {"cluster": ["ondemand_aws_cluster"]}
+MINIMAL = {"cluster": ["ondemand_aws_docker_cluster"]}
 RELEASE = {
     "cluster": [
-        "ondemand_aws_cluster",
+        "ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_k8s_docker_cluster",
@@ -38,7 +38,7 @@ MAXIMAL = {
     "cluster": [
         "docker_cluster_pwd_ssh_no_auth",
         "docker_cluster_pk_ssh_no_auth",
-        "ondemand_aws_cluster",
+        "ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_k8s_docker_cluster",

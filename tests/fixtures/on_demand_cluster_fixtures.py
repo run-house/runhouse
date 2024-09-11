@@ -38,7 +38,7 @@ def setup_test_cluster(args, request, create_env=False):
 
 @pytest.fixture(
     params=[
-        "ondemand_aws_cluster",
+        "ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_k8s_docker_cluster",
@@ -53,7 +53,7 @@ def ondemand_cluster(request):
 
 
 @pytest.fixture(scope="session")
-def ondemand_aws_cluster(request):
+def ondemand_aws_docker_cluster(request):
     """
     Note: Also used to test docker and default env with alternate Ray version.
     """
