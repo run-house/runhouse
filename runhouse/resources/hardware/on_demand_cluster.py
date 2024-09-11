@@ -409,7 +409,7 @@ class OnDemandCluster(Cluster):
             instance_type = launched_resource.instance_type
             region = launched_resource.region
             cost_per_hr = launched_resource.get_cost(60 * 60)
-            disk_size = launched_resource.get("disk_size")
+            disk_size = launched_resource.disk_size
             num_cpus = launched_resource.cpus
 
             self.launched_properties = {
