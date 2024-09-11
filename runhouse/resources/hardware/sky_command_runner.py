@@ -180,7 +180,10 @@ class SkySSHRunner(SSHCommandRunner):
 
         if self.use_docker_exec:  # RH MODIFIED
             cmd = " ".join(cmd) if isinstance(cmd, list) else cmd
-            cmd = f"sudo docker exec {DEFAULT_DOCKER_CONTAINER_NAME} bash -c {shlex.quote(cmd)}"
+            cmd = f"sudo docker exec -e PYTHONUNBUFFERED=1 {DEFAULT_DOCKER_CONTAINER_NAME} bash -c {shlex.quote(cmd)}"
+        elif self.docker_user:
+            cmd = " ".join(cmd) if isinstance(cmd, list) else cmd
+            cmd = f"conda deactivate && {cmd}"
 
         command_str = self._get_command_to_run(
             cmd,

@@ -36,7 +36,7 @@ DEFAULT_SERVER_HOST = "0.0.0.0"
 LOGGING_WAIT_TIME = 0.5
 
 # Commands
-SERVER_START_CMD = f"{sys.executable} -m runhouse.servers.http.http_server"
+SERVER_START_CMD = f"{sys.executable} -u -m runhouse.servers.http.http_server"
 SERVER_STOP_CMD = f'pkill -f "{SERVER_START_CMD}"'
 # 2>&1 redirects stderr to stdout
 SERVER_LOGFILE = os.path.expanduser("~/.rh/server.log")
