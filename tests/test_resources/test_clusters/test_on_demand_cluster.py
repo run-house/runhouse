@@ -206,6 +206,8 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
     # Status tests
     ####################################################################################################
 
+    # TODO: Affects cluster state, causes other tests to fail with ssh connection errors
+    @pytest.mark.skip()
     @pytest.mark.level("minimal")
     def test_set_status_after_teardown(self, cluster, mocker):
         mock_function = mocker.patch("sky.down")
