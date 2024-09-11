@@ -43,7 +43,7 @@ MAXIMAL = {
         "ondemand_k8s_cluster",
         "ondemand_k8s_docker_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "multinode_cpu_cluster",
+        "multinode_cpu_docker_conda_cluster",
         "static_cpu_pwd_cluster",
     ]
 }
