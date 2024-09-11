@@ -493,16 +493,9 @@ class OnDemandCluster(Cluster):
 
         with ProcessPoolExecutor() as executor:
             loop = asyncio.get_running_loop()
-            future = loop.run_in_executor(
+            await loop.run_in_executor(
                 executor, up_cluster_helper, self, capture_output
             )
-
-            # Await the result from the separate process
-            result = await future
-            if isinstance(capture_output, str):
-                with open(capture_output, "w") as f:
-                    f.write(result)
-
         return self
 
     async def a_up_if_not(self, capture_output: Union[bool, str] = True):
