@@ -259,6 +259,20 @@ class TestFunction:
         assert int(res) == 10
 
     @pytest.mark.skip("Runs indefinitely.")
+    # originally used ondemand_aws_docker_cluster, therefore marked as minimal
+    @pytest.mark.level("minimal")
+    def test_notebook(self, cluster):
+        nb_sum = lambda x: multiproc_np_sum(x)
+        re_fn = rh.function(nb_sum).to(cluster, env=["numpy"])
+
+        re_fn.notebook()
+        summands = list(zip(range(5), range(4, 9)))
+        res = re_fn(summands)
+
+        assert res == [4, 6, 8, 10, 12]
+        re_fn.delete_configs()
+
+    @pytest.mark.skip("Runs indefinitely.")
     def test_ssh(self):
         # TODO do this properly
         my_function = rh.function(name="local_function")
