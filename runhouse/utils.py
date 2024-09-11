@@ -1,6 +1,9 @@
 import asyncio
 import contextvars
 import functools
+import logging
+import tempfile
+from io import SEEK_SET, StringIO
 
 try:
     import importlib.metadata as metadata
@@ -16,7 +19,6 @@ except ImportError as e:
         )
 import inspect
 import json
-import logging
 import os
 import re
 import subprocess
@@ -25,14 +27,17 @@ import threading
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional, Type, Union
 
 import pexpect
 
 from runhouse.constants import LOGS_DIR
+from runhouse.logger import get_logger, init_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
 
 ####################################################################################################
 # Python package utilities
@@ -375,37 +380,91 @@ class StreamTee(object):
         return getattr(self.instream, item)
 
 
+class capture_stdout:
+    """Context manager for capturing stdout to a file, list, or stream, while still printing to stdout."""
+
+    def __init__(self, output=None):
+        self.output = output
+        self._stream = None
+
+    def __enter__(self):
+        if self.output is None:
+            self.output = StringIO()
+
+        if isinstance(self.output, str):
+            self._stream = open(self.output, "w")
+        else:
+            self._stream = self.output
+        sys.stdout = StreamTee(sys.stdout, [self])
+        sys.stderr = StreamTee(sys.stderr, [self])
+        return self
+
+    def write(self, message):
+        self._stream.write(message)
+
+    def flush(self):
+        self._stream.flush()
+
+    @property
+    def stream(self):
+        if isinstance(self.output, str):
+            return open(self.output, "r")
+        return self._stream
+
+    def list(self):
+        if isinstance(self.output, str):
+            return self.stream.readlines()
+        return (self.stream.getvalue() or "").splitlines()
+
+    def __str__(self):
+        return self.stream.getvalue()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if hasattr(sys.stdout, "instream"):
+            sys.stdout = sys.stdout.instream
+        if hasattr(sys.stderr, "instream"):
+            sys.stderr = sys.stderr.instream
+        self._stream.close()
+        return False
+
+
 class LogToFolder:
     def __init__(self, name: str):
         self.name = name
         self.directory = self._base_local_folder_path(name)
-        self.root_logger = logging.getLogger("")
         # We do exist_ok=True here because generator runs are separate calls to the same directory.
         os.makedirs(self.directory, exist_ok=True)
+        self.logger = None
+        self.handler = None
 
     def __enter__(self):
         # TODO fix the fact that we keep appending and then stream back the full file
         sys.stdout = StreamTee(sys.stdout, [Path(self._stdout_path).open(mode="a")])
         sys.stderr = StreamTee(sys.stderr, [Path(self._stderr_path).open(mode="a")])
 
-        # Add the stdout and stderr handlers to the root logger
-        self._stdout_handler = logging.StreamHandler(sys.stdout)
-        self.root_logger.addHandler(self._stdout_handler)
+        self.logger = logging.getLogger()
+        init_logger(self.logger)
+        self.handler = logging.FileHandler(self._stdout_path)
+        self.logger.addHandler(self.handler)
 
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.root_logger.removeHandler(self._stdout_handler)
 
         # Flush stdout and stderr
-        # sys.stdout.flush()
-        # sys.stderr.flush()
+        sys.stdout.flush()
+        sys.stderr.flush()
 
         # Restore stdout and stderr
         if hasattr(sys.stdout, "instream"):
             sys.stdout = sys.stdout.instream
         if hasattr(sys.stderr, "instream"):
             sys.stderr = sys.stderr.instream
+
+        # Close the file handler
+        self.handler.close()
+        self.logger.removeHandler(self.handler)
+        init_logger(self.logger)
 
         # return False to propagate any exception that occurred inside the with block
         return False
@@ -458,6 +517,58 @@ class LogToFolder:
         return path_to_ext
 
 
+class SuppressStd(object):
+    """Context to capture stderr and stdout at C-level."""
+
+    def __init__(self, outfile=None):
+        self.orig_stdout_fileno = sys.__stdout__.fileno()
+        self.orig_stderr_fileno = sys.__stderr__.fileno()
+        self.output = None
+
+    def __enter__(self):
+        # Redirect the stdout/stderr fd to temp file
+        self.orig_stdout_dup = os.dup(self.orig_stdout_fileno)
+        self.orig_stderr_dup = os.dup(self.orig_stderr_fileno)
+        self.tfile = tempfile.TemporaryFile(mode="w+b")
+        os.dup2(self.tfile.fileno(), self.orig_stdout_fileno)
+        os.dup2(self.tfile.fileno(), self.orig_stderr_fileno)
+
+        # Store the stdout object and replace it by the temp file.
+        self.stdout_obj = sys.stdout
+        self.stderr_obj = sys.stderr
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+        return self
+
+    def __exit__(self, exc_class, value, traceback):
+
+        # Make sure to flush stdout
+        print(flush=True)
+
+        # Restore the stdout/stderr object.
+        sys.stdout = self.stdout_obj
+        sys.stderr = self.stderr_obj
+
+        # Close capture file handle
+        os.close(self.orig_stdout_fileno)
+        os.close(self.orig_stderr_fileno)
+
+        # Restore original stderr and stdout
+        os.dup2(self.orig_stdout_dup, self.orig_stdout_fileno)
+        os.dup2(self.orig_stderr_dup, self.orig_stderr_fileno)
+
+        # Close duplicate file handle.
+        os.close(self.orig_stdout_dup)
+        os.close(self.orig_stderr_dup)
+
+        # Copy contents of temporary file to the given stream
+        self.tfile.flush()
+        self.tfile.seek(0, SEEK_SET)
+        self.output = self.tfile.read().decode()
+        self.tfile.close()
+
+
 ####################################################################################################
 # Name generation
 ####################################################################################################
@@ -475,3 +586,122 @@ def generate_default_name(prefix: str = None, precision: str = "s", sep="_") -> 
     if prefix is None:
         return timestamp_key
     return f"{prefix}{sep}{timestamp_key}"
+
+
+####################################################################################################
+# Logger utils
+####################################################################################################
+class ColoredFormatter:
+    COLORS = {
+        "black": "\u001b[30m",
+        "red": "\u001b[31m",
+        "green": "\u001b[32m",
+        "yellow": "\u001b[33m",
+        "blue": "\u001b[34m",
+        "magenta": "\u001b[35m",
+        "cyan": "\u001b[36m",
+        "white": "\u001b[37m",
+        "reset": "\u001b[0m",
+    }
+
+    @classmethod
+    def get_color(cls, color: str):
+        return cls.COLORS.get(color, "")
+
+    # TODO: This method is a temp solution, until we'll update logging architecture. Remove once logging is cleaned up.
+    @classmethod
+    def format_log(cls, text):
+        ansi_escape = re.compile(r"(?:\x1B[@-_][0-?]*[ -/]*[@-~])")
+        return ansi_escape.sub("", text)
+
+
+class ClusterLogsFormatter:
+    def __init__(self, system):
+        self.system = system
+        self._display_title = False
+
+    def format(self, output_type):
+        from runhouse import Resource
+        from runhouse.servers.http.http_utils import OutputType
+
+        system_color = ColoredFormatter.get_color("cyan")
+        reset_color = ColoredFormatter.get_color("reset")
+
+        prettify_logs = output_type in [
+            OutputType.STDOUT,
+            OutputType.EXCEPTION,
+            OutputType.STDERR,
+        ]
+
+        if (
+            isinstance(self.system, Resource)
+            and prettify_logs
+            and not self._display_title
+        ):
+            # Display the system name before subsequent logs only once
+            system_name = self.system.name
+            dotted_line = "-" * len(system_name)
+            print(dotted_line)
+            print(f"{system_color}{system_name}{reset_color}")
+            print(dotted_line)
+
+            # Only display the system name once
+            self._display_title = True
+
+        return system_color, reset_color
+
+
+def create_local_dir(path: Union[str, Path]):
+    full_path = os.path.expanduser(path) if isinstance(path, str) else path.expanduser()
+    Path(full_path).parent.mkdir(parents=True, exist_ok=True)
+    return full_path
+
+
+####################################################################################################
+# Status collection utils
+####################################################################################################
+class ServletType(str, Enum):
+    env = "env"
+    cluster = "cluster"
+
+
+def get_gpu_usage(collected_gpus_info: dict, servlet_type: ServletType):
+
+    gpus_indices = list(collected_gpus_info.keys())
+
+    # how we retrieve total_gpu_memory:
+    # 1. getting the first gpu usage of the first gpu un the gpus list
+    # 2. getting the first gpu_info dictionary of the specific gpu (we collected the gpu info over time)
+    # 3. get total_memory value (it is the same across all envs)
+    total_gpu_memory = collected_gpus_info[gpus_indices[0]][0].get("total_memory")
+    total_used_memory, gpu_utilization_percent, free_memory = 0, 0, 0
+
+    if servlet_type == ServletType.cluster:
+        free_memory = collected_gpus_info[gpus_indices[0]][-1].get(
+            "free_memory"
+        )  # getting the latest free_memory value collected.
+
+    for gpu_index in gpus_indices:
+        collected_gpu_info = collected_gpus_info.get(gpu_index)
+        sum_used_memery = sum(
+            [gpu_info.get("used_memory") for gpu_info in collected_gpu_info]
+        )
+        total_used_memory = sum_used_memery / len(collected_gpu_info)  # average
+
+        if servlet_type == ServletType.cluster:
+            sum_cpu_util = sum(
+                [gpu_info.get("utilization_percent") for gpu_info in collected_gpu_info]
+            )
+            gpu_utilization_percent = sum_cpu_util / len(collected_gpu_info)  # average
+
+    total_used_memory = total_used_memory / len(gpus_indices)
+
+    gpu_usage = {"total_memory": total_gpu_memory, "used_memory": total_used_memory}
+
+    if servlet_type == ServletType.cluster:
+        gpu_utilization_percent = round(gpu_utilization_percent / len(gpus_indices), 2)
+        gpu_usage["free_memory"] = free_memory
+        gpu_usage["gpu_count"] = len(gpus_indices)
+        gpu_usage["utilization_percent"] = gpu_utilization_percent
+
+    return gpu_usage

@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 import runhouse as rh
+from runhouse.logger import get_logger
 
 from tests.test_resources.test_modules.test_functions.test_function import (
     multiproc_np_sum,
@@ -13,8 +14,7 @@ from tests.test_resources.test_modules.test_functions.test_function import (
 TEMP_FILE = "my_file.txt"
 TEMP_FOLDER = "~/runhouse-tests"
 
-from runhouse.logger import logger
-
+logger = get_logger(__name__)
 
 UNIT = {"cluster": []}
 LOCAL = {
@@ -29,8 +29,9 @@ RELEASE = {
         "ondemand_aws_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
+        "ondemand_k8s_docker_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "static_cpu_cluster",
+        "static_cpu_pwd_cluster",
     ]
 }
 MAXIMAL = {
@@ -40,9 +41,10 @@ MAXIMAL = {
         "ondemand_aws_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
+        "ondemand_k8s_docker_cluster",
         "ondemand_aws_https_cluster_with_auth",
         "multinode_cpu_cluster",
-        "static_cpu_cluster",
+        "static_cpu_pwd_cluster",
     ]
 }
 

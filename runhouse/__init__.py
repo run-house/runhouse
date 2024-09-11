@@ -1,5 +1,4 @@
 from runhouse.resources.asgi import Asgi, asgi
-from runhouse.resources.blobs import blob, Blob, file, File
 from runhouse.resources.envs import conda_env, CondaEnv, env, Env
 from runhouse.resources.folders import Folder, folder, GCSFolder, S3Folder
 from runhouse.resources.functions.aws_lambda import LambdaFunction
@@ -12,8 +11,6 @@ from runhouse.resources.hardware import (
     kubernetes_cluster,
     ondemand_cluster,
     OnDemandCluster,
-    sagemaker_cluster,
-    SageMakerCluster,
 )
 
 # WARNING: Any built-in module that is imported here must be capitalized followed by all lowercase, or we will
@@ -26,7 +23,6 @@ from runhouse.resources.packages import (
     package,
     Package,
 )
-from runhouse.resources.provenance import capture_stdout, Run, run, RunStatus, RunType
 from runhouse.resources.resource import Resource
 from runhouse.resources.secrets import provider_secret, ProviderSecret, Secret, secret
 
@@ -63,4 +59,4 @@ def __getattr__(name):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-__version__ = "0.0.33"
+__version__ = "0.0.34"

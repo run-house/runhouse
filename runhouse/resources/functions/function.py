@@ -1,16 +1,17 @@
 import inspect
-import logging
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Iterable, List, Optional, Tuple, Union
 
 from runhouse import globals
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
 from runhouse.resources.envs import Env
 from runhouse.resources.hardware import Cluster
 from runhouse.resources.module import Module
 
 from runhouse.resources.resource import Resource
+
+logger = get_logger(__name__)
 
 
 class Function(Module):
@@ -39,8 +40,9 @@ class Function(Module):
     # ----------------- Constructor helper methods -----------------
 
     @classmethod
-    def from_config(cls, config: dict, dryrun: bool = False, _resolve_children=True):
-        """Create a Function object from a config dictionary."""
+    def from_config(
+        cls, config: dict, dryrun: bool = False, _resolve_children: bool = True
+    ):
         if isinstance(config["system"], dict):
             config["system"] = Cluster.from_config(
                 config["system"], dryrun=dryrun, _resolve_children=_resolve_children
@@ -73,11 +75,18 @@ class Function(Module):
         name: Optional[str] = None,
         force_install: bool = False,
     ):
-        """to(system: str | Cluster | None = None, env: List[str] | Env = [], force_install: bool = False)
+        """
+        Send the function to the specified env on the cluster. This will sync over relevant code and packages
+        onto the cluster, and set up the environment if it does not yet exist on the cluster.
 
-        Set up a Function and Env on the given system.
-        If the function is sent to AWS, the system should be ``aws_lambda``
-        See the args of the factory method :func:`function` for more information.
+        Args:
+            system (str or Cluster): The system to setup the function and env on.
+            env (str, List[str], or Env, optional): The environment where the function lives on in the cluster,
+                or the set of requirements necessary to run the function. (Default: ``None``)
+            name (Optional[str], optional): Name to give to the function resource, if you wish to rename it.
+                (Default: ``None``)
+            force_install (bool, optional): Whether to re-install and perform the environment setup steps, even
+                if it may already exist on the cluster. (Defualt: ``False``)
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
@@ -102,12 +111,12 @@ class Function(Module):
         """Call the function on its system
 
         Args:
-             *args: Optional args for the Function
-             stream_logs (bool): Whether to stream the logs from the Function's execution.
-                Defaults to ``True``.
-             run_name (Optional[str]): Name of the Run to create. If provided, a Run will be created
-                for this function call, which will be executed synchronously on the cluster before returning its result
-             **kwargs: Optional kwargs for the Function
+            *args: Optional args for the Function
+            stream_logs (bool): Whether to stream the logs from the Function's execution.
+               Defaults to ``True``.
+            run_name (Optional[str]): Name of the Run to create. If provided, a Run will be created
+               for this function call, which will be executed synchronously on the cluster before returning its result
+            **kwargs: Optional kwargs for the Function
 
         Returns:
             The Function's return value
@@ -143,12 +152,15 @@ class Function(Module):
         ray_wrapped_fn = ray.remote(fn)
         return ray.get([ray_wrapped_fn.remote(*args, **kwargs) for args in zip(*args)])
 
-    def starmap(self, args_lists, **kwargs):
+    def starmap(self, args_lists: List[Iterable], **kwargs):
         """Like :func:`map` except that the elements of the iterable are expected to be iterables
         that are unpacked as arguments. An iterable of [(1,2), (3, 4)] results in [func(1,2), func(3,4)].
 
+        Args:
+            arg_lists (List[Iterable]): List containing iterbles of arguments to be passed into the function.
+
         Example:
-            >>> arg_list = [(1,2), (3, 4)]
+            >>> arg_list = [(1, 2), (3, 4)]
             >>> # runs the function twice, once with args (1, 2) and once with args (3, 4)
             >>> remote_fn.starmap(arg_list)
         """
@@ -177,6 +189,12 @@ class Function(Module):
         return self.system.get(run_key)
 
     def config(self, condensed=True):
+        """The config of the function.
+
+        Args:
+            condensed (bool, optional): Whether to return the condensed config without expanding children subresources,
+                or return the whole expanded config. (Default: ``True``)
+        """
         config = super().config(condensed)
         config.update(
             {
@@ -185,42 +203,16 @@ class Function(Module):
         )
         return config
 
-    def send_secrets(self, providers: Optional[List[str]] = None):
-        """Send secrets to the system.
-
-        Example:
-            >>> remote_fn.send_secrets(providers=["aws", "lambda"])
-        """
-        self.system.sync_secrets(providers=providers)
-
-    def http_url(self, curl_command=False, *args, **kwargs) -> str:
-        """
-        Return the endpoint needed to run the Function on the remote cluster, or provide the curl command if requested.
-        """
-        raise NotImplementedError("http_url not yet implemented for Function")
-
-    def notebook(self, persist=False, sync_package_on_close=None, port_forward=8888):
-        """Tunnel into and launch notebook from the system."""
-        if self.system is None:
-            raise RuntimeError("Cannot SSH, running locally")
-
-        self.system.notebook(
-            persist=persist,
-            sync_package_on_close=sync_package_on_close,
-            port_forward=port_forward,
-        )
-
     def get_or_call(
-        self, run_name: str, load_from_den=True, local=True, *args, **kwargs
+        self, run_name: str, load_from_den: bool = True, *args, **kwargs
     ) -> Any:
         """Check if object already exists on cluster or rns, and if so return the result. If not, run the function.
         Keep in mind this can be called with any of the usual method call modifiers - `remote=True`, `run_async=True`,
         `stream_logs=False`, etc.
 
         Args:
-            run_name (Optional[str]): Name of a particular run for this function.
-                If not provided will use the function's name.
-            load_from_den (bool): Whether to try loading the run name from Den.
+            run_name (str): Name of a particular run for this function.
+            load_from_den (bool, optional): Whether to try loading the run name from Den. (Default: ``True``)
             *args: Arguments to pass to the function for the run (relevant if creating a new run).
             **kwargs: Keyword arguments to pass to the function for the run (relevant if creating a new run).
 
@@ -248,25 +240,6 @@ class Function(Module):
 
         return self.call(*args, **kwargs, run_name=run_name)
 
-    def keep_warm(
-        self,
-        autostop_mins=None,
-    ):
-        """Keep the system warm for autostop_mins. If autostop_mins is ``None`` or -1, keep warm indefinitely.
-
-        Example:
-            >>> # keep gpu warm for 30 mins
-            >>> remote_fn = rh.function(local_fn).to(gpu)
-            >>> remote_fn.keep_warm(autostop_mins=30)
-        """
-        if autostop_mins is None:
-            logger.info(f"Keeping {self.name} indefinitely warm")
-            # keep indefinitely warm if user doesn't specify
-            autostop_mins = -1
-        self.system.keep_warm(autostop_mins=autostop_mins)
-
-        return self
-
     @staticmethod
     def _handle_nb_fn(fn, fn_pointers, serialize_notebook_fn, name):
         """Handle the case where the user passes in a notebook function"""
@@ -278,14 +251,14 @@ class Function(Module):
             return "", "notebook", fn
         else:
             module_path = Path.cwd() / (f"{name}_fn.py" if name else "sent_fn.py")
-            logging.info(
+            logger.info(
                 f"Because this function is defined in a notebook, writing it out to {str(module_path)} "
                 f"to make it importable. Please make sure the function does not rely on any local variables, "
                 f"including imports (which should be moved inside the function body). "
                 f"This restriction does not apply to functions defined in normal Python files."
             )
             if not name:
-                logging.warning(
+                logger.warning(
                     "You should name Functions that are created in notebooks to avoid naming collisions "
                     "between the modules that are created to hold their functions "
                     '(i.e. "sent_fn.py" errors.'

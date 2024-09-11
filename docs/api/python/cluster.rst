@@ -1,9 +1,9 @@
 Cluster
 =======
 A Cluster is a Runhouse primitive used for abstracting a particular hardware configuration.
-This can be either an :ref:`on-demand cluster <OnDemandCluster Class>` (requires valid cloud credentials), a
-:ref:`BYO (bring-your-own) cluster <Cluster Class>` (requires IP address and ssh creds), or a
-:ref:`SageMaker cluster <SageMakerCluster Class>` (requires an ARN role).
+This can be either an :ref:`on-demand cluster <OnDemandCluster Class>` (requires valid cloud credentials or a
+local Kube config if launching on Kubernetes), or a
+:ref:`BYO (bring-your-own) cluster <Cluster Class>` (requires IP address and ssh creds).
 
 A cluster is assigned a name, through which it can be accessed and reused later on.
 
@@ -13,8 +13,6 @@ Cluster Factory Methods
 .. autofunction:: runhouse.cluster
 
 .. autofunction:: runhouse.ondemand_cluster
-
-.. autofunction:: runhouse.sagemaker_cluster
 
 Cluster Class
 ~~~~~~~~~~~~~
@@ -75,141 +73,6 @@ See the `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/cloud-setup/cl
 for more details on configuring a VPC.
 
 
-SageMakerCluster Class
-~~~~~~~~~~~~~~~~~~~~~~
-.. note::
-
-    SageMaker support is an alpha and under active development. Please report any bugs or let us know of any
-    feature requests.
-
-A SageMakerCluster is a cluster that uses a SageMaker instance under the hood.
-
-Runhouse currently supports two core usage paths for SageMaker clusters:
-
-- **Compute backend**: You can use SageMaker as a compute backend, just as you would a
-  :ref:`BYO (bring-your-own) <Cluster Class>` or an :ref:`on-demand cluster <OnDemandCluster Class>`.
-  Runhouse will handle launching the SageMaker compute and creating the SSH connection
-  to the cluster.
-
-- **Dedicated training jobs**: You can use a SageMakerCluster class to run a training job on SageMaker compute.
-  To do so, you will need to provide an
-  `estimator <https://sagemaker.readthedocs.io/en/stable/api/training/estimators.html>`__.
-
-.. note::
-
-    Runhouse requires an AWS IAM role (either name or full ARN) whose credentials have adequate permissions to
-    create create SageMaker endpoints and access AWS resources.
-
-    Please see :ref:`SageMaker Hardware Setup` for more specific instructions and
-    requirements for providing the role and setting up the cluster.
-
-.. autoclass:: runhouse.SageMakerCluster
-   :members:
-   :exclude-members:
-
-    .. automethod:: __init__
-
-SageMaker Hardware Setup
-------------------------
-
-IAM Role
-^^^^^^^^
-
-SageMaker clusters require `AWS CLI V2 <https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html>`__ and
-configuring the SageMaker IAM role with the
-`AWS Systems Manager <https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html>`__.
-
-
-In order to launch a cluster, you must grant SageMaker the necessary permissions with an IAM role, which
-can be provided either by name or by full ARN. You can also specify a profile explicitly or
-with the :code:`AWS_PROFILE` environment variable.
-
-For example, let's say your local :code:`~/.aws/config` file contains:
-
-.. code-block:: ini
-
-    [profile sagemaker]
-    role_arn = arn:aws:iam::123456789:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142
-    region = us-east-1
-    source_profile = default
-
-There are several ways to provide the necessary credentials when :ref:`initializing the cluster <Cluster Factory Methods>`:
-
-- Providing the AWS profile name: :code:`profile="sagemaker"`
-- Providing the AWS Role ARN directly: :code:`role="arn:aws:iam::123456789:role/service-role/AmazonSageMaker-ExecutionRole-20230717T192142"`
-- Environment Variable: setting :code:`AWS_PROFILE` to :code:`"sagemaker"`
-
-.. note::
-
-    If no role or profile is provided, Runhouse will try using the :code:`default` profile. Note if this default AWS
-    identity is not a role, then you will need to provide the :code:`role` or :code:`profile` explicitly.
-
-.. tip::
-
-    If you are providing an estimator, you must provide the role ARN explicitly as part of the estimator object.
-    More info on estimators `here <https://sagemaker.readthedocs.io/en/stable/api/training/estimators.html>`__.
-
-Please see the `AWS docs <https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html>`__ for further
-instructions on creating and configuring an ARN Role.
-
-
-AWS CLI V2
-^^^^^^^^^^
-
-The SageMaker SDK uses AWS CLI V2, which must be installed on your local machine. Doing so requires one of two steps:
-
-- `Migrate from V1 to V2 <https://docs.aws.amazon.com/cli/latest/userguide/cliv2-migration-instructions.html#cliv2-migration-instructions-migrate>`_
-
-- `Install V2 <https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html>`_
-
-
-To confirm the installation succeeded, run ``aws --version`` in the command line. You should see something like:
-
-.. code-block::
-
-    $ aws-cli/2.13.8 Python/3.11.4 Darwin/21.3.0 source/arm64 prompt/off
-
-If you are still seeing the V1 version, first try uninstalling V1 in case it is still present
-(e.g. ``pip uninstall awscli``).
-
-You may also need to add the V2 executable to the PATH of your python environment. For example, if you are using conda,
-it’s possible the conda env will try using its own version of the AWS CLI located at a different
-path (e.g. ``/opt/homebrew/anaconda3/bin/aws``), while the system wide installation of AWS CLI is located somewhere
-else (e.g. ``/opt/homebrew/bin/aws``).
-
-To find the global AWS CLI path:
-
-.. code-block::
-
-    $ which aws
-
-To ensure that the global AWS CLI version is used within your python environment, you’ll need to adjust the
-PATH environment variable so that it prioritizes the global AWS CLI path.
-
-.. code-block::
-
-    $ export PATH=/opt/homebrew/bin:$PATH
-
-
-SSM Setup
-^^^^^^^^^
-The AWS Systems Manager service is used to create SSH tunnels with the SageMaker cluster.
-
-To install the AWS Session Manager Plugin, please see the `AWS docs <https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html>`_
-or `SageMaker SSH Helper <https://github.com/aws-samples/sagemaker-ssh-helper#step-4-connect-over-ssm>`__. The SSH Helper package
-simplifies the process of creating SSH tunnels with SageMaker clusters. It is installed by default if
-you are installing Runhouse with the SageMaker dependency: :code:`pip install runhouse[sagemaker]`.
-
-You can also install the Session Manager by running the CLI command:
-
-.. code-block::
-
-    $ sm-local-configure
-
-To configure your SageMaker IAM role with the AWS Systems Manager, please
-refer to `these instructions <https://github.com/aws-samples/sagemaker-ssh-helper/blob/main/IAM_SSM_Setup.md>`__.
-
-
 Cluster Authentication & Verification
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Runhouse provides a couple of options to manage the connection to the Runhouse API server running on a cluster.
@@ -228,10 +91,6 @@ be started on the cluster on port :code:`32300`.
 - ``none``: Does not use any port forwarding or enforce any authentication. Connects to the cluster with HTTP by
   default on port :code:`80`. This is useful when connecting to a cluster within a VPC, or creating a tunnel manually
   on the side with custom settings.
-- ``aws_ssm``: Uses the
-  `AWS Systems Manager <https://docs.aws.amazon.com/systems-manager/latest/userguide/what-is-systems-manager.html>`__ to
-  create an SSH tunnel to the cluster, by default on port :code:`32300`. *Note: this is currently only relevant
-  for SageMaker Clusters.*
 
 
 .. note::

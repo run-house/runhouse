@@ -19,7 +19,6 @@ from fastapi.responses import StreamingResponse
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
-    DEFAULT_LOG_LEVEL,
     DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
     EMPTY_DEFAULT_ENV_NAME,
@@ -27,7 +26,7 @@ from runhouse.constants import (
     RH_LOGFILE_PATH,
 )
 from runhouse.globals import configs, obj_store, rns_client
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.rns.utils.api import resolve_absolute_path, ResourceAccess
 from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import averify_cluster_access
@@ -68,6 +67,8 @@ from runhouse.servers.obj_store import (
 from runhouse.utils import generate_default_name, sync_function
 
 app = FastAPI(docs_url=None, redoc_url=None)
+
+logger = get_logger(__name__)
 
 
 def validate_cluster_access(func):
@@ -135,13 +136,9 @@ class HTTPServer:
         default_env_name=None,
         conda_env=None,
         from_test: bool = False,
-        logs_level: str = DEFAULT_LOG_LEVEL,
         *args,
         **kwargs,
     ):
-        logger.setLevel(logs_level)
-        if logs_level != DEFAULT_LOG_LEVEL:
-            logger.info(f"setting logs level to {logs_level}")
         runtime_env = {"conda": conda_env} if conda_env else None
 
         default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
@@ -155,7 +152,6 @@ class HTTPServer:
                 default_env_name,
                 setup_ray=RaySetupOption.TEST_PROCESS,
                 runtime_env=runtime_env,
-                logs_level=logs_level,
             )
 
         # TODO disabling due to latency, figure out what to do with this
@@ -170,7 +166,6 @@ class HTTPServer:
             env_name=default_env_name,
             create=True,
             runtime_env=runtime_env,
-            logs_level=logs_level,
         )
 
         if default_env_name == EMPTY_DEFAULT_ENV_NAME:
@@ -445,7 +440,7 @@ class HTTPServer:
             )
 
             query_params_remaining = dict(request.query_params)
-            call_params_dict = params.dict()
+            call_params_dict = params.model_dump()
             for k, v in dict(request.query_params).items():
                 # If one of the query_params matches an arg in CallParams, set it
                 # And also remove it from the query_params dict, so the rest
@@ -794,9 +789,9 @@ class HTTPServer:
     @staticmethod
     @app.get("/status")
     @validate_cluster_access
-    def get_status(request: Request):
+    def get_status(request: Request, send_to_den: bool = False):
 
-        return obj_store.status()
+        return obj_store.status(send_to_den=send_to_den)
 
     @staticmethod
     def _collect_cluster_stats():
@@ -957,13 +952,6 @@ async def main():
         action="store_true",
         default=argparse.SUPPRESS,
         help="Whether HTTP server is called from Python rather than CLI.",
-    )
-
-    parser.add_argument(
-        "--log-level",
-        type=str,
-        default=DEFAULT_LOG_LEVEL,
-        help="The lowest log level of the printed logs",
     )
 
     parse_args = parser.parse_args()
@@ -1159,7 +1147,6 @@ async def main():
     await HTTPServer.ainitialize(
         default_env_name=default_env_name,
         conda_env=conda_name,
-        logs_level=parse_args.log_level,
     )
 
     if den_auth:

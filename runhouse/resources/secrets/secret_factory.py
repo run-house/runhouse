@@ -1,6 +1,5 @@
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
 
-from runhouse.resources.blobs.file import File
 from runhouse.resources.secrets.provider_secrets.provider_secret import ProviderSecret
 from runhouse.resources.secrets.secret import Secret
 
@@ -45,7 +44,7 @@ def provider_secret(
     provider: Optional[str] = None,
     name: Optional[str] = None,
     values: Optional[Dict] = None,
-    path: Union[str, File] = None,
+    path: Optional[str] = None,
     env_vars: Optional[Dict] = None,
     load_from_den: bool = True,
     dryrun: bool = False,
@@ -61,11 +60,11 @@ def provider_secret(
         name (str, optional): Name to assign the resource. If none is provided, resource name defaults to the
             provider name.
         values (Dict, optional): Dictionary mapping of secret keys and values.
-        path (str or Path, optional): Path where the secret values are held.
+        path (str, optional): Path where the secret values are held.
         env_vars (Dict, optional): Dictionary mapping secret keys to the corresponding
             environment variable key.
         load_from_den (bool): Whether to try loading the secret from Den. (Default: ``True``)
-        dryrun (bool): Whether to creat in dryrun mode. (Default: False)
+        dryrun (bool): Whether to create in dryrun mode. (Default: False)
 
     Returns:
         ProviderSecret: The resulting provider secret object.

@@ -84,7 +84,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         "secret": ["test_secret"] + provider_secrets,
         "cluster": [
             "ondemand_aws_cluster",
-            "static_cpu_cluster",
+            "static_cpu_pwd_cluster",
         ],
     }
     MAXIMAL = {
@@ -93,8 +93,9 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
             "ondemand_aws_cluster",
             "ondemand_gcp_cluster",
             "ondemand_k8s_cluster",
+            "ondemand_k8s_docker_cluster",
             "ondemand_aws_https_cluster_with_auth",
-            "static_cpu_cluster",
+            "static_cpu_pwd_cluster",
             "multinode_cpu_cluster",
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pwd_ssh_no_auth",
@@ -199,12 +200,12 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
             secret = secret.write(path=test_path)
             cluster.sync_secrets([secret])
 
-            remote_file = rh.file(path=secret.path, system=cluster)
-            assert remote_file.exists_in_system()
-            assert secret._from_path(remote_file) == secret.values
+            remote_folder = rh.folder(path=secret.path, system=cluster)
+            assert remote_folder.exists_in_system()
+            assert secret._from_path(remote_folder.path) == secret.values
 
             assert_delete_local(secret, contents=True)
-            remote_file.rm()
+            remote_folder.rm()
         else:
             cluster.sync_secrets([secret])
             assert cluster.get(secret.name)

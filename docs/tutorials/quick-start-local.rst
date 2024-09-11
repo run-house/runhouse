@@ -39,28 +39,28 @@ and details of the server. For printing cluster's status outside the cluser, its
 
     /sashab/rh-basic-cpu
     😈 Runhouse Daemon is running 🏃
-    Runhouse v0.0.28
-    server pid: 29395
+    Runhouse v0.0.34
+    🤖 aws m6i.large cluster | 🌍 us-east-1 | 💸 $0.096/hr
+    server pid: 29477
     • server port: 32300
-    • den auth: True
+    • den auth: False
     • server connection type: ssh
     • backend config:
-      • resource subtype: OnDemandCluster
-      • domain: None
-      • server host: 0.0.0.0
-      • ips: ['52.207.212.159']
-      • resource subtype: OnDemandCluster
-      • autostop mins: autostop disabled
+        • resource subtype: OnDemandCluster
+        • domain: None
+        • server host: 0.0.0.0
+        • ips: ['52.91.194.125']
+        • autostop mins: autostop disabled
+    CPU Utilization: 5.4%
     Serving 🍦 :
     • _cluster_default_env (runhouse.Env)
-      This environment has only python packages installed, if such provided. No resources were found.
-    • sd_env (runhouse.Env) | pid: 29716 | node: head (52.207.212.159)
-      CPU: 0.0% | Memory: 0.13 / 8 Gb (1.65%)
-      This environment has only python packages installed, if such provided. No resources were found.
-    • np_pd_env (runhouse.Env) | pid: 29578 | node: head (52.207.212.159)
-      CPU: 0.0% | Memory: 0.13 / 8 Gb (1.71%)
-      • /sashab/summer (runhouse.Function)
-      • mult (runhouse.Function)
+        This environment has only python packages installed, if provided. No resources were found.
+    • np_pd_env (runhouse.Env) | pid: 29621 | node: head (52.91.194.125)
+        CPU: 0.3% | Memory: 0.1 / 8 Gb (0.01%)
+        • np_pd_env (runhouse.Env)
+        • summer (runhouse.Function) Currently not running
+        • mult (runhouse.Function) Running for 2.484918 seconds
+
 
 *GPU cluster*
 
@@ -69,29 +69,33 @@ and details of the server. For printing cluster's status outside the cluser, its
 
     /sashab/rh-basic-gpu
     😈 Runhouse Daemon is running 🏃
-    Runhouse v0.0.28
-    server pid: 29486
+    Runhouse v0.0.34
+    🤖 aws g5.xlarge cluster | 🌍 us-east-1 | 💰 $1.006/hr
+    server pid: 29657
     • server port: 32300
-    • den auth: True
+    • den auth: False
     • server connection type: ssh
     • backend config:
-      • resource subtype: OnDemandCluster
-      • domain: None
-      • server host: 0.0.0.0
-      • ips: ['35.171.157.49']
-      • resource subtype: OnDemandCluster
-      • autostop mins: autostop disabled
+        • resource subtype: OnDemandCluster
+        • domain: None
+        • server host: 0.0.0.0
+        • ips: ['3.92.223.118']
+        • autostop mins: autostop disabled
+    CPU Utilization: 12.8% | GPU Utilization: 7.07%
     Serving 🍦 :
     • _cluster_default_env (runhouse.Env)
-      This environment has only python packages installed, if such provided. No resources were found.
-    • np_pd_env (runhouse.Env) | pid: 29672 | node: head (35.171.157.49)
-      CPU: 0.0% | Memory: 0.13 / 16 Gb (0.85%)
-      • /sashab/summer (runhouse.Function)
-      • mult (runhouse.Function)
-    • sd_env (runhouse.Env) | pid: 29812 | node: head (35.171.157.49)
-      CPU: 1.0% | Memory: 4.47 / 16 Gb (28.95%)
-      GPU: 0.0% | Memory: 6.89 / 23 Gb (29.96%)
-      • sd_generate (runhouse.Function)
+        This environment has only python packages installed, if provided. No resources were found.
+    • np_pd_env (runhouse.Env) | pid: 29809 | node: head (3.92.223.118)
+        CPU: 0.4% | Memory: 0.1 / 16 Gb (0.01%)
+        • np_pd_env (runhouse.Env)
+        • summer (runhouse.Function) Currently not running
+        • mult (runhouse.Function) Currently not running
+    • sd_env (runhouse.Env) | pid: 32054 | node: head (3.92.223.118)
+        CPU: 40.1% | Memory: 2.87 / 16 Gb (0.19%)
+        GPU Memory: 3.38 / 23 Gb (14.7%)
+        • sd_env (runhouse.Env)
+        • sd_generate (runhouse.Function) Running for 26.578614 seconds
+
 
 Local Python Function
 ---------------------

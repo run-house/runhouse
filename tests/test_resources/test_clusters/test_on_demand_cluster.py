@@ -1,14 +1,12 @@
 import asyncio
-import subprocess
 import time
 
 import pytest
 import requests
 
 import runhouse as rh
-from runhouse.constants import SERVER_LOGFILE_PATH
+
 from runhouse.globals import rns_client
-from runhouse.logger import ColoredFormatter
 from runhouse.resources.hardware.utils import ResourceServerStatus
 
 import tests.test_resources.test_clusters.test_cluster
@@ -77,6 +75,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             "ondemand_gcp_cluster",
             "ondemand_aws_https_cluster_with_auth",
             "ondemand_k8s_cluster",
+            "ondemand_k8s_docker_cluster",
         ]
     }
     MAXIMAL = {
@@ -84,11 +83,12 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             "ondemand_aws_cluster",
             "ondemand_gcp_cluster",
             "ondemand_k8s_cluster",
+            "ondemand_k8s_docker_cluster",
             "ondemand_aws_https_cluster_with_auth",
             "v100_gpu_cluster",
             "k80_gpu_cluster",
             "a10g_gpu_cluster",
-            "static_cpu_cluster",
+            "static_cpu_pwd_cluster",
             "multinode_cpu_cluster",
             "multinode_gpu_cluster",
         ]
@@ -181,8 +181,12 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         cluster.address = None
         assert not cluster._ping(retry=False)
 
-        cluster.address = "00.00.000.11"
-        assert not cluster._ping(retry=False)
+        if not (
+            hasattr(cluster, "launched_properties")
+            and cluster.launched_properties["cloud"] == "kubernetes"
+        ):  # kubernetes does not use ips in command runner
+            cluster.address = "00.00.000.11"
+            assert not cluster._ping(retry=False)
 
         assert cluster._ping(retry=True)
         assert cluster.is_up()
@@ -201,11 +205,17 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
     ####################################################################################################
     # Status tests
     ####################################################################################################
-    @pytest.mark.level("minimal")
-    @pytest.mark.skip("Test requires terminating the cluster")
-    def test_set_status_after_teardown(self, cluster):
 
-        assert cluster.is_up()
+    @pytest.mark.level("minimal")
+    def test_set_status_after_teardown(self, cluster, mocker):
+        mock_function = mocker.patch("sky.down")
+        response = cluster.teardown()
+        assert isinstance(response, int)
+        assert (
+            response == 200
+        )  # that means that the call to post status endpoint in den was successful
+        mock_function.assert_called_once()
+
         cluster_config = cluster.config()
         cluster_uri = rns_client.format_rns_address(cluster.rns_address)
         api_server_url = cluster_config.get("api_server_url", rns_client.api_server_url)
@@ -222,90 +232,4 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         assert get_status_data["resource_type"] == cluster_config.get("resource_type")
         assert get_status_data["status"] == ResourceServerStatus.terminated
 
-    @pytest.mark.level("minimal")
-    @pytest.mark.skip("Test requires terminating the cluster")
-    def test_status_autostop_cluster(self, cluster):
-        cluster_config = cluster.config()
-        cluster_uri = rns_client.format_rns_address(cluster.rns_address)
-        api_server_url = cluster_config.get("api_server_url", rns_client.api_server_url)
-        cluster_name_no_owner = cluster.rns_address.split("/")[-1]
-
-        # Mocking autostop by running sky down
-        result_teardown = subprocess.run(
-            ["sky", "down", "-y", cluster_name_no_owner], capture_output=True, text=True
-        )
-        assert result_teardown.returncode == 0
-
-        get_status_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-            headers=rns_client.request_headers(),
-        )
-        assert get_status_data_resp.status_code == 200
-        # For UI displaying purposes, the cluster/status endpoint returns cluster status history.
-        # The latest status info is the first element in the list returned by the endpoint.
-        get_status_data = get_status_data_resp.json()["data"][0]
-        assert get_status_data["resource_type"] == cluster_config.get("resource_type")
-        assert get_status_data["status"] == ResourceServerStatus.terminated
-
-    @pytest.mark.level("minimal")
-    @pytest.mark.skip(
-        "Stopping and restarting the server mid-test causes some errors, need to fix"
-    )
-    def test_status_cluster_rh_daemon_stopped(self, cluster):
-        cluster_config = cluster.config()
-        cluster_uri = rns_client.format_rns_address(cluster.rns_address)
-        api_server_url = cluster_config.get("api_server_url", rns_client.api_server_url)
-
-        cluster.run(["runhouse stop"])
-        get_status_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-            headers=rns_client.request_headers(),
-        )
-        assert get_status_data_resp.status_code == 200
-        # For UI displaying purposes, the cluster/status endpoint returns cluster status history.
-        # The latest status info is the first element in the list returned by the endpoint.
-        get_status_data = get_status_data_resp.json()["data"][0]
-        assert get_status_data["resource_type"] == cluster_config.get("resource_type")
-        if cluster_config.get("open_ports"):
-            assert (
-                get_status_data["status"] == ResourceServerStatus.runhouse_daemon_down
-            )
-        else:
-            assert get_status_data["status"] == ResourceServerStatus.terminated
-        cluster.restart_server()
-
-    ####################################################################################################
-    # Logs surfacing tests
-    ####################################################################################################
-    @pytest.mark.level("minimal")
-    def test_logs_surfacing_scheduler_basic_flow(self, cluster):
-
-        cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
-        headers = rh.globals.rns_client.request_headers()
-        api_server_url = rh.globals.rns_client.api_server_url
-
-        get_logs_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/logs",
-            headers=headers,
-        )
-
-        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"], stream_logs=False)[
-            0
-        ][1].split(
-            "\n"
-        )  # create list of lines
-        cluster_logs = [
-            ColoredFormatter.format_log(log) for log in cluster_logs
-        ]  # clean log formatting
-        cluster_logs = "\n".join(cluster_logs)  # make logs list into one string
-
-        assert (
-            "Performing cluster checks: potentially sending to Den, surfacing logs to Den or updating autostop."
-            in cluster_logs
-        )
-
-        assert get_logs_data_resp.status_code == 200
-        cluster_logs_from_s3 = get_logs_data_resp.json()["data"]["logs_text"][0][
-            1:
-        ].replace("\n ", "\n")
-        assert cluster_logs_from_s3 in cluster_logs
+        assert cluster.is_up()

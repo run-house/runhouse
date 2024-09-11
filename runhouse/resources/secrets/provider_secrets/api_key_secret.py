@@ -1,6 +1,5 @@
 from typing import Dict, Optional, Union
 
-from runhouse.resources.blobs.file import File
 from runhouse.resources.envs.env import Env
 from runhouse.resources.envs.env_factory import env as env_factory
 from runhouse.resources.hardware.cluster import Cluster
@@ -19,7 +18,7 @@ class ApiKeySecret(ProviderSecret):
         self,
         file: bool = False,
         env: bool = False,
-        path: Union[str, File] = None,
+        path: str = None,
         env_vars: Dict = None,
         overwrite: bool = False,
     ):
@@ -32,7 +31,7 @@ class ApiKeySecret(ProviderSecret):
     def to(
         self,
         system: Union[str, Cluster],
-        path: Union[str, File] = None,
+        path: str = None,
         env: Union[str, Env] = None,
         values: bool = True,
         name: Optional[str] = None,

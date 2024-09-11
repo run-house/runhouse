@@ -4,12 +4,14 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 from runhouse.globals import rns_client
-
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
 
 
 USER_ENDPOINT = "user/secret"
+
+
+logger = get_logger(__name__)
 
 
 def load_config(name: str, endpoint: str = USER_ENDPOINT):

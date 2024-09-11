@@ -11,7 +11,7 @@ import dotenv
 import requests
 from pydantic import BaseModel
 
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 
 from runhouse.rns.utils.api import (
     generate_uuid,
@@ -22,6 +22,8 @@ from runhouse.rns.utils.api import (
 )
 
 from runhouse.utils import locate_working_dir
+
+logger = get_logger(__name__)
 
 
 # This is a copy of the Pydantic model that we use to validate in Den

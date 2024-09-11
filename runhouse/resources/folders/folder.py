@@ -4,15 +4,17 @@ import pickle
 import shutil
 import subprocess
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from runhouse.globals import rns_client
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
 from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import generate_uuid, relative_file_path
 from runhouse.utils import locate_working_dir
+
+logger = get_logger(__name__)
 
 
 class Folder(Resource):
@@ -78,8 +80,7 @@ class Folder(Resource):
 
     # ----------------------------------
     @staticmethod
-    def from_config(config: dict, dryrun=False, _resolve_children=True):
-        """Load config values into the object."""
+    def from_config(config: Dict, dryrun: bool = False, _resolve_children: bool = True):
         if _resolve_children:
             config = Folder._check_for_child_configs(config)
 
@@ -98,7 +99,7 @@ class Folder(Resource):
         return Folder(**config, dryrun=dryrun)
 
     @classmethod
-    def _check_for_child_configs(cls, config: dict):
+    def _check_for_child_configs(cls, config: Dict):
         """Overload by child resources to load any resources they hold internally."""
         system = config.get("system")
         if isinstance(system, str) or isinstance(system, dict):
@@ -147,8 +148,19 @@ class Folder(Resource):
         """Whether to use system APIs to perform folder operations on the cluster via HTTP."""
         return isinstance(self.system, Cluster) and not self.system.on_this_cluster()
 
-    def mv(self, system, path: Optional[str] = None, overwrite: bool = True) -> None:
+    def mv(
+        self,
+        system: Union[str, Cluster],
+        path: Optional[str],
+        overwrite: bool = True,
+    ) -> None:
         """Move the folder to a new filesystem or cluster.
+
+        Args:
+            system (str or Cluster): Filesystem or cluster to move the folder to.
+            path (str): Path to move the folder to.
+            overwrite (bool, optional): Whether to override if a file already exists at the destination path.
+                (Default: ``True``)
 
         Example:
             >>> folder = rh.folder(path="local/path")
@@ -197,8 +209,12 @@ class Folder(Resource):
         system: Union[str, "Cluster"],
         path: Optional[Union[str, Path]] = None,
     ):
-        """Copy the folder to a new filesystem.
+        """Copy the folder to a new filesystem or cluster.
         Currently supported: ``here``, ``file``, ``gs``, ``s3``, or a cluster.
+
+        Args:
+            system (str or Cluster): Filesystem or cluster to move the folder to.
+            path (str, optional): Path to move the folder to.
 
         Example:
             >>> local_folder = rh.folder(path="/my/local/folder")
@@ -443,7 +459,7 @@ class Folder(Resource):
         """CLI command for downloading folder from remote bucket. Needed when downloading a folder to a cluster."""
         raise NotImplementedError
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True):
         config = super().config(condensed)
 
         if self.system == Folder.DEFAULT_FS:
@@ -470,7 +486,7 @@ class Folder(Resource):
             self.system.save(folder=folder)
 
     @staticmethod
-    def _path_relative_to_rh_workdir(path):
+    def _path_relative_to_rh_workdir(path: str):
         rh_workdir = Path(locate_working_dir())
         try:
             return str(Path(path).relative_to(rh_workdir))
@@ -478,7 +494,7 @@ class Folder(Resource):
             return path
 
     @staticmethod
-    def _path_absolute_to_rh_workdir(path):
+    def _path_absolute_to_rh_workdir(path: str):
         return (
             path
             if Path(path).expanduser().is_absolute()
@@ -549,6 +565,9 @@ class Folder(Resource):
     def resources(self, full_paths: bool = False):
         """List the resources in the folder.
 
+        Args:
+            full_paths (bool, optional): Whether to list the full path or relative path. (Default: ``False``)
+
         Example:
             >>> resources = my_folder.resources()
         """
@@ -579,9 +598,6 @@ class Folder(Resource):
 
     @property
     def rns_address(self):
-        """Traverse up the filesystem until reaching one of the directories in rns_base_folders,
-        then compute the relative path to that.
-        """
         # TODO Maybe later, account for folders along the path with a different RNS name.
 
         if self.name is None:  # Anonymous folders have no rns address
@@ -615,8 +631,11 @@ class Folder(Resource):
             relative_path = str(Path(self.path).relative_to(base_folder.path))
             return base_folder_path + "/" + relative_path
 
-    def contains(self, name_or_path) -> bool:
-        """Whether path of a Folder exists locally.
+    def contains(self, name_or_path: str) -> bool:
+        """Whether path exists locally inside a folder.
+
+        Args:
+            name_or_path (str): Name or path of folder to check if it exists inside the folder.
 
         Example:
             >>> my_folder = rh.folder("local/folder/path")
@@ -625,8 +644,11 @@ class Folder(Resource):
         path, _ = self.locate(name_or_path)
         return path is not None
 
-    def locate(self, name_or_path) -> (str, str):
+    def locate(self, name_or_path) -> Tuple[str, str]:
         """Locate the local path of a Folder given an rns path.
+
+        Args:
+            name_or_path (str): Name or path of folder to locate inside the folder.
 
         Example:
             >>> my_folder = rh.folder("local/folder/path")
@@ -678,9 +700,14 @@ class Folder(Resource):
 
         return None, None
 
-    def open(self, name, mode="rb", encoding=None):
+    def open(self, name, mode: str = "rb", encoding: Optional[str] = None):
         """Returns the specified file as a stream (`botocore.response.StreamingBody`), which must be used as a
         content manager to be opened.
+
+        Args:
+            name (str): Name of file inside the folder to open.
+            mode (str, optional): Mode for opening the file. (Default: ``"rb"``)
+            encoding (str, optional): Encoding for opening the file. (Default: ``None``)
 
         Example:
             >>> with my_folder.open('obj_name') as my_file:
@@ -696,8 +723,13 @@ class Folder(Resource):
 
         return open(file_path, mode=mode, encoding=encoding)
 
-    def get(self, name, mode="rb", encoding=None):
+    def get(self, name, mode: str = "rb", encoding: Optional[str] = None):
         """Returns the contents of a file as a string or bytes.
+
+        Args:
+            name (str): Name of file to get contents of.
+            mode (str, optional): Mode for opening the file. (Default: ``"rb"``)
+            encoding (str, optional): Encoding for opening the file. (Default: ``None``)
 
         Example:
             >>> contents = my_folder.get(file_name)
@@ -723,18 +755,19 @@ class Folder(Resource):
             >>> exists_on_system = my_folder.exists_in_system()
         """
         if self._use_http_endpoint:
-            return self.system._folder_exists(self.path)
+            return self.system._folder_exists(path=self.path)
         else:
             full_path = Path(self.path).expanduser()
             return full_path.exists() and full_path.is_dir()
 
-    def rm(self, contents: list = None, recursive: bool = True):
+    def rm(self, contents: List = None, recursive: bool = True):
         """Delete a folder from the file system. Optionally provide a list of folder contents to delete.
 
         Args:
-            contents (Optional[List]): Specific contents to delete in the folder.
-            recursive (bool): Delete the folder itself (including all its contents).
-                Defaults to ``True``.
+            contents (Optional[List]): Specific contents to delete in the folder. If None, removes
+                the entire folder. (Default: ``None``)
+            recursive (bool, optional): Delete the folder itself (including all its contents).
+                (Default: ``True``)
 
         Example:
             >>> my_folder.rm()
@@ -760,15 +793,15 @@ class Folder(Resource):
                     else:
                         folder_path.unlink()
 
-    def put(self, contents, overwrite=False, mode: str = "wb"):
+    def put(self, contents: Dict[str, Any], overwrite: bool = False, mode: str = "wb"):
         """Put given contents in folder.
 
         Args:
             contents (Dict[str, Any] or Resource or List[Resource]): Contents to put in folder.
                 Must be a dict with keys being the file names (without full paths) and values being the file-like
                 objects to write, or a Resource object, or a list of Resources.
-            overwrite (bool): Whether to overwrite the existing file if it exists. Defaults to ``False``.
-            mode (Optional(str)): Write mode to use. Defaults to ``wb``.
+            overwrite (bool, optional): Whether to overwrite the existing file if it exists. (Default: ``False``)
+            mode (str, optional): Write mode to use. (Default: ``wb``).
 
         Example:
             >>> my_folder.put(contents={"filename.txt": data})

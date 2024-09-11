@@ -1,10 +1,12 @@
+import asyncio
 import contextlib
 import json
 import subprocess
 import time
 import warnings
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
 
 import requests
 
@@ -26,11 +28,16 @@ from runhouse.constants import (
 )
 
 from runhouse.globals import configs, obj_store, rns_client
-
-from runhouse.logger import logger
-from runhouse.resources.hardware.utils import ResourceServerStatus, ServerConnectionType
+from runhouse.logger import get_logger
+from runhouse.resources.hardware.utils import (
+    ResourceServerStatus,
+    ServerConnectionType,
+    up_cluster_helper,
+)
 
 from .cluster import Cluster
+
+logger = get_logger(__name__)
 
 
 class OnDemandCluster(Cluster):
@@ -45,21 +52,21 @@ class OnDemandCluster(Cluster):
         num_instances: int = None,
         provider: str = None,
         default_env: "Env" = None,
-        dryrun=False,
-        autostop_mins=None,
-        use_spot=False,
-        image_id=None,
-        memory=None,
-        disk_size=None,
-        open_ports=None,
-        server_host: str = None,
+        dryrun: bool = False,
+        autostop_mins: int = None,
+        use_spot: bool = False,
+        image_id: str = None,
+        memory: Union[int, str] = None,
+        disk_size: Union[int, str] = None,
+        open_ports: Union[int, str, List[int]] = None,
+        server_host: int = None,
         server_port: int = None,
         server_connection_type: str = None,
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
         domain: str = None,
         den_auth: bool = False,
-        region=None,
+        region: str = None,
         sky_kwargs: Dict = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -137,10 +144,10 @@ class OnDemandCluster(Cluster):
         if self.on_this_cluster():
             obj_store.set_cluster_config_value("autostop_mins", mins)
         else:
-            if self.run_python(["import skypilot"])[0] != 0:
-                raise ImportError(
-                    "Skypilot must be installed on the cluster in order to set autostop."
-                )
+            # if self.run_python(["import skypilot"])[0] != 0:
+            #     raise ImportError(
+            #         "Skypilot must be installed on the cluster in order to set autostop."
+            #     )
             self.call_client_method("set_settings", {"autostop_mins": mins})
             sky.autostop(self.name, mins, down=True)
 
@@ -151,14 +158,15 @@ class OnDemandCluster(Cluster):
 
         # TODO detect whether this is a k8s cluster properly, and handle the user setting / SSH properly
         #  (e.g. SkyPilot's new KubernetesCommandRunner)
-        if (
-            not self.image_id
-            or "docker:" not in self.image_id
-            or self.provider == "kubernetes"
-        ):
+        if not self.image_id or "docker:" not in self.image_id:
             return None
 
-        from runhouse.resources.hardware.sky_ssh_runner import get_docker_user
+        if self.launched_properties["cloud"] == "kubernetes":
+            return self.launched_properties.get(
+                "docker_user", self.launched_properties.get("ssh_user", "root")
+            )
+
+        from runhouse.resources.hardware.sky_command_runner import get_docker_user
 
         if not self._creds:
             return
@@ -188,7 +196,7 @@ class OnDemandCluster(Cluster):
         config["autostop_mins"] = self._autostop_mins
         return config
 
-    def endpoint(self, external=False):
+    def endpoint(self, external: bool = False):
         if not self.address or self.on_this_cluster():
             return None
 
@@ -217,13 +225,6 @@ class OnDemandCluster(Cluster):
         return yaml_path
 
     def set_connection_defaults(self):
-        if self.server_connection_type in [
-            ServerConnectionType.AWS_SSM,
-        ]:
-            raise ValueError(
-                f"OnDemandCluster does not support server connection type {self.server_connection_type}"
-            )
-
         if not self.server_connection_type:
             if self.ssl_keyfile or self.ssl_certfile:
                 self.server_connection_type = ServerConnectionType.TLS
@@ -392,7 +393,9 @@ class OnDemandCluster(Cluster):
                 )
             yaml_path = handle.cluster_yaml
             if Path(yaml_path).exists():
-                ssh_values = backend_utils.ssh_credential_from_yaml(yaml_path)
+                ssh_values = backend_utils.ssh_credential_from_yaml(
+                    yaml_path, ssh_user=handle.ssh_user
+                )
                 if not self.creds_values:
                     from runhouse.resources.secrets.utils import setup_cluster_creds
 
@@ -416,6 +419,20 @@ class OnDemandCluster(Cluster):
                 self.launched_properties["ssh_user"] = handle.ssh_user
             if handle.docker_user:
                 self.launched_properties["docker_user"] = handle.docker_user
+            if cloud == "kubernetes":
+                try:
+                    import kubernetes
+
+                    _, context = kubernetes.config.list_kube_config_contexts()
+                    if "namespace" in context["context"]:
+                        namespace = context["context"]["namespace"]
+                    else:
+                        namespace = "default"
+                except:
+                    namespace = "default"
+                pod_name = f"{handle.cluster_name_on_cloud}-head"
+                self.launched_properties["namespace"] = namespace
+                self.launched_properties["pod_name"] = pod_name
         else:
             self.address = None
             self._creds = None
@@ -433,6 +450,7 @@ class OnDemandCluster(Cluster):
         self._populate_connection_from_status_dict(cluster_dict)
 
     def get_instance_type(self):
+        """Returns instance type of the cluster."""
         if self.instance_type and "--" in self.instance_type:  # K8s specific syntax
             return self.instance_type
         elif (
@@ -445,6 +463,7 @@ class OnDemandCluster(Cluster):
         return None
 
     def accelerators(self):
+        """Returns the acclerator type, or None if is a CPU."""
         if (
             self.instance_type
             and ":" in self.instance_type
@@ -455,6 +474,7 @@ class OnDemandCluster(Cluster):
         return None
 
     def num_cpus(self):
+        """Return the number of CPUs for a CPU cluster."""
         if (
             self.instance_type
             and ":" in self.instance_type
@@ -463,6 +483,34 @@ class OnDemandCluster(Cluster):
             return self.instance_type.rsplit(":", 1)[1]
 
         return None
+
+    async def a_up(self, capture_output: Union[bool, str] = True):
+        """Up the cluster async in another process, so it can be parallelized and logs can be captured sanely.
+
+        capture_output: If True, supress the output of the cluster creation process. If False, print the output
+        normally. If a string, write the output to the file at that path.
+        """
+
+        with ProcessPoolExecutor() as executor:
+            loop = asyncio.get_running_loop()
+            future = loop.run_in_executor(
+                executor, up_cluster_helper, self, capture_output
+            )
+
+            # Await the result from the separate process
+            result = await future
+            if isinstance(capture_output, str):
+                with open(capture_output, "w") as f:
+                    f.write(result)
+
+        return self
+
+    async def a_up_if_not(self, capture_output: Union[bool, str] = True):
+        if not self.is_up():
+            # Don't store stale IPs
+            self.ips = None
+            await self.a_up(capture_output=capture_output)
+        return self
 
     def up(self):
         """Up the cluster.
@@ -608,8 +656,11 @@ class OnDemandCluster(Cluster):
     # ----------------- SSH Methods ----------------- #
 
     @staticmethod
-    def cluster_ssh_key(path_to_file):
+    def cluster_ssh_key(path_to_file: Path):
         """Retrieve SSH key for the cluster.
+
+        Args:
+            path_to_file (Path): Path of the private key associated with the cluster.
 
         Example:
             >>> ssh_priv_key = rh.ondemand_cluster("rh-cpu").cluster_ssh_key("~/.ssh/id_rsa")
@@ -622,7 +673,11 @@ class OnDemandCluster(Cluster):
             raise Exception(f"File with ssh key not found in: {path_to_file}")
 
     def ssh(self, node: str = None):
-        """SSH into the cluster. If no node is specified, will SSH onto the head node.
+        """SSH into the cluster.
+
+        Args:
+            node: Node to SSH into. If no node is specified, will SSH onto the head node.
+                (Default: ``None``)
 
         Example:
             >>> rh.ondemand_cluster("rh-cpu").ssh()
@@ -648,9 +703,8 @@ class OnDemandCluster(Cluster):
 
         else:
             # If SSHing onto a specific node, which requires the default sky public key for verification
-            from runhouse.resources.hardware.sky_ssh_runner import SkySSHRunner, SshMode
+            from runhouse.resources.hardware.sky_command_runner import SshMode
 
-            ssh_user = self.creds_values.get("ssh_user")
             sky_key = Path(
                 self.creds_values.get("ssh_private_key", self.DEFAULT_KEYFILE)
             ).expanduser()
@@ -658,13 +712,7 @@ class OnDemandCluster(Cluster):
             if not sky_key.exists():
                 raise FileNotFoundError(f"Expected default sky key in path: {sky_key}")
 
-            runner = SkySSHRunner(
-                ip=node or self.address,
-                ssh_user=ssh_user,
-                port=self.ssh_port,
-                ssh_private_key=str(sky_key),
-                docker_user=self.docker_user,
-            )
+            runner = self._command_runner(node=node)
             cmd = runner.run(
                 cmd="bash --rcfile <(echo '. ~/.bashrc; conda deactivate')",
                 ssh_mode=SshMode.INTERACTIVE,

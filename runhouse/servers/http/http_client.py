@@ -1,5 +1,4 @@
 import json
-import logging
 import time
 import warnings
 from functools import wraps
@@ -12,8 +11,7 @@ import httpx
 import requests
 
 from runhouse.globals import rns_client
-
-from runhouse.logger import ClusterLogsFormatter, logger
+from runhouse.logger import get_logger
 
 from runhouse.resources.envs.utils import _get_env_from
 
@@ -36,12 +34,14 @@ from runhouse.servers.http.http_utils import (
     serialize_data,
 )
 
-from runhouse.utils import generate_default_name
+from runhouse.utils import ClusterLogsFormatter, generate_default_name
 
 
 # Make this global so connections are pooled across instances of HTTPClient
 session = requests.Session()
 session.timeout = None
+
+logger = get_logger(__name__)
 
 
 def retry_with_exponential_backoff(func):
@@ -276,21 +276,25 @@ class HTTPClient:
                 f"but local Runhouse version is ({runhouse.__version__})"
             )
 
-    def status(self, resource_address: str):
+    def status(self, resource_address: str, send_to_den: bool = False):
         """Load the remote cluster's status."""
         # Note: Resource address must be specified in order to construct the cluster subtoken
-        return self.request("status", req_type="get", resource_address=resource_address)
+        return self.request(
+            f"status?send_to_den={send_to_den}",
+            req_type="get",
+            resource_address=resource_address,
+        )
 
     def folder_ls(self, path: Union[str, Path], full_paths: bool, sort: bool):
         folder_params = FolderLsParams(
             path=path, full_paths=full_paths, sort=sort
-        ).dict()
+        ).model_dump()
         return self.request_json(
             "/folder/method/ls", req_type="post", json_dict=folder_params
         )
 
     def folder_mkdir(self, path: Union[str, Path]):
-        folder_params = FolderParams(path=path).dict()
+        folder_params = FolderParams(path=path).model_dump()
         return self.request_json(
             "/folder/method/mkdir", req_type="post", json_dict=folder_params
         )
@@ -300,13 +304,15 @@ class HTTPClient:
     ):
         folder_params = FolderMvParams(
             path=path, dest_path=dest_path, overwrite=overwrite
-        ).dict()
+        ).model_dump()
         return self.request_json(
             "/folder/method/mv", req_type="post", json_dict=folder_params
         )
 
     def folder_get(self, path: Union[str, Path], encoding: str, mode: str):
-        folder_params = FolderGetParams(path=path, encoding=encoding, mode=mode).dict()
+        folder_params = FolderGetParams(
+            path=path, encoding=encoding, mode=mode
+        ).model_dump()
         return self.request_json(
             "/folder/method/get", req_type="post", json_dict=folder_params
         )
@@ -325,7 +331,7 @@ class HTTPClient:
             mode=mode,
             overwrite=overwrite,
             serialization=serialization,
-        ).dict()
+        ).model_dump()
         return self.request_json(
             "/folder/method/put", req_type="post", json_dict=folder_params
         )
@@ -333,13 +339,13 @@ class HTTPClient:
     def folder_rm(self, path: Union[str, Path], contents: List, recursive: bool):
         folder_params = FolderRmParams(
             path=path, recursive=recursive, contents=contents
-        ).dict()
+        ).model_dump()
         return self.request_json(
             "/folder/method/rm", req_type="post", json_dict=folder_params
         )
 
     def folder_exists(self, path: str):
-        folder_params = FolderParams(path=path).dict()
+        folder_params = FolderParams(path=path).model_dump()
         return self.request_json(
             "/folder/method/exists", req_type="post", json_dict=folder_params
         )
@@ -443,7 +449,7 @@ class HTTPClient:
                 stream_logs=stream_logs,
                 save=save,
                 remote=remote,
-            ).dict(),
+            ).model_dump(),
             stream=True,
             headers=rns_client.request_headers(resource_address),
             auth=self.auth,
@@ -489,7 +495,7 @@ class HTTPClient:
         else:
             log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
 
-        logging.info(log_str)
+        logger.info(log_str)
         return result
 
     async def acall(
@@ -562,7 +568,7 @@ class HTTPClient:
                 save=save,
                 remote=remote,
                 run_async=run_async,
-            ).dict(),
+            ).model_dump(),
             headers=rns_client.request_headers(resource_address),
         ) as res:
             if res.status_code != 200:
@@ -590,7 +596,7 @@ class HTTPClient:
                 )
             else:
                 log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
-            logging.info(log_str)
+            logger.info(log_str)
             return result
 
     def put_object(self, key: str, value: Any, env=None):
@@ -602,7 +608,7 @@ class HTTPClient:
                 serialized_data=serialize_data(value, "pickle"),
                 env_name=env,
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             err_str=f"Error putting object {key}",
         )
 
@@ -618,7 +624,7 @@ class HTTPClient:
                 serialized_data=serialize_data([config, state, dryrun], "pickle"),
                 env_name=env_name,
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             err_str=f"Error putting resource {resource.name or type(resource)}",
         )
 
@@ -638,7 +644,7 @@ class HTTPClient:
                     key=key,
                     serialization="pickle",
                     remote=remote,
-                ).dict(),
+                ).model_dump(),
                 err_str=f"Error getting object {key}",
             )
             if remote and isinstance(res, dict) and "resource_type" in res:
@@ -661,7 +667,7 @@ class HTTPClient:
         self.request_json(
             "rename",
             req_type="post",
-            json_dict=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            json_dict=RenameObjectParams(key=old_key, new_key=new_key).model_dump(),
             err_str=f"Error renaming object {old_key}",
         )
 
@@ -688,7 +694,7 @@ class HTTPClient:
         return self.request_json(
             "delete_object",
             req_type="post",
-            json_dict=DeleteObjectParams(keys=keys or []).dict(),
+            json_dict=DeleteObjectParams(keys=keys or []).model_dump(),
             err_str=f"Error deleting keys {keys}",
         )
 

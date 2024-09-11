@@ -110,7 +110,6 @@ Please reach out (first name at run.house) if you don't see your favorite comput
   - Amazon Web Services (AWS)
     - EC2 - **Supported**
     - EKS - **Supported**
-    - SageMaker - **Supported**
     - Lambda - **Alpha**
   - Google Cloud Platform (GCP)
     - GCE - **Supported**

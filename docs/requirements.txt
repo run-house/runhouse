@@ -4,7 +4,6 @@ pint==0.20.1
 pyarrow==9.0.0
 pydata-sphinx-theme==0.13.3
 ray>=2.2.0
-sagemaker
 sentry-sdk==1.28.1
 sphinx-book-theme==1.0.1
 sphinx-click==4.3.0

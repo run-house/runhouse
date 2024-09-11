@@ -13,9 +13,10 @@ import pytest
 import runhouse as rh
 from runhouse import Package
 from runhouse.constants import TEST_ORG
+from runhouse.logger import get_logger
+from runhouse.utils import capture_stdout
 
-from runhouse.logger import logger
-
+logger = get_logger(__name__)
 
 """ Tests for runhouse.Module. Structure:
     - Test call_module_method rpc, with various envs
@@ -170,7 +171,7 @@ def load_and_use_readonly_module(mod_name, cpu_count, size=3):
     results = []
     # Capture stdout to check that it's working
     out = ""
-    with rh.capture_stdout() as stdout:
+    with capture_stdout() as stdout:
         for i, val in enumerate(remote_df.slow_iter()):
             assert val
             print(val)
@@ -275,8 +276,8 @@ class TestModule:
 
         results = []
         out = ""
-        with rh.capture_stdout() as stdout:
-            for i, val in enumerate(remote_instance.slow_iter()):
+        with capture_stdout() as stdout:
+            for val in remote_instance.slow_iter():
                 assert val
                 print(val)
                 results += [val]
@@ -364,7 +365,7 @@ class TestModule:
         results = []
         # Capture stdout to check that it's working
         out = ""
-        with rh.capture_stdout() as stdout:
+        with capture_stdout() as stdout:
             for i, val in enumerate(remote_instance.slow_iter()):
                 assert val
                 print(val)
@@ -429,7 +430,7 @@ class TestModule:
         results = []
         # Capture stdout to check that it's working
         out = ""
-        with rh.capture_stdout() as stdout:
+        with capture_stdout() as stdout:
             async for val in remote_df.slow_iter_async():
                 assert val
                 print(val)

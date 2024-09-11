@@ -1,7 +1,6 @@
 import contextvars
 import copy
 import json
-import logging
 import os
 from collections import defaultdict
 from pathlib import Path
@@ -10,12 +9,14 @@ from typing import Any, Dict, Optional
 import requests
 import yaml
 
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 
 from runhouse.rns.utils.api import read_resp_data, to_bool
 
 
 req_ctx = contextvars.ContextVar("rh_ctx", default={})
+
+logger = get_logger(__name__)
 
 
 class Defaults:
@@ -133,7 +134,7 @@ class Defaults:
         if Path(config_path).exists():
             with open(config_path, "r") as stream:
                 config = yaml.safe_load(stream)
-            logging.info(f"Loaded Runhouse config from {config_path}")
+            logger.info(f"Loaded Runhouse config from {config_path}")
 
         return config or {}
 

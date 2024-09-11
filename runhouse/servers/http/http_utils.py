@@ -9,12 +9,16 @@ from typing import Any, Dict, List, Optional, Union
 import requests
 
 from fastapi import HTTPException
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 from ray import cloudpickle as pickle
 from ray.exceptions import RayTaskError
 
-from runhouse.logger import ClusterLogsFormatter, logger
+from runhouse.logger import get_logger
+
 from runhouse.servers.obj_store import RunhouseStopIteration
+from runhouse.utils import ClusterLogsFormatter
+
+logger = get_logger(__name__)
 
 
 class RequestContext(BaseModel):
@@ -90,8 +94,9 @@ class OutputType:
 
 class FolderParams(BaseModel):
     path: str
+    is_file: bool = False
 
-    @validator("path", pre=True, always=True)
+    @field_validator("path", mode="before")
     def convert_path_to_string(cls, v):
         return str(v) if v is not None else v
 
@@ -122,7 +127,7 @@ class FolderMvParams(FolderParams):
     dest_path: str
     overwrite: Optional[bool] = True
 
-    @validator("dest_path", pre=True, always=True)
+    @field_validator("dest_path", mode="before")
     def convert_path_to_string(cls, v):
         return str(v) if v is not None else v
 
@@ -529,8 +534,11 @@ def folder_mv(src_path: Path, dest_path: str, overwrite: bool):
 
 
 def folder_exists(path: Path):
+    folder_exists_resp = path.exists()
+    if not path.is_file():
+        folder_exists_resp = folder_exists_resp and path.is_dir()
     return Response(
-        data=path.exists() and path.is_dir(),
+        data=folder_exists_resp,
         output_type=OutputType.RESULT_SERIALIZED,
         serialization=None,
     )

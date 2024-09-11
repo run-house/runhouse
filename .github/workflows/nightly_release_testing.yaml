@@ -190,6 +190,13 @@ jobs:
         run: pytest --level release tests -k "ondemand_k8s_cluster" --detached
         timeout-minutes: 180
 
+      - name: Teardown all kubernetes-tests clusters
+        if: always()
+        run: |
+          sky status
+          sky down --all -y
+          sky status
+
   check-cluster-status:
     if: always()
     needs:

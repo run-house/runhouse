@@ -62,11 +62,12 @@ def parse_readme(readme: str) -> str:
 
 
 install_requires = [
+    "annotated-types>=0.6.0",
     "python-dotenv",
     "fastapi",
     "pexpect",
     "pyOpenSSL>=23.3.0",
-    "ray[default] >= 2.2.0, != 2.6.0",
+    "ray[default] >= 2.9.0",
     "async_timeout",  # Needed for ray<=2.9
     "rich",
     "sentry-sdk",
@@ -76,6 +77,8 @@ install_requires = [
     "wheel",
     "apispec",
     "httpx",
+    "pydantic >= 2.5.0",  # required for ray >= 2.9.0 (https://github.com/ray-project/ray/releases?page=2)
+    "pynvml",
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following
@@ -89,7 +92,6 @@ extras_require = {
         # If you don't want to use these exact versions, you can install runhouse without the aws extras, then
         # install your desired versions of awscli and boto3
         "pycryptodome==3.12.0",
-        "sshtunnel>=0.3.0",  # required for sagemaker
     ],
     "azure": ["skypilot[azure]==0.6.0"],
     "gcp": [
@@ -97,13 +99,6 @@ extras_require = {
         "gcsfs",
     ],
     "docker": ["docker"],
-    "sagemaker": [
-        "skypilot==0.6.0",
-        # https://github.com/aws-samples/sagemaker-ssh-helper
-        "sagemaker_ssh_helper",
-        "sagemaker",
-        "paramiko>=3.2.0",
-    ],
     "kubernetes": ["skypilot==0.6.0", "kubernetes"],
 }
 

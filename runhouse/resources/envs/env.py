@@ -1,18 +1,19 @@
 import copy
-import logging
 import os
 import shlex
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.globals import obj_store
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
 from runhouse.resources.envs.utils import _process_env_vars, run_setup_command
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import InstallTarget, Package
 from runhouse.resources.resource import Resource
 from runhouse.utils import run_with_logs
+
+logger = get_logger(__name__)
 
 
 class Env(Resource):
@@ -50,7 +51,6 @@ class Env(Resource):
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
-        """Create an Env object from a config dict"""
         config["reqs"] = [
             Package.from_config(req, dryrun=True, _resolve_children=_resolve_children)
             if isinstance(req, dict)
@@ -77,6 +77,11 @@ class Env(Resource):
     def _set_env_vars(env_vars):
         for k, v in env_vars.items():
             os.environ[k] = v
+
+    def add_env_var(self, key: str, value: str):
+        """Add an env var to the environment. Environment must be re-installed to propagate new
+        environment variables if it already lives on a cluster."""
+        self.env_vars.update({key: value})
 
     def config(self, condensed=True):
         config = super().config(condensed)
@@ -135,7 +140,9 @@ class Env(Resource):
             new_secrets.append(secret.to(system=system, env=self))
         return new_secrets
 
-    def _install_reqs(self, cluster: Cluster = None, reqs: List = None):
+    def _install_reqs(
+        self, cluster: Cluster = None, reqs: List = None, node: str = "all"
+    ):
         reqs = reqs or self.reqs
         if reqs:
             for package in reqs:
@@ -149,9 +156,11 @@ class Env(Resource):
                     raise ValueError(f"package {package} not recognized")
 
                 logger.debug(f"Installing package: {str(pkg)}")
-                pkg._install(env=self, cluster=cluster)
+                pkg._install(env=self, cluster=cluster, node=node)
 
-    def _run_setup_cmds(self, cluster: Cluster = None, setup_cmds: List = None):
+    def _run_setup_cmds(
+        self, cluster: Cluster = None, setup_cmds: List = None, node: str = "all"
+    ):
         setup_cmds = setup_cmds or self.setup_cmds
 
         if not setup_cmds:
@@ -160,46 +169,67 @@ class Env(Resource):
         for cmd in setup_cmds:
             cmd = self._full_command(cmd)
             run_setup_command(
-                cmd, cluster=cluster, env_vars=_process_env_vars(self.env_vars)
+                cmd,
+                cluster=cluster,
+                env_vars=_process_env_vars(self.env_vars),
+                node=node,
             )
 
-    def install(self, force: bool = False, cluster: Cluster = None):
-        """Locally install packages and run setup commands."""
-        # Hash the config_for_rns to check if we need to install
-        env_config = self.config()
-        # Remove the name because auto-generated names will be different, but the installed components are the same
-        env_config.pop("name")
-        install_hash = hash(str(env_config))
-        # Check the existing hash
-        if install_hash in obj_store.installed_envs and not force:
-            logger.debug("Env already installed, skipping")
-            return
-        obj_store.installed_envs[install_hash] = self.name
+    def install(self, force: bool = False, cluster: Cluster = None, node: str = "all"):
+        """Locally install packages and run setup commands.
 
-        self._install_reqs(cluster=cluster)
-        self._run_setup_cmds(cluster=cluster)
+        Args:
+            force (bool, optional): Whether to setup the installation again if the env already exists
+                on the cluster. (Default: ``False``)
+            cluster (Clsuter, optional): Cluster to install the env on. If not provided, env is installed
+                on the current cluster. (Default: ``None``)
+            node (str, optional): Node to install the env on. (Default: ``"all"``)
+        """
+        # If we're doing the install remotely via SSH (e.g. for default_env), there is no cache
+        if not cluster:
+            # Hash the config_for_rns to check if we need to install
+            env_config = self.config()
+            # Remove the name because auto-generated names will be different, but the installed components are the same
+            env_config.pop("name")
+            install_hash = hash(str(env_config))
+            # Check the existing hash
+            if install_hash in obj_store.installed_envs and not force:
+                logger.debug("Env already installed, skipping")
+                return
+            obj_store.installed_envs[install_hash] = self.name
+
+        self._install_reqs(cluster=cluster, node=node)
+        self._run_setup_cmds(cluster=cluster, node=node)
 
     def _full_command(self, command: str):
         if self._run_cmd:
-            return f"{self._run_cmd} $SHELL -c {shlex.quote(command)}"
+            return f"{self._run_cmd} ${{SHELL:-/bin/bash}} -c {shlex.quote(command)}"
         return command
 
     def _run_command(self, command: str, **kwargs):
         """Run command locally inside the environment"""
         command = self._full_command(command)
-        logging.info(f"Running command in {self.name}: {command}")
+        logger.info(f"Running command in {self.name}: {command}")
         return run_with_logs(command, **kwargs)
 
     def to(
         self,
         system: Union[str, Cluster],
-        node_idx=None,
-        path=None,
-        force_install=False,
+        node_idx: Optional[int] = None,
+        path: str = None,
+        force_install: bool = False,
     ):
         """
-        Send environment to the system (Cluster or file system).
-        This includes installing packages and running setup commands if system is a cluster.
+        Send environment to the system, and set it up if on a cluster.
+
+        Args:
+            system (str or Cluster): Cluster or file system to send the env to.
+            node_idx (int, optional): Node index of the cluster to send the env to. If not specified,
+                uses the head node. (Default: ``None``)
+            path (str, optional): Path on the cluster to sync the env's working dir to. Uses a default
+                path if not specified. (Default: ``None``)
+            force_install (bool, optional): Whether to setup the installation again if the env already
+                exists on the cluster. (Default: ``False``)
 
         Example:
             >>> env = rh.env(reqs=["numpy", "pip"])
@@ -207,19 +237,21 @@ class Env(Resource):
             >>> s3_env = env.to("s3", path="s3_bucket/my_env")
         """
         system = _get_cluster_from(system)
+        if (
+            isinstance(system, Cluster)
+            and node_idx is not None
+            and node_idx >= len(system.ips)
+        ):
+            raise ValueError(
+                f"Cluster {system.name} has only {len(system.ips)} nodes. Requested node index {node_idx} is out of bounds."
+            )
+
         new_env = copy.deepcopy(self)
         new_env.reqs, new_env.working_dir = self._reqs_to(system, path)
 
         if isinstance(system, Cluster):
             if node_idx is not None:
-                if node_idx >= len(system.ips):
-                    raise ValueError(
-                        f"Cluster {system.name} has only {len(system.ips)} nodes. Requested node index {node_idx} is out of bounds."
-                    )
-
-                if new_env.compute is None:
-                    new_env.compute = {}
-
+                new_env.compute = new_env.compute or {}
                 new_env.compute["node_idx"] = node_idx
 
             key = (

@@ -1,4 +1,4 @@
-import copy
+import datetime
 import importlib
 import logging
 import math
@@ -12,8 +12,10 @@ from typing import Any, Dict, List, Optional
 import ray
 
 import requests
+import rich.markdown
 
 import typer
+import yaml
 from rich.console import Console
 
 import runhouse as rh
@@ -23,7 +25,6 @@ import runhouse.rns.login
 from runhouse import __version__, cluster, Cluster, configs
 from runhouse.constants import (
     BULLET_UNICODE,
-    DEFAULT_LOG_LEVEL,
     DOUBLE_SPACE_UNICODE,
     RAY_KILL_CMD,
     RAY_START_CMD,
@@ -33,8 +34,8 @@ from runhouse.constants import (
     START_NOHUP_CMD,
     START_SCREEN_CMD,
 )
-from runhouse.globals import obj_store, rns_client
-from runhouse.logger import logger
+from runhouse.globals import rns_client
+from runhouse.logger import get_logger
 from runhouse.resources.hardware.ray_utils import (
     check_for_existing_ray_instance,
     kill_actors,
@@ -45,6 +46,8 @@ app = typer.Typer(add_completion=False)
 
 # For printing with typer
 console = Console()
+
+logger = get_logger(__name__)
 
 
 @app.command()
@@ -153,12 +156,28 @@ def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluste
             raise typer.Exit(1)
 
         resource_handle = state[0].get("handle", {})
+
+        sky_ssh_config = Path(f"~/.sky/generated/{cluster_name}.yml").expanduser()
+
+        if sky_ssh_config.exists():
+            with open(sky_ssh_config, "r", encoding="utf-8") as f:
+                ssh_config = yaml.safe_load(f)
+            ssh_proxy_command = ssh_config["auth"].get("ssh_proxy_command", None)
+            if ssh_proxy_command:
+                ssh_proxy_command = ssh_proxy_command.replace(
+                    "skypilot:ssh_user", resource_handle.ssh_user
+                )
+
+        else:
+            ssh_proxy_command = None
+
         _run_ssh_command(
             address=resource_handle.head_ip,
             ssh_user=resource_handle.ssh_user or "ubuntu",
             ssh_port=resource_handle.stable_ssh_ports[0] or DEFAULT_SSH_PORT,
             ssh_private_key=OnDemandCluster.DEFAULT_KEYFILE,
             docker_user=resource_handle.docker_user,
+            ssh_proxy_command=ssh_proxy_command,
         )
 
 
@@ -203,13 +222,7 @@ def _print_cluster_config(cluster_config: Dict):
         "server_connection_type",
     ]
 
-    backend_config = [
-        "resource_subtype",
-        "domain",
-        "server_host",
-        "ips",
-        "resource_subtype",
-    ]
+    backend_config = ["resource_subtype", "domain", "server_host", "ips"]
 
     if cluster_config.get("resource_subtype") != "Cluster":
         backend_config.append("autostop_mins")
@@ -240,9 +253,10 @@ def _print_envs_info(
     env_servlet_processes: Dict[str, Dict[str, Any]], current_cluster: Cluster
 ):
     """
-    Prints info about the envs in the current_cluster.
-    Prints the resources in each env, and the CPU and GPU usage of the env (if exists).
+    Prints info about the envs in the current_cluster: resources in each env, the CPU usage and GPU usage of the env
+    (if exists)
     """
+
     # Print headline
     envs_in_cluster_headline = "Serving 🍦 :"
     console.print(envs_in_cluster_headline)
@@ -263,7 +277,7 @@ def _print_envs_info(
         # case where the default env doesn't hve any other resources, apart from the default env itself.
         console.print(f"{BULLET_UNICODE} {default_env_name} (runhouse.Env)")
         console.print(
-            f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if such provided. No "
+            f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if provided. No "
             "resources were found."
         )
 
@@ -347,14 +361,13 @@ def _print_envs_info(
             total_gpu_memory = math.ceil(
                 float(env_gpu_info.get("total_memory")) / (1024**3)
             )
-            gpu_util_percent = round(float(env_gpu_info.get("utilization_percent")), 2)
             used_gpu_memory = round(
                 float(env_gpu_info.get("used_memory")) / (1024**3), 2
             )
             gpu_memory_usage_percent = round(
                 float(used_gpu_memory / total_gpu_memory) * 100, 2
             )
-            gpu_usage_summery = f"{DOUBLE_SPACE_UNICODE}GPU: {gpu_util_percent}% | Memory: {used_gpu_memory} / {total_gpu_memory} Gb ({gpu_memory_usage_percent}%)"
+            gpu_usage_summery = f"{DOUBLE_SPACE_UNICODE}GPU Memory: {used_gpu_memory} / {total_gpu_memory} Gb ({gpu_memory_usage_percent}%)"
             console.print(gpu_usage_summery)
 
         resources_in_env = [
@@ -366,7 +379,7 @@ def _print_envs_info(
         if len(resources_in_env) == 0:
             # No resources were found in the env, only the associated installed python reqs were installed.
             console.print(
-                f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if such provided. No resources were "
+                f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if provided. No resources were "
                 "found."
             )
 
@@ -374,11 +387,72 @@ def _print_envs_info(
             for resource in resources_in_env:
                 for resource_name, resource_info in resource.items():
                     resource_type = _adjust_resource_type(
-                        resource_info["resource_type"]
+                        resource_info.get("resource_type")
                     )
-                    console.print(
-                        f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {resource_name} ({resource_type})"
-                    )
+
+                    active_function_calls = resource_info.get("active_function_calls")
+                    resource_info_str = f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {resource_name} ({resource_type})"
+
+                    if resource_type == "runhouse.Function" and active_function_calls:
+                        func_start_time_utc = active_function_calls[0].get(
+                            "start_time", None
+                        )
+
+                        # casting func_start_time_utc to datetime format
+                        func_start_time_utc = datetime.datetime.fromtimestamp(
+                            func_start_time_utc, tz=datetime.timezone.utc
+                        )
+
+                        # func_end_time_utc = current time. Making sure it is in the same format as func_start_time_utc,
+                        # so we could calculate function's running time.
+                        func_end_time_utc = datetime.datetime.fromtimestamp(
+                            time.time(), tz=datetime.timezone.utc
+                        )
+
+                        func_running_time = (
+                            func_end_time_utc - func_start_time_utc
+                        ).total_seconds()
+
+                        is_func_running: str = f" [italic bright_green]Running for {func_running_time} seconds[/italic bright_green]"
+
+                    elif (
+                        resource_type == "runhouse.Function"
+                        and not active_function_calls
+                    ):
+                        is_func_running: str = " [italic bright_yellow]Currently not running[/italic bright_yellow]"
+
+                    else:
+                        is_func_running: str = ""
+
+                    resource_info_str = resource_info_str + is_func_running
+
+                    console.print(resource_info_str)
+
+
+def _print_cloud_properties(cluster_config: dict):
+    cloud_properties = cluster_config.get("launched_properties", None)
+    if not cloud_properties:
+        return
+    cloud = cloud_properties.get("cloud")
+    instance_type = cloud_properties.get("instance_type")
+    region = cloud_properties.get("region")
+    cost_per_hour = cloud_properties.get("cost_per_hour")
+
+    has_cuda = cluster_config.get("has_cuda", False)
+    cost_emoji = "💰" if has_cuda else "💸"
+
+    num_of_instances = len(cluster_config.get("ips"))
+    num_of_instances_str = f"{num_of_instances}x " if num_of_instances > 1 else ""
+
+    print(
+        f"🤖 {num_of_instances_str}{cloud} {instance_type} cluster | 🌍 {region} | {cost_emoji} ${cost_per_hour}/hr"
+    )
+
+
+def _get_resource_link_in_den_ui(cluster_name: str, api_server_url: str):
+    cluster_uri = rns_client.format_rns_address(cluster_name)
+    link_to_den_dashboard = f"{api_server_url}/resources/{cluster_uri}"
+    return link_to_den_dashboard
 
 
 def _print_status(status_data: dict, current_cluster: Cluster) -> None:
@@ -386,8 +460,24 @@ def _print_status(status_data: dict, current_cluster: Cluster) -> None:
     cluster_config = status_data.get("cluster_config")
     env_servlet_processes = status_data.get("env_servlet_processes")
 
-    if "name" in cluster_config.keys():
-        console.print(cluster_config.get("name"))
+    cluster_name = cluster_config.get("name", None)
+
+    if cluster_name:
+        api_server_url = cluster_config.get(
+            "api_server_url", rh.configs.get("api_server_url")
+        )
+        api_server_url = api_server_url.replace(
+            "api", "www"
+        )  # convert the api link to the ui link.
+        cluster_link_in_den_ui = _get_resource_link_in_den_ui(
+            cluster_name=cluster_name, api_server_url=api_server_url
+        )
+        cluster_name_hyperlink = rich.markdown.Text(
+            cluster_name, style=f"link {cluster_link_in_den_ui} white"
+        )
+        console.print(cluster_name_hyperlink)
+
+    has_cuda: bool = cluster_config.get("has_cuda")
 
     # print headline
     daemon_headline_txt = (
@@ -395,16 +485,31 @@ def _print_status(status_data: dict, current_cluster: Cluster) -> None:
     )
     console.print(daemon_headline_txt, style="bold royal_blue1")
 
-    console.print(f'Runhouse v{status_data.get("runhouse_version")}')
-    console.print(f'server pid: {status_data.get("server_pid")}')
+    console.print(f"Runhouse v{status_data.get('runhouse_version')}")
+    _print_cloud_properties(cluster_config)
+    console.print(f"server pid: {status_data.get('server_pid')}")
 
     # Print relevant info from cluster config.
     _print_cluster_config(cluster_config)
 
+    # print general cpu and gpu utilization
+    cluster_gpu_utilization: float = status_data.get("server_gpu_utilization")
+
+    # cluster_gpu_utilization can be none, if the cluster was not using its GPU at the moment cluster.status() was invoked.
+    if cluster_gpu_utilization is None and has_cuda:
+        cluster_gpu_utilization: float = 0.0
+
+    cluster_cpu_utilization: float = status_data.get("server_cpu_utilization")
+
+    server_util_info = (
+        f"CPU Utilization: {round(cluster_cpu_utilization, 2)}% | GPU Utilization: {round(cluster_gpu_utilization, 2)}%"
+        if has_cuda
+        else f"CPU Utilization: {round(cluster_cpu_utilization, 2)}%"
+    )
+    console.print(server_util_info)
+
     # print the environments in the cluster, and the resources associated with each environment.
     _print_envs_info(env_servlet_processes, current_cluster)
-
-    return status_data
 
 
 @app.command()
@@ -412,12 +517,21 @@ def status(
     cluster_name: str = typer.Argument(
         None,
         help="Name of cluster to check. If not specified will check the local cluster.",
-    )
+    ),
+    send_to_den: bool = typer.Option(
+        default=False,
+        help="Whether to update Den with the status",
+    ),
 ):
     """Load the status of the Runhouse daemon running on a cluster."""
     cluster_or_local = rh.here
 
-    if cluster_name:
+    if cluster_or_local == "file" and not cluster_name:
+        # If running outside the cluster must specify a cluster name
+        console.print("Missing argument `cluster_name`.")
+        return
+
+    elif cluster_name:
         current_cluster = cluster(name=cluster_name)
         if not current_cluster.is_up():
             console.print(
@@ -434,32 +548,22 @@ def status(
                 f"`runhouse ssh {cluster_name}` or `sky status -r` for on-demand clusters."
             )
             raise typer.Exit(1)
+
+    elif not cluster_or_local:
+        console.print(
+            "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}. "
+            "Start it with `runhouse restart` or specify a remote "
+            "cluster to poll with `runhouse status <cluster_name>`."
+        )
+        raise typer.Exit(1)
+
     else:
-        if not cluster_or_local or cluster_or_local == "file":
-            console.print(
-                "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}. "
-                "Start it with `runhouse restart` or specify a remote "
-                "cluster to poll with `runhouse status <cluster_name>`."
-            )
-            raise typer.Exit(1)
-
-    # case we are inside the cluster
-    if cluster_or_local != "file":
-        # If we are on the cluster load status directly from the object store
-        cluster_status: dict = dict(obj_store.status())
-        cluster_config = copy.deepcopy(cluster_status.get("cluster_config"))
-        current_cluster: Cluster = Cluster.from_config(cluster_config)
-        return _print_status(cluster_status, current_cluster)
-
-    if cluster_name is None:
-        # If running outside the cluster must specify a cluster name
-        console.print("Missing argument `cluster_name`.")
-        return
+        # we are inside the cluster
+        current_cluster = cluster_or_local  # cluster_or_local = rh.here
 
     try:
-        current_cluster: Cluster = Cluster.from_name(name=cluster_name)
-        cluster_status: dict = current_cluster.status(
-            resource_address=current_cluster.rns_address
+        cluster_status = current_cluster.status(
+            resource_address=current_cluster.rns_address, send_to_den=send_to_den
         )
 
     except ValueError:
@@ -470,7 +574,8 @@ def status(
             "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}"
         )
         return
-    return _print_status(cluster_status, current_cluster)
+
+    _print_status(cluster_status, current_cluster)
 
 
 def load_cluster(cluster_name: str):
@@ -527,7 +632,6 @@ def _start_server(
     default_env_name=None,
     conda_env=None,
     from_python=None,
-    log_level=None,
 ):
     ############################################
     # Build CLI commands to start the server
@@ -616,12 +720,6 @@ def _start_server(
         flags.append(conda_env_flag)
 
     flags.append(" --from-python" if from_python else "")
-
-    flags.append(
-        f" --log-level {log_level}"
-        if log_level
-        else f" --log-level {DEFAULT_LOG_LEVEL}"
-    )
 
     # Check if screen or nohup are available
     screen = screen and _check_if_command_exists("screen")
@@ -822,18 +920,11 @@ def restart(
         False,
         help="Whether HTTP server started from inside a Python call rather than CLI.",
     ),
-    log_level: str = typer.Option(
-        default=DEFAULT_LOG_LEVEL,
-        help="Minimum log level for logs to be printed",
-        callback=lambda value: value.upper(),
-    ),
 ):
     """Restart the HTTP server on the cluster."""
     if name:
         c = cluster(name=name)
-        c.restart_server(
-            resync_rh=resync_rh, restart_ray=restart_ray, logs_level=log_level
-        )
+        c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
         return
 
     _start_server(
@@ -856,7 +947,6 @@ def restart(
         default_env_name=default_env_name,
         conda_env=conda_env,
         from_python=from_python,
-        log_level=log_level,
     )
 
 

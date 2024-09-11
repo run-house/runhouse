@@ -8,8 +8,11 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
-from runhouse.logger import logger
+from runhouse.logger import get_logger
+
 from runhouse.rns.utils.api import resolve_absolute_path
+
+logger = get_logger(__name__)
 
 
 class TLSCertConfig:

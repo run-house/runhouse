@@ -12,9 +12,7 @@ from typing import Any, Dict, List, Optional, Set, Union
 import ray
 from pydantic import BaseModel
 
-from runhouse.constants import DEFAULT_LOG_LEVEL
-
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 
 from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import ResourceVisibility
@@ -24,6 +22,8 @@ from runhouse.utils import (
     LogToFolder,
     sync_function,
 )
+
+logger = get_logger(__name__)
 
 
 class RaySetupOption(str, Enum):
@@ -60,7 +60,6 @@ class NoLocalObjStoreError(ObjStoreError):
 def get_cluster_servlet(
     create_if_not_exists: bool = False,
     runtime_env: Optional[Dict] = None,
-    logs_level: str = DEFAULT_LOG_LEVEL,
 ):
     from runhouse.servers.cluster_servlet import ClusterServlet
 
@@ -91,7 +90,7 @@ def get_cluster_servlet(
                 num_cpus=0,
                 runtime_env=runtime_env,
             )
-            .remote(logs_level=logs_level)
+            .remote()
         )
 
         # Make sure cluster servlet is actually initialized
@@ -161,7 +160,6 @@ class ObjStore:
         ray_address: str = "auto",
         setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
         runtime_env: Optional[Dict] = None,
-        logs_level: str = DEFAULT_LOG_LEVEL,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -207,7 +205,6 @@ class ObjStore:
         self.cluster_servlet = get_cluster_servlet(
             create_if_not_exists=create_if_not_exists,
             runtime_env=runtime_env,
-            logs_level=logs_level,
         )
         if self.cluster_servlet is None:
             # TODO: logger.<method> is not printing correctly here when doing `runhouse start`.
@@ -402,15 +399,13 @@ class ObjStore:
                     # Default to 0 CPUs if not specified, Ray will default it to 1
                     num_cpus=resources.pop("CPU", 0),
                     num_gpus=resources.pop("GPU", None),
+                    memory=resources.pop("memory", None),
                     resources=resources,
                     lifetime="detached",
                     namespace="runhouse",
                     max_concurrency=1000,
                 )
-                .remote(
-                    env_name=env_name,
-                    logs_level=kwargs.get("logs_level", DEFAULT_LOG_LEVEL),
-                )
+                .remote(env_name=env_name)
             )
 
             # Make sure env_servlet is actually initialized
@@ -1115,9 +1110,7 @@ class ObjStore:
 
         log_ctx = None
         if stream_logs and run_name is not None:
-            log_ctx = LogToFolder(
-                name=run_name,
-            )
+            log_ctx = LogToFolder(name=run_name)
             log_ctx.__enter__()
 
         # Use a finally to track the active functions so that it is always removed
@@ -1583,7 +1576,7 @@ class ObjStore:
             )
 
             active_fn_calls = [
-                call_info.dict()
+                call_info.model_dump()
                 for call_info in current_active_function_calls.values()
                 if call_info.key == k
             ]
@@ -1595,8 +1588,10 @@ class ObjStore:
 
         return keys_and_info
 
-    async def astatus(self):
-        return await self.acall_actor_method(self.cluster_servlet, "status")
+    async def astatus(self, send_to_den: bool = False):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "status", send_to_den
+        )
 
-    def status(self):
-        return sync_function(self.astatus)()
+    def status(self, send_to_den: bool = False):
+        return sync_function(self.astatus)(send_to_den=send_to_den)

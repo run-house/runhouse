@@ -1,10 +1,15 @@
+import os
 from pathlib import Path
 
 import pytest
 
 import runhouse as rh
 
-from runhouse.constants import DEFAULT_HTTPS_PORT, EMPTY_DEFAULT_ENV_NAME
+from runhouse.constants import (
+    DEFAULT_HTTPS_PORT,
+    EMPTY_DEFAULT_ENV_NAME,
+    TESTING_LOG_LEVEL,
+)
 
 from tests.conftest import init_args
 from tests.utils import test_env
@@ -36,11 +41,12 @@ def setup_test_cluster(args, request, create_env=False):
         "ondemand_aws_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
+        "ondemand_k8s_docker_cluster",
         "v100_gpu_cluster",
         "k80_gpu_cluster",
         "a10g_gpu_cluster",
     ],
-    ids=["aws_cpu", "gcp_cpu", "k8s_cpu", "v100", "k80", "a10g"],
+    ids=["aws_cpu", "gcp_cpu", "k8s_cpu", "k8s_docker_cpu", "v100", "k80", "a10g"],
 )
 def ondemand_cluster(request):
     return request.getfixturevalue(request.param)
@@ -85,7 +91,11 @@ def ondemand_gcp_cluster(request):
     """
     Note: Also used to test conda default env.
     """
-    env_vars = {"var1": "val1", "var2": "val2"}
+    env_vars = {
+        "var1": "val1",
+        "var2": "val2",
+        "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
+    }
     default_env = rh.conda_env(
         name="default_env",
         reqs=test_env().reqs + ["ray==2.30.0"],
@@ -120,6 +130,24 @@ def ondemand_k8s_cluster(request):
 
 
 @pytest.fixture(scope="session")
+def ondemand_k8s_docker_cluster(request):
+    kube_config_path = Path.home() / ".kube" / "config"
+
+    if not kube_config_path.exists():
+        pytest.skip("no kubeconfig found")
+
+    args = {
+        "name": "k8s-docker-cpu",
+        "provider": "kubernetes",
+        "instance_type": "CPU:1",
+        "memory": ".2",
+        "image_id": "docker:rayproject/ray:latest-py311-cpu",
+    }
+    cluster = setup_test_cluster(args, request)
+    return cluster
+
+
+@pytest.fixture(scope="session")
 def v100_gpu_cluster(request):
     args = {"name": "rh-v100", "instance_type": "V100:1", "provider": "aws"}
     cluster = setup_test_cluster(args, request)
@@ -145,6 +173,9 @@ def multinode_cpu_cluster(request):
     args = {
         "name": "rh-cpu-multinode",
         "num_instances": NUM_OF_INSTANCES,
+        "image_id": "docker:rayproject/ray:latest-py311-cpu",
+        "default_env": rh.env(reqs=["ray==2.30.0"], working_dir=None),
+        "provider": "aws",
         "instance_type": "CPU:2+",
     }
     cluster = setup_test_cluster(args, request)

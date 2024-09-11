@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Union
 
+from runhouse.logger import get_logger
+
 from runhouse.resources.envs.utils import install_conda, run_setup_command
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import (
@@ -22,7 +24,7 @@ from runhouse.utils import (
 
 INSTALL_METHODS = {"local", "reqs", "pip", "conda", "rh"}
 
-from runhouse.logger import logger
+logger = get_logger(__name__)
 
 
 class CodeSyncError(Exception):
@@ -39,11 +41,11 @@ class InstallTarget:
         return (
             self._path_to_sync_to_on_cluster
             if self._path_to_sync_to_on_cluster
-            else f"~/{Path(self.local_path).name}"
+            else f"~/{Path(self.full_local_path_str()).name}"
         )
 
     def full_local_path_str(self) -> str:
-        return str(Path(self.local_path).expanduser())
+        return str(Path(self.local_path).expanduser().resolve())
 
     def __str__(self):
         return f"InstallTarget(local_path={self.local_path}, path_to_sync_to_on_cluster={self._path_to_sync_to_on_cluster})"
@@ -89,7 +91,7 @@ class Package(Resource):
         self.install_args = install_args
         self.preferred_version = preferred_version
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True):
         # If the package is just a simple Package.from_string string, no
         # need to store it in rns, just give back the string.
         # if self.install_method in ['pip', 'conda', 'git']:
@@ -221,7 +223,12 @@ class Package(Resource):
         install_cmd = self._prepend_env_command(install_cmd, env=env)
         return install_cmd
 
-    def _install(self, env: Union[str, "Env"] = None, cluster: "Cluster" = None):
+    def _install(
+        self,
+        env: Union[str, "Env"] = None,
+        cluster: "Cluster" = None,
+        node: Optional[str] = None,
+    ):
         """Install package.
 
         Args:
@@ -232,12 +239,13 @@ class Package(Resource):
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
 
         if isinstance(self.install_target, InstallTarget):
-            if cluster:
+            if cluster and Path(self.install_target.local_path).expanduser().exists():
                 cluster.rsync(
                     source=str(self.install_target.local_path),
                     dest=str(self.install_target.path_to_sync_to_on_cluster),
                     up=True,
                     contents=True,
+                    node=node,
                 )
 
                 self.install_target.local_path = (
@@ -263,6 +271,7 @@ class Package(Resource):
                 retcode = run_setup_command(
                     f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
                     cluster=cluster,
+                    node=node,
                 )[0]
                 if retcode != 0:
                     self.install_target = (
@@ -271,7 +280,7 @@ class Package(Resource):
 
             install_cmd = self._pip_install_cmd(env=env, cluster=cluster)
             logger.info(f"Running via install_method pip: {install_cmd}")
-            retcode = run_setup_command(install_cmd, cluster=cluster)[0]
+            retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
             if retcode != 0:
                 raise RuntimeError(
                     f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
@@ -280,7 +289,7 @@ class Package(Resource):
         elif self.install_method == "conda":
             install_cmd = self._conda_install_cmd(env=env, cluster=cluster)
             logger.info(f"Running via install_method conda: {install_cmd}")
-            retcode = run_setup_command(install_cmd, cluster=cluster)[0]
+            retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
             if retcode != 0:
                 raise RuntimeError(
                     f"Conda install {install_cmd} failed, check that the package exists and is "
@@ -291,7 +300,7 @@ class Package(Resource):
             install_cmd = self._reqs_install_cmd(env=env, cluster=cluster)
             if install_cmd:
                 logger.info(f"Running via install_method reqs: {install_cmd}")
-                retcode = run_setup_command(install_cmd, cluster=cluster)[0]
+                retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
                 if retcode != 0:
                     raise RuntimeError(
                         f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
@@ -313,6 +322,7 @@ class Package(Resource):
                 ) if not cluster else run_setup_command(
                     f"export PATH=$PATH;{self.install_target.full_local_path_str()}",
                     cluster=cluster,
+                    node=node,
                 )
             elif not cluster:
                 if Path(self.install_target).resolve().expanduser().exists():
@@ -414,7 +424,11 @@ class Package(Resource):
         system: Union[str, Dict, "Cluster"],
         path: Optional[str] = None,
     ):
-        """Copy the package onto filesystem or cluster, and return the new Package object."""
+        """Copy the package onto filesystem or cluster, and return the new Package object.
+
+        Args:
+            system (str, Dict, or Cluster): Cluster to send the package to.
+        """
         if not isinstance(self.install_target, InstallTarget):
             raise TypeError(
                 "`install_target` must be an InstallTarget in order to copy the package to a system."
@@ -449,7 +463,7 @@ class Package(Resource):
         return (splat[0], splat[1]) if len(splat) > 1 else ("", splat[0])
 
     @staticmethod
-    def from_config(config: dict, dryrun=False, _resolve_children=True):
+    def from_config(config: Dict, dryrun: bool = False, _resolve_children: bool = True):
         if isinstance(config.get("install_target"), tuple):
             config["install_target"] = InstallTarget(
                 local_path=config["install_target"][0],
@@ -464,7 +478,7 @@ class Package(Resource):
         return Package(**config, dryrun=dryrun)
 
     @staticmethod
-    def from_string(specifier: str, dryrun=False):
+    def from_string(specifier: str, dryrun: bool = False):
         if specifier == "requirements.txt":
             specifier = "reqs:./"
 
@@ -564,15 +578,16 @@ def package(
     Builds an instance of :class:`Package`.
 
     Args:
-        name (str): Name to assign the package resource.
-        install_method (str): Method for installing the package. Options: [``pip``, ``conda``, ``reqs``, ``local``]
-        install_str (str): Additional arguments to install.
-        path (str): URL of the package to install.
-        system (str): File system or cluster on which the package lives. Currently this must a cluster or one of:
-            [``file``, ``s3``, ``gs``].
-        load_from_den (bool): Whether to try loading the Package from Den. (Default: ``True``)
-        dryrun (bool): Whether to create the Package if it doesn't exist, or load the Package object as a dryrun.
-            (Default: ``False``)
+        name (str, optional): Name to assign the package resource.
+        install_method (str, optional): Method for installing the package.
+            Options: [``pip``, ``conda``, ``reqs``, ``local``]
+        install_str (str, optional): Additional arguments to install.
+        path (str, optional): URL of the package to install.
+        system (str, optional): File system or cluster on which the package lives.
+            Currently this must a cluster or one of: [``file``, ``s3``, ``gs``].
+        load_from_den (bool, optional): Whether to try loading the Package from Den. (Default: ``True``)
+        dryrun (bool, optional): Whether to create the Package if it doesn't exist, or load the Package
+            object as a dryrun. (Default: ``False``)
 
     Returns:
         Package: The resulting package.
