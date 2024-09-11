@@ -33,7 +33,7 @@ from typing import Callable, Optional, Type, Union
 
 import pexpect
 
-from runhouse.constants import LOGS_DIR
+from runhouse.constants import RH_LOGFILE_PATH
 from runhouse.logger import get_logger, init_logger
 
 logger = get_logger(__name__)
@@ -482,7 +482,7 @@ class LogToFolder:
     @staticmethod
     def _base_local_folder_path(name: str):
         """Path to the base folder for this Run on a local system."""
-        return f"{LOGS_DIR}/{name}"
+        return f"{RH_LOGFILE_PATH}/{name}"
 
     @staticmethod
     def _filter_files_by_ext(files: list, ext: str):
