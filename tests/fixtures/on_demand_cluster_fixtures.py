@@ -169,12 +169,16 @@ def a10g_gpu_cluster(request):
 
 
 @pytest.fixture(scope="session")
-def multinode_cpu_cluster(request):
+def multinode_cpu_docker_conda_cluster(request):
     args = {
         "name": "rh-cpu-multinode",
         "num_instances": NUM_OF_INSTANCES,
         "image_id": "docker:rayproject/ray:latest-py311-cpu",
-        "default_env": rh.env(reqs=["ray==2.30.0"], working_dir=None),
+        "default_env": rh.conda_env(
+            name="default_env",
+            reqs=test_env().reqs + ["ray==2.30.0"],
+            conda_env={"dependencies": ["python=3.11"], "name": "default_env"},
+        ),
         "provider": "aws",
         "instance_type": "CPU:2+",
     }
