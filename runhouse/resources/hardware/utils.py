@@ -227,3 +227,14 @@ def _ssh_base_command(
 
 def _generate_ssh_control_hash(ssh_control_name):
     return hashlib.md5(ssh_control_name.encode()).hexdigest()[:_HASH_MAX_LENGTH]
+
+
+def up_cluster_helper(cluster, suppress_output=True):
+    from runhouse.utils import SuppressStd
+
+    if suppress_output:
+        with SuppressStd() as outfile:
+            cluster.up()
+        return outfile.output
+    else:
+        cluster.up()
