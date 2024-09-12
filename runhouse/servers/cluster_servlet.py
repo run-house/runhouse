@@ -241,14 +241,16 @@ class ClusterServlet:
     # Remove Env Servlet
     ##############################################
     async def aclear_all_references_to_env_servlet_name(self, env_servlet_name: str):
-        self._initialized_env_servlet_names.remove(env_servlet_name)
-        deleted_keys = [
-            key
-            for key, env in self._key_to_env_servlet_name.items()
-            if env == env_servlet_name
-        ]
-        for key in deleted_keys:
-            self._key_to_env_servlet_name.pop(key)
+        # using lock to prevent status thread access self._initialized_env_servlet_names before the env is deleted.
+        with self.lock:
+            self._initialized_env_servlet_names.remove(env_servlet_name)
+            deleted_keys = [
+                key
+                for key, env in self._key_to_env_servlet_name.items()
+                if env == env_servlet_name
+            ]
+            for key in deleted_keys:
+                self._key_to_env_servlet_name.pop(key)
         return deleted_keys
 
     ##############################################
@@ -544,12 +546,13 @@ class ClusterServlet:
 
         # Getting data from each env servlet about the objects it contains and the utilization data
         env_servlet_utilization_data = {}
-        env_servlets_status = await asyncio.gather(
-            *[
-                self._status_for_env_servlet(env_servlet_name)
-                for env_servlet_name in self._initialized_env_servlet_names
-            ],
-        )
+        with self.lock:
+            env_servlets_status = await asyncio.gather(
+                *[
+                    self._status_for_env_servlet(env_servlet_name)
+                    for env_servlet_name in await self.aget_all_initialized_env_servlet_names()
+                ],
+            )
 
         # Store the data for the appropriate env servlet name
         for env_status in env_servlets_status:
