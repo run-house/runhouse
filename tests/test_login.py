@@ -34,7 +34,7 @@ def add_secrets_to_vault(headers):
 
 
 def test_login_flow_in_new_env():
-    token = os.getenv("TEST_TOKEN")
+    token = os.getenv("KITCHEN_TESTER_TOKEN")
     headers = {"Authorization": f"Bearer {token}"}
 
     add_secrets_to_vault(headers)
