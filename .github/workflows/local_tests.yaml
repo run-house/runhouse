@@ -40,14 +40,14 @@ jobs:
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
         with:
-          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
-          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
+          username: ${{ secrets.DEN_TESTER_USERNAME }}
+          token: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
 
       - name: pytest -v --level local tests/test_servers/
         env:
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_PROD_TOKEN }}
+          KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
         run: pytest -v --level local tests/test_servers/
         timeout-minutes: 60
 
@@ -78,15 +78,15 @@ jobs:
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
         with:
-          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
-          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
+          username: ${{ secrets.DEN_TESTER_USERNAME }}
+          token: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
 
       - name: pytest -v --level local -k "not servertest and not secrettest and not moduletest and not functiontest and not envtest and not clustertest"
         env:
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
+          KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_PROD_TOKEN }}
+          KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
+          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest -v --level local -k "not servertest and not secrettest and not moduletest and not functiontest and not envtest and not clustertest"
         timeout-minutes: 60
@@ -118,15 +118,15 @@ jobs:
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
         with:
-          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
-          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
+          username: ${{ secrets.DEN_TESTER_USERNAME }}
+          token: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
 
       - name: pytest -v --level local -k "secrettest"
         env:
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
+          KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_PROD_TOKEN }}
+          KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
+          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest -v --level local -k "secrettest"
         timeout-minutes: 60
@@ -143,15 +143,15 @@ jobs:
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
         with:
-          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
-          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
+          username: ${{ secrets.DEN_TESTER_USERNAME }}
+          token: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
 
       - name: pytest -v --level local -k "moduletest"
         env:
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
+          KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_PROD_TOKEN }}
+          KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
+          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest -v --level local -k "moduletest"
         timeout-minutes: 60
@@ -168,15 +168,15 @@ jobs:
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
         with:
-          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
-          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
+          username: ${{ secrets.DEN_TESTER_USERNAME }}
+          token: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
 
       - name: pytest -v --level local -k "functiontest"
         env:
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
+          KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_PROD_TOKEN }}
+          KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
+          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest -v --level local -k "functiontest"
         timeout-minutes: 60
@@ -193,15 +193,15 @@ jobs:
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
         with:
-          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
-          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
+          username: ${{ secrets.DEN_TESTER_USERNAME }}
+          token: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
 
       - name: pytest -v --level local -k "envtest"
         env:
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
+          KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_PROD_TOKEN }}
+          KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
+          ORG_MEMBER_TOKEN: ${{ env.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest -v --level local -k "envtest"
         timeout-minutes: 60
@@ -218,15 +218,15 @@ jobs:
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
         with:
-          username: ${{ secrets.CI_ACCOUNT_USERNAME }}
-          token: ${{ secrets.CI_ACCOUNT_TOKEN }}
+          username: ${{ secrets.DEN_TESTER_USERNAME }}
+          token: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
 
       - name: pytest -v --level local -k "clustertest"
         env:
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
+          KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_PROD_TOKEN }}
+          KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
+          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest -v --level local -k "clustertest"
         timeout-minutes: 60
