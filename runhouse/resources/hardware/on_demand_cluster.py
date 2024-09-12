@@ -116,7 +116,7 @@ class OnDemandCluster(Cluster):
         # Checks if state info is in local sky db, populates if so.
         if not dryrun and not self.ips and not self.creds_values:
             # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
-            self._update_from_sky_status(dryrun=False)
+            self._update_from_sky_status(dryrun=True)
 
     @property
     def client(self):
