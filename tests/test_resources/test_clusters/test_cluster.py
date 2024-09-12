@@ -534,7 +534,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "env_cpu_usage",
             "env_gpu_usage",
             "env_resource_mapping",
-            "node_index",
             "node_ip",
             "node_name",
             "pid",
