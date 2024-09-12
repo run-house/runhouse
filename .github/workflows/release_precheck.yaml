@@ -26,12 +26,11 @@ jobs:
     - name: Create Conda environment
       run: conda create --yes --name test-env python=${{ matrix.python-version }}
 
-    - name: Install current package in editable mode and importlib_metadata for python 3.7
+    - name: Install current package in editable mode
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda activate test-env
         pip install -e .
-        pip install importlib_metadata
 
     - name: Test package import
       run: |
