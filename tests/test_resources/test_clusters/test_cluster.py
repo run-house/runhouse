@@ -425,13 +425,17 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         remote_assume_caller_and_get_token.share(
             users=["info@run.house"], notify_users=False
         )
+        current_username = rh.configs.username
+        current_den_token = rh.configs.token
 
         with friend_account():
             unassumed_token, assumed_token = remote_assume_caller_and_get_token()
             # "Local token" is the token the cluster accesses in rh.configs.token; this is what will be used
             # in subsequent rns_client calls
             assert assumed_token == rh.globals.rns_client.cluster_token(
-                rh.configs.token, cluster.rns_address
+                cluster.rns_address,
+                username=current_username,
+                den_token=current_den_token,
             )
             assert unassumed_token != rh.configs.token
 

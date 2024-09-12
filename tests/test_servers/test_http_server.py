@@ -611,7 +611,8 @@ class TestHTTPServerDockerDenAuthOnly:
 
         import requests
 
-        with friend_account():  # Test accounts with Den auth are created under test_account
+        with friend_account():
+            # Test accounts with Den auth are created under test_account
             res = requests.get(
                 f"{rns_client.api_server_url}/resource",
                 headers=rns_client.request_headers(cluster.rns_address),

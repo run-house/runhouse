@@ -155,11 +155,16 @@ class ClusterServlet:
     ) -> Union[str, None]:
         # If the token in this request matches that of the owner of the cluster,
         # they have access to everything
-        if configs.token and (
-            configs.token == token
-            or rns_client.cluster_token(configs.token, resource_uri) == token
-        ):
-            return ResourceAccess.WRITE
+        config_token = configs.token
+        if config_token:
+            if config_token == token:
+                return ResourceAccess.WRITE
+
+            if resource_uri and rns_client.validate_cluster_token(
+                cluster_token=token, cluster_uri=resource_uri
+            ):
+                return ResourceAccess.WRITE
+
         return self._auth_cache.lookup_access_level(token, resource_uri)
 
     async def aget_username(self, token: str) -> str:
