@@ -1,12 +1,11 @@
 import json
-import tempfile
-from pathlib import Path
+import os
+import uuid
 
 import pytest
 
-import runhouse as rh
-
 from runhouse.globals import rns_client
+from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import (
     DeleteObjectParams,
     deserialize_data,
@@ -55,15 +54,17 @@ class TestHTTPServerDocker:
         assert response.status_code == 200
 
     @pytest.mark.level("local")
-    def test_put_resource(self, http_client, blob_data, cluster):
+    def test_put_resource(self, http_client, cluster):
         state = None
-        resource = rh.blob(data=blob_data, system=cluster)
+        resource = Resource(name="test_resource3", system=cluster)
         data = serialize_data(
             (resource.config(condensed=False), state, resource.dryrun), "pickle"
         )
         response = http_client.post(
             "/resource",
-            json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
+            json=PutResourceParams(
+                serialized_data=data, serialization="pickle"
+            ).model_dump(),
             headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
@@ -78,7 +79,7 @@ class TestHTTPServerDocker:
                 key=key,
                 serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
@@ -95,7 +96,7 @@ class TestHTTPServerDocker:
         new_key = "key2"
         response = http_client.post(
             "/rename",
-            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            json=RenameObjectParams(key=old_key, new_key=new_key).model_dump(),
             headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
@@ -111,7 +112,7 @@ class TestHTTPServerDocker:
         key = "key2"
         response = http_client.post(
             url="/delete_object",
-            json=DeleteObjectParams(keys=[key]).dict(),
+            json=DeleteObjectParams(keys=[key]).model_dump(),
             headers=rns_client.request_headers(cluster.rns_address),
         )
         assert response.status_code == 200
@@ -135,6 +136,7 @@ class TestHTTPServerDocker:
                 "data": serialize_data(data, "pickle"),
                 "stream_logs": True,
                 "serialization": "pickle",
+                "run_name": "test_call_module_method",
             },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
@@ -161,6 +163,7 @@ class TestHTTPServerDocker:
             params={
                 "a": 1,
                 "b": 2,
+                "run_name": "test_call_module_method_get_call",
             },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
@@ -190,6 +193,7 @@ class TestHTTPServerDocker:
                 "data": serialize_data(data, "pickle"),
                 "stream_logs": True,
                 "serialization": "pickle",
+                "run_name": "test_log_streaming_call",
             },
             headers=rns_client.request_headers(clus.rns_address),
         ) as r:
@@ -215,6 +219,224 @@ class TestHTTPServerDocker:
                     )
 
     @pytest.mark.level("local")
+    def test_folder_put_and_get_and_mv(self, http_client, cluster):
+        file_name = str(uuid.uuid4())
+        response = http_client.post(
+            "/folder/method/put",
+            json={
+                "path": "~/.rh",
+                "contents": {f"{file_name}.txt": "Hello, world!"},
+                "overwrite": True,
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        response = http_client.post(
+            "/folder/method/get",
+            json={"path": f"~/.rh/{file_name}.txt"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        resp_json = response.json()
+
+        assert resp_json["serialization"] is None
+        assert resp_json["output_type"] == "result_serialized"
+        assert resp_json["data"] == "Hello, world!"
+
+        dest_path = f"~/{file_name}.txt"
+        response = http_client.post(
+            "/folder/method/mv",
+            json={
+                "path": f"~/.rh/{file_name}.txt",
+                "dest_path": dest_path,
+                "overwrite": True,
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        response = http_client.post(
+            "/folder/method/get",
+            json={"path": dest_path},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+        assert response.json()["data"] == "Hello, world!"
+
+    @pytest.mark.level("local")
+    def test_folder_content_serialization_methods(self, http_client, cluster):
+        file_name = str(uuid.uuid4())
+
+        # Save data with "pickle" serialization
+        pickle_serialization = "pickle"
+        response = http_client.post(
+            "/folder/method/put",
+            json={
+                "path": "~/.rh",
+                "contents": serialize_data(
+                    data={f"{file_name}.txt": "Hello, world!"},
+                    serialization=pickle_serialization,
+                ),
+                "serialization": pickle_serialization,
+                "overwrite": True,
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        # Result should be returned as pickled data
+        response = http_client.post(
+            "/folder/method/get",
+            json={"path": f"~/.rh/{file_name}.txt"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+
+        resp_json = response.json()
+        assert resp_json["serialization"] is None
+        assert resp_json["output_type"] == "result_serialized"
+        assert (
+            deserialize_data(resp_json["data"], pickle_serialization) == "Hello, world!"
+        )
+
+        # Save data with "json" serialization
+        json_serialization = "json"
+        response = http_client.post(
+            "/folder/method/put",
+            json={
+                "path": "~/.rh",
+                "contents": serialize_data(
+                    {"new_file.txt": "Hello, world!"}, json_serialization
+                ),
+                "serialization": json_serialization,
+                "overwrite": True,
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        response = http_client.post(
+            "/folder/method/get",
+            json={"path": "~/.rh/new_file.txt"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+
+        resp_json = response.json()
+        assert resp_json["serialization"] is None
+        assert resp_json["output_type"] == "result_serialized"
+        assert (
+            deserialize_data(resp_json["data"], json_serialization) == "Hello, world!"
+        )
+
+        # Save data with no serialization
+        response = http_client.post(
+            "/folder/method/put",
+            json={
+                "path": "~/.rh",
+                "contents": {"new_file.txt": "Hello, world!"},
+                "overwrite": True,
+                "serialization": None,
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        response = http_client.post(
+            "/folder/method/get",
+            json={"path": "~/.rh/new_file.txt"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+
+        resp_json = response.json()
+        assert resp_json["serialization"] is None
+        assert resp_json["output_type"] == "result_serialized"
+        assert resp_json["data"] == "Hello, world!"
+
+    @pytest.mark.level("local")
+    def test_folder_put_pickle_object(self, http_client, cluster):
+        file_name = str(uuid.uuid4())
+
+        raw_data = [1, 2, 3]
+        serialization = "pickle"
+        serialized_contents = serialize_data(
+            {f"{file_name}.pickle": raw_data}, serialization=serialization
+        )
+
+        # need to specify the serialization method here
+        response = http_client.post(
+            "/folder/method/put",
+            json={
+                "path": "~/.rh",
+                "contents": serialized_contents,
+                "overwrite": True,
+                "serialization": serialization,
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        response = http_client.post(
+            "/folder/method/get",
+            json={"path": f"~/.rh/{file_name}.pickle"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        resp_json = response.json()
+        assert resp_json["output_type"] == "result_serialized"
+        assert deserialize_data(resp_json["data"], serialization) == raw_data
+
+    @pytest.mark.level("local")
+    def test_folder_mkdir_rm_and_ls(self, http_client, cluster):
+        response = http_client.post(
+            "/folder/method/mkdir",
+            json={"path": "~/.rh/new-folder"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        # delete the file
+        response = http_client.post(
+            "/folder/method/rm",
+            json={
+                "path": "~/.rh/new-folder",
+                "contents": ["new_file.txt"],
+            },
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        # empty folder should still be there since recursive not explicitly set to `True`
+        response = http_client.post(
+            "/folder/method/ls",
+            json={"path": "~/.rh"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        file_names: list = response.json().get("data")
+        assert "new-folder" in [os.path.basename(f) for f in file_names]
+
+        # Delete the now empty folder
+        response = http_client.post(
+            "/folder/method/rm",
+            json={"path": "~/.rh/new-folder"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        response = http_client.post(
+            "/folder/method/ls",
+            json={"path": "~/.rh"},
+            headers=rns_client.request_headers(cluster.rns_address),
+        )
+        assert response.status_code == 200
+
+        file_names: list = response.json().get("data")
+        assert "new-folder" not in [os.path.basename(f) for f in file_names]
+
+    @pytest.mark.level("local")
     @pytest.mark.asyncio
     async def test_async_call(self, async_http_client, remote_func):
         method = "call"
@@ -227,6 +449,7 @@ class TestHTTPServerDocker:
                     "kwargs": {},
                 },
                 "serialization": None,
+                "run_name": "test_async_call",
             },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
@@ -248,6 +471,7 @@ class TestHTTPServerDocker:
                     "kwargs": {},
                 },
                 "serialization": "random",
+                "run_name": "test_async_call_with_invalid_serialization",
             },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
@@ -272,6 +496,7 @@ class TestHTTPServerDocker:
                     "pickle",
                 ),
                 "serialization": "pickle",
+                "run_name": "test_async_call_with_pickle_serialization",
             },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
@@ -298,6 +523,7 @@ class TestHTTPServerDocker:
                     }
                 ),
                 "serialization": "json",
+                "run_name": "test_async_call_with_json_serialization",
             },
             headers=rns_client.request_headers(remote_func.system.rns_address),
         )
@@ -414,15 +640,17 @@ class TestHTTPServerDockerDenAuthOnly:
         assert response.status_code == 200
 
     @pytest.mark.level("local")
-    def test_put_resource_with_invalid_token(self, http_client, blob_data, cluster):
+    def test_put_resource_with_invalid_token(self, http_client, cluster):
         state = None
-        resource = rh.blob(blob_data, system=cluster)
+        resource = Resource(name="test_resource1", system=cluster)
         data = serialize_data(
             (resource.config(condensed=False), state, resource.dryrun), "pickle"
         )
         response = http_client.post(
             "/resource",
-            json=PutResourceParams(serialized_data=data, serialization="pickle").dict(),
+            json=PutResourceParams(
+                serialized_data=data, serialization="pickle"
+            ).model_dump(),
             headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
@@ -441,6 +669,7 @@ class TestHTTPServerDockerDenAuthOnly:
                 "data": {"args": args, "kwargs": kwargs},
                 "stream_logs": False,
                 "serialization": None,
+                "run_name": "test_call_module_method_with_invalid_token",
             },
             headers=INVALID_HEADERS,
         )
@@ -456,7 +685,7 @@ class TestHTTPServerDockerDenAuthOnly:
                 key="key1",
                 serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
@@ -468,7 +697,7 @@ class TestHTTPServerDockerDenAuthOnly:
         new_key = "key2"
         response = http_client.post(
             "/rename",
-            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            json=RenameObjectParams(key=old_key, new_key=new_key).model_dump(),
             headers=INVALID_HEADERS,
         )
         assert response.status_code == 403
@@ -512,24 +741,20 @@ class TestHTTPServerNoDocker:
         assert response.status_code == 200
 
     @pytest.mark.level("unit")
-    def test_put_resource(self, client, blob_data, local_cluster):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            resource_path = Path(temp_dir, "local-blob")
-            local_blob = rh.blob(blob_data, path=resource_path)
-            resource = local_blob.to(system="file", path=resource_path)
-
-            state = None
-            data = serialize_data(
-                (resource.config(condensed=False), state, resource.dryrun), "pickle"
-            )
-            response = client.post(
-                "/resource",
-                json=PutResourceParams(
-                    serialized_data=data, serialization="pickle"
-                ).dict(),
-                headers=rns_client.request_headers(local_cluster.rns_address),
-            )
-            assert response.status_code == 200
+    def test_put_resource(self, client, local_cluster):
+        resource = Resource(name="local-resource")
+        state = None
+        data = serialize_data(
+            (resource.config(condensed=False), state, resource.dryrun), "pickle"
+        )
+        response = client.post(
+            "/resource",
+            json=PutResourceParams(
+                serialized_data=data, serialization="pickle"
+            ).model_dump(),
+            headers=rns_client.request_headers(local_cluster.rns_address),
+        )
+        assert response.status_code == 200
 
     @pytest.mark.level("unit")
     def test_put_object(self, client, local_cluster):
@@ -540,7 +765,7 @@ class TestHTTPServerNoDocker:
                 key="key1",
                 serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             headers=rns_client.request_headers(local_cluster.rns_address),
         )
         assert response.status_code == 200
@@ -551,7 +776,7 @@ class TestHTTPServerNoDocker:
         new_key = "key2"
         response = client.post(
             "/rename",
-            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            json=RenameObjectParams(key=old_key, new_key=new_key).model_dump(),
             headers=rns_client.request_headers(local_cluster.rns_address),
         )
         assert response.status_code == 200
@@ -576,7 +801,7 @@ class TestHTTPServerNoDocker:
         key = "key"
         response = client.post(
             url="/delete_object",
-            json=DeleteObjectParams(keys=[key]).dict(),
+            json=DeleteObjectParams(keys=[key]).model_dump(),
             headers=rns_client.request_headers(local_cluster.rns_address),
         )
         assert response.status_code == 200
@@ -617,26 +842,21 @@ class TestHTTPServerNoDockerDenAuthOnly:
         assert response.status_code == 200
 
     @pytest.mark.level("unit")
-    def test_put_resource_with_invalid_token(
-        self, local_client_with_den_auth, blob_data
-    ):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            resource_path = Path(temp_dir, "local-blob")
-            local_blob = rh.blob(blob_data, path=resource_path)
-            resource = local_blob.to(system="file", path=resource_path)
-            state = None
-            data = serialize_data(
-                (resource.config(condensed=False), state, resource.dryrun), "pickle"
-            )
-            resp = local_client_with_den_auth.post(
-                "/resource",
-                json=PutResourceParams(
-                    serialized_data=data, serialization="pickle"
-                ).dict(),
-                headers=INVALID_HEADERS,
-            )
+    def test_put_resource_with_invalid_token(self, local_client_with_den_auth):
+        resource = Resource(name="test_resource2")
+        state = None
+        data = serialize_data(
+            (resource.config(condensed=False), state, resource.dryrun), "pickle"
+        )
+        resp = local_client_with_den_auth.post(
+            "/resource",
+            json=PutResourceParams(
+                serialized_data=data, serialization="pickle"
+            ).model_dump(),
+            headers=INVALID_HEADERS,
+        )
 
-            assert resp.status_code == 403
+        assert resp.status_code == 403
 
     @pytest.mark.level("unit")
     def test_put_object_with_invalid_token(self, local_client_with_den_auth):
@@ -647,7 +867,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
                 key="key1",
                 serialized_data=serialize_data(test_list, "pickle"),
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             headers=INVALID_HEADERS,
         )
         assert resp.status_code == 403
@@ -658,7 +878,7 @@ class TestHTTPServerNoDockerDenAuthOnly:
         new_key = "key2"
         resp = local_client_with_den_auth.post(
             "/rename",
-            json=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            json=RenameObjectParams(key=old_key, new_key=new_key).model_dump(),
             headers=INVALID_HEADERS,
         )
         assert resp.status_code == 403

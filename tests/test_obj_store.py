@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 import runhouse as rh
+from runhouse.logger import get_logger
 
 from tests.test_resources.test_modules.test_functions.test_function import (
     multiproc_np_sum,
@@ -13,8 +14,7 @@ from tests.test_resources.test_modules.test_functions.test_function import (
 TEMP_FILE = "my_file.txt"
 TEMP_FOLDER = "~/runhouse-tests"
 
-from runhouse.logger import logger
-
+logger = get_logger(__name__)
 
 UNIT = {"cluster": []}
 LOCAL = {
@@ -23,26 +23,28 @@ LOCAL = {
         "docker_cluster_pk_ssh_no_auth",
     ]
 }
-MINIMAL = {"cluster": ["ondemand_aws_cluster"]}
+MINIMAL = {"cluster": ["ondemand_aws_docker_cluster"]}
 RELEASE = {
     "cluster": [
-        "ondemand_aws_cluster",
+        "ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
+        "ondemand_k8s_docker_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "static_cpu_cluster",
+        "static_cpu_pwd_cluster",
     ]
 }
 MAXIMAL = {
     "cluster": [
         "docker_cluster_pwd_ssh_no_auth",
         "docker_cluster_pk_ssh_no_auth",
-        "ondemand_aws_cluster",
+        "ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
+        "ondemand_k8s_docker_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "multinode_cpu_cluster",
-        "static_cpu_cluster",
+        "multinode_cpu_docker_conda_cluster",
+        "static_cpu_pwd_cluster",
     ]
 }
 

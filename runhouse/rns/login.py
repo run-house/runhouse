@@ -2,12 +2,12 @@ import os
 from typing import Dict, Optional
 
 import requests
-
 import typer
 
 from runhouse.globals import configs, rns_client
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
+logger = get_logger(__name__)
 
 
 def is_interactive():

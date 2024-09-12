@@ -41,19 +41,30 @@ import asyncio
 import runhouse as rh
 
 # Next, we define a class that will hold the model and allow us to send prompts to it.
-# You'll notice this class inherits from `rh.Module`.
+# We'll later wrap this with `rh.module`.
 # This is a Runhouse class that allows you to run code in your class on a remote machine.
 #
 # Learn more in the [Runhouse docs on functions and modules](/docs/tutorials/api-modules).
-class LlamaModel(rh.Module):
+class LlamaModel:
     def __init__(self, model_id="meta-llama/Meta-Llama-3-8B-Instruct", **model_kwargs):
         super().__init__()
         self.model_id, self.model_kwargs = model_id, model_kwargs
         self.engine = None
 
     def load_engine(self):
+        import gc
+
+        import torch
         from vllm.engine.arg_utils import AsyncEngineArgs
         from vllm.engine.async_llm_engine import AsyncLLMEngine
+        from vllm.model_executor.parallel_utils.parallel_state import (
+            destroy_model_parallel,
+        )
+
+        # Cleanup methods to free memory for cases where you reload the model
+        destroy_model_parallel()
+        gc.collect()
+        torch.cuda.empty_cache()
 
         args = AsyncEngineArgs(
             model=self.model_id,  # Hugging Face Model ID
@@ -117,21 +128,22 @@ async def main():
     #
     # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
     env = rh.env(
-        reqs=["vllm==0.2.7"],  # >=0.3.0 causes Pydantic version error
+        reqs=["torch", "vllm==0.2.7"],  # >=0.3.0 causes pydantic version error
         secrets=["huggingface"],  # Needed to download Llama 3 from HuggingFace
         name="llama3inference",
     )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
-    # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
-    # by the name `llama3-8b-model` if it was already put on the cluster. If we want to update the module each
-    # time we run this script, we can use `to` instead of `get_or_to`.
+    # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
+    # by calling `cluster.get(name="llama3-8b-model")`. This would return the remote model after an initial run.
+    # If we want to update the module each time we run this script, we prefer to use `to`.
     #
-    # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
+    # Note that we also pass the `env` object to the `to` method, which will ensure that the environment is
     # set up on the remote machine before the module is run.
-    remote_llama_model = LlamaModel().get_or_to(
-        gpu_cluster, env=env, name="llama3-8b-model"
+    RemoteLlamaModel = rh.module(LlamaModel).to(
+        gpu_cluster, env=env, name="Llama3Model"
     )
+    remote_llama_model = RemoteLlamaModel(name="llama3-8b-model")
 
     # ## Calling our remote function
     #

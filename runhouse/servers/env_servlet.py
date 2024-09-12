@@ -1,11 +1,27 @@
+import copy
 import os
+import threading
+import time
 import traceback
 from functools import wraps
 from typing import Any, Dict, Optional
 
-from runhouse.constants import DEFAULT_LOG_LEVEL
+import psutil
+import pynvml
+
+from runhouse import configs
+
+from runhouse.constants import (
+    DEFAULT_STATUS_CHECK_INTERVAL,
+    GPU_COLLECTION_INTERVAL,
+    MAX_GPU_INFO_LEN,
+    REDUCED_GPU_INFO_LEN,
+)
+
 from runhouse.globals import obj_store
-from runhouse.logger import logger
+from runhouse.logger import get_logger
+
+from runhouse.resources.hardware.utils import detect_cuda_version_or_cpu
 
 from runhouse.servers.http.http_utils import (
     deserialize_data,
@@ -16,7 +32,15 @@ from runhouse.servers.http.http_utils import (
 )
 from runhouse.servers.obj_store import ClusterServletSetupOption
 
-from runhouse.utils import arun_in_thread, get_node_ip
+from runhouse.utils import (
+    arun_in_thread,
+    get_gpu_usage,
+    get_node_ip,
+    get_pid,
+    ServletType,
+)
+
+logger = get_logger(__name__)
 
 
 def error_handling_decorator(func):
@@ -69,15 +93,10 @@ class EnvServlet:
     async def __init__(self, env_name: str, *args, **kwargs):
         self.env_name = env_name
 
-        logs_level = kwargs.get("logs_level", DEFAULT_LOG_LEVEL)
-        logger.setLevel(logs_level)
-        # self.logger = logger
-
         await obj_store.ainitialize(
             self.env_name,
             has_local_storage=True,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
-            logs_level=logs_level,
         )
 
         # Ray defaults to setting OMP_NUM_THREADS to 1, which unexpectedly limit parallelism in user programs.
@@ -96,6 +115,21 @@ class EnvServlet:
 
         self.output_types = {}
         self.thread_ids = {}
+
+        self.pid = get_pid()
+        self.process = psutil.Process(pid=self.pid)
+
+        self.gpu_metrics = None  # will be updated only if this is a gpu cluster.
+        self.lock = (
+            threading.Lock()
+        )  # will be used when self.gpu_metrics will be updated by different threads.
+
+        if detect_cuda_version_or_cpu() != "cpu":
+            logger.debug("Creating _periodic_gpu_check thread.")
+            collect_gpu_thread = threading.Thread(
+                target=self._collect_env_gpu_usage, daemon=True
+            )
+            collect_gpu_thread.start()
 
     ##############################################################
     # Methods to disable or enable den auth
@@ -190,19 +224,12 @@ class EnvServlet:
 
     def _get_env_cpu_usage(self, cluster_config: dict = None):
 
-        import psutil
-
-        from runhouse.utils import get_pid
-
-        cluster_config = cluster_config or obj_store.cluster_config
-
         total_memory = psutil.virtual_memory().total
         node_ip = get_node_ip()
-        env_servlet_pid = get_pid()
 
         if not cluster_config.get("resource_subtype") == "Cluster":
             stable_internal_external_ips = cluster_config.get(
-                "stable_internal_external_ips"
+                "stable_internal_external_ips", []
             )
             for ips_set in stable_internal_external_ips:
                 internal_ip, external_ip = ips_set[0], ips_set[1]
@@ -211,19 +238,19 @@ class EnvServlet:
                     if ips_set[1] == cluster_config.get("ips")[0]:
                         node_name = f"head ({external_ip})"
                     else:
-                        node_name = f"worker_{stable_internal_external_ips.index(ips_set)} ({external_ip}"
+                        node_name = f"worker_{stable_internal_external_ips.index(ips_set)} ({external_ip})"
         else:
             # a case it is a BYO cluster, assume that first ip in the ips list is the head.
-            ips = cluster_config.get("ips")
+            ips = cluster_config.get("ips", [])
             if len(ips) == 1 or node_ip == ips[0]:
                 node_name = f"head ({node_ip})"
             else:
                 node_name = f"worker_{ips.index(node_ip)} ({node_ip})"
 
         try:
-            env_servlet_process = psutil.Process(pid=env_servlet_pid)
-            memory_size_bytes = env_servlet_process.memory_full_info().uss
-            cpu_usage_percent = env_servlet_process.cpu_percent()
+
+            memory_size_bytes = self.process.memory_full_info().uss
+            cpu_usage_percent = self.process.cpu_percent(interval=0)
             env_memory_usage = {
                 "used_memory": memory_size_bytes,
                 "utilization_percent": cpu_usage_percent,
@@ -232,71 +259,70 @@ class EnvServlet:
         except psutil.NoSuchProcess:
             env_memory_usage = {}
 
-        return (env_memory_usage, node_name, total_memory, env_servlet_pid, node_ip)
+        return (env_memory_usage, node_name, total_memory, self.pid, node_ip)
 
-    def _get_env_gpu_usage(self, env_servlet_pid: int):
-        import subprocess
+    def _get_env_gpu_usage(self):
+        # currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
 
-        try:
-            gpu_general_info = (
-                subprocess.run(
-                    [
-                        "nvidia-smi",
-                        "--query-gpu=utilization.gpu,memory.total,count,utilization.memory",
-                        "--format=csv,noheader,nounits",
-                    ],
-                    stdout=subprocess.PIPE,
-                )
-                .stdout.decode("utf-8")
-                .strip()
-                .split(", ")
-            )
-            gpu_util_percent = float(gpu_general_info[0])
-            total_gpu_memory = int(gpu_general_info[1]) * (1024**2)  # in bytes
-            num_of_gpus = int(gpu_general_info[2])
-            memory_utilization_percent = int(
-                gpu_general_info[3]
-            )  # in %, meaning 0 <= val <= 100, out of total gpu memory
-            allocated_gpu_memory = 0  # in bytes
+        collected_gpus_info = copy.deepcopy(self.gpu_metrics)
 
-            env_gpu_usage = (
-                subprocess.run(
-                    [
-                        "nvidia-smi",
-                        "--query-compute-apps=pid,gpu_uuid,used_memory",
-                        "--format=csv,nounits",
-                    ],
-                    stdout=subprocess.PIPE,
-                )
-                .stdout.decode("utf-8")
-                .strip()
-                .split("\n")
-            )
-            for i in range(1, len(env_gpu_usage)):
-                single_env_gpu_info = env_gpu_usage[i].strip().split(", ")
-                if int(single_env_gpu_info[0]) == env_servlet_pid:
-                    allocated_gpu_memory = allocated_gpu_memory + int(
-                        single_env_gpu_info[-1]
-                    ) * (1024**2)
-            used_memory = round(memory_utilization_percent / 100, 2) * total_gpu_memory
-            if allocated_gpu_memory > 0:
-                env_gpu_usage = {
-                    "allocated_memory": allocated_gpu_memory,
-                    "total_memory": total_gpu_memory,
-                    "used_memory": used_memory,  # in bytes
-                    "utilization_percent": gpu_util_percent / num_of_gpus,
-                    "memory_percent_allocated": round(
-                        used_memory / allocated_gpu_memory, 4
-                    )
-                    * 100,
-                }
-            else:
-                env_gpu_usage = {}
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to get GPU usage for {self.env_name}: {e}")
-            env_gpu_usage = {}
+        if collected_gpus_info is None or not collected_gpus_info[0]:
+            return None
 
-        return env_gpu_usage
+        return get_gpu_usage(
+            collected_gpus_info=collected_gpus_info, servlet_type=ServletType.env
+        )
+
+    def _collect_env_gpu_usage(self):
+        """periodically collects env gpu usage"""
+
+        pynvml.nvmlInit()  # init nvidia ml info collection
+
+        while True:
+            try:
+                gpu_count = pynvml.nvmlDeviceGetCount()
+                with self.lock:
+                    if not self.gpu_metrics:
+                        self.gpu_metrics: Dict[int, list[Dict[str, int]]] = {
+                            device: [] for device in range(gpu_count)
+                        }
+
+                    for gpu_index in range(gpu_count):
+                        handle = pynvml.nvmlDeviceGetHandleByIndex(gpu_index)
+                        processes = pynvml.nvmlDeviceGetComputeRunningProcesses_v3(
+                            handle
+                        )
+                        memory_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                        if processes:
+                            for p in processes:
+                                if p.pid == self.pid:
+                                    used_memory = p.usedGpuMemory  # in bytes
+                                    total_memory = memory_info.total  # in bytes
+                                    current_gpu_metrics: list[
+                                        Dict[str, int]
+                                    ] = self.gpu_metrics[gpu_index]
+                                    # to reduce cluster memory usage (we are saving the gpu_usage info on the cluster),
+                                    # we save only the most updated gpu usage. If for some reason the size of updated_gpu_info is
+                                    # too big, we remove the older gpu usage info.
+                                    # This is relevant when using cluster.status() directly and not relying on status being sent to den.
+                                    if len(current_gpu_metrics) + 1 > MAX_GPU_INFO_LEN:
+                                        current_gpu_metrics = current_gpu_metrics[
+                                            REDUCED_GPU_INFO_LEN:
+                                        ]
+                                    current_gpu_metrics.append(
+                                        {
+                                            "used_memory": used_memory,
+                                            "total_memory": total_memory,
+                                        }
+                                    )
+                                    self.gpu_metrics[gpu_index] = current_gpu_metrics
+            except Exception as e:
+                logger.error(str(e))
+                pynvml.nvmlShutdown()
+                break
+            finally:
+                # collects gpu usage every 5 seconds.
+                time.sleep(GPU_COLLECTION_INTERVAL)
 
     def _status_local_helper(self):
         objects_in_env_servlet = obj_store.keys_with_info()
@@ -312,17 +338,32 @@ class EnvServlet:
 
         # Try loading GPU data (if relevant)
         env_gpu_usage = (
-            self._get_env_gpu_usage(int(env_servlet_pid))
-            if cluster_config.get("has_cuda", False)
-            else {}
+            self._get_env_gpu_usage() if cluster_config.get("has_cuda", False) else {}
         )
+
+        cluster_config = obj_store.cluster_config
+        interval_size = cluster_config.get(
+            "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
+        )
+
+        # TODO: [sb]: once introduced, we could use ClusterServlet _cluster_periodic_thread_alive() to replace the
+        #  'should_send_status_and_logs_to_den' logic below.
+        # Only if one of these is true, do we actually need to get the status from each EnvServlet
+        should_send_status_and_logs_to_den: bool = (
+            configs.token is not None and interval_size != -1
+        )
+
+        # reset the gpu_info only if the current env_gpu collection will be sent to den. Otherwise, keep collecting it.
+        if should_send_status_and_logs_to_den:
+            with self.lock:
+                self.gpu_metrics = None
 
         env_servlet_utilization_data = {
             "env_gpu_usage": env_gpu_usage,
             "node_ip": node_ip,
             "node_name": node_name,
-            "pid": env_servlet_pid,
             "env_cpu_usage": env_memory_usage,
+            "pid": env_servlet_pid,
         }
 
         return objects_in_env_servlet, env_servlet_utilization_data

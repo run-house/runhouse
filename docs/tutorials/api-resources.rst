@@ -72,6 +72,11 @@ default, so if you would like to specify creating a local resource, you
 can do so by explicitly setting the resource name to begin with ``~/``
 to signal that it lives in the current folder.
 
+.. note::
+
+    If you are logged in and would like to turn off automatically saving resources to Runhouse RNS, you can
+    set ``autosave`` to ``false`` in your local ``~/.rh/config.yaml`` file.
+
 .. code:: ipython3
 
     my_resource = rh.ondemand_cluster(name='~/aws_cluster', instance_type='V100:1', provider='aws')
@@ -163,75 +168,94 @@ the resource factory method, passing in only the name.
 Runhouse RNS
 ------------
 
-The Runhouse RNS is a key-value metadata store that allows resources to
-be shared across users or environments, and does not need to be backed
-by Git. It works anywhere with an internet connection and Python
-interpreter, making it more portable. The RNS is also backed by a
+Runhouse RNS, or Den, is a key-value metadata store that allows
+resources to be shared across users or environments, and does not need
+to be backed by Git. It works anywhere with an internet connection and
+Python interpreter, making it more portable. The RNS is also backed by a
 management dashboard to view and manage all resources, including
 creation and update history.
 
-To use the Runhouse RNS, you will need a `Runhouse
+To use Den you will need a `Runhouse
 account <https://www.run.house/login>`__.
 
-The following resource, whose name ``my_blob`` does not begin with
-``~/``, will be saved into the Runhouse RNS.
+Simply call ``.save()`` on any Runhouse resource to save it to Den.
+
+Below is an example of how you connect to an existing cluster, run
+commands on the cluster remotely, and share the cluster for another user
+to connect to.
 
 .. code:: ipython3
 
-    import pickle
-    data = pickle.dumps(list(range(10)))
+    # Load a cluster which has already been launched and saved in Runhouse Den
+    # rh.cluster(name="aws-cpu", provider="aws", instance_type="m6i.large").save()
 
-    my_resource = rh.blob(data, name="my_blob", system="s3").write()  # write data to linked s3
-    my_resource.save()
+    cpu_cluster = rh.cluster(name="/jlewitt1/aws-cpu")
+    print(cpu_cluster.is_up())
 
 
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2023-06-21 22:38:05,351 | Creating new s3 folder if it does not already exist in path: /runhouse-blob/d57201aa760b4893800c7e3782117b3b/carolineechen
-    INFO | 2023-06-21 22:38:05,368 | Found credentials in shared credentials file: ~/.aws/credentials
-    INFO | 2023-06-21 22:38:06,305 | Creating new s3 folder if it does not already exist in path: /runhouse-blob/d57201aa760b4893800c7e3782117b3b/carolineechen
-    INFO | 2023-06-21 22:38:06,462 | Saving config to RNS: {'name': '/carolineechen/my_blob', 'resource_type': 'blob', 'resource_subtype': 'Blob', 'path': '/runhouse-blob/d57201aa760b4893800c7e3782117b3b/carolineechen/my_blob', 'system': 's3'}
-    INFO | 2023-06-21 22:38:07,078 | Config updated in RNS for Runhouse URI <resource/carolineechen:my_blob>
-
+    INFO | 2024-08-18 06:50:57.377788 | Running command on aws-cpu: echo "hello"
 
 
 
 .. parsed-literal::
     :class: code-output
 
-    <runhouse.resources.blob.Blob at 0x16703ee80>
+    Output()
 
+
+
+.. raw:: html
+
+    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"></pre>
+
+
+
+
+.. raw:: html
+
+    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace">
+    </pre>
+
+
+
+.. parsed-literal::
+    :class: code-output
+
+    INFO | 2024-08-18 06:51:07.370306 | Running command on aws-cpu: echo "hello"
+
+
+.. parsed-literal::
+    :class: code-output
+
+    True
+
+
+.. code:: ipython3
+
+    # Put an object into the cluster's object store and reload it
+    cpu_cluster.put("k1", "v1")
+    print(cpu_cluster.get("k1"))
+
+
+.. parsed-literal::
+    :class: code-output
+
+    INFO | 2024-08-17 20:24:44.166333 | Running command on aws-cpu: echo "hello"
+    INFO | 2024-08-17 20:24:48.699220 | Running forwarding command: ssh -T -L 32300:localhost:32300 -i ~/.ssh/sky-key -o Port=10022 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes -o ProxyCommand='ssh -T -L 32300:localhost:32300 -i ~/.ssh/sky-key -o Port=22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes -W %h:%p ubuntu@3.14.144.103' root@localhost
+
+
+.. parsed-literal::
+    :class: code-output
+
+    v1
 
 
 This resource can then be reloaded and reused not only from local, but
 also from any other environment, cluster, or device that you’re logged
 into!
-
-.. code:: ipython3
-
-    del my_resource
-
-    loaded = rh.load("my_blob")
-    pickle.loads(loaded.data)
-
-
-.. parsed-literal::
-    :class: code-output
-
-    INFO | 2023-06-21 22:38:10,598 | Attempting to load config for /carolineechen/my_blob from RNS.
-    INFO | 2023-06-21 22:38:10,936 | Creating new s3 folder if it does not already exist in path: /runhouse-blob/d57201aa760b4893800c7e3782117b3b/carolineechen
-    INFO | 2023-06-21 22:38:10,970 | Found credentials in shared credentials file: ~/.aws/credentials
-
-
-
-
-.. parsed-literal::
-    :class: code-output
-
-    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-
-
 
 The portability is extended to any teammates or person you want to share
 your resource with. Simply call ``.share()`` on the resource, and pass
@@ -241,7 +265,7 @@ to notify them.
 
 .. code:: ipython3
 
-    loaded.share(
+    cpu_cluster.share(
         users=["teammate1@email.com"],
         access_level="write",
     )
@@ -250,7 +274,18 @@ to notify them.
 .. parsed-literal::
     :class: code-output
 
-    INFO | 2023-06-21 22:38:14,252 | Attempting to load config for /carolineechen/my_blob from RNS.
+    INFO | 2024-08-18 06:51:39.797150 | Saving config for aws-cpu-ssh-secret to Den
+    INFO | 2024-08-18 06:51:39.972763 | Saving secrets for aws-cpu-ssh-secret to Vault
+    INFO | 2024-08-18 06:51:40.190996 | Saving config to RNS: {'name': '/jlewitt1/aws-cpu_default_env', 'resource_type': 'env', 'resource_subtype': 'Env', 'visibility': 'private', 'env_vars': {}, 'env_name': 'aws-cpu_default_env', 'compute': {}, 'reqs': ['ray==2.30.0'], 'working_dir': None}
+    INFO | 2024-08-18 06:51:40.368442 | Saving config to RNS: {'name': '/jlewitt1/aws-cpu', 'resource_type': 'cluster', 'resource_subtype': 'OnDemandCluster', 'visibility': 'private', 'ips': ['3.14.144.103'], 'server_port': 32300, 'server_connection_type': 'ssh', 'den_auth': False, 'ssh_port': 22, 'client_port': 32300, 'creds': '/jlewitt1/aws-cpu-ssh-secret', 'api_server_url': 'https://api.run.house', 'default_env': '/jlewitt1/aws-cpu_default_env', 'instance_type': 'CPU:2+', 'provider': 'aws', 'open_ports': [], 'use_spot': False, 'image_id': 'docker:nvcr.io/nvidia/pytorch:23.10-py3', 'region': 'us-east-2', 'stable_internal_external_ips': [('172.31.5.134', '3.14.144.103')], 'sky_kwargs': {'launch': {'retry_until_up': True}}, 'launched_properties': {'cloud': 'aws', 'instance_type': 'm6i.large', 'region': 'us-east-2', 'cost_per_hour': 0.096, 'docker_user': 'root'}, 'autostop_mins': -1}
+    INFO | 2024-08-18 06:51:40.548233 | Sharing cluster credentials, which enables the recipient to SSH into the cluster.
+    INFO | 2024-08-18 06:51:40.551277 | Saving config for aws-cpu-ssh-secret to Den
+    INFO | 2024-08-18 06:51:40.728345 | Saving secrets for aws-cpu-ssh-secret to Vault
+    INFO | 2024-08-18 06:51:41.150745 | Saving config to RNS: {'name': '/jlewitt1/aws-cpu_default_env', 'resource_type': 'env', 'resource_subtype': 'Env', 'visibility': 'private', 'env_vars': {}, 'env_name': 'aws-cpu_default_env', 'compute': {}, 'reqs': ['ray==2.30.0'], 'working_dir': None}
+    INFO | 2024-08-18 06:51:42.006030 | Saving config for aws-cpu-ssh-secret to Den
+    INFO | 2024-08-18 06:51:42.504070 | Saving secrets for aws-cpu-ssh-secret to Vault
+    INFO | 2024-08-18 06:51:42.728653 | Saving config to RNS: {'name': '/jlewitt1/aws-cpu_default_env', 'resource_type': 'env', 'resource_subtype': 'Env', 'visibility': 'private', 'env_vars': {}, 'env_name': 'aws-cpu_default_env', 'compute': {}, 'reqs': ['ray==2.30.0'], 'working_dir': None}
+    INFO | 2024-08-18 06:51:42.906615 | Saving config to RNS: {'name': '/jlewitt1/aws-cpu', 'resource_type': 'cluster', 'resource_subtype': 'OnDemandCluster', 'visibility': 'private', 'ips': ['3.14.144.103'], 'server_port': 32300, 'server_connection_type': 'ssh', 'den_auth': False, 'ssh_port': 22, 'client_port': 32300, 'creds': '/jlewitt1/aws-cpu-ssh-secret', 'api_server_url': 'https://api.run.house', 'default_env': '/jlewitt1/aws-cpu_default_env', 'instance_type': 'CPU:2+', 'provider': 'aws', 'open_ports': [], 'use_spot': False, 'image_id': 'docker:nvcr.io/nvidia/pytorch:23.10-py3', 'region': 'us-east-2', 'stable_internal_external_ips': [('172.31.5.134', '3.14.144.103')], 'sky_kwargs': {'launch': {'retry_until_up': True}}, 'launched_properties': {'cloud': 'aws', 'instance_type': 'm6i.large', 'region': 'us-east-2', 'cost_per_hour': 0.096, 'docker_user': 'root'}, 'autostop_mins': -1}
 
 
 
@@ -258,4 +293,4 @@ to notify them.
 .. parsed-literal::
     :class: code-output
 
-    ({}, {'teammate1@email.com': 'write'})
+    ({}, {'teammate1@email.com': 'write'}, ['teammate1@email.com'])

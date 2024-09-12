@@ -1,5 +1,6 @@
 import importlib
 import logging
+import os
 import shlex
 import subprocess
 import time
@@ -16,6 +17,7 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_SSH_PORT,
     EMPTY_DEFAULT_ENV_NAME,
+    TESTING_LOG_LEVEL,
 )
 from runhouse.globals import rns_client
 from runhouse.resources.hardware.utils import ResourceServerStatus
@@ -263,7 +265,7 @@ def set_up_local_cluster(
     rh_cluster = rh.cluster(**cluster_init_args)
     init_args[id(rh_cluster)] = cluster_init_args
 
-    # Save before bringing up so the correct rns_address is written to the cluster config.
+    # We need to save before bringing up so the correct rns_address is written to the cluster config.
     # This is necessary because we're turning on Den auth without saving the config.yaml (containing
     # the "owner's" token) to the container in many cases, so we're relying on authenticating the caller
     # to the server through Den. If the cluster isn't saved before coming up, the config in the cluster servlet
@@ -352,11 +354,9 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
 def docker_cluster_pk_ssh(request, test_org_rns_folder):
     """This basic cluster fixture is set up with:
     - Public key authentication
-    - Nginx set up on startup to forward Runhouse HTTP server to port 443
+    - Caddy set up on startup to forward Runhouse HTTP server to port 443
     - Default env with Ray 2.30.0
     """
-    import os
-
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
@@ -379,6 +379,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
         ],
         working_dir=None,
         name="default_env",
+        env_vars={"RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL},
     )
 
     local_cluster, cleanup = set_up_local_cluster(
@@ -459,8 +460,6 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
     - Caddy set up on startup to forward Runhouse HTTP Server to port 80
     - Default conda_env with Python 3.11 and Ray 2.30.0
     """
-    import os
-
     # From pytest config
     detached = request.config.getoption("--detached")
     force_rebuild = request.config.getoption("--force-rebuild")
@@ -483,7 +482,10 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
             "numpy<=1.26.4",
         ],
         conda_env={"dependencies": ["python=3.11"], "name": "default_env"},
-        env_vars={"OMP_NUM_THREADS": "8"},
+        env_vars={
+            "OMP_NUM_THREADS": "8",
+            "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
+        },
         working_dir=None,
         name="default_env",
     )

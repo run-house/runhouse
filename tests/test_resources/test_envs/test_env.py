@@ -65,7 +65,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             "base_conda_env",
             "named_conda_env_from_dict",
         ],
-        "cluster": ["ondemand_aws_cluster"],
+        "cluster": ["ondemand_aws_docker_cluster"],
     }
     RELEASE = {
         "env": [
@@ -75,8 +75,8 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             "named_conda_env_from_dict",
         ],
         "cluster": [
-            "ondemand_aws_cluster",
-            "static_cpu_cluster",
+            "ondemand_aws_docker_cluster",
+            "static_cpu_pwd_cluster",
         ],
     }
     MAXIMAL = {
@@ -89,12 +89,13 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             "conda_env_from_path",
         ],
         "cluster": [
-            "ondemand_aws_cluster",
+            "ondemand_aws_docker_cluster",
             "ondemand_gcp_cluster",
             "ondemand_k8s_cluster",
+            "ondemand_k8s_docker_cluster",
             "ondemand_aws_https_cluster_with_auth",
-            "static_cpu_cluster",
-            "multinode_cpu_cluster",
+            "static_cpu_pwd_cluster",
+            "multinode_cpu_docker_conda_cluster",
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pwd_ssh_no_auth",
             "docker_cluster_pk_ssh_den_auth",
@@ -157,7 +158,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         folder_name = "test_package"
         count = 0
         conda_env_cluster = s3_env.to(
-            system=cluster, path=folder_name, mount=True, force_install=True
+            system=cluster, path=folder_name, force_install=True
         )
         for req in conda_env_cluster.reqs:
             if isinstance(req, rh.Package) and isinstance(
@@ -233,12 +234,15 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_working_dir_env(self, env, cluster, tmp_path):
-        working_dir = tmp_path / "test_working_dir"
+        dir_name = "test_working_dir"
+        working_dir = tmp_path / dir_name
         working_dir.mkdir(exist_ok=True)
         env.working_dir = str(working_dir)
 
         assert str(working_dir) in env.reqs
-        env.to(cluster, force_install=True)
+
+        # Send the env to the cluster, save the dir in the main working directory (~) of the cluster
+        env.to(cluster, path=dir_name, force_install=True)
         assert working_dir.name in cluster.run(["ls"])[0][1]
 
         cluster.run([f"rm -r {working_dir.name}"])
@@ -276,7 +280,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
                 secret = rh.Secret.from_name(secret)
 
             if secret.path:
-                assert rh.file(path=secret.path, system=cluster).exists_in_system()
+                assert rh.folder(path=secret.path, system=cluster).exists_in_system()
             else:
                 env_vars = secret.env_vars or secret._DEFAULT_ENV_VARS
                 for _, var in env_vars.items():

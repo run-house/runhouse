@@ -1,38 +1,20 @@
 import copy
 import os
-import shlex
+import pickle
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
-
-import fsspec
-
-import sshfs
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from runhouse.globals import rns_client
+from runhouse.logger import get_logger
+
 from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
-from runhouse.rns.top_level_rns_fns import exists
-from runhouse.rns.utils.api import generate_uuid
+from runhouse.rns.utils.api import generate_uuid, relative_file_path
 from runhouse.utils import locate_working_dir
 
-fsspec.register_implementation("ssh", sshfs.SSHFileSystem)
-# SSHFileSystem is not yet builtin.
-# Line above suggested by fsspec devs: https://github.com/fsspec/filesystem_spec/issues/1071
-
-from runhouse.logger import logger
-
-
-PROVIDER_FS_LOOKUP = {
-    "aws": "s3",
-    "gcp": "gs",
-    "azure": "abfs",
-    "oracle": "ocifs",
-    "databricks": "dbfs",
-    "github": "github",
-}
+logger = get_logger(__name__)
 
 
 class Folder(Resource):
@@ -48,8 +30,6 @@ class Folder(Resource):
         path: Optional[str] = None,
         system: Union[str, Cluster] = None,
         dryrun: bool = False,
-        local_mount: bool = False,
-        data_config: Optional[Dict] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -60,37 +40,27 @@ class Folder(Resource):
         """
         super().__init__(name=name, dryrun=dryrun)
 
-        self._system = None
-        self._fsspec_fs = None
-        self._fsspec_fs_str = None
+        # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.gui.FileSelector.urlpath
+        # Note: no longer needed as part of previous fsspec usage, but still used by some s3 / gsutil commands
+        self._urlpath = None
 
-        current_cluster_config = _current_cluster(key="config")
-        if current_cluster_config and system is None:
-            self.system = Cluster.from_config(current_cluster_config)
-        elif isinstance(system, dict):
-            self.system = Cluster.from_config(system)
-        else:
-            self.system = system or self.DEFAULT_FS
+        self._system = _get_cluster_from(
+            system or _current_cluster(key="config"), dryrun=dryrun
+        )
 
         # TODO [DG] Should we ever be allowing this to be None?
         if path is None:
-            self._path = self.default_path(self.rns_address, system)
+            self._path = Folder.default_path(self.rns_address, self._system)
         else:
-            if system != "file":
+            if self._system != self.DEFAULT_FS:
                 self._path = path
             else:
                 self._path = self._path_absolute_to_rh_workdir(path)
-        self.data_config = data_config or {}
-
-        self.local_mount = local_mount
-        self._local_mount_path = None
-        if local_mount:
-            self.mount(tmp=True)
 
     def __getstate__(self):
-        """Override the pickle method to clear _fsspec_fs before pickling."""
+        """Override the pickle method to clear _urlpath before pickling."""
         state = self.__dict__.copy()
-        state["_fsspec_fs"] = None
+        state["_urlpath"] = None
         return state
 
     @classmethod
@@ -110,11 +80,10 @@ class Folder(Resource):
 
     # ----------------------------------
     @staticmethod
-    def from_config(config: dict, dryrun=False, _resolve_children=True):
+    def from_config(config: Dict, dryrun: bool = False, _resolve_children: bool = True):
         if _resolve_children:
             config = Folder._check_for_child_configs(config)
 
-        """Load config values into the object."""
         if config["system"] == "s3":
             from .s3_folder import S3Folder
 
@@ -123,10 +92,6 @@ class Folder(Resource):
             from .gcs_folder import GCSFolder
 
             return GCSFolder.from_config(config, dryrun=dryrun)
-        elif config["system"] == "azure":
-            from .azure_folder import AzureFolder
-
-            return AzureFolder.from_config(config, dryrun=dryrun)
         elif isinstance(config["system"], dict):
             config["system"] = Cluster.from_config(
                 config["system"], dryrun=dryrun, _resolve_children=_resolve_children
@@ -134,7 +99,7 @@ class Folder(Resource):
         return Folder(**config, dryrun=dryrun)
 
     @classmethod
-    def _check_for_child_configs(cls, config: dict):
+    def _check_for_child_configs(cls, config: Dict):
         """Overload by child resources to load any resources they hold internally."""
         system = config.get("system")
         if isinstance(system, str) or isinstance(system, dict):
@@ -146,9 +111,6 @@ class Folder(Resource):
         if self._path is not None:
             if self.system == Folder.DEFAULT_FS:
                 return str(Path(self._path).expanduser())
-            elif self._fs_str == self.CLUSTER_FS and self._path.startswith("~/"):
-                # sftp takes relative paths to the home directory but doesn't understand '~'
-                return str(self._path[2:])
             return str(self._path)
         else:
             return None
@@ -156,69 +118,18 @@ class Folder(Resource):
     @path.setter
     def path(self, path):
         self._path = path
-        self._local_mount_path = None
 
     @property
     def system(self):
         return self._system
 
     @system.setter
-    def system(self, data_source):
-        self._system = data_source
-        self._fsspec_fs = None
-
-    # Maybe figure out how to free sshfs properly (https://github.com/ronf/asyncssh/issues/112)
-    # def __del__(self):
-    #     if self.local_mount:
-    #         self.unmount()
-    #     if self._fsspec_fs and hasattr(self._fsspec_fs, "close"):
-    #         self._fsspec_fs.close()
-
-    @property
-    def data_config(self):
-        if isinstance(self.system, Resource):  # if system is a cluster
-            # handle case cluster is itself
-            if self.system.on_this_cluster():
-                return self._data_config
-
-            if not self.system.address:
-                self.system._update_from_sky_status(dryrun=False)
-                if not self.system.address:
-                    raise ValueError(
-                        "Cluster must be started before copying data from it."
-                    )
-            creds = self.system.creds_values
-
-            client_keys = (
-                [str(Path(creds["ssh_private_key"]).expanduser())]
-                if creds.get("ssh_private_key")
-                else []
-            )
-            password = creds.get("password", None)
-            config_creds = {
-                "host": creds.get("ssh_host") or self.system.address,
-                "username": creds.get("ssh_user"),
-                # 'key_filename': str(Path(creds['ssh_private_key']).expanduser())}  # For SFTP
-                "client_keys": client_keys,  # For SSHFS
-                "password": password,
-                "connect_timeout": "3s",
-                "proxy_command": creds.get("ssh_proxy_command"),
-            }
-            ret_config = self._data_config.copy()
-            ret_config.update(config_creds)
-            if creds and self.system.ssh_port:
-                ret_config["port"] = self.system.ssh_port
-            return ret_config
-        return self._data_config
-
-    @data_config.setter
-    def data_config(self, data_config):
-        self._data_config = data_config
-        self._fsspec_fs = None
+    def system(self, new_system: Union[str, Cluster]):
+        self._system = _get_cluster_from(new_system)
 
     @property
     def _fs_str(self):
-        if isinstance(self.system, Resource):  # if system is a cluster
+        if isinstance(self.system, Cluster):
             if self.system.on_this_cluster():
                 return self.DEFAULT_FS
             return self.CLUSTER_FS
@@ -226,71 +137,117 @@ class Folder(Resource):
             return self.system
 
     @property
-    def fsspec_fs(self):
-        if self._fsspec_fs_str != self._fs_str or self._fsspec_fs is None:
-            self._fsspec_fs_str = self._fs_str
-            self._fsspec_fs = fsspec.filesystem(self._fsspec_fs_str, **self.data_config)
-        return self._fsspec_fs
-
-    @property
     def local_path(self):
         if self.is_local():
-            return self._local_mount_path or str(Path(self.path).expanduser())
+            return str(Path(self.path).expanduser())
         else:
             return None
 
-    def is_writable(self):
-        """Whether the folder is writable.
-
-        Example:
-            >>> if my_folder.is_writable():
-            >>>     ....
-        """
-        # If the filesystem hasn't overridden mkdirs, it's a no-op and the filesystem is probably readonly
-        # (e.g. https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/implementations/github.html).
-        # In that case, we should just create a new folder in the default
-        # location and add it as a child to the parent folder.
-        return self.fsspec_fs.__class__.mkdirs == fsspec.AbstractFileSystem.mkdirs
+    @property
+    def _use_http_endpoint(self):
+        """Whether to use system APIs to perform folder operations on the cluster via HTTP."""
+        return isinstance(self.system, Cluster) and not self.system.on_this_cluster()
 
     def mv(
-        self, system, path: Optional[str] = None, data_config: Optional[dict] = None
+        self,
+        system: Union[str, Cluster],
+        path: Optional[str],
+        overwrite: bool = True,
     ) -> None:
         """Move the folder to a new filesystem or cluster.
+
+        Args:
+            system (str or Cluster): Filesystem or cluster to move the folder to.
+            path (str): Path to move the folder to.
+            overwrite (bool, optional): Whether to override if a file already exists at the destination path.
+                (Default: ``True``)
 
         Example:
             >>> folder = rh.folder(path="local/path")
             >>> folder.mv(my_cluster)
             >>> folder.mv("s3", "s3_bucket/path")
         """
-        # TODO [DG] use _generate_default_path
         if path is None:
-            path = "rh/" + self.rns_address
-        data_config = data_config or {}
-        with fsspec.open(self.fsspec_url, **self.data_config) as src:
-            with fsspec.open(f"{system}://{path}", **data_config) as dest:
-                # NOTE For packages, maybe use the `ignore` param here to only copy python files.
-                new_path = shutil.move(src, dest)
-        self.path = new_path
-        self.system = system
-        self.data_config = data_config or {}
+            raise ValueError("A destination path must be specified.")
+
+        src_path = Path()
+        dest_path = Path(path)
+
+        if self._use_http_endpoint:
+            self.system._folder_mv(
+                path=src_path, dest_path=dest_path, overwrite=overwrite
+            )
+        else:
+            dest_path = dest_path.expanduser()
+            src_path = src_path.expanduser()
+
+            if not src_path.exists():
+                raise FileNotFoundError(f"The source path {src_path} does not exist.")
+
+            if system == self.DEFAULT_FS:
+                if dest_path.exists():
+                    raise FileExistsError(
+                        f"The destination path {dest_path} already exists."
+                    )
+
+                # Create the destination directory if it doesn't exist
+                dest_path.parent.mkdir(parents=True, exist_ok=overwrite)
+
+                # Move the directory
+                shutil.move(str(src_path), str(dest_path))
+
+                # Update the path attribute
+                self.path = str(dest_path)
+                self.system = self.DEFAULT_FS
+
+            else:
+                # TODO [JL] support moving to other systems
+                raise NotImplementedError(f"System {system} not supported for local mv")
 
     def to(
         self,
         system: Union[str, "Cluster"],
         path: Optional[Union[str, Path]] = None,
-        data_config: Optional[dict] = None,
     ):
-        """Copy the folder to a new filesystem, and return a new Folder object pointing to the new location."""
+        """Copy the folder to a new filesystem or cluster.
+        Currently supported: ``here``, ``file``, ``gs``, ``s3``, or a cluster.
+
+        Args:
+            system (str or Cluster): Filesystem or cluster to move the folder to.
+            path (str, optional): Path to move the folder to.
+
+        Example:
+            >>> local_folder = rh.folder(path="/my/local/folder")
+            >>> s3_folder = local_folder.to("s3")
+        """
         if system == "here":
             current_cluster_config = _current_cluster(key="config")
             if current_cluster_config:
                 system = Cluster.from_config(current_cluster_config)
             else:
-                system = "file"
+                system = self.DEFAULT_FS
             path = str(Path.cwd() / self.path.split("/")[-1]) if path is None else path
 
+        if isinstance(system, Cluster):
+            if not path:
+                # Use a default path on the cluster (in ~/.cache/runhouse)
+                dest_path = Folder.default_path(
+                    rns_address=self.rns_address, system=system
+                )
+            else:
+                # Destination path on the cluster should be a relative path
+                dest_path = (
+                    relative_file_path(file_path=path)
+                    if Path(path).is_absolute()
+                    else path
+                )
+
+            # rsync the folder contents to the cluster's destination path
+            logger.debug(f"Syncing folder contents to cluster in path: {dest_path}")
+            return self._to_cluster(system, path=dest_path)
+
         path = str(
-            path or self.default_path(self.rns_address, system)
+            path or Folder.default_path(self.rns_address, system)
         )  # Make sure it's a string and not a Path
 
         system_str = getattr(
@@ -303,158 +260,76 @@ class Folder(Resource):
         # to_local, to_cluster and to_data_store are also overridden by subclasses to dispatch
         # to more performant cloud-specific APIs
         system = _get_cluster_from(system)
-
-        if system == "file":
-            return self._to_local(dest_path=path, data_config=data_config)
-        elif isinstance(system, Cluster):  # If system is a cluster
-            return self._to_cluster(dest_cluster=system, path=path)
-        elif system in ["s3", "gs", "azure"]:
-            return self._to_data_store(
-                system=system, data_store_path=path, data_config=data_config
+        if system == self.DEFAULT_FS:
+            return self._to_local(dest_path=path)
+        elif system in ["s3", "gs"]:
+            return self._to_data_store(system=system, data_store_path=path)
+        else:
+            raise ValueError(
+                f"System '{system}' not currently supported as a destination system."
             )
-        else:
-            self._fsspec_copy(system, path, data_config)
-            new_folder = copy.deepcopy(self)
-            new_folder.path = path
-            new_folder.system = system
-            new_folder.data_config = data_config or {}
-            return new_folder
 
-    def _fsspec_copy(self, system: str, path: str, data_config: dict):
-        """Copy the fsspec filesystem to the given new filesystem and path."""
-        # Fallback for other fsspec filesystems, but very slow:
-        system = system or Folder.DEFAULT_FS
-        if self.is_local():
-            self.fsspec_fs.put(self.path, f"{system}://{path}", recursive=True)
-        else:
-            # This is really really slow, maybe use skyplane, as follows:
-            # src_url = f'local://{self.path}' if self.is_local() else self.fsspec_url
-            # subprocess.run(['skyplane', 'sync', src_url, f'{system}://{path}'])
-
-            # FYI: from https://github.com/fsspec/filesystem_spec/issues/909
-            # Maybe copy chunks https://github.com/fsspec/filesystem_spec/issues/909#issuecomment-1204212507
-            src = fsspec.get_mapper(self.fsspec_url, create=False, **self.data_config)
-            dest = fsspec.get_mapper(f"{system}://{path}", create=True, **data_config)
-            # dest.system.mkdir(dest.root, create_parents=True)
-            import tqdm
-
-            for k in tqdm.tqdm(src):
-                # NOTE For packages, maybe use the `ignore` param here to only copy python files.
-                dest[k] = src[k]
-                # dst.write(src.read())
-
-    def destination_folder(
+    def _destination_folder(
         self,
         dest_path: str,
         dest_system: Optional[str] = "file",
-        data_config: Optional[dict] = None,
     ):
         """Returns a new Folder object pointing to the destination folder."""
-        new_folder = copy.deepcopy(self)
-        new_folder.path = dest_path
-        new_folder.system = dest_system
-        new_folder.data_config = data_config or {}
+        folder_config = self.config()
+        folder_config["system"] = dest_system
+        folder_config["path"] = dest_path
+        new_folder = Folder.from_config(folder_config)
+
         return new_folder
 
-    def _to_local(self, dest_path: str, data_config: dict):
-        """Copies folder to local."""
-        if (
-            self._fs_str == "file"
-        ):  # Also covers the case where we're on the cluster at system
-            # Simply move the files within local system
-            shutil.copytree(src=self.path, dst=dest_path)
-        elif isinstance(self.system, Cluster):
-            return self._cluster_to_local(cluster=self.system, dest_path=dest_path)
-        else:
-            self._fsspec_copy("file", dest_path, data_config)
+    def _to_local(self, dest_path: str):
+        """Copies folder to local. Only relevant for the base Folder if its system is a cluster."""
+        if isinstance(self.system, Cluster):
+            # Cluster --> local copying
+            logger.debug(
+                f"Copying folder from cluster {self.system.name} to local path: {dest_path}"
+            )
+            # Return a new folder objecting pointing to the local destination path
+            return self._cluster_to_local(self.system, dest_path)
 
-        return self.destination_folder(
-            dest_path=dest_path, dest_system="file", data_config=data_config
-        )
+        if self.system == self.DEFAULT_FS:
+            # Local --> local copying
+            logger.debug(f"Copying folder to local path: {dest_path}")
+            self.mv(system=self.system, path=dest_path)
+            return self
+
+        raise TypeError(f"Cannot copy from {self.system} to local.")
 
     def _to_data_store(
         self,
         system: str,
         data_store_path: Optional[str] = None,
-        data_config: Optional[dict] = None,
     ):
         """Local or cluster to blob storage."""
         local_folder_path = self.path
 
-        folder_config = self.config()
-        folder_config["system"] = system
-        folder_config["path"] = data_store_path
-        folder_config["data_config"] = data_config
-        new_folder = Folder.from_config(folder_config)
-
-        if (
-            self._fs_str == "file"
-        ):  # Also covers the case where we're on the cluster at system
-            new_folder._upload(src=local_folder_path)
-        elif isinstance(self.system, Cluster):
-            self.system.run(
-                [
-                    new_folder._upload_command(
-                        src=local_folder_path, dest=new_folder.path
-                    )
-                ]
-            )
-        else:
-            self._fsspec_copy("file", data_store_path, data_config)
-
-        return new_folder
-
-    @staticmethod
-    def rsync(local, remote, data_config, up=True):
-        """Rsync local folder to remote."""
-        dest_str = f'{data_config["username"]}@{data_config["host"]}:{remote}'
-        src_str = local
-        if not up:
-            src_str, dest_str = dest_str, src_str
-        cmd = (
-            f'rsync {src_str} {dest_str} --password_file {data_config["key_filename"]}'
+        # The new folder should be a sub-folder for the relevant data store (e.g. `S3Folder`)
+        new_folder = self._destination_folder(
+            dest_path=data_store_path, dest_system=system
         )
-        subprocess.run(shlex.split(cmd), check=True)
+        new_folder._upload(src=local_folder_path)
+        return new_folder
 
     def mkdir(self):
         """Create the folder in specified file system if it doesn't already exist."""
-        folder_path = self.path
-        if Path(os.path.basename(folder_path)).suffix != "":
-            folder_path = str(Path(folder_path).parent)
-
-        logger.info(
-            f"Creating new {self._fs_str} folder if it does not already exist in path: {folder_path}"
-        )
-        self.fsspec_fs.mkdirs(folder_path, exist_ok=True)
-
-        return self
-
-    def mount(self, path: Optional[str] = None, tmp: bool = False) -> str:
-        """Mount the folder locally.
-
-        Example:
-            remote_folder = rh.folder("folder/path", system="s3")
-            local_mount = remote_folder.mount()
-        """
-        # TODO check that fusepy and FUSE are installed
-        if tmp:
-            self._local_mount_path = tempfile.mkdtemp()
+        if self._use_http_endpoint:
+            self.system._folder_mkdir(self.path)
         else:
-            self._local_mount_path = path
-        remote_fs = self.fsspec_fs
-        fsspec.fuse.run(
-            fs=remote_fs, path=self.path, mount_point=self._local_mount_path
-        )
-        return self._local_mount_path
+            path = Path(self.path).expanduser()
+            if not path.exists():
+                path.mkdir(parents=True, exist_ok=True)
 
-    def _to_cluster(self, dest_cluster, path=None, mount=False):
+        logger.debug(f"Folder created in path: {self.path}")
+
+    def _to_cluster(self, dest_cluster, path=None):
         """Copy the folder from a file or cluster source onto a destination cluster."""
         if not dest_cluster.address:
             raise ValueError("Cluster must be started before copying data to it.")
-
-        # Create tmp_mount if needed
-        if not self.is_local() and mount:
-            self.mount(tmp=True)
 
         dest_path = path or f"~/{Path(self.path).name}"
 
@@ -463,12 +338,10 @@ class Folder(Resource):
         dest_folder.path = dest_path
         dest_folder.system = dest_cluster
 
-        if self._fs_str == "file" and dest_cluster.name is not None:
+        if self._fs_str == self.DEFAULT_FS and dest_cluster.name is not None:
             # Includes case where we're on the cluster itself
             # And the destination is a cluster, not rh.here
-            dest_cluster._rsync(
-                source=self.path, dest=dest_path, up=True, contents=True
-            )
+            dest_cluster.rsync(source=self.path, dest=dest_path, up=True, contents=True)
 
         elif isinstance(self.system, Resource):
             if self.system.endpoint(external=False) == dest_cluster.endpoint(
@@ -530,7 +403,7 @@ class Folder(Resource):
         if not cluster.address:
             raise ValueError("Cluster must be started before copying data from it.")
         Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
-        cluster._rsync(
+        cluster.rsync(
             source=self.path,
             dest=str(Path(dest_path).expanduser()),
             up=False,
@@ -538,9 +411,7 @@ class Folder(Resource):
         )
         new_folder = copy.deepcopy(self)
         new_folder.path = dest_path
-        new_folder.system = "file"
-        # Don't need to do anything with _data_config because cluster creds are injected virtually through the
-        # data_config property
+        new_folder.system = self.DEFAULT_FS
         return new_folder
 
     def is_local(self):
@@ -550,21 +421,21 @@ class Folder(Resource):
             >>> is_local = my_folder.is_local()
         """
         return (
-            self._fs_str == "file"
+            self._fs_str == self.DEFAULT_FS
             and self.path is not None
             and Path(self.path).expanduser().exists()
-        ) or self._local_mount_path
+        )
 
     def _upload(self, src: str, region: Optional[str] = None):
-        """Upload a folder to a remote bucket."""
+        """Upload a folder to a remote folder."""
         raise NotImplementedError
 
     def _upload_command(self, src: str, dest: str):
         """CLI command for uploading folder to remote bucket. Needed when uploading a folder from a cluster."""
         raise NotImplementedError
 
-    def _run_upload_cli_cmd(self, command: str):
-        """Uploads a folder to a remote bucket.
+    def _upload_folder_to_bucket(self, command: str):
+        """Uploads a folder to a remote bucket (e.g. s3).
         Based on the CLI command skypilot uses to upload the folder"""
         # Adapted from: https://github.com/skypilot-org/skypilot/blob/983f5fa3197fe7c4b5a28be240f7b027f7192b15/sky/data/data_utils.py#L165 # noqa
         with subprocess.Popen(
@@ -588,10 +459,8 @@ class Folder(Resource):
         """CLI command for downloading folder from remote bucket. Needed when downloading a folder to a cluster."""
         raise NotImplementedError
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True):
         config = super().config(condensed)
-        config_attrs = ["local_mount", "data_config"]
-        self.save_attrs_to_config(config, config_attrs)
 
         if self.system == Folder.DEFAULT_FS:
             # If folder is local check whether path is relative, and if so take it relative to the working director
@@ -617,7 +486,7 @@ class Folder(Resource):
             self.system.save(folder=folder)
 
     @staticmethod
-    def _path_relative_to_rh_workdir(path):
+    def _path_relative_to_rh_workdir(path: str):
         rh_workdir = Path(locate_working_dir())
         try:
             return str(Path(path).relative_to(rh_workdir))
@@ -625,16 +494,30 @@ class Folder(Resource):
             return path
 
     @staticmethod
-    def _path_absolute_to_rh_workdir(path):
+    def _path_absolute_to_rh_workdir(path: str):
         return (
             path
             if Path(path).expanduser().is_absolute()
             else str(Path(locate_working_dir()) / path)
         )
 
+    @staticmethod
+    def _delete_contents(contents: List, folder_path: Path, recursive: bool):
+        for content in contents:
+            content_path = folder_path / content
+            if content_path.exists():
+                if content_path.is_file():
+                    content_path.unlink()
+                elif content_path.is_dir() and recursive:
+                    shutil.rmtree(content_path)
+                else:
+                    raise ValueError(
+                        f"Path {content_path} is a directory and recursive is set to False"
+                    )
+
     @property
     def fsspec_url(self):
-        """Generate the FSSpec URL using the file system and path of the folder"""
+        """Generate the FSSpec style URL using the file system and path of the folder"""
         if self.path.startswith("/") and self._fs_str not in [
             rns_client.DEFAULT_FS,
             self.CLUSTER_FS,
@@ -645,6 +528,15 @@ class Folder(Resource):
             # e.g.: 'ssh:///home/ubuntu/.cache/runhouse/tables/dede71ef83ce45ffa8cb27d746f97ee8'
             return f"{self._fs_str}://{self.path}"
 
+    @property
+    def _bucket_name(self):
+        return self.path.lstrip("/").split("/")[0]
+
+    @property
+    def _key(self):
+        filtered_parts = self.path.split("/")[2:]
+        return "/".join(filtered_parts) + "/"
+
     def ls(self, full_paths: bool = True, sort: bool = False) -> List:
         """List the contents of the folder.
 
@@ -654,39 +546,58 @@ class Folder(Resource):
             sort (Optional[bool]): Whether to sort the folder contents by time modified.
                 Defaults to ``False``.
         """
-        paths = self.fsspec_fs.ls(path=self.path) if self.path else []
-        if sort:
-            paths = sorted(
-                paths, key=lambda f: self.fsspec_fs.info(f)["mtime"], reverse=True
-            )
-        if full_paths:
-            return paths
+        if self._use_http_endpoint:
+            return self.system._folder_ls(self.path, full_paths=full_paths, sort=sort)
         else:
-            return [Path(path).name for path in paths]
+            path = Path(self.path).expanduser()
+            paths = [p for p in path.iterdir()]
+
+            # Sort the paths by modification time if sort is True
+            if sort:
+                paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+            # Convert paths to strings and format them based on full_paths
+            if full_paths:
+                return [str(p.resolve()) for p in paths]
+            else:
+                return [p.name for p in paths]
 
     def resources(self, full_paths: bool = False):
-        """List the resources in the *RNS* folder.
+        """List the resources in the folder.
+
+        Args:
+            full_paths (bool, optional): Whether to list the full path or relative path. (Default: ``False``)
 
         Example:
             >>> resources = my_folder.resources()
         """
         try:
-            resources = [
-                path for path in self.ls() if (Path(path) / "config.json").exists()
-            ]
-        except FileNotFoundError:
-            return []
 
-        if full_paths:
-            return [self.rns_address + "/" + Path(path).stem for path in resources]
-        else:
-            return [Path(path).stem for path in resources]
+            if self._use_http_endpoint:
+                paths = self.system._folder_ls(path=self.path, full_paths=full_paths)
+                resources = [
+                    path
+                    for path in paths
+                    if self.system._folder_exists(path=f"{path}/config.json")
+                ]
+                return resources
+            else:
+                resources = [
+                    path for path in self.ls() if (Path(path) / "config.json").exists()
+                ]
+                if full_paths:
+                    return [
+                        self.rns_address + "/" + Path(path).stem for path in resources
+                    ]
+                else:
+                    return [Path(path).stem for path in resources]
+
+        except Exception as e:
+            logger.error(f"Error listing resources in folder: {e}")
+            return []
 
     @property
     def rns_address(self):
-        """Traverse up the filesystem until reaching one of the directories in rns_base_folders,
-        then compute the relative path to that.
-        """
         # TODO Maybe later, account for folders along the path with a different RNS name.
 
         if self.name is None:  # Anonymous folders have no rns address
@@ -720,8 +631,11 @@ class Folder(Resource):
             relative_path = str(Path(self.path).relative_to(base_folder.path))
             return base_folder_path + "/" + relative_path
 
-    def contains(self, name_or_path) -> bool:
-        """Whether path of a Folder exists locally.
+    def contains(self, name_or_path: str) -> bool:
+        """Whether path exists locally inside a folder.
+
+        Args:
+            name_or_path (str): Name or path of folder to check if it exists inside the folder.
 
         Example:
             >>> my_folder = rh.folder("local/folder/path")
@@ -730,8 +644,11 @@ class Folder(Resource):
         path, _ = self.locate(name_or_path)
         return path is not None
 
-    def locate(self, name_or_path) -> (str, str):
+    def locate(self, name_or_path) -> Tuple[str, str]:
         """Locate the local path of a Folder given an rns path.
+
+        Args:
+            name_or_path (str): Name or path of folder to locate inside the folder.
 
         Example:
             >>> my_folder = rh.folder("local/folder/path")
@@ -783,21 +700,45 @@ class Folder(Resource):
 
         return None, None
 
-    def open(self, name, mode="rb", encoding=None):
-        """Returns an fsspec file, which must be used as a content manager to be opened.
+    def open(self, name, mode: str = "rb", encoding: Optional[str] = None):
+        """Returns the specified file as a stream (`botocore.response.StreamingBody`), which must be used as a
+        content manager to be opened.
+
+        Args:
+            name (str): Name of file inside the folder to open.
+            mode (str, optional): Mode for opening the file. (Default: ``"rb"``)
+            encoding (str, optional): Encoding for opening the file. (Default: ``None``)
 
         Example:
             >>> with my_folder.open('obj_name') as my_file:
             >>>        pickle.load(my_file)
         """
-        return self.fsspec_fs.open(self.path + "/" + name, mode=mode, encoding=encoding)
+        file_path = Path(self.path).expanduser() / name
+        valid_modes = {"r", "w", "a", "rb", "wb", "ab", "r+", "w+", "a+"}
 
-    def get(self, name, mode="rb", encoding=None):
+        if mode not in valid_modes:
+            raise NotImplementedError(
+                f"{mode} mode is not implemented yet for local files"
+            )
+
+        return open(file_path, mode=mode, encoding=encoding)
+
+    def get(self, name, mode: str = "rb", encoding: Optional[str] = None):
         """Returns the contents of a file as a string or bytes.
+
+        Args:
+            name (str): Name of file to get contents of.
+            mode (str, optional): Mode for opening the file. (Default: ``"rb"``)
+            encoding (str, optional): Encoding for opening the file. (Default: ``None``)
 
         Example:
             >>> contents = my_folder.get(file_name)
         """
+        if self._use_http_endpoint:
+            return self.system._folder_get(
+                path=Path(self.path) / name, mode=mode, encoding=encoding
+            )
+
         with self.open(name, mode=mode, encoding=encoding) as f:
             return f.read()
 
@@ -805,7 +746,7 @@ class Folder(Resource):
     def get_all(self):
         # TODO add docs for this
         # TODO we're not closing these, do we need to extract file-like objects so we can close them?
-        return fsspec.open_files(self.fsspec_url, mode="rb", **self.data_config)
+        raise NotImplementedError
 
     def exists_in_system(self):
         """Whether the folder exists in the filesystem.
@@ -813,130 +754,117 @@ class Folder(Resource):
         Example:
             >>> exists_on_system = my_folder.exists_in_system()
         """
-        return self.fsspec_fs.exists(self.path) or exists(self.path)
+        if self._use_http_endpoint:
+            return self.system._folder_exists(path=self.path)
+        else:
+            full_path = Path(self.path).expanduser()
+            return full_path.exists() and full_path.is_dir()
 
-    def rm(self, contents: list = None, recursive: bool = True):
+    def rm(self, contents: List = None, recursive: bool = True):
         """Delete a folder from the file system. Optionally provide a list of folder contents to delete.
 
         Args:
-            contents (Optional[List]): Specific contents to delete in the folder.
-            recursive (bool): Delete the folder itself (including all its contents).
-                Defaults to ``True``.
+            contents (Optional[List]): Specific contents to delete in the folder. If None, removes
+                the entire folder. (Default: ``None``)
+            recursive (bool, optional): Delete the folder itself (including all its contents).
+                (Default: ``True``)
 
         Example:
             >>> my_folder.rm()
         """
-        if not contents:
-            try:
-                self.fsspec_fs.rm(self.path, recursive=recursive)
-            except FileNotFoundError:
-                pass
-
+        if self._use_http_endpoint:
+            self.system._folder_rm(self.path, contents, recursive)
         else:
-            for file_name in contents:
-                try:
-                    self.fsspec_fs.rm(f"{self.path}/{file_name}")
-                except FileNotFoundError:
-                    pass
+            folder_path = Path(self.path).expanduser()
+            if contents:
+                Folder._delete_contents(contents, folder_path, recursive)
+            else:
+                if recursive:
+                    shutil.rmtree(folder_path)
+                else:
+                    if folder_path.is_dir():
+                        for item in folder_path.iterdir():
+                            if item.is_file():
+                                item.unlink()
+                            else:
+                                raise ValueError(
+                                    f"Folder {item} found in {folder_path}, recursive is set to False"
+                                )
+                    else:
+                        folder_path.unlink()
 
-    def put(
-        self, contents, overwrite=False, mode: str = "wb", write_fn: Callable = None
-    ):
+    def put(self, contents: Dict[str, Any], overwrite: bool = False, mode: str = "wb"):
         """Put given contents in folder.
 
         Args:
             contents (Dict[str, Any] or Resource or List[Resource]): Contents to put in folder.
                 Must be a dict with keys being the file names (without full paths) and values being the file-like
                 objects to write, or a Resource object, or a list of Resources.
-            overwrite (bool): Whether to dump the file contents as json. By default expects data to be encoded.
-                Defaults to ``False``.
-            mode (Optional(str)): Write mode to use for fsspec. Defaults to ``wb``.
-            write_fn (Optional(Callable)): Function to use for writing file contents.
-                Example: ``write_fn = lambda f, data: json.dump(data, f)
+            overwrite (bool, optional): Whether to overwrite the existing file if it exists. (Default: ``False``)
+            mode (str, optional): Write mode to use. (Default: ``wb``).
 
         Example:
             >>> my_folder.put(contents={"filename.txt": data})
         """
-        self.mkdir()
         # Handle lists of resources just for convenience
         if isinstance(contents, list):
             for resource in contents:
                 self.put(resource, overwrite=overwrite)
             return
 
-        if isinstance(contents, Folder):
-            if not self.is_writable():
-                raise RuntimeError(
-                    f"Cannot put files into non-writable folder {self.name or self.path}"
-                )
-            if contents.path is None:  # Should only be the case when Folder is created
-                contents.path = self.path + "/" + contents.name
-                contents.system = self.system
-                # The parent can be anonymous, e.g. the 'rh' folder.
-                # TODO not sure if this should be allowed - if parent folder has no rns address, why would child
-                # just be put into the default rns folder?
-                # TODO If the base is named later, figure out what to do with the contents (rename, resave, etc.).
-                if self.rns_address is None:
-                    contents.rns_path = rns_client.default_folder + "/" + contents.name
-                    rns_client.rns_base_folders.update(
-                        {contents.rns_address: contents.path}
-                    )
-                # We don't need to call .save here to write down because it will be called at the end of the
-                # folder or resource constructor
-            else:
-                if contents.name is None:  # Anonymous resource
-                    i = 1
-                    new_name = contents.RESOURCE_TYPE + str(i)
-                    # Resolve naming conflicts if necessary
-                    while rns_client.exists(self.path + "/" + new_name):
-                        i += 1
-                        new_name = contents.RESOURCE_TYPE + str(i)
-                else:
-                    new_name = contents.name
-
-                # NOTE For intercloud transfer, we should use Skyplane
-                with fsspec.open(
-                    self.fsspec_url + "/" + new_name, **self.data_config
-                ) as dest:
-                    with fsspec.open(
-                        contents.fsspec_url, **contents.data_config
-                    ) as src:
-                        # NOTE For packages, maybe use the `ignore` param here to only copy python files.
-                        shutil.move(src, dest)
-            return
-
-        if not isinstance(contents, dict):
-            raise TypeError(
-                "`files` argument to `.put` must be Resource, list of Resources, or dict mapping "
-                "filenames to file-like-objects"
+        if self._use_http_endpoint:
+            self.system._folder_put(
+                path=self.path, contents=contents, overwrite=overwrite, mode=mode
             )
+        else:
+            self.mkdir()
+            full_path = str(Path(self.path).expanduser())
+            if isinstance(contents, Folder):
+                if (
+                    contents.path is None
+                ):  # Should only be the case when Folder is created
+                    contents.path = os.path.join(full_path, contents.name)
+                return
 
-        if overwrite is False:
-            folder_contents = self.resources()
-            intersection = set(folder_contents).intersection(set(contents.keys()))
-            if intersection != set():
-                raise FileExistsError(
-                    f"File(s) {intersection} already exist(s) at path"
-                    f"{self.path}, cannot save them without overwriting."
+            if not isinstance(contents, dict):
+                raise TypeError(
+                    "`contents` argument must be a dict mapping filenames to file-like objects"
                 )
-        # TODO figure out default behavior for not overwriting but still saving
-        # if not overwrite:
-        #     time = datetime.today().strftime('%Y-%m-%d_%H:%M:%S')
-        #     self.data_url = self.data_url + time or time
-        filenames = list(contents)
-        fss_files = fsspec.open_files(
-            self.fsspec_url + "/*",
-            mode=mode,
-            **self.data_config,
-            num=len(contents),
-            name_function=filenames.__getitem__,
-        )
-        for (fss_file, raw_file) in zip(fss_files, contents.values()):
-            with fss_file as f:
-                if write_fn is not None:
-                    write_fn(raw_file, f)
-                else:
-                    f.write(raw_file)
+
+            if overwrite is False:
+                # Check if files exist and raise an error if they do
+                existing_files = set(os.listdir(full_path))
+                intersection = existing_files.intersection(set(contents.keys()))
+                if intersection:
+                    raise FileExistsError(
+                        f"File(s) {intersection} already exist(s) at path: {full_path}. "
+                        f"Cannot save them with overwrite={overwrite}."
+                    )
+
+            for filename, file_obj in contents.items():
+                file_obj = self._serialize_file_obj(file_obj)
+                file_path = Path(full_path) / filename
+                if not overwrite and file_path.exists():
+                    raise FileExistsError(f"File {file_path} already exists.")
+
+                try:
+                    with open(file_path, mode) as f:
+                        f.write(file_obj)
+
+                except Exception as e:
+                    raise RuntimeError(
+                        f"Failed to write {filename} to {file_path}: {e}"
+                    )
+
+    @staticmethod
+    def _serialize_file_obj(file_obj):
+        if not isinstance(file_obj, bytes):
+            try:
+                file_obj = pickle.dumps(file_obj)
+            except (pickle.PicklingError, TypeError) as e:
+                raise ValueError(f"Cannot serialize file contents: {e}")
+
+        return file_obj
 
     @staticmethod
     def _bucket_name_from_path(path: str) -> str:

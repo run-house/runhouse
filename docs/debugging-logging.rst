@@ -21,12 +21,16 @@ Alternatively, to see logs on your local machine while running a remote function
     remote_fn = rh.function(fn)
     fn(fn_args, stream_logs=True)
 
+Log Levels
+----------
+You can set the log level to control the verbosity of the Runhouse logs. You can adjust the log level by
+setting the environment variable ``RH_LOG_LEVEL`` to your desired level.
 
 Debugging
 ~~~~~~~~~
 
 For general debugging that doesn't occur within remote function calls, you can add
-``import pdb; pdb.set_trace()`` whereever you want to set your debugging session.
+``breakpoint()`` wherever you want to set your debugging session.
 If the code is being run locally at the point of the debugger, you'll be able to access the session from your
 local machine. If the code is being run remotely on a cluster, you will need to ssh into the cluster with
 ``ssh cluster-name``, and then run ``screen -r`` inside the cluster. From there, you will see the RPC logs
@@ -44,4 +48,4 @@ For debugging remote functions, which are launched using ``ray``, we can utilize
 ``breakpoint()`` call inside the function where you want to start the debugging session, then ssh into the
 cluster with ``ssh cluster-name``, and call ``ray debug`` to view select the breakpoint to enter. You can run
 normal ``pdb`` commands within the debugging session, and can refer to
-`Ray Debugger <https://docs.ray.io/en/latest/ray-contribute/debugging.html>`_ for more information.
+`Ray Debugger <https://docs.ray.io/en/latest/ray-contribute/debugging.html>`__ for more information.

@@ -7,7 +7,7 @@ Resources
 ------------------------------------
 Resources are the Runhouse abstraction for objects that can be saved, shared, and reused.
 This includes both compute abstractions (clusters, functions, packages, environments) and
-data abstractions (files, blobs, folders).
+data abstractions (folders).
 
 .. toctree::
    :maxdepth: 1
@@ -51,34 +51,24 @@ and rich debugging and accessibility interfaces built-in.
 
 Data Abstractions
 ------------------------------------
-The Folder, Blob, and File APIs provide a simple interface for storing, recalling, and moving data between
-the user's laptop, remote compute, cloud storage, and specialized storage (e.g. data warehouses).
-They provide least-common-denominator APIs across providers, allowing users to easily specify the actions
-they want to take on the data without needed to dig into provider-specific APIs. We'd like to extend this
-to other data concepts in the future, like kv-stores, time-series, vector and graph databases, etc.
+The Folder APIs provide a simple interface for storing, recalling, and moving data between
+the user's laptop, remote compute, and cloud storage (currently we support `S3` and `GCS`). They provide
+least-common-denominator APIs across providers, allowing users to easily specify the actions
+they want to take on the data without needed to dig into provider-specific APIs.
 
 .. toctree::
    :maxdepth: 1
 
    python/folder
 
-.. toctree::
-   :maxdepth: 1
-
-   python/blob
-
-.. toctree::
-   :maxdepth: 1
-
-   python/file
 
 
 Secrets
 ------------------------------------
 Runhouse provides a convenient interface for managing your secrets in a secure manner.
-Secrets are stored in `Vault <https://www.vaultproject.io/>`_, an industry standard for
+Secrets are stored in `Vault <https://www.vaultproject.io/>`__, an industry standard for
 secrets management, and never touches Runhouse servers. Please see
-:ref:`Security and Metadata Collection` for more information on security.
+:ref:`Security and Authentication` for more information on security.
 
 .. toctree::
    :maxdepth: 1

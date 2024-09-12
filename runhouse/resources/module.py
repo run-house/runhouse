@@ -13,7 +13,7 @@ from apispec import APISpec
 from pydantic import create_model
 
 from runhouse.globals import obj_store, rns_client
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.hardware import (
     _current_cluster,
@@ -24,10 +24,14 @@ from runhouse.resources.hardware import (
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
-from runhouse.rns.utils.names import _generate_default_name
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import CallParams
-from runhouse.utils import get_module_import_info, locate_working_dir
+from runhouse.utils import (
+    client_call_wrapper,
+    generate_default_name,
+    get_module_import_info,
+    locate_working_dir,
+)
 
 
 # These are attributes that the Module's __getattribute__ logic should not intercept to run remotely
@@ -43,10 +47,11 @@ MODULE_ATTRS = [
     "_system",
     "dryrun",
     "_resolve",
-    "provenance",
     "_signature",
     "_dumb_signature_cache",
 ]
+
+logger = get_logger(__name__)
 
 
 class Module(Resource):
@@ -61,25 +66,32 @@ class Module(Resource):
         system: Union[Cluster, str] = None,
         env: Optional[Env] = None,
         dryrun: bool = False,
-        provenance: Optional[dict] = None,
         **kwargs,
     ):
         """
-        Runhouse Module object
+        Runhouse Module object.
+
+        .. note::
+                To create a Module, please use the factory method :func:`module`.
         """
-        super().__init__(name=name, dryrun=dryrun, provenance=provenance, **kwargs)
+        super().__init__(name=name, dryrun=dryrun, **kwargs)
         self._system = _get_cluster_from(
             system or _current_cluster(key="config"), dryrun=dryrun
         )
         self._env = env
         is_builtin = hasattr(sys.modules["runhouse"], self.__class__.__qualname__)
+
+        # If there are no pointers and this isn't a builtin module, we assume this is a user-created subclass
+        # of rh.Module, and we need to do the factory constructor logic here.
         if not pointers and not is_builtin:
-            # If there are no pointers and this isn't a builtin module, we assume this is a user-created subclass
-            # of rh.Module, and we need to do the factory constructor logic here.
+            if not self._env:
+
+                env_for_current_process = obj_store.get_process_env()
+                self._env = env_for_current_process or (
+                    self._system.default_env if self._system else Env()
+                )
 
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
-            if not self._env:
-                self._env = self._system.default_env if self._system else Env()
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
             pointers = Module._extract_pointers(self.__class__)
@@ -103,7 +115,7 @@ class Module(Resource):
         self._resolve = False
         self._openapi_spec = None
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True):
         if not self.system:
             raise ValueError(
                 "Cannot save an in-memory local module to RNS. Please send the module to a local "
@@ -141,7 +153,9 @@ class Module(Resource):
         return config
 
     @classmethod
-    def from_config(cls, config: dict, dryrun=False, _resolve_children=True):
+    def from_config(
+        cls, config: Dict, dryrun: bool = False, _resolve_children: bool = True
+    ):
         if config.get("pointers"):
             config.pop("resource_subtype", None)
             logger.debug(f"Constructing module from pointers {config['pointers']}")
@@ -211,7 +225,6 @@ class Module(Resource):
             new_module._pointers = config.pop("pointers", None)
             new_module._signature = config.pop("signature", None)
             new_module.dryrun = config.pop("dryrun", False)
-            new_module.provenance = config.pop("provenance", None)
             new_module._openapi_spec = config.pop("openapi_spec", None)
             return new_module
 
@@ -286,7 +299,7 @@ class Module(Resource):
         return self._signature
 
     def method_signature(self, method):
-        """Extracts the properties of a method that we want to preserve when sending the method over the wire."""
+        """Method signature, consisting of method properties to preserve when sending the method over the wire."""
         signature = inspect.signature(method)
         signature_metadata = {
             "signature": str(signature),
@@ -310,9 +323,9 @@ class Module(Resource):
         down from a config). If not, request the endpoint from the Module's system.
 
         Args:
-            external: If True and getting the endpoint from the system, only return an endpoint if it's externally
-                accessible (i.e. not on localhost, not connected through as ssh tunnel). If False, return the endpoint
-                even if it's not externally accessible.
+            external (bool, optional): If True and getting the endpoint from the system, only return an endpoint if
+                it's externally accessible (i.e. not on localhost, not connected through as ssh tunnel). If False,
+                return the endpoint even if it's not externally accessible. (Default: ``False``)
         """
         if self._endpoint:
             return self._endpoint
@@ -416,9 +429,9 @@ class Module(Resource):
         return state
 
     def default_name(self):
-        return (
-            self._pointers[2] if self._pointers else None
-        ) or _generate_default_name(prefix=self.__class__.__qualname__.lower())
+        return (self._pointers[2] if self._pointers else None) or generate_default_name(
+            prefix=self.__class__.__qualname__.lower()
+        )
 
     def to(
         self,
@@ -428,6 +441,15 @@ class Module(Resource):
         force_install: bool = False,
     ):
         """Put a copy of the module on the destination system and env, and return the new module.
+
+        Args:
+            system (str or Cluster): The system to setup the module and env on.
+            env (str, List[str], or Env, optional): The environment where the module lives on in the cluster,
+                or the set of requirements necessary to run the module. (Default: ``None``)
+            name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
+                (Default: ``None``)
+            force_install (bool, optional): Whether to re-install and perform the environment setup steps, even
+                if it may already exist on the cluster. (Defualt: ``False``)
 
         Example:
             >>> local_module = rh.module(my_class)
@@ -454,7 +476,7 @@ class Module(Resource):
         )
 
         env = self.env if not env else env
-        env = _get_env_from(env)
+        env = _get_env_from(env, load=False)
 
         # We need to change the pointers to the remote import path if we're sending this module to a remote cluster,
         # and we need to add the local path to the module to the requirements if it's not already there.
@@ -538,6 +560,9 @@ class Module(Resource):
             )
             system.put_resource(new_module, state, dryrun=True)
 
+        if rns_client.autosave_resources():
+            new_module.save()
+
         return new_module
 
     def get_or_to(
@@ -548,6 +573,13 @@ class Module(Resource):
     ):
         """Check if the module already exists on the cluster, and if so return the module object.
         If not, put the module on the cluster and return the remote module.
+
+        Args:
+            system (str or Cluster): The system to setup the module and env on.
+            env (str, List[str], or Env, optional): The environment where the module lives on in the cluster,
+                or the set of requirements necessary to run the module. (Default: ``None``)
+            name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
+                (Default: ``None``)
 
         Example:
             >>> remote_df = Model().get_or_to(my_cluster, name="remote_model")
@@ -591,6 +623,8 @@ class Module(Resource):
         if not client:
             return super().__getattribute__(item)
 
+        system = super().__getattribute__("_system")
+
         is_coroutine_function = (
             self.signature(rich=True)[item]["async"]
             and not self.signature(rich=True)[item]["gen"]
@@ -611,7 +645,10 @@ class Module(Resource):
                     run_async = is_coroutine_function
 
                 if run_async:
-                    return client.acall(
+                    return client_call_wrapper(
+                        client,
+                        system,
+                        "acall",
                         name,
                         item,
                         run_name=kwargs.pop("run_name", None),
@@ -620,7 +657,10 @@ class Module(Resource):
                         data={"args": args, "kwargs": kwargs},
                     )
                 else:
-                    return client.call(
+                    return client_call_wrapper(
+                        client,
+                        system,
+                        "call",
                         name,
                         item,
                         run_name=kwargs.pop("run_name", None),
@@ -659,8 +699,21 @@ class Module(Resource):
         else:
             return self
 
-    def replicate(self, num_replicas=1, names=None, envs=None, parallel=False):
-        """Replicate the module on the cluster in a new env and return the new modules."""
+    def replicate(
+        self,
+        num_replicas: int = 1,
+        names: List[str] = None,
+        envs: List["Env"] = None,
+        parallel: bool = False,
+    ):
+        """Replicate the module on the cluster in a new env and return the new modules.
+
+        Args:
+            num_relicas (int, optional): Number of replicas of the module to create. (Default: 1)
+            names (List[str], optional): List for the names for the replicas, if specified. (Default: ``None``)
+            envs (List[Env], optional): List of the envs for the replicas, if specified. (Default: ``None``)
+            parallel (bool, optional): Whether to create the replicas in parallel. (Default: ``False``)
+        """
         if not self.system or not self.name:
             raise ValueError(
                 "Cannot replicate a module that is not on a cluster. Please send the module to a cluster first."
@@ -676,6 +729,10 @@ class Module(Resource):
         if names and not len(names) == num_replicas:
             raise ValueError(
                 "If names is a list, it must be the same length as num_replicas."
+            )
+        if not envs and (self.env and not self.env.name):
+            raise ValueError(
+                "Cannot replicate the default environment. Please send the module or function to a named env first."
             )
 
         def create_replica(i):
@@ -729,14 +786,19 @@ class Module(Resource):
                 if not client or not name:
                     return outer_super_gettattr(item)
 
-                return client.call(name, item, stream_logs=False)
+                return client_call_wrapper(
+                    client, system, "call", name, item, stream_logs=False
+                )
 
             @classmethod
             def __setattr__(cls, key, value):
                 if not client or not name:
                     return outer_super_setattr(key, value)
 
-                return client.call(
+                return client_call_wrapper(
+                    client,
+                    system,
+                    "call",
                     key=name,
                     method_name=key,
                     data={"args": [value], "kwargs": {}},
@@ -783,7 +845,7 @@ class Module(Resource):
             >>> MyRemoteClass = rh.module(my_class).to(system)
             >>> MyRemoteClass(*args).fetch() # Returns a my_class instance, populated with the remote state
 
-            >>> my_blob.fetch() # Returns the data of the blob, due to overloaded ``resolved_state`` method
+            >>> my_module.fetch() # Returns the data of the blob, due to overloaded ``resolved_state`` method
 
             >>> class MyModule(rh.Module):
             >>>     # ...
@@ -793,16 +855,22 @@ class Module(Resource):
         name = super().__getattribute__("_name")
 
         client = super().__getattribute__("_client")()
+        system = super().__getattribute__("_system")
 
         if item is not None:
             if not client or not name:
                 return super().__getattribute__(item)
-            return client.call(name, item)
+            return client_call_wrapper(client, system, "call", name, item)
         else:
             if not client or not name:
                 return self.resolved_state(**kwargs)
-            return client.call(
-                name, "resolved_state", data={"args": [], "kwargs": kwargs}
+            return client_call_wrapper(
+                client,
+                system,
+                "call",
+                name,
+                "resolved_state",
+                data={"args": [], "kwargs": kwargs},
             )
 
     async def fetch_async(
@@ -820,7 +888,7 @@ class Module(Resource):
 
         def call_wrapper():
             if not key:
-                return client.get(name, remote=remote)
+                return client_call_wrapper(client, system, "get", name, remote=remote)
 
             if isinstance(system, Cluster) and name and system.on_this_cluster():
                 obj_store_obj = obj_store.get(name, default=None)
@@ -828,7 +896,7 @@ class Module(Resource):
                     return obj_store_obj.__getattribute__(key)
                 else:
                     return self.__getattribute__(key)
-            return client.call(name, key, remote=remote)
+            return client_call_wrapper(client, system, "call", name, key, remote=remote)
 
         try:
             is_gen = (key and hasattr(self, key)) and inspect.isasyncgenfunction(
@@ -884,9 +952,9 @@ class Module(Resource):
         """Specify that the module should resolve to a particular state when passed into a remote method. This is
         useful if you want to revert the module's state to some "Runhouse-free" state once it is passed into a
         Runhouse-unaware function. For example, if you call a Runhouse-unaware function with ``.remote()``,
-        you will be returned a Blob which wraps your data. If you want to pass that Blob into another function
+        you will be returned a module which wraps your data. If you want to pass that module into another function
         that operates on the original data (e.g. a function that takes a numpy array), you can call
-        ``my_second_fn(my_blob.resolve())``, and ``my_blob`` will be replaced with the contents of its ``.data`` on the
+        ``my_second_fn(my_func.resolve())``, and ``my_func`` will be replaced with the contents of its ``.data`` on the
         cluster before being passed into ``my_second_fn``.
 
         Resolved state is defined by the ``resolved_state`` method. By default, modules created with the
@@ -898,8 +966,8 @@ class Module(Resource):
             >>> my_module = rh.module(my_class)
             >>> my_remote_fn(my_module.resolve()) # my_module will be replaced with the original class `my_class`
 
-            >>> my_result_blob = my_remote_fn.call.remote(args)
-            >>> my_other_remote_fn(my_result_blob.resolve()) # my_result_blob will be replaced with its data
+            >>> my_result_module = my_remote_fn.call.remote(args)
+            >>> my_other_remote_fn(my_result_module.resolve()) # my_result_module will be replaced with its data
 
         """
         self._resolve = True
@@ -936,7 +1004,11 @@ class Module(Resource):
             self.env.save(folder=folder)
 
     def rename(self, name: str):
-        """Rename the module."""
+        """Rename the module.
+
+        Args:
+            name (str): Name to rename the module to.
+        """
         if self.name == name or self.rns_address == name:
             return
         old_name = self.name
@@ -955,9 +1027,8 @@ class Module(Resource):
             )
 
     def save(self, name: str = None, overwrite: bool = True, folder: str = None):
-        """Register the resource and save to local working_dir config and RNS config store."""
         # Need to override Resource's save to handle key changes in the obj store
-        # Also check that this is a Blob and not a File
+        # Also check that this is a Module and not a File
 
         # Make sure to generate the openapi spec before saving
         _ = self.openapi_spec()
@@ -1011,7 +1082,7 @@ class Module(Resource):
     @staticmethod
     def _extract_pointers(raw_cls_or_fn: Union[Type, Callable]):
         """Get the path to the module, module name, and function name to be able to import it on the server"""
-        if not (isinstance(raw_cls_or_fn, type) or isinstance(raw_cls_or_fn, Callable)):
+        if not (isinstance(raw_cls_or_fn, Type) or isinstance(raw_cls_or_fn, Callable)):
             raise TypeError(
                 f"Expected Type or Callable but received {type(raw_cls_or_fn)}"
             )
@@ -1045,7 +1116,7 @@ class Module(Resource):
             if (
                 isinstance(req, Package)
                 and not isinstance(req.install_target, str)
-                and req.install_target.is_local()
+                # and req.install_target.is_local()
             ):
                 local_path_containing_module = Path(req.install_target.local_path)
 
@@ -1072,7 +1143,11 @@ class Module(Resource):
     def openapi_spec(self, spec_name: Optional[str] = None):
         """Generate an OpenAPI spec for the module.
 
-        TODO: This breaks if the module has type annotations that are classes, and not standard library or
+        Args:
+            spec_name (str, optional): Spec name for the OpenAPI spec.
+        """
+
+        """ TODO: This breaks if the module has type annotations that are classes, and not standard library or
         typing types.
 
         Maybe we can do something using: https://github.com/kuimono/openapi-schema-pydantic to allow
@@ -1080,7 +1155,6 @@ class Module(Resource):
 
         TODO: What happens if there is an empty function, will this work with an empty body even though it is
         marked as required?
-
         """
         if self._openapi_spec is not None:
             return self._openapi_spec
@@ -1155,10 +1229,10 @@ class Module(Resource):
 
             module_method_params = create_model(
                 f"{method_name}_schema", **params
-            ).schema()
+            ).model_json_schema()
             module_method_params["title"] = "kwargs"
 
-            request_body_schema = CallParams.schema()
+            request_body_schema = CallParams.model_json_schema()
             request_body_schema["properties"]["data"] = {
                 "title": "data",
                 "type": "object",
@@ -1192,7 +1266,6 @@ def _module_subclass_factory(cls, cls_pointers):
         pointers=cls_pointers,
         signature=None,
         name=None,
-        provenance=None,
         **kwargs,
     ):
         # args and kwargs are passed to the cls's __init__ method if this is being called on a cluster. They
@@ -1205,7 +1278,6 @@ def _module_subclass_factory(cls, cls_pointers):
             system=system,
             env=env,
             dryrun=dryrun,
-            provenance=provenance,
         )
         # This allows a class which is already on the cluster to construct an instance of itself with a factory
         # method, e.g. my_module = MyModuleCls.factory_constructor(*args, **kwargs)
@@ -1261,6 +1333,7 @@ def module(
     cls: [Type] = None,
     name: Optional[str] = None,
     env: Optional[Union[str, Env]] = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
 ):
     """Returns a Module object, which can be used to instantiate and interact with the class remotely.
@@ -1285,9 +1358,11 @@ def module(
 
     Args:
         cls: The class to instantiate.
-        name (Optional[str]): Name to give the module object, to be reused later on.
-        env (Optional[str or Env]): Environment in which the module should live on the cluster, if system is cluster.
-        dryrun (bool): Whether to create the Blob if it doesn't exist, or load a Blob object as a dryrun.
+        name (Optional[str], optional): Name to give the module object, to be reused later on. (Default: ``None``)
+        env (Optional[str or Env], optional): Environment in which the module should live on the cluster, if system
+            is cluster. (Default: ``None``)
+        load_from_den (bool, optional): Whether to try loading the module from Den. (Default: ``True``)
+        dryrun (bool, optional): Whether to create the Module if it doesn't exist, or load a Module object as a dryrun.
             (Default: ``False``)
 
     Returns:
@@ -1351,14 +1426,25 @@ def module(
     """
     if name and not any([cls, env]):
         # Try reloading existing module
-        return Module.from_name(name, dryrun)
+        return Module.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
+
+    if env:
+        logger.warning(
+            "The `env` argument is deprecated and will be removed in a future version. Please first "
+            "construct your module and then do `module.to(system=system, env=env)` to set the environment. "
+            "You can do `module.to(system=rh.here, env=env)` to set the environment on the local system."
+        )
 
     if not isinstance(env, Env):
         env = _get_env_from(env)
-        if not env:
-            env = _get_env_from(_default_env_if_on_cluster())
-        if not env:
-            env = Env()
+
+    env_for_current_process = obj_store.get_process_env()
+    env = (
+        env
+        or env_for_current_process
+        or _get_env_from(_default_env_if_on_cluster())
+        or Env()
+    )
 
     cls_pointers = Module._extract_pointers(cls)
 
@@ -1372,7 +1458,7 @@ def module(
             env.reqs = [str(local_path_containing_module)] + env.reqs
 
     name = name or (
-        cls_pointers[2] if cls_pointers else _generate_default_name(prefix="module")
+        cls_pointers[2] if cls_pointers else generate_default_name(prefix="module")
     )
 
     module_subclass = _module_subclass_factory(cls, cls_pointers)

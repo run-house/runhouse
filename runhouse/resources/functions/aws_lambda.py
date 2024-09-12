@@ -8,7 +8,7 @@ import time
 import warnings
 import zipfile
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 try:
     import boto3
@@ -17,15 +17,15 @@ except ImportError:
     pass
 
 from runhouse.globals import rns_client
-
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.resources.envs import _get_env_from, Env
-
 from runhouse.resources.functions.function import Function
 
 
 CRED_PATH = f"{Path.home()}/.aws/credentials"
 LOG_GROUP_PREFIX = "/aws/lambda/"
+
+logger = get_logger(__name__)
 
 
 class LambdaFunction(Function):
@@ -142,8 +142,6 @@ class LambdaFunction(Function):
     def from_config(
         cls, config: dict, dryrun: bool = False, _resolve_children: bool = True
     ):
-        """Create an AWS Lambda object from a config dictionary."""
-
         if "resource_subtype" in config.keys():
             config.pop("resource_subtype", None)
         if "system" in config.keys():
@@ -168,8 +166,15 @@ class LambdaFunction(Function):
         return LambdaFunction(**config, dryrun=dryrun).deploy()
 
     @classmethod
-    def from_name(cls, name, dryrun=False, alt_options=None, _resolve_children=True):
-        config = rns_client.load_config(name=name)
+    def from_name(
+        cls,
+        name,
+        load_from_den: bool = True,
+        dryrun: bool = False,
+        _alt_options: Dict = None,
+        _resolve_children: bool = True,
+    ):
+        config = rns_client.load_config(name=name, load_from_den=load_from_den)
         if not config:
             raise ValueError(f"Could not find a Lambda called {name}.")
         return cls.from_config(config, _resolve_children=_resolve_children)
@@ -180,7 +185,7 @@ class LambdaFunction(Function):
         paths_to_code: List[str],
         handler_function_name: str,
         name: Optional[str] = None,
-        env: Optional[dict or List[str] or Env] = None,
+        env: Optional[Union[Dict, List[str], Env]] = None,
         runtime: Optional[str] = None,
         timeout: Optional[int] = None,
         memory_size: Optional[int] = None,
@@ -216,13 +221,13 @@ class LambdaFunction(Function):
                 3. An instance of Runhouse Env class. By default, ``runhouse`` package will be installed, and env_vars
                    will include ``{HOME: /tmp/home}``.
 
-            timeout: Optional[int]: The maximum amount of time (in seconds) during which the Lambda will run in AWS
+            timeout (Optional[int]) The maximum amount of time (in seconds) during which the Lambda will run in AWS
                 without timing-out. (Default: ``900``, Min: ``3``, Max: ``900``)
-            memory_size: Optional[int], The amount of memory (in MB) to be allocated to the Lambda.
+            memory_size (Optional[int]), The amount of memory (in MB) to be allocated to the Lambda.
                 (Default: ``10240``, Min: ``128``, Max: ``10240``)
-            tmp_size: Optional[int], This size of the /tmp folder in the aws lambda file system.
+            tmp_size (Optional[int]), This size of the /tmp folder in the aws lambda file system.
                 (Default: ``10240``, Min: ``512``, Max: ``10240``).
-            retention_time: Optional[int] The time (in days) the Lambda execution logs will be saved in AWS
+            retention_time (Optional[int]) The time (in days) the Lambda execution logs will be saved in AWS
                 cloudwatch. After that, they will be deleted. (Default: ``30`` days)
             dryrun (bool): Whether to create the Function if it doesn't exist, or load the Function object as a dryrun.
                 (Default: ``False``).
@@ -818,7 +823,6 @@ class LambdaFunction(Function):
 
         return [self._invoke(*args, **kwargs) for args in zip(*args)]
 
-    #
     def starmap(self, args_lists, **kwargs):
         """Like :func:`map` except that the elements of the iterable are expected to be iterables
         that are unpacked as arguments. An iterable of [(1,2), (3, 4)] results in [func(1,2), func(3,4)].

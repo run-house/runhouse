@@ -1,10 +1,8 @@
 import logging
 from pathlib import Path
-from typing import Union
+from typing import Dict, Union
 
 from runhouse.resources.envs.utils import run_setup_command
-
-from runhouse.resources.folders import Folder, folder
 
 from .package import Package
 
@@ -38,7 +36,7 @@ class GitPackage(Package):
         self.git_url = git_url
         self.revision = revision
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True):
         # If the package is just a simple Package.from_string string, no
         # need to store it in rns, just give back the string.
         # if self.install_method in ['pip', 'conda', 'git']:
@@ -54,6 +52,8 @@ class GitPackage(Package):
 
     # TODO for cluster
     def _install(self, env: Union[str, "Env"] = None, cluster: "Cluster" = None):
+        from runhouse.resources.folders import Folder, folder
+
         if cluster and isinstance(self.install_target, str):
             install_target = folder(path=self.install_target, system=cluster)
         else:
@@ -83,7 +83,7 @@ class GitPackage(Package):
         super()._install(env, cluster=cluster)
 
     @staticmethod
-    def from_config(config: dict, dryrun=False, _resolve_children=True):
+    def from_config(config: Dict, dryrun: bool = False, _resolve_children: bool = True):
         return GitPackage(**config, dryrun=dryrun)
 
 
@@ -93,19 +93,22 @@ def git_package(
     revision: str = None,
     install_method: str = None,
     install_str: str = None,
+    load_from_den: bool = True,
     dryrun: bool = False,
 ):
     """
     Builds an instance of :class:`GitPackage`.
 
     Args:
-        name (str): Name to assign the package resource.
-        git_url (str): The GitHub URL of the package to install.
-        revision (str): Version of the Git package to install.
-        install_method (str): Method for installing the package. If left blank, defaults to local installation.
-        install_str (str): Additional arguments to add to installation command.
-        dryrun (bool): Whether to load the Package object as a dryrun, or create the Package if it doesn't exist.
-            (Default: ``False``)
+        name (str, optional): Name to assign the package resource.
+        git_url (str, optional): The GitHub URL of the package to install.
+        revision (str, optional): Version of the Git package to install.
+        install_method (str, optional): Method for installing the package. If left blank, defaults to
+            local installation.
+        install_str (str, optional): Additional arguments to add to installation command.
+        load_from_den (bool, optional): Whether to try loading the package from Den. (Default: ``True``)
+        dryrun (bool, optional): Whether to load the Package object as a dryrun, or create the Package if
+            it doesn't exist. (Default: ``False``)
 
     Returns:
         GitPackage: The resulting GitHub Package.
@@ -117,7 +120,7 @@ def git_package(
     """
     if name and not any([install_method, install_str, git_url, revision]):
         # If only the name is provided and dryrun is set to True
-        return Package.from_name(name, dryrun)
+        return Package.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
 
     install_method = install_method or "local"
     if git_url is not None:

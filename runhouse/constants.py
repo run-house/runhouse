@@ -3,13 +3,14 @@ import sys
 from pathlib import Path
 from typing import List
 
-RESERVED_SYSTEM_NAMES: List[str] = ["file", "s3", "gs", "azure", "here", "ssh", "sftp"]
+RESERVED_SYSTEM_NAMES: List[str] = ["file", "s3", "gs", "azure", "here"]
 CLUSTER_CONFIG_PATH: str = "~/.rh/cluster_config.json"
 CONFIG_YAML_PATH: str = "~/.rh/config.yaml"
 SERVER_LOGFILE_PATH = "~/.rh/server.log"
 LOCALHOST: str = "127.0.0.1"
 LOCAL_HOSTS: List[str] = ["localhost", LOCALHOST]
 TUNNEL_TIMEOUT = 5
+NUM_PORTS_TO_TRY = 10
 
 LOGS_DIR = ".rh/logs"
 RH_LOGFILE_PATH = Path.home() / LOGS_DIR
@@ -26,7 +27,6 @@ DEFAULT_SERVER_PORT = 32300
 DEFAULT_HTTPS_PORT = 443
 DEFAULT_HTTP_PORT = 80
 DEFAULT_SSH_PORT = 22
-DEFAULT_LOG_LEVEL = "INFO"
 
 DEFAULT_RAY_PORT = 6379
 
@@ -57,10 +57,14 @@ RAY_KILL_CMD = 'pkill -f ".*ray.*' + str(DEFAULT_RAY_PORT) + '.*"'
 CONDA_INSTALL_CMDS = [
     "wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh",
     "bash ~/miniconda.sh -b -p ~/miniconda",
-    "source $HOME/miniconda3/bin/activate",
+    "source $HOME/miniconda/bin/activate",
 ]
+# TODO should default to user's local Python version?
+# from platform import python_version; python_version()
+CONDA_PREFERRED_PYTHON_VERSION = "3.10.9"
 
 TEST_ORG = "test-org"
+TESTING_LOG_LEVEL = "INFO"
 
 EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"
 DEFAULT_DOCKER_CONTAINER_NAME = "sky_container"
@@ -73,16 +77,27 @@ DOCKER_LOGIN_ENV_VARS = {
 # Constants for the status check
 DOUBLE_SPACE_UNICODE = "\u00A0\u00A0"
 BULLET_UNICODE = "\u2022"
+SECOND = 1
 MINUTE = 60
 HOUR = 3600
 DEFAULT_STATUS_CHECK_INTERVAL = 1 * MINUTE
 INCREASED_STATUS_CHECK_INTERVAL = 1 * HOUR
-STATUS_CHECK_DELAY = 1 * MINUTE
+GPU_COLLECTION_INTERVAL = 5 * SECOND
+
+# We collect gpu every GPU_COLLECTION_INTERVAL.
+# Meaning that in one minute we collect (MINUTE / GPU_COLLECTION_INTERVAL) gpu stats.
+# Currently, we save gpu info of the last 10 minutes or less.
+MAX_GPU_INFO_LEN = (MINUTE / GPU_COLLECTION_INTERVAL) * 10
+
+# If we just collect the gpu stats (and not send them to den), the gpu_info dictionary *will not* be reseted by the servlets.
+# Therefore, we need to cut the gpu_info size, so it doesn't consume too much cluster memory.
+# Currently, we reduce the size by half, meaning we only keep the gpu_info of the last (MAX_GPU_INFO_LEN / 2) minutes.
+REDUCED_GPU_INFO_LEN = MAX_GPU_INFO_LEN / 2
+
 
 # Constants Surfacing Logs to Den
 DEFAULT_LOG_SURFACING_INTERVAL = 2 * MINUTE
-S3_LOGS_FILE_NAME = "server.log"
+SERVER_LOGS_FILE_NAME = "server.log"
 DEFAULT_SURFACED_LOG_LENGTH = 20
 # Constants for schedulers
-SCHEDULERS_DELAY = 2 * MINUTE
 INCREASED_INTERVAL = 1 * HOUR

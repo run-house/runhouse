@@ -1,9 +1,11 @@
 from typing import Optional, Union
 
 from runhouse.globals import rns_client
-from runhouse.logger import logger
+from runhouse.logger import get_logger
 from runhouse.rns.utils.api import load_resp_content, ResourceAccess
 from runhouse.servers.http.http_utils import username_from_token
+
+logger = get_logger(__name__)
 
 
 class AuthCache:
@@ -75,6 +77,7 @@ class AuthCache:
 async def averify_cluster_access(
     cluster_uri: str,
     token: str,
+    access_level_required: ResourceAccess = None,
 ) -> bool:
     """Checks whether the user has access to the cluster.
     Note: A user with write access to the cluster or a cluster owner will have access to all other resources on
@@ -93,5 +96,8 @@ async def averify_cluster_access(
             return True
 
     cluster_access_level = await obj_store.aresource_access_level(token, cluster_uri)
+
+    if access_level_required is not None:
+        return cluster_access_level == access_level_required
 
     return cluster_access_level in [ResourceAccess.WRITE, ResourceAccess.READ]

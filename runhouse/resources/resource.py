@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 from runhouse.globals import obj_store, rns_client
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
 from runhouse.rns.top_level_rns_fns import (
     resolve_rns_path,
     save,
@@ -19,6 +19,8 @@ from runhouse.rns.utils.api import (
     ResourceVisibility,
 )
 
+logger = get_logger(__name__)
+
 
 class Resource:
     RESOURCE_TYPE = "resource"
@@ -27,31 +29,21 @@ class Resource:
         self,
         name: Optional[str] = None,
         dryrun: bool = False,
-        provenance=None,
-        access_level: Optional[ResourceAccess] = ResourceAccess.WRITE,
-        visibility: Optional[ResourceVisibility] = ResourceVisibility.PRIVATE,
+        access_level: ResourceAccess = ResourceAccess.WRITE,
+        visibility: ResourceVisibility = ResourceVisibility.PRIVATE,
         **kwargs,
     ):
         """
         Runhouse abstraction for objects that can be saved, shared, and reused.
 
-        Runhouse currently supports the following builtin Resource types:
-
-        - Compute Abstractions
-            - Cluster :py:class:`.cluster.Cluster`
-            - Function :py:class:`.function.Function`
-            - Module :py:class:`.module.Module`
-            - Package :py:class:`.package.Package`
-            - Env: :py:class:`.env.Env`
-
-        - Data Abstractions
-            - Blob :py:class:`.blob.Blob`
-            - File :py:class:`.file.File`
-            - Folder :py:class:`.folder.Folder`
-            - Table :py:class:`.table.Table`
-
-        - Secret Abstractions
-            - Secret :py:class:`.secret.Secret`
+        Args:
+            name (Optional[str], optional): Name to assign the resource. (Default: None)
+            dryrun (bool, optional): Whether to create the resource object, or load the object as a dryrun.
+                (Default: ``False``)
+            access_level (:obj:`ResourceAccess`, optional): Access level to provide for the resource.
+                (Default: ``ResourceAccess.WRITE``)
+            visibility (:obj:`ResourceVisibility`, optional): Type of visibility to provide for the resource.
+                (Default: ``ResourceVisibility.PRIVATE``)
         """
         self._name, self._rns_folder = None, None
         if name is not None:
@@ -64,16 +56,7 @@ class Resource:
                 rns_client.resolve_rns_path(name)
             )
 
-        from runhouse.resources.provenance import Run
-
         self.dryrun = dryrun
-        # dryrun is true here so we don't spend time calling check on the server
-        # if we're just loading down the resource (e.g. with .remote)
-        self.provenance = (
-            Run.from_config(provenance, dryrun=True)
-            if isinstance(provenance, Dict)
-            else provenance
-        )
         self.access_level = access_level
         self._visibility = visibility
 
@@ -89,7 +72,6 @@ class Resource:
             "name": self.rns_address or self.name,
             "resource_type": self.RESOURCE_TYPE,
             "resource_subtype": self.__class__.__name__,
-            "provenance": self.provenance.config if self.provenance else None,
         }
         self.save_attrs_to_config(
             config,
@@ -126,10 +108,7 @@ class Resource:
     @property
     def rns_address(self):
         """Traverse up the filesystem until reaching one of the directories in rns_base_folders,
-        then compute the relative path to that.
-
-        Maybe later, account for folders along the path with a different RNS name."""
-
+        then compute the relative path to that."""
         if (
             self.name is None or self._rns_folder is None
         ):  # Anonymous folders have no rns address
@@ -223,7 +202,6 @@ class Resource:
         with the options. If the child class returns a config, it's deciding to use the config and ignore the options
         (or somehow incorporate them, rarely). Note that if alt_options are provided and the config is not found,
         no error is raised, while if alt_options are not provided and the config is not found, an error is raised.
-
         """
 
         def str_dict_or_resource_to_str(val):
@@ -254,18 +232,31 @@ class Resource:
         return config
 
     @classmethod
-    def from_name(cls, name, dryrun=False, alt_options=None, _resolve_children=True):
-        """Load existing Resource via its name."""
+    def from_name(
+        cls,
+        name: str,
+        load_from_den: bool = True,
+        dryrun: bool = False,
+        _alt_options: Dict = None,
+        _resolve_children: bool = True,
+    ):
+        """Load existing Resource via its name.
+
+        Args:
+            name (str): Name of the resource to load from name.
+            load_from_den (bool, optional): Whether to try loading the module from Den. (Default: ``True``)
+            dryrun (bool, optional): Whether to construct the object or load as dryrun. (Default: ``False``)
+        """
         # TODO is this the right priority order?
         from runhouse.resources.hardware.utils import _current_cluster
 
         if _current_cluster() and obj_store.contains(name):
             return obj_store.get(name)
 
-        config = rns_client.load_config(name=name)
+        config = rns_client.load_config(name=name, load_from_den=load_from_den)
 
-        if alt_options:
-            config = cls._compare_config_with_alt_options(config, alt_options)
+        if _alt_options:
+            config = cls._compare_config_with_alt_options(config, _alt_options)
             if not config:
                 return None
         if not config:
@@ -284,7 +275,13 @@ class Resource:
         )
 
     @staticmethod
-    def from_config(config, dryrun=False, _resolve_children=True):
+    def from_config(config: Dict, dryrun: bool = False, _resolve_children: bool = True):
+        """Load or construct resource from config.
+
+        Args:
+            config (Dict): Resource config.
+            dryrun (bool, optional): Whether to construct resource or load as dryrun (Default: ``False``)
+        """
         resource_type = config.pop("resource_type", None)
         dryrun = config.pop("dryrun", False) or dryrun
 
@@ -316,9 +313,13 @@ class Resource:
         self._name = None
 
     def history(self, limit: int = None) -> List[Dict]:
-        """Return the history of the resource, including specific config fields (e.g. blob path) and which runs
+        """Return the history of the resource, including specific config fields (e.g. folder path) and which runs
         have overwritten it.
-        If ``limit`` is specified, return the last ``limit`` number of entries in the history."""
+
+        Args:
+            limit (int, optional): If specified, return the last ``limit`` number of entries in the history.
+                Otherwise, return the entire history. (Default: ``None``)
+        """
         if not self.rns_address:
             raise ValueError("Resource must have a name in order to have a history")
 
@@ -373,10 +374,9 @@ class Resource:
         notify_users: bool = True,
         headers: Optional[Dict] = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
-        """Grant access to the resource for a list of users (or a single user). If a user has a Runhouse account they
-        will receive an email notifying them of their new access. If the user does not have a Runhouse account they will
-        also receive instructions on creating one, after which they will be able to have access to the Resource. If
-        ``visibility`` is set to ``public``, users will not be notified.
+        """Grant access to the resource for a list of users (or a single user). By default, the user will
+        receive an email notification of access (if they have a Runhouse account) or instructions on creating
+        an account to access the resource. If ``visibility`` is set to ``public``, users will not be notified.
 
         .. note::
             You can only grant access to other users if you have write access to the resource.
@@ -384,14 +384,14 @@ class Resource:
         Args:
             users (Union[str, list], optional): Single user or list of user emails and / or runhouse account usernames.
                 If none are provided and ``visibility`` is set to ``public``, resource will be made publicly
-                available to all users.
+                available to all users. (Default: ``None``)
             access_level (:obj:`ResourceAccess`, optional): Access level to provide for the resource.
-                Defaults to ``read``.
+                (Default: ``read``).
             visibility (:obj:`ResourceVisibility`, optional): Type of visibility to provide for the shared
-                resource. Defaults to ``private``.
+                resource. By default, the visibility is private. (Default: ``None``)
             notify_users (bool, optional): Whether to send an email notification to users who have been given access.
-                Note: This is relevant for resources which are not ``shareable``. Defaults to ``True``.
-            headers (dict, optional): Request headers to provide for the request to RNS. Contains the user's auth token.
+                Note: This is relevant for resources which are not ``shareable``. (Default: ``True``)
+            headers (Dict, optional): Request headers to provide for the request to RNS. Contains the user's auth token.
                 Example: ``{"Authorization": f"Bearer {token}"}``
 
         Returns:
@@ -472,7 +472,7 @@ class Resource:
 
         Args:
             users (Union[str, str], optional): List of user emails and / or runhouse account usernames
-                (or a single user). If no users are specified will revoke access for all users.
+                (or a single user). If no users are specified will revoke access for all users. (Default: ``None``)
             headers (Optional[Dict]): Request headers to provide for the request to RNS. Contains the user's auth token.
                 Example: ``{"Authorization": f"Bearer {token}"}``
         """

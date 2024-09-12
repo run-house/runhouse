@@ -111,7 +111,7 @@ jobs:
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "ondemand_aws_cluster" --detached
+        run: pytest --level release tests -k "ondemand_aws_docker_cluster" --detached
         timeout-minutes: 180
 
       - name: Teardown all ondemand-aws-tests clusters
@@ -189,6 +189,13 @@ jobs:
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest --level release tests -k "ondemand_k8s_cluster" --detached
         timeout-minutes: 180
+
+      - name: Teardown all kubernetes-tests clusters
+        if: always()
+        run: |
+          sky status
+          sky down --all -y
+          sky status
 
   check-cluster-status:
     if: always()

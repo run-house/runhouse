@@ -1,15 +1,15 @@
 python-dotenv
 fastapi
-fsspec<=2023.5.0
 pexpect
 pyopenssl>=23.3.0
-ray[default] >= 2.2.0, != 2.6.0
+ray[default] >= 2.9.0
 rich
 sentry-sdk
 setuptools < 70.0.0
-sshfs >= 2023.1.0, <= 2023.4.1
 typer
 uvicorn
 wheel
 apispec
 httpx
+pydantic >=2.5.0
+pynvml

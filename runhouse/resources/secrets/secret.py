@@ -6,13 +6,15 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from runhouse.globals import configs, rns_client
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
 from runhouse.resources.secrets.utils import _delete_vault_secrets, load_config
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
-from runhouse.rns.utils.names import _generate_default_name
+from runhouse.utils import generate_default_name
+
+logger = get_logger(__name__)
 
 
 class Secret(Resource):
@@ -91,8 +93,7 @@ class Secret(Resource):
         )
 
     @staticmethod
-    def from_config(config: dict, dryrun: bool = False, _resolve_children=True):
-        """Create a Secret object from a config dictionary."""
+    def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         if "provider" in config:
             from runhouse.resources.secrets.provider_secrets.providers import (
                 _get_provider_class,
@@ -111,8 +112,14 @@ class Secret(Resource):
         return Secret(**config, dryrun=dryrun)
 
     @classmethod
-    def from_name(cls, name, dryrun=False):
-        """Load existing Secret via its name."""
+    def from_name(
+        cls,
+        name,
+        load_from_den: bool = True,
+        dryrun: bool = False,
+        _alt_options: Dict = None,
+        _resolve_children: bool = True,
+    ):
         try:
             config = load_config(name, cls.USER_ENDPOINT)
             if config:
@@ -130,7 +137,12 @@ class Secret(Resource):
 
     @classmethod
     def builtin_providers(cls, as_str: bool = False) -> List:
-        """Return list of all Runhouse providers (as class objects) supported out of the box."""
+        """Return list of all Runhouse providers (as class objects) supported out of the box.
+
+        Args:
+            as_str (bool, optional): Whether to return the providers as a string or as a class.
+                (Default: ``False``)
+        """
         from runhouse.resources.secrets.provider_secrets.providers import (
             _str_to_provider_class,
         )
@@ -158,6 +170,12 @@ class Secret(Resource):
 
     @classmethod
     def local_secrets(cls, names: List[str] = None) -> Dict[str, "Secret"]:
+        """Get list of local secrets.
+
+        Args:
+            names (List[str], optional): Specific names of local secrets to retrieve. If ``None``, returns all
+                locally detected secrets. (Default: ``None``)
+        """
         if not os.path.exists(os.path.expanduser("~/.rh/secrets")):
             return {}
 
@@ -185,6 +203,12 @@ class Secret(Resource):
 
     @classmethod
     def extract_provider_secrets(cls, names: List[str] = None) -> Dict[str, "Secret"]:
+        """Extract secret values from providers. Returns a Dict mapping the provider name to Secret.
+
+        Args:
+            names (List[str]): List of provider names to extract secrets for. If ``None``, returns
+                secrets for all detected providers. (Default: ``None``)
+        """
         from runhouse.resources.secrets.provider_secrets.providers import (
             _str_to_provider_class,
         )
@@ -228,8 +252,16 @@ class Secret(Resource):
     ):
         """
         Save the secret config to Den. Save the secret values into Vault if the user is logged in,
-        or to local if not or if the resource is a local resource. If a folder is specified, save the secret
-        to that folder in Den (e.g. saving secrets for a cluster associated with an organization).
+        or to local if not or if the resource is a local resource.
+
+        Args:
+            name (str, optional): Name to save the secret resource as.
+            save_values (str, optional): Whether to save the values of the secret to Vault in addition
+                to saving the metadata to Den. (Default: ``True``)
+            headers (Dict, optional): Request headers to provide for the request to RNS. Contains the
+                user's auth token. Example: ``{"Authorization": f"Bearer {token}"}`` (Default: ``None``)
+            folder (str, optional): If specified, save the secret to that folder in Den (e.g. saving secrets
+                for a cluster associated with an organization). (Default: ``None``)
         """
         if name:
             self.name = name
@@ -339,14 +371,15 @@ class Secret(Resource):
 
         Args:
             system (str or Cluster): Cluster to send the secret to
-            name (str, ooptional): Name to assign the resource on the cluster.
+            name (str, optional): Name to assign the resource on the cluster.
+            env (Env, optional): Env to send the secret to.
 
         Example:
             >>> secret.to(my_cluster, path=secret.path)
         """
 
         new_secret = copy.deepcopy(self)
-        new_secret.name = name or self.name or _generate_default_name(prefix="secret")
+        new_secret.name = name or self.name or generate_default_name(prefix="secret")
 
         system = _get_cluster_from(system)
         if system.on_this_cluster():

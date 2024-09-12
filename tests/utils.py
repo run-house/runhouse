@@ -8,23 +8,36 @@ import pytest
 
 import runhouse as rh
 import yaml
+from runhouse.constants import TESTING_LOG_LEVEL
 
 from runhouse.globals import rns_client
-from runhouse.servers.obj_store import ObjStore, RaySetupOption
+from runhouse.servers.obj_store import get_cluster_servlet, ObjStore, RaySetupOption
 
 
-def get_ray_servlet_and_obj_store(env_name):
-    """Helper method for getting auth servlet and base env servlet"""
+def get_ray_env_servlet_and_obj_store(env_name):
+    """Helper method for getting object store"""
 
     test_obj_store = ObjStore()
     test_obj_store.initialize(env_name, setup_ray=RaySetupOption.GET_OR_FAIL)
 
-    servlet = test_obj_store.get_env_servlet(
+    test_env_servlet = test_obj_store.get_env_servlet(
         env_name=env_name,
         create=True,
     )
 
-    return servlet, test_obj_store
+    return test_env_servlet, test_obj_store
+
+
+def get_ray_cluster_servlet(cluster_config=None):
+    """Helper method for getting base cluster servlet"""
+    cluster_servlet = get_cluster_servlet(create_if_not_exists=True)
+
+    if cluster_config:
+        ObjStore.call_actor_method(
+            cluster_servlet, "aset_cluster_config", cluster_config
+        )
+
+    return cluster_servlet
 
 
 def get_pid_and_ray_node(a=0):
@@ -103,6 +116,7 @@ def test_env(logged_in=False):
     return rh.env(
         reqs=["pytest", "httpx", "pytest_asyncio", "pandas", "numpy<=1.26.4"],
         working_dir=None,
+        env_vars={"RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL},
         setup_cmds=[
             f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
             f"echo '{yaml.safe_dump(rh.configs.defaults_cache)}' > ~/.rh/config.yaml"

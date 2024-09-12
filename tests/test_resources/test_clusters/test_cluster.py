@@ -1,3 +1,4 @@
+import os
 import subprocess
 import time
 from threading import Thread
@@ -12,7 +13,6 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_PORT,
     LOCALHOST,
-    SERVER_LOGFILE_PATH,
 )
 
 from runhouse.resources.hardware.utils import ResourceServerStatus
@@ -112,10 +112,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pwd_ssh_no_auth",
         ],
     }
-    MINIMAL = {"cluster": ["static_cpu_cluster"]}
+    MINIMAL = {"cluster": ["static_cpu_pwd_cluster"]}
     RELEASE = {
         "cluster": [
-            "static_cpu_cluster",
+            "static_cpu_pwd_cluster",
         ]
     }
     MAXIMAL = {
@@ -123,12 +123,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pk_ssh_den_auth",
             "docker_cluster_pwd_ssh_no_auth",
-            "static_cpu_cluster",
-            "multinode_cpu_cluster",
+            "static_cpu_pwd_cluster",
+            "multinode_cpu_docker_conda_cluster",
         ]
     }
-
-    GPU_CLUSTER_NAMES = ["rh-v100", "rh-k80", "rh-a10x", "rh-gpu-multinode"]
 
     @pytest.mark.level("unit")
     @pytest.mark.clustertest
@@ -165,14 +163,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_cluster_recreate(self, cluster):
         # Create underlying ssh connection if not already
         cluster.run(["echo hello"])
-        num_open_tunnels = len(rh.globals.sky_ssh_runner_cache)
+        num_open_tunnels = len(rh.globals.ssh_tunnel_cache)
 
         # Create a new cluster object for the same remote cluster
         cluster.save()
         new_cluster = rh.cluster(cluster.rns_address)
         new_cluster.run(["echo hello"])
         # Check that the same underlying ssh connection was used
-        assert len(rh.globals.sky_ssh_runner_cache) == num_open_tunnels
+        assert len(rh.globals.ssh_tunnel_cache) == num_open_tunnels
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -182,7 +180,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             return
 
         endpoint = cluster.endpoint()
-        if cluster.server_connection_type in ["ssh", "aws_ssm"]:
+        if cluster.server_connection_type == "ssh":
             assert cluster.endpoint(external=True) is None
             assert endpoint == f"http://{LOCALHOST}:{cluster.client_port}"
         else:
@@ -203,13 +201,33 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             headers=rh.globals.rns_client.request_headers(),
         )
         assert r.status_code == 200
-        status_data = r.json()
+        status_data = r.json()[
+            0
+        ]  # getting the first element because the endpoint returns the status + response to den.
         assert status_data["cluster_config"]["resource_type"] == "cluster"
         assert status_data["env_servlet_processes"]
-        assert status_data["system_cpu_usage"]
-        assert status_data["system_memory_usage"]
-        assert status_data["system_disk_usage"]
-        assert not status_data.get("system_gpu_data")
+        assert isinstance(status_data["server_cpu_utilization"], float)
+        assert status_data["server_memory_usage"]
+        assert not status_data.get("server_gpu_usage", None)
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_request_timeout(self, docker_cluster_pk_ssh_no_auth):
+        cluster = docker_cluster_pk_ssh_no_auth
+        with pytest.raises(requests.exceptions.ReadTimeout):
+            cluster._http_client.request_json(
+                endpoint="/status",
+                req_type="get",
+                timeout=0.005,
+                headers=rh.globals.rns_client.request_headers(),
+            )
+
+        status_res = cluster._http_client.request_json(
+            endpoint="/status",
+            req_type="get",
+            headers=rh.globals.rns_client.request_headers(),
+        )
+        assert status_res
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -529,45 +547,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             env_servlet_info_keys.sort()
             assert env_servlet_info_keys == expected_env_servlet_keys
 
-            if cluster.name in self.GPU_CLUSTER_NAMES and env_name == "sd_env":
-                assert env_servlet_info.get("env_gpu_usage")
-
-    @pytest.mark.level("maximal")
-    @pytest.mark.clustertest
-    def test_rh_status_pythonic_gpu(self, cluster):
-        if cluster.name in self.GPU_CLUSTER_NAMES:
-            from tests.test_tutorials import sd_generate
-
-            env_sd = rh.env(
-                reqs=["pytest", "diffusers", "torch", "transformers"],
-                name="sd_env",
-                compute={"GPU": 1, "CPU": 4},
-            ).to(system=cluster, force_install=True)
-
-            assert env_sd
-
-            generate_gpu = rh.function(fn=sd_generate).to(system=cluster, env=env_sd)
-
-            images = generate_gpu(
-                prompt="A hot dog made of matcha powder.", num_images=4, steps=50
-            )
-
-            assert images
-
-            self.test_rh_status_pythonic(cluster)
-
-        else:
-            pytest.skip(f"{cluster.name} is not a GPU cluster, skipping")
-
-    @pytest.mark.level("local")
-    @pytest.mark.clustertest
-    def test_rh_status_cli_in_cluster(self, cluster):
+    def status_cli_test_logic(self, cluster, status_cli_command: str):
         default_env_name = cluster.default_env.name
 
         cluster.put(key="status_key2", obj="status_value2")
-        status_output_string = cluster.run(
-            ["runhouse status"], _ssh_mode="non_interactive"
-        )[0][1]
+        status_output_response = cluster.run(
+            [status_cli_command], _ssh_mode="non_interactive"
+        )[0]
+        assert status_output_response[0] == 0
+        status_output_string = status_output_response[1]
         # The string that's returned is utf-8 with the literal escape characters mixed in.
         # We need to convert the escape characters to their actual values to compare the strings.
         status_output_string = status_output_string.encode("utf-8").decode(
@@ -603,34 +591,26 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert "node: " in status_output_string
         assert status_output_string.count("node: ") >= 1
 
-        # if it is a GPU cluster, check GPU print as well
-        if cluster.name in self.GPU_CLUSTER_NAMES:
-            assert "GPU: " in status_output_string
-            assert status_output_string.count("GPU: ") >= 1
+        cloud_properties = cluster.config().get("launched_properties", None)
+        if cloud_properties:
+            properties_to_check = ["cloud", "instance_type", "region", "cost_per_hour"]
+            for p in properties_to_check:
+                property_value = cloud_properties.get(p)
+                assert property_value in status_output_string
 
-    @pytest.mark.level("maximal")
+    @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_rh_status_cli_in_gpu_cluster(self, cluster):
-        if cluster.name in self.GPU_CLUSTER_NAMES:
-            from tests.test_tutorials import sd_generate
+    def test_rh_status_cmd_with_no_den_ping(self, cluster):
+        self.status_cli_test_logic(
+            cluster=cluster, status_cli_command="runhouse status"
+        )
 
-            env_sd = rh.env(
-                reqs=["pytest", "diffusers", "torch", "transformers"],
-                name="sd_env",
-                compute={"GPU": 1},
-            ).to(system=cluster, force_install=True)
-
-            assert env_sd
-            generate_gpu = rh.function(fn=sd_generate).to(system=cluster, env=env_sd)
-            images = generate_gpu(
-                prompt="A hot dog made of matcha powder.", num_images=4, steps=50
-            )
-            assert images
-
-            self.test_rh_status_cli_in_cluster(cluster)
-
-        else:
-            pytest.skip(f"{cluster.name} is not a GPU cluster, skipping")
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_rh_status_cmd_with_den_ping(self, cluster):
+        self.status_cli_test_logic(
+            cluster=cluster, status_cli_command="runhouse status --send-to-den"
+        )
 
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
     @pytest.mark.level("local")
@@ -680,10 +660,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_send_status_to_db(self, cluster):
-
         import json
-
-        cluster.save()
 
         status = cluster.status()
         env_servlet_processes = status.pop("env_servlet_processes")
@@ -703,7 +680,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         assert post_status_data_resp.status_code in [200, 422]
         get_status_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status?limit=1",
             headers=headers,
         )
         assert get_status_data_resp.status_code == 200
@@ -712,15 +689,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "resource_type"
         )
         assert get_status_data["status"] == ResourceServerStatus.running
+
         assert get_status_data["resource_info"] == status
         for k in env_servlet_processes:
             if env_servlet_processes[k]["env_gpu_usage"] == {}:
                 env_servlet_processes[k]["env_gpu_usage"] = {
-                    "allocated_memory": None,
                     "used_memory": None,
                     "utilization_percent": None,
                     "total_memory": None,
-                    "memory_percent_allocated": None,
                 }
         env_servlet_processes = sort_env_servlet_processes(env_servlet_processes)
         get_status_data["env_servlet_processes"] = sort_env_servlet_processes(
@@ -736,7 +712,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         assert post_status_data_resp.status_code == 200
         get_status_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+            f"{api_server_url}/resource/{cluster_uri}/cluster/status?limit=1",
             headers=headers,
         )
         assert (
@@ -752,42 +728,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             headers=headers,
         )
         assert post_status_data_resp.status_code in [200, 422]
-
-    @pytest.mark.level("minimal")
-    @pytest.mark.clustertest
-    def test_status_scheduler_basic_flow(self, cluster):
-
-        if not cluster.config().get("resource_subtype") == "OnDemandCluster":
-            pytest.skip(
-                "This test checking pinging cluster status to den, this could be done only on OnDemand clusters."
-            )
-
-        cluster.save()
-        # the scheduler start running in a delay of 1 min, so the cluster startup will finish properly.
-        # Therefore, the test needs to sleep for a while.
-        time.sleep(60)
-        cluster_logs = cluster.run([f"cat {SERVER_LOGFILE_PATH}"], stream_logs=False)[
-            0
-        ][1]
-        assert (
-            "Performing cluster checks: potentially sending to Den, surfacing logs to Den or updating autostop."
-            in cluster_logs
-        )
-
-        cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
-        headers = rh.globals.rns_client.request_headers()
-        api_server_url = rh.globals.rns_client.api_server_url
-
-        get_status_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-            headers=headers,
-        )
-
-        assert get_status_data_resp.status_code == 200
-        assert (
-            get_status_data_resp.json()["data"][0]["status"]
-            == ResourceServerStatus.running
-        )
 
     ####################################################################################################
     # Default env tests
@@ -872,6 +812,101 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # Can't run on a node that is on the cluster
         with pytest.raises(Exception):
             remote_run("echo hello")[0]
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_put_and_get(self, cluster):
+        cluster._folder_mkdir(path="~/.rh/new-folder")
+        folder_contents: list = cluster._folder_ls(path="~/.rh")
+        assert "new-folder" in [os.path.basename(f) for f in folder_contents]
+
+        cluster._folder_put(
+            path="~/.rh/new-folder",
+            contents={"sample.txt": "Hello World!"},
+            overwrite=True,
+        )
+
+        file_contents = cluster._folder_get(path="~/.rh/new-folder/sample.txt")
+        assert file_contents == "Hello World!"
+
+        # Should not be able to put to an existing file unless `overwrite=True`
+        with pytest.raises(ValueError):
+            cluster._folder_put(
+                path="~/.rh/new-folder",
+                contents={"sample.txt": "Hello World!"},
+            )
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_put_and_get_serialization_methods(self, cluster):
+        from runhouse.servers.http.http_utils import deserialize_data
+
+        raw_data = [1, 2, 3]
+        pickle_serialization = "pickle"
+
+        cluster._folder_put(
+            path="~/.rh/new-folder",
+            contents={"sample.pickle": raw_data},
+            overwrite=True,
+            serialization=pickle_serialization,
+        )
+
+        file_contents = cluster._folder_get(path="~/.rh/new-folder/sample.pickle")
+        assert deserialize_data(file_contents, pickle_serialization) == raw_data
+
+        json_serialization = "json"
+        cluster._folder_put(
+            path="~/.rh/new-folder",
+            contents={"sample.text": raw_data},
+            overwrite=True,
+            serialization=json_serialization,
+        )
+
+        file_contents = cluster._folder_get(path="~/.rh/new-folder/sample.text")
+        assert deserialize_data(file_contents, json_serialization) == raw_data
+
+        with pytest.raises(AttributeError):
+            # No serialization specified, default mode of "wb" used which is not supported for a list
+            cluster._folder_put(
+                path="~/.rh/new-folder",
+                contents={"sample.pickle": raw_data},
+                overwrite=True,
+            )
+
+        # with no serialization specified, but with "w" mode
+        cluster._folder_put(
+            path="~/.rh/new-folder",
+            contents={"sample.txt": raw_data},
+            overwrite=True,
+            mode="w",
+        )
+
+        file_contents = cluster._folder_get(path="~/.rh/new-folder/sample.text")
+        assert deserialize_data(file_contents, json_serialization) == raw_data
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_mkdir_mv_and_rm(self, cluster):
+        cluster._folder_mkdir(path="~/.rh/new-folder")
+
+        cluster._folder_mv(path="~/.rh/new-folder", dest_path="~/new-folder")
+        file_contents = cluster._folder_ls(path="~")
+
+        assert "new-folder" in [os.path.basename(f) for f in file_contents]
+
+        # Should not be able to mv to an existing directory if `overwrite=False`
+        cluster._folder_mkdir(path="~/.rh/another-new-folder")
+        with pytest.raises(Exception):
+            cluster._folder_mv(
+                path="~/.rh/another-new-folder",
+                dest_path="~/new-folder",
+                overwrite=False,
+            )
+
+        # Delete folder contents and directory itself
+        cluster._folder_rm(path="~/new-folder", recursive=True)
+
+        assert not cluster._folder_exists(path="~/new-folder")
 
     @pytest.mark.level("release")
     @pytest.mark.clustertest

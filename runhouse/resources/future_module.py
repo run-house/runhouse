@@ -74,7 +74,7 @@ class GeneratorModule(Module, Generator):
             raise RunhouseStopIteration()
 
     def __next__(self):
-        return self.remote_next(run_name=self.name)
+        return self.remote_next()
 
     def send(self, __value):
         return self._future.send(__value)

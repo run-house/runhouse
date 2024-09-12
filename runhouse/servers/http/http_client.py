@@ -1,19 +1,17 @@
 import json
-import logging
 import time
 import warnings
 from functools import wraps
 from pathlib import Path
 from random import randrange
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 
 import requests
 
 from runhouse.globals import rns_client
-
-from runhouse.logger import ClusterLogsFormatter, logger
+from runhouse.logger import get_logger
 
 from runhouse.resources.envs.utils import _get_env_from
 
@@ -21,6 +19,12 @@ from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
+    FolderGetParams,
+    FolderLsParams,
+    FolderMvParams,
+    FolderParams,
+    FolderPutParams,
+    FolderRmParams,
     GetObjectParams,
     handle_response,
     OutputType,
@@ -30,10 +34,14 @@ from runhouse.servers.http.http_utils import (
     serialize_data,
 )
 
+from runhouse.utils import ClusterLogsFormatter, generate_default_name
+
 
 # Make this global so connections are pooled across instances of HTTPClient
 session = requests.Session()
 session.timeout = None
+
+logger = get_logger(__name__)
 
 
 def retry_with_exponential_backoff(func):
@@ -223,6 +231,7 @@ class HTTPClient:
                 headers=headers,
                 auth=self.auth,
                 verify=self.verify,
+                timeout=timeout,
             )
         else:
             response = retry_with_exponential_backoff(req_fn)(
@@ -267,10 +276,79 @@ class HTTPClient:
                 f"but local Runhouse version is ({runhouse.__version__})"
             )
 
-    def status(self, resource_address: str):
+    def status(self, resource_address: str, send_to_den: bool = False):
         """Load the remote cluster's status."""
         # Note: Resource address must be specified in order to construct the cluster subtoken
-        return self.request("status", req_type="get", resource_address=resource_address)
+        return self.request(
+            f"status?send_to_den={send_to_den}",
+            req_type="get",
+            resource_address=resource_address,
+        )
+
+    def folder_ls(self, path: Union[str, Path], full_paths: bool, sort: bool):
+        folder_params = FolderLsParams(
+            path=path, full_paths=full_paths, sort=sort
+        ).model_dump()
+        return self.request_json(
+            "/folder/method/ls", req_type="post", json_dict=folder_params
+        )
+
+    def folder_mkdir(self, path: Union[str, Path]):
+        folder_params = FolderParams(path=path).model_dump()
+        return self.request_json(
+            "/folder/method/mkdir", req_type="post", json_dict=folder_params
+        )
+
+    def folder_mv(
+        self, path: Union[str, Path], dest_path: Union[str, Path], overwrite: bool
+    ):
+        folder_params = FolderMvParams(
+            path=path, dest_path=dest_path, overwrite=overwrite
+        ).model_dump()
+        return self.request_json(
+            "/folder/method/mv", req_type="post", json_dict=folder_params
+        )
+
+    def folder_get(self, path: Union[str, Path], encoding: str, mode: str):
+        folder_params = FolderGetParams(
+            path=path, encoding=encoding, mode=mode
+        ).model_dump()
+        return self.request_json(
+            "/folder/method/get", req_type="post", json_dict=folder_params
+        )
+
+    def folder_put(
+        self,
+        path: Union[str, Path],
+        contents: Union[Dict[str, Any], Resource, List[Resource]],
+        overwrite: bool,
+        mode: str,
+        serialization: str,
+    ):
+        folder_params = FolderPutParams(
+            path=path,
+            contents=serialize_data(contents, serialization),
+            mode=mode,
+            overwrite=overwrite,
+            serialization=serialization,
+        ).model_dump()
+        return self.request_json(
+            "/folder/method/put", req_type="post", json_dict=folder_params
+        )
+
+    def folder_rm(self, path: Union[str, Path], contents: List, recursive: bool):
+        folder_params = FolderRmParams(
+            path=path, recursive=recursive, contents=contents
+        ).model_dump()
+        return self.request_json(
+            "/folder/method/rm", req_type="post", json_dict=folder_params
+        )
+
+    def folder_exists(self, path: str):
+        folder_params = FolderParams(path=path).model_dump()
+        return self.request_json(
+            "/folder/method/exists", req_type="post", json_dict=folder_params
+        )
 
     def get_certificate(self):
         cert: bytes = self.request(
@@ -282,6 +360,29 @@ class HTTPClient:
         Path(self.cert_path).parent.mkdir(parents=True, exist_ok=True)
         with open(self.cert_path, "wb") as file:
             file.write(cert)
+
+    def _process_call_result(
+        self,
+        result,
+        system,
+        output_type,
+    ):
+
+        from runhouse.resources.module import Module
+
+        if isinstance(result, Module):
+            if (
+                system
+                and result.system
+                and system.rns_address == result.system.rns_address
+            ):
+                result.system = system
+        elif output_type == OutputType.CONFIG:
+            if system and "system" in result and system.rns_address == result["system"]:
+                result["system"] = system
+            result = Resource.from_config(result, dryrun=True)
+
+        return result
 
     def call(
         self,
@@ -325,6 +426,13 @@ class HTTPClient:
         """
         Client function to call the rpc for call_module_method
         """
+        if run_name is None:
+            run_name = generate_default_name(
+                prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+                precision="ms",  # Higher precision because we see collisions within the same second
+                sep="@",
+            )
+
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(
@@ -341,7 +449,7 @@ class HTTPClient:
                 stream_logs=stream_logs,
                 save=save,
                 remote=remote,
-            ).dict(),
+            ).model_dump(),
             stream=True,
             headers=rns_client.request_headers(resource_address),
             auth=self.auth,
@@ -375,34 +483,10 @@ class HTTPClient:
             result = handle_response(
                 resp, output_type, error_str, log_formatter=self.log_formatter
             )
-            # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
-            # slow, we can just set it explicitly.
-            from runhouse.resources.module import Module
 
-            if isinstance(result, Module):
-                if (
-                    system
-                    and result.system
-                    and system.rns_address == result.system.rns_address
-                ):
-                    result.system = system
-            elif output_type == OutputType.CONFIG:
-                if (
-                    system
-                    and "system" in result
-                    and system.rns_address == result["system"]
-                ):
-                    result["system"] = system
-                result = Resource.from_config(result, dryrun=True)
+            result = self._process_call_result(result, system, output_type)
 
         end = time.time()
-
-        if (
-            hasattr(result, "system")
-            and system is not None
-            and result.system.rns_address == system.rns_address
-        ):
-            result.system = system
 
         if method_name:
             log_str = (
@@ -410,7 +494,8 @@ class HTTPClient:
             )
         else:
             log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
-        logging.info(log_str)
+
+        logger.info(log_str)
         return result
 
     async def acall(
@@ -458,6 +543,13 @@ class HTTPClient:
         """
         Client function to call the rpc for call_module_method
         """
+        if run_name is None:
+            run_name = generate_default_name(
+                prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+                precision="ms",  # Higher precision because we see collisions within the same second
+                sep="@",
+            )
+
         # Measure the time it takes to send the message
         start = time.time()
         logger.info(
@@ -476,7 +568,7 @@ class HTTPClient:
                 save=save,
                 remote=remote,
                 run_async=run_async,
-            ).dict(),
+            ).model_dump(),
             headers=rns_client.request_headers(resource_address),
         ) as res:
             if res.status_code != 200:
@@ -494,34 +586,9 @@ class HTTPClient:
                 result = handle_response(
                     resp, output_type, error_str, log_formatter=self.log_formatter
                 )
-                # If this was a `.remote` call, we don't need to recreate the system and connection, which can be
-                # slow, we can just set it explicitly.
-                from runhouse.resources.module import Module
-
-                if isinstance(result, Module):
-                    if (
-                        system
-                        and result.system
-                        and system.rns_address == result.system.rns_address
-                    ):
-                        result.system = system
-                elif output_type == OutputType.CONFIG:
-                    if (
-                        system
-                        and "system" in result
-                        and system.rns_address == result["system"]
-                    ):
-                        result["system"] = system
-                    result = Resource.from_config(result, dryrun=True)
+                result = self._process_call_result(result, system, output_type)
 
             end = time.time()
-
-            if (
-                hasattr(result, "system")
-                and system is not None
-                and result.system.rns_address == system.rns_address
-            ):
-                result.system = system
 
             if method_name:
                 log_str = (
@@ -529,7 +596,7 @@ class HTTPClient:
                 )
             else:
                 log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
-            logging.info(log_str)
+            logger.info(log_str)
             return result
 
     def put_object(self, key: str, value: Any, env=None):
@@ -541,7 +608,7 @@ class HTTPClient:
                 serialized_data=serialize_data(value, "pickle"),
                 env_name=env,
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             err_str=f"Error putting object {key}",
         )
 
@@ -557,7 +624,7 @@ class HTTPClient:
                 serialized_data=serialize_data([config, state, dryrun], "pickle"),
                 env_name=env_name,
                 serialization="pickle",
-            ).dict(),
+            ).model_dump(),
             err_str=f"Error putting resource {resource.name or type(resource)}",
         )
 
@@ -577,7 +644,7 @@ class HTTPClient:
                     key=key,
                     serialization="pickle",
                     remote=remote,
-                ).dict(),
+                ).model_dump(),
                 err_str=f"Error getting object {key}",
             )
             if remote and isinstance(res, dict) and "resource_type" in res:
@@ -600,7 +667,7 @@ class HTTPClient:
         self.request_json(
             "rename",
             req_type="post",
-            json_dict=RenameObjectParams(key=old_key, new_key=new_key).dict(),
+            json_dict=RenameObjectParams(key=old_key, new_key=new_key).model_dump(),
             err_str=f"Error renaming object {old_key}",
         )
 
@@ -627,7 +694,7 @@ class HTTPClient:
         return self.request_json(
             "delete_object",
             req_type="post",
-            json_dict=DeleteObjectParams(keys=keys or []).dict(),
+            json_dict=DeleteObjectParams(keys=keys or []).model_dump(),
             err_str=f"Error deleting keys {keys}",
         )
 

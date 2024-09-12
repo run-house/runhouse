@@ -20,16 +20,20 @@ def folder(request):
 
 
 @pytest.fixture
-def local_folder(tmp_path):
-    args = {"path": tmp_path / "tests_tmp"}
+def local_folder():
+    from runhouse import Folder
+
+    args = {"path": Folder.DEFAULT_CACHE_FOLDER}
     local_folder = rh.folder(**args)
     init_args[id(local_folder)] = args
-    local_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
+    local_folder.put(
+        {f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)}, overwrite=True
+    )
     return local_folder
 
 
 @pytest.fixture
-def local_folder_docker(docker_cluster_pk_ssh_no_auth):
+def docker_cluster_folder(docker_cluster_pk_ssh_no_auth):
     args = {
         "name": "test_docker_folder",
         "system": docker_cluster_pk_ssh_no_auth,
@@ -39,22 +43,23 @@ def local_folder_docker(docker_cluster_pk_ssh_no_auth):
     local_folder_docker = rh.folder(**args)
     init_args[id(local_folder_docker)] = args
     local_folder_docker.put(
-        {f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)}
+        {f"sample_file_{i}.txt": f"file{i}" for i in range(3)}, overwrite=True
     )
     return local_folder_docker
 
 
 @pytest.fixture
-def cluster_folder(ondemand_aws_cluster):
+def cluster_folder(ondemand_aws_docker_cluster):
     args = {
         "name": "test_cluster_folder",
-        "system": ondemand_aws_cluster,
         "path": "rh-folder",
     }
 
-    cluster_folder = rh.folder(**args)
+    cluster_folder = rh.folder(**args).to(system=ondemand_aws_docker_cluster)
     init_args[id(cluster_folder)] = args
-    cluster_folder.put({f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)})
+    cluster_folder.put(
+        {f"sample_file_{i}.txt": f"file{i}".encode() for i in range(3)}, overwrite=True
+    )
     return cluster_folder
 
 

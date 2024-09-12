@@ -22,9 +22,7 @@ pip_pkgs = "\n".join(
             # required installs
             "wheel",
             "rich",
-            "fsspec",
             "pyarrow",
-            "sshfs",
             "typer",
             "skypilot",
             "fastapi",

@@ -1,18 +1,24 @@
 import codecs
 import json
 import re
+import shutil
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import requests
 
 from fastapi import HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from ray import cloudpickle as pickle
 from ray.exceptions import RayTaskError
 
-from runhouse.logger import ClusterLogsFormatter, logger
+from runhouse.logger import get_logger
+
 from runhouse.servers.obj_store import RunhouseStopIteration
+from runhouse.utils import ClusterLogsFormatter
+
+logger = get_logger(__name__)
 
 
 class RequestContext(BaseModel):
@@ -29,9 +35,9 @@ class ServerSettings(BaseModel):
 
 
 class CallParams(BaseModel):
+    run_name: str
     data: Any = None
     serialization: Optional[str] = "none"
-    run_name: Optional[str] = None
     stream_logs: Optional[bool] = False
     save: Optional[bool] = False
     remote: Optional[bool] = False
@@ -84,6 +90,46 @@ class OutputType:
     CANCELLED = "cancelled"
     RESULT_SERIALIZED = "result_serialized"
     CONFIG = "config"
+
+
+class FolderParams(BaseModel):
+    path: str
+    is_file: bool = False
+
+    @field_validator("path", mode="before")
+    def convert_path_to_string(cls, v):
+        return str(v) if v is not None else v
+
+
+class FolderLsParams(FolderParams):
+    full_paths: Optional[bool] = True
+    sort: Optional[bool] = False
+
+
+class FolderGetParams(FolderParams):
+    encoding: Optional[str] = None
+    mode: Optional[str] = None
+
+
+class FolderPutParams(FolderParams):
+    contents: Any
+    overwrite: Optional[bool] = False
+    mode: Optional[str] = None
+    serialization: Optional[str] = None
+
+
+class FolderRmParams(FolderParams):
+    contents: Optional[List] = None
+    recursive: Optional[bool] = False
+
+
+class FolderMvParams(FolderParams):
+    dest_path: str
+    overwrite: Optional[bool] = True
+
+    @field_validator("dest_path", mode="before")
+    def convert_path_to_string(cls, v):
+        return str(v) if v is not None else v
 
 
 def pickle_b64(picklable):
@@ -281,3 +327,218 @@ def handle_response(
     elif output_type == OutputType.STDERR:
         res = response_data["data"]
         print(system_color + res + reset_color, file=sys.stderr)
+
+
+###########################
+#### Folder Operations ####
+###########################
+
+
+def resolve_folder_path(path: str):
+    return (
+        None
+        if path is None
+        else Path(path).expanduser()
+        if path.startswith("~")
+        else Path(path).resolve()
+    )
+
+
+def folder_mkdir(path: Path):
+    if not path.parent.is_dir():
+        raise ValueError(
+            f"Parent path {path.parent} does not exist or is not a directory"
+        )
+
+    path.mkdir(parents=True, exist_ok=True)
+
+    return Response(output_type=OutputType.SUCCESS)
+
+
+def folder_get(path: Path, encoding: str = None, mode: str = None):
+    mode = mode or "rb"
+    binary_mode = "b" in mode
+
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Path {path} does not exist")
+
+    try:
+        with open(path, mode=mode, encoding=encoding) as f:
+            file_contents = f.read()
+
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"File {path} not found")
+
+    except PermissionError:
+        raise HTTPException(
+            status_code=403, detail=f"Permission denied for file in path {path}"
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error reading file {path}: {str(e)}"
+        )
+
+    if binary_mode and isinstance(file_contents, bytes):
+        file_contents = file_contents.decode()
+
+    return Response(
+        data=file_contents,
+        output_type=OutputType.RESULT_SERIALIZED,
+        serialization=None,
+    )
+
+
+def folder_put(
+    path: Path,
+    contents: Dict[str, Any],
+    overwrite: bool,
+    mode: str = None,
+    serialization: str = None,
+):
+    mode = mode or "wb"
+
+    if contents and not isinstance(contents, dict):
+        raise HTTPException(
+            status_code=422,
+            detail="`contents` argument must be a dict mapping filenames to file-like objects",
+        )
+
+    if overwrite is False:
+        existing_files = {str(item.name) for item in path.iterdir()}
+        intersection = existing_files.intersection(set(contents.keys()))
+        if intersection:
+            raise HTTPException(
+                status_code=409,
+                detail=f"File(s) {intersection} already exist(s) at path: {path}",
+            )
+
+    path.mkdir(parents=True, exist_ok=True)
+
+    for filename, file_obj in contents.items():
+        binary_mode = "b" in mode
+
+        if serialization:
+            file_obj = serialize_data(file_obj, serialization)
+
+        if binary_mode and not isinstance(file_obj, bytes):
+            file_obj = file_obj.encode()
+
+        file_path = path / filename
+        if not overwrite and file_path.exists():
+            raise HTTPException(
+                status_code=409, detail=f"File {file_path} already exists"
+            )
+
+        try:
+            with open(file_path, mode) as f:
+                f.write(file_obj)
+        except Exception as e:
+            HTTPException(
+                status_code=500,
+                detail=f"Failed to write file with mode '{mode}': {str(e)}",
+            )
+
+    return Response(output_type=OutputType.SUCCESS)
+
+
+def folder_ls(path: Path, full_paths: bool, sort: bool):
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Path {path} does not exist")
+
+    if not path.is_dir():
+        raise HTTPException(status_code=400, detail=f"Path {path} is not a directory")
+
+    paths = [p for p in path.iterdir()]
+
+    # Sort the paths by modification time if sort is True
+    if sort:
+        paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+    # Convert paths to strings and format them based on full_paths
+    if full_paths:
+        files = [str(p.resolve()) for p in paths]
+    else:
+        files = [p.name for p in paths]
+
+    return Response(
+        data=files,
+        output_type=OutputType.RESULT_SERIALIZED,
+        serialization=None,
+    )
+
+
+def folder_rm(path: Path, contents: List[str], recursive: bool):
+    if contents:
+        from runhouse import Folder
+
+        try:
+            Folder._delete_contents(contents, path, recursive)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=str(e),
+            )
+
+        return Response(output_type=OutputType.SUCCESS)
+
+    if not path.is_dir():
+        path.unlink()
+        return Response(output_type=OutputType.SUCCESS)
+
+    if recursive:
+        shutil.rmtree(path)
+        return Response(output_type=OutputType.SUCCESS)
+
+    items = list(path.iterdir())
+    if not items:
+        # Remove the empty directory
+        path.rmdir()
+        return Response(output_type=OutputType.SUCCESS)
+
+    # Remove file contents, but not the directory itself (since recursive not set to `True`)
+    for item in items:
+        if item.is_file():
+            item.unlink()
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Folder {item} found in {path}, recursive is set to `False`",
+            )
+
+    return Response(output_type=OutputType.SUCCESS)
+
+
+def folder_mv(src_path: Path, dest_path: str, overwrite: bool):
+    dest_path = resolve_folder_path(dest_path)
+
+    if not src_path.exists():
+        raise HTTPException(
+            status_code=404, detail=f"The source path {src_path} does not exist"
+        )
+
+    if not overwrite and dest_path.exists():
+        raise HTTPException(
+            status_code=409,
+            detail=f"The destination path {dest_path} already exists. Set `overwrite` to `True` to "
+            f"overwrite the destination path",
+        )
+
+    # Create the destination directory if it doesn't exist and overwrite is set to `True`
+    dest_path.parent.mkdir(parents=True, exist_ok=overwrite)
+
+    # Move the directory
+    shutil.move(str(src_path), str(dest_path))
+
+    return Response(output_type=OutputType.SUCCESS)
+
+
+def folder_exists(path: Path):
+    folder_exists_resp = path.exists()
+    if not path.is_file():
+        folder_exists_resp = folder_exists_resp and path.is_dir()
+    return Response(
+        data=folder_exists_resp,
+        output_type=OutputType.RESULT_SERIALIZED,
+        serialization=None,
+    )

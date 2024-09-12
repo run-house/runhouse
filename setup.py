@@ -62,22 +62,23 @@ def parse_readme(readme: str) -> str:
 
 
 install_requires = [
+    "annotated-types>=0.6.0",
     "python-dotenv",
     "fastapi",
-    "fsspec<=2023.5.0",
     "pexpect",
     "pyOpenSSL>=23.3.0",
-    "ray[default] >= 2.2.0, != 2.6.0",
+    "ray[default] >= 2.9.0",
     "async_timeout",  # Needed for ray<=2.9
     "rich",
     "sentry-sdk",
     "setuptools < 70.0.0",  # Bug in setuptools 70.0.0: https://github.com/AUTOMATIC1111/stable-diffusion-webui/issues/15863 noqa
-    "sshfs >= 2023.1.0, <= 2023.4.1",
     "typer",
     "uvicorn",
     "wheel",
     "apispec",
     "httpx",
+    "pydantic >= 2.5.0",  # required for ray >= 2.9.0 (https://github.com/ray-project/ray/releases?page=2)
+    "pynvml",
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following
@@ -91,7 +92,6 @@ extras_require = {
         # If you don't want to use these exact versions, you can install runhouse without the aws extras, then
         # install your desired versions of awscli and boto3
         "pycryptodome==3.12.0",
-        "sshtunnel>=0.3.0",  # required for sagemaker
     ],
     "azure": ["skypilot[azure]==0.6.0"],
     "gcp": [
@@ -99,13 +99,6 @@ extras_require = {
         "gcsfs",
     ],
     "docker": ["docker"],
-    "sagemaker": [
-        "skypilot==0.6.0",
-        # https://github.com/aws-samples/sagemaker-ssh-helper
-        "sagemaker_ssh_helper",
-        "sagemaker",
-        "paramiko>=3.2.0",
-    ],
     "kubernetes": ["skypilot==0.6.0", "kubernetes"],
 }
 
@@ -159,6 +152,5 @@ setuptools.setup(
     project_urls={
         "Homepage": "https://run.house",
         "Issues": "https://github.com/run-house/runhouse/issues/",
-        # 'Documentation': 'https://runhouse-docs.readthedocs-hosted.com/en/latest/',
     },
 )

@@ -38,11 +38,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pwd_ssh_no_auth",
         ]
     }
-    MINIMAL = {"cluster": ["ondemand_aws_cluster"]}
+    MINIMAL = {"cluster": ["ondemand_aws_docker_cluster"]}
     RELEASE = {
         "cluster": [
-            "ondemand_aws_cluster",
-            "static_cpu_cluster",
+            "ondemand_aws_docker_cluster",
+            "static_cpu_pwd_cluster",
         ]
     }
     MAXIMAL = {
@@ -50,9 +50,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pk_ssh_den_auth",
             "docker_cluster_pwd_ssh_no_auth",
-            "ondemand_aws_cluster",
-            "static_cpu_cluster",
-            "multinode_cpu_cluster"
+            "ondemand_aws_docker_cluster",
+            "static_cpu_pwd_cluster",
+            "multinode_cpu_docker_conda_cluster"
         ]
     }
 
@@ -236,13 +236,14 @@ from tests.fixtures.docker_cluster_fixtures import (
 from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
-    multinode_cpu_cluster,  # noqa: F401
+    multinode_cpu_docker_conda_cluster,  # noqa: F401
     multinode_gpu_cluster,  # noqa: F401
-    ondemand_aws_cluster,  # noqa: F401
+    ondemand_aws_docker_cluster,  # noqa: F401
     ondemand_aws_https_cluster_with_auth,  # noqa: F401
     ondemand_cluster,  # noqa: F401
     ondemand_gcp_cluster,  # noqa: F401
     ondemand_k8s_cluster,  # noqa: F401
+    ondemand_k8s_docker_cluster,  # noqa: F401
     v100_gpu_cluster,  # noqa: F401
 )
 
@@ -258,7 +259,7 @@ from tests.fixtures.resource_fixtures import (
     unnamed_resource,  # noqa: F401
 )
 
-from tests.fixtures.static_cluster_fixtures import static_cpu_cluster  # noqa: F401
+from tests.fixtures.static_cluster_fixtures import static_cpu_pwd_cluster  # noqa: F401
 
 from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
     other_sm_cluster,  # noqa: F401
@@ -276,7 +277,7 @@ from tests.fixtures.folder_fixtures import (  # usort: skip
     folder,  # noqa: F401
     gcs_folder,  # noqa: F401
     local_folder,  # noqa: F401
-    local_folder_docker,  # noqa: F401
+    docker_cluster_folder,  # noqa: F401
     s3_folder,  # noqa: F401
 )
 
@@ -325,20 +326,6 @@ from tests.test_resources.test_envs.conftest import (
     unnamed_env,  # noqa: F401
 )
 
-# ----------------- Blobs -----------------
-
-from tests.test_resources.test_modules.test_blobs.conftest import (
-    blob,  # noqa: F401
-    blob_data,  # noqa: F401
-    cluster_blob,  # noqa: F401
-    cluster_file,  # noqa: F401
-    file,  # noqa: F401
-    gcs_blob,  # noqa: F401
-    local_blob,  # noqa: F401
-    local_file,  # noqa: F401
-    s3_blob,  # noqa: F401
-)
-
 # ----------------- Modules -----------------
 
 # ----------------- Functions -----------------
@@ -357,24 +344,25 @@ default_fixtures = {}
 default_fixtures[TestLevels.UNIT] = {"cluster": ["named_cluster"]}
 default_fixtures[TestLevels.LOCAL] = {
     "cluster": [
-        "docker_cluster_pk_ssh_no_auth",  # Represents private dev use case
-        "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
+        # "docker_cluster_pk_ssh_no_auth",  # Represents private dev use case
+        # "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
         "docker_cluster_pk_tls_den_auth",  # Represents public app use case
-        "docker_cluster_pk_http_exposed",  # Represents within VPC use case
+        # "docker_cluster_pk_http_exposed",  # Represents within VPC use case
     ]
 }
 default_fixtures[TestLevels.MINIMAL] = {
     "cluster": [
-        "ondemand_aws_cluster",
+        "ondemand_aws_docker_cluster",
     ]
 }
 default_fixtures[TestLevels.RELEASE] = {
     "cluster": [
-        "ondemand_aws_cluster",
+        "ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
+        "ondemand_k8s_docker_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "static_cpu_cluster",
+        "static_cpu_pwd_cluster",
     ]
 }
 default_fixtures[TestLevels.MAXIMAL] = {
@@ -382,12 +370,13 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "docker_cluster_pk_ssh_no_auth",
         "docker_cluster_pk_ssh_den_auth",
         "docker_cluster_pwd_ssh_no_auth",
-        "ondemand_aws_cluster",
+        "ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
+        "ondemand_k8s_docker_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "multinode_cpu_cluster",
-        "static_cpu_cluster",
+        "multinode_cpu_docker_conda_cluster",
+        "static_cpu_pwd_cluster",
         "multinode_gpu_cluster",  # for testing cluster status on multinode gpu.
     ]
 }

@@ -19,7 +19,6 @@ from fastapi.responses import StreamingResponse
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
-    DEFAULT_LOG_LEVEL,
     DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
     EMPTY_DEFAULT_ENV_NAME,
@@ -27,21 +26,35 @@ from runhouse.constants import (
     RH_LOGFILE_PATH,
 )
 from runhouse.globals import configs, obj_store, rns_client
-from runhouse.logger import logger
-from runhouse.rns.utils.api import resolve_absolute_path
-from runhouse.rns.utils.names import _generate_default_name
+from runhouse.logger import get_logger
+from runhouse.rns.utils.api import resolve_absolute_path, ResourceAccess
 from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import averify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     CallParams,
     DeleteObjectParams,
+    deserialize_data,
+    folder_exists,
+    folder_get,
+    folder_ls,
+    folder_mkdir,
+    folder_mv,
+    folder_put,
+    folder_rm,
+    FolderGetParams,
+    FolderLsParams,
+    FolderMvParams,
+    FolderParams,
+    FolderPutParams,
+    FolderRmParams,
     get_token_from_request,
     handle_exception_response,
     OutputType,
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
+    resolve_folder_path,
     Response,
     serialize_data,
     ServerSettings,
@@ -51,10 +64,11 @@ from runhouse.servers.obj_store import (
     ObjStoreError,
     RaySetupOption,
 )
-from runhouse.utils import sync_function
-
+from runhouse.utils import generate_default_name, sync_function
 
 app = FastAPI(docs_url=None, redoc_url=None)
+
+logger = get_logger(__name__)
 
 
 def validate_cluster_access(func):
@@ -67,6 +81,11 @@ def validate_cluster_access(func):
         is_coro = inspect.iscoroutinefunction(func)
 
         func_call: bool = func.__name__ in ["post_call", "get_call"]
+
+        # restrict access for folder specific APIs
+        access_level_required = (
+            ResourceAccess.WRITE if func.__name__.startswith("folder") else None
+        )
         token = get_token_from_request(request)
 
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
@@ -82,7 +101,9 @@ def validate_cluster_access(func):
                         "provide a valid token in the Authorization header.",
                     )
                 cluster_uri = (await obj_store.aget_cluster_config()).get("name")
-                cluster_access = await averify_cluster_access(cluster_uri, token)
+                cluster_access = await averify_cluster_access(
+                    cluster_uri, token, access_level_required
+                )
                 if not cluster_access:
                     # Must have cluster access for all the non func calls
                     # Note: for func calls we handle the auth in the object store
@@ -118,10 +139,6 @@ class HTTPServer:
         *args,
         **kwargs,
     ):
-        log_level = kwargs.get("logs_level", DEFAULT_LOG_LEVEL)
-        logger.setLevel(log_level)
-        if log_level != DEFAULT_LOG_LEVEL:
-            logger.info(f"setting logs level to {log_level}")
         runtime_env = {"conda": conda_env} if conda_env else None
 
         default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
@@ -135,7 +152,6 @@ class HTTPServer:
                 default_env_name,
                 setup_ray=RaySetupOption.TEST_PROCESS,
                 runtime_env=runtime_env,
-                logs_level=log_level,
             )
 
         # TODO disabling due to latency, figure out what to do with this
@@ -150,7 +166,6 @@ class HTTPServer:
             env_name=default_env_name,
             create=True,
             runtime_env=runtime_env,
-            logs_level=log_level,
         )
 
         if default_env_name == EMPTY_DEFAULT_ENV_NAME:
@@ -299,11 +314,8 @@ class HTTPServer:
         params = params or CallParams()
 
         try:
-            params.run_name = params.run_name or _generate_default_name(
-                prefix=key if method_name == "__call__" else f"{key}_{method_name}",
-                precision="ms",  # Higher precision because we see collisions within the same second
-                sep="@",
-            )
+            if not params.run_name:
+                raise ValueError("run_name is required for all calls.")
             # Call async so we can loop to collect logs until the result is ready
 
             fut = asyncio.create_task(
@@ -323,7 +335,6 @@ class HTTPServer:
 
             return StreamingResponse(
                 HTTPServer._get_results_and_logs_generator(
-                    key,
                     fut=fut,
                     run_name=params.run_name,
                     serialization=params.serialization,
@@ -405,8 +416,18 @@ class HTTPServer:
         # Default argument to json doesn't allow a user to pass in a serialization string if they want
         # But, if they didn't pass anything, we want it to be `json` by default.
         serialization = serialization or "json"
-
         try:
+            if run_name is None and stream_logs:
+                raise ValueError(
+                    "run_name is required for all calls when stream_logs is True."
+                )
+
+            if run_name is None:
+                run_name = generate_default_name(
+                    prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+                    precision="ms",  # Higher precision because we see collisions within the same second
+                    sep="@",
+                )
 
             # The types need to be explicitly specified as parameters first so that
             # we can cast Query params to the right type.
@@ -419,7 +440,7 @@ class HTTPServer:
             )
 
             query_params_remaining = dict(request.query_params)
-            call_params_dict = params.dict()
+            call_params_dict = params.model_dump()
             for k, v in dict(request.query_params).items():
                 # If one of the query_params matches an arg in CallParams, set it
                 # And also remove it from the query_params dict, so the rest
@@ -475,7 +496,7 @@ class HTTPServer:
         return open_files
 
     @staticmethod
-    async def _get_results_and_logs_generator(key, fut, run_name, serialization=None):
+    async def _get_results_and_logs_generator(fut, run_name, serialization=None):
         logger.debug(f"Streaming logs for key {run_name}")
         open_logfiles = []
         waiting_for_results = True
@@ -533,7 +554,7 @@ class HTTPServer:
             )
         finally:
             if not open_logfiles:
-                logger.warning(f"No logfiles found for call {key}")
+                logger.warning(f"No logfiles found for call {run_name}")
             for f in open_logfiles:
                 f.close()
 
@@ -613,6 +634,113 @@ class HTTPServer:
             )
 
     @staticmethod
+    @app.post("/folder/method/ls")
+    @validate_cluster_access
+    async def folder_ls_cmd(request: Request, ls_params: FolderLsParams):
+        try:
+            path = resolve_folder_path(ls_params.path)
+            return folder_ls(path, full_paths=ls_params.full_paths, sort=ls_params.sort)
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/mkdir")
+    @validate_cluster_access
+    async def folder_mkdir_cmd(request: Request, folder_params: FolderParams):
+        try:
+            path = resolve_folder_path(folder_params.path)
+            return folder_mkdir(path)
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/get")
+    @validate_cluster_access
+    async def folder_get_cmd(request: Request, get_params: FolderGetParams):
+        try:
+            path = resolve_folder_path(get_params.path)
+            return folder_get(path, mode=get_params.mode, encoding=get_params.encoding)
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/put")
+    @validate_cluster_access
+    async def folder_put_cmd(request: Request, put_params: FolderPutParams):
+        try:
+            path = resolve_folder_path(put_params.path)
+            serialization = put_params.serialization
+            serialized_contents = put_params.contents
+            contents = deserialize_data(serialized_contents, serialization)
+
+            return folder_put(
+                path,
+                contents=contents,
+                overwrite=put_params.overwrite,
+                mode=put_params.mode,
+                serialization=serialization,
+            )
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/rm")
+    @validate_cluster_access
+    async def folder_rm_cmd(request: Request, rm_params: FolderRmParams):
+        try:
+            path = resolve_folder_path(rm_params.path)
+            return folder_rm(
+                path, contents=rm_params.contents, recursive=rm_params.recursive
+            )
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/mv")
+    @validate_cluster_access
+    async def folder_mv_cmd(request: Request, mv_params: FolderMvParams):
+        try:
+            path = resolve_folder_path(mv_params.path)
+            return folder_mv(
+                src_path=path,
+                dest_path=mv_params.dest_path,
+                overwrite=mv_params.overwrite,
+            )
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/exists")
+    @validate_cluster_access
+    async def folder_exists_cmd(request: Request, folder_params: FolderParams):
+        try:
+            path = resolve_folder_path(folder_params.path)
+            return folder_exists(path=path)
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
     @app.post("/delete_object")
     @validate_cluster_access
     async def delete_obj(request: Request, params: DeleteObjectParams):
@@ -661,9 +789,9 @@ class HTTPServer:
     @staticmethod
     @app.get("/status")
     @validate_cluster_access
-    def get_status(request: Request):
+    def get_status(request: Request, send_to_den: bool = False):
 
-        return obj_store.status()
+        return obj_store.status(send_to_den=send_to_den)
 
     @staticmethod
     def _collect_cluster_stats():
@@ -824,13 +952,6 @@ async def main():
         action="store_true",
         default=argparse.SUPPRESS,
         help="Whether HTTP server is called from Python rather than CLI.",
-    )
-
-    parser.add_argument(
-        "--log-level",
-        type=str,
-        default=DEFAULT_LOG_LEVEL,
-        help="The lowest log level of the printed logs",
     )
 
     parse_args = parser.parse_args()
@@ -1026,7 +1147,6 @@ async def main():
     await HTTPServer.ainitialize(
         default_env_name=default_env_name,
         conda_env=conda_name,
-        logs_level=parse_args.log_level,
     )
 
     if den_auth:

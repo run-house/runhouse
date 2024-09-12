@@ -39,12 +39,11 @@ import runhouse as rh
 from PIL import Image
 
 # Next, we define a class that will hold the model and allow us to send prompts to it.
-# You'll notice this class inherits from `rh.Module`.
-# This is a Runhouse class that allows you to
+# We'll later wrap this with `rh.module`. This is a Runhouse class that allows you to
 # run code in your class on a remote machine.
 #
 # Learn more in the [Runhouse docs on functions and modules](/docs/tutorials/api-modules).
-class StableDiffusionXLPipeline(rh.Module):
+class StableDiffusionXLPipeline:
     def __init__(
         self,
         model_id: str = "stabilityai/stable-diffusion-xl-base-1.0",
@@ -148,13 +147,16 @@ if __name__ == "__main__":
     )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
-    # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
-    # by the name `sdxl` if it was already put on the cluster. If we want to update the module each
-    # time we run this script, we can use `to` instead of `get_or_to`.
+    # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
+    # by calling `cluster.get(name="sdxl")`. This would return the remote model after an initial run.
+    # If we want to update the module each time we run this script, we prefer to use `to`.
     #
-    # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
+    # Note that we also pass the `env` object to the `to` method, which will ensure that the environment is
     # set up on the remote machine before the module is run.
-    model = StableDiffusionXLPipeline().get_or_to(cluster, env=env, name="sdxl")
+    RemoteStableDiffusion = rh.module(StableDiffusionXLPipeline).to(
+        cluster, env=env, name="StableDiffusionXLPipeline"
+    )
+    remote_sdxl = RemoteStableDiffusion(name="sdxl")
 
     # ## Calling our remote function
     #
@@ -163,7 +165,7 @@ if __name__ == "__main__":
     # Further calls will also run on the remote machine, and maintain state that was updated between calls, like
     # `self.model`.
     prompt = "A woman runs through a large, grassy field towards a house."
-    response = model.generate(
+    response = remote_sdxl.generate(
         prompt,
         num_inference_steps=25,
         negative_prompt="disfigured, ugly, deformed",

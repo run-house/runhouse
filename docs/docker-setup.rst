@@ -17,8 +17,7 @@ is automatically built and set up remotely on the cluster. The Runhouse
 server will start directly inside the remote container.
 
 **NOTE:** This guide details the setup and usage for on-demand clusters
-only. Docker container is also supported for Sagemaker clusters, and it
-is not yet supported for static clusters.
+only. It is not yet supported for static clusters.
 
 Cluster & Docker Setup
 ----------------------
@@ -65,11 +64,11 @@ For instance, to use the PyTorch2.2 ECR Framework provided
 you must first set your environment variables somewhere your program can
 access.
 
-.. code:: cli
+.. code::
 
-   export SKYPILOT_DOCKER_USERNAME=AWS
-   export SKYPILOT_DOCKER_PASSWORD=$(aws ecr get-login-password --region us-east-1)
-   export SKYPILOT_DOCKER_SERVER=763104351884.dkr.ecr.us-east-1.amazonaws.com
+   $ export SKYPILOT_DOCKER_USERNAME=AWS
+   $ export SKYPILOT_DOCKER_PASSWORD=$(aws ecr get-login-password --region us-east-1)
+   $ export SKYPILOT_DOCKER_SERVER=763104351884.dkr.ecr.us-east-1.amazonaws.com
 
 Then, instantiate the on-demand cluster and fill in the ``image_id``
 field.

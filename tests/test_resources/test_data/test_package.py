@@ -5,13 +5,14 @@ import pytest
 
 import runhouse as rh
 import tests.test_resources.test_resource
+from runhouse.resources.packages import InstallTarget
 from runhouse.utils import run_with_logs
 
 
-def get_plotly_version():
-    import plotly
+def get_bs4_version():
+    import bs4
 
-    return plotly.__version__
+    return bs4.__version__
 
 
 class TestPackage(tests.test_resources.test_resource.TestResource):
@@ -38,12 +39,12 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
 
     MINIMAL = {
         "package": packages,
-        "cluster": ["ondemand_aws_cluster"],
+        "cluster": ["ondemand_aws_docker_cluster"],
     }
 
     RELEASE = {
         "package": packages,
-        "cluster": ["ondemand_aws_cluster"],
+        "cluster": ["ondemand_aws_docker_cluster"],
     }
 
     @pytest.mark.level("unit")
@@ -69,7 +70,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         assert package.install_method in ["pip", "conda", "reqs", "local"]
 
         if package.install_method in ["reqs", "local"]:
-            assert isinstance(package.install_target, rh.Folder)
+            assert isinstance(package.install_target, InstallTarget)
 
     # --------- test install command ---------
     @pytest.mark.level("unit")
@@ -131,13 +132,14 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_remote_reqs_install(self, cluster, reqs_package):
-        path = reqs_package.to(cluster).install_target.path
+        remote_reqs_package = reqs_package.to(cluster)
+        path = remote_reqs_package.install_target.local_path
 
-        assert reqs_package._reqs_install_cmd(cluster=cluster) in [
+        assert remote_reqs_package._reqs_install_cmd(cluster=cluster) in [
             None,
             f"python3 -m pip install -r {path}/requirements.txt",
         ]
-        reqs_package._install(cluster=cluster)
+        remote_reqs_package._install(cluster=cluster)
 
     @pytest.mark.level("local")
     def test_git_install(self, cluster, git_package):
@@ -147,17 +149,15 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     def test_local_reqs_on_cluster(self, cluster, local_package):
         remote_package = local_package.to(cluster)
 
-        assert isinstance(remote_package.install_target, rh.Folder)
-        assert remote_package.install_target.system == cluster
+        assert isinstance(remote_package.install_target, InstallTarget)
 
     @pytest.mark.level("local")
-    @pytest.mark.skip("Feature deprecated for now")
     def test_local_package_version_gets_installed(self, cluster):
-        run_with_logs("pip install plotly==5.9.0")
-        env = rh.env(name="temp_env", reqs=["plotly"])
+        run_with_logs("pip install beautifulsoup4==4.11.1")
+        env = rh.env(name="temp_env", reqs=["beautifulsoup4"])
 
-        remote_fn = rh.function(get_plotly_version, env=env).to(cluster)
-        assert remote_fn() == "5.9.0"
+        remote_fn = rh.function(get_bs4_version, env=env).to(cluster)
+        assert remote_fn() == "4.11.1"
 
     # --------- basic torch index-url testing ---------
     @pytest.mark.level("unit")

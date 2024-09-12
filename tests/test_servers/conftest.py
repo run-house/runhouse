@@ -9,12 +9,18 @@ import pytest_asyncio
 import runhouse as rh
 
 from runhouse.globals import rns_client
+from runhouse.logger import get_logger
 
-from runhouse.logger import logger
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_server import app, HTTPServer
 
-from tests.utils import friend_account, get_ray_servlet_and_obj_store
+from tests.utils import (
+    friend_account,
+    get_ray_cluster_servlet,
+    get_ray_env_servlet_and_obj_store,
+)
+
+logger = get_logger(__name__)
 
 # -------- HELPERS ----------- #
 def summer(a, b):
@@ -107,9 +113,15 @@ def local_client_with_den_auth(logged_in_account):
 
 
 @pytest.fixture(scope="session")
-def test_servlet():
-    servlet, _ = get_ray_servlet_and_obj_store("test_servlet")
-    yield servlet
+def test_env_servlet():
+    env_servlet, _ = get_ray_env_servlet_and_obj_store("test_env_servlet")
+    yield env_servlet
+
+
+@pytest.fixture(scope="session")
+def test_cluster_servlet(request):
+    cluster_servlet = get_ray_cluster_servlet()
+    yield cluster_servlet
 
 
 @pytest.fixture(scope="function")
@@ -117,7 +129,7 @@ def obj_store(request):
 
     # Use the parameter to set the name of the servlet actor to use
     env_servlet_name = request.param
-    _, test_obj_store = get_ray_servlet_and_obj_store(env_servlet_name)
+    _, test_obj_store = get_ray_env_servlet_and_obj_store(env_servlet_name)
 
     # Clears everything, not just what's in this env servlet
     test_obj_store.clear()

@@ -7,8 +7,10 @@ from tests.utils import test_env
 
 
 @pytest.fixture(scope="session")
-def static_cpu_cluster():
-    sky_cluster = rh.cluster("aws-cpu-password", instance_type="CPU:4").save()
+def static_cpu_pwd_cluster():
+    sky_cluster = rh.cluster(
+        "aws-cpu-password", instance_type="CPU:4", provider="aws"
+    ).save()
     if not sky_cluster.is_up():
         sky_cluster.up()
 

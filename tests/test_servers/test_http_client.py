@@ -156,8 +156,13 @@ class TestHTTPClient:
         # Call the method under test
         method_name = "install"
         module_name = EMPTY_DEFAULT_ENV_NAME
+
+        # Need to specify the run_name to avoid generating a unique one that contains the timestamp
         result = self.client.call(
-            module_name, method_name, resource_address=self.local_cluster.rns_address
+            module_name,
+            method_name,
+            resource_address=self.local_cluster.rns_address,
+            run_name="test_run_name",
         )
 
         assert result == "final_result"
@@ -167,7 +172,7 @@ class TestHTTPClient:
         expected_json_data = {
             "data": None,
             "serialization": "pickle",
-            "run_name": None,
+            "run_name": "test_run_name",
             "stream_logs": True,
             "save": False,
             "remote": False,
@@ -202,18 +207,20 @@ class TestHTTPClient:
         module_name = "module"
         method_name = "install"
 
+        # Need to specify the run_name to avoid generating a unique one that contains the timestamp
         self.client.call(
             module_name,
             method_name,
             data=data,
             resource_address=self.local_cluster.rns_address,
+            run_name="test_run_name",
         )
 
         # Assert that the post request was called with the correct data
         expected_json_data = {
             "data": serialize_data(data, "pickle"),
             "serialization": "pickle",
-            "run_name": None,
+            "run_name": "test_run_name",
             "stream_logs": True,
             "save": False,
             "remote": False,
