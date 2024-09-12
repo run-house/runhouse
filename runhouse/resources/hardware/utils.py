@@ -4,7 +4,7 @@ import subprocess
 
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
@@ -227,3 +227,24 @@ def _ssh_base_command(
 
 def _generate_ssh_control_hash(ssh_control_name):
     return hashlib.md5(ssh_control_name.encode()).hexdigest()[:_HASH_MAX_LENGTH]
+
+
+def up_cluster_helper(cluster, capture_output: Union[bool, str] = True):
+    from runhouse.utils import SuppressStd
+
+    if capture_output:
+        try:
+            with SuppressStd() as outfile:
+                cluster.up()
+        except Exception as e:
+            if isinstance(capture_output, str):
+                logger.error(
+                    f"Error starting cluster {cluster.name}, logs written to {capture_output}"
+                )
+            raise e
+        finally:
+            if isinstance(capture_output, str):
+                with open(capture_output, "w") as f:
+                    f.write(outfile.output)
+    else:
+        cluster.up()

@@ -78,25 +78,25 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
             "openai_secret",
             "custom_provider_secret",
         ],
-        "cluster": ["ondemand_aws_cluster"],
+        "cluster": ["ondemand_aws_docker_cluster"],
     }
     RELEASE = {
         "secret": ["test_secret"] + provider_secrets,
         "cluster": [
-            "ondemand_aws_cluster",
+            "ondemand_aws_docker_cluster",
             "static_cpu_pwd_cluster",
         ],
     }
     MAXIMAL = {
         "secret": ["test_secret"] + provider_secrets,
         "cluster": [
-            "ondemand_aws_cluster",
+            "ondemand_aws_docker_cluster",
             "ondemand_gcp_cluster",
             "ondemand_k8s_cluster",
             "ondemand_k8s_docker_cluster",
             "ondemand_aws_https_cluster_with_auth",
             "static_cpu_pwd_cluster",
-            "multinode_cpu_cluster",
+            "multinode_cpu_docker_conda_cluster",
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pwd_ssh_no_auth",
             "docker_cluster_pk_ssh_den_auth",

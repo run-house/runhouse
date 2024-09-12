@@ -226,7 +226,7 @@ class RNSClient:
         self, resource_address: str, username: str = None, den_token: str = None
     ):
         """Load the hashed token as generated in Den. Cache the token value in-memory for a given resource address.
-        Optionally provide a username and den token instead of using the default values stored in configs."""
+        Optionally provide a username and den token instead of using the default values stored in local configs."""
         if resource_address and "/" in resource_address:
             # If provided as a full rns address, extract the top level directory
             resource_address = self.base_folder(resource_address)
@@ -254,6 +254,16 @@ class RNSClient:
 
         resp_data = read_resp_data(resp)
         return resp_data.get("token")
+
+    def validate_cluster_token(self, cluster_token: str, cluster_uri: str) -> bool:
+        """Checks whether a particular cluster token is valid for the given cluster URI"""
+        request_uri = self.resource_uri(cluster_uri)
+        uri = f"{self.api_server_url}/auth/token/cluster/{request_uri}"
+        resp = self.session.get(
+            uri,
+            headers={"Authorization": f"Bearer {cluster_token}"},
+        )
+        return resp.status_code == 200
 
     def resource_request_payload(self, payload) -> dict:
         payload = remove_null_values_from_dict(payload)

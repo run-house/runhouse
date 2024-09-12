@@ -259,7 +259,7 @@ class TestFunction:
         assert int(res) == 10
 
     @pytest.mark.skip("Runs indefinitely.")
-    # originally used ondemand_aws_cluster, therefore marked as minimal
+    # originally used ondemand_aws_docker_cluster, therefore marked as minimal
     @pytest.mark.level("minimal")
     def test_notebook(self, cluster):
         nb_sum = lambda x: multiproc_np_sum(x)
@@ -307,14 +307,16 @@ class TestFunction:
 
     @pytest.mark.level("release")
     def test_load_function_in_new_cluster(
-        self, ondemand_aws_cluster, static_cpu_pwd_cluster, test_rns_folder
+        self, ondemand_aws_docker_cluster, static_cpu_pwd_cluster, test_rns_folder
     ):
         remote_func_name = get_remote_func_name(test_rns_folder)
 
-        ondemand_aws_cluster.save(
-            f"@/{ondemand_aws_cluster.name}"
+        ondemand_aws_docker_cluster.save(
+            f"@/{ondemand_aws_docker_cluster.name}"
         )  # Needs to be saved to rns, right now has a local name by default
-        remote_sum = rh.function(summer).to(ondemand_aws_cluster).save(remote_func_name)
+        remote_sum = (
+            rh.function(summer).to(ondemand_aws_docker_cluster).save(remote_func_name)
+        )
 
         static_cpu_pwd_cluster.sync_secrets(["sky"])
         remote_python = (
@@ -329,8 +331,10 @@ class TestFunction:
         remote_sum.delete_configs()
 
     @pytest.mark.level("release")
-    def test_nested_diff_clusters(self, ondemand_aws_cluster, static_cpu_pwd_cluster):
-        summer_cpu = rh.function(summer).to(ondemand_aws_cluster)
+    def test_nested_diff_clusters(
+        self, ondemand_aws_docker_cluster, static_cpu_pwd_cluster
+    ):
+        summer_cpu = rh.function(summer).to(ondemand_aws_docker_cluster)
         call_function_diff_cpu = rh.function(call_function).to(static_cpu_pwd_cluster)
 
         kwargs = {"a": 1, "b": 5}
@@ -423,8 +427,6 @@ class TestFunction:
         # TODO: should not use .resolved_state(), need to be fixed.
         assert get_or_call_res == 17
 
-    # TODO: should consider testing Function.keep_warm.
-
     # ---------- Unittests ----------
     @pytest.fixture(autouse=True)
     def init_fixtures(self):
@@ -437,75 +439,6 @@ class TestFunction:
         response = self.function.get(run_key="my_mocked_run")
         assert response == 5
         mock_function.assert_called_once_with(run_key="my_mocked_run")
-
-    @pytest.mark.level("unit")
-    def test_keep_warm_byo_unittest(self, mocker):
-        # Create a Mock instance for Function
-        mock_function = mocker.patch("runhouse.Function.keep_warm")
-        mock_function.return_value = self.function
-
-        # Create a Mock instance for cluster
-        mock_cluster = mocker.patch("runhouse.cluster")
-
-        # BYO cluster
-        regular_cluster = mock_cluster(name="regular_cluster")
-        regular_cluster.autostop_mins.return_value = 1
-
-        # Set the system attribute
-        self.function.system = regular_cluster
-
-        # Call the method under test
-        response_regular = self.function.keep_warm(autostop_mins=1)
-
-        # Assertions
-        mock_function.assert_called_once_with(autostop_mins=1)
-        assert (
-            response_regular.system.autostop_mins.return_value
-            == self.function.system.autostop_mins.return_value
-        )
-        assert self.function.system.autostop_mins.return_value == 1
-        assert response_regular.system.autostop_mins.return_value == 1
-
-        # Reset the system attribute
-        self.function.system = None
-
-    @pytest.mark.level("unit")
-    def test_keep_warm_on_demand_unittest(self, mocker):
-        mock_function = mocker.patch("runhouse.Function.keep_warm")
-        mock_function.return_value = self.function
-
-        # Create a Mock instance for cluster
-        mock_cluster = mocker.patch("runhouse.OnDemandCluster")
-
-        # on demand cluster
-        on_demand_cluster = mock_cluster(name="on_demand_cluster", instance_type="aws")
-        on_demand_cluster.autostop_mins.return_value = 2
-
-        # Set the system attribute
-        self.function.system = on_demand_cluster
-
-        # Call the method under test
-        response_on_demand = self.function.keep_warm(autostop_mins=2)
-
-        # Assertions
-        mock_function.assert_called_once_with(autostop_mins=2)
-        assert (
-            response_on_demand.system.autostop_mins.return_value
-            == self.function.system.autostop_mins.return_value
-        )
-        assert self.function.system.autostop_mins.return_value == 2
-        assert response_on_demand.system.autostop_mins.return_value == 2
-
-        # Reset the system attribute
-        self.function.system = None
-
-    @pytest.mark.level("unit")
-    def test_notebook_unittest(self, mocker):
-        mock_function = mocker.patch("runhouse.Function.notebook")
-        mock_function.return_value = None
-        response = self.function.notebook()
-        mock_function.assert_called_once_with()
-        assert response is None
 
     @pytest.mark.level("unit")
     def test_call_unittest(self, mocker):

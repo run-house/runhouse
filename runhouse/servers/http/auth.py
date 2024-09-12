@@ -91,7 +91,9 @@ async def averify_cluster_access(
         if configs.token == token:
             return True
 
-        if cluster_uri and rns_client.cluster_token(cluster_uri) == token:
+        if cluster_uri and rns_client.validate_cluster_token(
+            cluster_token=token, cluster_uri=cluster_uri
+        ):
             return True
 
     cluster_access_level = await obj_store.aresource_access_level(token, cluster_uri)

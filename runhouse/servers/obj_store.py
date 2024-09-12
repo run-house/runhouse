@@ -523,11 +523,14 @@ class ObjStore:
         # important if they flip on Den Auth without saving the cluster.
 
         # configs.token is the token stored on the cluster itself, which is itself a hashed subtoken
-        if configs.token:
-            if configs.token == token:
+        config_token = configs.token
+        if config_token:
+            if config_token == token:
                 return True
 
-            if resource_uri and rns_client.cluster_token(resource_uri) == token:
+            if resource_uri and rns_client.validate_cluster_token(
+                cluster_token=token, cluster_uri=resource_uri
+            ):
                 return True
 
         cluster_uri = load_current_cluster_rns_address()

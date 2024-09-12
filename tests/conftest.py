@@ -38,10 +38,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pwd_ssh_no_auth",
         ]
     }
-    MINIMAL = {"cluster": ["ondemand_aws_cluster"]}
+    MINIMAL = {"cluster": ["ondemand_aws_docker_cluster"]}
     RELEASE = {
         "cluster": [
-            "ondemand_aws_cluster",
+            "ondemand_aws_docker_cluster",
             "static_cpu_pwd_cluster",
         ]
     }
@@ -50,9 +50,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pk_ssh_den_auth",
             "docker_cluster_pwd_ssh_no_auth",
-            "ondemand_aws_cluster",
+            "ondemand_aws_docker_cluster",
             "static_cpu_pwd_cluster",
-            "multinode_cpu_cluster"
+            "multinode_cpu_docker_conda_cluster"
         ]
     }
 
@@ -236,9 +236,9 @@ from tests.fixtures.docker_cluster_fixtures import (
 from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
-    multinode_cpu_cluster,  # noqa: F401
+    multinode_cpu_docker_conda_cluster,  # noqa: F401
     multinode_gpu_cluster,  # noqa: F401
-    ondemand_aws_cluster,  # noqa: F401
+    ondemand_aws_docker_cluster,  # noqa: F401
     ondemand_aws_https_cluster_with_auth,  # noqa: F401
     ondemand_cluster,  # noqa: F401
     ondemand_gcp_cluster,  # noqa: F401
@@ -352,12 +352,12 @@ default_fixtures[TestLevels.LOCAL] = {
 }
 default_fixtures[TestLevels.MINIMAL] = {
     "cluster": [
-        "ondemand_aws_cluster",
+        "ondemand_aws_docker_cluster",
     ]
 }
 default_fixtures[TestLevels.RELEASE] = {
     "cluster": [
-        "ondemand_aws_cluster",
+        "ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_k8s_docker_cluster",
@@ -370,12 +370,12 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "docker_cluster_pk_ssh_no_auth",
         "docker_cluster_pk_ssh_den_auth",
         "docker_cluster_pwd_ssh_no_auth",
-        "ondemand_aws_cluster",
+        "ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_k8s_docker_cluster",
         "ondemand_aws_https_cluster_with_auth",
-        "multinode_cpu_cluster",
+        "multinode_cpu_docker_conda_cluster",
         "static_cpu_pwd_cluster",
         "multinode_gpu_cluster",  # for testing cluster status on multinode gpu.
     ]

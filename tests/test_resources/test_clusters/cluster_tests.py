@@ -26,14 +26,14 @@ def sd_generate_image(prompt):
     return model(prompt).images[0]
 
 
-def test_cluster_config(ondemand_aws_cluster):
-    config = ondemand_aws_cluster.config()
+def test_cluster_config(ondemand_aws_docker_cluster):
+    config = ondemand_aws_docker_cluster.config()
     cluster2 = OnDemandCluster.from_config(config)
-    assert cluster2.address == ondemand_aws_cluster.address
+    assert cluster2.address == ondemand_aws_docker_cluster.address
 
 
-def test_cluster_sharing(ondemand_aws_cluster):
-    ondemand_aws_cluster.share(
+def test_cluster_sharing(ondemand_aws_docker_cluster):
+    ondemand_aws_docker_cluster.share(
         users=["donny@run.house", "josh@run.house"],
         access_level="write",
         notify_users=False,
@@ -41,8 +41,10 @@ def test_cluster_sharing(ondemand_aws_cluster):
     assert True
 
 
-def test_read_shared_cluster(ondemand_aws_cluster):
-    res = ondemand_aws_cluster.run_python(["import numpy", "print(numpy.__version__)"])
+def test_read_shared_cluster(ondemand_aws_docker_cluster):
+    res = ondemand_aws_docker_cluster.run_python(
+        ["import numpy", "print(numpy.__version__)"]
+    )
     assert res[0][1]
 
 
@@ -78,8 +80,8 @@ def test_on_same_cluster(cluster):
     assert func_hw(hw_copy)
 
 
-def test_on_diff_cluster(ondemand_aws_cluster, static_cpu_pwd_cluster):
-    func_hw = rh.function(is_on_cluster).to(ondemand_aws_cluster)
+def test_on_diff_cluster(ondemand_aws_docker_cluster, static_cpu_pwd_cluster):
+    func_hw = rh.function(is_on_cluster).to(ondemand_aws_docker_cluster)
     assert not func_hw(static_cpu_pwd_cluster)
 
 

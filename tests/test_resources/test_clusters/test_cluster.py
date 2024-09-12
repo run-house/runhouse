@@ -124,7 +124,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pk_ssh_den_auth",
             "docker_cluster_pwd_ssh_no_auth",
             "static_cpu_pwd_cluster",
-            "multinode_cpu_cluster",
+            "multinode_cpu_docker_conda_cluster",
         ]
     }
 

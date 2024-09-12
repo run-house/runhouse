@@ -65,7 +65,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             "base_conda_env",
             "named_conda_env_from_dict",
         ],
-        "cluster": ["ondemand_aws_cluster"],
+        "cluster": ["ondemand_aws_docker_cluster"],
     }
     RELEASE = {
         "env": [
@@ -75,7 +75,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             "named_conda_env_from_dict",
         ],
         "cluster": [
-            "ondemand_aws_cluster",
+            "ondemand_aws_docker_cluster",
             "static_cpu_pwd_cluster",
         ],
     }
@@ -89,13 +89,13 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
             "conda_env_from_path",
         ],
         "cluster": [
-            "ondemand_aws_cluster",
+            "ondemand_aws_docker_cluster",
             "ondemand_gcp_cluster",
             "ondemand_k8s_cluster",
             "ondemand_k8s_docker_cluster",
             "ondemand_aws_https_cluster_with_auth",
             "static_cpu_pwd_cluster",
-            "multinode_cpu_cluster",
+            "multinode_cpu_docker_conda_cluster",
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pwd_ssh_no_auth",
             "docker_cluster_pk_ssh_den_auth",
