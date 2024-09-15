@@ -232,21 +232,22 @@ class EnvServlet:
                 "stable_internal_external_ips", []
             )
             for ips_set in stable_internal_external_ips:
-                internal_ip, external_ip = ips_set[0], ips_set[1]
+                internal_ip, _ = ips_set[0], ips_set[1]
                 if internal_ip == node_ip:
                     # head ip equals to cluster address equals to cluster.ips[0]
                     if ips_set[1] == cluster_config.get("ips")[0]:
-                        node_name = f"head ({external_ip})"
+                        node_index = 0
                     else:
-                        node_name = f"worker_{stable_internal_external_ips.index(ips_set)} ({external_ip})"
+                        node_index = stable_internal_external_ips.index(ips_set)
+                    node_name = f"worker_{node_index}"
         else:
             # a case it is a BYO cluster, assume that first ip in the ips list is the head.
             ips = cluster_config.get("ips", [])
             if len(ips) == 1 or node_ip == ips[0]:
-                node_name = f"head ({node_ip})"
+                node_index = 0
             else:
-                node_name = f"worker_{ips.index(node_ip)} ({node_ip})"
-
+                node_index = ips.index(node_ip)
+            node_name = f"worker_{node_index}"
         try:
 
             memory_size_bytes = self.process.memory_full_info().uss
@@ -259,7 +260,14 @@ class EnvServlet:
         except psutil.NoSuchProcess:
             env_memory_usage = {}
 
-        return (env_memory_usage, node_name, total_memory, self.pid, node_ip)
+        return (
+            env_memory_usage,
+            node_name,
+            total_memory,
+            self.pid,
+            node_ip,
+            node_index,
+        )
 
     def _get_env_gpu_usage(self):
         # currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
@@ -334,6 +342,7 @@ class EnvServlet:
             total_memory,
             env_servlet_pid,
             node_ip,
+            node_index,
         ) = self._get_env_cpu_usage(cluster_config)
 
         # Try loading GPU data (if relevant)
@@ -362,6 +371,7 @@ class EnvServlet:
             "env_gpu_usage": env_gpu_usage,
             "node_ip": node_ip,
             "node_name": node_name,
+            "node_index": node_index,
             "env_cpu_usage": env_memory_usage,
             "pid": env_servlet_pid,
         }
