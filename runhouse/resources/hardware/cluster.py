@@ -210,11 +210,6 @@ class Cluster(Resource):
             _alt_options=_alt_options,
             _resolve_children=_resolve_children,
         )
-        if hasattr(cluster, "_update_from_sky_status"):
-            try:
-                cluster._update_from_sky_status(dryrun=True)
-            except:
-                pass
         return cluster
 
     def save_config_to_cluster(
