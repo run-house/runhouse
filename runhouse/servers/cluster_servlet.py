@@ -336,15 +336,9 @@ class ClusterServlet:
         """Periodically check the status of the cluster, gather metrics about the cluster's utilization & memory,
         and save it to Den."""
 
-        cluster_config = await self.aget_cluster_config()
-        interval_size = cluster_config.get(
-            "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
-        )
         while True:
             should_send_status_and_logs_to_den: bool = (
-                configs.token is not None
-                and interval_size != -1
-                and self._cluster_uri is not None
+                configs.token is not None and self._cluster_uri is not None
             )
             should_update_autostop: bool = self.autostop_helper is not None
 
@@ -352,21 +346,6 @@ class ClusterServlet:
                 break
 
             try:
-                # Only if one of these is true, do we actually need to get the status from each EnvServlet
-                should_send_status_and_logs_to_den: bool = (
-                    configs.token is not None
-                    and interval_size != -1
-                    and self._cluster_uri is not None
-                )
-                should_update_autostop: bool = self.autostop_helper is not None
-
-                if (
-                    not should_send_status_and_logs_to_den
-                    and not should_update_autostop
-                ):
-                    break
-
-                logger.debug("Performing cluster checks")
                 status, den_resp_code = await self.acheck_cluster_status(
                     send_to_den=should_send_status_and_logs_to_den
                 )
@@ -375,8 +354,15 @@ class ClusterServlet:
                     logger.debug("Updating autostop")
                     await self._update_autostop(status)
 
-                if not should_send_status_and_logs_to_den:
-                    break
+                cluster_config = await self.aget_cluster_config()
+                interval_size = cluster_config.get(
+                    "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
+                )
+
+                if interval_size == -1 or not should_send_status_and_logs_to_den:
+                    continue
+
+                logger.debug("Performing cluster checks")
 
                 if den_resp_code == 404:
                     logger.info(
