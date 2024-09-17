@@ -274,10 +274,10 @@ class ObjStore:
         return self._tracer
 
     def _initialize_telemetry_agent(self):
-        from runhouse.servers.telemetry import TelemetryAgent
+        from runhouse.servers.telemetry import TelemetryAgentExporter
 
         try:
-            ta = TelemetryAgent()
+            ta = TelemetryAgentExporter()
             ta.start()
             return ta
 
@@ -292,7 +292,7 @@ class ObjStore:
         # Export to local agent, which handles sending to the backend collector
         span_processor = BatchSpanProcessor(
             OTLPSpanExporter(
-                endpoint=f"localhost:{self.telemetry_agent.config.grpc_port}",
+                endpoint=f"localhost:{self.telemetry_agent.agent_config.grpc_port}",
                 insecure=True,
             )
         )
