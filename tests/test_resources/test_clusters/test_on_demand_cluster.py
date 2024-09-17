@@ -115,10 +115,11 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             assert config_yaml_content_after_restart == config_yaml_content
 
     @pytest.mark.level("minimal")
-    def test_autostop(self, cluster):
+    def test_set_autostop(self, cluster):
         rh.env(
             working_dir="local:./", reqs=["pytest", "pandas"], name="autostop_env"
         ).to(cluster)
+
         get_autostop = rh.fn(get_auotstop_from_on_cluster).to(
             cluster, env="autostop_env"
         )
@@ -131,17 +132,6 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         )
         set_autostop(5)
         assert get_autostop() == 5
-
-        register_activity = rh.fn(register_activity_from_on_cluster).to(
-            cluster, env="autostop_env"
-        )
-        get_last_active = rh.fn(get_last_active_time_from_on_cluster).to(
-            cluster, env="autostop_env"
-        )
-
-        register_activity()
-        # Check that last active is within the last 2 seconds
-        assert get_last_active() > time.time() - 3
 
         set_autostop_via_cluster_keep_warm = rh.fn(
             set_autostop_from_on_cluster_via_cluster_keep_warm
@@ -156,21 +146,38 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         set_autostop_via_cluster_obj(original_autostop)
         assert get_autostop() == original_autostop
 
-        # TODO add a way to manually trigger the status loop to check that activity
-        #  is actually registered after a call
-        # cluster.call("autostop_env", "config")
-        # cluster.status()
-        # assert get_last_active() > time.time() - 2
+    @pytest.mark.level("minimal")
+    def test_register_activity(self, cluster):
+        rh.env(
+            working_dir="local:./", reqs=["pytest", "pandas"], name="autostop_env"
+        ).to(cluster)
 
-        # TODO add a way to manually trigger the status loop to check that activity
-        #  is actually registered during a long running function
-        # from .test_cluster import sleep_fn
-        # sleep_remote = rh.fn(sleep_fn).to(cluster, env="autostop_env")
-        # Thread(target=sleep_remote, args=(3,)).start()
-        # time.sleep(2)
-        # cluster.status()
-        # # Check that last active is within the last second, so we know the activity wasn't just from the call itself
-        # assert get_last_active() > time.time() - 1
+        register_activity = rh.fn(register_activity_from_on_cluster).to(
+            cluster, env="autostop_env"
+        )
+        get_last_active = rh.fn(get_last_active_time_from_on_cluster).to(
+            cluster, env="autostop_env"
+        )
+
+        register_activity()
+        # Check that last active is within the last 2 seconds
+        assert get_last_active() > time.time() - 3
+
+    # TODO add a way to manually trigger the status loop to check that activity
+    #  is actually registered after a call
+    # cluster.call("autostop_env", "config")
+    # cluster.status()
+    # assert get_last_active() > time.time() - 2
+
+    # TODO add a way to manually trigger the status loop to check that activity
+    #  is actually registered during a long running function
+    # from .test_cluster import sleep_fn
+    # sleep_remote = rh.fn(sleep_fn).to(cluster, env="autostop_env")
+    # Thread(target=sleep_remote, args=(3,)).start()
+    # time.sleep(2)
+    # cluster.status()
+    # # Check that last active is within the last second, so we know the activity wasn't just from the call itself
+    # assert get_last_active() > time.time() - 1
 
     @pytest.mark.level("release")
     def test_cluster_ping_and_is_up(self, cluster):
