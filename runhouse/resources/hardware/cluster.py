@@ -194,29 +194,6 @@ class Cluster(Resource):
                 "Run `cluster.restart_server()` to restart the Runhouse server on the new default env."
             )
 
-    @classmethod
-    def from_name(
-        cls,
-        name,
-        load_from_den: bool = True,
-        dryrun: bool = False,
-        _alt_options: Dict = None,
-        _resolve_children: bool = True,
-    ):
-        cluster = super().from_name(
-            name=name,
-            load_from_den=load_from_den,
-            dryrun=dryrun,
-            _alt_options=_alt_options,
-            _resolve_children=_resolve_children,
-        )
-        if hasattr(cluster, "_update_from_sky_status"):
-            try:
-                cluster._update_from_sky_status(dryrun=True)
-            except:
-                pass
-        return cluster
-
     def save_config_to_cluster(
         self,
         node: str = None,
