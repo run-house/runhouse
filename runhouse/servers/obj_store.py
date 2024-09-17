@@ -12,8 +12,11 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
 
-from opentelemetry import trace
+from opentelemetry import metrics, trace
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
@@ -299,6 +302,22 @@ class ObjStore:
         trace.get_tracer_provider().add_span_processor(span_processor)
 
         return tracer
+
+    def _initialize_metrics_collector(self):
+        agent_endpoint = f"localhost:{self.telemetry_agent.agent_config.grpc_port}"
+        exporter = OTLPMetricExporter(endpoint=agent_endpoint, insecure=True)
+
+        # collect metrics based on a user-configurable time interval, and pass the metrics to the exporter
+        metric_reader = PeriodicExportingMetricReader(
+            exporter, export_interval_millis=5000
+        )
+        provider = MeterProvider(metric_readers=[metric_reader])
+
+        # Set the global MeterProvider
+        metrics.set_meter_provider(provider)
+        meter = metrics.get_meter(__name__)
+
+        return meter
 
     # ----------------------------------------------------
     async def ainitialize(
