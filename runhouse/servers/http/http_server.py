@@ -604,13 +604,11 @@ class HTTPServer:
         serialization: Optional[str] = "json",
         remote: bool = False,
     ):
-        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         try:
             return await obj_store.aget(
                 key=key,
                 serialization=serialization,
                 remote=remote,
-                request_id=request_id,
             )
         except Exception as e:
             return handle_exception_response(
