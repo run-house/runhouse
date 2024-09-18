@@ -155,11 +155,16 @@ class ClusterServlet:
     ) -> Union[str, None]:
         # If the token in this request matches that of the owner of the cluster,
         # they have access to everything
-        if configs.token and (
-            configs.token == token
-            or rns_client.cluster_token(configs.token, resource_uri) == token
-        ):
-            return ResourceAccess.WRITE
+        config_token = configs.token
+        if config_token:
+            if config_token == token:
+                return ResourceAccess.WRITE
+
+            if resource_uri and rns_client.validate_cluster_token(
+                cluster_token=token, cluster_uri=resource_uri
+            ):
+                return ResourceAccess.WRITE
+
         return self._auth_cache.lookup_access_level(token, resource_uri)
 
     async def aget_username(self, token: str) -> str:
@@ -331,15 +336,9 @@ class ClusterServlet:
         """Periodically check the status of the cluster, gather metrics about the cluster's utilization & memory,
         and save it to Den."""
 
-        cluster_config = await self.aget_cluster_config()
-        interval_size = cluster_config.get(
-            "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
-        )
         while True:
             should_send_status_and_logs_to_den: bool = (
-                configs.token is not None
-                and interval_size != -1
-                and self._cluster_uri is not None
+                configs.token is not None and self._cluster_uri is not None
             )
             should_update_autostop: bool = self.autostop_helper is not None
 
@@ -347,21 +346,6 @@ class ClusterServlet:
                 break
 
             try:
-                # Only if one of these is true, do we actually need to get the status from each EnvServlet
-                should_send_status_and_logs_to_den: bool = (
-                    configs.token is not None
-                    and interval_size != -1
-                    and self._cluster_uri is not None
-                )
-                should_update_autostop: bool = self.autostop_helper is not None
-
-                if (
-                    not should_send_status_and_logs_to_den
-                    and not should_update_autostop
-                ):
-                    break
-
-                logger.debug("Performing cluster checks")
                 status, den_resp_code = await self.acheck_cluster_status(
                     send_to_den=should_send_status_and_logs_to_den
                 )
@@ -370,8 +354,15 @@ class ClusterServlet:
                     logger.debug("Updating autostop")
                     await self._update_autostop(status)
 
-                if not should_send_status_and_logs_to_den:
-                    break
+                cluster_config = await self.aget_cluster_config()
+                interval_size = cluster_config.get(
+                    "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
+                )
+
+                if interval_size == -1 or not should_send_status_and_logs_to_den:
+                    continue
+
+                logger.debug("Performing cluster checks")
 
                 if den_resp_code == 404:
                     logger.info(

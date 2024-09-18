@@ -562,9 +562,7 @@ def status(
         current_cluster = cluster_or_local  # cluster_or_local = rh.here
 
     try:
-        cluster_status = current_cluster.status(
-            resource_address=current_cluster.rns_address, send_to_den=send_to_den
-        )
+        cluster_status = current_cluster.status(send_to_den=send_to_den)
 
     except ValueError:
         console.print("Failed to load status for cluster.")

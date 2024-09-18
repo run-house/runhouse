@@ -425,15 +425,19 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         remote_assume_caller_and_get_token.share(
             users=["info@run.house"], notify_users=False
         )
-
         with friend_account():
             unassumed_token, assumed_token = remote_assume_caller_and_get_token()
             # "Local token" is the token the cluster accesses in rh.configs.token; this is what will be used
             # in subsequent rns_client calls
-            assert assumed_token == rh.globals.rns_client.cluster_token(
-                rh.configs.token, cluster.rns_address
-            )
             assert unassumed_token != rh.configs.token
+
+            # Both tokens should be valid for the cluster
+            assert rh.globals.rns_client.validate_cluster_token(
+                assumed_token, cluster.rns_address
+            )
+            assert rh.globals.rns_client.validate_cluster_token(
+                unassumed_token, cluster.rns_address
+            )
 
         # Docker clusters are logged out, ondemand clusters are logged in
         output = cluster.run("sed -n 's/.*token: *//p' ~/.rh/config.yaml")
@@ -530,6 +534,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "env_cpu_usage",
             "env_gpu_usage",
             "env_resource_mapping",
+            "node_index",
             "node_ip",
             "node_name",
             "pid",

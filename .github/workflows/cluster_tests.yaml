@@ -34,7 +34,7 @@ jobs:
 
       - name: Run all cluster unit tests tests
         env:
-          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+          KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_PROD_TOKEN }}
         run: pytest -v tests/test_resources/test_cluster.py --level unit
 
       - name: Teardown all test clusters

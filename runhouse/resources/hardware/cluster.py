@@ -194,29 +194,6 @@ class Cluster(Resource):
                 "Run `cluster.restart_server()` to restart the Runhouse server on the new default env."
             )
 
-    @classmethod
-    def from_name(
-        cls,
-        name,
-        load_from_den: bool = True,
-        dryrun: bool = False,
-        _alt_options: Dict = None,
-        _resolve_children: bool = True,
-    ):
-        cluster = super().from_name(
-            name=name,
-            load_from_den=load_from_den,
-            dryrun=dryrun,
-            _alt_options=_alt_options,
-            _resolve_children=_resolve_children,
-        )
-        if hasattr(cluster, "_update_from_sky_status"):
-            try:
-                cluster._update_from_sky_status(dryrun=True)
-            except:
-                pass
-        return cluster
-
     def save_config_to_cluster(
         self,
         node: str = None,
@@ -832,11 +809,10 @@ class Cluster(Resource):
                 system=self,
             )
 
-    def status(self, resource_address: str = None, send_to_den: bool = False):
+    def status(self, send_to_den: bool = False):
         """Load the status of the Runhouse daemon running on a cluster.
 
         Args:
-            resource_address (str, optional):
             send_to_den (bool, optional): Whether to send and update the status in Den. Only applies to
                 clusters that are saved to Den. (Default: ``False``)
         """
@@ -848,7 +824,6 @@ class Cluster(Resource):
         else:
             status, den_resp_status_code = self.call_client_method(
                 "status",
-                resource_address=resource_address or self.rns_address,
                 send_to_den=send_to_den,
             )
 
@@ -1041,7 +1016,7 @@ class Cluster(Resource):
             user_config = yaml.safe_dump(
                 {
                     "token": rns_client.cluster_token(
-                        rns_client.token, rns_client.username
+                        resource_address=rns_client.username
                     ),
                     "username": rns_client.username,
                     "default_folder": rns_client.default_folder,
@@ -1174,7 +1149,6 @@ class Cluster(Resource):
             method_to_call,
             module_name,
             method_name,
-            resource_address=self.rns_address,
             stream_logs=stream_logs,
             data={"args": args, "kwargs": kwargs},
             run_name=run_name,

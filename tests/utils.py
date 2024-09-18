@@ -71,12 +71,14 @@ def friend_account():
 
     try:
         account = rns_client.load_account_from_env(
-            token_env_var="TEST_TOKEN",
-            usr_env_var="TEST_USERNAME",
+            token_env_var="KITCHEN_TESTER_TOKEN",
+            usr_env_var="KITCHEN_TESTER_USERNAME",
             dotenv_path=dotenv_path,
         )
         if account is None:
-            pytest.skip("`TEST_TOKEN` or `TEST_USERNAME` not set, skipping test.")
+            pytest.skip(
+                "`KITCHEN_TESTER_TOKEN` or `KITCHEN_TESTER_USERNAME` not set, skipping test."
+            )
         yield account
 
     finally:
