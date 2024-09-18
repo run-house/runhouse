@@ -1952,11 +1952,8 @@ class Cluster(Resource):
         return self.client.folder_exists(path=path)
 
     @staticmethod
-    def get_clusters_from_den(cluster_filters: dict, org_name: Optional[str] = None):
-        get_clusters_params = {
-            "resource_type": "cluster",
-            "folder": org_name if org_name else rns_client.username,
-        }
+    def get_clusters_from_den(cluster_filters: dict, den_folder: str):
+        get_clusters_params = {"resource_type": "cluster", "folder": den_folder}
 
         # send den request with filters if the user specifies filters.
         # If "all" filter is specified - get all clusters (no filters are added to get_clusters_params)
@@ -2055,7 +2052,6 @@ class Cluster(Resource):
         show_all: Optional[bool] = False,
         since: Optional[str] = None,
         status: Optional[Union[str, ResourceServerStatus]] = None,
-        org_name: Optional[str] = None,
     ):
         """
         Returns user's runhouse clusters saved in Den. If filters are provided, only clusters that are matching the
@@ -2077,7 +2073,7 @@ class Cluster(Resource):
 
         # get clusters from den
         den_clusters_resp = Cluster.get_clusters_from_den(
-            cluster_filters=cluster_filters, org_name=org_name
+            cluster_filters=cluster_filters, den_folder=rns_client.username
         )
         if den_clusters_resp.status_code != 200:
             logger.error(f"Failed to load {rns_client.username}'s clusters from Den")

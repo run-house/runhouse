@@ -96,7 +96,11 @@ class RNSClient:
 
     @property
     def username(self):
-        return self._configs.get("username", None)
+        return self._configs.username or self._configs.get("username", None)
+
+    @username.setter
+    def username(self, value):
+        self._configs.username = value
 
     @property
     def api_server_url(self):
