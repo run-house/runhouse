@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import inspect
 import json
+import time
 import traceback
 import uuid
 from functools import wraps
@@ -33,6 +34,7 @@ from runhouse.servers.http.auth import averify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     CallParams,
+    CreateProcessParams,
     DeleteObjectParams,
     deserialize_data,
     folder_exists,
@@ -553,6 +555,40 @@ class HTTPServer:
                 logger.warning(f"No logfiles found for call {run_name}")
             for f in open_logfiles:
                 f.close()
+
+    @staticmethod
+    @app.get("/processes")
+    @validate_cluster_access
+    async def get_processes(request: Request):
+        try:
+            processes = await obj_store.aget_all_initialized_servlet_names()
+            return Response(
+                output_type=OutputType.RESULT_SERIALIZED,
+                data=serialize_data(processes, "json"),
+                serialization="json",
+            )
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/create_process")
+    @validate_cluster_access
+    async def create_process(request: Request, params: CreateProcessParams):
+        try:
+            _ = obj_store.get_servlet(
+                env_name=params.name,
+                create=True,
+                runtime_env=params.runtime_env,
+                resources=params.compute,
+            )
+            time.sleep(1)
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
     @staticmethod
     @app.post("/resource")

@@ -34,6 +34,12 @@ class ServerSettings(BaseModel):
     status_check_interval: Optional[int] = None
 
 
+class CreateProcessParams(BaseModel):
+    name: str
+    compute: Optional[Dict] = {}
+    runtime_env: Optional[Dict] = {}
+
+
 class CallParams(BaseModel):
     run_name: str
     data: Any = None
