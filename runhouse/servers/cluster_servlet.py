@@ -61,8 +61,8 @@ class ClusterServlet:
         )
         self.cluster_config["has_cuda"] = detect_cuda_version_or_cpu() != "cpu"
 
-        self._initialized_env_servlet_names: Set[str] = set()
-        self._key_to_env_servlet_name: Dict[Any, str] = {}
+        self._initialized_worker_servlet_names: Set[str] = set()
+        self._key_to_worker_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache(cluster_config)
         self.autostop_helper = None
 
@@ -114,13 +114,13 @@ class ClusterServlet:
         # Propagate the changes to all other process's obj_stores
         await asyncio.gather(
             *[
-                obj_store.acall_env_servlet_method(
-                    env_servlet_name,
+                obj_store.acall_worker_servlet_method(
+                    worker_servlet_name,
                     "aset_cluster_config",
                     cluster_config,
-                    use_env_servlet_cache=False,
+                    use_worker_servlet_cache=False,
                 )
-                for env_servlet_name in await self.aget_all_initialized_env_servlet_names()
+                for worker_servlet_name in await self.aget_all_initialized_worker_servlet_names()
             ]
         )
 
@@ -134,14 +134,14 @@ class ClusterServlet:
         # Propagate the changes to all other process's obj_stores
         await asyncio.gather(
             *[
-                obj_store.acall_env_servlet_method(
-                    env_servlet_name,
+                obj_store.acall_worker_servlet_method(
+                    worker_servlet_name,
                     "aset_cluster_config_value",
                     key,
                     value,
-                    use_env_servlet_cache=False,
+                    use_worker_servlet_cache=False,
                 )
-                for env_servlet_name in await self.aget_all_initialized_env_servlet_names()
+                for worker_servlet_name in await self.aget_all_initialized_worker_servlet_names()
             ]
         )
 
@@ -202,52 +202,58 @@ class ClusterServlet:
     ##############################################
     # Key to servlet where it is stored mapping
     ##############################################
-    async def amark_env_servlet_name_as_initialized(self, env_servlet_name: str):
-        self._initialized_env_servlet_names.add(env_servlet_name)
+    async def amark_worker_servlet_name_as_initialized(self, worker_servlet_name: str):
+        self._initialized_worker_servlet_names.add(worker_servlet_name)
 
-    async def ais_env_servlet_name_initialized(self, env_servlet_name: str) -> bool:
-        return env_servlet_name in self._initialized_env_servlet_names
+    async def ais_worker_servlet_name_initialized(
+        self, worker_servlet_name: str
+    ) -> bool:
+        return worker_servlet_name in self._initialized_worker_servlet_names
 
-    async def aget_all_initialized_env_servlet_names(self) -> Set[str]:
-        return self._initialized_env_servlet_names
+    async def aget_all_initialized_worker_servlet_names(self) -> Set[str]:
+        return self._initialized_worker_servlet_names
 
-    async def aget_key_to_env_servlet_name_dict_keys(self) -> List[Any]:
-        return list(self._key_to_env_servlet_name.keys())
+    async def aget_key_to_worker_servlet_name_dict_keys(self) -> List[Any]:
+        return list(self._key_to_worker_servlet_name.keys())
 
-    async def aget_key_to_env_servlet_name_dict(self) -> Dict[Any, str]:
-        return self._key_to_env_servlet_name
+    async def aget_key_to_worker_servlet_name_dict(self) -> Dict[Any, str]:
+        return self._key_to_worker_servlet_name
 
-    async def aget_env_servlet_name_for_key(self, key: Any) -> str:
+    async def aget_worker_servlet_name_for_key(self, key: Any) -> str:
         if self.autostop_helper:
             await self.autostop_helper.set_last_active_time_to_now()
-        return self._key_to_env_servlet_name.get(key, None)
+        return self._key_to_worker_servlet_name.get(key, None)
 
-    async def aput_env_servlet_name_for_key(self, key: Any, env_servlet_name: str):
-        if not await self.ais_env_servlet_name_initialized(env_servlet_name):
+    async def aput_worker_servlet_name_for_key(
+        self, key: Any, worker_servlet_name: str
+    ):
+        if not await self.ais_worker_servlet_name_initialized(worker_servlet_name):
             raise ValueError(
-                f"Env servlet name {env_servlet_name} not initialized, and you tried to mark a resource as in it."
+                f"Env servlet name {worker_servlet_name} not initialized, and you tried to mark a resource as in it."
             )
-        self._key_to_env_servlet_name[key] = env_servlet_name
+        self._key_to_worker_servlet_name[key] = worker_servlet_name
 
-    async def apop_env_servlet_name_for_key(self, key: Any, *args) -> str:
+    async def apop_worker_servlet_name_for_key(self, key: Any, *args) -> str:
         # *args allows us to pass default or not
-        return self._key_to_env_servlet_name.pop(key, *args)
+        return self._key_to_worker_servlet_name.pop(key, *args)
 
-    async def aclear_key_to_env_servlet_name_dict(self):
-        self._key_to_env_servlet_name = {}
+    async def aclear_key_to_worker_servlet_name_dict(self):
+        self._key_to_worker_servlet_name = {}
 
     ##############################################
     # Remove Env Servlet
     ##############################################
-    async def aclear_all_references_to_env_servlet_name(self, env_servlet_name: str):
-        self._initialized_env_servlet_names.remove(env_servlet_name)
+    async def aclear_all_references_to_worker_servlet_name(
+        self, worker_servlet_name: str
+    ):
+        self._initialized_worker_servlet_names.remove(worker_servlet_name)
         deleted_keys = [
             key
-            for key, env in self._key_to_env_servlet_name.items()
-            if env == env_servlet_name
+            for key, env in self._key_to_worker_servlet_name.items()
+            if env == worker_servlet_name
         ]
         for key in deleted_keys:
-            self._key_to_env_servlet_name.pop(key)
+            self._key_to_worker_servlet_name.pop(key)
         return deleted_keys
 
     ##############################################
@@ -260,7 +266,7 @@ class ClusterServlet:
         # making a copy so the status won't be modified with pop, since it will be returned after sending to den.
         # (status is passed as pointer).
         status_copy = copy.deepcopy(status)
-        env_servlet_processes = status_copy.pop("env_servlet_processes")
+        worker_servlet_processes = status_copy.pop("worker_servlet_processes")
 
         status_data = {
             "status": ResourceServerStatus.running,
@@ -268,7 +274,7 @@ class ClusterServlet:
                 "resource_type", "cluster"
             ),
             "resource_info": status_copy,
-            "env_servlet_processes": env_servlet_processes,
+            "worker_servlet_processes": worker_servlet_processes,
         }
 
         client = httpx.AsyncClient()
@@ -352,7 +358,7 @@ class ClusterServlet:
                 break
 
             try:
-                # Only if one of these is true, do we actually need to get the status from each EnvServlet
+                # Only if one of these is true, do we actually need to get the status from each WorkerServlet
                 should_send_status_and_logs_to_den: bool = (
                     configs.token is not None
                     and interval_size != -1
@@ -449,7 +455,7 @@ class ClusterServlet:
                 > 0
                 for resource_name in resource["env_resource_mapping"].keys()
             )
-            for resource in status.get("env_servlet_processes", {}).values()
+            for resource in status.get("worker_servlet_processes", {}).values()
         )
         if function_running:
             await self.autostop_helper.set_last_active_time_to_now()
@@ -460,25 +466,25 @@ class ClusterServlet:
         # been called and completed.
         await self.autostop_helper.register_activity_if_needed()
 
-    async def _status_for_env_servlet(self, env_servlet_name):
+    async def _status_for_worker_servlet(self, worker_servlet_name):
         try:
             (
-                objects_in_env_servlet,
-                env_servlet_utilization_data,
-            ) = await obj_store.acall_env_servlet_method(
-                env_servlet_name, method="astatus_local"
+                objects_in_worker_servlet,
+                worker_servlet_utilization_data,
+            ) = await obj_store.acall_worker_servlet_method(
+                worker_servlet_name, method="astatus_local"
             )
 
             return {
-                "env_servlet_name": env_servlet_name,
-                "objects_in_env_servlet": objects_in_env_servlet,
-                "env_servlet_utilization_data": env_servlet_utilization_data,
+                "worker_servlet_name": worker_servlet_name,
+                "objects_in_worker_servlet": objects_in_worker_servlet,
+                "worker_servlet_utilization_data": worker_servlet_utilization_data,
             }
 
         # Need to catch the exception here because we're running this in a gather,
         # and need to know which env servlet failed
         except Exception as e:
-            return {"env_servlet_name": env_servlet_name, "Exception": e}
+            return {"worker_servlet_name": worker_servlet_name, "Exception": e}
 
     async def _aperiodic_gpu_check(self):
         """periodically collects cluster gpu usage"""
@@ -559,33 +565,33 @@ class ClusterServlet:
         config_cluster.pop("creds", None)
 
         # Getting data from each env servlet about the objects it contains and the utilization data
-        env_servlet_utilization_data = {}
-        env_servlets_status = await asyncio.gather(
+        worker_servlet_utilization_data = {}
+        worker_servlets_status = await asyncio.gather(
             *[
-                self._status_for_env_servlet(env_servlet_name)
-                for env_servlet_name in self._initialized_env_servlet_names
+                self._status_for_worker_servlet(worker_servlet_name)
+                for worker_servlet_name in self._initialized_worker_servlet_names
             ],
         )
 
         # Store the data for the appropriate env servlet name
-        for env_status in env_servlets_status:
-            env_servlet_name = env_status.get("env_servlet_name")
+        for env_status in worker_servlets_status:
+            worker_servlet_name = env_status.get("worker_servlet_name")
 
             # Nothing if there was an exception
             if "Exception" in env_status.keys():
                 e = env_status.get("Exception")
                 logger.warning(
-                    f"Exception {str(e)} in status for env servlet {env_servlet_name}"
+                    f"Exception {str(e)} in status for env servlet {worker_servlet_name}"
                 )
-                env_servlet_utilization_data[env_servlet_name] = {}
+                worker_servlet_utilization_data[worker_servlet_name] = {}
 
             # Otherwise, store what was in the env and the utilization data
             else:
-                env_memory_info = env_status.get("env_servlet_utilization_data")
+                env_memory_info = env_status.get("worker_servlet_utilization_data")
                 env_memory_info["env_resource_mapping"] = env_status.get(
-                    "objects_in_env_servlet"
+                    "objects_in_worker_servlet"
                 )
-                env_servlet_utilization_data[env_servlet_name] = env_memory_info
+                worker_servlet_utilization_data[worker_servlet_name] = env_memory_info
 
         # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
         cpu_utilization = psutil.cpu_percent(interval=0)
@@ -629,7 +635,7 @@ class ClusterServlet:
             "cluster_config": config_cluster,
             "runhouse_version": runhouse.__version__,
             "server_pid": self.pid,
-            "env_servlet_processes": env_servlet_utilization_data,
+            "worker_servlet_processes": worker_servlet_utilization_data,
             "server_cpu_utilization": cpu_utilization,
             "server_gpu_utilization": gpu_utilization,
             "server_memory_usage": memory_usage,

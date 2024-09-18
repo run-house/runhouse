@@ -166,7 +166,7 @@ class HTTPServer:
         #     logger.error(f"Failed to collect cluster stats: {str(e)}")
 
         # We initialize a default env servlet where some things may run.
-        _ = obj_store.get_env_servlet(
+        _ = obj_store.get_worker_servlet(
             env_name=default_env_name,
             create=True,
             runtime_env=runtime_env,
@@ -797,7 +797,7 @@ class HTTPServer:
             if not env_name:
                 output = await obj_store.akeys()
             else:
-                output = await obj_store.akeys_for_env_servlet_name(env_name)
+                output = await obj_store.akeys_for_worker_servlet_name(env_name)
 
             # Expicitly tell the client not to attempt to deserialize the output
             return Response(

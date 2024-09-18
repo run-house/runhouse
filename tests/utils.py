@@ -14,18 +14,18 @@ from runhouse.globals import rns_client
 from runhouse.servers.obj_store import get_cluster_servlet, ObjStore, RaySetupOption
 
 
-def get_ray_env_servlet_and_obj_store(env_name):
+def get_ray_worker_servlet_and_obj_store(env_name):
     """Helper method for getting object store"""
 
     test_obj_store = ObjStore()
     test_obj_store.initialize(env_name, setup_ray=RaySetupOption.GET_OR_FAIL)
 
-    test_env_servlet = test_obj_store.get_env_servlet(
+    test_worker_servlet = test_obj_store.get_worker_servlet(
         env_name=env_name,
         create=True,
     )
 
-    return test_env_servlet, test_obj_store
+    return test_worker_servlet, test_obj_store
 
 
 def get_ray_cluster_servlet(cluster_config=None):

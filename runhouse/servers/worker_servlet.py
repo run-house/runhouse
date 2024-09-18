@@ -89,7 +89,7 @@ def error_handling_decorator(func):
     return wrapper
 
 
-class EnvServlet:
+class WorkerServlet:
     async def __init__(self, env_name: str, *args, **kwargs):
         self.env_name = env_name
 
@@ -325,14 +325,14 @@ class EnvServlet:
                 time.sleep(GPU_COLLECTION_INTERVAL)
 
     def _status_local_helper(self):
-        objects_in_env_servlet = obj_store.keys_with_info()
+        objects_in_worker_servlet = obj_store.keys_with_info()
         cluster_config = obj_store.cluster_config
 
         (
             env_memory_usage,
             node_name,
             total_memory,
-            env_servlet_pid,
+            worker_servlet_pid,
             node_ip,
         ) = self._get_env_cpu_usage(cluster_config)
 
@@ -348,7 +348,7 @@ class EnvServlet:
 
         # TODO: [sb]: once introduced, we could use ClusterServlet _cluster_periodic_thread_alive() to replace the
         #  'should_send_status_and_logs_to_den' logic below.
-        # Only if one of these is true, do we actually need to get the status from each EnvServlet
+        # Only if one of these is true, do we actually need to get the status from each WorkerServlet
         should_send_status_and_logs_to_den: bool = (
             configs.token is not None and interval_size != -1
         )
@@ -358,15 +358,15 @@ class EnvServlet:
             with self.lock:
                 self.gpu_metrics = None
 
-        env_servlet_utilization_data = {
+        worker_servlet_utilization_data = {
             "env_gpu_usage": env_gpu_usage,
             "node_ip": node_ip,
             "node_name": node_name,
             "env_cpu_usage": env_memory_usage,
-            "pid": env_servlet_pid,
+            "pid": worker_servlet_pid,
         }
 
-        return objects_in_env_servlet, env_servlet_utilization_data
+        return objects_in_worker_servlet, worker_servlet_utilization_data
 
     async def astatus_local(self):
         return await arun_in_thread(self._status_local_helper)

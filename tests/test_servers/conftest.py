@@ -17,7 +17,7 @@ from runhouse.servers.http.http_server import app, HTTPServer
 from tests.utils import (
     friend_account,
     get_ray_cluster_servlet,
-    get_ray_env_servlet_and_obj_store,
+    get_ray_worker_servlet_and_obj_store,
 )
 
 logger = get_logger(__name__)
@@ -113,9 +113,9 @@ def local_client_with_den_auth(logged_in_account):
 
 
 @pytest.fixture(scope="session")
-def test_env_servlet():
-    env_servlet, _ = get_ray_env_servlet_and_obj_store("test_env_servlet")
-    yield env_servlet
+def test_worker_servlet():
+    worker_servlet, _ = get_ray_worker_servlet_and_obj_store("test_worker_servlet")
+    yield worker_servlet
 
 
 @pytest.fixture(scope="session")
@@ -128,8 +128,8 @@ def test_cluster_servlet(request):
 def obj_store(request):
 
     # Use the parameter to set the name of the servlet actor to use
-    env_servlet_name = request.param
-    _, test_obj_store = get_ray_env_servlet_and_obj_store(env_servlet_name)
+    worker_servlet_name = request.param
+    _, test_obj_store = get_ray_worker_servlet_and_obj_store(worker_servlet_name)
 
     # Clears everything, not just what's in this env servlet
     test_obj_store.clear()

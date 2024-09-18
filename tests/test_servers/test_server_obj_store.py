@@ -2,7 +2,7 @@ import pytest
 
 from runhouse.servers.obj_store import ObjStoreError
 
-from tests.utils import friend_account, get_ray_env_servlet_and_obj_store
+from tests.utils import friend_account, get_ray_worker_servlet_and_obj_store
 
 
 def list_compare(list1, list2):
@@ -32,19 +32,19 @@ class TestObjStore:
 
         res = obj_store.get(key)
         assert res == value
-        assert obj_store.get_env_servlet_name_for_key(key) == obj_store.servlet_name
+        assert obj_store.get_worker_servlet_name_for_key(key) == obj_store.servlet_name
 
         obj_store.put(key, "overwrite_value")
         assert obj_store.keys() == [key]
 
         res = obj_store.get(key)
         assert res == "overwrite_value"
-        assert obj_store.get_env_servlet_name_for_key(key) == obj_store.servlet_name
+        assert obj_store.get_worker_servlet_name_for_key(key) == obj_store.servlet_name
 
         obj_store.delete(key)
         assert obj_store.keys() == []
         assert obj_store.get(key, default=None) is None
-        assert obj_store.get_env_servlet_name_for_key(key) is None
+        assert obj_store.get_worker_servlet_name_for_key(key) is None
 
     @pytest.mark.level("unit")
     @pytest.mark.parametrize("default_value", [1, None, "asdf"])
@@ -104,8 +104,10 @@ class TestObjStore:
         assert res == val
         assert obj_store.get(key, default=None) is None
         assert obj_store.keys() == [new_key]
-        assert obj_store.get_env_servlet_name_for_key(new_key) == obj_store.servlet_name
-        assert obj_store.get_env_servlet_name_for_key(key) is None
+        assert (
+            obj_store.get_worker_servlet_name_for_key(new_key) == obj_store.servlet_name
+        )
+        assert obj_store.get_worker_servlet_name_for_key(key) is None
 
     @pytest.mark.level("unit")
     def test_clear(self, obj_store):
@@ -123,10 +125,10 @@ class TestObjStore:
         assert obj_store.keys() == []
 
     @pytest.mark.level("unit")
-    def test_many_env_servlets(self, obj_store):
+    def test_many_worker_servlets(self, obj_store):
         assert obj_store.keys() == []
 
-        _, obj_store_2 = get_ray_env_servlet_and_obj_store("other")
+        _, obj_store_2 = get_ray_worker_servlet_and_obj_store("other")
         assert obj_store_2.keys() == []
 
         obj_store.put("k1", "v1")
@@ -143,37 +145,54 @@ class TestObjStore:
         assert obj_store_2.get("k2") == "v2"
         assert obj_store_2.get("k3") == "v3"
 
-        assert obj_store.get_env_servlet_name_for_key("k1") == obj_store.servlet_name
-        assert obj_store.get_env_servlet_name_for_key("k2") == obj_store_2.servlet_name
-        assert obj_store.get_env_servlet_name_for_key("k3") == obj_store_2.servlet_name
-        assert obj_store_2.get_env_servlet_name_for_key("k1") == obj_store.servlet_name
+        assert obj_store.get_worker_servlet_name_for_key("k1") == obj_store.servlet_name
         assert (
-            obj_store_2.get_env_servlet_name_for_key("k2") == obj_store_2.servlet_name
+            obj_store.get_worker_servlet_name_for_key("k2") == obj_store_2.servlet_name
         )
         assert (
-            obj_store_2.get_env_servlet_name_for_key("k3") == obj_store_2.servlet_name
+            obj_store.get_worker_servlet_name_for_key("k3") == obj_store_2.servlet_name
+        )
+        assert (
+            obj_store_2.get_worker_servlet_name_for_key("k1") == obj_store.servlet_name
+        )
+        assert (
+            obj_store_2.get_worker_servlet_name_for_key("k2")
+            == obj_store_2.servlet_name
+        )
+        assert (
+            obj_store_2.get_worker_servlet_name_for_key("k3")
+            == obj_store_2.servlet_name
         )
 
         # Technically, "k1" is only present on the base env servlet,
         # and "k2" and "k3" are only present on the other env servlet
         # These methods are static, we can run them from either store
-        assert obj_store.keys_for_env_servlet_name(obj_store.servlet_name) == ["k1"]
-        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k1") == "v1"
-        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k2") is None
-        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k3") is None
+        assert obj_store.keys_for_worker_servlet_name(obj_store.servlet_name) == ["k1"]
+        assert (
+            obj_store.get_from_worker_servlet_name(obj_store.servlet_name, "k1") == "v1"
+        )
+        assert (
+            obj_store.get_from_worker_servlet_name(obj_store.servlet_name, "k2") is None
+        )
+        assert (
+            obj_store.get_from_worker_servlet_name(obj_store.servlet_name, "k3") is None
+        )
 
-        assert obj_store.keys_for_env_servlet_name(obj_store_2.servlet_name) == [
+        assert obj_store.keys_for_worker_servlet_name(obj_store_2.servlet_name) == [
             "k2",
             "k3",
         ]
         assert (
-            obj_store.get_from_env_servlet_name(obj_store_2.servlet_name, "k1") is None
+            obj_store.get_from_worker_servlet_name(obj_store_2.servlet_name, "k1")
+            is None
         )
         assert (
-            obj_store.get_from_env_servlet_name(obj_store_2.servlet_name, "k2") == "v2"
+            obj_store.get_from_worker_servlet_name(obj_store_2.servlet_name, "k2")
+            == "v2"
         )
         assert (
-            obj_store.get_from_env_servlet_name(obj_store_2.servlet_name, "k3") == "v3"
+            obj_store.get_from_worker_servlet_name(obj_store_2.servlet_name, "k3")
+            == "v3"
         )
 
         # Overwriting "k2" from obj_store instead of obj_store_2
@@ -181,32 +200,43 @@ class TestObjStore:
         assert list_compare(obj_store.keys(), ["k1", "k3", "k2"])
         assert obj_store.get("k2") == "changed"
         assert obj_store_2.get("k2") == "changed"
-        assert obj_store.get_env_servlet_name_for_key("k2") == obj_store.servlet_name
-        assert obj_store_2.get_env_servlet_name_for_key("k2") == obj_store.servlet_name
+        assert obj_store.get_worker_servlet_name_for_key("k2") == obj_store.servlet_name
+        assert (
+            obj_store_2.get_worker_servlet_name_for_key("k2") == obj_store.servlet_name
+        )
 
         assert list_compare(
-            obj_store.keys_for_env_servlet_name(obj_store.servlet_name),
+            obj_store.keys_for_worker_servlet_name(obj_store.servlet_name),
             [
                 "k1",
                 "k2",
             ],
         )
-        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k1") == "v1"
         assert (
-            obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k2")
+            obj_store.get_from_worker_servlet_name(obj_store.servlet_name, "k1") == "v1"
+        )
+        assert (
+            obj_store.get_from_worker_servlet_name(obj_store.servlet_name, "k2")
             == "changed"
         )
-        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k3") is None
+        assert (
+            obj_store.get_from_worker_servlet_name(obj_store.servlet_name, "k3") is None
+        )
 
-        assert obj_store.keys_for_env_servlet_name(obj_store_2.servlet_name) == ["k3"]
+        assert obj_store.keys_for_worker_servlet_name(obj_store_2.servlet_name) == [
+            "k3"
+        ]
         assert (
-            obj_store.get_from_env_servlet_name(obj_store_2.servlet_name, "k1") is None
+            obj_store.get_from_worker_servlet_name(obj_store_2.servlet_name, "k1")
+            is None
         )
         assert (
-            obj_store.get_from_env_servlet_name(obj_store_2.servlet_name, "k2") is None
+            obj_store.get_from_worker_servlet_name(obj_store_2.servlet_name, "k2")
+            is None
         )
         assert (
-            obj_store.get_from_env_servlet_name(obj_store_2.servlet_name, "k3") == "v3"
+            obj_store.get_from_worker_servlet_name(obj_store_2.servlet_name, "k3")
+            == "v3"
         )
 
         # Renaming "k2" to "key_changed" from obj_store_2
@@ -216,38 +246,50 @@ class TestObjStore:
         assert obj_store.get("key_changed") == "changed"
         assert obj_store_2.get("key_changed") == "changed"
         assert (
-            obj_store.get_env_servlet_name_for_key("key_changed")
+            obj_store.get_worker_servlet_name_for_key("key_changed")
             == obj_store.servlet_name
         )
         assert (
-            obj_store_2.get_env_servlet_name_for_key("key_changed")
+            obj_store_2.get_worker_servlet_name_for_key("key_changed")
             == obj_store.servlet_name
         )
 
         assert list_compare(
-            obj_store.keys_for_env_servlet_name(obj_store.servlet_name),
+            obj_store.keys_for_worker_servlet_name(obj_store.servlet_name),
             [
                 "k1",
                 "key_changed",
             ],
         )
-        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k1") == "v1"
         assert (
-            obj_store.get_from_env_servlet_name(obj_store.servlet_name, "key_changed")
+            obj_store.get_from_worker_servlet_name(obj_store.servlet_name, "k1") == "v1"
+        )
+        assert (
+            obj_store.get_from_worker_servlet_name(
+                obj_store.servlet_name, "key_changed"
+            )
             == "changed"
         )
-        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k3") is None
-
-        assert obj_store.keys_for_env_servlet_name(obj_store_2.servlet_name) == ["k3"]
         assert (
-            obj_store.get_from_env_servlet_name(obj_store_2.servlet_name, "k1") is None
+            obj_store.get_from_worker_servlet_name(obj_store.servlet_name, "k3") is None
         )
+
+        assert obj_store.keys_for_worker_servlet_name(obj_store_2.servlet_name) == [
+            "k3"
+        ]
         assert (
-            obj_store.get_from_env_servlet_name(obj_store_2.servlet_name, "key_changed")
+            obj_store.get_from_worker_servlet_name(obj_store_2.servlet_name, "k1")
             is None
         )
         assert (
-            obj_store.get_from_env_servlet_name(obj_store_2.servlet_name, "k3") == "v3"
+            obj_store.get_from_worker_servlet_name(
+                obj_store_2.servlet_name, "key_changed"
+            )
+            is None
+        )
+        assert (
+            obj_store.get_from_worker_servlet_name(obj_store_2.servlet_name, "k3")
+            == "v3"
         )
 
         # Renaming "key_changed" to "k3"
@@ -255,32 +297,42 @@ class TestObjStore:
         assert list_compare(obj_store.keys(), ["k1", "k3"])
         assert obj_store.get("k3") == "changed"
         assert obj_store_2.get("k3") == "changed"
-        assert obj_store.get_env_servlet_name_for_key("k3") == obj_store.servlet_name
-        assert obj_store_2.get_env_servlet_name_for_key("k3") == obj_store.servlet_name
+        assert obj_store.get_worker_servlet_name_for_key("k3") == obj_store.servlet_name
+        assert (
+            obj_store_2.get_worker_servlet_name_for_key("k3") == obj_store.servlet_name
+        )
 
-        assert obj_store.keys_for_env_servlet_name(obj_store.servlet_name) == [
+        assert obj_store.keys_for_worker_servlet_name(obj_store.servlet_name) == [
             "k1",
             "k3",
         ]
-        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k1") == "v1"
         assert (
-            obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k3")
+            obj_store.get_from_worker_servlet_name(obj_store.servlet_name, "k1") == "v1"
+        )
+        assert (
+            obj_store.get_from_worker_servlet_name(obj_store.servlet_name, "k3")
             == "changed"
         )
         assert (
-            obj_store.get_from_env_servlet_name(obj_store.servlet_name, "key_changed")
+            obj_store.get_from_worker_servlet_name(
+                obj_store.servlet_name, "key_changed"
+            )
             is None
         )
 
-        assert obj_store.keys_for_env_servlet_name(obj_store_2.servlet_name) == []
+        assert obj_store.keys_for_worker_servlet_name(obj_store_2.servlet_name) == []
         assert (
-            obj_store.get_from_env_servlet_name(obj_store_2.servlet_name, "k1") is None
+            obj_store.get_from_worker_servlet_name(obj_store_2.servlet_name, "k1")
+            is None
         )
         assert (
-            obj_store.get_from_env_servlet_name(obj_store_2.servlet_name, "k3") is None
+            obj_store.get_from_worker_servlet_name(obj_store_2.servlet_name, "k3")
+            is None
         )
         assert (
-            obj_store.get_from_env_servlet_name(obj_store_2.servlet_name, "key_changed")
+            obj_store.get_from_worker_servlet_name(
+                obj_store_2.servlet_name, "key_changed"
+            )
             is None
         )
 
@@ -290,29 +342,31 @@ class TestObjStore:
         assert obj_store.keys() == ["k1"]
         assert obj_store.get("k3") is None
         assert obj_store_2.get("k3") is None
-        assert obj_store.get_env_servlet_name_for_key("k3") is None
-        assert obj_store_2.get_env_servlet_name_for_key("k3") is None
+        assert obj_store.get_worker_servlet_name_for_key("k3") is None
+        assert obj_store_2.get_worker_servlet_name_for_key("k3") is None
 
-        assert obj_store.keys_for_env_servlet_name(obj_store.servlet_name) == ["k1"]
-        assert obj_store.get_from_env_servlet_name(obj_store.servlet_name, "k1") == "v1"
-        assert obj_store.keys_for_env_servlet_name(obj_store_2.servlet_name) == []
+        assert obj_store.keys_for_worker_servlet_name(obj_store.servlet_name) == ["k1"]
+        assert (
+            obj_store.get_from_worker_servlet_name(obj_store.servlet_name, "k1") == "v1"
+        )
+        assert obj_store.keys_for_worker_servlet_name(obj_store_2.servlet_name) == []
 
         # Testing of maintaining envs
-        _, obj_store_3 = get_ray_env_servlet_and_obj_store("third")
+        _, obj_store_3 = get_ray_worker_servlet_and_obj_store("third")
         assert obj_store_3.keys() == ["k1"]
         obj_store_3.put("k2", "v2")
         obj_store_3.put("k3", "v3")
         assert list_compare(obj_store_3.keys(), ["k1", "k2", "k3"])
         assert list_compare(
-            obj_store_3.keys_for_env_servlet_name(obj_store_3.servlet_name),
+            obj_store_3.keys_for_worker_servlet_name(obj_store_3.servlet_name),
             ["k2", "k3"],
         )
         obj_store_2.clear()
         assert obj_store_3.keys() == []
 
     @pytest.mark.level("unit")
-    def test_delete_env_servlet(self, obj_store):
-        _, obj_store_2 = get_ray_env_servlet_and_obj_store("obj_store_2")
+    def test_delete_worker_servlet(self, obj_store):
+        _, obj_store_2 = get_ray_worker_servlet_and_obj_store("obj_store_2")
 
         assert obj_store.keys() == []
         assert obj_store_2.keys() == []
@@ -322,26 +376,27 @@ class TestObjStore:
         obj_store_2.put("k3", "v3")
 
         env_to_delete = obj_store_2.servlet_name
-        obj_store_2_keys = obj_store_2.keys_for_env_servlet_name(env_to_delete)
+        obj_store_2_keys = obj_store_2.keys_for_worker_servlet_name(env_to_delete)
 
-        assert env_to_delete in obj_store.get_all_initialized_env_servlet_names()
+        assert env_to_delete in obj_store.get_all_initialized_worker_servlet_names()
         for key in obj_store_2_keys:
             assert obj_store.get(key)
 
         obj_store.delete_env_contents(env_to_delete)
 
         # check obj_store_2 servlet and nested keys are deleted but obj_store_1 unaffected
-        assert env_to_delete not in obj_store.get_all_initialized_env_servlet_names()
+        assert env_to_delete not in obj_store.get_all_initialized_worker_servlet_names()
         for key in obj_store_2_keys:
             assert not obj_store.get(key)
         assert (
-            obj_store.servlet_name in obj_store.get_all_initialized_env_servlet_names()
+            obj_store.servlet_name
+            in obj_store.get_all_initialized_worker_servlet_names()
         )
         assert obj_store.get("k1")
 
         # check that corresponding Ray actor is killed
         with pytest.raises(ObjStoreError):
-            obj_store.get_env_servlet(
+            obj_store.get_worker_servlet(
                 env_name=env_to_delete, raise_ex_if_not_found=True
             )
 
