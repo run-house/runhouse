@@ -1,5 +1,4 @@
 import copy
-import os
 import shlex
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -11,7 +10,7 @@ from runhouse.resources.envs.utils import _process_env_vars, run_setup_command
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import InstallTarget, Package
 from runhouse.resources.resource import Resource
-from runhouse.utils import run_with_logs
+from runhouse.utils import run_with_logs, set_env_vars_in_current_process
 
 logger = get_logger(__name__)
 
@@ -75,8 +74,7 @@ class Env(Resource):
 
     @staticmethod
     def _set_env_vars(env_vars):
-        for k, v in env_vars.items():
-            os.environ[k] = v
+        set_env_vars_in_current_process(env_vars)
 
     def add_env_var(self, key: str, value: str):
         """Add an env var to the environment. Environment must be re-installed to propagate new
