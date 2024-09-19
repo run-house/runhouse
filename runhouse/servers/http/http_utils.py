@@ -40,6 +40,11 @@ class CreateProcessParams(BaseModel):
     runtime_env: Optional[Dict] = {}
 
 
+class SetProcessEnvVarsParams(BaseModel):
+    process_name: str
+    env_vars: Dict[str, str]
+
+
 class CallParams(BaseModel):
     run_name: str
     data: Any = None

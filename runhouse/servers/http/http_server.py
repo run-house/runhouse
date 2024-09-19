@@ -60,6 +60,7 @@ from runhouse.servers.http.http_utils import (
     Response,
     serialize_data,
     ServerSettings,
+    SetProcessEnvVarsParams,
 )
 from runhouse.servers.obj_store import (
     ClusterServletSetupOption,
@@ -584,6 +585,20 @@ class HTTPServer:
                 resources=params.compute,
             )
             time.sleep(1)
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/process_env_vars")
+    @validate_cluster_access
+    async def set_process_env_vars(request: Request, params: SetProcessEnvVarsParams):
+        try:
+            await obj_store.acall_servlet_method(
+                params.process_name, "aset_env_vars", params.env_vars
+            )
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             return handle_exception_response(
