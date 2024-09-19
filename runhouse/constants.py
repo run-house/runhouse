@@ -94,7 +94,7 @@ MAX_GPU_INFO_LEN = (MINUTE / GPU_COLLECTION_INTERVAL) * 10
 REDUCED_GPU_INFO_LEN = MAX_GPU_INFO_LEN / 2
 
 
-# Constants Surfacing Logs to Den
+# Surfacing Logs to Den constants
 DEFAULT_LOG_SURFACING_INTERVAL = 2 * MINUTE
 SERVER_LOGS_FILE_NAME = "server.log"
 DEFAULT_SURFACED_LOG_LENGTH = 20
@@ -107,3 +107,6 @@ MAX_CLUSTERS_DISPLAY = 50
 
 # in seconds
 TIME_UNITS = {"s": SECOND, "m": MINUTE, "h": HOUR, "d": DAY}
+# ANSI Constants
+ITALIC_BOLD = "\x1B[3m\x1B[1m"
+RESET_FORMAT = "\x1B[0m"

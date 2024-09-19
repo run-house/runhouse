@@ -633,14 +633,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.clustertest
     def test_rh_status_cmd_with_no_den_ping(self, cluster):
         self.status_cli_test_logic(
-            cluster=cluster, status_cli_command="runhouse status"
+            cluster=cluster, status_cli_command="runhouse cluster status"
         )
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_rh_status_cmd_with_den_ping(self, cluster):
         self.status_cli_test_logic(
-            cluster=cluster, status_cli_command="runhouse status --send-to-den"
+            cluster=cluster, status_cli_command="runhouse cluster status --send-to-den"
         )
 
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
@@ -652,7 +652,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         cluster.put(key="status_key3", obj="status_value3")
         res = str(
-            subprocess.check_output(["runhouse", "status", f"{cluster.name}"]), "utf-8"
+            subprocess.check_output(
+                ["runhouse", "cluster", "status", f"{cluster.name}"]
+            ),
+            "utf-8",
         )
         assert "😈 Runhouse Daemon is running 🏃" in res
         assert f"server port: {cluster.server_port}" in res
@@ -678,7 +681,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             )
             assert "Runhouse Daemon is not running" in res
             res = subprocess.check_output(
-                ["runhouse", "status", f"{cluster_name}_dont_exist"]
+                ["runhouse", "cluster", "status", f"{cluster_name}_dont_exist"]
             ).decode("utf-8")
             error_txt = (
                 f"Cluster {cluster_name}_dont_exist is not found in Den. Please save it, in order to get "

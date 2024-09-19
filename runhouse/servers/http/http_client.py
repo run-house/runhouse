@@ -10,6 +10,8 @@ import httpx
 
 import requests
 
+from runhouse.constants import DEFAULT_SURFACED_LOG_LENGTH
+
 from runhouse.globals import rns_client
 from runhouse.logger import get_logger
 
@@ -278,6 +280,10 @@ class HTTPClient:
             f"status?send_to_den={send_to_den}",
             req_type="get",
         )
+
+    # TODO [SB/JL]: update once Rohin's change is merged.
+    def logs(self, tail: int = DEFAULT_SURFACED_LOG_LENGTH):
+        pass
 
     def folder_ls(self, path: Union[str, Path], full_paths: bool, sort: bool):
         folder_params = FolderLsParams(

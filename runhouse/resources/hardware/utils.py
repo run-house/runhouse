@@ -336,17 +336,39 @@ def get_clusters_from_den(cluster_filters: dict):
     return clusters_in_den_resp
 
 
-def get_unsaved_live_clusters(den_clusters: list[Dict], sky_live_clusters: list):
-    den_clusters_names = [c.get("name") for c in den_clusters]
+def get_unsaved_live_clusters(den_clusters: list[Dict]):
+    import sky
 
-    # getting the on-demand clusters that are not saved in den.
-    if sky_live_clusters:
-        return [
-            cluster
-            for cluster in sky_live_clusters
-            if f'/{rns_client.username}/{cluster.get("Name")}' not in den_clusters_names
-        ]
-    else:
+    try:
+        sky_live_clusters: list = sky.status()
+        den_clusters_names = [c.get("name") for c in den_clusters]
+
+        # getting the on-demand clusters that are not saved in den.
+        if sky_live_clusters:
+            return [
+                cluster
+                for cluster in sky_live_clusters
+                if f'/{rns_client.username}/{cluster.get("name")}'
+                not in den_clusters_names
+            ]
+        else:
+            return []
+    except Exception:
+        return []
+
+
+def get_all_sky_clusters():
+    import sky
+
+    try:
+        sky_live_clusters: list = sky.status()
+
+        # getting the on-demand clusters that are not saved in den.
+        if sky_live_clusters:
+            return [cluster.get("name") for cluster in sky_live_clusters]
+        else:
+            return []
+    except Exception:
         return []
 
 
@@ -415,3 +437,15 @@ def get_running_and_not_running_clusters(clusters: list):
     )
 
     return running_clusters, not_running_clusters
+
+
+def get_saved_logs_from_den(rns_address: str):
+    """
+    get the latest cluster logs saved in den.
+    """
+    cluster_uri = rns_client.resource_uri(rns_address)
+    clusters_in_den_resp = rns_client.session.get(
+        f"{rns_client.api_server_url}/resource/{cluster_uri}/logs",
+        headers=rns_client.request_headers(),
+    )
+    return clusters_in_den_resp

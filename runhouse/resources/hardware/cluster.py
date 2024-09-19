@@ -45,6 +45,7 @@ from runhouse.constants import (
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
     DEFAULT_STATUS_CHECK_INTERVAL,
+    DEFAULT_SURFACED_LOG_LENGTH,
     EMPTY_DEFAULT_ENV_NAME,
     LOCALHOST,
     NUM_PORTS_TO_TRY,
@@ -2008,23 +2009,6 @@ class Cluster(Resource):
             >>> Cluster.list(since="2h")
             >>> Cluster.list(since="7d")
         """
-
-        try:
-            import sky
-
-            # get sky live clusters
-            sky_live_clusters = [
-                {
-                    "Name": sky_cluster.get("name"),
-                    "Cluster Type": "OnDemandCluster (Sky)",
-                    "Status": sky_cluster.get("status").value,
-                }
-                for sky_cluster in sky.status()
-            ]
-        except Exception:
-            logger.debug("Failed to load sky live clusters.")
-            sky_live_clusters = []
-
         cluster_filters = (
             parse_filters(since=since, cluster_status=status)
             if not show_all
@@ -2039,13 +2023,24 @@ class Cluster(Resource):
         else:
             den_clusters = den_clusters_resp.json().get("data")
 
+        try:
+
+            # get sky live clusters
+            sky_live_clusters = get_unsaved_live_clusters(den_clusters=den_clusters)
+            sky_live_clusters = [
+                {
+                    "Name": sky_cluster.get("name"),
+                    "Cluster Type": "OnDemandCluster (Sky)",
+                    "Status": sky_cluster.get("status").value,
+                }
+                for sky_cluster in sky_live_clusters
+            ]
+        except Exception:
+            logger.debug("Failed to load sky live clusters.")
+            sky_live_clusters = []
+
         if not sky_live_clusters and not den_clusters:
             return {}
-
-        # sky_live_clusters = sky clusters found in the local sky DB but not saved in den
-        sky_live_clusters = get_unsaved_live_clusters(
-            den_clusters=den_clusters, sky_live_clusters=sky_live_clusters
-        )
 
         # running_clusters: running clusters which are saved in Den
         # not running clusters: clusters that are terminated / unknown / down which are also saved in Den.
@@ -2061,3 +2056,11 @@ class Cluster(Resource):
             "sky_clusters": sky_live_clusters,
         }
         return clusters
+
+    ###############################
+    # Cluster logs
+    ###############################
+
+    # TODO [SB/JL]: update once Rohin's change is merged.
+    def logs(self, tail: Optional[int] = DEFAULT_SURFACED_LOG_LENGTH):
+        pass

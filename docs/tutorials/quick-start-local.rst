@@ -21,8 +21,8 @@ First install Runhouse with ``pip install runhouse``
     !pip install runhouse
 
 Next, start the Runhouse server locally on CLI with
-``runhouse restart``, and use ``runhouse status`` to print the status
-and details of the server. For printing cluster's status outside the cluser, its name should provided as well: ``runhouse status <cluster_name>``.
+``runhouse restart``, and use ``runhouse cluster status`` to print the status
+and details of the server. For printing cluster's status outside the cluser, its name should provided as well: ``runhouse cluster status <cluster_name>``.
 
 .. code:: ipython3
 
@@ -30,7 +30,7 @@ and details of the server. For printing cluster's status outside the cluser, its
 
 .. code:: ipython3
 
-    !runhouse status
+    !runhouse cluster status
 
 *CPU cluster*
 
