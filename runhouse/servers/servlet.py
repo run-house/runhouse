@@ -38,6 +38,7 @@ from runhouse.utils import (
     get_node_ip,
     get_pid,
     ServletType,
+    set_env_vars_in_current_process,
 )
 
 logger = get_logger(__name__)
@@ -130,6 +131,12 @@ class Servlet:
                 target=self._collect_env_gpu_usage, daemon=True
             )
             collect_gpu_thread.start()
+
+    ##############################################################
+    # Simple system interactions for this worker process
+    ##############################################################
+    async def aset_env_vars(self, env_vars: Dict[str, str]):
+        set_env_vars_in_current_process(env_vars)
 
     ##############################################################
     # Methods to disable or enable den auth
