@@ -106,7 +106,7 @@ SSH
 ~~~
 
 To SSH directly onto the container, where the Runhouse server is
-started, you can use ``runhouse ssh <cluster_name>``.
+started, you can use ``runhouse cluster ssh <cluster_name>``.
 
 If you simply use ``ssh <cluster_name>``, the base environment set up by
 SkyPilot will be activated by default. In this case, you would need to
