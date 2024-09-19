@@ -311,7 +311,7 @@ class Cluster(Resource):
             _alt_options=_alt_options,
             _resolve_children=_resolve_children,
         )
-        if cluster and cluster._creds:
+        if cluster and cluster._creds and not dryrun:
             from runhouse.resources.secrets.utils import _write_creds_to_local
 
             _write_creds_to_local(cluster.creds_values)
@@ -2008,23 +2008,6 @@ class Cluster(Resource):
             >>> Cluster.list(since="2h")
             >>> Cluster.list(since="7d")
         """
-
-        try:
-            import sky
-
-            # get sky live clusters
-            sky_live_clusters = [
-                {
-                    "Name": sky_cluster.get("name"),
-                    "Cluster Type": "OnDemandCluster (Sky)",
-                    "Status": sky_cluster.get("status").value,
-                }
-                for sky_cluster in sky.status()
-            ]
-        except Exception:
-            logger.debug("Failed to load sky live clusters.")
-            sky_live_clusters = []
-
         cluster_filters = (
             parse_filters(since=since, cluster_status=status)
             if not show_all
@@ -2039,13 +2022,24 @@ class Cluster(Resource):
         else:
             den_clusters = den_clusters_resp.json().get("data")
 
+        try:
+
+            # get sky live clusters
+            sky_live_clusters = get_unsaved_live_clusters(den_clusters=den_clusters)
+            sky_live_clusters = [
+                {
+                    "Name": sky_cluster.get("name"),
+                    "Cluster Type": "OnDemandCluster (Sky)",
+                    "Status": sky_cluster.get("status").value,
+                }
+                for sky_cluster in sky_live_clusters
+            ]
+        except Exception:
+            logger.debug("Failed to load sky live clusters.")
+            sky_live_clusters = []
+
         if not sky_live_clusters and not den_clusters:
             return {}
-
-        # sky_live_clusters = sky clusters found in the local sky DB but not saved in den
-        sky_live_clusters = get_unsaved_live_clusters(
-            den_clusters=den_clusters, sky_live_clusters=sky_live_clusters
-        )
 
         # running_clusters: running clusters which are saved in Den
         # not running clusters: clusters that are terminated / unknown / down which are also saved in Den.
@@ -2056,8 +2050,7 @@ class Cluster(Resource):
         all_clusters = running_clusters + not_running_clusters
 
         clusters = {
-            "all_clusters": all_clusters,
-            "running_clusters": running_clusters,
+            "den_clusters": all_clusters,
             "sky_clusters": sky_live_clusters,
         }
         return clusters
