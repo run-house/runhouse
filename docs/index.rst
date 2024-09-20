@@ -15,11 +15,31 @@
 
 Why Runhouse?
 -------------
-Runhouse was built to accelerate the ML flywheel, by enabling fast, debuggable, and iterable development of pipelines.
+**Without Runhouse:** ML workflow is fragmented and iteration is slow
+* Researchers start in hosted notebooks or SSH'ed into a cluster:
+   * Fast and interactive development
+   * But non-standard environment and code
+* Research to production happens over the course of days or weeks:
+   * Notebook code needs translation to orchestrator nodes
+   * Most time spent waiting to rebuild and resubmit pipelines, with each iteration loop taking about 20+ minutes
+* Production debugging is challenging:
+   * Orchestrators designed for scheduling and logging runs, but are not development-friendly runtimes
+   * Continue "debug through deployment" that slowed down resarch to production in the first place
 
-Without Runhouse, the workflow is fragmented and iteration is slow. Researchers start in hosted notebooks where there is fast and interactive development, but the enviornment and code are both non-standard. Then that notebook code needs to be translated and packed into orchestrator nodes over days or weeks. This is slow and challenging because each iteration loop takes an half hour, with most time spent waiting to rebuild and resubmit pipelines. In production, debugging errors is also challenging for the same reason: orchestrators were designed to schedule and log runs, not be a development-friendly runtime.
+**With Runhouse:** Regular code is dispatched to cloud compute for execution at every step
+* Researchers write normal code:
+   * Execute on the same (ephemeral) compute used in production
+   * Each dispatch takes <5 seconds
+   * Logs stream back to local, providing interactive development experience
+* Moving to production:
+   * Involves moving 5 lines of dispatch code (not 500 lines of application code)
+   * Dispatch code moved into orchestrator nodes
+* Debugging or improving pipelines in production:
+   * Branch the underlying application code
+   * Execute the same dispatch code
+   * Merge back into main
 
-With Runhouse, you are simply dispatching regular code to cloud compute for execution at every step. Researchers are writing normal code and executing it on the same (ephemeral) compute that the code would be run on in production. Each dispatch takes <5 seconds and logs are streaming back to local, giving an interactive development experience. Moving to production means moving the 5 lines of dispatch code (not 500 lines of applciation code) into orchestrator nodes. And in production, debugging or further improving pipelines is just branching the underlying application code, executing the same dispatch code, and merging back into main. In short, Runhouse makes ML development feel like normal software development.
+In short, Runhouse makes ML development feel like normal software development.
 
 Table of Contents
 -----------------
