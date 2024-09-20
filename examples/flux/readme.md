@@ -1,6 +1,6 @@
 # Deploy Flux1 Schnell on AWS EC2
 
-See a more [rich explanation](https://www.run.house/examples/host-and-run-flux1-image-genai-aws)
+See a more [rich explanation](https://www.run.house/guides/host-and-run-flux1-image-genai-aws)
 of this example on our site.
 
 This example demonstrates how to deploy a

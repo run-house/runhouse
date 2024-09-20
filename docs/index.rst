@@ -11,10 +11,7 @@
    <a class="github-button" href="https://github.com/run-house/runhouse/fork" data-icon="octicon-repo-forked" data-size="large" aria-label="Fork run-house/runhouse on GitHub">Fork</a>
    </p>
 
-Why Runhouse?
--------------
-
-Runhouse was built to accelerate the ML flywheel, by enabling fast, debuggable, and iterable development of pipelines.
+Why did we build Runhouse? To enable fast, debuggable, and iterable development of machine learning workflows.
 
 **Without Runhouse:** ML workflow is fragmented and iteration is slow
 
