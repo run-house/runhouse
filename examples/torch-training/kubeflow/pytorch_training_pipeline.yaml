@@ -1,0 +1,259 @@
+# PIPELINE DEFINITION
+# Name: pytorch-training-pipeline
+# Description: A simple PyTorch training pipeline with multiple steps
+# Inputs:
+#    cluster_name: str
+#    instance_type: str
+components:
+  comp-access-data:
+    executorLabel: exec-access-data
+    inputDefinitions:
+      parameters:
+        cluster_name:
+          parameterType: STRING
+  comp-bring-up-cluster:
+    executorLabel: exec-bring-up-cluster
+    inputDefinitions:
+      parameters:
+        cluster_name:
+          parameterType: STRING
+        instance_type:
+          parameterType: STRING
+  comp-down-cluster:
+    executorLabel: exec-down-cluster
+    inputDefinitions:
+      parameters:
+        cluster_name:
+          parameterType: STRING
+  comp-train-model:
+    executorLabel: exec-train-model
+    inputDefinitions:
+      parameters:
+        cluster_name:
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-access-data:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - access_data
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.8.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef access_data(cluster_name: str):\n    import runhouse as rh\n\n\
+          \    env = rh.env(name=\"test_env\", reqs=[\"torch\", \"torchvision\"])\n\
+          \n    cluster = rh.cluster(name='/paul/'+cluster_name).up_if_not()\n   \
+          \ remote_download = rh.function(download_data).to(cluster, env=env)\n  \
+          \  remote_preprocess = rh.function(preprocess_data).to(cluster, env=env)\n\
+          \n    remote_download()\n    remote_preprocess()\n\n"
+        image: pypypypy/my-kubeflow-pipeline-image:latest
+    exec-bring-up-cluster:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - bring_up_cluster
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.8.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef bring_up_cluster(cluster_name: str, instance_type: str):\n  \
+          \  import runhouse as rh\n    import os \n    import subprocess\n\n    #\
+          \ First we configure the environment to setup Runhouse and AWS credentials\n\
+          \    rh.login(token=os.getenv('RUNHOUSE_API_KEY'), interactive=False)\n\
+          \    subprocess.run(['aws', 'configure', 'set', 'aws_access_key_id', os.getenv('AWS_ACCESS_KEY_ID')],\
+          \ check=True)\n    subprocess.run(['aws', 'configure', 'set', 'aws_secret_access_key',\
+          \ os.getenv('AWS_SECRET_ACCESS_KEY')], check=True)\n\n    # Now we bring\
+          \ up the cluster \n    cluster = rh.ondemand_cluster(\n        name=cluster_name,\
+          \ instance_type=instance_type, provider='aws'\n    ).up_if_not()\n\n   \
+          \ print(cluster.is_up())\n    #cluster.save() ## Save the cluster by name\
+          \ to Runhouse Den, and I can access that cluster by name later on\n\n"
+        image: pypypypy/my-kubeflow-pipeline-image:latest
+    exec-down-cluster:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - down_cluster
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.8.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef down_cluster(cluster_name: str):\n    import runhouse as rh\n\
+          \n    cluster = rh.cluster(name='/paul/'+cluster_name)\n    cluster.teardown()\n\
+          \n"
+        image: pypypypy/my-kubeflow-pipeline-image:latest
+    exec-train-model:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_model
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.8.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_model(cluster_name: str):\n    import runhouse as rh\n\n\
+          \    cluster = rh.cluster(name='/paul/'+cluster_name).up_if_not()\n\n  \
+          \  env = rh.env(name=\"test_env\", reqs=[\"torch\", \"torchvision\"])\n\n\
+          \    remote_torch_example = rh.module(SimpleTrainer).to(\n        cluster,\
+          \ env=env, name=\"torch-basic-training\"\n    )\n\n    model = remote_torch_example()\n\
+          \n    batch_size = 64\n    epochs = 5\n    learning_rate = 0.01\n\n    model.load_train(\"\
+          ./data\", batch_size)\n    model.load_test(\"./data\", batch_size)\n\n \
+          \   for epoch in range(epochs):\n        model.train_model(learning_rate=learning_rate)\n\
+          \        model.test_model()\n        model.save_model(\n            bucket_name=\"\
+          my-simple-torch-model-example\",\n            s3_file_path=f\"checkpoints/model_epoch_{epoch\
+          \ + 1}.pth\",\n        )\n\n"
+        image: pypypypy/my-kubeflow-pipeline-image:latest
+pipelineInfo:
+  description: A simple PyTorch training pipeline with multiple steps
+  name: pytorch-training-pipeline
+root:
+  dag:
+    tasks:
+      access-data:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-access-data
+        dependentTasks:
+        - bring-up-cluster
+        inputs:
+          parameters:
+            cluster_name:
+              componentInputParameter: cluster_name
+        taskInfo:
+          name: access-data
+      bring-up-cluster:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-bring-up-cluster
+        inputs:
+          parameters:
+            cluster_name:
+              componentInputParameter: cluster_name
+            instance_type:
+              componentInputParameter: instance_type
+        taskInfo:
+          name: bring-up-cluster
+      down-cluster:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-down-cluster
+        dependentTasks:
+        - train-model
+        inputs:
+          parameters:
+            cluster_name:
+              componentInputParameter: cluster_name
+        taskInfo:
+          name: down-cluster
+      train-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-model
+        dependentTasks:
+        - access-data
+        inputs:
+          parameters:
+            cluster_name:
+              componentInputParameter: cluster_name
+        taskInfo:
+          name: train-model
+  inputDefinitions:
+    parameters:
+      cluster_name:
+        parameterType: STRING
+      instance_type:
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.8.0
+---
+platforms:
+  kubernetes:
+    deploymentSpec:
+      executors:
+        exec-bring-up-cluster:
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: AWS_ACCESS_KEY_ID
+            secretName: my_secret
+          - keyToEnv:
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: AWS_SECRET_ACCESS_KEY
+            secretName: my_secret
+          - keyToEnv:
+            - envVar: RUNHOUSE_API_KEY
+              secretKey: RUNHOUSE_API_KEY
+            secretName: my_secret
