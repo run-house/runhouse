@@ -20,7 +20,7 @@ Why Runhouse?
 | **Without Runhouse:** ML workflow is fragmented and iteration is slow
 * Researchers start in hosted notebooks or SSH'ed into a cluster:
    * Fast and interactive development
-   * But non-standard environment and code
+   * But usually non-standard compute environment and code
 * Research to production happens over the course of days or weeks:
    * Notebook code needs translation to orchestrator nodes
    * Most time spent waiting to rebuild and resubmit pipelines, with each iteration loop taking about 20+ minutes
@@ -30,15 +30,15 @@ Why Runhouse?
 
 | **With Runhouse:** Regular code is dispatched to cloud compute for execution at every step
 * Researchers write normal code:
-   * Execute on the same (ephemeral) compute used in production
-   * Each dispatch takes <5 seconds
-   * Logs stream back to local, providing interactive development experience
-* Moving to production:
-   * Involves moving 5 lines of dispatch code (not 500 lines of application code)
-   * Dispatch code moved into orchestrator nodes
-* Debugging or improving pipelines in production:
-   * Branch the underlying application code
-   * Execute the same dispatch code
+   * Each dispatch takes <5 seconds, providing interactive development experience
+   * Code executes on the same compute and environment of production
+   * Logs stream back to local
+* Moving to production is instant:
+   * Orchestrator nodes contain 5 lines of dispatch code (not 500 lines of application code)
+   * Rather than being your ML runtime, orchestrators are simply used to schedule, log, and monitor runs
+* Easily debug or update pipelines in production:
+   * Branch the underlying code
+   * Make changes and dispatch iteratively, like in the research step
    * Merge back into main
 
 | In short, Runhouse makes ML development feel like normal software development.
