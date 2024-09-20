@@ -24,7 +24,7 @@ Why Runhouse?
    * Most time spent waiting to rebuild and resubmit pipelines, with each iteration loop taking about 20+ minutes
 * Production debugging is challenging:
    * Orchestrators designed for scheduling and logging runs, but are not development-friendly runtimes
-   * Continue "debug through deployment" that slowed down resarch to production in the first place
+   * Continue "debug through deployment" that slowed down research to production in the first place
 
 **With Runhouse:** Regular code is dispatched to cloud compute for execution at every step
 * Researchers write normal code:
