@@ -15,7 +15,9 @@
 
 Why Runhouse?
 -------------
-**Without Runhouse:** ML workflow is fragmented and iteration is slow
+|Runhouse was built to accelerate the ML flywheel, by enabling fast, debuggable, and iterable development of pipelines.
+
+|**Without Runhouse:** ML workflow is fragmented and iteration is slow
 * Researchers start in hosted notebooks or SSH'ed into a cluster:
    * Fast and interactive development
    * But non-standard environment and code
@@ -26,7 +28,7 @@ Why Runhouse?
    * Orchestrators designed for scheduling and logging runs, but are not development-friendly runtimes
    * Continue "debug through deployment" that slowed down research to production in the first place
 
-**With Runhouse:** Regular code is dispatched to cloud compute for execution at every step
+|**With Runhouse:** Regular code is dispatched to cloud compute for execution at every step
 * Researchers write normal code:
    * Execute on the same (ephemeral) compute used in production
    * Each dispatch takes <5 seconds
@@ -39,7 +41,7 @@ Why Runhouse?
    * Execute the same dispatch code
    * Merge back into main
 
-In short, Runhouse makes ML development feel like normal software development.
+|In short, Runhouse makes ML development feel like normal software development.
 
 Table of Contents
 -----------------
