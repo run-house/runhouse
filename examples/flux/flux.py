@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
     # Next, we define the environment for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
+    # Passing `huggingface` to the `secrets` parameter is optional and not needed here, but useful if we need to authenticate to download a model
     #
     # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
     env = rh.env(
