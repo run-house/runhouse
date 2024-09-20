@@ -16,7 +16,7 @@
 Why Runhouse?
 -------------
 | Runhouse was built to accelerate the ML flywheel, by enabling fast, debuggable, and iterable development of pipelines.
-
+|
 | **Without Runhouse:** ML workflow is fragmented and iteration is slow
 * Researchers start in hosted notebooks or SSH'ed into a cluster:
    * Fast and interactive development
