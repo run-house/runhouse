@@ -3,11 +3,13 @@ import uuid
 import pytest
 
 from opentelemetry import trace
+
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 from runhouse.logger import get_logger
+from runhouse.servers.telemetry.telemetry_agent import ErrorCapturingExporter
 
 logger = get_logger(__name__)
 
@@ -24,16 +26,18 @@ class TestTelemetryAgent:
         tracer = trace.get_tracer(__name__)
 
         # Send spans directly to the collector backend without an agent process
-        span_processor = BatchSpanProcessor(
-            OTLPSpanExporter(
-                endpoint="grpc://localhost:4316",
-                insecure=True,
-            )
-        )
+        endpoint = "grpc://localhost:4316"
+        otlp_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
+        error_capturing_exporter = ErrorCapturingExporter(otlp_exporter)
+        span_processor = BatchSpanProcessor(error_capturing_exporter)
         trace.get_tracer_provider().add_span_processor(span_processor)
 
         with tracer.start_as_current_span(f"test-span-{str(uuid.uuid4())}"):
             logger.info("Test span created and sent to the collector!")
+
+        assert (
+            not error_capturing_exporter.has_errors()
+        ), error_capturing_exporter.get_errors()
 
     @pytest.mark.level("local")
     def test_send_span_with_local_agent_to_local_collector_backend(
@@ -46,13 +50,9 @@ class TestTelemetryAgent:
 
         # Have the agent be responsible for sending the spans to the collector backend
         endpoint = f"grpc://localhost:{local_telemetry_agent_for_local_backend.agent_config.grpc_port}"
-        span_processor = BatchSpanProcessor(
-            OTLPSpanExporter(
-                endpoint=endpoint,
-                insecure=True,
-                timeout=10,
-            )
-        )
+        otlp_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
+        error_capturing_exporter = ErrorCapturingExporter(otlp_exporter)
+        span_processor = BatchSpanProcessor(error_capturing_exporter)
         trace.get_tracer_provider().add_span_processor(span_processor)
 
         with tracer.start_as_current_span(f"span-from-agent-{str(uuid.uuid4())}"):
@@ -60,6 +60,10 @@ class TestTelemetryAgent:
 
         # Force flush of the span processor
         provider.force_flush()
+
+        assert (
+            not error_capturing_exporter.has_errors()
+        ), error_capturing_exporter.get_errors()
 
     @pytest.mark.level("local")
     def test_send_span_with_local_agent_to_collector_backend(
@@ -72,9 +76,9 @@ class TestTelemetryAgent:
 
         # Have the agent be responsible for sending the spans to the collector backend
         endpoint = f"grpc://localhost:{local_telemetry_agent_for_runhouse_backend.agent_config.grpc_port}"
-        span_processor = BatchSpanProcessor(
-            OTLPSpanExporter(endpoint=endpoint, insecure=True)
-        )
+        otlp_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
+        error_capturing_exporter = ErrorCapturingExporter(otlp_exporter)
+        span_processor = BatchSpanProcessor(error_capturing_exporter)
         trace.get_tracer_provider().add_span_processor(span_processor)
 
         with tracer.start_as_current_span(f"span-from-agent-{str(uuid.uuid4())}"):
@@ -86,13 +90,18 @@ class TestTelemetryAgent:
     @pytest.mark.level("local")
     def test_send_span_to_runhouse_collector_backend(self):
         """Generate a span in-memory and send it to the Runhouse collector backend"""
+        from runhouse.servers.telemetry import TelemetryAgentExporter
+
         provider = TracerProvider()
         trace.set_tracer_provider(provider)
         tracer = trace.get_tracer(__name__)
 
-        # Have the agent be responsible for sending the spans to the collector backend
         endpoint = "grpc://telemetry.run.house"
-        span_processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
+        otlp_exporter = OTLPSpanExporter(
+            endpoint=endpoint, headers=TelemetryAgentExporter.request_headers()
+        )
+        error_capturing_exporter = ErrorCapturingExporter(otlp_exporter)
+        span_processor = BatchSpanProcessor(error_capturing_exporter)
         trace.get_tracer_provider().add_span_processor(span_processor)
 
         with tracer.start_as_current_span(f"span-from-agent-{str(uuid.uuid4())}"):
@@ -100,3 +109,8 @@ class TestTelemetryAgent:
 
         # Force flush of the span processor
         provider.force_flush()
+
+        # Assert that no errors occurred, otherwise log all error messages
+        assert (
+            not error_capturing_exporter.has_errors()
+        ), error_capturing_exporter.get_errors()

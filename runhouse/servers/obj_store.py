@@ -239,7 +239,6 @@ class ObjStore:
         self.env_servlet_cache = {}
         self.active_function_calls = {}
         self._kv_store: Dict[Any, Any] = None
-        self._enable_observability = None
         self._telemetry_agent = None
         self._tracer = None
 
@@ -247,21 +246,10 @@ class ObjStore:
     # Telemetry
     ##############################################
     @property
-    def enable_observability(self):
-        if self._enable_observability is None:
-            # If cluster config is None don't enable - means the cluster is not fully set up or in logged out scenario
-            self._enable_observability = (
-                self.cluster_config.get("enable_observability", True)
-                if self.cluster_config
-                else False
-            )
-        return self._enable_observability
-
-    @property
     def telemetry_agent(self):
         if (
             rh.here.on_this_cluster()
-            and self.enable_observability
+            and not os.getenv("disable_observability", False)
             and self._telemetry_agent is None
         ):
             self._telemetry_agent = self._initialize_telemetry_agent()
@@ -286,16 +274,18 @@ class ObjStore:
             return None
 
     def _initialize_tracer(self):
+        from runhouse.servers.telemetry.telemetry_agent import ErrorCapturingExporter
+
         trace.set_tracer_provider(TracerProvider())
         tracer = trace.get_tracer(__name__)
 
         # Export to local agent, which handles sending to the backend collector
-        span_processor = BatchSpanProcessor(
-            OTLPSpanExporter(
-                endpoint=f"localhost:{self.telemetry_agent.agent_config.grpc_port}",
-                insecure=True,
-            )
-        )
+        endpoint = f"localhost:{self.telemetry_agent.agent_config.grpc_port}"
+
+        otlp_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
+        error_capturing_exporter = ErrorCapturingExporter(otlp_exporter)
+        span_processor = BatchSpanProcessor(error_capturing_exporter)
+
         trace.get_tracer_provider().add_span_processor(span_processor)
 
         return tracer
