@@ -33,6 +33,7 @@ class Defaults:
         "use_spot": False,
         "use_local_configs": True,
         "disable_data_collection": False,
+        "disable_observability": False,
         "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
@@ -290,3 +291,15 @@ class Defaults:
             return False
 
         return True
+
+    @property
+    def observability_enabled(self):
+        return not self.get("disable_observability", False)
+
+    def disable_observability(self):
+        self.set("disable_observability", True)
+        os.environ["disable_observability"] = "True"
+
+    def enable_observability(self):
+        self.set("disable_observability", False)
+        os.environ["disable_observability"] = "False"
