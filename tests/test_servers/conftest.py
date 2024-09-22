@@ -54,7 +54,7 @@ def cert_config():
 def local_telemetry_agent_for_local_backend():
     """Local agent which exports to a locally running collector."""
     from runhouse.servers.telemetry import (
-        TelemetryAgentExporter,
+        TelemetryAgentReceiver,
         TelemetryCollectorConfig,
     )
 
@@ -64,7 +64,7 @@ def local_telemetry_agent_for_local_backend():
     collector_config = TelemetryCollectorConfig(
         endpoint="localhost:4316", status_url="http://localhost:13134"
     )
-    telemetry_agent = TelemetryAgentExporter(collector_config=collector_config)
+    telemetry_agent = TelemetryAgentReceiver(collector_config=collector_config)
     telemetry_agent.start(reload_config=True)
 
     assert telemetry_agent.is_up()
@@ -88,9 +88,9 @@ def local_telemetry_agent_for_local_backend():
 @pytest.fixture(scope="session")
 def local_telemetry_agent_for_runhouse_backend():
     """Local agent which exports to the Runhouse collector."""
-    from runhouse.servers.telemetry import TelemetryAgentExporter
+    from runhouse.servers.telemetry import TelemetryAgentReceiver
 
-    telemetry_agent = TelemetryAgentExporter()
+    telemetry_agent = TelemetryAgentReceiver()
     telemetry_agent.start(reload_config=True)
 
     assert telemetry_agent.is_up()

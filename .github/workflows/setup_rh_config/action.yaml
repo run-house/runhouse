@@ -28,3 +28,4 @@ runs:
         echo "username: ${{ inputs.username }}" >> ~/.rh/config.yaml
         echo "api_server_url: ${{ inputs.api_server_url }}" >> ~/.rh/config.yaml
         echo "autosave: false" >> ~/.rh/config.yaml
+        echo "disable_observability: false" >> ~/.rh/config.yaml

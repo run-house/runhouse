@@ -502,6 +502,10 @@ class Cluster(Resource):
             self._default_env.add_env_var("RH_LOG_LEVEL", log_level)
             logger.info(f"Using log level {log_level} on cluster's default env")
 
+        if not configs.observability_enabled:
+            self._default_env.add_env_var("disable_observability", "True")
+            logger.info("Disabling observability on the cluster")
+
         logger.info(f"Syncing default env {self._default_env.name} to cluster")
         for node in self.ips:
             self._default_env.install(cluster=self, node=node)
@@ -828,7 +832,6 @@ class Cluster(Resource):
             )
 
         if send_to_den:
-
             if den_resp_status_code == 404:
                 logger.info(
                     "Cluster has not yet been saved to Den, cannot update status or logs."
@@ -836,6 +839,13 @@ class Cluster(Resource):
 
             elif den_resp_status_code != 200:
                 logger.warning("Failed to send cluster status to Den")
+
+        if not configs.observability_enabled and status.get("env_servlet_processes"):
+            logger.warning(
+                "Cluster observability is not currently enabled. Metrics are stale and will "
+                "no longer be collected. To re-enable observability, please "
+                "run `rh.configs.enable_observability()` and restart the server (`cluster.restart_server()`)."
+            )
 
         return status
 
