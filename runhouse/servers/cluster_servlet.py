@@ -2,6 +2,7 @@ import asyncio
 import copy
 import datetime
 import json
+import os
 import threading
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -11,13 +12,19 @@ import psutil
 import pynvml
 import requests
 
-import runhouse
+from opentelemetry import metrics
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+
+import runhouse as rh
 
 from runhouse.constants import (
     DEFAULT_STATUS_CHECK_INTERVAL,
     GPU_COLLECTION_INTERVAL,
     INCREASED_STATUS_CHECK_INTERVAL,
     MAX_GPU_INFO_LEN,
+    METRICS_EXPORT_INTERVAL_MS,
     REDUCED_GPU_INFO_LEN,
     SERVER_LOGFILE,
     SERVER_LOGS_FILE_NAME,
@@ -38,6 +45,7 @@ from runhouse.utils import (
     ServletType,
     sync_function,
 )
+
 
 logger = get_logger(__name__)
 
@@ -82,6 +90,8 @@ class ClusterServlet:
         self.pid = get_pid()
         self.process = psutil.Process(pid=self.pid)
         self.gpu_metrics = None  # will be updated only if this is a gpu cluster.
+        self._metrics_meter = None
+
         self.lock = (
             threading.Lock()
         )  # will be used when self.gpu_metrics will be updated by different threads.
@@ -98,6 +108,38 @@ class ClusterServlet:
             target=self.periodic_cluster_checks, daemon=True
         )
         self.cluster_checks_thread.start()
+
+    ##############################################
+    # Metrics collection
+    ##############################################
+
+    @property
+    def metrics_collector(self):
+        if (
+            rh.here.on_this_cluster()
+            and not os.getenv("disable_observability", False)
+            and self._metrics_meter is None
+        ):
+            self._metrics_meter = self._initialize_metrics_collector()
+        return self._metrics_meter
+
+    def _initialize_metrics_collector(self):
+        from runhouse.servers.telemetry import TelemetryAgentConfig
+
+        agent_endpoint = f"localhost:{TelemetryAgentConfig.grpc_port}"
+        exporter = OTLPMetricExporter(endpoint=agent_endpoint, insecure=True)
+
+        # collect metrics based on a user-configurable time interval, and pass the metrics to the exporter
+        metric_reader = PeriodicExportingMetricReader(
+            exporter, export_interval_millis=METRICS_EXPORT_INTERVAL_MS
+        )
+        provider = MeterProvider(metric_readers=[metric_reader])
+
+        # Set the global MeterProvider
+        metrics.set_meter_provider(provider)
+        meter = metrics.get_meter(__name__)
+
+        return meter
 
     ##############################################
     # Cluster config state storage methods
@@ -468,17 +510,45 @@ class ClusterServlet:
 
     async def _aperiodic_gpu_check(self):
         """periodically collects cluster gpu usage"""
+        from runhouse.servers.telemetry.metrics_collection import update_gpu_utilization
 
         pynvml.nvmlInit()  # init nvidia ml info collection
 
         while True:
             try:
-
                 gpu_count = pynvml.nvmlDeviceGetCount()
                 with self.lock:
                     if not self.gpu_metrics:
                         self.gpu_metrics = {device: [] for device in range(gpu_count)}
 
+                        gpu_memory_usage_gauge = (
+                            self.metrics_collector.create_observable_gauge(
+                                "gpu_memory_usage",
+                                description="Total GPU memory usage",
+                                unit="MB",
+                            )
+                        )
+
+                        gpu_utilization_counter = self.metrics_collector.create_counter(
+                            "gpu_utilization_total",
+                            description="Total GPU utilization over time",
+                            unit="percentage",
+                        )
+
+                        gpu_count_gauge = (
+                            self.metrics_collector.create_observable_gauge(
+                                "gpu_count",
+                                description="Number of GPUs",
+                                unit="count",
+                            )
+                        )
+                        update_gpu_utilization(
+                            gpu_utilization_counter,
+                            gpu_memory_usage_gauge,
+                            gpu_count_gauge,
+                        )
+
+                    # TODO remove once migrated onto otel
                     for gpu_index in range(gpu_count):
                         handle = pynvml.nvmlDeviceGetHandleByIndex(gpu_index)
                         util_info = pynvml.nvmlDeviceGetUtilizationRates(handle)
@@ -505,10 +575,12 @@ class ClusterServlet:
                             }
                         )
                         self.gpu_metrics[gpu_index] = updated_gpu_info
+
             except Exception as e:
                 logger.error(str(e))
                 pynvml.nvmlShutdown()
                 break
+
             finally:
                 # collects gpu usage every 5 seconds.
                 await asyncio.sleep(GPU_COLLECTION_INTERVAL)
@@ -519,9 +591,7 @@ class ClusterServlet:
         asyncio.run(self._aperiodic_gpu_check())
 
     def _get_node_gpu_usage(self, server_pid: int):
-
         # currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
-
         collected_gpus_info = copy.deepcopy(self.gpu_metrics)
 
         if collected_gpus_info is None or not collected_gpus_info[0]:
@@ -537,7 +607,7 @@ class ClusterServlet:
         return cluster_gpu_usage
 
     async def astatus(self, send_to_den: bool = False) -> Tuple[Dict, Optional[int]]:
-        import psutil
+        from runhouse.servers.telemetry.metrics_collection import update_cpu_utilization
 
         config_cluster = copy.deepcopy(self.cluster_config)
 
@@ -573,7 +643,28 @@ class ClusterServlet:
                 )
                 env_servlet_utilization_data[env_servlet_name] = env_memory_info
 
-        # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
+        cpu_utilization_counter = self.metrics_collector.create_counter(
+            "cpu_utilization_total",
+            description="Total CPU utilization over time",
+            unit="percentage",
+        )
+
+        cpu_memory_usage_gauge = self.metrics_collector.create_observable_gauge(
+            "cpu_memory_usage",
+            description="CPU memory usage in MB",
+            unit="MB",
+        )
+
+        cpu_free_memory_gauge = self.metrics_collector.create_observable_gauge(
+            "cpu_free_memory",
+            description="Free CPU memory in MB",
+            unit="MB",
+        )
+        update_cpu_utilization(
+            cpu_utilization_counter, cpu_memory_usage_gauge, cpu_free_memory_gauge
+        )
+
+        # TODO [SB/JL]: remove this once fully migrated onto otel
         cpu_utilization = psutil.cpu_percent(interval=0)
 
         # A dictionary that match the keys of psutil.virtual_memory()._asdict() to match the keys we expect in Den.
@@ -587,7 +678,6 @@ class ClusterServlet:
         # Fields: `total`, `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
         # according to psutil docs, percent = (total - available) / total * 100
         memory_usage = psutil.virtual_memory()._asdict()
-
         memory_usage = {
             relevant_memory_info[k]: memory_usage[k]
             for k in relevant_memory_info.keys()
@@ -611,9 +701,10 @@ class ClusterServlet:
             with self.lock:
                 self.gpu_metrics = None
 
+        # TODO [SB/JL]: remove otel data from the status
         status_data = {
             "cluster_config": config_cluster,
-            "runhouse_version": runhouse.__version__,
+            "runhouse_version": rh.__version__,
             "server_pid": self.pid,
             "env_servlet_processes": env_servlet_utilization_data,
             "server_cpu_utilization": cpu_utilization,
@@ -625,8 +716,8 @@ class ClusterServlet:
         # converting status_data to ResourceStatusData instance to verify we constructed the status data correctly
         status_data = ResourceStatusData(**status_data).model_dump()
 
+        # TODO [SB/JL]: remove once metrics data flows directly to the otel collector
         if send_to_den:
-
             logger.debug("Sending cluster status to Den")
             den_resp = self.save_status_metrics_to_den(status=status_data)
             return status_data, den_resp.status_code

@@ -666,7 +666,6 @@ class ServletType(str, Enum):
 
 
 def get_gpu_usage(collected_gpus_info: dict, servlet_type: ServletType):
-
     gpus_indices = list(collected_gpus_info.keys())
 
     # how we retrieve total_gpu_memory:
