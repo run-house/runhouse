@@ -936,3 +936,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # set it back
         cluster.default_env = test_env
         cluster.delete(new_env.name)
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_observability_enabled_by_default_on_cluster(self, cluster):
+        # Disable observability locally, which will be reflected on the cluster once the server is restarted
+        rh.configs.disable_observability()
+        cluster.restart_server()
+
+        if cluster._default_env:
+            env_vars = cluster._default_env.env_vars
+            assert env_vars.get("disable_observability") == "True"
