@@ -3,33 +3,37 @@ import uuid
 
 import pytest
 
-from opentelemetry import metrics, trace
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
+from runhouse.globals import rns_client
 from runhouse.logger import get_logger
 from runhouse.servers.telemetry.metrics_collection import (
-    update_cpu_utilization,
-    update_gpu_utilization,
+    MetricsCollector,
+    MetricsMetadata,
 )
-from runhouse.servers.telemetry.telemetry_agent import ErrorCapturingExporter
+from runhouse.servers.telemetry.telemetry_agent import (
+    ErrorCapturingExporter,
+    TelemetryAgentExporter,
+)
 
 logger = get_logger(__name__)
 
 
-def current_time():
-    return int(time.time() * 1e9)
+def provider_resource():
+    return Resource.create({"service.name": "runhouse-tests"})
+
+
+def metrics_metadata():
+    return MetricsMetadata(username=rns_client.username, cluster_name="test")
 
 
 def load_tracer():
-    resource = Resource.create({"service.name": "runhouse-tests"})
-    trace.set_tracer_provider(TracerProvider(resource=resource))
+    trace.set_tracer_provider(TracerProvider(resource=provider_resource()))
     tracer = trace.get_tracer(__name__)
     return tracer
 
@@ -110,8 +114,6 @@ class TestTelemetryAgent:
     @pytest.mark.level("local")
     def test_send_span_to_runhouse_collector_backend(self):
         """Generate a span in-memory and send it to the Runhouse collector backend"""
-        from runhouse.servers.telemetry import TelemetryAgentExporter
-
         provider = TracerProvider()
         trace.set_tracer_provider(provider)
         tracer = trace.get_tracer(__name__)
@@ -136,70 +138,37 @@ class TestTelemetryAgent:
         ), error_capturing_exporter.get_errors()
 
     @pytest.mark.level("local")
-    def test_cumulative_current_metrics_to_runhouse_collector_backend(
+    def test_send_interval_metrics_to_local_collector_backend(
         self, local_telemetry_collector
     ):
         """Generate cumulative metrics collection in-memory and send it to the local collector backend"""
-
-        # Set up the OTLP exporter
-        exporter = OTLPMetricExporter(endpoint="grpc://localhost:4316", insecure=True)
-
-        # collect metrics based on a user-configurable time interval, and pass the metrics to the exporter
-        metric_reader = PeriodicExportingMetricReader(
-            exporter, export_interval_millis=5000
-        )
-        provider = MeterProvider(metric_readers=[metric_reader])
-
-        # Set the global MeterProvider
-        metrics.set_meter_provider(provider)
-        meter = metrics.get_meter(__name__)
-
-        # Create counters to accumulate CPU and GPU utilization
-        cpu_utilization_counter = meter.create_counter(
-            "cpu_utilization_total",
-            description="Total CPU utilization over time",
-            unit="percentage",
+        mc = MetricsCollector(
+            metadata=metrics_metadata(),
+            resource=provider_resource(),
+            agent_endpoint="grpc://localhost:4316",
         )
 
-        cpu_memory_usage_gauge = meter.create_observable_gauge(
-            "cpu_memory_usage",
-            description="CPU memory usage in MB",
-            unit="MB",
-        )
-
-        cpu_free_memory_gauge = meter.create_observable_gauge(
-            "cpu_free_memory",
-            description="Free CPU memory in MB",
-            unit="MB",
-        )
-
-        gpu_memory_usage_gauge = meter.create_observable_gauge(
-            "gpu_memory_usage",
-            description="Total GPU memory usage",
-            unit="MB",
-        )
-
-        gpu_utilization_counter = meter.create_counter(
-            "gpu_utilization_total",
-            description="Total GPU utilization over time",
-            unit="percentage",
-        )
-
-        gpu_count_gauge = meter.create_observable_gauge(
-            "gpu_count",
-            description="Number of GPUs",
-            unit="count",
-        )
-
-        duration = 20  # Duration to run the collection in seconds
+        duration = 20
         start_time = time.time()
         while time.time() - start_time < duration:
-            update_cpu_utilization(
-                cpu_utilization_counter, cpu_memory_usage_gauge, cpu_free_memory_gauge
-            )
-            update_gpu_utilization(
-                gpu_utilization_counter, gpu_memory_usage_gauge, gpu_count_gauge
-            )
+            mc.update_cpu_utilization()
+            time.sleep(5)
 
-            # Collect data every 5 seconds
+    @pytest.mark.level("local")
+    def test_interval_metrics_to_runhouse_collector_backend(self):
+        """Generate cumulative metrics collection in-memory and send it to the Runhouse collector backend"""
+        endpoint = "grpc://telemetry.run.house:443"
+        headers = TelemetryAgentExporter.request_headers()
+
+        mc = MetricsCollector(
+            metadata=metrics_metadata(),
+            resource=provider_resource(),
+            agent_endpoint=endpoint,
+            headers=headers,
+        )
+
+        duration = 20
+        start_time = time.time()
+        while time.time() - start_time < duration:
+            mc.update_cpu_utilization()
             time.sleep(5)

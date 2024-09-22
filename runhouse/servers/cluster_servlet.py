@@ -12,11 +12,6 @@ import psutil
 import pynvml
 import requests
 
-from opentelemetry import metrics
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-
 import runhouse as rh
 
 from runhouse.constants import (
@@ -24,7 +19,6 @@ from runhouse.constants import (
     GPU_COLLECTION_INTERVAL,
     INCREASED_STATUS_CHECK_INTERVAL,
     MAX_GPU_INFO_LEN,
-    METRICS_EXPORT_INTERVAL_MS,
     REDUCED_GPU_INFO_LEN,
     SERVER_LOGFILE,
     SERVER_LOGS_FILE_NAME,
@@ -45,7 +39,6 @@ from runhouse.utils import (
     ServletType,
     sync_function,
 )
-
 
 logger = get_logger(__name__)
 
@@ -71,7 +64,9 @@ class ClusterServlet:
 
         self._initialized_env_servlet_names: Set[str] = set()
         self._key_to_env_servlet_name: Dict[Any, str] = {}
-        self._auth_cache: AuthCache = AuthCache(cluster_config)
+        self._auth_cache: AuthCache = AuthCache(self.cluster_config)
+        self._metrics_collector = None
+
         self.autostop_helper = None
 
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
@@ -90,11 +85,9 @@ class ClusterServlet:
         self.pid = get_pid()
         self.process = psutil.Process(pid=self.pid)
         self.gpu_metrics = None  # will be updated only if this is a gpu cluster.
-        self._metrics_meter = None
 
-        self.lock = (
-            threading.Lock()
-        )  # will be used when self.gpu_metrics will be updated by different threads.
+        # will be used when self.gpu_metrics will be updated by different threads.
+        self.lock = threading.Lock()
 
         if self.cluster_config.get("has_cuda"):
             logger.debug("Creating _periodic_gpu_check thread.")
@@ -112,34 +105,36 @@ class ClusterServlet:
     ##############################################
     # Metrics collection
     ##############################################
-
     @property
     def metrics_collector(self):
         if (
-            rh.here.on_this_cluster()
-            and not os.getenv("disable_observability", False)
-            and self._metrics_meter is None
+            not os.getenv("disable_observability", False)
+            and self._metrics_collector is None
         ):
-            self._metrics_meter = self._initialize_metrics_collector()
-        return self._metrics_meter
+            from runhouse.servers.telemetry import TelemetryAgentConfig
+            from runhouse.servers.telemetry.metrics_collection import MetricsCollector
 
-    def _initialize_metrics_collector(self):
-        from runhouse.servers.telemetry import TelemetryAgentConfig
+            metadata = self._metrics_metadata()
+            self._metrics_collector = MetricsCollector(
+                metadata=metadata,
+                agent_endpoint=f"localhost:{TelemetryAgentConfig.grpc_port}",
+            )
 
-        agent_endpoint = f"localhost:{TelemetryAgentConfig.grpc_port}"
-        exporter = OTLPMetricExporter(endpoint=agent_endpoint, insecure=True)
+        return self._metrics_collector
 
-        # collect metrics based on a user-configurable time interval, and pass the metrics to the exporter
-        metric_reader = PeriodicExportingMetricReader(
-            exporter, export_interval_millis=METRICS_EXPORT_INTERVAL_MS
-        )
-        provider = MeterProvider(metric_readers=[metric_reader])
+    def _metrics_metadata(self):
+        from runhouse.servers.telemetry.metrics_collection import MetricsMetadata
 
-        # Set the global MeterProvider
-        metrics.set_meter_provider(provider)
-        meter = metrics.get_meter(__name__)
+        cluster_or_local = rh.here
+        if cluster_or_local == "file":
+            cluster_name = cluster_or_local
+        else:
+            cluster_rns_address = cluster_or_local.rns_address
+            cluster_name = (
+                cluster_rns_address if cluster_rns_address else cluster_or_local.name
+            )
 
-        return meter
+        return MetricsMetadata(username=rns_client.username, cluster_name=cluster_name)
 
     ##############################################
     # Cluster config state storage methods
@@ -295,7 +290,6 @@ class ClusterServlet:
     ##############################################
     # Periodic Cluster Checks APIs
     ##############################################
-
     async def asave_status_metrics_to_den(self, status: dict):
         from runhouse.resources.hardware.utils import ResourceServerStatus
 
@@ -325,7 +319,6 @@ class ClusterServlet:
         return sync_function(self.asave_status_metrics_to_den)(status)
 
     async def acheck_cluster_status(self, send_to_den: bool = True):
-
         logger.debug("Performing cluster status checks")
         status, den_resp_status_code = await self.astatus(send_to_den=send_to_den)
 
@@ -344,7 +337,6 @@ class ClusterServlet:
         return status, den_resp_status_code
 
     async def acheck_cluster_logs(self, interval_size: int):
-
         logger.debug("Performing logs checks")
 
         cluster_config = await self.aget_cluster_config()
@@ -377,7 +369,7 @@ class ClusterServlet:
     async def aperiodic_cluster_checks(self):
         """Periodically check the status of the cluster, gather metrics about the cluster's utilization & memory,
         and save it to Den."""
-
+        disable_observability = os.getenv("disable_observability", False)
         while True:
             should_send_status_and_logs_to_den: bool = (
                 configs.token is not None and self._cluster_uri is not None
@@ -386,6 +378,11 @@ class ClusterServlet:
 
             if not should_send_status_and_logs_to_den and not should_update_autostop:
                 break
+
+            cluster_config = await self.aget_cluster_config()
+            interval_size = cluster_config.get(
+                "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
+            )
 
             try:
                 status, den_resp_code = await self.acheck_cluster_status(
@@ -396,15 +393,16 @@ class ClusterServlet:
                     logger.debug("Updating autostop")
                     await self._update_autostop(status)
 
-                cluster_config = await self.aget_cluster_config()
-                interval_size = cluster_config.get(
-                    "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
-                )
-
                 if interval_size == -1 or not should_send_status_and_logs_to_den:
                     continue
 
                 logger.debug("Performing cluster checks")
+
+                if disable_observability:
+                    logger.info(
+                        "Cluster observability not enabled, skipping metrics collection."
+                    )
+                    break
 
                 if den_resp_code == 404:
                     logger.info(
@@ -438,19 +436,17 @@ class ClusterServlet:
                         await self.aset_cluster_config_value(
                             key="end_log_line", value=new_end_log_line
                         )
-                        # since we are setting a new values to the cluster_config, we need to reload it so the next
-                        # cluster check iteration will reference to the updated cluster config.
-                        cluster_config = await self.aget_cluster_config()
+
                 if den_resp_code == 200:
                     await self.acheck_cluster_logs(interval_size=interval_size)
 
-            except Exception:
+            except Exception as e:
                 logger.error(
-                    "Cluster checks have failed.\n"
-                    "Please check cluster logs for more info.\n"
+                    f"Cluster checks have failed: {e}\n"
                     "Temporarily increasing the interval between status checks."
                 )
                 await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
+
             finally:
                 # make sure that the thread will go to sleep, even if the interval size == -1
                 # (meaning that sending status to den is disabled).
@@ -510,8 +506,6 @@ class ClusterServlet:
 
     async def _aperiodic_gpu_check(self):
         """periodically collects cluster gpu usage"""
-        from runhouse.servers.telemetry.metrics_collection import update_gpu_utilization
-
         pynvml.nvmlInit()  # init nvidia ml info collection
 
         while True:
@@ -520,35 +514,9 @@ class ClusterServlet:
                 with self.lock:
                     if not self.gpu_metrics:
                         self.gpu_metrics = {device: [] for device in range(gpu_count)}
+                        self.metrics_collector.update_gpu_utilization()
 
-                        gpu_memory_usage_gauge = (
-                            self.metrics_collector.create_observable_gauge(
-                                "gpu_memory_usage",
-                                description="Total GPU memory usage",
-                                unit="MB",
-                            )
-                        )
-
-                        gpu_utilization_counter = self.metrics_collector.create_counter(
-                            "gpu_utilization_total",
-                            description="Total GPU utilization over time",
-                            unit="percentage",
-                        )
-
-                        gpu_count_gauge = (
-                            self.metrics_collector.create_observable_gauge(
-                                "gpu_count",
-                                description="Number of GPUs",
-                                unit="count",
-                            )
-                        )
-                        update_gpu_utilization(
-                            gpu_utilization_counter,
-                            gpu_memory_usage_gauge,
-                            gpu_count_gauge,
-                        )
-
-                    # TODO remove once migrated onto otel
+                    # TODO [SB / JL] remove once migrated onto otel
                     for gpu_index in range(gpu_count):
                         handle = pynvml.nvmlDeviceGetHandleByIndex(gpu_index)
                         util_info = pynvml.nvmlDeviceGetUtilizationRates(handle)
@@ -586,12 +554,11 @@ class ClusterServlet:
                 await asyncio.sleep(GPU_COLLECTION_INTERVAL)
 
     def _periodic_gpu_check(self):
-        # This is only ever called once in its own thread, so we can do asyncio.run here instead of
-        # sync_function.
+        # This is only ever called once in its own thread, so we can do asyncio.run here instead of `sync_function`.
         asyncio.run(self._aperiodic_gpu_check())
 
     def _get_node_gpu_usage(self, server_pid: int):
-        # currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
+        # TODO [SB] currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
         collected_gpus_info = copy.deepcopy(self.gpu_metrics)
 
         if collected_gpus_info is None or not collected_gpus_info[0]:
@@ -600,15 +567,15 @@ class ClusterServlet:
         cluster_gpu_usage = get_gpu_usage(
             collected_gpus_info=collected_gpus_info, servlet_type=ServletType.cluster
         )
-        cluster_gpu_usage[
-            "server_pid"
-        ] = server_pid  # will be useful for multi-node clusters.
+
+        # will be useful for multi-node clusters.
+        cluster_gpu_usage["server_pid"] = server_pid
 
         return cluster_gpu_usage
 
     async def astatus(self, send_to_den: bool = False) -> Tuple[Dict, Optional[int]]:
-        from runhouse.servers.telemetry.metrics_collection import update_cpu_utilization
-
+        """Gather utilization and memory data for the various env servlets and have the local telemetry
+        agent export the metrics to the Runhouse collector."""
         config_cluster = copy.deepcopy(self.cluster_config)
 
         # Popping out creds because we don't want to show them in the status
@@ -643,27 +610,13 @@ class ClusterServlet:
                 )
                 env_servlet_utilization_data[env_servlet_name] = env_memory_info
 
-        cpu_utilization_counter = self.metrics_collector.create_counter(
-            "cpu_utilization_total",
-            description="Total CPU utilization over time",
-            unit="percentage",
-        )
+        # -------------------------------------------------------
+        # use the otel metrics collector to collect cpu and gpu utilization
+        self.metrics_collector.update_cpu_utilization()
 
-        cpu_memory_usage_gauge = self.metrics_collector.create_observable_gauge(
-            "cpu_memory_usage",
-            description="CPU memory usage in MB",
-            unit="MB",
-        )
-
-        cpu_free_memory_gauge = self.metrics_collector.create_observable_gauge(
-            "cpu_free_memory",
-            description="Free CPU memory in MB",
-            unit="MB",
-        )
-        update_cpu_utilization(
-            cpu_utilization_counter, cpu_memory_usage_gauge, cpu_free_memory_gauge
-        )
-
+        if self.cluster_config.get("has_cuda"):
+            self.metrics_collector.update_gpu_utilization()
+        # -------------------------------------------------------
         # TODO [SB/JL]: remove this once fully migrated onto otel
         cpu_utilization = psutil.cpu_percent(interval=0)
 
@@ -715,9 +668,8 @@ class ClusterServlet:
 
         # converting status_data to ResourceStatusData instance to verify we constructed the status data correctly
         status_data = ResourceStatusData(**status_data).model_dump()
-
-        # TODO [SB/JL]: remove once metrics data flows directly to the otel collector
         if send_to_den:
+            # TODO [SB/JL]: remove (data will be sent directly to the backend collector)
             logger.debug("Sending cluster status to Den")
             den_resp = self.save_status_metrics_to_den(status=status_data)
             return status_data, den_resp.status_code
@@ -731,7 +683,6 @@ class ClusterServlet:
     # Save cluster logs to Den
     ##############################################
     def _get_logs(self):
-
         with open(SERVER_LOGFILE) as log_file:
             log_lines = log_file.readlines()
         cleaned_log_lines = [ColoredFormatter.format_log(line) for line in log_lines]

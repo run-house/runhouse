@@ -14,6 +14,7 @@ import ray
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
@@ -276,7 +277,8 @@ class ObjStore:
     def _initialize_tracer(self):
         from runhouse.servers.telemetry.telemetry_agent import ErrorCapturingExporter
 
-        trace.set_tracer_provider(TracerProvider())
+        resource = Resource.create({"service.name": "runhouse-oss"})
+        trace.set_tracer_provider(TracerProvider(resource=resource))
         tracer = trace.get_tracer(__name__)
 
         # Export to local agent, which handles sending to the backend collector

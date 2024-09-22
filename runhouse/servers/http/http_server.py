@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import inspect
 import json
+import os
 import traceback
 import uuid
 from functools import wraps
@@ -141,6 +142,9 @@ class HTTPServer:
     ):
         runtime_env = {"conda": conda_env} if conda_env else None
 
+        if not configs.observability_enabled:
+            logger.info("disabling cluster observability")
+
         default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
 
         # Ray and ClusterServlet should already be
@@ -153,13 +157,6 @@ class HTTPServer:
                 setup_ray=RaySetupOption.TEST_PROCESS,
                 runtime_env=runtime_env,
             )
-
-        # TODO disabling due to latency, figure out what to do with this
-        # try:
-        #     # Collect metadata for the cluster immediately on init
-        #     self._collect_cluster_stats()
-        # except Exception as e:
-        #     logger.error(f"Failed to collect cluster stats: {str(e)}")
 
         # We initialize a default env servlet where some things may run.
         _ = obj_store.get_env_servlet(
@@ -176,6 +173,17 @@ class HTTPServer:
             obj_store.put_resource(
                 serialized_data=data, serialization=None, env_name=default_env_name
             )
+
+        if not os.getenv("disable_observability", False):
+            # Start the agent exporter on the head node (also needed for the cluster servlet)
+            from runhouse.servers.telemetry import TelemetryAgentExporter
+
+            try:
+                ta = TelemetryAgentExporter()
+                ta.start()
+
+            except Exception as e:
+                logger.warning(f"Failed to start telemetry agent: {e}")
 
     @classmethod
     def initialize(
@@ -977,8 +985,7 @@ async def main():
     # We connect this to the "base" env, which we'll initialize later,
     # so writes to the obj_store within the server get proxied to the "base" env.
     await obj_store.ainitialize(
-        default_env_name,
-        setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
+        default_env_name, setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE
     )
 
     cluster_config = await obj_store.aget_cluster_config()
