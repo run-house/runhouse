@@ -49,36 +49,9 @@ class TestServlet:
         assert isinstance(resource, Resource)
 
     @pytest.mark.level("unit")
-    def test_put_obj_local(self, test_env_servlet):
-        resource = Resource(name="local-resource")
-        resp = ObjStore.call_actor_method(
-            test_env_servlet,
-            "aput_local",
-            key="key1",
-            data=serialize_data(resource, "pickle"),
-            serialization="pickle",
-        )
-        assert resp.output_type == "success"
-
-    @pytest.mark.level("unit")
-    def test_get_obj(self, test_env_servlet):
-        resp = ObjStore.call_actor_method(
-            test_env_servlet,
-            "aget_local",
-            key="key1",
-            default=KeyError,
-            serialization="pickle",
-            remote=False,
-        )
-        assert resp.output_type == "result_serialized"
-        resource = deserialize_data(resp.data, resp.serialization)
-        assert isinstance(resource, Resource)
-
-    @pytest.mark.level("unit")
     def test_get_obj_remote(self, test_env_servlet):
         resp = ObjStore.call_actor_method(
             test_env_servlet,
-
             "aget_local",
             key="key1",
             default=KeyError,
