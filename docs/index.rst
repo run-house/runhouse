@@ -40,7 +40,7 @@ Why did we build Runhouse? To enable fast, debuggable, and iterable development 
 
 * Moving to production is instant:
 
-  * Orchestrator nodes contain 5 lines of dispatch code (not 500 lines of application code)
+  * Orchestrator nodes contain 5 lines of dispatch code (not 200 lines of application code)
   * Rather than being your ML runtime, orchestrators are simply used to schedule, log, and monitor runs
 
 * Easily debug or update pipelines in production:
