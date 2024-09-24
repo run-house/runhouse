@@ -1,33 +1,23 @@
 import asyncio
 import contextvars
 import functools
-import logging
-import tempfile
-from io import SEEK_SET, StringIO
 
-try:
-    import importlib.metadata as metadata
-except ImportError as e:
-    # User is probably on Python<3.8
-    try:
-        import importlib_metadata as metadata
-    except ImportError:
-        # User needs to install importlib_metadata
-        raise ImportError(
-            f"importlib_metadata is not installed in Python<3.8. Please install it with "
-            f"'pip install importlib_metadata'. {e}"
-        )
+import importlib.metadata as metadata
+
 import inspect
 import json
+import logging
 import os
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from enum import Enum
+from io import SEEK_SET, StringIO
 from pathlib import Path
 from typing import Callable, Optional, Type, Union
 
