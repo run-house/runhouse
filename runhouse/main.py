@@ -250,7 +250,7 @@ def _print_cluster_config(cluster_config: Dict):
 
 
 def _print_envs_info(
-    env_servlet_processes: Dict[str, Dict[str, Any]], current_cluster: Cluster
+    servlet_processes: Dict[str, Dict[str, Any]], current_cluster: Cluster
 ):
     """
     Prints info about the envs in the current_cluster: resources in each env, the CPU usage and GPU usage of the env
@@ -262,8 +262,7 @@ def _print_envs_info(
     console.print(envs_in_cluster_headline)
 
     env_resource_mapping = {
-        env: env_servlet_processes[env]["env_resource_mapping"]
-        for env in env_servlet_processes
+        env: servlet_processes[env]["env_resource_mapping"] for env in servlet_processes
     }
 
     if len(env_resource_mapping) == 0:
@@ -312,7 +311,7 @@ def _print_envs_info(
 
     for env_name in envs_to_print:
         resources_in_env = env_resource_mapping[env_name]
-        env_process_info = env_servlet_processes[env_name]
+        env_process_info = servlet_processes[env_name]
 
         # sometimes the env itself is not a resource (key) inside the env's servlet.
         if len(resources_in_env) == 0:
@@ -458,7 +457,7 @@ def _get_resource_link_in_den_ui(cluster_name: str, api_server_url: str):
 def _print_status(status_data: dict, current_cluster: Cluster) -> None:
     """Prints the status of the cluster to the console"""
     cluster_config = status_data.get("cluster_config")
-    env_servlet_processes = status_data.get("env_servlet_processes")
+    servlet_processes = status_data.get("servlet_processes")
 
     cluster_name = cluster_config.get("name", None)
 
@@ -509,7 +508,7 @@ def _print_status(status_data: dict, current_cluster: Cluster) -> None:
     console.print(server_util_info)
 
     # print the environments in the cluster, and the resources associated with each environment.
-    _print_envs_info(env_servlet_processes, current_cluster)
+    _print_envs_info(servlet_processes, current_cluster)
 
 
 @app.command()

@@ -112,10 +112,10 @@ class TestMultiNodeCluster:
 
         status = multinode_cpu_docker_conda_cluster.status()
 
-        env0_node = status["env_servlet_processes"][env0.name]["node_ip"]
-        env1_node = status["env_servlet_processes"][env1.name]["node_ip"]
-        env2_node = status["env_servlet_processes"][env2.name]["node_ip"]
-        env3_node = status["env_servlet_processes"][env3.name]["node_ip"]
+        env0_node = status["servlet_processes"][env0.name]["node_ip"]
+        env1_node = status["servlet_processes"][env1.name]["node_ip"]
+        env2_node = status["servlet_processes"][env2.name]["node_ip"]
+        env3_node = status["servlet_processes"][env3.name]["node_ip"]
         assert env0_node in multinode_cpu_docker_conda_cluster.internal_ips
         assert env1_node in multinode_cpu_docker_conda_cluster.internal_ips
         assert env2_node in multinode_cpu_docker_conda_cluster.internal_ips
