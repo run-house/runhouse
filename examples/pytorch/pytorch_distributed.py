@@ -14,8 +14,6 @@
 # running distributed training alongside other tasks on the same cluster. It's also significantly easier to debug
 # and monitor, as you can see the output of each rank in real-time and get stack traces if a worker fails.
 
-import asyncio
-
 import runhouse as rh
 import torch
 
@@ -25,7 +23,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # ## Define the PyTorch distributed training logic
 # This is the function that will be run on each worker. It initializes the distributed training environment,
 # creates a simple model and optimizer, and runs a training loop.
-def train_process():
+def train_loop(epochs):
     # Initialize the distributed training environment,
     # per https://pytorch.org/docs/stable/distributed.html#initialization
     torch.distributed.init_process_group(backend="nccl")
@@ -39,7 +37,7 @@ def train_process():
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
 
     # Perform a simple training loop
-    for epoch in range(10):
+    for epoch in range(epochs):
         optimizer.zero_grad()
         output = model(torch.randn(10).cuda())
         loss = output.sum()
@@ -52,8 +50,11 @@ def train_process():
     torch.distributed.destroy_process_group()
 
 
-async def train():
-    # Create a cluster of 2 GPUs
+# :::note{.info title="Note"}
+# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
+# the script code will run when Runhouse attempts to run code remotely.
+# :::
+if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 2
     cluster = rh.cluster(
@@ -61,40 +62,11 @@ async def train():
         instance_type=f"A10G:{gpus_per_node}",
         num_instances=num_nodes,
     ).up_if_not()
-    train_workers = []
-    for i in range(num_nodes):
-        for j in range(gpus_per_node):
-            # Per https://pytorch.org/docs/stable/distributed.html#environment-variable-initialization
-            dist_config = {
-                "MASTER_ADDR": cluster.internal_ips[0],
-                "MASTER_PORT": "12345",
-                "RANK": str(i * gpus_per_node + j),
-                "WORLD_SIZE": str(num_nodes * gpus_per_node),
-            }
-            env = rh.env(
-                name=f"pytorch_env_{i}",
-                reqs=["torch"],
-                env_vars=dist_config,
-                compute={"node_idx": i},
-            )
-            # While iterating, you can kill the worker processes to stop any pending or hanging calls
-            # cluster.delete(env.name)
-            train_worker = rh.function(train_process).to(
-                cluster, env=env, name=f"train_{i}"
-            )
-            train_workers.append(train_worker)
-
-    # Call the workers concurrently with asyncio (each will connect and
-    # wait for the others during init_process_group)
-    # Note: Because this is regular async, we'll get errors and stack traces if a worker fails
-    await asyncio.gather(
-        *[train_worker(run_async=True) for train_worker in train_workers]
+    pt_distributed = rh.multiprocess(
+        name="pt_world",
+        replicas_per_node=gpus_per_node,
+        replicas=gpus_per_node * num_nodes,
+        distribution="pytorch",
     )
-
-
-# :::note{.info title="Note"}
-# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
-# the script code will run when Runhouse attempts to run code remotely.
-# :::
-if __name__ == "__main__":
-    asyncio.run(train())
+    train_ddp = rh.function(train_loop).to(cluster, process=pt_distributed)
+    train_ddp(epochs=10)
