@@ -13,6 +13,9 @@ import psutil
 import requests
 import yaml
 
+from opentelemetry.sdk.resources import Resource
+
+import runhouse as rh
 from runhouse.constants import (
     OTEL_VERSION,
     TELEMETRY_AGENT_GRPC_PORT,
@@ -22,7 +25,7 @@ from runhouse.constants import (
     TELEMETRY_COLLECTOR_HOST,
     TELEMETRY_COLLECTOR_STATUS_URL,
 )
-from runhouse.globals import configs
+from runhouse.globals import configs, rns_client
 
 from runhouse.logger import get_logger
 
@@ -50,6 +53,13 @@ class TelemetryCollectorConfig:
 
     endpoint: str = TELEMETRY_COLLECTOR_ENDPOINT
     status_url: str = TELEMETRY_COLLECTOR_STATUS_URL
+
+
+def default_resource():
+    """Create a default Resource for the OpenTelemetry SDK."""
+    return Resource.create(
+        {"service.name": "runhouse-oss", "rh.version": rh.__version__}
+    )
 
 
 class TelemetryAgentReceiver:
@@ -105,14 +115,26 @@ class TelemetryAgentReceiver:
 
     @classmethod
     def auth_token(cls):
-        # Use the token saved in the local config file (~/.rh/config.yaml)
-        # Note: this will be the cluster token for the cluster owner
-        cluster_token = configs.token
-        if cluster_token is None:
-            raise ValueError(
-                "No cluster token found, cannot configure telemetry agent auth"
+        """Token to authenticate with the collector backend. Must be a hashed cluster token. If on a cluster,
+        will use the cluster token already saved in the local config file."""
+        if rh.here == "file":
+            # Construct a new cluster token for the requesting user
+            username = configs.username
+            return rns_client.cluster_token(
+                resource_address=username, username=username
             )
-        return cluster_token
+
+        else:
+            # Use the token saved in the local config file (~/.rh/config.yaml)
+            # Note: this will be the cluster token for the cluster owner
+            cluster_token = configs.token
+
+            if cluster_token is None:
+                raise ValueError(
+                    "No cluster token found, cannot configure telemetry agent auth"
+                )
+
+            return cluster_token
 
     @classmethod
     def request_headers(cls):
