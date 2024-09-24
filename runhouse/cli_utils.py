@@ -193,7 +193,7 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
             )
 
 
-def print_envs_info(env_servlet_processes: Dict[str, Dict[str, Any]], current_cluster):
+def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluster):
     """
     Prints info about the envs in the current_cluster: resources in each env, the CPU usage and GPU usage of the env
     (if exists)
@@ -205,8 +205,7 @@ def print_envs_info(env_servlet_processes: Dict[str, Dict[str, Any]], current_cl
     console.print(envs_in_cluster_headline)
 
     env_resource_mapping = {
-        env: env_servlet_processes[env]["env_resource_mapping"]
-        for env in env_servlet_processes
+        env: servlet_processes[env]["env_resource_mapping"] for env in servlet_processes
     }
 
     if len(env_resource_mapping) == 0:
@@ -254,7 +253,7 @@ def print_envs_info(env_servlet_processes: Dict[str, Dict[str, Any]], current_cl
 
     for env_name in envs_to_print:
         resources_in_env = env_resource_mapping[env_name]
-        env_process_info = env_servlet_processes[env_name]
+        env_process_info = servlet_processes[env_name]
 
         # sometimes the env itself is not a resource (key) inside the env's servlet.
         if len(resources_in_env) == 0:
@@ -414,7 +413,7 @@ def print_status(status_data: dict, current_cluster) -> None:
 
     """Prints the status of the cluster to the console"""
     cluster_config = status_data.get("cluster_config")
-    env_servlet_processes = status_data.get("env_servlet_processes")
+    servlet_processes = status_data.get("env_servlet_processes")
 
     cluster_name = cluster_config.get("name", None)
 
@@ -458,7 +457,7 @@ def print_status(status_data: dict, current_cluster) -> None:
     console.print(server_util_info)
 
     # print the environments in the cluster, and the resources associated with each environment.
-    print_envs_info(env_servlet_processes, current_cluster)
+    print_envs_info(servlet_processes, current_cluster)
 
 
 def print_bring_cluster_up_msg(

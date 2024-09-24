@@ -1,10 +1,7 @@
 import json
 
-<<<<<<< HEAD
-=======
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
->>>>>>> 76d5382d (Split up `/call` and `/logs`.)
 import pytest
 
 import runhouse as rh

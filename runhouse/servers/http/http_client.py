@@ -456,7 +456,6 @@ class HTTPClient:
             )
         error_str = f"Error calling {method_name} on {key} on server"
 
-<<<<<<< HEAD
         # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
         # maybe a stream of results), so we need to separate these out.
         result = None
@@ -477,35 +476,6 @@ class HTTPClient:
             output_type = resp["output_type"]
             result = handle_response(
                 resp, output_type, error_str, log_formatter=self.log_formatter
-=======
-        with ThreadPoolExecutor() as executor:
-            # Run logs request in separate thread. Can start it before because it'll wait 5 seconds for the
-            # calls request to begin.
-            if stream_logs:
-                logs_future = executor.submit(
-                    thread_coroutine,
-                    self._alogs_request(
-                        run_name=run_name,
-                        serialization=serialization,
-                        error_str=error_str,
-                        create_async_client=True,
-                        headers=headers,
-                    ),
-                )
-            response = retry_with_exponential_backoff(session.post)(
-                self._formatted_url(f"{key}/{method_name}"),
-                json=CallParams(
-                    data=serialize_data(data, serialization),
-                    serialization=serialization,
-                    run_name=run_name,
-                    stream_logs=stream_logs,
-                    save=save,
-                    remote=remote,
-                ).model_dump(),
-                headers=headers or self._request_headers,
-                auth=self.auth,
-                verify=self.verify,
->>>>>>> 76d5382d (Split up `/call` and `/logs`.)
             )
 
             result = self._process_call_result(result, system, output_type)
