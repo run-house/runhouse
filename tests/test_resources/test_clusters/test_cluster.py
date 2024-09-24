@@ -214,8 +214,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_cluster_request_timeout(self, docker_cluster_pk_ssh_no_auth):
-        cluster = docker_cluster_pk_ssh_no_auth
+    def test_cluster_request_timeout(self, cluster):
         with pytest.raises(requests.exceptions.ReadTimeout):
             cluster._http_client.request_json(
                 endpoint="/status",
