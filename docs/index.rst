@@ -10,36 +10,56 @@
    <a class="github-button" href="https://github.com/run-house/runhouse/subscription" data-icon="octicon-eye" data-size="large" aria-label="Watch run-house/runhouse on GitHub">Watch</a>
    <a class="github-button" href="https://github.com/run-house/runhouse/fork" data-icon="octicon-repo-forked" data-size="large" aria-label="Fork run-house/runhouse on GitHub">Fork</a>
    </p>
-
-Why did we build Runhouse? To enable fast, debuggable, and iterable development of machine learning workflows.
-
-**Without Runhouse:** ML workflow is fragmented and iteration is slow
-
-- Researchers start in hosted notebooks or SSH'ed into a cluster:
-   - Fast and interactive development
-   - But usually non-standard compute environment and code
-- Research to production happens over the course of days or weeks:
-   - Notebook code needs translation to orchestrator nodes
-   - Most time spent waiting to rebuild and resubmit pipelines, with each iteration loop taking about 20+ minutes
-- Production debugging is challenging:
-   - Orchestrators designed for scheduling and logging runs, but are not development-friendly runtimes
-   - Continue "debug through deployment" that slowed down research to production in the first place
-
-**With Runhouse:** Regular code is dispatched to cloud compute for execution at every step
-
-- Researchers write normal code:
-   - Each dispatch takes <5 seconds, providing interactive development experience
-   - Code executes on the same compute and environment of production
-   - Logs stream back to local
-- Moving to production is instant:
-   - Orchestrator nodes contain 5 lines of dispatch code (not 500 lines of application code)
-   - Rather than being your ML runtime, orchestrators are simply used to schedule, log, and monitor runs
-- Easily debug or update pipelines in production:
-   - Branch the underlying code
-   - Make changes and dispatch iteratively, like in the research step
-   - Merge back into main
-
-In short, Runhouse makes ML development feel like normal software development.
+   <p>Why did we build Runhouse? To enable fast, debuggable, and iterable development of machine learning workflows.</p>
+   
+   <strong>Without Runhouse, the ML workflow is fragmented and iteration is slow</strong>
+   
+   <ul>
+     <li>Researchers start in hosted notebooks or SSH'ed into a cluster:
+       <ul>
+         <li>Fast and interactive development</li>
+         <li>But typically compute, environment, and code all look very different from production</li>
+       </ul>
+     </li>
+     <li>Research to production happens over the course of days or weeks:
+       <ul>
+         <li>Notebook code needs translation to orchestrator nodes</li>
+         <li>Iteration loops take about 20+ minutes, as engineers wait for pipelines to rebuild and rerun</li>
+       </ul>
+     </li>
+     <li>Production debugging is challenging:
+       <ul>
+         <li>Orchestrators designed for scheduling and logging runs, but are not development-friendly runtimes</li>
+         <li>Continue the slow "debug through deployment" process which plagued research to production as well</li>
+       </ul>
+     </li>
+   </ul>
+   
+   <strong>With Runhouse, serverless execution of regular code on your own cloud compute enables easy development and deployment</strong>
+   <ul>
+     <li>Researchers write normal code:
+       <ul>
+         <li>Each dispatch takes &lt;5 seconds, providing interactive development experience</li>
+         <li>Code executes on the same compute and environment as production</li>
+         <li>Logs stream back to local</li>
+       </ul>
+     </li>
+     <li>Moving to production is instant:
+       <ul>
+         <li>Orchestrator nodes contain 5 lines of dispatch code (not 200 lines of application code)</li>
+         <li>Rather than being your ML runtime, orchestrators are simply used to schedule, log, and monitor runs</li>
+       </ul>
+     </li>
+     <li>Easily debug or update pipelines in production:
+       <ul>
+         <li>Branch the underlying code</li>
+         <li>Make changes and dispatch iteratively, like in the research step</li>
+         <li>Merge back into main when the pipeline runs locally</li>
+       </ul>
+     </li>
+   </ul>
+   
+   <p>In short, Runhouse makes ML development feel like normal software development.</p>
 
 Table of Contents
 -----------------
