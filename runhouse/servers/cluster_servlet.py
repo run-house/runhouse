@@ -569,13 +569,12 @@ class ClusterServlet:
 
         # Getting data from each env servlet about the objects it contains and the utilization data
         env_servlet_utilization_data = {}
-        with self.lock:
-            env_servlets_status = await asyncio.gather(
-                *[
-                    self._status_for_env_servlet(env_servlet_name)
-                    for env_servlet_name in await self.aget_all_initialized_env_servlet_names()
-                ],
-            )
+        env_servlets_status = await asyncio.gather(
+            *[
+                self._status_for_env_servlet(env_servlet_name)
+                for env_servlet_name in await self.aget_all_initialized_env_servlet_names()
+            ],
+        )
 
         # Store the data for the appropriate env servlet name
         for env_status in env_servlets_status:

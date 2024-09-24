@@ -281,7 +281,9 @@ class TestResource:
         args = {"name": resource_name, "fn": summer}
 
         # Sending function to the cluster will save the function and associated env under the organization
-        f = rh.function(**args).to(docker_cluster_pk_ssh_den_auth, env=["pytest"])
+        f = rh.function(**args).to(
+            system=docker_cluster_pk_ssh_den_auth, env=["pytest"]
+        )
         init_args[id(f)] = args
 
         # Should be saved to Den under the org
@@ -290,6 +292,12 @@ class TestResource:
         # Reload the function with the rns address pointing to the org
         # This should work given the requesting user has org access
         reloaded_func = rh.function(name=resource_name)
+        print(
+            f"reloaded_func.system = {reloaded_func.system}, type = {type(reloaded_func.system)}"
+        )
+        print(
+            f"docker_cluster_pk_ssh_den_auth = {docker_cluster_pk_ssh_den_auth}, type = {type(docker_cluster_pk_ssh_den_auth)}"
+        )
         assert (
             reloaded_func.system.rns_address
             == docker_cluster_pk_ssh_den_auth.rns_address
