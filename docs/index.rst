@@ -11,9 +11,9 @@
    <a class="github-button" href="https://github.com/run-house/runhouse/fork" data-icon="octicon-repo-forked" data-size="large" aria-label="Fork run-house/runhouse on GitHub">Fork</a>
    </p>
    <p>Why did we build Runhouse? To enable fast, debuggable, and iterable development of machine learning workflows.</p>
-   
-   <strong>Without Runhouse, the ML workflow is fragmented and iteration is slow</strong>
-   
+
+   <strong>Without Runhouse, the ML workflow is fragmented and slow</strong>
+
    <ul>
      <li>Researchers start in hosted notebooks or SSH'ed into a cluster:
        <ul>
@@ -34,7 +34,7 @@
        </ul>
      </li>
    </ul>
-   
+
    <strong>With Runhouse, serverless execution of regular code on your own cloud compute enables easy development and deployment</strong>
    <ul>
      <li>Researchers write normal code:
@@ -58,7 +58,7 @@
        </ul>
      </li>
    </ul>
-   
+
    <p>In short, Runhouse makes ML development feel like normal software development.</p>
 
 Table of Contents
