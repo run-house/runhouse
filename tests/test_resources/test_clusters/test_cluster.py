@@ -1,3 +1,4 @@
+import datetime
 import os
 import subprocess
 import time
@@ -26,6 +27,7 @@ from tests.utils import (
     get_random_str,
     remove_config_keys,
 )
+
 
 """ TODO:
 1) In subclasses, test factory methods create same type as parent
@@ -551,6 +553,23 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             env_servlet_info_keys = list(env_servlet_info.keys())
             env_servlet_info_keys.sort()
             assert env_servlet_info_keys == expected_env_servlet_keys
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_rh_status_pythonic_delete_env(self, cluster):
+        env = rh.env(reqs=["pytest"], name=f"env_{datetime.datetime.utcnow()}").to(
+            cluster
+        )
+        summer_temp = rh.function(summer).to(env=env, system=cluster)
+        call_summer_temp = summer_temp(1, 3)
+        assert call_summer_temp == 4
+
+        # make sure status is calculated properly before temp_env deletion.
+        self.test_rh_status_pythonic(cluster=cluster)
+
+        cluster.delete(env.env_name)
+        # make sure status is calculated properly after temp_env deletion.
+        self.test_rh_status_pythonic(cluster=cluster)
 
     def status_cli_test_logic(self, cluster, status_cli_command: str):
         default_env_name = cluster.default_env.name
