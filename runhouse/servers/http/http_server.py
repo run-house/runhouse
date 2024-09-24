@@ -176,10 +176,10 @@ class HTTPServer:
 
         if not os.getenv("disable_observability", False):
             # Start the agent exporter on the head node (also needed for the cluster servlet)
-            from runhouse.servers.telemetry import TelemetryAgentExporter
+            from runhouse.servers.telemetry import TelemetryAgentReceiver
 
             try:
-                ta = TelemetryAgentExporter()
+                ta = TelemetryAgentReceiver()
                 ta.start()
 
             except Exception as e:

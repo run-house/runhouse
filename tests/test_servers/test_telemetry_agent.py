@@ -3,13 +3,14 @@ import uuid
 
 import pytest
 
+import runhouse
+
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
 from runhouse.globals import rns_client
 from runhouse.logger import get_logger
 from runhouse.servers.telemetry.metrics_collection import (
@@ -18,14 +19,16 @@ from runhouse.servers.telemetry.metrics_collection import (
 )
 from runhouse.servers.telemetry.telemetry_agent import (
     ErrorCapturingExporter,
-    TelemetryAgentExporter,
+    TelemetryAgentReceiver,
 )
 
 logger = get_logger(__name__)
 
 
 def provider_resource():
-    return Resource.create({"service.name": "runhouse-tests"})
+    return Resource.create(
+        {"service.name": "runhouse-tests", "rh.version": runhouse.__version__}
+    )
 
 
 def metrics_metadata():
@@ -120,7 +123,7 @@ class TestTelemetryAgent:
 
         endpoint = "grpc://telemetry.run.house"
         otlp_exporter = OTLPSpanExporter(
-            endpoint=endpoint, headers=TelemetryAgentExporter.request_headers()
+            endpoint=endpoint, headers=TelemetryAgentReceiver.request_headers()
         )
         error_capturing_exporter = ErrorCapturingExporter(otlp_exporter)
         span_processor = BatchSpanProcessor(error_capturing_exporter)
@@ -158,7 +161,7 @@ class TestTelemetryAgent:
     def test_interval_metrics_to_runhouse_collector_backend(self):
         """Generate cumulative metrics collection in-memory and send it to the Runhouse collector backend"""
         endpoint = "grpc://telemetry.run.house:443"
-        headers = TelemetryAgentExporter.request_headers()
+        headers = TelemetryAgentReceiver.request_headers()
 
         mc = MetricsCollector(
             metadata=metrics_metadata(),

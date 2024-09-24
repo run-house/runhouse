@@ -14,7 +14,6 @@ import ray
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
@@ -263,10 +262,10 @@ class ObjStore:
         return self._tracer
 
     def _initialize_telemetry_agent(self):
-        from runhouse.servers.telemetry import TelemetryAgentExporter
+        from runhouse.servers.telemetry import TelemetryAgentReceiver
 
         try:
-            ta = TelemetryAgentExporter()
+            ta = TelemetryAgentReceiver()
             ta.start()
             return ta
 
@@ -275,10 +274,12 @@ class ObjStore:
             return None
 
     def _initialize_tracer(self):
-        from runhouse.servers.telemetry.telemetry_agent import ErrorCapturingExporter
+        from runhouse.servers.telemetry.telemetry_agent import (
+            default_resource,
+            ErrorCapturingExporter,
+        )
 
-        resource = Resource.create({"service.name": "runhouse-oss"})
-        trace.set_tracer_provider(TracerProvider(resource=resource))
+        trace.set_tracer_provider(TracerProvider(resource=default_resource()))
         tracer = trace.get_tracer(__name__)
 
         # Export to local agent, which handles sending to the backend collector
@@ -1098,7 +1099,6 @@ class ObjStore:
             actor = self.env_servlet_cache[env_name]
             ray.kill(actor)
             del self.env_servlet_cache[env_name]
-
         deleted_keys = await self.aclear_all_references_to_env_servlet_name(env_name)
         return deleted_keys
 

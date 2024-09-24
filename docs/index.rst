@@ -1,5 +1,3 @@
-.. runhouse documentation master file, created by
-
 🏃‍♀️ Runhouse Docs 🏠
 ======================
 
@@ -13,6 +11,35 @@
    <a class="github-button" href="https://github.com/run-house/runhouse/fork" data-icon="octicon-repo-forked" data-size="large" aria-label="Fork run-house/runhouse on GitHub">Fork</a>
    </p>
 
+Why did we build Runhouse? To enable fast, debuggable, and iterable development of machine learning workflows.
+
+**Without Runhouse:** ML workflow is fragmented and iteration is slow
+
+- Researchers start in hosted notebooks or SSH'ed into a cluster:
+   - Fast and interactive development
+   - But usually non-standard compute environment and code
+- Research to production happens over the course of days or weeks:
+   - Notebook code needs translation to orchestrator nodes
+   - Most time spent waiting to rebuild and resubmit pipelines, with each iteration loop taking about 20+ minutes
+- Production debugging is challenging:
+   - Orchestrators designed for scheduling and logging runs, but are not development-friendly runtimes
+   - Continue "debug through deployment" that slowed down research to production in the first place
+
+**With Runhouse:** Regular code is dispatched to cloud compute for execution at every step
+
+- Researchers write normal code:
+   - Each dispatch takes <5 seconds, providing interactive development experience
+   - Code executes on the same compute and environment of production
+   - Logs stream back to local
+- Moving to production is instant:
+   - Orchestrator nodes contain 5 lines of dispatch code (not 500 lines of application code)
+   - Rather than being your ML runtime, orchestrators are simply used to schedule, log, and monitor runs
+- Easily debug or update pipelines in production:
+   - Branch the underlying code
+   - Make changes and dispatch iteratively, like in the research step
+   - Merge back into main
+
+In short, Runhouse makes ML development feel like normal software development.
 
 Table of Contents
 -----------------

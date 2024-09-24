@@ -15,6 +15,7 @@ import psutil
 import requests
 import yaml
 
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
@@ -37,6 +38,8 @@ logger = get_logger(__name__)
 
 @dataclass
 class TelemetryAgentConfig:
+    """Configuration for the local receiver agent."""
+
     http_port: int = TELEMETRY_AGENT_HTTP_PORT
     grpc_port: int = TELEMETRY_AGENT_GRPC_PORT
     health_check_port: int = TELEMETRY_AGENT_HEALTH_CHECK_PORT
@@ -50,8 +53,17 @@ class TelemetryAgentConfig:
 
 @dataclass
 class TelemetryCollectorConfig:
+    """Configuration for the backend telemetry collector."""
+
     endpoint: str = TELEMETRY_COLLECTOR_ENDPOINT
     status_url: str = TELEMETRY_COLLECTOR_STATUS_URL
+
+
+def default_resource():
+    """Create a default Resource for the OpenTelemetry SDK."""
+    return Resource.create(
+        {"service.name": "runhouse-oss", "rh.version": rh.__version__}
+    )
 
 
 class ErrorCapturingExporter(SpanExporter):
@@ -83,7 +95,7 @@ class ErrorCapturingExporter(SpanExporter):
         return self._errors
 
 
-class TelemetryAgentExporter:
+class TelemetryAgentReceiver:
     """Runs a local OpenTelemetry receiver instance for telemetry collection
 
     Key actions:
@@ -190,7 +202,7 @@ class TelemetryAgentExporter:
             auth_extension = {
                 "bearertokenauth/withscheme": {
                     "scheme": "Bearer",
-                    "token": TelemetryAgentExporter.auth_token(),
+                    "token": TelemetryAgentReceiver.auth_token(),
                 }
             }
             service_extensions.append("bearertokenauth/withscheme")

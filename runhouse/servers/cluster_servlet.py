@@ -15,6 +15,7 @@ import requests
 import runhouse as rh
 
 from runhouse.constants import (
+    DEFAULT_AUTOSTOP_CHECK_INTERVAL,
     DEFAULT_STATUS_CHECK_INTERVAL,
     GPU_COLLECTION_INTERVAL,
     INCREASED_STATUS_CHECK_INTERVAL,
@@ -101,6 +102,12 @@ class ClusterServlet:
             target=self.periodic_cluster_checks, daemon=True
         )
         self.cluster_checks_thread.start()
+
+        logger.debug("Creating autostop check thread.")
+        self.autostop_check_thread = threading.Thread(
+            target=self.periodic_autostop_check, daemon=True
+        )
+        self.autostop_check_thread.start()
 
     ##############################################
     # Metrics collection
@@ -277,14 +284,16 @@ class ClusterServlet:
     # Remove Env Servlet
     ##############################################
     async def aclear_all_references_to_env_servlet_name(self, env_servlet_name: str):
-        self._initialized_env_servlet_names.remove(env_servlet_name)
-        deleted_keys = [
-            key
-            for key, env in self._key_to_env_servlet_name.items()
-            if env == env_servlet_name
-        ]
-        for key in deleted_keys:
-            self._key_to_env_servlet_name.pop(key)
+        # using lock to prevent status thread access self._initialized_env_servlet_names before the env is deleted.
+        with self.lock:
+            self._initialized_env_servlet_names.remove(env_servlet_name)
+            deleted_keys = [
+                key
+                for key, env in self._key_to_env_servlet_name.items()
+                if env == env_servlet_name
+            ]
+            for key in deleted_keys:
+                self._key_to_env_servlet_name.pop(key)
         return deleted_keys
 
     ##############################################
@@ -366,6 +375,25 @@ class ClusterServlet:
 
         return logs_den_resp, new_start_log_line, new_end_log_line
 
+    async def aperiodic_autostop_check(self):
+        """Periodically check the autostop of the cluster"""
+        while True:
+            try:
+                should_update_autostop: bool = self.autostop_helper is not None
+                if should_update_autostop:
+                    status, _ = await self.acheck_cluster_status(send_to_den=False)
+                    await self._update_autostop(status)
+                    logger.debug("Successfully updated autostop")
+
+            except Exception as e:
+                logger.error(f"Autostop check has failed: {e}")
+
+            finally:
+                logger.debug(
+                    f"Autostop interval set to {DEFAULT_AUTOSTOP_CHECK_INTERVAL} seconds"
+                )
+                await asyncio.sleep(DEFAULT_AUTOSTOP_CHECK_INTERVAL)
+
     async def aperiodic_cluster_checks(self):
         """Periodically check the status of the cluster, gather metrics about the cluster's utilization & memory,
         and save it to Den."""
@@ -374,9 +402,8 @@ class ClusterServlet:
             should_send_status_and_logs_to_den: bool = (
                 configs.token is not None and self._cluster_uri is not None
             )
-            should_update_autostop: bool = self.autostop_helper is not None
 
-            if not should_send_status_and_logs_to_den and not should_update_autostop:
+            if not should_send_status_and_logs_to_den:
                 break
 
             cluster_config = await self.aget_cluster_config()
@@ -388,10 +415,6 @@ class ClusterServlet:
                 status, den_resp_code = await self.acheck_cluster_status(
                     send_to_den=should_send_status_and_logs_to_den
                 )
-
-                if should_update_autostop:
-                    logger.debug("Updating autostop")
-                    await self._update_autostop(status)
 
                 if interval_size == -1 or not should_send_status_and_logs_to_den:
                     continue
@@ -442,7 +465,7 @@ class ClusterServlet:
 
             except Exception as e:
                 logger.error(
-                    f"Cluster checks have failed: {e}\n"
+                    f"Cluster checks have failed: {e}.\n"
                     "Temporarily increasing the interval between status checks."
                 )
                 await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
@@ -461,6 +484,9 @@ class ClusterServlet:
         # This is only ever called once in its own thread, so we can do asyncio.run here instead of
         # sync_function.
         asyncio.run(self.aperiodic_cluster_checks())
+
+    def periodic_autostop_check(self):
+        asyncio.run(self.aperiodic_autostop_check())
 
     async def _update_autostop(self, status: dict):
         function_running = any(
@@ -583,12 +609,13 @@ class ClusterServlet:
 
         # Getting data from each env servlet about the objects it contains and the utilization data
         env_servlet_utilization_data = {}
-        env_servlets_status = await asyncio.gather(
-            *[
-                self._status_for_env_servlet(env_servlet_name)
-                for env_servlet_name in self._initialized_env_servlet_names
-            ],
-        )
+        with self.lock:
+            env_servlets_status = await asyncio.gather(
+                *[
+                    self._status_for_env_servlet(env_servlet_name)
+                    for env_servlet_name in await self.aget_all_initialized_env_servlet_names()
+                ],
+            )
 
         # Store the data for the appropriate env servlet name
         for env_status in env_servlets_status:

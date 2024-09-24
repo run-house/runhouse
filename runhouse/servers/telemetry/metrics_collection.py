@@ -6,20 +6,21 @@ import psutil
 from opentelemetry import metrics
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.sdk.metrics import MeterProvider
-
 from opentelemetry.sdk.metrics._internal.measurement import Measurement
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 
-import runhouse
 from runhouse.constants import METRICS_EXPORT_INTERVAL_MS
+from runhouse.logger import get_logger
+from runhouse.servers.telemetry.telemetry_agent import default_resource
+
+logger = get_logger(__name__)
 
 
 @dataclass
 class MetricsMetadata:
     username: str
     cluster_name: str
-    rh_version: str = runhouse.__version__
 
 
 class MetricsCollector:
@@ -32,7 +33,7 @@ class MetricsCollector:
     ):
         self._instrument_cache = {}
         self.metadata = metadata
-        self.resource = resource or Resource.create({"service.name": "runhouse-oss"})
+        self.resource = resource or default_resource()
         self.endpoint = agent_endpoint
         self.headers = headers
         self.meter = self._load_metrics_meter()
@@ -45,7 +46,7 @@ class MetricsCollector:
             else OTLPMetricExporter(endpoint=self.endpoint, insecure=True)
         )
 
-        # collect metrics based on a configured time interval
+        # Collect metrics based on a configured time interval
         metric_reader = PeriodicExportingMetricReader(
             metrics_exporter, export_interval_millis=METRICS_EXPORT_INTERVAL_MS
         )
