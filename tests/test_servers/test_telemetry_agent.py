@@ -90,7 +90,7 @@ class TestTelemetryAgent:
     @pytest.mark.level("local")
     def test_send_span_to_runhouse_collector_backend(self):
         """Generate a span in-memory and send it to the Runhouse collector backend"""
-        from runhouse.servers.telemetry import TelemetryAgentExporter
+        from runhouse.servers.telemetry import TelemetryAgentReceiver
 
         provider = TracerProvider()
         trace.set_tracer_provider(provider)
@@ -98,7 +98,7 @@ class TestTelemetryAgent:
 
         endpoint = "grpc://telemetry.run.house"
         otlp_exporter = OTLPSpanExporter(
-            endpoint=endpoint, headers=TelemetryAgentExporter.request_headers()
+            endpoint=endpoint, headers=TelemetryAgentReceiver.request_headers()
         )
         error_capturing_exporter = ErrorCapturingExporter(otlp_exporter)
         span_processor = BatchSpanProcessor(error_capturing_exporter)

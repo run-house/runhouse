@@ -35,6 +35,8 @@ logger = get_logger(__name__)
 
 @dataclass
 class TelemetryAgentConfig:
+    """Configuration for the local receiver agent."""
+
     http_port: int = TELEMETRY_AGENT_HTTP_PORT
     grpc_port: int = TELEMETRY_AGENT_GRPC_PORT
     health_check_port: int = TELEMETRY_AGENT_HEALTH_CHECK_PORT
@@ -48,6 +50,8 @@ class TelemetryAgentConfig:
 
 @dataclass
 class TelemetryCollectorConfig:
+    """Configuration for the backend telemetry collector."""
+
     endpoint: str = TELEMETRY_COLLECTOR_ENDPOINT
     status_url: str = TELEMETRY_COLLECTOR_STATUS_URL
 
@@ -81,7 +85,7 @@ class ErrorCapturingExporter(SpanExporter):
         return self._errors
 
 
-class TelemetryAgentExporter:
+class TelemetryAgentReceiver:
     """Runs a local OpenTelemetry receiver instance for telemetry collection
 
     Key actions:
@@ -176,7 +180,7 @@ class TelemetryAgentExporter:
             auth_extension = {
                 "bearertokenauth/withscheme": {
                     "scheme": "Bearer",
-                    "token": TelemetryAgentExporter.auth_token(),
+                    "token": TelemetryAgentReceiver.auth_token(),
                 }
             }
             service_extensions.append("bearertokenauth/withscheme")
