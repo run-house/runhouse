@@ -237,6 +237,11 @@ class RNSClient:
             "username": username or self._configs.username,
         }
 
+        # Add the client ID for constructing the token if specified in configs
+        client_id = self._configs.get("client_id")
+        if client_id:
+            token_payload["client_id"] = client_id
+
         headers = (
             {"Authorization": f"Bearer {den_token}"}
             if den_token
