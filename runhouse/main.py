@@ -650,6 +650,9 @@ def cluster_list():
     table.add_column("Cluster Type", justify="center", no_wrap=True)
     table.add_column("Status", justify="left")
 
+    running_clusters = []
+    not_running_clusters = []
+
     for den_cluster in clusters_in_den:
         # get just name, not full rns address. reset is used so the name will be printed all in white.
         cluster_name = f'[reset]{den_cluster.get("name").split("/")[-1]}'
@@ -657,14 +660,55 @@ def cluster_list():
         cluster_status = (
             den_cluster.get("status") if den_cluster.get("status") else "unknown"
         )
+
         cluster_status_colored = StatusColors.get_status_color(cluster_status)
         table.add_row(cluster_name, cluster_type, cluster_status_colored)
+        if cluster_status == "running":
+            running_clusters.append(
+                {
+                    "Name": cluster_name,
+                    "Cluster Type": cluster_type,
+                    "Status": cluster_status,
+                }
+            )
+        else:
+            not_running_clusters.append(
+                {
+                    "Name": cluster_name,
+                    "Cluster Type": cluster_type,
+                    "Status": cluster_status,
+                }
+            )
+
+    # TODO: will be used if we'll need to print not-running clusters
+    # Sort not-running clusters by the 'Status' column
+    # not_running_clusters = sorted(not_running_clusters, key=lambda x: x["Status"])
+
+    # creating the clusters table
+    total_clusters = len(clusters_in_den)
+    table_title = f"[bold cyan]{rns_client.username}'s Clusters (Running: {len(running_clusters)}, Total: {total_clusters})[/bold cyan]"
+    table = Table(title=table_title)
+
+    # Add columns to the table
+    table.add_column("Name", justify="left", no_wrap=True)
+    table.add_column("Cluster Type", justify="center", no_wrap=True)
+    table.add_column("Status", justify="left")
+
+    # TODO: will be used if we'll need to print not-running clusters
+    # all_clusters = running_clusters + not_running_clusters
+
+    for rh_cluster in running_clusters:
+        table.add_row(
+            rh_cluster.get("Name"),
+            rh_cluster.get("Cluster Type"),
+            StatusColors.get_status_color(rh_cluster.get("Status")),
+        )
 
     console.print(table)
 
     if len(sky_clusters) > 0:
         console.print(
-            f"There are {len(sky_clusters)} live clusters that are not saved in Den. For more information, please run [bold italic]sky status -r[/bold italic]."
+            f"There are {len(sky_clusters)} live cluster(s) that are not saved in Den. For more information, please run [bold italic]sky status -r[/bold italic]."
         )
 
 
