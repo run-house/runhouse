@@ -63,9 +63,6 @@ CONDA_INSTALL_CMDS = [
 # from platform import python_version; python_version()
 CONDA_PREFERRED_PYTHON_VERSION = "3.10.9"
 
-TEST_ORG = "test-org"
-TESTING_LOG_LEVEL = "INFO"
-
 EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"
 DEFAULT_DOCKER_CONTAINER_NAME = "sky_container"
 DOCKER_LOGIN_ENV_VARS = {

@@ -12,9 +12,10 @@ import pytest
 
 import runhouse as rh
 from runhouse import Package
-from runhouse.constants import TEST_ORG
 from runhouse.logger import get_logger
 from runhouse.utils import capture_stdout
+
+from tests.constants import TEST_ORG
 
 logger = get_logger(__name__)
 

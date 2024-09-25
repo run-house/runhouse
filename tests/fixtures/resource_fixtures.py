@@ -3,11 +3,11 @@ from datetime import datetime
 
 import pytest
 
-from runhouse.constants import TEST_ORG
 from runhouse.globals import rns_client
 from runhouse.resources.resource import Resource
-
 from tests.conftest import init_args
+
+from tests.constants import TEST_ORG
 
 ######## Constants ########
 
