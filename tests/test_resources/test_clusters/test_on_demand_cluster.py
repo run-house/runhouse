@@ -1,4 +1,6 @@
 import asyncio
+import shlex
+import threading
 import time
 
 import pytest
@@ -10,6 +12,7 @@ from runhouse.globals import rns_client
 from runhouse.resources.hardware.utils import ResourceServerStatus
 
 import tests.test_resources.test_clusters.test_cluster
+from tests.constants import TESTING_AUTOSTOP_INTERVAL
 from tests.utils import friend_account
 
 
@@ -29,6 +32,20 @@ def get_last_active_time_from_on_cluster():
     ah = rh.servers.autostop_helper.AutostopHelper()
 
     return asyncio.run(ah.get_last_active_time())
+
+
+def get_last_active_time_without_register(cluster):
+
+    register_activity_cmd = shlex.quote(
+        "from sky.skylet.autostop_lib import get_last_active_time; "
+        "print(get_last_active_time())"
+    )
+    sky_python_cmd = f"~/skypilot-runtime/bin/python -c {register_activity_cmd}"
+
+    retcode, out, err = cluster.run(sky_python_cmd)[0]
+    if retcode != 0:
+        raise Exception(f"Error when getting last active time: {err}")
+    return float(out)
 
 
 def register_activity_from_on_cluster():
@@ -147,7 +164,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         assert get_autostop() == original_autostop
 
     @pytest.mark.level("minimal")
-    def test_register_activity(self, cluster):
+    def test_autostop_register_activity(self, cluster):
         rh.env(
             working_dir="local:./", reqs=["pytest", "pandas"], name="autostop_env"
         ).to(cluster)
@@ -163,21 +180,52 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         # Check that last active is within the last 2 seconds
         assert get_last_active() > time.time() - 3
 
-    # TODO add a way to manually trigger the status loop to check that activity
-    #  is actually registered after a call
-    # cluster.call("autostop_env", "config")
-    # cluster.status()
-    # assert get_last_active() > time.time() - 2
+    @pytest.mark.level("minimal")
+    def test_autostop_call_updated(self, cluster):
+        time.sleep(TESTING_AUTOSTOP_INTERVAL)
+        last_active_time = get_last_active_time_without_register(cluster)
 
-    # TODO add a way to manually trigger the status loop to check that activity
-    #  is actually registered during a long running function
-    # from .test_cluster import sleep_fn
-    # sleep_remote = rh.fn(sleep_fn).to(cluster, env="autostop_env")
-    # Thread(target=sleep_remote, args=(3,)).start()
-    # time.sleep(2)
-    # cluster.status()
-    # # Check that last active is within the last second, so we know the activity wasn't just from the call itself
-    # assert get_last_active() > time.time() - 1
+        cluster.call("autostop_env", "config")
+
+        # check that last time updates within the next 10 sec
+        end_time = time.time() + TESTING_AUTOSTOP_INTERVAL
+        while time.time() < end_time:
+            if get_last_active_time_without_register(cluster) > last_active_time:
+                assert True
+                break
+            time.sleep(5)
+        assert (
+            get_last_active_time_without_register(cluster) > last_active_time
+        ), "Function call activity not registered in autostop"
+
+    @pytest.mark.level("minimal")
+    def test_autostop_function_running(self, cluster):
+        # test autostop loop runs once / 10 sec, reset from previous update
+        time.sleep(TESTING_AUTOSTOP_INTERVAL)
+        prev_last_active = get_last_active_time_without_register(cluster)
+
+        from .test_cluster import sleep_fn
+
+        sleep_remote = rh.fn(sleep_fn).to(cluster, env="autostop_env")
+        sleep_time = TESTING_AUTOSTOP_INTERVAL * 4
+        threading.Thread(target=sleep_remote, args=(sleep_time,)).start()
+
+        # check that function call registers
+        time.sleep(TESTING_AUTOSTOP_INTERVAL)
+        last_active = get_last_active_time_without_register(cluster)
+        assert last_active > prev_last_active
+        prev_last_active = last_active
+
+        # check that running function updates again within the next 60 seconds
+        end_time = time.time() + TESTING_AUTOSTOP_INTERVAL
+        while time.time() < end_time:
+            if get_last_active_time_without_register(cluster) > prev_last_active:
+                assert True
+                break
+            time.sleep(5)
+        assert (
+            get_last_active_time_without_register(cluster) > prev_last_active
+        ), "Function call activity not registered in autostop"
 
     @pytest.mark.level("release")
     def test_cluster_ping_and_is_up(self, cluster):
