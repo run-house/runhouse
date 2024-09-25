@@ -635,7 +635,8 @@ def cluster_list(
         if show_all or since or cluster_status:
             no_clusters_msg += " that match the provided filters"
         console.print(no_clusters_msg)
-        print_sky_clusters_msg(len(sky_clusters))
+        if sky_clusters:
+            print_sky_clusters_msg(len(sky_clusters))
         return
 
     filters_requested: bool = show_all or since or cluster_status
@@ -661,7 +662,8 @@ def cluster_list(
     console.print(table)
 
     # print msg about un-saved live sky clusters.
-    print_sky_clusters_msg(len(sky_clusters))
+    if sky_clusters:
+        print_sky_clusters_msg(len(sky_clusters))
 
 
 # Register the 'cluster' command group with the main runhouse application
