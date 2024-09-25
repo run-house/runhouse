@@ -341,8 +341,8 @@ class ClusterServlet:
 
     async def aperiodic_autostop_check(self):
         """Periodically check the autostop of the cluster"""
-        autostop_interval = os.getenv(
-            "RH_AUTOSTOP_INTERVAL", DEFAULT_AUTOSTOP_CHECK_INTERVAL
+        autostop_interval = int(
+            os.getenv("RH_AUTOSTOP_INTERVAL", DEFAULT_AUTOSTOP_CHECK_INTERVAL)
         )
         while True:
             try:

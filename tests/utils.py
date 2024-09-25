@@ -11,12 +11,13 @@ import requests
 
 import runhouse as rh
 import yaml
-from runhouse.constants import TESTING_LOG_LEVEL
 
 from runhouse.globals import rns_client
 
 from runhouse.resources.hardware.utils import ResourceServerStatus
 from runhouse.servers.obj_store import get_cluster_servlet, ObjStore, RaySetupOption
+
+from tests.constants import TESTING_AUTOSTOP_INTERVAL, TESTING_LOG_LEVEL
 
 
 def get_ray_env_servlet_and_obj_store(env_name):
@@ -150,7 +151,9 @@ def test_env(logged_in=False):
         working_dir=None,
         env_vars={
             "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
-            "RH_AUTOSTOP_INTERVAL": os.getenv("RH_AUTOSTOP_INTERVAL"),
+            "RH_AUTOSTOP_INTERVAL": str(
+                os.getenv("RH_AUTOSTOP_INTERVAL") or TESTING_AUTOSTOP_INTERVAL
+            ),
         },
         setup_cmds=[
             f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
