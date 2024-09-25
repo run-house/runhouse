@@ -11,7 +11,7 @@ import requests
 
 import runhouse as rh
 import yaml
-from runhouse.constants import TESTING_LOG_LEVEL
+from runhouse.constants import DEFAULT_AUTOSTOP_CHECK_INTERVAL, TESTING_LOG_LEVEL
 
 from runhouse.globals import rns_client
 
@@ -150,7 +150,9 @@ def test_env(logged_in=False):
         working_dir=None,
         env_vars={
             "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
-            "RH_AUTOSTOP_INTERVAL": os.getenv("RH_AUTOSTOP_INTERVAL"),
+            "RH_AUTOSTOP_INTERVAL": str(
+                os.getenv("RH_AUTOSTOP_INTERVAL") or DEFAULT_AUTOSTOP_CHECK_INTERVAL
+            ),
         },
         setup_cmds=[
             f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "

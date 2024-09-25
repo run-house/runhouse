@@ -6,6 +6,7 @@ import pytest
 import runhouse as rh
 
 from runhouse.constants import (
+    DEFAULT_AUTOSTOP_CHECK_INTERVAL,
     DEFAULT_HTTPS_PORT,
     EMPTY_DEFAULT_ENV_NAME,
     TESTING_LOG_LEVEL,
@@ -95,7 +96,9 @@ def ondemand_gcp_cluster(request):
         "var1": "val1",
         "var2": "val2",
         "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
-        "RH_AUTOSTOP_INTERVAL": os.getenv("RH_AUTOSTOP_INTERVAL"),
+        "RH_AUTOSTOP_INTERVAL": str(
+            os.getenv("RH_AUTOSTOP_INTERVAL") or DEFAULT_AUTOSTOP_CHECK_INTERVAL
+        ),
     }
     default_env = rh.conda_env(
         name="default_env",

@@ -13,6 +13,7 @@ import pytest
 import runhouse as rh
 
 from runhouse.constants import (
+    DEFAULT_AUTOSTOP_CHECK_INTERVAL,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
     DEFAULT_SSH_PORT,
@@ -381,7 +382,9 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
         name="default_env",
         env_vars={
             "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
-            "RH_AUTOSTOP_INTERVAL": os.getenv("RH_AUTOSTOP_INTERVAL"),
+            "RH_AUTOSTOP_INTERVAL": str(
+                os.getenv("RH_AUTOSTOP_INTERVAL") or DEFAULT_AUTOSTOP_CHECK_INTERVAL
+            ),
         },
     )
 
@@ -488,7 +491,9 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
         env_vars={
             "OMP_NUM_THREADS": "8",
             "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
-            "RH_AUTOSTOP_INTERVAL": os.getenv("RH_AUTOSTOP_INTERVAL"),
+            "RH_AUTOSTOP_INTERVAL": str(
+                os.getenv("RH_AUTOSTOP_INTERVAL") or DEFAULT_AUTOSTOP_CHECK_INTERVAL
+            ),
         },
         working_dir=None,
         name="default_env",
