@@ -379,7 +379,10 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
         ],
         working_dir=None,
         name="default_env",
-        env_vars={"RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL},
+        env_vars={
+            "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
+            "RH_AUTOSTOP_INTERVAL": os.getenv("RH_AUTOSTOP_INTERVAL"),
+        },
     )
 
     local_cluster, cleanup = set_up_local_cluster(
@@ -485,6 +488,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
         env_vars={
             "OMP_NUM_THREADS": "8",
             "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
+            "RH_AUTOSTOP_INTERVAL": os.getenv("RH_AUTOSTOP_INTERVAL"),
         },
         working_dir=None,
         name="default_env",
