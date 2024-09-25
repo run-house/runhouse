@@ -65,7 +65,7 @@ class Secret(Resource):
         private_key_value, public_key_value = new_creds_values.get(
             "private_key"
         ), new_creds_values.get("public_key")
-        private_key_path = public_key_path = Path(f"{path}").expanduser()
+        private_key_path = public_key_path = Path(path).expanduser()
         if private_key_value:
             if not private_key_path.exists():
                 os.makedirs(str(private_key_path))
