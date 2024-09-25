@@ -250,7 +250,7 @@ class Defaults:
     # TODO [DG] allow hierarchical defaults from folders and groups
     def get(self, key: str, alt: Any = None) -> Any:
         # Prioritize env vars
-        env_var = os.getenv(key.upper())
+        env_var = os.getenv(f"RH_{key.upper()}") or os.getenv(key.upper())
         if env_var is not None:
             return env_var
 

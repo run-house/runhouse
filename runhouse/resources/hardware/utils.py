@@ -314,10 +314,7 @@ def parse_filters(since: str, cluster_status: str):
 
 
 def get_clusters_from_den(cluster_filters: dict):
-    get_clusters_params = {
-        "resource_type": "cluster",
-        "folder": rns_client.username,
-    }
+    get_clusters_params = {"resource_type": "cluster", "folder": rns_client.username}
 
     # send den request with filters if the user specifies filters.
     # If "all" filter is specified - get all clusters (no filters are added to get_clusters_params)
@@ -366,7 +363,7 @@ def get_running_and_not_running_clusters(clusters: list):
 
     for den_cluster in clusters:
         # get just name, not full rns address. reset is used so the name will be printed all in white.
-        cluster_name = f'[reset]{den_cluster.get("name").split("/")[-1]}'
+        cluster_name = den_cluster.get("name").split("/")[-1]
         cluster_type = den_cluster.get("data").get("resource_subtype")
         cluster_status = (
             den_cluster.get("status") if den_cluster.get("status") else "unknown"
