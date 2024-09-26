@@ -37,7 +37,7 @@ spec:
             name: my-secret
             key: RUNHOUSE_API_KEY
       source: |
-        # We show the code here for illustrative purposes, but you should containerize based on what is canonical for your team. Runhouse does not require any special setup.
+        # We show the code here for simpler illustration of the workflow, but Runhouse does not require any special setup. Use scripts or containers, as you prefer.
         import runhouse as rh
 
         # First we configure the environment to setup Runhouse and AWS credentials
