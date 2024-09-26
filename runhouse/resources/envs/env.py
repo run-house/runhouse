@@ -76,7 +76,8 @@ class Env(Resource):
     @staticmethod
     def _set_env_vars(env_vars):
         for k, v in env_vars.items():
-            os.environ[k] = v
+            if v is not None:
+                os.environ[k] = v
 
     def add_env_var(self, key: str, value: str):
         """Add an env var to the environment. Environment must be re-installed to propagate new

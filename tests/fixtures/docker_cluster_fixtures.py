@@ -17,12 +17,12 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_SSH_PORT,
     EMPTY_DEFAULT_ENV_NAME,
-    TESTING_LOG_LEVEL,
 )
 from runhouse.globals import rns_client
 from runhouse.resources.hardware.utils import ResourceServerStatus
-
 from tests.conftest import init_args
+
+from tests.constants import TESTING_LOG_LEVEL
 from tests.utils import friend_account, test_env
 
 SSH_USER = "rh-docker-user"
@@ -379,7 +379,9 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
         ],
         working_dir=None,
         name="default_env",
-        env_vars={"RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL},
+        env_vars={
+            "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
+        },
     )
 
     local_cluster, cleanup = set_up_local_cluster(

@@ -341,6 +341,9 @@ class ClusterServlet:
 
     async def aperiodic_autostop_check(self):
         """Periodically check the autostop of the cluster"""
+        autostop_interval = int(
+            os.getenv("RH_AUTOSTOP_INTERVAL", DEFAULT_AUTOSTOP_CHECK_INTERVAL)
+        )
         while True:
             try:
                 should_update_autostop: bool = self.autostop_helper is not None
@@ -353,10 +356,8 @@ class ClusterServlet:
                 logger.error(f"Autostop check has failed: {e}")
 
             finally:
-                logger.debug(
-                    f"Autostop interval set to {DEFAULT_AUTOSTOP_CHECK_INTERVAL} seconds"
-                )
-                await asyncio.sleep(DEFAULT_AUTOSTOP_CHECK_INTERVAL)
+                logger.debug(f"Autostop interval set to {autostop_interval} seconds")
+                await asyncio.sleep(autostop_interval)
 
     async def aperiodic_cluster_checks(self):
         """Periodically check the status of the cluster, gather metrics about the cluster's utilization & memory,
