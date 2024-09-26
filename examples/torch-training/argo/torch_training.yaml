@@ -1,0 +1,146 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: pytorch-training-pipeline-
+spec:
+  entrypoint: pytorch-training-pipeline
+  templates:
+  - name: pytorch-training-pipeline
+    steps:
+    - - name: bring-up-cluster
+        template: bring-up-cluster-task
+    - - name: access-data
+        template: access-data-task
+    - - name: train-model
+        template: train-model-task
+    - - name: down-cluster
+        template: down-cluster-task
+
+  - name: bring-up-cluster-task
+    script:
+      image: pypypypy/my-kubeflow-pipeline-image:latest
+      command: [python]
+      env:
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: my-secret
+            key: AWS_ACCESS_KEY_ID
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: my-secret
+            key: AWS_SECRET_ACCESS_KEY
+      - name: RUNHOUSE_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: my-secret
+            key: RUNHOUSE_API_KEY
+      source: |
+        # We show the code here for illustrative purposes, but you should containerize based on what is canonical for your team. Runhouse does not require any special setup.
+        import runhouse as rh
+
+        # First we configure the environment to setup Runhouse and AWS credentials
+        import os
+        rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
+
+        import subprocess
+        subprocess.run(
+            [
+                "aws",
+                "configure",
+                "set",
+                "aws_access_key_id",
+                os.getenv("AWS_ACCESS_KEY_ID"),
+            ],
+            check=True,
+        )
+        subprocess.run(
+            [
+                "aws",
+                "configure",
+                "set",
+                "aws_secret_access_key",
+                os.getenv("AWS_SECRET_ACCESS_KEY"),
+            ],
+            check=True,
+        )
+
+        # Now we bring up the cluster
+        cluster = rh.ondemand_cluster(
+            name="rh-a10g", instance_type="A10G:1", provider="aws"
+        ).up_if_not()
+
+        print(cluster.is_up())
+        cluster.save()
+
+  - name: access-data-task
+    script:
+      image: pypypypy/my-kubeflow-pipeline-image:latest
+      command: [python]
+      env:
+      - name: RUNHOUSE_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: my-secret
+            key: RUNHOUSE_API_KEY
+      source: |
+        import runhouse as rh
+        import os
+        rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
+
+        env = rh.env(name="test_env", reqs=["torch", "torchvision"])
+        # I am adding /paul/ since I have saved the cluster to Runhouse with my account.
+        cluster = rh.cluster(name="/paul/rh-a10g").up_if_not()
+        remote_download = rh.function(download_data).to(cluster, env=env)
+        remote_preprocess = rh.function(preprocess_data).to(cluster, env=env)
+
+        remote_download()
+        remote_preprocess()
+
+  - name: train-model-task
+    script:
+      image: pypypypy/my-kubeflow-pipeline-image:latest
+      command: [python]
+      source: |
+        import runhouse as rh
+        import os
+        rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
+
+        cluster = rh.cluster(name="/paul/rh-a10g").up_if_not()
+
+        env = rh.env(name="test_env", reqs=["torch", "torchvision"])
+
+        remote_torch_example = rh.module(SimpleTrainer).to(
+            cluster, env=env, name="torch-basic-training"
+        )
+
+        model = remote_torch_example()
+
+        batch_size = 64
+        epochs = 5
+        learning_rate = 0.01
+
+        model.load_train("./data", batch_size)
+        model.load_test("./data", batch_size)
+
+        for epoch in range(epochs):
+            model.train_model(learning_rate=learning_rate)
+            model.test_model()
+            model.save_model(
+                bucket_name="my-simple-torch-model-example",
+                s3_file_path=f"checkpoints/model_epoch_{epoch + 1}.pth",
+            )
+
+
+  - name: down-cluster-task
+    script:
+      image: pypypypy/my-kubeflow-pipeline-image:latest
+      command: [python]
+      source: |
+        import runhouse as rh
+        import os
+        rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
+
+        cluster = rh.cluster(name="/paul/rh-a10g")
+        cluster.teardown()
