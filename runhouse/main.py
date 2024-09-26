@@ -26,6 +26,7 @@ from runhouse import __version__, cluster, Cluster, configs
 from runhouse.constants import (
     BULLET_UNICODE,
     DOUBLE_SPACE_UNICODE,
+    MAX_CLUSTERS_DISPLAY,
     RAY_KILL_CMD,
     RAY_START_CMD,
     SERVER_LOGFILE,
@@ -40,9 +41,22 @@ from runhouse.resources.hardware.ray_utils import (
     check_for_existing_ray_instance,
     kill_actors,
 )
+from runhouse.resources.hardware.utils import ClustersListStatus
+from runhouse.utils import (
+    add_clusters_to_output_table,
+    create_output_table,
+    print_sky_clusters_msg,
+)
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
+
+# creating a cluster app so we could create subcommands of cluster (i.e runhouse cluster list)
+italic_bold_ansi = "\x1B[3m\x1B[1m"
+reset_format = "\x1B[0m"
+cluster_app = typer.Typer(
+    help=f"Cluster information commands. For more info run {italic_bold_ansi}runhouse cluster --help{reset_format}"
+)
 
 # For printing with typer
 console = Console()
@@ -512,6 +526,9 @@ def _print_status(status_data: dict, current_cluster: Cluster) -> None:
     _print_envs_info(env_servlet_processes, current_cluster)
 
 
+###############################
+# Cluster CLI commands
+###############################
 @app.command()
 def status(
     cluster_name: str = typer.Argument(
@@ -574,6 +591,83 @@ def status(
         return
 
     _print_status(cluster_status, current_cluster)
+
+
+@cluster_app.command("list")
+def cluster_list(
+    show_all: bool = typer.Option(
+        False,
+        "-a",
+        "--all",
+        help=f"Get all clusters saved in Den. Up to {MAX_CLUSTERS_DISPLAY} most recently active clusters will be displayed.",
+    ),
+    since: Optional[str] = typer.Option(
+        None,
+        "--since",
+        help="Time duration to filter on. Minimum allowable filter is 1 minute. You may filter by seconds (s), "
+        "minutes (m), hours (h) or days (s). Examples: 30s, 15m, 2h, 3d.",
+    ),
+    cluster_status: Optional[ClustersListStatus] = typer.Option(
+        None,
+        "--status",
+        help="Cluster status to filter on. Supported filter values: running, terminated (cluster is not live), down (Runhouse server is down, but the cluster might be live).",
+    ),
+):
+    """Load Runhouse clusters"""
+
+    # logged out case
+    if not rh.configs.token:
+        # TODO [SB]: adjust msg formatting (coloring etc)
+        sky_cli_command_formatted = f"{italic_bold_ansi}sky status -r{reset_format}"  # will be printed bold and italic
+        console.print(
+            f"Listing clusters requires a Runhouse token. Please run  `runhouse login` to get your token, or run {sky_cli_command_formatted} to list locally stored on-demand clusters."
+        )
+        return
+
+    clusters = Cluster.list(show_all=show_all, since=since, status=cluster_status)
+
+    all_clusters = clusters.get("all_clusters", None)
+    running_clusters = clusters.get("running_clusters", None)
+    sky_clusters = clusters.get("sky_clusters", None)
+
+    if not all_clusters:
+        no_clusters_msg = f"No clusters found in Den for {rns_client.username}"
+        if show_all or since or cluster_status:
+            no_clusters_msg += " that match the provided filters"
+        console.print(no_clusters_msg)
+        if sky_clusters:
+            print_sky_clusters_msg(len(sky_clusters))
+        return
+
+    filters_requested: bool = show_all or since or cluster_status
+
+    clusters_to_print = all_clusters if filters_requested else running_clusters
+
+    if show_all:
+        # if user requesting all den cluster, limit print only to 50 clusters max.
+        clusters_to_print = clusters_to_print[
+            : (min(len(clusters_to_print), MAX_CLUSTERS_DISPLAY))
+        ]
+
+    # creating the clusters table
+    table = create_output_table(
+        total_clusters=len(all_clusters),
+        running_clusters=len(running_clusters),
+        displayed_clusters=len(clusters_to_print),
+        filters_requested=filters_requested,
+    )
+
+    add_clusters_to_output_table(table=table, clusters=clusters_to_print)
+
+    console.print(table)
+
+    # print msg about un-saved live sky clusters.
+    if sky_clusters:
+        print_sky_clusters_msg(len(sky_clusters))
+
+
+# Register the 'cluster' command group with the main runhouse application
+app.add_typer(cluster_app, name="cluster")
 
 
 def load_cluster(cluster_name: str):

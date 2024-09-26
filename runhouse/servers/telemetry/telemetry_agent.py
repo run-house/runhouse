@@ -5,6 +5,8 @@ import subprocess
 import tarfile
 import time
 import urllib
+
+from builtins import bool
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +16,8 @@ import requests
 import yaml
 
 from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
 import runhouse as rh
 from runhouse.constants import (
@@ -60,6 +64,35 @@ def default_resource():
     return Resource.create(
         {"service.name": "runhouse-oss", "rh.version": rh.__version__}
     )
+
+
+class ErrorCapturingExporter(SpanExporter):
+    """Wraps an existing SpanExporter and captures any export errors."""
+
+    def __init__(self, wrapped_exporter: SpanExporter):
+        self._wrapped_exporter = wrapped_exporter
+        self._errors = []
+
+    def export(self, spans: list[ReadableSpan]) -> SpanExportResult:
+        """Capture any export errors from the wrapped exporter."""
+        result = self._wrapped_exporter.export(spans)
+        if result == SpanExportResult.FAILURE:
+            error_message = f"Failed to export spans: {[span.name for span in spans]}"
+            self._errors.append(error_message)
+            logger.error(error_message)
+        return result
+
+    def shutdown(self) -> None:
+        self._wrapped_exporter.shutdown()
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        return self._wrapped_exporter.force_flush(timeout_millis)
+
+    def has_errors(self):
+        return len(self._errors) > 0
+
+    def get_errors(self):
+        return self._errors
 
 
 class TelemetryAgentReceiver:

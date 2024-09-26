@@ -63,9 +63,6 @@ CONDA_INSTALL_CMDS = [
 # from platform import python_version; python_version()
 CONDA_PREFERRED_PYTHON_VERSION = "3.10.9"
 
-TEST_ORG = "test-org"
-TESTING_LOG_LEVEL = "INFO"
-
 EMPTY_DEFAULT_ENV_NAME = "_cluster_default_env"
 DEFAULT_DOCKER_CONTAINER_NAME = "sky_container"
 DOCKER_LOGIN_ENV_VARS = {
@@ -80,6 +77,7 @@ BULLET_UNICODE = "\u2022"
 SECOND = 1
 MINUTE = 60
 HOUR = 3600
+DAY = HOUR * 24
 DEFAULT_STATUS_CHECK_INTERVAL = 1 * MINUTE
 DEFAULT_AUTOSTOP_CHECK_INTERVAL = 1 * MINUTE
 INCREASED_STATUS_CHECK_INTERVAL = 1 * HOUR
@@ -102,6 +100,13 @@ SERVER_LOGS_FILE_NAME = "server.log"
 DEFAULT_SURFACED_LOG_LENGTH = 20
 # Constants for schedulers
 INCREASED_INTERVAL = 1 * HOUR
+
+# Constants runhouse cluster list
+LAST_ACTIVE_AT_TIMEFRAME = 24 * HOUR
+MAX_CLUSTERS_DISPLAY = 50
+
+# in seconds
+TIME_UNITS = {"s": SECOND, "m": MINUTE, "h": HOUR, "d": DAY}
 
 # Telemetry constants
 OTEL_VERSION = "0.108.0"
