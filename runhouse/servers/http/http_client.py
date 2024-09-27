@@ -97,8 +97,12 @@ class HTTPClient:
             # setting of "True", which will verify the cluster's SSL certs
             self.verify = self.cert_path if self._certs_are_self_signed() else True
 
+        import ssl
+
+        ssl_context = ssl.create_default_context(cafile=self.verify)
+
         self.async_session = httpx.AsyncClient(
-            auth=self.auth, verify=self.verify, timeout=None
+            auth=self.auth, verify=ssl_context, timeout=None
         )
 
         self.log_formatter = ClusterLogsFormatter(self.system)
@@ -570,9 +574,17 @@ class HTTPClient:
         # When running this in another thread, we need to explicitly create an async client here. When running within
         # the main thread, we can use the client that was passed in.
         if create_async_client:
-            client = httpx.AsyncClient(auth=self.auth, verify=self.verify, timeout=None)
+            import ssl
+
+            ssl_context = ssl.create_default_context(cafile=self.verify)
+            client = httpx.AsyncClient(auth=self.auth, verify=ssl_context, timeout=None)
         else:
             client = self.async_session
+
+        if self.verify and not Path(self.verify).exists():
+            raise FileNotFoundError(
+                f"Certificate file not found in path: {self.verify}"
+            )
 
         async with client.stream(
             "GET",

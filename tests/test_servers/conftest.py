@@ -51,14 +51,14 @@ def cert_config():
 
 
 @pytest.fixture(scope="function")
-def http_client(cluster, cert_config):
+def http_client(cluster):
     addr = cluster.endpoint()
     with httpx.Client(base_url=addr, timeout=None, verify=False) as client:
         yield client
 
 
 @pytest_asyncio.fixture(scope="function")
-async def async_http_client(cluster, cert_config):
+async def async_http_client(cluster):
     addr = cluster.endpoint()
     async with httpx.AsyncClient(base_url=addr, timeout=None, verify=False) as client:
         yield client
