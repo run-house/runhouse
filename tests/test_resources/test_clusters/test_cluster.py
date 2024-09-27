@@ -1,6 +1,9 @@
+import json
 import os
 import subprocess
 import time
+
+from datetime import datetime, timezone
 from threading import Thread
 
 import pytest
@@ -12,9 +15,14 @@ from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_PORT,
+    HOUR,
+    LAST_ACTIVE_AT_TIMEFRAME,
     LOCALHOST,
+    MINUTE,
 )
+from runhouse.globals import rns_client
 
+from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import ResourceServerStatus
 
 import tests.test_resources.test_resource
@@ -24,8 +32,12 @@ from tests.utils import (
     friend_account,
     friend_account_in_org,
     get_random_str,
+    org_friend_account,
     remove_config_keys,
+    set_cluster_status,
+    set_output_env_vars,
 )
+
 
 """ TODO:
 1) In subclasses, test factory methods create same type as parent
@@ -212,8 +224,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_cluster_request_timeout(self, docker_cluster_pk_ssh_no_auth):
-        cluster = docker_cluster_pk_ssh_no_auth
+    def test_cluster_request_timeout(self, cluster):
         with pytest.raises(requests.exceptions.ReadTimeout):
             cluster._http_client.request_json(
                 endpoint="/status",
@@ -552,6 +563,21 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             env_servlet_info_keys.sort()
             assert env_servlet_info_keys == expected_env_servlet_keys
 
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_rh_status_pythonic_delete_env(self, cluster):
+        env = rh.env(reqs=["pytest"], name=f"env_{datetime.utcnow()}").to(cluster)
+        summer_temp = rh.function(summer).to(env=env, system=cluster)
+        call_summer_temp = summer_temp(1, 3)
+        assert call_summer_temp == 4
+
+        # make sure status is calculated properly before temp_env deletion.
+        self.test_rh_status_pythonic(cluster=cluster)
+
+        cluster.delete(env.env_name)
+        # make sure status is calculated properly after temp_env deletion.
+        self.test_rh_status_pythonic(cluster=cluster)
+
     def status_cli_test_logic(self, cluster, status_cli_command: str):
         default_env_name = cluster.default_env.name
 
@@ -665,7 +691,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_send_status_to_db(self, cluster):
-        import json
 
         status = cluster.status()
         env_servlet_processes = status.pop("env_servlet_processes")
@@ -936,3 +961,292 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # set it back
         cluster.default_env = test_env
         cluster.delete(new_env.name)
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_observability_enabled_by_default_on_cluster(self, cluster):
+        # Disable observability locally, which will be reflected on the cluster once the server is restarted
+        rh.configs.disable_observability()
+        cluster.restart_server()
+
+        if cluster._default_env:
+            env_vars = cluster._default_env.env_vars
+            assert env_vars.get("disable_observability") == "True"
+
+    ####################################################################################################
+    # Cluster list test
+    ####################################################################################################
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_list_pythonic(self, cluster):
+        original_username = rns_client.username
+        new_username = (
+            "test-org"
+            if cluster.rns_address.startswith("/test-org/")
+            else original_username
+        )
+
+        with org_friend_account(
+            new_username=new_username,
+            token=rns_client.token,
+            original_username=original_username,
+        ):
+            clusters = Cluster.list()
+            all_clusters = clusters.get("all_clusters", {})
+            running_clusters = clusters.get("running_clusters", {})
+            assert len(all_clusters) > 0
+            assert len(running_clusters) > 0
+            assert len(running_clusters) == len(
+                all_clusters
+            )  # by default we get only running clusters
+
+            all_clusters_names = [
+                den_cluster.get("Name") for den_cluster in all_clusters
+            ]
+            running_clusters_names = [
+                running_cluster.get("Name") for running_cluster in running_clusters
+            ]
+            assert cluster.name in running_clusters_names
+            assert cluster.name in all_clusters_names
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_list_all_pythonic(self, cluster):
+        original_username = rns_client.username
+        new_username = (
+            "test-org"
+            if cluster.rns_address.startswith("/test-org/")
+            else original_username
+        )
+
+        with org_friend_account(
+            new_username=new_username,
+            token=rns_client.token,
+            original_username=original_username,
+        ):
+            # make sure that we at least one terminated cluster for the tests, (does not matter if the status is mocked)
+            set_cluster_status(cluster=cluster, status=ResourceServerStatus.terminated)
+            clusters = Cluster.list(show_all=True)
+            all_clusters = clusters.get("all_clusters", {})
+            running_clusters = clusters.get("running_clusters", {})
+            assert 0 <= len(all_clusters) <= 200  # den limit
+            assert len(all_clusters) >= len(running_clusters)
+
+            all_clusters_status = set(
+                [den_cluster.get("Status") for den_cluster in all_clusters]
+            )
+
+            # testing that we don't get just running clusters
+            assert len(all_clusters) > 1
+
+            assert ResourceServerStatus.running.value in all_clusters_status
+            assert ResourceServerStatus.terminated.value in all_clusters_status
+
+            current_cluster_info = [
+                den_cluster
+                for den_cluster in all_clusters
+                if den_cluster.get("Name") == cluster.name
+            ][0]
+            assert current_cluster_info.get("Status") == "terminated"
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_list_status_filter_pythonic(self, cluster):
+        from runhouse.resources.hardware.utils import ResourceServerStatus
+
+        original_username = rns_client.username
+        new_username = (
+            "test-org"
+            if cluster.rns_address.startswith("/test-org/")
+            else original_username
+        )
+
+        with org_friend_account(
+            new_username=new_username,
+            token=rns_client.token,
+            original_username=original_username,
+        ):
+            clusters = Cluster.list(status="running")
+            all_clusters = clusters.get("all_clusters", {})
+            running_clusters = clusters.get("running_clusters", {})
+            assert len(all_clusters) > 0
+            assert len(running_clusters) > 0
+            assert len(all_clusters) == len(running_clusters)
+
+            all_clusters_status = set(
+                [den_cluster.get("Status") for den_cluster in all_clusters]
+            )
+
+            supported_statuses_without_running = [
+                status
+                for status in list(ResourceServerStatus.__members__.keys())
+                if status != "running"
+            ]
+
+            for status in supported_statuses_without_running:
+                assert status not in all_clusters_status
+
+            assert ResourceServerStatus.running in all_clusters_status
+
+            # make sure that we at least one terminated cluster for the tests, (does not matter if the status is mocked)
+            set_cluster_status(cluster=cluster, status=ResourceServerStatus.terminated)
+
+            clusters = Cluster.list(status="terminated")
+            all_clusters = clusters.get("all_clusters", {})
+            running_clusters = clusters.get("running_clusters", {})
+            assert len(all_clusters) > 0
+            assert len(running_clusters) == 0
+
+            all_clusters_status = set(
+                [den_cluster.get("Status") for den_cluster in all_clusters]
+            )
+            assert "terminated" in all_clusters_status
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_list_since_filter_pythonic(self, cluster):
+        cluster.save()  # tls exposed local cluster is not saved by default
+        # make sure that we at least one terminated cluster for the tests, (does not matter if the status is mocked)
+        set_cluster_status(cluster=cluster, status=ResourceServerStatus.terminated)
+
+        original_username = rns_client.username
+        new_username = (
+            "test-org"
+            if cluster.rns_address.startswith("/test-org/")
+            else original_username
+        )
+
+        with org_friend_account(
+            new_username=new_username,
+            token=rns_client.token,
+            original_username=original_username,
+        ):
+            minutes_time_filter = 10
+            clusters = Cluster.list(since=f"{minutes_time_filter}m")
+            all_clusters = clusters.get("all_clusters", {})
+            running_clusters = clusters.get("running_clusters", {})
+            assert len(running_clusters) >= 0
+            assert len(all_clusters) > 0
+
+            clusters_last_active_timestamps = set(
+                [den_cluster.get("Last Active (UTC)") for den_cluster in all_clusters]
+            )
+
+            assert len(clusters_last_active_timestamps) >= 1
+            current_utc_time = datetime.utcnow().replace(tzinfo=timezone.utc)
+
+            for timestamp in clusters_last_active_timestamps:
+                # Convert the timestamp string to a naive datetime object
+                timestamp_obj = datetime.strptime(timestamp, "%m/%d/%Y, %H:%M:%S")
+                timestamp_obj = timestamp_obj.replace(tzinfo=timezone.utc)
+                assert (
+                    current_utc_time - timestamp_obj
+                ).total_seconds() <= minutes_time_filter * MINUTE
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_list_cmd_output_no_filters(self, capsys):
+        import re
+        import subprocess
+
+        env = set_output_env_vars()
+
+        process = subprocess.Popen(
+            "runhouse cluster list",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+        )
+        process.wait()
+        stdout, stderr = process.communicate()
+        capsys.readouterr()
+        cmd_stdout = stdout.decode("utf-8")
+
+        assert cmd_stdout
+
+        # The output is printed as a table.
+        # testing that the table name is printed correctly
+        regex = f".*Clusters for {rh.configs.username}.*\(Running: .*/.*, Total Displayed: .*/.*\).*"
+        assert re.search(regex, cmd_stdout)
+
+        # testing that the table column names is printed correctly
+        col_names = ["┃ Name", "┃ Cluster Type", "┃ Status", "┃ Last Active (UTC)"]
+        for name in col_names:
+            assert name in cmd_stdout
+        assert (
+            f"Showing clusters that were active in the last {int(LAST_ACTIVE_AT_TIMEFRAME / HOUR)} hours."
+            in cmd_stdout
+        )
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_list_cmd_output_with_filters(self, capsys, cluster):
+
+        import re
+        import subprocess
+
+        original_username = rns_client.username
+        new_username = (
+            "test-org"
+            if cluster.rns_address.startswith("/test-org/")
+            else original_username
+        )
+
+        with org_friend_account(
+            new_username=new_username,
+            token=rns_client.token,
+            original_username=original_username,
+        ):
+            cluster.save()  # tls exposed local cluster is not saved by default
+
+            # make sure that we at least one terminated cluster for the tests, (does not matter if the status is mocked)
+            set_cluster_status(cluster=cluster, status=ResourceServerStatus.terminated)
+
+            env = set_output_env_vars()
+
+            process = subprocess.Popen(
+                "runhouse cluster list --status terminated",
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+            )
+            process.wait()
+            stdout, stderr = process.communicate()
+            capsys.readouterr()
+            cmd_stdout = stdout.decode("utf-8")
+            assert cmd_stdout
+
+            # The output is printed as a table.
+            # testing that the table name is printed correctly
+
+            regex = ".*Clusters for.*\(Running: .*/.*, Total Displayed: .*/.*\).*"
+            assert re.search(regex, cmd_stdout)
+
+            # testing that the table column names is printed correctly
+            displayed_info_names = [
+                "┃ Name",
+                "┃ Cluster Type",
+                "┃ Status",
+                "┃ Last Active (UTC)",
+            ]
+            for name in displayed_info_names:
+                assert name in cmd_stdout
+
+            assert (
+                "Note: the above clusters have registered activity in the last 24 hours."
+                not in cmd_stdout
+            )
+
+            # Removing 'Running' which appearing in the title of the output,
+            # so we could test the no clusters with status 'Running' is printed
+            cmd_stdout = cmd_stdout.replace("Running", "")
+            assert "Terminated" in cmd_stdout
+
+            statues = list(ResourceServerStatus.__members__.keys())
+            statues.remove("terminated")
+
+            for status in statues:
+                assert status not in cmd_stdout

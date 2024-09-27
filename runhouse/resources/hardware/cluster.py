@@ -14,6 +14,14 @@ import requests
 
 import yaml
 
+from runhouse.resources.hardware.utils import (
+    ClustersListStatus,
+    get_clusters_from_den,
+    get_running_and_not_running_clusters,
+    get_unsaved_live_clusters,
+    parse_filters,
+)
+
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import (
@@ -282,6 +290,28 @@ class Cluster(Resource):
             self._default_env.save(folder=folder)
 
     @classmethod
+    def from_name(
+        cls,
+        name: str,
+        load_from_den: bool = True,
+        dryrun: bool = False,
+        _alt_options: Dict = None,
+        _resolve_children: bool = True,
+    ):
+        cluster = super().from_name(
+            name=name,
+            load_from_den=load_from_den,
+            dryrun=dryrun,
+            _alt_options=_alt_options,
+            _resolve_children=_resolve_children,
+        )
+        if cluster and cluster._creds:
+            from runhouse.resources.secrets.utils import _write_creds_to_local
+
+            _write_creds_to_local(cluster.creds_values)
+        return cluster
+
+    @classmethod
     def from_config(
         cls, config: Dict, dryrun: bool = False, _resolve_children: bool = True
     ):
@@ -501,6 +531,10 @@ class Cluster(Resource):
             # add log level to the default env to ensure it gets set on the cluster when the server is restarted
             self._default_env.add_env_var("RH_LOG_LEVEL", log_level)
             logger.info(f"Using log level {log_level} on cluster's default env")
+
+        if not configs.observability_enabled:
+            self._default_env.add_env_var("disable_observability", "True")
+            logger.info("Disabling observability on the cluster")
 
         logger.info(f"Syncing default env {self._default_env.name} to cluster")
         for node in self.ips:
@@ -828,7 +862,6 @@ class Cluster(Resource):
             )
 
         if send_to_den:
-
             if den_resp_status_code == 404:
                 logger.info(
                     "Cluster has not yet been saved to Den, cannot update status or logs."
@@ -836,6 +869,13 @@ class Cluster(Resource):
 
             elif den_resp_status_code != 200:
                 logger.warning("Failed to send cluster status to Den")
+
+        if not configs.observability_enabled and status.get("env_servlet_processes"):
+            logger.warning(
+                "Cluster observability is not currently enabled. Metrics are stale and will "
+                "no longer be collected. To re-enable observability, please "
+                "run `rh.configs.enable_observability()` and restart the server (`cluster.restart_server()`)."
+            )
 
         return status
 
@@ -1936,3 +1976,82 @@ class Cluster(Resource):
 
     def _folder_exists(self, path: Union[str, Path]):
         return self.client.folder_exists(path=path)
+
+    ###############################
+    # Cluster list
+    ###############################
+    @classmethod
+    def list(
+        cls,
+        show_all: Optional[bool] = False,
+        since: Optional[str] = None,
+        status: Optional[ClustersListStatus] = None,
+    ) -> Dict[str, List[Dict]]:
+        """
+        Returns user's runhouse clusters saved in Den and locally via Sky. If filters are provided, only clusters that are matching the
+        filters are returned. If no filters are provided, clusters that were active in the last 24 hours are returned.
+
+        Args:
+            show_all (bool, optional): Whether to list all clusters saved in Den. Maximum of 50 will be listed. (Default: False).
+            since (str, optional): Clusters that were active in the specified time period will be returned. Value can be in seconds, minutes, hours or days.
+            status (ResourceServerStatus, optional): Clusters with the provided status will be returned.
+
+        Examples:
+            >>> Cluster.list(since="75s")
+            >>> Cluster.list(since="3m")
+            >>> Cluster.list(since="2h")
+            >>> Cluster.list(since="7d")
+        """
+
+        try:
+            import sky
+
+            # get sky live clusters
+            sky_live_clusters = [
+                {
+                    "Name": sky_cluster.get("name"),
+                    "Cluster Type": "OnDemandCluster (Sky)",
+                    "Status": sky_cluster.get("status").value,
+                }
+                for sky_cluster in sky.status()
+            ]
+        except Exception:
+            logger.debug("Failed to load sky live clusters.")
+            sky_live_clusters = []
+
+        cluster_filters = (
+            parse_filters(since=since, cluster_status=status)
+            if not show_all
+            else {"all": "all"}
+        )
+
+        # get clusters from den
+        den_clusters_resp = get_clusters_from_den(cluster_filters=cluster_filters)
+        if den_clusters_resp.status_code != 200:
+            logger.error(f"Failed to load {rns_client.username}'s clusters from Den")
+            den_clusters = []
+        else:
+            den_clusters = den_clusters_resp.json().get("data")
+
+        if not sky_live_clusters and not den_clusters:
+            return {}
+
+        # sky_live_clusters = sky clusters found in the local sky DB but not saved in den
+        sky_live_clusters = get_unsaved_live_clusters(
+            den_clusters=den_clusters, sky_live_clusters=sky_live_clusters
+        )
+
+        # running_clusters: running clusters which are saved in Den
+        # not running clusters: clusters that are terminated / unknown / down which are also saved in Den.
+        (
+            running_clusters,
+            not_running_clusters,
+        ) = get_running_and_not_running_clusters(clusters=den_clusters)
+        all_clusters = running_clusters + not_running_clusters
+
+        clusters = {
+            "all_clusters": all_clusters,
+            "running_clusters": running_clusters,
+            "sky_clusters": sky_live_clusters,
+        }
+        return clusters

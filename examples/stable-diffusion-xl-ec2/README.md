@@ -25,7 +25,7 @@ make sure our AWS credentials are set up:
 $ aws configure
 $ sky check
 ```
-We'll be downloading the Llama2 model from Hugging Face, so we need to set up our Hugging Face token:
+We'll be downloading the model from Hugging Face, so we need to set up our Hugging Face token:
 ```shell
 $ export HF_TOKEN=<your huggingface token>
 ```

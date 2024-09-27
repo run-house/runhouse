@@ -33,6 +33,7 @@ class Defaults:
         "use_spot": False,
         "use_local_configs": True,
         "disable_data_collection": False,
+        "disable_observability": False,
         "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
@@ -134,7 +135,7 @@ class Defaults:
         if Path(config_path).exists():
             with open(config_path, "r") as stream:
                 config = yaml.safe_load(stream)
-            logger.info(f"Loaded Runhouse config from {config_path}")
+            logger.debug(f"Loaded Runhouse config from {config_path}")
 
         return config or {}
 
@@ -249,7 +250,7 @@ class Defaults:
     # TODO [DG] allow hierarchical defaults from folders and groups
     def get(self, key: str, alt: Any = None) -> Any:
         # Prioritize env vars
-        env_var = os.getenv(key.upper())
+        env_var = os.getenv(f"RH_{key.upper()}") or os.getenv(key.upper())
         if env_var is not None:
             return env_var
 
@@ -290,3 +291,15 @@ class Defaults:
             return False
 
         return True
+
+    @property
+    def observability_enabled(self):
+        return not self.get("disable_observability", False)
+
+    def disable_observability(self):
+        self.set("disable_observability", True)
+        os.environ["disable_observability"] = "True"
+
+    def enable_observability(self):
+        self.set("disable_observability", False)
+        os.environ["disable_observability"] = "False"

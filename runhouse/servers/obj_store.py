@@ -956,7 +956,6 @@ class ObjStore:
             actor = self.env_servlet_cache[env_name]
             ray.kill(actor)
             del self.env_servlet_cache[env_name]
-
         deleted_keys = await self.aclear_all_references_to_env_servlet_name(env_name)
         return deleted_keys
 

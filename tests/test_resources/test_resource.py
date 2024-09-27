@@ -2,9 +2,10 @@ import json
 
 import pytest
 import runhouse as rh
-from runhouse.constants import TEST_ORG
 
 from tests.conftest import init_args
+
+from tests.constants import TEST_ORG
 from tests.utils import friend_account, friend_account_in_org, remove_config_keys
 
 

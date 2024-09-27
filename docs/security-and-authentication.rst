@@ -34,3 +34,18 @@ local Runhouse config (:code:`~/.rh/config.yaml`), or in Python:
 
     import runhouse as rh
     rh.configs.disable_data_collection()
+
+
+Cluster Observability
+---------------------------------------
+Runhouse collects various telemetry data by default on clusters. This data will be used to provide better observability
+into logs, traces, and metrics associated with clusters. We will not sell data or buy any observability data collected.
+
+To disable observability globally for all clusters, set the environment variable :code:`disable_observability`
+to :code:`True`. Alternatively, set :code:`disable_observability` to :code:`true` in your
+local Runhouse config (:code:`~/.rh/config.yaml`), or in Python:
+
+.. code-block:: python
+
+    import runhouse as rh
+    rh.configs.disable_observability()

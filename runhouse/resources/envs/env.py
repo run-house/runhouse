@@ -1,5 +1,4 @@
 import copy
-import os
 import shlex
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -11,9 +10,25 @@ from runhouse.resources.envs.utils import _process_env_vars, run_setup_command
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import InstallTarget, Package
 from runhouse.resources.resource import Resource
-from runhouse.utils import run_with_logs
+from runhouse.utils import run_with_logs, set_env_vars_in_current_process
 
 logger = get_logger(__name__)
+
+
+def install_reqs_on_cluster(
+    system: Union[str, Cluster], reqs: List[Union[str, Package]], path=None
+):
+    new_reqs = []
+    for req in reqs:
+        if isinstance(req, str):
+            new_req = Package.from_string(req)
+            req = new_req
+
+        if isinstance(req, Package) and isinstance(req.install_target, InstallTarget):
+            req = req.to(system, path=path)
+        new_reqs.append(req)
+
+    return new_reqs
 
 
 class Env(Resource):
@@ -75,8 +90,7 @@ class Env(Resource):
 
     @staticmethod
     def _set_env_vars(env_vars):
-        for k, v in env_vars.items():
-            os.environ[k] = v
+        set_env_vars_in_current_process(env_vars)
 
     def add_env_var(self, key: str, value: str):
         """Add an env var to the environment. Environment must be re-installed to propagate new
@@ -111,21 +125,7 @@ class Env(Resource):
 
     def _reqs_to(self, system: Union[str, Cluster], path=None):
         """Send self.reqs to the system (cluster or file system)"""
-        new_reqs = []
-        for req in self.reqs:
-            if isinstance(req, str):
-                new_req = Package.from_string(req)
-                req = new_req
-
-            if isinstance(req, Package) and isinstance(
-                req.install_target, InstallTarget
-            ):
-                req = (
-                    req.to(system, path=path)
-                    if isinstance(system, Cluster)
-                    else req.to(system, path=path)
-                )
-            new_reqs.append(req)
+        new_reqs = install_reqs_on_cluster(system, self.reqs, path=path)
         if self.working_dir:
             return new_reqs[:-1], new_reqs[-1]
         return new_reqs, None
