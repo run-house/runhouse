@@ -240,9 +240,7 @@ class TestResource:
         assert new_config == config
 
     @pytest.mark.level("local")
-    def test_sharing_org_resources(
-        self, saved_resource, docker_cluster_pk_ssh_den_auth
-    ):
+    def test_sharing_org_resources(self, saved_resource, cluster):
         from tests.test_servers.conftest import summer
 
         # Skip this test for ondemand clusters, because making
@@ -282,7 +280,7 @@ class TestResource:
         args = {"name": resource_name, "fn": summer}
 
         # Sending function to the cluster will save the function and associated env under the organization
-        f = rh.function(**args).to(docker_cluster_pk_ssh_den_auth, env=["pytest"])
+        f = rh.function(**args).to(cluster, env=["pytest"])
         init_args[id(f)] = args
 
         # Should be saved to Den under the org
@@ -291,10 +289,7 @@ class TestResource:
         # Reload the function with the rns address pointing to the org
         # This should work given the requesting user has org access
         reloaded_func = rh.function(name=resource_name)
-        assert (
-            reloaded_func.system.rns_address
-            == docker_cluster_pk_ssh_den_auth.rns_address
-        )
+        assert reloaded_func.system.rns_address == cluster.rns_address
         assert reloaded_func(1, 2) == 3
 
         with pytest.raises(Exception):
