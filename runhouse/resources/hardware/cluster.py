@@ -290,6 +290,28 @@ class Cluster(Resource):
             self._default_env.save(folder=folder)
 
     @classmethod
+    def from_name(
+        cls,
+        name: str,
+        load_from_den: bool = True,
+        dryrun: bool = False,
+        _alt_options: Dict = None,
+        _resolve_children: bool = True,
+    ):
+        cluster = super().from_name(
+            name=name,
+            load_from_den=load_from_den,
+            dryrun=dryrun,
+            _alt_options=_alt_options,
+            _resolve_children=_resolve_children,
+        )
+        if cluster and cluster._creds:
+            from runhouse.resources.secrets.utils import _write_creds_to_local
+
+            _write_creds_to_local(cluster.creds_values)
+        return cluster
+
+    @classmethod
     def from_config(
         cls, config: Dict, dryrun: bool = False, _resolve_children: bool = True
     ):
