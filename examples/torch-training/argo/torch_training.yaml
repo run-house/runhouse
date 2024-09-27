@@ -37,11 +37,11 @@ spec:
             name: my-secret
             key: RUNHOUSE_API_KEY
       source: |
-        # We show the code here for simpler illustration of the workflow, but Runhouse does not require any special setup. Use scripts or containers, as you prefer.
+        # We show the code here for simpler illustration of the workflow, but Runhouse does not require any special setup. Use scripts or containers.
         import runhouse as rh
+        import os
 
         # First we configure the environment to setup Runhouse and AWS credentials
-        import os
         rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
 
         import subprocess
@@ -65,14 +65,14 @@ spec:
             ],
             check=True,
         )
+        print(os.getcwd())
 
         # Now we bring up the cluster
-        cluster = rh.ondemand_cluster(
-            name="rh-a10g", instance_type="A10G:1", provider="aws"
-        ).up_if_not()
+        cluster = rh.ondemand_cluster(name="rh-a10g", instance_type="A10G:1", provider="aws").up_if_not()
 
         print(cluster.is_up())
         cluster.save()
+
 
   - name: access-data-task
     script:
@@ -86,25 +86,43 @@ spec:
             key: RUNHOUSE_API_KEY
       source: |
         import runhouse as rh
+        import sys
         import os
+
+        sys.path.append(os.path.expanduser("~/training"))
+        from TorchBasicExample import download_data, preprocess_data
+
         rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
 
         env = rh.env(name="test_env", reqs=["torch", "torchvision"])
+
         # I am adding /paul/ since I have saved the cluster to Runhouse with my account.
-        cluster = rh.cluster(name="/paul/rh-a10g").up_if_not()
+        cluster = rh.cluster(name="/paul/rh-a10g")
+        cluster.is_up()
         remote_download = rh.function(download_data).to(cluster, env=env)
         remote_preprocess = rh.function(preprocess_data).to(cluster, env=env)
 
         remote_download()
-        remote_preprocess()
+        remote_preprocess("./data")
 
   - name: train-model-task
     script:
       image: pypypypy/my-kubeflow-pipeline-image:latest
       command: [python]
+      env:
+      - name: RUNHOUSE_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: my-secret
+            key: RUNHOUSE_API_KEY
       source: |
         import runhouse as rh
+        import sys
         import os
+
+        sys.path.append(os.path.expanduser("~/training"))
+        from TorchBasicExample import SimpleTrainer
+
         rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
 
         cluster = rh.cluster(name="/paul/rh-a10g").up_if_not()
@@ -137,6 +155,12 @@ spec:
     script:
       image: pypypypy/my-kubeflow-pipeline-image:latest
       command: [python]
+      env:
+      - name: RUNHOUSE_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: my-secret
+            key: RUNHOUSE_API_KEY
       source: |
         import runhouse as rh
         import os
