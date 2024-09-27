@@ -136,36 +136,42 @@ class Cluster(Resource):
 
     @property
     def client(self):
-        if not self._http_client:
-            if not self._ping(retry=True):
-                # ping cluster, and refresh ips if ondemand cluster and first ping fails
-                raise Exception(
-                    f"Could not reach cluster {self.name} ({self.ips}). Is it up?"
-                )
-
+        def check_connect_server():
             connect_call = threading.Thread(
                 target=self.connect_server_client, kwargs={"force_reconnect": True}
             )
             connect_call.start()
             connect_call.join(timeout=5)
             if connect_call.is_alive():
+                return False
+            return True
+
+        if not self._http_client and not check_connect_server():
+            if self.__class__.__name__ == "OnDemandCluster":
+                self._update_from_sky_status(dryrun=False)
+            if not self._ping(retry=False):
+                raise ConnectionError(
+                    f"Could not reach {self.name} {self.ips}. Is cluster up?"
+                )
+            if not check_connect_server():
                 raise ConnectionError(
                     f"Timed out trying to form connection for cluster {self.name}."
                 )
-            if not self._http_client:
-                raise ConnectionError(
-                    f"Error occurred trying to form connection for cluster {self.name}."
-                )
 
-            try:
-                self._http_client.check_server()
-            except (
-                requests.exceptions.ConnectionError,
-                requests.exceptions.ReadTimeout,
-                requests.exceptions.ChunkedEncodingError,
-                ValueError,
-            ) as e:
-                raise ConnectionError(f"Check server failed: {e}.")
+        if not self._http_client:
+            raise ConnectionError(
+                f"Error occurred trying to form connection for cluster {self.name}."
+            )
+
+        try:
+            self._http_client.check_server()
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.ReadTimeout,
+            requests.exceptions.ChunkedEncodingError,
+            ValueError,
+        ) as e:
+            raise ConnectionError(f"Check server failed: {e}.")
         return self._http_client
 
     @property
