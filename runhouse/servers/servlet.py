@@ -1,5 +1,6 @@
 import copy
 import os
+import sys
 import threading
 import time
 import traceback
@@ -137,6 +138,9 @@ class Servlet:
     ##############################################################
     async def aset_env_vars(self, env_vars: Dict[str, str]):
         set_env_vars_in_current_process(env_vars)
+
+    async def aprepend_to_sys_path(self, path: str):
+        sys.path.insert(0, path)
 
     ##############################################################
     # Methods to disable or enable den auth
