@@ -878,7 +878,7 @@ class Cluster(Resource):
 
         if not configs.observability_enabled and status.get("env_servlet_processes"):
             logger.warning(
-                "Cluster observability is not currently enabled. Metrics are stale and will "
+                "Cluster observability is disabled. Metrics are stale and will "
                 "no longer be collected. To re-enable observability, please "
                 "run `rh.configs.enable_observability()` and restart the server (`cluster.restart_server()`)."
             )
