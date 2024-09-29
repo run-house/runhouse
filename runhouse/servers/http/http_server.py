@@ -1125,7 +1125,7 @@ async def main():
     )
 
     # If there was no `cluster_config.json`, then server was created
-    # simply with `runhouse start`.
+    # simply with `runhouse server start`.
     # A real `cluster_config` that was loaded
     # from json would have this set for sure
     if not cluster_config.get("resource_subtype"):
@@ -1134,7 +1134,7 @@ async def main():
         cluster_config["resource_subtype"] = "Cluster"
 
         # server_connection_type is not set up if this is done through
-        # a local `runhouse start`
+        # a local `runhouse server start`
         cluster_config["server_connection_type"] = "tls" if use_https else "none"
 
     await obj_store.aset_cluster_config(cluster_config)

@@ -675,7 +675,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_rh_status_stopped(self, cluster):
         try:
             cluster_name = cluster.name
-            cluster.run(["runhouse stop"])
+            cluster.run(["runhouse server stop"])
             res = subprocess.check_output(["runhouse", "status", cluster_name]).decode(
                 "utf-8"
             )
@@ -689,7 +689,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             )
             assert error_txt in res
         finally:
-            cluster.run(["runhouse restart"])
+            cluster.run(["runhouse server restart"])
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest

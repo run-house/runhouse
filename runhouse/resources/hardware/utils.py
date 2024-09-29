@@ -79,7 +79,7 @@ def _current_cluster(key="config"):
     cluster_config = obj_store.get_cluster_config()
     cluster_config.pop("creds", None)
     if cluster_config:
-        # This could be a local cluster started via runhouse start,
+        # This could be a local cluster started via runhouse server start,
         # in which case it would have no Name.
         if key in ["cluster_name", "name"] and "name" not in cluster_config:
             return None

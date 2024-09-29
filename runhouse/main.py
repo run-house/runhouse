@@ -64,6 +64,16 @@ cluster_app = typer.Typer(
     help=f"Cluster related CLI commands. For more info run {ITALIC_BOLD}runhouse cluster --help{RESET_FORMAT}"
 )
 
+app.add_typer(cluster_app, name="cluster")
+
+
+# creating a cluster app, so we could create subcommands of cluster (i.e runhouse cluster list).
+# Register it with the main runhouse application
+server_app = typer.Typer(
+    help=f"Runhouse server related CLI commands. For more info run {ITALIC_BOLD}runhouse server --help{RESET_FORMAT}"
+)
+app.add_typer(server_app, name="server")
+
 # For printing with typer
 console = Console()
 
@@ -408,10 +418,6 @@ def cluster_down(
         console.print(f"Failed to terminate the cluster: {e}")
 
 
-# Register the 'cluster' command group with the main runhouse application
-app.add_typer(cluster_app, name="cluster")
-
-
 def load_cluster(cluster_name: str):
     """Load a cluster from RNS into the local environment, e.g. to be able to ssh."""
     c = cluster(name=cluster_name)
@@ -634,12 +640,28 @@ def _start_server(
         raise typer.Exit(1)
 
 
-@app.command()
+###############################
+# Server CLI commands
+###############################
+
+
+@server_app.command()
 def start(
+    name: Optional[str] = typer.Argument(
+        None, help="A *saved* remote cluster object to restart."
+    ),
     restart_ray: bool = typer.Option(True, help="Restart the Ray runtime"),
-    screen: bool = typer.Option(False, help="Start the server in a screen"),
+    screen: bool = typer.Option(
+        True,
+        help="Start the server in a screen. Only relevant when restarting locally.",
+    ),
     nohup: bool = typer.Option(
-        False, help="Start the server in a nohup if screen is not available"
+        True,
+        help="Start the server in a nohup if screen is not available. Only relevant when restarting locally.",
+    ),
+    resync_rh: bool = typer.Option(
+        False,
+        help="Resync the Runhouse package. Only relevant when restarting remotely.",
     ),
     host: Optional[str] = typer.Option(
         None, help="Custom server host address. Default is `0.0.0.0`."
@@ -653,6 +675,15 @@ def start(
     use_den_auth: bool = typer.Option(
         False, help="Whether to authenticate requests with a Runhouse token"
     ),
+    ssl_keyfile: Optional[str] = typer.Option(
+        None, help="Path to custom SSL key file to use for enabling HTTPS"
+    ),
+    ssl_certfile: Optional[str] = typer.Option(
+        None, help="Path to custom SSL cert file to use for enabling HTTPS"
+    ),
+    restart_proxy: bool = typer.Option(
+        False, help="Whether to reinstall server configs on the cluster"
+    ),
     use_caddy: bool = typer.Option(
         False,
         help="Whether to configure Caddy on the cluster as a reverse proxy.",
@@ -665,14 +696,27 @@ def start(
         None,
         help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
+    api_server_url: str = typer.Option(
+        default="https://api.run.house",
+        help="URL of Runhouse Den",
+    ),
     default_env_name: str = typer.Option(
         None, help="Default env to start the server on."
     ),
     conda_env: str = typer.Option(
         None, help="Name of conda env corresponding to default env if it is a CondaEnv."
     ),
+    from_python: bool = typer.Option(
+        False,
+        help="Whether HTTP server started from inside a Python call rather than CLI.",
+    ),
 ):
     """Start the HTTP or HTTPS server on the cluster."""
+    if name:
+        c = get_cluster_or_local(cluster_name=name)
+        c.start_server(resync_rh=resync_rh, restart_ray=restart_ray)
+        return
+
     _start_server(
         restart=False,
         restart_ray=restart_ray,
@@ -683,15 +727,20 @@ def start(
         port=port,
         use_https=use_https,
         den_auth=use_den_auth,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
+        restart_proxy=restart_proxy,
         use_caddy=use_caddy,
         domain=domain,
         certs_address=certs_address,
+        api_server_url=api_server_url,
         default_env_name=default_env_name,
         conda_env=conda_env,
+        from_python=from_python,
     )
 
 
-@app.command()
+@server_app.command()
 def restart(
     name: str = typer.Option(None, help="A *saved* remote cluster object to restart."),
     restart_ray: bool = typer.Option(True, help="Restart the Ray runtime"),
@@ -757,7 +806,7 @@ def restart(
 ):
     """Restart the HTTP server on the cluster."""
     if name:
-        c = cluster(name=name)
+        c = get_cluster_or_local(cluster_name=name)
         c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
         return
 
@@ -784,12 +833,24 @@ def restart(
     )
 
 
-@app.command()
+@server_app.command()
 def stop(
+    name: Optional[str] = typer.Option(
+        None, help="A *saved* remote cluster object to restart."
+    ),
     stop_ray: bool = typer.Option(False, help="Stop the Ray runtime"),
     cleanup_actors: bool = typer.Option(True, help="Kill all Ray actors"),
 ):
+    """
+    Stop the Runhouse server on the current cluster.
+    """
     logger.info("Stopping the server.")
+
+    if name:
+        current_cluster = get_cluster_or_local(cluster_name=name)
+        current_cluster.stop_server(stop_ray=stop_ray)
+        return
+
     subprocess.run(SERVER_STOP_CMD, shell=True)
 
     if cleanup_actors:

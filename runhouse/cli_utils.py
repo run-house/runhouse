@@ -488,8 +488,7 @@ def get_cluster_or_local(cluster_name: str):
         current_cluster = rh.cluster(name=cluster_name)
         if not current_cluster.is_up():
             console.print(
-                f"Cluster {cluster_name} is not up. If it's an on-demand cluster, you can run "
-                f"`runhouse cluster up {cluster_name}` to bring it up automatically."
+                f"Cluster {cluster_name} is not up. If it's an on-demand cluster, you can run `runhouse cluster up {cluster_name}` to bring it up automatically."
             )
             raise typer.Exit(1)
         try:
@@ -497,16 +496,15 @@ def get_cluster_or_local(cluster_name: str):
                 current_cluster._http_client.check_server()
         except requests.exceptions.ConnectionError:
             console.print(
-                f"Could not connect to the server on cluster {cluster_name}. Check that the server is up with "
-                f"`runhouse cluster status {cluster_name}` or `sky status -r` for on-demand clusters."
+                f"Could not connect to the server on cluster {cluster_name}. Check that the server is up with `runhouse cluster status {cluster_name}` or `sky status -r` for on-demand clusters."
             )
             raise typer.Exit(1)
 
     elif not cluster_or_local:
         console.print(
             "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}. "
-            "Start it with `runhouse restart` or specify a remote "
-            "cluster to poll with `runhouse cluster status <cluster_name>`."
+            "Start it with `runhouse server restart` or specify a remote "
+            "cluster to poll with `runhouse status <cluster_name>`."
         )
         raise typer.Exit(1)
 
