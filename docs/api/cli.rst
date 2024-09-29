@@ -11,6 +11,6 @@ The commands can be run like follows:
    $ runhouse ssh cluster_name
 
 .. automodule:: runhouse.main
-   :members: login, logout, ssh, notebook, start, restart, status
+   :members: login, logout, ssh, notebook, start, restart, status, cluster_list
    :undoc-members:
    :show-inheritance:
