@@ -468,7 +468,7 @@ class Module(Resource):
 
         if system == "file":
             raise ValueError(
-                "Need an initialized local server in order to put a module onto `rh.here`. Please run `runhouse restart` first on your local machine."
+                "Need an initialized local server in order to put a module onto `rh.here`. Please run `runhouse server restart` first on your local machine."
             )
 
         system = (

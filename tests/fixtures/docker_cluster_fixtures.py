@@ -62,7 +62,7 @@ def local_daemon(request):
         logging.info("Starting local_daemon.")
         local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
         subprocess.run(
-            "runhouse restart",
+            "runhouse server restart",
             shell=True,  # Needed because we need to be in the right conda env
             cwd=local_rh_package_path,
             text=True,
@@ -76,7 +76,7 @@ def local_daemon(request):
 
     finally:
         if not request.config.getoption("--detached"):
-            subprocess.run("runhouse stop", text=True, shell=True)
+            subprocess.run("runhouse server stop", text=True, shell=True)
 
 
 ########### Docker Clusters ###########

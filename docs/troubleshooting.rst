@@ -48,18 +48,18 @@ you may perform the following manual setup steps.
 
    .. code:: shell
 
-        runhouse start
+        runhouse server start
 
    If you previously already had a version of Runhouse installed and started, you will need to run:
 
    .. code:: shell
 
-        runhouse restart
+        runhouse server restart
 
-   * To exit out of the process and run it in the background instead, you can do ``Ctrl+C`` and then ``runhouse start --screen``.
-     Please first make sure regular ``runhouse start`` does not error out prior to testing it out in a screen.
+   * To exit out of the process and run it in the background instead, you can do ``Ctrl+C`` and then ``runhouse server start --screen``.
+     Please first make sure regular ``runhouse server start`` does not error out prior to testing it out in a screen.
 
-   * If you previously specified a custom port in step 2, add ``--port <my_port>`` to the runhouse start command.
+   * If you previously specified a custom port in step 2, add ``--port <my_port>`` to the runhouse server start command.
 
 6. Initialize the Runhouse cluster in Python as follows. Make sure to use ``localhost`` as the cluster address rather than the true IP,
    as you manually created the tunnel above.
@@ -155,6 +155,6 @@ Q: I'm running into a few (usually 5) consecutive errors of the following form:
 
    .. code:: shell
 
-        runhouse start
+        runhouse server start
 
    5. Observe the output for any errors e.g. ``ImportError: ...`` and fix them
