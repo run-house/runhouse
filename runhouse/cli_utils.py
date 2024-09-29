@@ -1,5 +1,6 @@
 import importlib
 import math
+import subprocess
 import time
 
 from datetime import datetime, timezone
@@ -20,6 +21,9 @@ from runhouse.constants import (
     HOUR,
     LAST_ACTIVE_AT_TIMEFRAME,
     MAX_CLUSTERS_DISPLAY,
+    SERVER_START_CMD,
+    START_NOHUP_CMD,
+    START_SCREEN_CMD,
 )
 
 from runhouse.logger import get_logger
@@ -513,3 +517,31 @@ def get_cluster_or_local(cluster_name: str):
         current_cluster = cluster_or_local  # cluster_or_local = rh.here
 
     return current_cluster
+
+
+# General CLI and main.py utils
+def check_if_command_exists(cmd: str):
+    cmd_check = subprocess.run(
+        f"command -v {cmd}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    available = cmd_check.returncode == 0
+    if not available:
+        logger.info(f"{cmd} is not available on the system.")
+    return available
+
+
+def get_wrapped_server_start_cmd(flags: List[str], screen: bool, nohup: bool):
+    if screen:
+        wrapped_cmd = START_SCREEN_CMD
+    elif nohup:
+        wrapped_cmd = START_NOHUP_CMD
+    else:
+        wrapped_cmd = SERVER_START_CMD
+
+    if flags:
+        flags_str = "".join(flags)
+        wrapped_cmd = wrapped_cmd.replace(
+            SERVER_START_CMD, SERVER_START_CMD + flags_str
+        )
+
+    return wrapped_cmd
