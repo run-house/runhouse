@@ -314,7 +314,12 @@ class Cluster(Resource):
         if cluster and cluster._creds:
             from runhouse.resources.secrets.utils import _write_creds_to_local
 
-            _write_creds_to_local(cluster.creds_values)
+            try:
+                _write_creds_to_local(cluster.creds_values)
+            except Exception as e:
+                logger.error(f"Failed to write cluster creds to local: {e}")
+                pass
+
         return cluster
 
     @classmethod

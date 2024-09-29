@@ -291,10 +291,12 @@ class TestResource:
         # Reload the function with the rns address pointing to the org
         # This should work given the requesting user has org access
         reloaded_func = rh.function(name=resource_name)
-        assert (
-            reloaded_func.system.rns_address
-            == docker_cluster_pk_ssh_den_auth.rns_address
+        reloaded_func_rns_address = (
+            reloaded_func.system
+            if isinstance(reloaded_func.system, str)
+            else reloaded_func.system.rns_address
         )
+        assert reloaded_func_rns_address == docker_cluster_pk_ssh_den_auth.rns_address
         assert reloaded_func(1, 2) == 3
 
         with pytest.raises(Exception):
