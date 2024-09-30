@@ -1,6 +1,6 @@
 from abc import abstractmethod
 
-from runhouse.resources.module import Module, MODULE_ATTRS, MODULE_METHODS
+from runhouse.resources.module import Module, MODULE_ATTRS, MODULE_METHODS, MODULE_METHODS_REMOTEABLE
 from runhouse.utils import client_call_wrapper
 
 
@@ -20,7 +20,7 @@ class Supervisor(Module):
         """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
         __getattr__ will be called."""
         if (
-            item in MODULE_METHODS
+            (item in MODULE_METHODS and item not in MODULE_METHODS_REMOTEABLE)
             or item in MODULE_ATTRS
             or not hasattr(self, "_client")
         ):
