@@ -62,11 +62,6 @@ if __name__ == "__main__":
         instance_type=f"A10G:{gpus_per_node}",
         num_instances=num_nodes,
     ).up_if_not()
-    pt_distributed = rh.multiprocess(
-        name="pt_world",
-        replicas_per_node=gpus_per_node,
-        replicas=gpus_per_node * num_nodes,
-        distribution="pytorch",
-    )
-    train_ddp = rh.function(train_loop).to(cluster, process=pt_distributed)
+    remote_train_loop = rh.function(train_loop).to(cluster)
+    train_ddp = remote_train_loop.distribute("pytorch", replicas=16, replicas_per_node=4)
     train_ddp(epochs=10)
