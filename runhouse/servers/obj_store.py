@@ -274,17 +274,18 @@ class ObjStore:
             return None
 
     def _initialize_tracer(self):
-        from runhouse.servers.telemetry.telemetry_agent import ErrorCapturingExporter
+        from runhouse.servers.telemetry.telemetry_agent import default_resource
 
-        trace.set_tracer_provider(TracerProvider())
+        resource = default_resource()
+        trace.set_tracer_provider(TracerProvider(resource=resource))
         tracer = trace.get_tracer(__name__)
 
         # Export to local agent, which handles sending to the backend collector
         endpoint = f"localhost:{self.telemetry_agent.agent_config.grpc_port}"
 
+        # Capture spans and add them to an internal buffer to be exported to the local agent receiver automatically
         otlp_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
-        error_capturing_exporter = ErrorCapturingExporter(otlp_exporter)
-        span_processor = BatchSpanProcessor(error_capturing_exporter)
+        span_processor = BatchSpanProcessor(otlp_exporter)
 
         trace.get_tracer_provider().add_span_processor(span_processor)
 

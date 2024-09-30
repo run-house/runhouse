@@ -2,16 +2,24 @@ import uuid
 
 import pytest
 
+import runhouse as rh
+
 from opentelemetry import trace
 
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
 from runhouse.logger import get_logger
 from runhouse.servers.telemetry.telemetry_agent import ErrorCapturingExporter
 
 logger = get_logger(__name__)
+
+
+def provider_resource():
+    return Resource.create(
+        {"service.name": "runhouse-tests", "rh.version": rh.__version__}
+    )
 
 
 @pytest.mark.servertest
@@ -22,7 +30,7 @@ class TestTelemetryAgent:
     @pytest.mark.level("local")
     def test_send_span_to_collector_backend(self, local_telemetry_collector):
         """Generate a span locally in-memory and send it to a locally running collector backend"""
-        trace.set_tracer_provider(TracerProvider())
+        trace.set_tracer_provider(TracerProvider(resource=provider_resource()))
         tracer = trace.get_tracer(__name__)
 
         # Send spans directly to the collector backend without an agent process
@@ -44,7 +52,7 @@ class TestTelemetryAgent:
         self, local_telemetry_collector, local_telemetry_agent_for_local_backend
     ):
         """Generate a span and have a locally running Otel agent send it to a locally running collector backend"""
-        provider = TracerProvider()
+        provider = TracerProvider(resource=provider_resource())
         trace.set_tracer_provider(provider)
         tracer = trace.get_tracer(__name__)
 
@@ -70,7 +78,7 @@ class TestTelemetryAgent:
         self, local_telemetry_agent_for_runhouse_backend
     ):
         """Generate a span and have a local Otel agent send it to the Runhouse collector backend"""
-        provider = TracerProvider()
+        provider = TracerProvider(resource=provider_resource())
         trace.set_tracer_provider(provider)
         tracer = trace.get_tracer(__name__)
 
@@ -92,7 +100,7 @@ class TestTelemetryAgent:
         """Generate a span in-memory and send it to the Runhouse collector backend"""
         from runhouse.servers.telemetry import TelemetryAgentReceiver
 
-        provider = TracerProvider()
+        provider = TracerProvider(resource=provider_resource())
         trace.set_tracer_provider(provider)
         tracer = trace.get_tracer(__name__)
 
