@@ -613,7 +613,20 @@ def cluster_list(
         help="Cluster status to filter on. Supported filter values: running, terminated (cluster is not live), down (Runhouse server is down, but the cluster might be live).",
     ),
 ):
-    """Load Runhouse clusters"""
+    """
+    Load Runhouse clusters
+
+    Examples:
+
+        ``$ runhouse cluster list``
+
+        ``$ runhouse cluster list --all``
+
+        ``$ runhouse cluster list --status terminated``
+
+        ``$ runhouse cluster list --since 15m``
+
+    """
 
     # logged out case
     if not rh.configs.token:

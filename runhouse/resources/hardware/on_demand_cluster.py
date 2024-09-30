@@ -116,7 +116,7 @@ class OnDemandCluster(Cluster):
         # Checks if state info is in local sky db, populates if so.
         if not dryrun and not self.ips and not self.creds_values:
             # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
-            self._update_from_sky_status(dryrun=False)
+            self._update_from_sky_status(dryrun=True)
 
     @property
     def client(self):
@@ -442,11 +442,6 @@ class OnDemandCluster(Cluster):
                 pod_name = f"{handle.cluster_name_on_cloud}-head"
                 self.launched_properties["namespace"] = namespace
                 self.launched_properties["pod_name"] = pod_name
-        else:
-            self.address = None
-            self._creds = None
-            self.stable_internal_external_ips = None
-            self.launched_properties = {}
 
     def _update_from_sky_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
