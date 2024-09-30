@@ -15,7 +15,7 @@ import psutil
 import requests
 import yaml
 
-from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.resources import Resource, SERVICE_NAME
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
@@ -34,6 +34,14 @@ from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class ResourceAttributes:
+    """Custom attributes to be included for each resource."""
+
+    username: str
+    cluster_name: str
 
 
 @dataclass
@@ -57,13 +65,6 @@ class TelemetryCollectorConfig:
 
     endpoint: str = TELEMETRY_COLLECTOR_ENDPOINT
     status_url: str = TELEMETRY_COLLECTOR_STATUS_URL
-
-
-def default_resource():
-    """Create a default Resource for the OpenTelemetry SDK."""
-    return Resource.create(
-        {"service.name": "runhouse-oss", "rh.version": rh.__version__}
-    )
 
 
 class ErrorCapturingExporter(SpanExporter):
@@ -172,6 +173,17 @@ class TelemetryAgentReceiver:
     @classmethod
     def request_headers(cls):
         return {"authorization": f"Bearer {cls.auth_token()}"}
+
+    @classmethod
+    def default_resource(cls, resource_attributes: ResourceAttributes):
+        """Create a default Resource for the OpenTelemetry SDK."""
+        resource_attributes = {
+            SERVICE_NAME: "runhouse-oss",
+            "rh.version": rh.__version__,
+            "username": resource_attributes.username,
+            "cluster_name": resource_attributes.cluster_name,
+        }
+        return Resource.create(resource_attributes)
 
     def _setup_directories(self):
         # Note: use paths that are local to the user's home directory and won't necessitate root access on the cluster

@@ -206,3 +206,27 @@ def setup_cluster_creds(ssh_creds: Union[Dict, str], resource_name: str):
 
     new_secret = rh.secret(name=f"{resource_name}-ssh-secret", values=values)
     return new_secret
+
+
+def _write_creds_to_local(creds):
+    if not creds:
+        return
+
+    private_key_path = creds.get("ssh_private_key")
+    if not private_key_path or Path(private_key_path).expanduser().exists():
+        return
+
+    private_key_value = creds.get("private_key")
+    public_key_value = creds.get("public_key")
+    private_file_path = Path(private_key_path).expanduser()
+
+    if private_key_value:
+        with open(str(private_file_path), "w") as f:
+            f.write(private_key_value)
+        private_file_path.chmod(0o600)
+    if public_key_value:
+        public_file_path = Path(f"{str(private_file_path)}.pub")
+        if not public_file_path.exists():
+            with open(str(public_file_path), "w") as f:
+                f.write(public_key_value)
+            public_file_path.chmod(0o600)
