@@ -30,6 +30,8 @@
 # can happen within the functions that will be sent to the Runhouse cluster.
 
 import time
+from functools import partial
+from multiprocessing.pool import ThreadPool
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -148,7 +150,7 @@ if __name__ == "__main__":
     # Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
     start_time = time.time()
     cluster = rh.cluster(
-        "rh-{num_replicas}xa10g",
+        f"rh-{num_replicas}xa10g",
         instance_type="A10G:1",
         num_instances=num_replicas,
         spot=True,
@@ -193,4 +195,8 @@ if __name__ == "__main__":
     # We'll simply use the `embed_docs` function on the remote module to embed all the URLs in parallel. Note that
     # we can call this function exactly as if it were a local module. The semaphore and asyncio logic allows us
     # to run all the functions in parallel, up to a maximum total concurrency.
-    embedder_pool.embed_docs.map(urls, normalize_embeddings=True, stream_logs=False)
+    with ThreadPool(num_replicas) as pool:
+        embed = partial(
+            embedder_pool.embed_docs, normalize_embeddings=True, stream_logs=False
+        )
+        pool.map(embed, urls)
