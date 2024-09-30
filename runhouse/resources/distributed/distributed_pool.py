@@ -2,14 +2,13 @@ import time
 from typing import List, Optional
 
 from runhouse.resources.distributed.supervisor import Supervisor
-from runhouse.resources.functions.function import Function
 
 from runhouse.resources.module import Module
 
 
 class DistributedPool(Supervisor):
     def __init__(
-        self, name, replicas: List[Module] = None, max_concurrency=1, **kwargs
+        self, name, replicas: List[Module] = None, max_concurrency: int = 1, **kwargs
     ):
         super().__init__(name=name, **kwargs)
         self._replicas = replicas or []
@@ -38,9 +37,4 @@ class DistributedPool(Supervisor):
         return res
 
     def __call__(self, *args, **kwargs):
-        if isinstance(self._replicas[0], Function):
-            return self.call(*args, **kwargs)
-        else:
-            raise NotImplementedError(
-                "DistributedPool.__call__ can only be called on Function replicas."
-            )
+        return self.call(*args, **kwargs)

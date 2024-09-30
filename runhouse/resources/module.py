@@ -754,11 +754,10 @@ class Module(Resource):
                 if replicas_per_node is not None:
                     if env.compute:
                         raise ValueError(
-                            "Cannot specify replicas_per_node of other compute requirements for env "
+                            "Cannot specify replicas_per_node if other compute requirements for env "
                             "placement are specified."
                         )
-                    env.compute = env.compute or {}
-                    env.compute["node_idx"] = i // replicas_per_node
+                    env.compute = {"node_idx": i // replicas_per_node}
 
             new_module = copy.copy(self)
             new_module.local.name = name
