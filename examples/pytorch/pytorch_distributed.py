@@ -63,5 +63,7 @@ if __name__ == "__main__":
         num_instances=num_nodes,
     ).up_if_not()
     remote_train_loop = rh.function(train_loop).to(cluster)
-    train_ddp = remote_train_loop.distribute("pytorch", replicas=16, replicas_per_node=4)
+    train_ddp = remote_train_loop.distribute(
+        "pytorch", replicas=16, replicas_per_node=4
+    )
     train_ddp(epochs=10)
