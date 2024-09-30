@@ -326,7 +326,10 @@ def cluster_list(
 
 @cluster_app.command("keep-warm")
 def cluster_keep_warm(
-    cluster_name: str,
+    cluster_name: str = typer.Argument(
+        None,
+        help="Name of cluster to check. If not specified will check the local cluster.",
+    ),
     mins: Optional[int] = typer.Option(
         -1,
         help="Amount of time (in min) to keep the cluster warm after inactivity. If set to -1, keeps cluster warm indefinitely.",

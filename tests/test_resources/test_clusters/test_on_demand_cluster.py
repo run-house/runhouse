@@ -1,5 +1,6 @@
 import asyncio
 import shlex
+import subprocess
 import threading
 import time
 
@@ -22,7 +23,7 @@ def set_autostop_from_on_cluster_via_ah(mins):
     asyncio.run(ah.set_autostop(mins))
 
 
-def get_auotstop_from_on_cluster():
+def get_autostop_from_on_cluster():
     ah = rh.servers.autostop_helper.AutostopHelper()
 
     return asyncio.run(ah.get_autostop())
@@ -137,7 +138,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             working_dir="local:./", reqs=["pytest", "pandas"], name="autostop_env"
         ).to(cluster)
 
-        get_autostop = rh.fn(get_auotstop_from_on_cluster).to(
+        get_autostop = rh.fn(get_autostop_from_on_cluster).to(
             cluster, env="autostop_env"
         )
         # First check that the autostop is set to whatever the cluster set it to
@@ -290,3 +291,62 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         assert get_status_data["status"] == ResourceServerStatus.terminated
 
         assert cluster.is_up()
+
+    ####################################################################################################
+    # CLI commands tests
+    ####################################################################################################
+    @pytest.mark.level("minimal")
+    def test_cluster_up_cli(self, cluster):
+        result_local_run = subprocess.run(
+            ["runhouse", "cluster", "up", cluster.rns_address],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        assert result_local_run.returncode == 0
+        assert cluster.is_up()
+
+        result_cluster_run = cluster.run(["runhouse cluster up"])
+        assert result_cluster_run[0][0] == 0
+        assert cluster.is_up()
+
+    @pytest.mark.level("minimal")
+    def test_keep_warm(self, cluster):
+        rh.env(
+            working_dir="local:./", reqs=["pytest", "pandas"], name="autostop_env"
+        ).to(cluster)
+
+        get_autostop = rh.fn(get_autostop_from_on_cluster).to(
+            cluster, env="autostop_env"
+        )
+        # First check that the autostop is set to whatever the cluster set it to
+        assert get_autostop() == cluster.autostop_mins
+        original_autostop = cluster.autostop_mins
+
+        # set autostop locally (outside the cluster)
+        result_local_run = subprocess.run(
+            ["runhouse", "cluster", "keep-warm", cluster.rns_address, "--mins", "10"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        assert result_local_run.returncode == 0
+        assert get_autostop() == 10
+
+        result_local_run = subprocess.run(
+            ["runhouse", "cluster", "keep-warm", cluster.rns_address],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        assert result_local_run.returncode == 0
+        assert get_autostop() == original_autostop
+
+        # set autostop inside the
+        result_cluster_run = cluster.run(["runhouse cluster keep-warm --mins 5"])
+        assert result_cluster_run[0][0] == 0
+        assert get_autostop() == 5
+
+        result_cluster_run = cluster.run(["runhouse cluster keep-warm"])
+        assert result_cluster_run[0][0] == 0
+        assert get_autostop() == original_autostop
