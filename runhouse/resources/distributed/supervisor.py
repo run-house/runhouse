@@ -12,10 +12,6 @@ class Supervisor(Module):
     def forward(self, item, *args, **kwargs):
         pass
 
-    @abstractmethod
-    def signature(self, rich=False):
-        pass
-
     def __getattribute__(self, item):
         """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
         __getattr__ will be called."""

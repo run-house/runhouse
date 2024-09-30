@@ -29,7 +29,7 @@ if __name__ == "__main__":
     train_env = rh.env(name="worker_env", load_from_den=False)
     remote_train_fn = rh.function(train_fn).to(cluster, env=train_env)
     train_fn_pool = remote_train_fn.distribute(
-        "queue", num_replicas=NUM_WORKERS, replicas_per_node=NUM_WORKERS // 2
+        "pool", num_replicas=NUM_WORKERS, replicas_per_node=NUM_WORKERS // 2
     )
 
     optimizer = BayesianOptimization(

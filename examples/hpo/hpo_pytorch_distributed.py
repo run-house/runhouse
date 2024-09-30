@@ -40,7 +40,7 @@ if __name__ == "__main__":
             replicas=gpus_per_node * gpus_per_worker,
         )
     )
-    train_ddp_pool = train_ddp.distribute("queue", replicas=num_hpo_workers)
+    train_ddp_pool = train_ddp.distribute("pool", replicas=num_hpo_workers)
 
     optimizer = BayesianOptimization(
         f=train_ddp_pool,

@@ -20,9 +20,7 @@ async def find_best_params():
     ).up_if_not()
     train_env = rh.env(name="worker_env", compute={"CPU": 8})
     worker_fns = (
-        rh.function(train_fn)
-        .to(cluster, env=train_env)
-        .distribute("pool", replicas=NUM_WORKERS)
+        rh.function(train_fn).to(cluster, env=train_env).replicate(replicas=NUM_WORKERS)
     )
 
     optimizer = BayesianOptimization(

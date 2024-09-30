@@ -702,6 +702,7 @@ class Module(Resource):
     def replicate(
         self,
         num_replicas: int = 1,
+        replicas_per_node: Optional[int] = None,
         names: List[str] = None,
         envs: List["Env"] = None,
         parallel: bool = False,
@@ -747,11 +748,25 @@ class Module(Resource):
                 env = copy.copy(self.env)
                 env.name = f"{self.env.name}_replica_{i}"
 
+                # TODO remove
+                env.reqs = []
+
+                if replicas_per_node is not None:
+                    if env.compute:
+                        raise ValueError(
+                            "Cannot specify replicas_per_node of other compute requirements for env "
+                            "placement are specified."
+                        )
+                    env.compute = env.compute or {}
+                    env.compute["node_idx"] = i // replicas_per_node
+
             new_module = copy.copy(self)
-            new_module.name = name
-            new_module.env = None
-            new_module.system = None
-            new_module = new_module.to(self.system, env=env)
+            new_module.local.name = name
+            new_module.local.env = None
+            new_module.local.system = None
+
+            env.to(self.system)
+            new_module = new_module.to(self.system, env=env.name)
             return new_module
 
         if parallel:
@@ -761,6 +776,59 @@ class Module(Resource):
                 return list(p.imap(create_replica, range(num_replicas)))
 
         return [create_replica(i) for i in range(num_replicas)]
+
+    def distribute(
+        self,
+        distribution: str,
+        name: Optional[str] = None,
+        num_replicas: Optional[int] = 1,
+        replicas_per_node: Optional[int] = None,
+        replication_kwargs: Optional[dict] = {},
+        **distribution_kwargs,
+    ):
+        """Distribute the module on the cluster and return the distributed module.
+
+        Args:
+            distribution (str): The distribution method to use, e.g. "pool", "ray", "pytorch", or "tensorflow".
+            name (str, optional): The name to give to the distributed module, if applicable. Overwrites current module name by default. (Default: ``None``)
+            num_replicas (int, optional): The number of replicas to create. (Default: 1)
+            replicas_per_node (int, optional): The number of replicas to create per node. (Default: ``None``)
+            replication_kwargs: The keyword arguments to pass to the replicate method.
+            distribution_kwargs: The keyword arguments to pass to the distribution method.
+        """
+        if not self.system or not self.name:
+            raise ValueError(
+                "Cannot distribute a module that is not on a cluster. Please send the module to a cluster first."
+            )
+
+        if not self.system.on_this_cluster():
+            # Distribute the module on the cluster and return the distributed module as a
+            # stub.
+            return self.system.call(
+                self.name,
+                "distribute",
+                distribution,
+                name,
+                num_replicas,
+                replicas_per_node,
+                replication_kwargs,
+                remote=True,
+                **distribution_kwargs,
+            )
+
+        if distribution == "pool":
+            from runhouse.resources.distributed.distributed_pool import DistributedPool
+
+            replicas = self.replicate(
+                num_replicas=num_replicas,
+                replicas_per_node=replicas_per_node,
+                **replication_kwargs,
+            )
+            name = name or f"distributed_{self.name}"
+            pooled_module = DistributedPool(
+                **distribution_kwargs, name=name, replicas=replicas
+            ).to(self.system, env=self.env.name)
+            return pooled_module
 
     @property
     def remote(self):

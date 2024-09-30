@@ -7,7 +7,7 @@ from runhouse.resources.functions.function import Function
 from runhouse.resources.module import Module
 
 
-class DistributedQueue(Supervisor):
+class DistributedPool(Supervisor):
     def __init__(
         self, name, replicas: List[Module] = None, max_concurrency=1, **kwargs
     ):
@@ -18,7 +18,7 @@ class DistributedQueue(Supervisor):
             range(len(self._replicas) * self._max_concurrency)
         )
 
-    def signature(self, rich=False):
+    def _compute_signature(self, rich=False):
         return self.local._replicas[0].signature(rich=rich)
 
     def forward(self, item, timeout: Optional[int] = None, *args, **kwargs):
@@ -42,5 +42,5 @@ class DistributedQueue(Supervisor):
             return self.call(*args, **kwargs)
         else:
             raise NotImplementedError(
-                "DistributedQueue.__call__ can only be called on Function replicas."
+                "DistributedPool.__call__ can only be called on Function replicas."
             )
