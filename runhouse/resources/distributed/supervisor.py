@@ -1,6 +1,6 @@
 from abc import abstractmethod
 
-from runhouse.resources.module import Module, MODULE_METHODS, MODULE_ATTRS
+from runhouse.resources.module import Module, MODULE_ATTRS, MODULE_METHODS
 from runhouse.utils import client_call_wrapper
 
 
