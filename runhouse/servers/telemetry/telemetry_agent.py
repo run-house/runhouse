@@ -434,9 +434,7 @@ class TelemetryAgentReceiver:
             start_time = datetime.now()
             while (datetime.now() - start_time).total_seconds() < timeout:
                 if self.is_up():
-                    logger.info(
-                        f"Successfully started Otel agent (pid={self._agent_process.pid})"
-                    )
+                    logger.info("Successfully started local Otel receiver agent")
                     return True
 
                 time.sleep(0.5)

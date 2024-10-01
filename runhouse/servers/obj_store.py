@@ -265,9 +265,9 @@ class ObjStore:
         from runhouse.servers.telemetry import TelemetryAgentReceiver
 
         try:
-            ta = TelemetryAgentReceiver()
-            ta.start()
-            return ta
+            telemetry_agent = TelemetryAgentReceiver()
+            telemetry_agent.start()
+            return telemetry_agent
 
         except Exception as e:
             logger.warning(f"Failed to start telemetry agent: {e}")

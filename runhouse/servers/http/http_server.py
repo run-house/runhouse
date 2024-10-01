@@ -2,7 +2,6 @@ import argparse
 import asyncio
 import inspect
 import json
-import os
 import traceback
 import uuid
 from functools import wraps
@@ -173,17 +172,6 @@ class HTTPServer:
             obj_store.put_resource(
                 serialized_data=data, serialization=None, env_name=default_env_name
             )
-
-        if not os.getenv("disable_observability", False):
-            # Start the agent exporter on the head node (also needed for the cluster servlet)
-            from runhouse.servers.telemetry import TelemetryAgentReceiver
-
-            try:
-                ta = TelemetryAgentReceiver()
-                ta.start()
-
-            except Exception as e:
-                logger.warning(f"Failed to start telemetry agent: {e}")
 
     @classmethod
     def initialize(
