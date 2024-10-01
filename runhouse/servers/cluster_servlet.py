@@ -121,16 +121,19 @@ class ClusterServlet:
             from runhouse.servers.telemetry import TelemetryAgentConfig
             from runhouse.servers.telemetry.metrics_collection import MetricsCollector
 
-            metadata = self._metrics_metadata()
+            # Make sure the telemetry receiver agent has started
+            obj_store.initialize_telemetry_agent()
+
+            attributes = self._metrics_resource_attributes()
             self._metrics_collector = MetricsCollector(
-                metadata=metadata,
+                resource_attributes=attributes,
                 agent_endpoint=f"localhost:{TelemetryAgentConfig.grpc_port}",
             )
 
         return self._metrics_collector
 
-    def _metrics_metadata(self):
-        from runhouse.servers.telemetry.metrics_collection import MetricsMetadata
+    def _metrics_resource_attributes(self):
+        from runhouse.servers.telemetry import ResourceAttributes
 
         cluster_or_local = rh.here
         if cluster_or_local == "file":
@@ -141,7 +144,9 @@ class ClusterServlet:
                 cluster_rns_address if cluster_rns_address else cluster_or_local.name
             )
 
-        return MetricsMetadata(username=rns_client.username, cluster_name=cluster_name)
+        return ResourceAttributes(
+            username=rns_client.username, cluster_name=cluster_name
+        )
 
     ##############################################
     # Cluster config state storage methods
@@ -541,7 +546,7 @@ class ClusterServlet:
                 with self.lock:
                     if not self.gpu_metrics:
                         self.gpu_metrics = {device: [] for device in range(gpu_count)}
-                        self.metrics_collector.update_gpu_utilization()
+                        self.metrics_collector.update_gpu_metrics()
 
                     # TODO [SB / JL] remove once migrated onto otel
                     for gpu_index in range(gpu_count):
@@ -640,10 +645,10 @@ class ClusterServlet:
 
         # -------------------------------------------------------
         # use the otel metrics collector to collect cpu and gpu utilization
-        self.metrics_collector.update_cpu_utilization()
+        self.metrics_collector.update_cpu_metrics()
 
         if self.cluster_config.get("has_cuda"):
-            self.metrics_collector.update_gpu_utilization()
+            self.metrics_collector.update_gpu_metrics()
         # -------------------------------------------------------
         # TODO [SB/JL]: remove this once fully migrated onto otel
         cpu_utilization = psutil.cpu_percent(interval=0)

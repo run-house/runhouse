@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 import GPUtil
 import psutil
 
@@ -8,34 +6,27 @@ from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExp
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics._internal.measurement import Measurement
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-from opentelemetry.sdk.resources import Resource
 
 from runhouse.constants import METRICS_EXPORT_INTERVAL_MS
 from runhouse.logger import get_logger
-from runhouse.servers.telemetry.telemetry_agent import default_resource
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class MetricsMetadata:
-    username: str
-    cluster_name: str
 
 
 class MetricsCollector:
     def __init__(
         self,
         agent_endpoint: str,
-        metadata: MetricsMetadata,
+        resource_attributes,
         headers: dict = None,
-        resource: Resource = None,
     ):
+        from runhouse.servers.telemetry import TelemetryAgentReceiver
+
         self._instrument_cache = {}
-        self.metadata = metadata
-        self.resource = resource or default_resource()
         self.endpoint = agent_endpoint
         self.headers = headers
+
+        self.resource = TelemetryAgentReceiver.default_resource(resource_attributes)
         self.meter = self._load_metrics_meter()
 
     def _load_metrics_meter(self):
@@ -56,7 +47,7 @@ class MetricsCollector:
         return metrics.get_meter(__name__)
 
     @staticmethod
-    def get_gpu_usage():
+    def get_gpu_metadata():
         gpus = GPUtil.getGPUs()
         total_gpu_memory = sum(gpu.memoryTotal for gpu in gpus) if gpus else 0
         total_used_memory = sum(gpu.memoryUsed for gpu in gpus) if gpus else 0
@@ -74,7 +65,7 @@ class MetricsCollector:
         }
 
     @staticmethod
-    def get_cpu_usage():
+    def get_cpu_metadata():
         cpu_percent = psutil.cpu_percent()
         virtual_memory = psutil.virtual_memory()
 
@@ -90,86 +81,129 @@ class MetricsCollector:
             "free_memory": free_cpu_memory,
         }
 
-    def update_cpu_utilization(self):
+    def update_cpu_metrics(self):
         cpu_utilization_counter = self._get_or_create_counter(
             "cpu_utilization_total", "Total CPU utilization over time", "percentage"
         )
-        cpu_usage = self.get_cpu_usage()
+        cpu_usage = self.get_cpu_metadata()
         cpu_utilization_counter.add(
             cpu_usage["utilization_percent"],
             {
                 "unit": "percentage",
-                "username": self.metadata.username,
-                "cluster_name": self.metadata.cluster_name,
             },
         )
 
-    def update_gpu_utilization(self):
+        # Record used memory
+        cpu_memory_usage_histogram = self._get_or_create_histogram(
+            "cpu_memory_usage", "CPU memory usage", "MB"
+        )
+        cpu_memory_usage_histogram.record(
+            cpu_usage["used_memory"],
+            {
+                "unit": "MB",
+            },
+        )
+
+        # Record free memory
+        cpu_free_memory_histogram = self._get_or_create_histogram(
+            "cpu_free_memory", "CPU free memory", "MB"
+        )
+        cpu_free_memory_histogram.record(
+            cpu_usage["free_memory"],
+            {
+                "unit": "MB",
+            },
+        )
+
+    def update_gpu_metrics(self):
         gpu_utilization_counter = self._get_or_create_counter(
             "gpu_utilization_total", "Total GPU utilization over time", "percentage"
         )
-        gpu_usage = self.get_gpu_usage()
+        gpu_usage = self.get_gpu_metadata()
         gpu_utilization_counter.add(
             gpu_usage["utilization_percent"],
             {
                 "unit": "percentage",
-                "username": self.metadata.username,
-                "cluster_name": self.metadata.cluster_name,
+            },
+        )
+
+        # Record used memory
+        gpu_memory_usage_histogram = self._get_or_create_histogram(
+            "cpu_memory_usage", "GPU memory usage", "MB"
+        )
+        gpu_memory_usage_histogram.record(
+            gpu_usage["used_memory"],
+            {
+                "unit": "MB",
+            },
+        )
+
+        # Record free memory
+        gpu_free_memory_histogram = self._get_or_create_histogram(
+            "cpu_free_memory", "GPU free memory", "MB"
+        )
+        gpu_free_memory_histogram.record(
+            gpu_usage["free_memory"],
+            {
+                "unit": "MB",
+            },
+        )
+
+        # Record GPU count
+        gpu_count_histogram = self._get_or_create_histogram(
+            "gpu_count", "Number of GPUs", "count"
+        )
+        gpu_count_histogram.record(
+            gpu_usage["gpu_count"],
+            {
+                "unit": "count",
             },
         )
 
     def cpu_memory_usage_callback(self, instrument, options):
-        cpu_usage = self.get_cpu_usage()
+        cpu_usage = self.get_cpu_metadata()
         return [
             Measurement(
                 instrument=instrument,
                 value=cpu_usage["used_memory"],
                 attributes={
                     "unit": "MB",
-                    "username": self.metadata.username,
-                    "cluster_name": self.metadata.cluster_name,
                 },
             )
         ]
 
     def cpu_free_memory_callback(self, instrument, options):
-        cpu_usage = self.get_cpu_usage()
+        cpu_usage = self.get_cpu_metadata()
         return [
             Measurement(
                 instrument=instrument,
                 value=cpu_usage["free_memory"],
                 attributes={
                     "unit": "MB",
-                    "username": self.metadata.username,
-                    "cluster_name": self.metadata.cluster_name,
                 },
             )
         ]
 
     def gpu_memory_usage_callback(self, instrument, options):
-        gpu_usage = self.get_gpu_usage()
+        gpu_usage = self.get_gpu_metadata()
         return [
             Measurement(
                 instrument=instrument,
                 value=gpu_usage["used_memory"],
                 attributes={
                     "unit": "MB",
-                    "username": self.metadata.username,
-                    "cluster_name": self.metadata.cluster_name,
                 },
             )
         ]
 
     def gpu_count_callback(self, instrument, options):
-        gpu_usage = self.get_gpu_usage()
+        gpu_usage = self.get_gpu_metadata()
         return [
             Measurement(
                 instrument=instrument,
                 value=gpu_usage["gpu_count"],
                 attributes={
                     "unit": "count",
-                    "username": self.metadata.username,
-                    "cluster_name": self.metadata.cluster_name,
                 },
             )
         ]
@@ -220,5 +254,13 @@ class MetricsCollector:
         if name not in self._instrument_cache:
             self._instrument_cache[name] = self.meter.create_observable_gauge(
                 name, callbacks=[callback], description=description, unit=unit
+            )
+        return self._instrument_cache[name]
+
+    def _get_or_create_histogram(self, name, description, unit):
+        """Retrieve or create a Histogram instrument."""
+        if name not in self._instrument_cache:
+            self._instrument_cache[name] = self.meter.create_histogram(
+                name, description=description, unit=unit
             )
         return self._instrument_cache[name]

@@ -21,7 +21,6 @@ from pydantic import BaseModel
 
 import runhouse as rh
 from runhouse.logger import get_logger
-
 from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import generate_uuid, ResourceVisibility
 from runhouse.utils import (
@@ -252,7 +251,7 @@ class ObjStore:
             and not os.getenv("disable_observability", False)
             and self._telemetry_agent is None
         ):
-            self._telemetry_agent = self._initialize_telemetry_agent()
+            self._telemetry_agent = self.initialize_telemetry_agent()
         return self._telemetry_agent
 
     @property
@@ -261,7 +260,8 @@ class ObjStore:
             self._tracer = self._initialize_tracer()
         return self._tracer
 
-    def _initialize_telemetry_agent(self):
+    @staticmethod
+    def initialize_telemetry_agent():
         from runhouse.servers.telemetry import TelemetryAgentReceiver
 
         try:
@@ -274,20 +274,26 @@ class ObjStore:
             return None
 
     def _initialize_tracer(self):
-        from runhouse.servers.telemetry.telemetry_agent import (
-            default_resource,
-            ErrorCapturingExporter,
+        from runhouse.globals import rns_client
+        from runhouse.servers.telemetry import (
+            ResourceAttributes,
+            TelemetryAgentReceiver,
         )
 
-        trace.set_tracer_provider(TracerProvider(resource=default_resource()))
+        resource_attributes = ResourceAttributes(
+            username=rns_client.username, cluster_name=self.cluster_config.get("name")
+        )
+        resource = TelemetryAgentReceiver.default_resource(resource_attributes)
+
+        trace.set_tracer_provider(TracerProvider(resource=resource))
         tracer = trace.get_tracer(__name__)
 
         # Export to local agent, which handles sending to the backend collector
         endpoint = f"localhost:{self.telemetry_agent.agent_config.grpc_port}"
 
+        # Capture spans and add them to an internal buffer to be exported to the local agent receiver automatically
         otlp_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
-        error_capturing_exporter = ErrorCapturingExporter(otlp_exporter)
-        span_processor = BatchSpanProcessor(error_capturing_exporter)
+        span_processor = BatchSpanProcessor(otlp_exporter)
 
         trace.get_tracer_provider().add_span_processor(span_processor)
 
