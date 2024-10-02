@@ -126,6 +126,8 @@ class Cluster(Resource):
         if self._default_env and not self._default_env.name:
             self._default_env.name = _unnamed_default_env_name(self.name)
 
+        self._reqs = []
+
     @property
     def address(self):
         return self.ips[0] if isinstance(self.ips, List) else None
