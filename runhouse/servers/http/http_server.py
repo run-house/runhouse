@@ -30,6 +30,7 @@ from runhouse.constants import (
 )
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
+from runhouse.resources.packages import Package
 from runhouse.rns.utils.api import resolve_absolute_path, ResourceAccess
 from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import averify_cluster_access
@@ -54,6 +55,7 @@ from runhouse.servers.http.http_utils import (
     FolderRmParams,
     get_token_from_request,
     handle_exception_response,
+    InstallPackageParams,
     OutputType,
     PutObjectParams,
     PutResourceParams,
@@ -581,6 +583,19 @@ class HTTPServer:
                 logger.warning(f"No logfiles found for call {run_name}")
             for f in open_logfiles:
                 f.close()
+
+    @staticmethod
+    @app.post("/install_package")
+    @validate_cluster_access
+    async def install_package(request: Request, params: InstallPackageParams):
+        try:
+            package_obj = Package.from_config(params.package_config)
+            await obj_store.ainstall_package_in_all_nodes_and_processes(package_obj)
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
     @staticmethod
     @app.get("/processes")
