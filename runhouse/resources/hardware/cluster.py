@@ -311,7 +311,7 @@ class Cluster(Resource):
             _alt_options=_alt_options,
             _resolve_children=_resolve_children,
         )
-        if cluster and cluster._creds:
+        if cluster and cluster._creds and not dryrun:
             from runhouse.resources.secrets.utils import _write_creds_to_local
 
             _write_creds_to_local(cluster.creds_values)
