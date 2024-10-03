@@ -1,25 +1,39 @@
+# # A Kubeflow Training Pipeline with Runhouse
+
+# This example demonstrates how to use Kubeflow to orchestrate the training of a basic Torch model,
+# with the training class dispatched to a GPU-enabled AWS cloud instance to actually do the training.
+#
+# We use the very popular MNIST dataset which includes a large number
+# of handwritten digits, and create a neural network that accurately identifies
+# what digit is in an image.
+#
+# ## Setup credentials and dependencies
+# For this example, we will need AWS cloud credentials and a Runhouse API key. We name this secret `my-secret` for simplicity, and use it in the pipeline.
+# kubectl create secret generic my-secret \
+#   --from-literal=AWS_ACCESS_KEY_ID=<your-access-key-id> \
+#   --from-literal=AWS_SECRET_ACCESS_KEY=<your-secret-access-key> \
+#   --from-literal=RUNHOUSE_API_KEY=<your-runhouse-api-key>
+#
+# We'll be launching elastic compute from AWS from within the first step, but you can use any compute resource. You can see in the multi-cloud example that you can even run steps on different clusters - for instance, run CPU pre-processing on the cluster that hosts Kubeflow, while offloading GPU to an elastic instance.
+#
+# ## Setting up the Kubeflow pipeline
+# The Kubeflow pipeline is extremely lean, with each step being a function that is run on a remote cluster. The functions are defined in the TorchBasicExample module, and are sent to the remote cluster using Runhouse.
+
 import kfp
 from kfp import kubernetes
 from kfp.dsl import component, pipeline
 
-# sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-# sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
-
-# from TorchBasicExample import download_data, preprocess_data, SimpleTrainer
-
-# Define the functions for each step in the pipeline
-# We can bring up an on-demand cluster using Runhouse. You can access powerful usage patterns by defining compute in code. All subsequent steps connect to this cluster by name, but you can bring up other clusters for other steps.
+# First, we can bring up an on-demand cluster using Runhouse. You can access powerful usage patterns by defining compute in code. All subsequent steps connect to this cluster by name, but you can also bring up other clusters for other steps.
 @component(base_image="pypypypy/my-pipeline-image:latest")
 def bring_up_cluster(cluster_name: str, instance_type: str):
 
     # First we configure the environment to setup Runhouse and AWS credentials. We only need to configure the AWS credentials in the first step since the cluster is saved to Runhouse and we reuse the resource.
     import os
+    import subprocess
 
     import runhouse as rh
 
     rh.login(token=os.getenv("RUNHOUSE_API_KEY"))
-
-    import subprocess
 
     subprocess.run(
         [
@@ -65,9 +79,7 @@ def access_data(cluster_name: str):
     rh.login(token=os.getenv("RUNHOUSE_API_KEY"))
     # Define the requirements on the remote cluster itself, and send the functions which are on the Docker image to the remote cluster
     env = rh.env(name="test_env", reqs=["torch", "torchvision"])
-    cluster = rh.cluster(
-        name="/paul/" + cluster_name
-    ).up_if_not()  # I am adding /paul/ since I have saved the cluster to Runhouse with my account.
+    cluster = rh.cluster(name="/paul/" + cluster_name).up_if_not()
 
     # Grab the functions from the TorchBasicExample module and send them to the remote cluster
     sys.path.append(os.path.expanduser("~/training"))
@@ -81,7 +93,7 @@ def access_data(cluster_name: str):
     remote_preprocess("./data")
 
 
-# Now we run the training.
+# Now we run the training. In this step, we dispatch the training to the remote cluster. The model is trained on the remote cluster, and the model checkpoints are saved to an S3 bucket.
 @component(base_image="pypypypy/my-pipeline-image:latest")
 def train_model(cluster_name: str):
     import os
@@ -119,6 +131,7 @@ def train_model(cluster_name: str):
         )
 
 
+# Finally, we can down the cluster after the training is done.
 @component(base_image="pypypypy/my-pipeline-image:latest")
 def down_cluster(cluster_name: str):
     import os
@@ -131,13 +144,12 @@ def down_cluster(cluster_name: str):
     cluster.teardown()
 
 
-# Define the pipeline
+# Define the pipeline. This is a simple linear pipeline with four steps: bring up the cluster, access the data, train the model, and down the cluster.
 @pipeline(
     name="PyTorch Training Pipeline",
     description="A simple PyTorch training pipeline with multiple steps",
 )
 def pytorch_training_pipeline(cluster_name: str, instance_type: str):
-    # Define tasks from the components
     bring_up_cluster_task = bring_up_cluster(
         cluster_name=cluster_name, instance_type=instance_type
     )
@@ -162,7 +174,6 @@ def pytorch_training_pipeline(cluster_name: str, instance_type: str):
                 secret_key_to_env={var: var.upper()},
             )
 
-    # Define the execution order
     access_data_task.after(bring_up_cluster_task)
     train_model_task.after(access_data_task)
     down_cluster_task.after(train_model_task)
