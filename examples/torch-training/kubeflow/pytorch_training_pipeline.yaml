@@ -59,12 +59,17 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef access_data(cluster_name: str):\n    import runhouse as rh\n\n\
-          \    env = rh.env(name=\"test_env\", reqs=[\"torch\", \"torchvision\"])\n\
-          \n    cluster = rh.cluster(name='/paul/'+cluster_name).up_if_not()\n   \
-          \ remote_download = rh.function(download_data).to(cluster, env=env)\n  \
-          \  remote_preprocess = rh.function(preprocess_data).to(cluster, env=env)\n\
-          \n    remote_download()\n    remote_preprocess()\n\n"
+          \ *\n\ndef access_data(cluster_name: str):\n    import os\n    import runhouse\
+          \ as rh\n    rh.login(token=os.getenv(\"RUNHOUSE_API_KEY\"), interactive=False)\n\
+          \n    # Define the requirements on the remote cluster itself, and send the\
+          \ functions which are on the Docker image to the remote cluster\n    env\
+          \ = rh.env(name=\"test_env\", reqs=[\"torch\", \"torchvision\"])\n\n   \
+          \ cluster = rh.cluster(name=\"/paul/\" + cluster_name).up_if_not() # I am\
+          \ adding /paul/ since I have saved the cluster to Runhouse with my account.\n\
+          \    remote_download = rh.function(download_data).to(cluster, env=env)\n\
+          \    remote_preprocess = rh.function(preprocess_data).to(cluster, env=env)\n\
+          \n    # Run the data download \n    remote_download()\n    remote_preprocess(\"\
+          ./data\")\n\n"
         image: pypypypy/my-kubeflow-pipeline-image:latest
     exec-bring-up-cluster:
       container:
@@ -92,17 +97,24 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef bring_up_cluster(cluster_name: str, instance_type: str):\n  \
-          \  import runhouse as rh\n    import os \n    import subprocess\n\n    #\
-          \ First we configure the environment to setup Runhouse and AWS credentials\n\
-          \    rh.login(token=os.getenv('RUNHOUSE_API_KEY'), interactive=False)\n\
-          \    subprocess.run(['aws', 'configure', 'set', 'aws_access_key_id', os.getenv('AWS_ACCESS_KEY_ID')],\
-          \ check=True)\n    subprocess.run(['aws', 'configure', 'set', 'aws_secret_access_key',\
-          \ os.getenv('AWS_SECRET_ACCESS_KEY')], check=True)\n\n    # Now we bring\
-          \ up the cluster \n    cluster = rh.ondemand_cluster(\n        name=cluster_name,\
-          \ instance_type=instance_type, provider='aws'\n    ).up_if_not()\n\n   \
-          \ print(cluster.is_up())\n    #cluster.save() ## Save the cluster by name\
-          \ to Runhouse Den, and I can access that cluster by name later on\n\n"
+          \ *\n\ndef bring_up_cluster(cluster_name: str, instance_type: str):\n\n\
+          \    # First we configure the environment to setup Runhouse and AWS credentials.\
+          \ We only need to configure the AWS credentials in the first step since\
+          \ the cluster is saved to Runhouse and we reuse the resource. \n    import\
+          \ os\n    import runhouse as rh\n    rh.login(token=os.getenv(\"RUNHOUSE_API_KEY\"\
+          ), interactive=False)\n\n    import subprocess\n    subprocess.run(\n  \
+          \      [\n            \"aws\",\n            \"configure\",\n           \
+          \ \"set\",\n            \"aws_access_key_id\",\n            os.getenv(\"\
+          AWS_ACCESS_KEY_ID\"),\n        ],\n        check=True,\n    )\n    subprocess.run(\n\
+          \        [\n            \"aws\",\n            \"configure\",\n         \
+          \   \"set\",\n            \"aws_secret_access_key\",\n            os.getenv(\"\
+          AWS_SECRET_ACCESS_KEY\"),\n        ],\n        check=True,\n    )\n\n  \
+          \  # Now we bring up the cluster and save it to Runhouse to reuse in subsequent\
+          \ steps. This allows for reuse of the same compute and much better statefulness\
+          \ across multiple Kubeflow steps. \n    cluster = rh.ondemand_cluster(\n\
+          \        name=cluster_name, instance_type=instance_type, provider=\"aws\"\
+          , autostop_mins=90\n    ).up_if_not()\n\n    print(cluster.is_up())\n  \
+          \  cluster.save()  \n\n"
         image: pypypypy/my-kubeflow-pipeline-image:latest
     exec-down-cluster:
       container:
@@ -130,9 +142,10 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef down_cluster(cluster_name: str):\n    import runhouse as rh\n\
-          \n    cluster = rh.cluster(name='/paul/'+cluster_name)\n    cluster.teardown()\n\
-          \n"
+          \ *\n\ndef down_cluster(cluster_name: str):\n    import os\n\n    import\
+          \ runhouse as rh\n\n    rh.login(token=os.getenv(\"RUNHOUSE_API_KEY\"),\
+          \ interactive=False)\n\n    cluster = rh.cluster(name=\"/paul/\" + cluster_name)\n\
+          \    cluster.teardown()\n\n"
         image: pypypypy/my-kubeflow-pipeline-image:latest
     exec-train-model:
       container:
@@ -160,10 +173,11 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef train_model(cluster_name: str):\n    import runhouse as rh\n\n\
-          \    cluster = rh.cluster(name='/paul/'+cluster_name).up_if_not()\n\n  \
-          \  env = rh.env(name=\"test_env\", reqs=[\"torch\", \"torchvision\"])\n\n\
-          \    remote_torch_example = rh.module(SimpleTrainer).to(\n        cluster,\
+          \ *\n\ndef train_model(cluster_name: str):\n    import os\n\n    import\
+          \ runhouse as rh\n\n    rh.login(token=os.getenv(\"RUNHOUSE_API_KEY\"),\
+          \ interactive=False)\n\n    cluster = rh.cluster(name=\"/paul/\" + cluster_name).up_if_not()\n\
+          \    env = rh.env(name=\"test_env\", reqs=[\"torch\", \"torchvision\"])\n\
+          \n    remote_torch_example = rh.module(SimpleTrainer).to(\n        cluster,\
           \ env=env, name=\"torch-basic-training\"\n    )\n\n    model = remote_torch_example()\n\
           \n    batch_size = 64\n    epochs = 5\n    learning_rate = 0.01\n\n    model.load_train(\"\
           ./data\", batch_size)\n    model.load_test(\"./data\", batch_size)\n\n \

@@ -18,7 +18,7 @@ spec:
 
   - name: bring-up-cluster-task
     script:
-      image: pypypypy/my-kubeflow-pipeline-image:latest
+      image: pypypypy/my-pipeline-image:latest
       command: [python]
       env:
       - name: AWS_ACCESS_KEY_ID
@@ -68,7 +68,7 @@ spec:
         print(os.getcwd())
 
         # Now we bring up the cluster
-        cluster = rh.ondemand_cluster(name="rh-a10g", instance_type="A10G:1", provider="aws").up_if_not()
+        cluster = rh.ondemand_cluster(name="rh-a10g-torchtrain", instance_type="A10G:1", provider="aws", autostop_mins=90).up_if_not()
 
         print(cluster.is_up())
         cluster.save()
@@ -76,7 +76,7 @@ spec:
 
   - name: access-data-task
     script:
-      image: pypypypy/my-kubeflow-pipeline-image:latest
+      image: pypypypy/my-pipeline-image:latest
       command: [python]
       env:
       - name: RUNHOUSE_API_KEY
@@ -97,7 +97,7 @@ spec:
         env = rh.env(name="test_env", reqs=["torch", "torchvision"])
 
         # I am adding /paul/ since I have saved the cluster to Runhouse with my account.
-        cluster = rh.cluster(name="/paul/rh-a10g")
+        cluster = rh.cluster(name="/paul/rh-a10g-torchtrain")
         cluster.is_up()
         remote_download = rh.function(download_data).to(cluster, env=env)
         remote_preprocess = rh.function(preprocess_data).to(cluster, env=env)
@@ -107,7 +107,7 @@ spec:
 
   - name: train-model-task
     script:
-      image: pypypypy/my-kubeflow-pipeline-image:latest
+      image: pypypypy/my-pipeline-image:latest
       command: [python]
       env:
       - name: RUNHOUSE_API_KEY
@@ -125,7 +125,7 @@ spec:
 
         rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
 
-        cluster = rh.cluster(name="/paul/rh-a10g").up_if_not()
+        cluster = rh.cluster(name="/paul/rh-a10g-torchtrain").up_if_not()
 
         env = rh.env(name="test_env", reqs=["torch", "torchvision"])
 
@@ -153,7 +153,7 @@ spec:
 
   - name: down-cluster-task
     script:
-      image: pypypypy/my-kubeflow-pipeline-image:latest
+      image: pypypypy/my-pipeline-image:latest
       command: [python]
       env:
       - name: RUNHOUSE_API_KEY
@@ -166,5 +166,5 @@ spec:
         import os
         rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
 
-        cluster = rh.cluster(name="/paul/rh-a10g")
+        cluster = rh.cluster(name="/paul/rh-a10g-torchtrain")
         cluster.teardown()
