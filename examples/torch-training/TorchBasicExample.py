@@ -46,7 +46,7 @@ def download_data(path="./data"):
     print("Done with data download")
 
 
-def preprocess_data(path):
+def preprocess_data(path="./data"):
     transform = transforms.Compose(
         [
             transforms.Resize(
