@@ -1,4 +1,4 @@
-# # A Argo Training Pipeline with Runhouse
+# # An Argo Training Pipeline with Runhouse
 
 # This example demonstrates how to use Argo to orchestrate the training of a basic Torch model,
 # with the training class dispatched to a GPU-enabled AWS cloud instance to actually do the training.
