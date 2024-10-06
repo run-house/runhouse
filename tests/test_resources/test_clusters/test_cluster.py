@@ -593,7 +593,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "unicode_escape"
         )
         status_output_string = status_output_string.replace("\n", "")
-        assert "Runhouse Daemon is running" in status_output_string
+        assert "Runhouse server is running" in status_output_string
         assert f"Runhouse v{rh.__version__}" in status_output_string
         assert f"server port: {cluster.server_port}" in status_output_string
         assert (
@@ -633,14 +633,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.clustertest
     def test_rh_status_cmd_with_no_den_ping(self, cluster):
         self.status_cli_test_logic(
-            cluster=cluster, status_cli_command="runhouse status"
+            cluster=cluster, status_cli_command="runhouse cluster status"
         )
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_rh_status_cmd_with_den_ping(self, cluster):
         self.status_cli_test_logic(
-            cluster=cluster, status_cli_command="runhouse status --send-to-den"
+            cluster=cluster, status_cli_command="runhouse cluster status --send-to-den"
         )
 
     @pytest.mark.skip("Restarting the server mid-test causes some errors, need to fix")
@@ -652,9 +652,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         cluster.put(key="status_key3", obj="status_value3")
         res = str(
-            subprocess.check_output(["runhouse", "status", f"{cluster.name}"]), "utf-8"
+            subprocess.check_output(
+                ["runhouse", "cluster", "status", f"{cluster.name}"]
+            ),
+            "utf-8",
         )
-        assert "😈 Runhouse Daemon is running 🏃" in res
+        assert "😈 Runhouse server is running 🏃" in res
         assert f"server port: {cluster.server_port}" in res
         assert f"server connection_type: {cluster.server_connection_type}" in res
         assert f"den auth: {str(cluster.den_auth)}" in res
@@ -678,7 +681,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             )
             assert "Runhouse Daemon is not running" in res
             res = subprocess.check_output(
-                ["runhouse", "status", f"{cluster_name}_dont_exist"]
+                ["runhouse", "cluster", "status", f"{cluster_name}_dont_exist"]
             ).decode("utf-8")
             error_txt = (
                 f"Cluster {cluster_name}_dont_exist is not found in Den. Please save it, in order to get "
@@ -993,8 +996,16 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             original_username=original_username,
         ):
             clusters = Cluster.list()
-            all_clusters = clusters.get("all_clusters", {})
-            running_clusters = clusters.get("running_clusters", {})
+            all_clusters = clusters.get("den_clusters", {})
+            running_clusters = (
+                [
+                    den_cluster
+                    for den_cluster in all_clusters
+                    if den_cluster.get("Status") == "running"
+                ]
+                if all_clusters
+                else {}
+            )
             assert len(all_clusters) > 0
             assert len(running_clusters) > 0
             assert len(running_clusters) == len(
@@ -1028,8 +1039,16 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             # make sure that we at least one terminated cluster for the tests, (does not matter if the status is mocked)
             set_cluster_status(cluster=cluster, status=ResourceServerStatus.terminated)
             clusters = Cluster.list(show_all=True)
-            all_clusters = clusters.get("all_clusters", {})
-            running_clusters = clusters.get("running_clusters", {})
+            all_clusters = clusters.get("den_clusters", {})
+            running_clusters = (
+                [
+                    den_cluster
+                    for den_cluster in all_clusters
+                    if den_cluster.get("Status") == "running"
+                ]
+                if all_clusters
+                else {}
+            )
             assert 0 <= len(all_clusters) <= 200  # den limit
             assert len(all_clusters) >= len(running_clusters)
 
@@ -1068,8 +1087,16 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             original_username=original_username,
         ):
             clusters = Cluster.list(status="running")
-            all_clusters = clusters.get("all_clusters", {})
-            running_clusters = clusters.get("running_clusters", {})
+            all_clusters = clusters.get("den_clusters", {})
+            running_clusters = (
+                [
+                    den_cluster
+                    for den_cluster in all_clusters
+                    if den_cluster.get("Status") == "running"
+                ]
+                if all_clusters
+                else {}
+            )
             assert len(all_clusters) > 0
             assert len(running_clusters) > 0
             assert len(all_clusters) == len(running_clusters)
@@ -1093,8 +1120,16 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             set_cluster_status(cluster=cluster, status=ResourceServerStatus.terminated)
 
             clusters = Cluster.list(status="terminated")
-            all_clusters = clusters.get("all_clusters", {})
-            running_clusters = clusters.get("running_clusters", {})
+            all_clusters = clusters.get("den_clusters", {})
+            running_clusters = (
+                [
+                    den_cluster
+                    for den_cluster in all_clusters
+                    if den_cluster.get("Status") == "running"
+                ]
+                if all_clusters
+                else {}
+            )
             assert len(all_clusters) > 0
             assert len(running_clusters) == 0
 
@@ -1124,8 +1159,16 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         ):
             minutes_time_filter = 10
             clusters = Cluster.list(since=f"{minutes_time_filter}m")
-            all_clusters = clusters.get("all_clusters", {})
-            running_clusters = clusters.get("running_clusters", {})
+            all_clusters = clusters.get("den_clusters", {})
+            running_clusters = (
+                [
+                    den_cluster
+                    for den_cluster in all_clusters
+                    if den_cluster.get("Status") == "running"
+                ]
+                if all_clusters
+                else {}
+            )
             assert len(running_clusters) >= 0
             assert len(all_clusters) > 0
 

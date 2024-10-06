@@ -1,34 +1,39 @@
-import datetime
-import importlib
 import logging
-import math
 import shlex
 import subprocess
 import time
 import webbrowser
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import ray
 
 import requests
-import rich.markdown
 
 import typer
 import yaml
 from rich.console import Console
 
 import runhouse as rh
-
 import runhouse.rns.login
 
 from runhouse import __version__, cluster, Cluster, configs
+
+from runhouse.cli_utils import (
+    add_clusters_to_output_table,
+    create_output_table,
+    get_cluster_or_local,
+    LogsSince,
+    print_bring_cluster_up_msg,
+    print_status,
+)
+
 from runhouse.constants import (
-    BULLET_UNICODE,
-    DOUBLE_SPACE_UNICODE,
+    ITALIC_BOLD,
     MAX_CLUSTERS_DISPLAY,
     RAY_KILL_CMD,
     RAY_START_CMD,
+    RESET_FORMAT,
     SERVER_LOGFILE,
     SERVER_START_CMD,
     SERVER_STOP_CMD,
@@ -36,27 +41,27 @@ from runhouse.constants import (
     START_SCREEN_CMD,
 )
 from runhouse.globals import rns_client
+
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.ray_utils import (
     check_for_existing_ray_instance,
     kill_actors,
 )
-from runhouse.resources.hardware.utils import ClustersListStatus
-from runhouse.utils import (
-    add_clusters_to_output_table,
-    create_output_table,
-    print_sky_clusters_msg,
-)
+
+from runhouse.resources.hardware.utils import ClustersListStatus, get_all_sky_clusters
+
+SKY_LIVE_CLUSTERS_MSG = "There might be live sky clusters that are not saved in Den. For more information, please run [bold italic]sky status -r[/bold italic]."
 
 # create an explicit Typer application
 app = typer.Typer(add_completion=False)
 
-# creating a cluster app so we could create subcommands of cluster (i.e runhouse cluster list)
-italic_bold_ansi = "\x1B[3m\x1B[1m"
-reset_format = "\x1B[0m"
-cluster_app = typer.Typer(
-    help=f"Cluster information commands. For more info run {italic_bold_ansi}runhouse cluster --help{reset_format}"
-)
+###############################
+# Resources Command Groups
+###############################
+
+# creating a cluster app, so we could create subcommands of cluster (i.e runhouse cluster list).
+# Register it with the main runhouse application
+cluster_app = typer.Typer(help="Cluster related CLI commands.")
 
 # For printing with typer
 console = Console()
@@ -112,46 +117,28 @@ def logout():
     raise typer.Exit()
 
 
-@app.command()
-def notebook(
-    cluster_name: str, up: bool = typer.Option(False, help="Start the cluster")
-):
-    """Open a Jupyter notebook on a cluster."""
-    c = cluster(name=cluster_name)
-    if up:
-        c.up_if_not()
-    if not c.is_up():
-        console.print(
-            f"Cluster {cluster_name} is not up. Please run `runhouse notebook {cluster_name} --up` to bring "
-            f"it up if it is an on-demand cluster."
-        )
-        raise typer.Exit(1)
-    c.notebook()
+###############################
+# Cluster CLI commands
+###############################
 
 
-@app.command()
-def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluster")):
-    """SSH into a cluster created elsewhere (so `ssh cluster` doesn't work out of the box) or not yet up."""
+@cluster_app.command("ssh")
+def cluster_ssh(cluster_name: str):
+    """SSH into a cluster created elsewhere.
+
+    Example:
+
+        ``$ runhouse cluster ssh /sashab/rh-basic-cpu``
+
+    """
     try:
         c = cluster(name=cluster_name)
-
-        if not c.is_shared:
-            if up:
-                try:
-                    c.up_if_not()
-                except NotImplementedError:
-                    console.print(
-                        f"Cluster {cluster_name} is not an on-demand cluster, so it can't be brought up automatically."
-                        f"Please start it manually and re-save the cluster with the new connection info in Python."
-                    )
-                    raise typer.Exit(1)
-            elif not c.is_up():
-                console.print(
-                    f"Cluster {cluster_name} is not up. Please run `runhouse ssh {cluster_name} --up`."
-                )
-                raise typer.Exit(1)
+        if not c.is_up():
+            print_bring_cluster_up_msg(cluster_name=cluster_name)
+            return
 
         c.ssh()
+
     except ValueError:
         import sky
 
@@ -195,342 +182,8 @@ def ssh(cluster_name: str, up: bool = typer.Option(False, help="Start the cluste
         )
 
 
-###############################
-# Status helping functions
-###############################
-
-
-def _adjust_resource_type(resource_type: str):
-    """
-    status helping function. transforms a str form runhouse.resources.{X.Y...}.resource_type to runhouse.resource_type
-    """
-    try:
-        resource_type = resource_type.split(".")[-1]
-        getattr(importlib.import_module("runhouse"), resource_type)
-        return f"runhouse.{resource_type}"
-    except AttributeError:
-        return resource_type
-
-
-def _resource_name_to_rns(name: str):
-    """
-    If possible, transform the resource name to a rns address.
-    If not, return the name as is (it is the key in the object store).
-    """
-    resource_config = rns_client.load_config(name)
-    if resource_config and resource_config.get("resource_type") != "env":
-        return resource_config.get("name")
-    else:
-        return name
-
-
-def _print_cluster_config(cluster_config: Dict):
-    """
-    Helping function to the `_print_status` which prints the relevant info from the cluster config.
-    """
-    # TODO [SB]: need to modify printing format (colour palette etc).
-
-    top_level_config = [
-        "server_port",
-        "den_auth",
-        "server_connection_type",
-    ]
-
-    backend_config = ["resource_subtype", "domain", "server_host", "ips"]
-
-    if cluster_config.get("resource_subtype") != "Cluster":
-        backend_config.append("autostop_mins")
-
-    if cluster_config.get("default_env") and isinstance(
-        cluster_config.get("default_env"), Dict
-    ):
-        cluster_config["default_env"] = cluster_config["default_env"]["name"]
-
-    for key in top_level_config:
-        console.print(
-            f"{BULLET_UNICODE} {key.replace('_', ' ')}: {cluster_config[key]}"
-        )
-
-    console.print(f"{BULLET_UNICODE} backend config:")
-    for key in backend_config:
-        if key == "autostop_mins" and cluster_config[key] == -1:
-            console.print(
-                f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: autostop disabled"
-            )
-        else:
-            console.print(
-                f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: {cluster_config[key]}"
-            )
-
-
-def _print_envs_info(
-    env_servlet_processes: Dict[str, Dict[str, Any]], current_cluster: Cluster
-):
-    """
-    Prints info about the envs in the current_cluster: resources in each env, the CPU usage and GPU usage of the env
-    (if exists)
-    """
-
-    # Print headline
-    envs_in_cluster_headline = "Serving 🍦 :"
-    console.print(envs_in_cluster_headline)
-
-    env_resource_mapping = {
-        env: env_servlet_processes[env]["env_resource_mapping"]
-        for env in env_servlet_processes
-    }
-
-    if len(env_resource_mapping) == 0:
-        console.print("This cluster has no environment nor resources.")
-
-    first_envs_to_print = []
-
-    # First: if the default env does not have resources, print it.
-    default_env_name = current_cluster.default_env.name
-    if len(env_resource_mapping[default_env_name]) <= 1:
-        # case where the default env doesn't hve any other resources, apart from the default env itself.
-        console.print(f"{BULLET_UNICODE} {default_env_name} (runhouse.Env)")
-        console.print(
-            f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if provided. No "
-            "resources were found."
-        )
-
-    else:
-        # case where the default env have other resources. We make sure that our of all the envs which have resources,
-        # the default_env will be printed first.
-        first_envs_to_print = [default_env_name]
-
-    # Make sure to print envs with no resources first.
-    # (the only resource they have is a runhouse.env, which is the env itself).
-    first_envs_to_print = first_envs_to_print + [
-        env_name
-        for env_name in env_resource_mapping
-        if (
-            len(env_resource_mapping[env_name]) <= 1
-            and env_name != default_env_name
-            and env_resource_mapping[env_name]
-        )
-    ]
-
-    # Now, print the envs.
-    # If the env have packages installed, that means that it contains an env resource. In that case:
-    # * If the env contains only itself, we will print that the env contains only the installed packages.
-    # * Else, we will print the resources (rh.function, th.module) associated with the env.
-
-    envs_to_print = first_envs_to_print + [
-        env_name
-        for env_name in env_resource_mapping
-        if env_name not in first_envs_to_print + [default_env_name]
-        and env_resource_mapping[env_name]
-    ]
-
-    for env_name in envs_to_print:
-        resources_in_env = env_resource_mapping[env_name]
-        env_process_info = env_servlet_processes[env_name]
-
-        # sometimes the env itself is not a resource (key) inside the env's servlet.
-        if len(resources_in_env) == 0:
-            env_type = "runhouse.Env"
-        else:
-            env_type = _adjust_resource_type(
-                resources_in_env[env_name]["resource_type"]
-            )
-
-        env_name_txt = f"{BULLET_UNICODE} {env_name} ({env_type}) | pid: {env_process_info['pid']} | node: {env_process_info['node_name']}"
-        console.print(env_name_txt)
-
-        # Print CPU info
-        env_cpu_info = env_process_info.get("env_cpu_usage")
-        if env_cpu_info:
-
-            # convert bytes to GB
-            memory_usage_gb = round(
-                int(env_cpu_info["used_memory"]) / (1024**3),
-                2,
-            )
-            total_cluster_memory = math.ceil(
-                int(env_cpu_info["total_memory"]) / (1024**3)
-            )
-            cpu_memory_usage_percent = round(
-                float(env_cpu_info["used_memory"] / env_cpu_info["total_memory"]),
-                2,
-            )
-            cpu_usage_percent = round(float(env_cpu_info["utilization_percent"]), 2)
-
-            cpu_usage_summery = f"{DOUBLE_SPACE_UNICODE}CPU: {cpu_usage_percent}% | Memory: {memory_usage_gb} / {total_cluster_memory} Gb ({cpu_memory_usage_percent}%)"
-
-        else:
-            cpu_usage_summery = (
-                f"{DOUBLE_SPACE_UNICODE}CPU: This process did not use CPU memory."
-            )
-
-        console.print(cpu_usage_summery)
-
-        # Print GPU info
-        env_gpu_info = env_process_info.get("env_gpu_usage")
-
-        # sometimes the cluster has no GPU, therefore the env_gpu_info is an empty dictionary.
-        if env_gpu_info:
-            # get the gpu usage info, and convert it to GB.
-            total_gpu_memory = math.ceil(
-                float(env_gpu_info.get("total_memory")) / (1024**3)
-            )
-            used_gpu_memory = round(
-                float(env_gpu_info.get("used_memory")) / (1024**3), 2
-            )
-            gpu_memory_usage_percent = round(
-                float(used_gpu_memory / total_gpu_memory) * 100, 2
-            )
-            gpu_usage_summery = f"{DOUBLE_SPACE_UNICODE}GPU Memory: {used_gpu_memory} / {total_gpu_memory} Gb ({gpu_memory_usage_percent}%)"
-            console.print(gpu_usage_summery)
-
-        resources_in_env = [
-            {resource: resources_in_env[resource]}
-            for resource in resources_in_env
-            if resource is not env_name
-        ]
-
-        if len(resources_in_env) == 0:
-            # No resources were found in the env, only the associated installed python reqs were installed.
-            console.print(
-                f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if provided. No resources were "
-                "found."
-            )
-
-        else:
-            for resource in resources_in_env:
-                for resource_name, resource_info in resource.items():
-                    resource_type = _adjust_resource_type(
-                        resource_info.get("resource_type")
-                    )
-
-                    active_function_calls = resource_info.get("active_function_calls")
-                    resource_info_str = f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {resource_name} ({resource_type})"
-
-                    if resource_type == "runhouse.Function" and active_function_calls:
-                        func_start_time_utc = active_function_calls[0].get(
-                            "start_time", None
-                        )
-
-                        # casting func_start_time_utc to datetime format
-                        func_start_time_utc = datetime.datetime.fromtimestamp(
-                            func_start_time_utc, tz=datetime.timezone.utc
-                        )
-
-                        # func_end_time_utc = current time. Making sure it is in the same format as func_start_time_utc,
-                        # so we could calculate function's running time.
-                        func_end_time_utc = datetime.datetime.fromtimestamp(
-                            time.time(), tz=datetime.timezone.utc
-                        )
-
-                        func_running_time = (
-                            func_end_time_utc - func_start_time_utc
-                        ).total_seconds()
-
-                        is_func_running: str = f" [italic bright_green]Running for {func_running_time} seconds[/italic bright_green]"
-
-                    elif (
-                        resource_type == "runhouse.Function"
-                        and not active_function_calls
-                    ):
-                        is_func_running: str = " [italic bright_yellow]Currently not running[/italic bright_yellow]"
-
-                    else:
-                        is_func_running: str = ""
-
-                    resource_info_str = resource_info_str + is_func_running
-
-                    console.print(resource_info_str)
-
-
-def _print_cloud_properties(cluster_config: dict):
-    cloud_properties = cluster_config.get("launched_properties", None)
-    if not cloud_properties:
-        return
-    cloud = cloud_properties.get("cloud")
-    instance_type = cloud_properties.get("instance_type")
-    region = cloud_properties.get("region")
-    cost_per_hour = cloud_properties.get("cost_per_hour")
-
-    has_cuda = cluster_config.get("has_cuda", False)
-    cost_emoji = "💰" if has_cuda else "💸"
-
-    num_of_instances = len(cluster_config.get("ips"))
-    num_of_instances_str = f"{num_of_instances}x " if num_of_instances > 1 else ""
-
-    print(
-        f"🤖 {num_of_instances_str}{cloud} {instance_type} cluster | 🌍 {region} | {cost_emoji} ${cost_per_hour}/hr"
-    )
-
-
-def _get_resource_link_in_den_ui(cluster_name: str, api_server_url: str):
-    cluster_uri = rns_client.format_rns_address(cluster_name)
-    link_to_den_dashboard = f"{api_server_url}/resources/{cluster_uri}"
-    return link_to_den_dashboard
-
-
-def _print_status(status_data: dict, current_cluster: Cluster) -> None:
-    """Prints the status of the cluster to the console"""
-    cluster_config = status_data.get("cluster_config")
-    env_servlet_processes = status_data.get("env_servlet_processes")
-
-    cluster_name = cluster_config.get("name", None)
-
-    if cluster_name:
-        api_server_url = cluster_config.get(
-            "api_server_url", rh.configs.get("api_server_url")
-        )
-        api_server_url = api_server_url.replace(
-            "api", "www"
-        )  # convert the api link to the ui link.
-        cluster_link_in_den_ui = _get_resource_link_in_den_ui(
-            cluster_name=cluster_name, api_server_url=api_server_url
-        )
-        cluster_name_hyperlink = rich.markdown.Text(
-            cluster_name, style=f"link {cluster_link_in_den_ui} white"
-        )
-        console.print(cluster_name_hyperlink)
-
-    has_cuda: bool = cluster_config.get("has_cuda")
-
-    # print headline
-    daemon_headline_txt = (
-        "\N{smiling face with horns} Runhouse Daemon is running \N{Runner}"
-    )
-    console.print(daemon_headline_txt, style="bold royal_blue1")
-
-    console.print(f"Runhouse v{status_data.get('runhouse_version')}")
-    _print_cloud_properties(cluster_config)
-    console.print(f"server pid: {status_data.get('server_pid')}")
-
-    # Print relevant info from cluster config.
-    _print_cluster_config(cluster_config)
-
-    # print general cpu and gpu utilization
-    cluster_gpu_utilization: float = status_data.get("server_gpu_utilization")
-
-    # cluster_gpu_utilization can be none, if the cluster was not using its GPU at the moment cluster.status() was invoked.
-    if cluster_gpu_utilization is None and has_cuda:
-        cluster_gpu_utilization: float = 0.0
-
-    cluster_cpu_utilization: float = status_data.get("server_cpu_utilization")
-
-    server_util_info = (
-        f"CPU Utilization: {round(cluster_cpu_utilization, 2)}% | GPU Utilization: {round(cluster_gpu_utilization, 2)}%"
-        if has_cuda
-        else f"CPU Utilization: {round(cluster_cpu_utilization, 2)}%"
-    )
-    console.print(server_util_info)
-
-    # print the environments in the cluster, and the resources associated with each environment.
-    _print_envs_info(env_servlet_processes, current_cluster)
-
-
-###############################
-# Cluster CLI commands
-###############################
-@app.command()
-def status(
+@cluster_app.command("status")
+def cluster_status(
     cluster_name: str = typer.Argument(
         None,
         help="Name of cluster to check. If not specified will check the local cluster.",
@@ -540,43 +193,13 @@ def status(
         help="Whether to update Den with the status",
     ),
 ):
-    """Load the status of the Runhouse daemon running on a cluster."""
-    cluster_or_local = rh.here
+    """Load the status of the cluster.
 
-    if cluster_or_local == "file" and not cluster_name:
-        # If running outside the cluster must specify a cluster name
-        console.print("Missing argument `cluster_name`.")
-        return
+    Example:
 
-    elif cluster_name:
-        current_cluster = cluster(name=cluster_name)
-        if not current_cluster.is_up():
-            console.print(
-                f"Cluster {cluster_name} is not up. If it's an on-demand cluster, you can run "
-                f"`runhouse ssh --up {cluster_name}` to bring it up automatically."
-            )
-            raise typer.Exit(1)
-        try:
-            if current_cluster._http_client:
-                current_cluster._http_client.check_server()
-        except requests.exceptions.ConnectionError:
-            console.print(
-                f"Could not connect to the server on cluster {cluster_name}. Check that the server is up with "
-                f"`runhouse ssh {cluster_name}` or `sky status -r` for on-demand clusters."
-            )
-            raise typer.Exit(1)
-
-    elif not cluster_or_local:
-        console.print(
-            "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}. "
-            "Start it with `runhouse restart` or specify a remote "
-            "cluster to poll with `runhouse status <cluster_name>`."
-        )
-        raise typer.Exit(1)
-
-    else:
-        # we are inside the cluster
-        current_cluster = cluster_or_local  # cluster_or_local = rh.here
+        ``$ runhouse cluster status /sashab/rh-basic-cpu``
+    """
+    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
 
     try:
         cluster_status = current_cluster.status(send_to_den=send_to_den)
@@ -590,7 +213,7 @@ def status(
         )
         return
 
-    _print_status(cluster_status, current_cluster)
+    print_status(cluster_status, current_cluster)
 
 
 @cluster_app.command("list")
@@ -631,7 +254,7 @@ def cluster_list(
     # logged out case
     if not rh.configs.token:
         # TODO [SB]: adjust msg formatting (coloring etc)
-        sky_cli_command_formatted = f"{italic_bold_ansi}sky status -r{reset_format}"  # will be printed bold and italic
+        sky_cli_command_formatted = f"{ITALIC_BOLD}sky status -r{RESET_FORMAT}"  # will be printed bold and italic
         console.print(
             f"Listing clusters requires a Runhouse token. Please run  `runhouse login` to get your token, or run {sky_cli_command_formatted} to list locally stored on-demand clusters."
         )
@@ -639,22 +262,30 @@ def cluster_list(
 
     clusters = Cluster.list(show_all=show_all, since=since, status=cluster_status)
 
-    all_clusters = clusters.get("all_clusters", None)
-    running_clusters = clusters.get("running_clusters", None)
+    den_clusters = clusters.get("den_clusters", None)
+    running_clusters = (
+        [
+            den_cluster
+            for den_cluster in den_clusters
+            if den_cluster.get("Status") == "running"
+        ]
+        if den_clusters
+        else None
+    )
     sky_clusters = clusters.get("sky_clusters", None)
 
-    if not all_clusters:
+    if not den_clusters:
         no_clusters_msg = f"No clusters found in Den for {rns_client.username}"
         if show_all or since or cluster_status:
             no_clusters_msg += " that match the provided filters"
         console.print(no_clusters_msg)
         if sky_clusters:
-            print_sky_clusters_msg(len(sky_clusters))
+            console.print(SKY_LIVE_CLUSTERS_MSG)
         return
 
     filters_requested: bool = show_all or since or cluster_status
 
-    clusters_to_print = all_clusters if filters_requested else running_clusters
+    clusters_to_print = den_clusters if filters_requested else running_clusters
 
     if show_all:
         # if user requesting all den cluster, limit print only to 50 clusters max.
@@ -664,7 +295,7 @@ def cluster_list(
 
     # creating the clusters table
     table = create_output_table(
-        total_clusters=len(all_clusters),
+        total_clusters=len(den_clusters),
         running_clusters=len(running_clusters),
         displayed_clusters=len(clusters_to_print),
         filters_requested=filters_requested,
@@ -676,7 +307,208 @@ def cluster_list(
 
     # print msg about un-saved live sky clusters.
     if sky_clusters:
-        print_sky_clusters_msg(len(sky_clusters))
+        console.print(SKY_LIVE_CLUSTERS_MSG)
+
+
+@cluster_app.command("keep-warm")
+def cluster_keep_warm(
+    cluster_name: str = typer.Argument(
+        None,
+        help="Name of cluster to keep warm. If not specified will check the local cluster.",
+    ),
+    mins: Optional[int] = typer.Option(
+        -1,
+        help="Amount of time (in min) to keep the cluster warm after inactivity. If set to -1, keeps cluster warm indefinitely.",
+    ),
+):
+    """Keep the cluster warm for given number of minutes after inactivity.
+
+    Example:
+
+        ``$ runhouse cluster keep-warm /sashab/rh-basic-cpu``
+
+    """
+
+    current_cluster = get_cluster_or_local(cluster_name)
+
+    try:
+        if not current_cluster.is_up():
+            print_bring_cluster_up_msg(cluster_name=cluster_name)
+            return
+        current_cluster.keep_warm(mins=mins)
+    except ValueError:
+        console.print(f"{cluster_name} is not saved in Den.")
+        sky_live_clusters = get_all_sky_clusters()
+        cluster_name = (
+            cluster_name.split("/")[-1] if "/" in cluster_name else cluster_name
+        )
+        if cluster_name in sky_live_clusters:
+            console.print(
+                f"You can keep warm the cluster by running [italic bold] sky autostop {cluster_name} -i {mins}"
+            )
+    except Exception as e:
+        console.print(f"Failed to keep the cluster warm: {e}")
+
+
+@cluster_app.command("up")
+def cluster_up(
+    cluster_name: str = typer.Argument(
+        None,
+        help="The name of cluster to bring up.",
+    )
+):
+    """Bring up the cluster if it is not up. No-op if cluster is already up.
+    This only applies to on-demand clusters, and has no effect on self-managed clusters.
+
+    Example:
+
+        ``$ runhouse cluster up /sashab/rh-basic-cpu``
+
+    """
+    current_cluster = get_cluster_or_local(cluster_name)
+
+    try:
+        current_cluster.up_if_not()
+    except ValueError:
+        console.print("Cluster is not saved in Den.")
+    except Exception as e:
+        console.print(f"Failed to bring up the cluster: {e}")
+
+
+@cluster_app.command("down")
+def cluster_down(
+    cluster_name: str = typer.Argument(
+        None,
+        help="The name of cluster to terminate.",
+    ),
+    remove_configs: bool = typer.Option(
+        False,
+        "-rm",
+        "--remove-configs",
+        help="Whether to delete cluster config from Den (default: ``False``).",
+    ),
+    remove_all: bool = typer.Option(
+        False,
+        "-a",
+        "--all",
+        help="Whether to terminate all running clusters saved in Den (default: ``False``).",
+    ),
+    force_deletion: bool = typer.Option(
+        False, "-y", "--yes", help="Skip confirmation prompt."
+    ),
+):
+    """Terminate cluster if it is not down. No-op if cluster is already down.
+    This only applies to on-demand clusters, and has no effect on self-managed clusters.
+
+    Example:
+
+        ``$ runhouse cluster down /sashab/rh-basic-cpu``
+    """
+    if not force_deletion:
+        if cluster_name:
+            proceed = typer.prompt(f"Terminating: {cluster_name}. Proceed? [Y/n]")
+        elif remove_all:
+            proceed = typer.prompt(
+                "Terminating all running clusters saved in Den. Proceed? [Y/n]"
+            )
+        else:
+            console.print("Cannot determine which cluster to terminate, aborting.")
+            raise typer.Exit(1)
+
+        if proceed.lower() in ["n", "no"]:
+            console.print("Aborted!")
+            raise typer.Exit(0)
+
+    if remove_all:
+        running_den_clusters = Cluster.list(status=ClustersListStatus.running).get(
+            "den_clusters"
+        )
+
+        if not running_den_clusters:
+            console.print("No running clusters saved in Den")
+            raise typer.Exit(0)
+
+        terminated_clusters: int = 0
+        for running_cluster in running_den_clusters:
+            try:
+                current_cluster = rh.cluster(
+                    name=f'/{rns_client.username}/{running_cluster.get("Name")}',
+                    dryrun=True,
+                )
+                if isinstance(current_cluster, rh.OnDemandCluster):
+                    current_cluster.teardown_and_delete() if remove_configs else current_cluster.teardown()
+                    terminated_clusters += 1
+                else:
+                    console.print(
+                        f"{current_cluster.rns_address} is not an on-demand cluster and must be terminated manually."
+                    )
+            except ValueError:
+                continue
+        console.print(f"Successfully terminated {terminated_clusters} clusters.")
+        raise typer.Exit(0)
+
+    current_cluster = get_cluster_or_local(cluster_name)
+
+    try:
+        if isinstance(current_cluster, rh.OnDemandCluster):
+            current_cluster.teardown_and_delete() if remove_configs else current_cluster.teardown()
+        else:
+            console.print(
+                f"{current_cluster.rns_address} is not an on-demand cluster and must be terminated manually."
+            )
+    except ValueError:
+        console.print("Cluster is not saved in Den, could not bring it down.")
+        sky_live_clusters = get_all_sky_clusters()
+        cluster_name = (
+            cluster_name.split("/")[-1] if "/" in cluster_name else cluster_name
+        )
+        if cluster_name in sky_live_clusters:
+            console.print(
+                f"You can bring down the cluster by running [italic bold] sky down {cluster_name}"
+            )
+    except Exception as e:
+        console.print(f"Failed to terminate the cluster: {e}")
+
+
+@cluster_app.command("logs")
+def cluster_logs(
+    cluster_name: str = typer.Argument(
+        None,
+        help="Name of cluster to load the logs from. If not specified, loads the logs of the local cluster.",
+    ),
+    since: Optional[LogsSince] = typer.Option(
+        LogsSince.five.value,
+        "--since",
+        help="Get the logs from the provided timeframe (in minutes).",
+    ),
+):
+    """Load the logs of the Runhouse server running on a cluster.
+
+    Examples:
+
+        ``$ runhouse cluster logs /sashab/rh-basic-cpu``
+
+        ``$ runhouse cluster logs /sashab/rh-basic-cpu --since 60``
+
+    """
+    current_cluster = get_cluster_or_local(cluster_name)
+
+    if not current_cluster:
+        return
+
+    cluster_uri = rns_client.resource_uri(current_cluster.rns_address)
+
+    resp = requests.get(
+        f"{rns_client.api_server_url}/resource/{cluster_uri}/logs/file?minutes={since}",
+        headers=rns_client.request_headers(),
+    )
+
+    if resp.status_code != 200:
+        console.print("Failed to get cluster logs.")
+        return
+    logs_file_url = resp.json().get("data").get("logs_presigned_url")
+    logs_file_content = requests.get(logs_file_url).content.decode("utf-8")
+    console.print(f"[reset][cyan]{logs_file_content}")
 
 
 # Register the 'cluster' command group with the main runhouse application
