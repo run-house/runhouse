@@ -4,7 +4,7 @@ import subprocess
 import time
 import webbrowser
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import ray
 
@@ -21,8 +21,10 @@ from runhouse import __version__, cluster, Cluster, configs
 
 from runhouse.cli_utils import (
     add_clusters_to_output_table,
+    check_if_command_exists,
     create_output_table,
     get_cluster_or_local,
+    get_wrapped_server_start_cmd,
     LogsSince,
     print_bring_cluster_up_msg,
     print_cluster_config,
@@ -38,10 +40,7 @@ from runhouse.constants import (
     RAY_START_CMD,
     RESET_FORMAT,
     SERVER_LOGFILE,
-    SERVER_START_CMD,
     SERVER_STOP_CMD,
-    START_NOHUP_CMD,
-    START_SCREEN_CMD,
 )
 from runhouse.globals import rns_client
 
@@ -77,6 +76,11 @@ app.add_typer(server_app, name="server")
 console = Console()
 
 logger = get_logger(__name__)
+
+
+###############################
+# General Runhouse CLI commands
+###############################
 
 
 @app.command()
@@ -521,38 +525,9 @@ def cluster_logs(
 app.add_typer(cluster_app, name="cluster")
 
 
-def load_cluster(cluster_name: str):
-    """Load a cluster from RNS into the local environment, e.g. to be able to ssh."""
-    c = cluster(name=cluster_name)
-    if not c.address:
-        c._update_from_sky_status(dryrun=True)
-
-
-def _check_if_command_exists(cmd: str):
-    cmd_check = subprocess.run(
-        f"command -v {cmd}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    available = cmd_check.returncode == 0
-    if not available:
-        logger.info(f"{cmd} is not available on the system.")
-    return available
-
-
-def _get_wrapped_server_start_cmd(flags: List[str], screen: bool, nohup: bool):
-    if screen:
-        wrapped_cmd = START_SCREEN_CMD
-    elif nohup:
-        wrapped_cmd = START_NOHUP_CMD
-    else:
-        wrapped_cmd = SERVER_START_CMD
-
-    if flags:
-        flags_str = "".join(flags)
-        wrapped_cmd = wrapped_cmd.replace(
-            SERVER_START_CMD, SERVER_START_CMD + flags_str
-        )
-
-    return wrapped_cmd
+###############################
+# Server CLI commands
+###############################
 
 
 def _start_server(
@@ -665,8 +640,8 @@ def _start_server(
     flags.append(" --from-python" if from_python else "")
 
     # Check if screen or nohup are available
-    screen = screen and _check_if_command_exists("screen")
-    nohup = not screen and nohup and _check_if_command_exists("nohup")
+    screen = screen and check_if_command_exists("screen")
+    nohup = not screen and nohup and check_if_command_exists("nohup")
 
     # Create logfile if we are using backgrounding
     if (screen or nohup) and create_logfile and not Path(SERVER_LOGFILE).exists():
@@ -674,7 +649,7 @@ def _start_server(
         Path(SERVER_LOGFILE).touch()
 
     # Add flags to the server start command
-    cmds.append(_get_wrapped_server_start_cmd(flags, screen, nohup))
+    cmds.append(get_wrapped_server_start_cmd(flags, screen, nohup))
     logger.info(f"Starting API server using the following command: {cmds[-1]}.")
 
     try:
