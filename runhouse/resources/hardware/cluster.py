@@ -38,6 +38,7 @@ import requests.exceptions
 
 from runhouse.constants import (
     CLI_RESTART_CMD,
+    CLI_START_CMD,
     CLI_STOP_CMD,
     CLUSTER_CONFIG_PATH,
     DEFAULT_HTTP_PORT,
@@ -502,6 +503,13 @@ class Cluster(Resource):
         """
         return self.on_this_cluster() or self._ping()
 
+    def _is_server_up(self) -> bool:
+        try:
+            self.client.check_server()
+            return True
+        except ValueError:
+            return False
+
     def up_if_not(self):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
         This only applies to on-demand clusters, and has no effect on self-managed clusters.
@@ -960,25 +968,14 @@ class Cluster(Resource):
                 require_outputs=False,
             )
 
-    def restart_server(
+    def _start_or_restart_helper(
         self,
+        base_cli_cmd: str,
         _rh_install_url: str = None,
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
     ):
-        """Restart the RPC server.
-
-        Args:
-            resync_rh (bool): Whether to resync runhouse. Specifying False will not sync Runhouse under any circumstance. If it is None, then it will sync if Runhouse is not installed on the cluster or if locally it is installed as editable. (Default: ``None``)
-            restart_ray (bool): Whether to restart Ray. (Default: ``True``)
-            restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
-
-        Example:
-            >>> rh.cluster("rh-cpu").restart_server()
-        """
-        logger.info(f"Restarting Runhouse API server on {self.name}.")
-
         default_env = _get_env_from(self._default_env) if self._default_env else None
         if default_env:
             self._sync_default_env_to_cluster()
@@ -1082,7 +1079,7 @@ class Cluster(Resource):
                 logger.debug("Saved user config to cluster")
 
         restart_cmd = (
-            CLI_RESTART_CMD
+            base_cli_cmd
             + (" --restart-ray" if restart_ray else "")
             + (" --use-https" if https_flag else "")
             + (" --use-caddy" if caddy_flag else "")
@@ -1131,14 +1128,82 @@ class Cluster(Resource):
 
         return status_codes
 
-    def stop_server(self, stop_ray: bool = True, env: Union[str, "Env"] = None):
+    def restart_server(
+        self,
+        _rh_install_url: str = None,
+        resync_rh: Optional[bool] = None,
+        restart_ray: bool = True,
+        restart_proxy: bool = False,
+    ):
+        """Restart the RPC server.
+
+        Args:
+            resync_rh (bool): Whether to Resync runhouse. If ``False`` will not resync Runhouse onto the cluster.
+                If ``None``, will sync if Runhouse is not installed on the cluster or if locally it is installed
+                as editable. (Default: ``None``)
+            restart_ray (bool): Whether to restart Ray. (Default: ``True``)
+            restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
+
+        Example:
+            >>> rh.cluster("rh-cpu").restart_server()
+        """
+        logger.info(f"Restarting Runhouse API server on {self.name}.")
+
+        return self._start_or_restart_helper(
+            base_cli_cmd=CLI_RESTART_CMD,
+            _rh_install_url=_rh_install_url,
+            resync_rh=resync_rh,
+            restart_ray=restart_ray,
+            restart_proxy=restart_proxy,
+        )
+
+    def start_server(
+        self,
+        _rh_install_url: str = None,
+        resync_rh: Optional[bool] = None,
+        restart_ray: bool = True,
+        restart_proxy: bool = False,
+    ):
+        """Restart the RPC server.
+
+        Args:
+            resync_rh (bool): Whether to Resync runhouse. If ``False`` will not resync Runhouse onto the cluster.
+                If ``None``, will sync if Runhouse is not installed on the cluster or if locally it is installed
+                as editable. (Default: ``None``)
+            restart_ray (bool): Whether to restart Ray. (Default: ``True``)
+            restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
+
+        Example:
+            >>> rh.cluster("rh-cpu").start_server()
+        """
+        logger.debug(f"Starting Runhouse API server on {self.name}.")
+
+        return self._start_or_restart_helper(
+            base_cli_cmd=CLI_START_CMD,
+            _rh_install_url=_rh_install_url,
+            resync_rh=resync_rh,
+            restart_ray=restart_ray,
+            restart_proxy=restart_proxy,
+        )
+
+    def stop_server(
+        self,
+        stop_ray: bool = True,
+        env: Union[str, "Env"] = None,
+        cleanup_actors: bool = True,
+    ):
         """Stop the RPC server.
 
         Args:
             stop_ray (bool, optional): Whether to stop Ray. (Default: `True`)
             env (str or Env, optional): Specified environment to stop the server on. (Default: ``None``)
+            cleanup_actors (bool, optional): Whether to kill all Ray actors. (Default: ``True``)
         """
-        cmd = CLI_STOP_CMD if stop_ray else f"{CLI_STOP_CMD} --no-stop-ray"
+        cmd = CLI_STOP_CMD
+        if not stop_ray:
+            cmd = cmd + " --no-stop-ray"
+        if not cleanup_actors:
+            cmd = cmd + " --no-cleanup-actors"
 
         status_codes = self.run([cmd], env=env or self._default_env)
         assert status_codes[0][0] == 1

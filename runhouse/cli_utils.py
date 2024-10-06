@@ -127,7 +127,12 @@ def condense_resource_type(resource_type: str):
 ####################################################################################################
 
 
-def print_cluster_config(cluster_config: Dict):
+class StatusType(str, Enum):
+    server = ("sever",)
+    cluster = "cluster"
+
+
+def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.cluster):
     """
     Helping function to the `_print_status` which prints the relevant info from the cluster config.
     """
@@ -140,22 +145,25 @@ def print_cluster_config(cluster_config: Dict):
         "server_connection_type",
     ]
 
-    backend_config = ["resource_subtype", "domain", "server_host", "ips"]
+    backend_config = ["domain", "server_host"]
+    if status_type == StatusType.cluster:
+        backend_config = backend_config + ["resource_subtype", "ips"]
 
-    if cluster_config.get("resource_subtype") != "Cluster":
-        backend_config.append("autostop_mins")
+        if cluster_config.get("resource_subtype") != "Cluster":
+            backend_config.append("autostop_mins")
 
-    if cluster_config.get("default_env") and isinstance(
-        cluster_config.get("default_env"), Dict
-    ):
-        cluster_config["default_env"] = cluster_config["default_env"]["name"]
+        if cluster_config.get("default_env") and isinstance(
+            cluster_config.get("default_env"), Dict
+        ):
+            cluster_config["default_env"] = cluster_config["default_env"]["name"]
 
     for key in top_level_config:
         console.print(
             f"{BULLET_UNICODE} {key.replace('_', ' ')}: {cluster_config[key]}"
         )
 
-    console.print(f"{BULLET_UNICODE} backend config:")
+    if status_type == StatusType.cluster:
+        console.print(f"{BULLET_UNICODE} backend config:")
     for key in backend_config:
         if key == "autostop_mins" and cluster_config[key] == -1:
             console.print(
@@ -164,6 +172,8 @@ def print_cluster_config(cluster_config: Dict):
         else:
             console.print(
                 f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: {cluster_config[key]}"
+            ) if status_type == StatusType.cluster else console.print(
+                f"{BULLET_UNICODE} {key.replace('_', ' ')}: {cluster_config[key]}"
             )
 
 
@@ -445,7 +455,7 @@ def print_bring_cluster_up_msg(
     )
 
 
-def get_cluster_or_local(cluster_name: str):
+def get_cluster_or_local(cluster_name: str = None):
     from runhouse.main import console
 
     if cluster_name:
@@ -461,7 +471,7 @@ def get_cluster_or_local(cluster_name: str):
                 current_cluster._http_client.check_server()
         except requests.exceptions.ConnectionError:
             console.print(
-                f"Could not connect to the server on cluster {cluster_name}. Check that the server is up with "
+                f"Could not connect to the server on cluster [reset]{cluster_name}. Check that the server is up with "
                 f"[reset][bold italic]`runhouse cluster status {cluster_name}`[/bold italic] or [bold italic]`sky status -r`[/bold italic] for on-demand clusters."
             )
             raise typer.Exit(1)
@@ -470,12 +480,14 @@ def get_cluster_or_local(cluster_name: str):
     cluster_or_local = rh.here
     if cluster_or_local == "file" and not cluster_name:
         # If running outside the cluster must specify a cluster name
-        console.print("Missing argument `cluster_name`.")
+        console.print(
+            "Please provide `cluster_name` or run [reset][bold italic]`runhouse server start`[/bold italic] to start runhouse server locally."
+        )
         raise typer.Exit(1)
     elif not cluster_or_local:
         console.print(
             "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}. "
-            "Start it with [reset][bold italic]`runhouse restart`[/bold italic] or specify a remote "
+            "Start it with [reset][bold italic]`runhouse server restart`[/bold italic] or specify a remote "
             "cluster to poll with [reset][bold italic]`runhouse cluster status <cluster_name>`[/bold italic]."
         )
         raise typer.Exit(1)

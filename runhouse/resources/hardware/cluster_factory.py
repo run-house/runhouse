@@ -44,7 +44,7 @@ def cluster(
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
         server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
-            `runhouse start` run on the cluster). Defaults to "0.0.0.0" unless connecting to the server with an SSH
+            `runhouse server start` run on the cluster). Defaults to "0.0.0.0" unless connecting to the server with an SSH
             connection, in which case ``localhost`` is used. (Default: ``None``).
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
             API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
@@ -333,7 +333,7 @@ def ondemand_cluster(
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
         server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
-            `runhouse start` run on the cluster). Defaults to "0.0.0.0" unless connecting to the server with an SSH
+            `runhouse server start` run on the cluster). Defaults to "0.0.0.0" unless connecting to the server with an SSH
             connection, in which case ``localhost`` is used.
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
             API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server

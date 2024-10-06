@@ -20,8 +20,10 @@ ENVS_DIR = "~/.rh/envs"
 GIGABYTE = 1024**3
 MAX_MESSAGE_LENGTH = 1 * GIGABYTE
 
-CLI_RESTART_CMD = "runhouse restart"
-CLI_STOP_CMD = "runhouse stop"
+
+CLI_RESTART_CMD = "runhouse server restart"
+CLI_START_CMD = "runhouse server start"
+CLI_STOP_CMD = "runhouse server stop"
 
 DEFAULT_SERVER_PORT = 32300
 DEFAULT_HTTPS_PORT = 443

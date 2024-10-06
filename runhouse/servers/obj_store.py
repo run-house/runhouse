@@ -207,7 +207,7 @@ class ObjStore:
             runtime_env=runtime_env,
         )
         if self.cluster_servlet is None:
-            # TODO: logger.<method> is not printing correctly here when doing `runhouse start`.
+            # TODO: logger.<method> is not printing correctly here when doing `runhouse server start`.
             # Fix this and general logging.
             logger.warning(
                 "Warning, cluster servlet is not initialized. Object Store operations will not work."

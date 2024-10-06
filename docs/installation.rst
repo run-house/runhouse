@@ -155,7 +155,7 @@ you may find the following `SkyPilot commands <https://skypilot.readthedocs.io/e
 - ``sky status`` - Displays a list of all your clusters by name.
 - ``sky stop <NAME>`` - Stops an instance. This will not fully tear down the cluster in case you need to restart it.
 - ``sky down <NAME>`` - Fully tears down the instance. Best for when you are done using a cluster entirely.
-- ``ssh <NAME>`` - Easily SSH into your cluster. Here you can further examine Runhouse's server with ``runhouse cluster status``.
+- ``ssh <NAME>`` - Easily SSH into your cluster. Here you can further examine Runhouse's server with ``runhouse cluster ssh``.
 
 Example output from ``sky status``:
 

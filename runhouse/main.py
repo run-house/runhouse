@@ -25,10 +25,13 @@ from runhouse.cli_utils import (
     get_cluster_or_local,
     LogsSince,
     print_bring_cluster_up_msg,
+    print_cluster_config,
     print_status,
+    StatusType,
 )
 
 from runhouse.constants import (
+    BULLET_UNICODE,
     ITALIC_BOLD,
     MAX_CLUSTERS_DISPLAY,
     RAY_KILL_CMD,
@@ -62,6 +65,13 @@ app = typer.Typer(add_completion=False)
 # creating a cluster app, so we could create subcommands of cluster (i.e runhouse cluster list).
 # Register it with the main runhouse application
 cluster_app = typer.Typer(help="Cluster related CLI commands.")
+
+app.add_typer(cluster_app, name="cluster")
+
+# creating a cluster app, so we could create subcommands of cluster (i.e runhouse cluster list).
+# Register it with the main runhouse application
+server_app = typer.Typer(help="Runhouse server related CLI commands.")
+app.add_typer(server_app, name="server")
 
 # For printing with typer
 console = Console()
@@ -253,7 +263,6 @@ def cluster_list(
 
     # logged out case
     if not rh.configs.token:
-        # TODO [SB]: adjust msg formatting (coloring etc)
         sky_cli_command_formatted = f"{ITALIC_BOLD}sky status -r{RESET_FORMAT}"  # will be printed bold and italic
         console.print(
             f"Listing clusters requires a Runhouse token. Please run  `runhouse login` to get your token, or run {sky_cli_command_formatted} to list locally stored on-demand clusters."
@@ -492,9 +501,6 @@ def cluster_logs(
 
     """
     current_cluster = get_cluster_or_local(cluster_name)
-
-    if not current_cluster:
-        return
 
     cluster_uri = rns_client.resource_uri(current_cluster.rns_address)
 
@@ -737,12 +743,29 @@ def _start_server(
         raise typer.Exit(1)
 
 
-@app.command()
-def start(
+###############################
+# Server CLI commands
+###############################
+
+
+@server_app.command("start")
+def server_start(
+    cluster_name: Optional[str] = typer.Option(
+        None,
+        help="Specify a *saved* remote cluster to start the Runhouse server on that cluster. If not provided, the locally running server will be started.",
+    ),
     restart_ray: bool = typer.Option(True, help="Restart the Ray runtime"),
-    screen: bool = typer.Option(False, help="Start the server in a screen"),
+    screen: bool = typer.Option(
+        True,
+        help="Start the server in a screen. Only relevant when restarting locally.",
+    ),
     nohup: bool = typer.Option(
-        False, help="Start the server in a nohup if screen is not available"
+        True,
+        help="Start the server in a nohup if screen is not available. Only relevant when restarting locally.",
+    ),
+    resync_rh: bool = typer.Option(
+        False,
+        help="Resync the Runhouse package. Only relevant when restarting remotely.",
     ),
     host: Optional[str] = typer.Option(
         None, help="Custom server host address. Default is `0.0.0.0`."
@@ -756,6 +779,15 @@ def start(
     use_den_auth: bool = typer.Option(
         False, help="Whether to authenticate requests with a Runhouse token"
     ),
+    ssl_keyfile: Optional[str] = typer.Option(
+        None, help="Path to custom SSL key file to use for enabling HTTPS"
+    ),
+    ssl_certfile: Optional[str] = typer.Option(
+        None, help="Path to custom SSL cert file to use for enabling HTTPS"
+    ),
+    restart_proxy: bool = typer.Option(
+        False, help="Whether to reinstall server configs on the cluster"
+    ),
     use_caddy: bool = typer.Option(
         False,
         help="Whether to configure Caddy on the cluster as a reverse proxy.",
@@ -768,14 +800,41 @@ def start(
         None,
         help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS",
     ),
+    api_server_url: str = typer.Option(
+        default="https://api.run.house",
+        help="URL of Runhouse Den",
+    ),
     default_env_name: str = typer.Option(
         None, help="Default env to start the server on."
     ),
     conda_env: str = typer.Option(
         None, help="Name of conda env corresponding to default env if it is a CondaEnv."
     ),
+    from_python: bool = typer.Option(
+        False,
+        help="Whether HTTP server started from inside a Python call rather than CLI.",
+    ),
 ):
-    """Start the HTTP or HTTPS server on the cluster."""
+    """Start the HTTP server on the cluster."""
+
+    # If server is already up, ask the user to restart the server instead.
+    if not cluster_name:
+        server_status_cmd = "runhouse server status"
+        result = subprocess.run(
+            server_status_cmd, shell=True, capture_output=True, text=True
+        )
+
+        if result.returncode == 0 and "Server is up" in result.stdout:
+            console.print(
+                "Local Runhouse server is already running. To restart it, please run [italic bold]runhouse server restart [reset]with the relevant parameters."
+            )
+            raise typer.Exit(0)
+
+    if cluster_name:
+        c = get_cluster_or_local(cluster_name=cluster_name)
+        c.start_server(resync_rh=resync_rh, restart_ray=restart_ray)
+        return
+
     _start_server(
         restart=False,
         restart_ray=restart_ray,
@@ -786,17 +845,25 @@ def start(
         port=port,
         use_https=use_https,
         den_auth=use_den_auth,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
+        restart_proxy=restart_proxy,
         use_caddy=use_caddy,
         domain=domain,
         certs_address=certs_address,
+        api_server_url=api_server_url,
         default_env_name=default_env_name,
         conda_env=conda_env,
+        from_python=from_python,
     )
 
 
-@app.command()
-def restart(
-    name: str = typer.Option(None, help="A *saved* remote cluster object to restart."),
+@server_app.command("restart")
+def server_restart(
+    cluster_name: str = typer.Option(
+        None,
+        help="Specify a *saved* remote cluster to restart the Runhouse server on that cluster. If not provided, the locally running server will be restarted.",
+    ),
     restart_ray: bool = typer.Option(True, help="Restart the Ray runtime"),
     screen: bool = typer.Option(
         True,
@@ -859,8 +926,8 @@ def restart(
     ),
 ):
     """Restart the HTTP server on the cluster."""
-    if name:
-        c = cluster(name=name)
+    if cluster_name:
+        c = get_cluster_or_local(cluster_name=cluster_name)
         c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
         return
 
@@ -887,12 +954,24 @@ def restart(
     )
 
 
-@app.command()
-def stop(
+@server_app.command("stop")
+def server_stop(
+    cluster_name: Optional[str] = typer.Option(
+        None,
+        help="Specify a *saved* remote cluster to stop the Runhouse server on that cluster. If not provided, the locally running server will be stopped.",
+    ),
     stop_ray: bool = typer.Option(False, help="Stop the Ray runtime"),
     cleanup_actors: bool = typer.Option(True, help="Kill all Ray actors"),
 ):
+    """Stop the HTTP server on the cluster."""
+
     logger.info("Stopping the server.")
+
+    if cluster_name:
+        current_cluster = get_cluster_or_local(cluster_name=cluster_name)
+        current_cluster.stop_server(stop_ray=stop_ray, cleanup_actors=cleanup_actors)
+        return
+
     subprocess.run(SERVER_STOP_CMD, shell=True)
 
     if cleanup_actors:
@@ -908,6 +987,28 @@ def stop(
     if stop_ray:
         logger.info("Stopping Ray.")
         subprocess.run(RAY_KILL_CMD, shell=True)
+
+
+@server_app.command("status")
+def server_status(
+    cluster_name: str = typer.Option(
+        None,
+        help="Specify a *saved* remote cluster to check the status of the Runhouse server on that cluster. If not provided, the status of the locally running server will be checked.",
+    ),
+):
+    """Check the HTTP server status on the cluster."""
+    logger.debug("Checking the server status.")
+    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
+    if current_cluster._is_server_up():
+        status = current_cluster.status()
+        console.print(f"[reset]{BULLET_UNICODE} server pid: {status.get('server_pid')}")
+        print_cluster_config(
+            cluster_config=status.get("cluster_config"), status_type=StatusType.server
+        )
+    else:
+        console.print(
+            "Server is down. To check the status of the cluster, run [italic bold]runhouse cluster status"
+        )
 
 
 @app.callback(invoke_without_command=True, help="Runhouse CLI")

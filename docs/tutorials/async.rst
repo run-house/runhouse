@@ -48,7 +48,7 @@ example. First, we’ll start a local Runhouse daemon to mess with:
 
 .. code:: ipython3
 
-    ! runhouse restart
+    ! runhouse server restart
 
 Then, we’ll define a simple ``async`` function to send to Runhouse:
 
