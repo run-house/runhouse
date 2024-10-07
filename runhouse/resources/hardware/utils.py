@@ -49,7 +49,6 @@ class ResourceServerStatus(str, Enum):
     internal_server_error = "internal_server_error"
     runhouse_daemon_down = "runhouse_daemon_down"
     invalid_url = "invalid_url"
-    local_cluster = "local_cluster"
 
 
 class ClustersListStatus(str, Enum):
