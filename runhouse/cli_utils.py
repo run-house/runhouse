@@ -41,11 +41,13 @@ class StatusColors(str, Enum):
     SERVER_DOWN = "[orange1]Runhouse server down[/orange1]"
     TERMINATED = "[red]Terminated[/red]"
     UNKNOWN = "Unknown"
-    LOCAL_CLUSTER = "[bright_yellow]Local cluster[/bright_yellow]"
 
     @classmethod
     def get_status_color(cls, status: str):
-        return getattr(cls, status.upper()).value
+        try:
+            return getattr(cls, status.upper()).value
+        except AttributeError:
+            return cls.UNKNOWN.value
 
 
 def create_output_table(
@@ -62,16 +64,26 @@ def create_output_table(
         if running_clusters < displayed_clusters
         else displayed_clusters
     )
-    table_title = f"[bold cyan]Clusters for {rns_client.username} (Running: {displayed_running_clusters}/{running_clusters}, Total Displayed: {displayed_clusters}/{total_clusters})[/bold cyan]"
+    table_title = (
+        f"[bold cyan]Clusters for {rns_client.username} "
+        f"(Running: {displayed_running_clusters}/{running_clusters}, "
+        f"Total Displayed: {displayed_clusters}/{total_clusters})[/bold cyan]"
+    )
 
     table = Table(title=table_title)
 
     if not filters_requested:
-        table.caption = f"[reset]Showing clusters that were active in the last {int(LAST_ACTIVE_AT_TIMEFRAME / HOUR)} hours."
+        table.caption = (
+            f"[reset]Showing clusters that were active in the "
+            f"last {int(LAST_ACTIVE_AT_TIMEFRAME / HOUR)} hours."
+        )
         table.caption_justify = "left"
 
     if displayed_clusters == MAX_CLUSTERS_DISPLAY:
-        link_to_clusters_in_den = f"[reset]The full list of clusters can be viewed at https://www.run.house/resources?folder={rns_client.username}&type=cluster."
+        link_to_clusters_in_den = (
+            f"[reset]The full list of clusters can be viewed "
+            f"at https://www.run.house/resources?folder={rns_client.username}&type=cluster."
+        )
         if table.caption:
             table.caption += f"\n{link_to_clusters_in_den}"
         else:
@@ -455,7 +467,8 @@ def print_bring_cluster_up_msg(
     from runhouse.main import console
 
     console.print(
-        f"{msg_prefix} because [reset]{cluster_name} is not up. To bring it up, run [bold italic]`runhouse cluster up {cluster_name}`[/bold italic]."
+        f"{msg_prefix} because [reset]{cluster_name} is not up. To bring it up, "
+        f"run [bold italic]`runhouse cluster up {cluster_name}`[/bold italic]."
     )
 
 
@@ -476,7 +489,8 @@ def get_cluster_or_local(cluster_name: str = None):
         except requests.exceptions.ConnectionError:
             console.print(
                 f"Could not connect to the server on cluster [reset]{cluster_name}. Check that the server is up with "
-                f"[reset][bold italic]`runhouse cluster status {cluster_name}`[/bold italic] or [bold italic]`sky status -r`[/bold italic] for on-demand clusters."
+                f"[reset][bold italic]`runhouse cluster status {cluster_name}`[/bold italic] or"
+                f" [bold italic]`sky status -r`[/bold italic] for on-demand clusters."
             )
             raise typer.Exit(1)
         return current_cluster
@@ -485,7 +499,8 @@ def get_cluster_or_local(cluster_name: str = None):
     if cluster_or_local == "file" and not cluster_name:
         # If running outside the cluster must specify a cluster name
         console.print(
-            "Please provide `cluster_name` or run [reset][bold italic]`runhouse server start`[/bold italic] to start runhouse server locally."
+            "Please specify a `cluster_name` or run [reset][bold italic]`runhouse server start`[/bold italic] to start "
+            "a Runhouse server locally."
         )
         raise typer.Exit(1)
     elif not cluster_or_local:
