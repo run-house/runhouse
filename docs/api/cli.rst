@@ -8,9 +8,9 @@ The commands can be run like follows:
 .. code-block:: console
 
    $ runhouse login
-   $ runhouse ssh cluster_name
+   $ runhouse cluster ssh cluster_name
 
 .. automodule:: runhouse.main
-   :members: login, logout, ssh, notebook, start, restart, status, cluster_list
+   :members: login, logout, cluster_ssh, server_start, server_restart, server_stop, server_status, cluster_status, cluster_list, cluster_keep_warm, cluster_up, cluster_down, cluster_logs
    :undoc-members:
    :show-inheritance:

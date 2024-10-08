@@ -19,17 +19,12 @@ from datetime import datetime
 from enum import Enum
 from io import SEEK_SET, StringIO
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Type, Union
+from typing import Callable, Optional, Type, Union
 
 import pexpect
-from rich.table import Table
 
-from runhouse.constants import (
-    HOUR,
-    LAST_ACTIVE_AT_TIMEFRAME,
-    MAX_CLUSTERS_DISPLAY,
-    RH_LOGFILE_PATH,
-)
+from runhouse.constants import RH_LOGFILE_PATH
+
 from runhouse.logger import get_logger, init_logger
 
 logger = get_logger(__name__)
@@ -708,104 +703,3 @@ def get_gpu_usage(collected_gpus_info: dict, servlet_type: ServletType):
         gpu_usage["utilization_percent"] = gpu_utilization_percent
 
     return gpu_usage
-
-
-####################################################################################################
-# Cluster list utils
-####################################################################################################
-
-
-class StatusColors(str, Enum):
-    RUNNING = "[green]Running[/green]"
-    SERVER_DOWN = "[orange1]Runhouse server down[/orange1]"
-    TERMINATED = "[red]Terminated[/red]"
-    UNKNOWN = "Unknown"
-    LOCAL_CLUSTER = "[bright_yellow]Local cluster[/bright_yellow]"
-
-    @classmethod
-    def get_status_color(cls, status: str):
-        return getattr(cls, status.upper()).value
-
-
-def create_output_table(
-    total_clusters: int,
-    running_clusters: int,
-    displayed_clusters: int,
-    filters_requested: bool,
-):
-    """The cluster list is printed as a table, this method creates it."""
-    from runhouse.globals import rns_client
-
-    displayed_running_clusters = (
-        running_clusters
-        if running_clusters < displayed_clusters
-        else displayed_clusters
-    )
-    table_title = f"[bold cyan]Clusters for {rns_client.username} (Running: {displayed_running_clusters}/{running_clusters}, Total Displayed: {displayed_clusters}/{total_clusters})[/bold cyan]"
-
-    table = Table(title=table_title)
-
-    if not filters_requested:
-        table.caption = f"[reset]Showing clusters that were active in the last {int(LAST_ACTIVE_AT_TIMEFRAME / HOUR)} hours."
-        table.caption_justify = "left"
-
-    if displayed_clusters == MAX_CLUSTERS_DISPLAY:
-        link_to_clusters_in_den = f"[reset]The full list of clusters can be viewed at https://www.run.house/resources?folder={rns_client.username}&type=cluster."
-        if table.caption:
-            table.caption += f"\n{link_to_clusters_in_den}"
-        else:
-            table.caption = link_to_clusters_in_den
-        table.caption_justify = "left"
-
-    # Add columns to the table
-    table.add_column("Name", justify="left", no_wrap=True)
-    table.add_column("Cluster Type", justify="left", no_wrap=True)
-    table.add_column("Status", justify="left")
-    table.add_column("Last Active (UTC)", justify="left")
-
-    return table
-
-
-def add_cluster_as_table_row(table: Table, rh_cluster: dict):
-    """Adding an info of a single cluster to the output table."""
-    last_active = rh_cluster.get("Last Active (UTC)")
-    last_active = last_active if last_active != "1970-01-01 00:00:00" else "Unknown"
-    table.add_row(
-        rh_cluster.get("Name"),
-        rh_cluster.get("Cluster Type"),
-        rh_cluster.get("Status"),
-        last_active,
-    )
-
-    return table
-
-
-def add_clusters_to_output_table(table: Table, clusters: List[Dict]):
-    """Adding clusters info to the output table."""
-    for rh_cluster in clusters:
-        last_active_at = rh_cluster.get("Last Active (UTC)")
-        last_active_at_no_offset = str(last_active_at).split("+")[
-            0
-        ]  # The split is required to remove the offset (according to UTC)
-        rh_cluster["Last Active (UTC)"] = last_active_at_no_offset
-        rh_cluster["Status"] = StatusColors.get_status_color(rh_cluster.get("Status"))
-
-        table = add_cluster_as_table_row(table, rh_cluster)
-
-
-def print_sky_clusters_msg(num_sky_clusters: int):
-    from runhouse.main import console
-
-    msg = ""
-    if num_sky_clusters == 1:
-        msg = "There is a live sky cluster that is not saved in Den."
-
-    elif num_sky_clusters > 1:
-        msg = (
-            f"There are {num_sky_clusters} live sky clusters that are not saved in Den."
-        )
-
-    if msg:
-        console.print(
-            f"{msg} For more information, please run [bold italic]sky status -r[/bold italic]."
-        )
