@@ -15,7 +15,7 @@ import psutil
 import requests
 import yaml
 
-from opentelemetry.sdk.resources import Resource, SERVICE_NAME
+from opentelemetry.sdk.resources import HOST_NAME, Resource, SERVICE_NAME
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
@@ -177,8 +177,11 @@ class TelemetryAgentReceiver:
     @classmethod
     def default_resource(cls, resource_attributes: ResourceAttributes):
         """Create a default Resource for the OpenTelemetry SDK."""
+        import socket
+
         resource_attributes = {
             SERVICE_NAME: "runhouse-oss",
+            HOST_NAME: socket.gethostname(),
             "rh.version": rh.__version__,
             "username": resource_attributes.username,
             "cluster_name": resource_attributes.cluster_name,

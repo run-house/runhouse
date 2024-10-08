@@ -355,7 +355,7 @@ class ObjStore:
             runtime_env=runtime_env,
         )
         if self.cluster_servlet is None:
-            # TODO: logger.<method> is not printing correctly here when doing `runhouse start`.
+            # TODO: logger.<method> is not printing correctly here when doing `runhouse server start`.
             # Fix this and general logging.
             logger.warning(
                 "Warning, cluster servlet is not initialized. Object Store operations will not work."
@@ -803,6 +803,7 @@ class ObjStore:
             serialization=serialization,
         )
 
+    @trace_method()
     async def aput_local(self, key: Any, value: Any):
         if self.has_local_storage:
             self._kv_store[key] = value
@@ -810,6 +811,7 @@ class ObjStore:
         else:
             raise NoLocalObjStoreError()
 
+    @trace_method()
     async def aput(
         self,
         key: Any,
@@ -862,6 +864,7 @@ class ObjStore:
     ##############################################
     # KV Store: Get
     ##############################################
+    @trace_method()
     async def aget_from_env_servlet_name(
         self,
         env_servlet_name: str,
@@ -1090,14 +1093,17 @@ class ObjStore:
     ##############################################
     # KV Store: Delete
     ##############################################
+    @trace_method()
     async def adelete_for_env_servlet_name(self, env_servlet_name: str, key: Any):
         return await self.acall_env_servlet_method(
             env_servlet_name, "adelete_local", key
         )
 
+    @trace_method()
     async def adelete_local(self, key: Any):
         await self.apop_local(key)
 
+    @trace_method()
     async def adelete_env_contents(self, env_name: Any):
 
         # delete the env servlet actor and remove its references
@@ -1108,9 +1114,11 @@ class ObjStore:
         deleted_keys = await self.aclear_all_references_to_env_servlet_name(env_name)
         return deleted_keys
 
+    @trace_method()
     def delete_env_contents(self, env_name: Any):
         return sync_function(self.adelete_env_contents)(env_name)
 
+    @trace_method()
     async def adelete(self, key: Union[Any, List[Any]]):
         keys_to_delete = [key] if isinstance(key, str) else key
         deleted_keys = []
@@ -1145,9 +1153,11 @@ class ObjStore:
     ##############################################
     # KV Store: Clear
     ##############################################
+    @trace_method()
     async def aclear_for_env_servlet_name(self, env_servlet_name: str):
         return await self.acall_env_servlet_method(env_servlet_name, "aclear_local")
 
+    @trace_method()
     async def aclear_local(self):
         if self.has_local_storage:
             # Use asyncio gather to run all the deletes concurrently
@@ -1155,6 +1165,7 @@ class ObjStore:
                 *[self.apop_local(k) for k in list(self._kv_store.keys())]
             )
 
+    @trace_method()
     async def aclear(self):
         logger.warning("Clearing all keys from all envs in the object store!")
         for env_servlet_name in await self.aget_all_initialized_env_servlet_names():
@@ -1215,6 +1226,7 @@ class ObjStore:
     ##############################################
     # KV Store: Call
     ##############################################
+    @trace_method()
     async def acall_for_env_servlet_name(
         self,
         env_servlet_name: str,
@@ -1239,6 +1251,7 @@ class ObjStore:
             ctx=dict(req_ctx.get()),
         )
 
+    @trace_method()
     async def acall_local(
         self,
         key: str,
@@ -1293,6 +1306,7 @@ class ObjStore:
 
         return res
 
+    @trace_method()
     async def _acall_local_helper(
         self,
         key: str,
@@ -1482,6 +1496,7 @@ class ObjStore:
         else:
             raise ValueError(f"Invalid laziness type {laziness_type}")
 
+    @trace_method()
     @context_wrapper
     async def acall(
         self,
@@ -1604,6 +1619,7 @@ class ObjStore:
     ##############################################
     # More specific helpers
     ##############################################
+    @trace_method()
     async def aput_resource(
         self,
         serialized_data: Any,
@@ -1661,6 +1677,7 @@ class ObjStore:
             serialized_data, serialization, env_name
         )
 
+    @trace_method()
     async def aput_resource_local(
         self,
         resource_config: Dict[str, Any],
@@ -1737,6 +1754,7 @@ class ObjStore:
 
         return keys_and_info
 
+    @trace_method()
     async def astatus(self, send_to_den: bool = False):
         return await self.acall_actor_method(
             self.cluster_servlet, "status", send_to_den

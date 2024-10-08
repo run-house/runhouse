@@ -20,8 +20,10 @@ ENVS_DIR = "~/.rh/envs"
 GIGABYTE = 1024**3
 MAX_MESSAGE_LENGTH = 1 * GIGABYTE
 
-CLI_RESTART_CMD = "runhouse restart"
-CLI_STOP_CMD = "runhouse stop"
+
+CLI_RESTART_CMD = "runhouse server restart"
+CLI_START_CMD = "runhouse server start"
+CLI_STOP_CMD = "runhouse server stop"
 
 DEFAULT_SERVER_PORT = 32300
 DEFAULT_HTTPS_PORT = 443
@@ -94,7 +96,7 @@ MAX_GPU_INFO_LEN = (MINUTE / GPU_COLLECTION_INTERVAL) * 10
 REDUCED_GPU_INFO_LEN = MAX_GPU_INFO_LEN / 2
 
 
-# Constants Surfacing Logs to Den
+# Surfacing Logs to Den constants
 DEFAULT_LOG_SURFACING_INTERVAL = 2 * MINUTE
 SERVER_LOGS_FILE_NAME = "server.log"
 DEFAULT_SURFACED_LOG_LENGTH = 20
@@ -107,6 +109,9 @@ MAX_CLUSTERS_DISPLAY = 50
 
 # in seconds
 TIME_UNITS = {"s": SECOND, "m": MINUTE, "h": HOUR, "d": DAY}
+# ANSI Constants
+ITALIC_BOLD = "\x1B[3m\x1B[1m"
+RESET_FORMAT = "\x1B[0m"
 
 # Telemetry constants
 OTEL_VERSION = "0.108.0"
