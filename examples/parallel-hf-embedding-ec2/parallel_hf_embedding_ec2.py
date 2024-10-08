@@ -29,16 +29,15 @@
 # Imports of libraries that are needed on the remote machine (in this case, the `huggingface` dependencies)
 # can happen within the functions that will be sent to the Runhouse cluster.
 
-import asyncio
 import time
-from typing import List
+from functools import partial
+from multiprocessing.pool import ThreadPool
 from urllib.parse import urljoin, urlparse
 
 import requests
 import runhouse as rh
 import torch
 from bs4 import BeautifulSoup
-from tqdm.asyncio import tqdm
 
 # Then, we define an `extract_urls` function that will extract all URLs from a given URL, recursively up to a
 # maximum depth. This'll be a useful helper function that we'll use to collect our list of URLs to embed.
@@ -100,32 +99,32 @@ class URLEmbedder:
 
         self.model = torch.compile(SentenceTransformer(**model_kwargs))
 
-    def embed_docs(self, urls: List[str], **embed_kwargs):
+    def embed_docs(self, url: str, **embed_kwargs):
         from langchain_community.document_loaders import WebBaseLoader
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-        start = time.time()
-        docs = WebBaseLoader(
-            web_paths=urls,
-        ).load()
+        docs = WebBaseLoader(web_paths=[url]).load()
         splits = RecursiveCharacterTextSplitter(
             chunk_size=1000, chunk_overlap=200
         ).split_documents(docs)
         splits_as_str = [doc.page_content for doc in splits]
-        downloaded = time.time()
         embedding = self.model.encode(splits_as_str, **embed_kwargs)
-        return urls[0], embedding, downloaded - start, time.time() - downloaded
+        return embedding
 
 
-# ## Setting up Runhouse primitives
-#
-# Now, we define the main function that will run locally when we run this script, and set up
-# our Runhouse module on a remote cluster.
-async def main():
+# :::note{.info title="Note"}
+# Make sure that any code in your Python file that's meant to only run locally runs within
+# a `if __name__ == "__main__":` block, as shown below. Otherwise, the script code will run
+# when Runhouse attempts to import your code remotely.
+# :::
+if __name__ == "__main__":
+    # ## Setting up Runhouse primitives
+    #
+    # Now, we define the main function that will run locally when we run this script, and set up
+    # our Runhouse module on a remote cluster.
 
     # We set up some parameters for our embedding task.
     num_replicas = 4  # Number of models to load side by side
-    max_concurrency_per_replica = 32  # Number of parallel calls to make to each replica
     url_to_recursively_embed = "https://en.wikipedia.org/wiki/Poker"
 
     # We recursively extract all children URLs from the given URL.
@@ -150,12 +149,21 @@ async def main():
     #
     # Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
     start_time = time.time()
-    embedder_replicas = []
     cluster = rh.cluster(
         f"rh-{num_replicas}xa10g",
         instance_type="A10G:1",
         num_instances=num_replicas,
         spot=True,
+        default_env=rh.env(
+            reqs=[
+                "langchain",
+                "langchain-community",
+                "langchainhub",
+                "bs4",
+                "sentence_transformers",
+                "fake_useragent",
+            ]
+        ),
     ).up_if_not()
 
     # Generally, when using Runhouse, you would initialize an env with `rh.env`, and send your module to
@@ -171,77 +179,24 @@ async def main():
     # Note that we send the `URLEmbedder` class to the cluster, and then can construct our modules using the
     # returned "remote class" instead of the normal local class. These instances are then actually constructed
     # on the cluster, and any methods called on these instances would run on the cluster.
-    for i in range(num_replicas):
-        env = rh.env(
-            name=f"langchain_embed_env_{i}",
-            reqs=[
-                "langchain",
-                "langchain-community",
-                "langchainhub",
-                "bs4",
-                "sentence_transformers",
-                "fake_useragent",
-            ],
-            compute={"GPU": 1},
-        )
-        RemoteURLEmbedder = rh.module(URLEmbedder).get_or_to(cluster, env)
-        remote_url_embedder = RemoteURLEmbedder(
-            model_name_or_path="BAAI/bge-large-en-v1.5",
-            device="cuda",
-            name=f"doc_embedder_{i}",
-        )
-        embedder_replicas.append(remote_url_embedder)
-    print(f"Time to initialize {num_replicas} replicas: {time.time() - start_time}")
+    RemoteURLEmbedder = rh.module(URLEmbedder).to(
+        cluster, rh.process(name="langchain_embed_env")
+    )
+    remote_url_embedder = RemoteURLEmbedder(
+        model_name_or_path="BAAI/bge-large-en-v1.5",
+        device="cuda",
+        name="doc_embedder",
+    )
+    embedder_pool = remote_url_embedder.distribute(
+        "queue", replicas=num_replicas, replicas_per_node=1, max_concurrency=32
+    )
 
     # ## Calling the Runhouse modules in parallel
     # We'll simply use the `embed_docs` function on the remote module to embed all the URLs in parallel. Note that
     # we can call this function exactly as if it were a local module. The semaphore and asyncio logic allows us
     # to run all the functions in parallel, up to a maximum total concurrency.
-
-    # We pass a few special arguments to the Runhouse function.
-    #
-    # We need to use a special `run_async=True`
-    # argument to the function. This tells Runhouse to return a coroutine that we can await on, rather than making
-    # a blocking network call to the server. This allows us to use `asyncio` logic locally to run all the functions
-    # in parallel.
-    #
-    # We also pass `stream_logs=False`, which means we won't get the stdout/stderr of the remote
-    # function on our local machine. In this case, we're running a large batch job, and don't want to slow down
-    # our work by spamming our local machine with logs.
-    semaphore = asyncio.Semaphore(max_concurrency_per_replica * num_replicas)
-
-    async def load_and_embed(url, idx):
-        async with semaphore:
-            print(f"Embedding {url} on replica {idx % num_replicas}")
-            embedder_replica = embedder_replicas[idx % num_replicas]
-            return await embedder_replica.embed_docs(
-                [url], normalize_embeddings=True, run_async=True, stream_logs=False
-            )
-
-    start_time = time.time()
-    futs = [load_and_embed(url, idx) for idx, url in enumerate(urls)]
-    task_results = await tqdm.gather(*futs)
-
-    failures = len([res for res in task_results if isinstance(res, Exception)])
-    total_download_time = sum(
-        [res[2] for res in task_results if not isinstance(res, Exception)]
-    )
-    total_embed_time = sum(
-        [res[3] for res in task_results if not isinstance(res, Exception)]
-    )
-    print(
-        f"Received {len(task_results) - failures} total embeddings, with {failures} failures.\n"
-        f"Embedded {len(urls)} docs across {num_replicas} replicas with {max_concurrency_per_replica} "
-        f"concurrent calls: {time.time() - start_time} \n"
-        f"Total sys time for downloads: {total_download_time} \n"
-        f"Total sys time for embeddings: {total_embed_time}"
-    )
-
-
-# :::note{.info title="Note"}
-# Make sure that any code in your Python file that's meant to only run locally runs within
-# a `if __name__ == "__main__":` block, as shown below. Otherwise, the script code will run
-# when Runhouse attempts to import your code remotely.
-# :::
-if __name__ == "__main__":
-    asyncio.run(main())
+    with ThreadPool(num_replicas) as pool:
+        embed = partial(
+            embedder_pool.embed_docs, normalize_embeddings=True, stream_logs=False
+        )
+        pool.map(embed, urls)
