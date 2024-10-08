@@ -11,10 +11,14 @@ class TestMultiNodeCluster:
 
     MAP_FIXTURES = {"resource": "cluster"}
 
+    # setting release testing to run with on-demand cluster that not using docker image,
+    # because the latter causing nightly release tests in CI to run for a very long time (does not happen locally).
+    # TODO: [JL / SB]: check how we could make CI run with docker on-demand cluster
+
     UNIT = {"cluster": []}
     LOCAL = {"cluster": []}
     MINIMAL = {"cluster": []}
-    RELEASE = {"cluster": ["multinode_cpu_docker_conda_cluster"]}
+    RELEASE = {"cluster": ["multinode_gpu_cluster"]}
     MAXIMAL = {
         "cluster": [
             "multinode_cpu_docker_conda_cluster",
