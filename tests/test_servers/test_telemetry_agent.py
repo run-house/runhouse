@@ -1,3 +1,4 @@
+import time
 import uuid
 
 import pytest
@@ -9,6 +10,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from runhouse.globals import rns_client
 from runhouse.logger import get_logger
+from runhouse.servers.telemetry.metrics_collection import MetricsCollector
 from runhouse.servers.telemetry.telemetry_agent import (
     ErrorCapturingExporter,
     ResourceAttributes,
@@ -130,3 +132,37 @@ class TestTelemetryAgent:
         assert (
             not error_capturing_exporter.has_errors()
         ), error_capturing_exporter.get_errors()
+
+    @pytest.mark.level("local")
+    def test_send_interval_metrics_to_local_collector_backend(
+        self, local_telemetry_collector
+    ):
+        """Generate cumulative metrics collection in-memory and send it to the local collector backend"""
+        mc = MetricsCollector(
+            resource_attributes=resource_attributes(),
+            agent_endpoint="grpc://localhost:4316",
+        )
+
+        duration = 20
+        start_time = time.time()
+        while time.time() - start_time < duration:
+            mc.update_cpu_metrics()
+            time.sleep(5)
+
+    @pytest.mark.level("local")
+    def test_interval_metrics_to_runhouse_collector_backend(self):
+        """Generate cumulative metrics collection in-memory and send it to the Runhouse collector backend"""
+        endpoint = "grpc://telemetry.run.house:443"
+        headers = TelemetryAgentReceiver.request_headers()
+
+        mc = MetricsCollector(
+            resource_attributes=resource_attributes(),
+            agent_endpoint=endpoint,
+            headers=headers,
+        )
+
+        duration = 20
+        start_time = time.time()
+        while time.time() - start_time < duration:
+            mc.update_cpu_metrics()
+            time.sleep(5)

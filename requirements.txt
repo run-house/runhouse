@@ -4,6 +4,7 @@ pexpect
 opentelemetry-api
 opentelemetry-sdk
 opentelemetry-exporter-otlp
+gputil
 pyopenssl>=23.3.0
 ray[default] >= 2.9.0
 rich
