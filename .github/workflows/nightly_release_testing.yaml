@@ -73,7 +73,7 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "cluster and not ondemand" --detached
+        run: pytest --level release tests -k "clustertest and not ondemand" --detached
         timeout-minutes: 60
 
       - name: Teardown all cluster-tests clusters
@@ -111,7 +111,10 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "ondemand_aws_docker_cluster" --detached
+        # running with on-demand cluster that not using docker image, because the latter causing nightly tests in CI to
+        # run for a very long time (does not happen locally).
+        # TODO: [JL / SB]: check how we could make CI run with docker on-demand cluster
+        run: pytest --level release tests -k "ondemand_aws_https_cluster_with_auth" --detached
         timeout-minutes: 60
 
       - name: Teardown all ondemand-aws-tests clusters
