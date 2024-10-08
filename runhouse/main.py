@@ -424,7 +424,7 @@ def cluster_down(
     """
     if not force_deletion:
         if cluster_name:
-            proceed = typer.prompt(f"Terminating {cluster_name}. Proceed? [Y/n]")
+            proceed = typer.prompt(f"Terminating [reset]{cluster_name}. Proceed? [Y/n]")
         elif remove_all:
             proceed = typer.prompt(
                 "Terminating all running clusters saved in Den. Proceed? [Y/n]"
@@ -458,11 +458,11 @@ def cluster_down(
                     terminated_clusters += 1
                 else:
                     console.print(
-                        f"{current_cluster.rns_address} is not an on-demand cluster and must be terminated manually."
+                        f"[reset][bold italic]{current_cluster.rns_address} [reset]is not an on-demand cluster and must be terminated manually."
                     )
             except ValueError:
                 continue
-        console.print(f"Successfully terminated {terminated_clusters} clusters.")
+        console.print(f"Successfully terminated [reset]{terminated_clusters} clusters.")
         raise typer.Exit(0)
 
     current_cluster = get_cluster_or_local(cluster_name)
