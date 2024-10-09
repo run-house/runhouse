@@ -10,7 +10,7 @@ from runhouse.resources.envs.utils import _process_env_vars, run_setup_command
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import InstallTarget, Package
 from runhouse.resources.resource import Resource
-from runhouse.utils import run_with_logs, set_env_vars_in_current_process
+from runhouse.utils import run_with_logs
 
 logger = get_logger(__name__)
 
@@ -87,10 +87,6 @@ class Env(Resource):
             return CondaEnv(**config, dryrun=dryrun)
 
         return Env(**config, dryrun=dryrun)
-
-    @staticmethod
-    def _set_env_vars(env_vars):
-        set_env_vars_in_current_process(env_vars)
 
     def add_env_var(self, key: str, value: str):
         """Add an env var to the environment. Environment must be re-installed to propagate new
@@ -262,7 +258,7 @@ class Env(Resource):
 
             env_vars = _process_env_vars(self.env_vars)
             if env_vars:
-                system.call(key, "_set_env_vars", env_vars)
+                system.set_process_env_vars(process_name=key, env_vars=env_vars)
 
             if new_env.name:
                 system.call(key, "install", force=force_install)
