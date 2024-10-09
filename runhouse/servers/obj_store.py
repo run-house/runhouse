@@ -1575,3 +1575,16 @@ class ObjStore:
 
     def status(self, send_to_den: bool = False):
         return sync_function(self.astatus)(send_to_den=send_to_den)
+
+    ##############################################
+    # Globally modify the sys.path in all processes
+    ##############################################
+    async def aadd_sys_path_to_all_processes(self, path: str):
+        tasks = [
+            self.acall_servlet_method(servlet_name, "aprepend_to_sys_path", path)
+            for servlet_name in await self.aget_all_initialized_servlet_names()
+        ]
+        await asyncio.gather(*tasks)
+
+    def add_sys_path_to_all_processes(self, path: str):
+        return sync_function(self.aadd_sys_path_to_all_processes)(path)
