@@ -1,5 +1,6 @@
 import pytest
 
+from runhouse.globals import rns_client
 from runhouse.servers.obj_store import ObjStoreError
 
 from tests.utils import friend_account, get_ray_servlet_and_obj_store
@@ -324,17 +325,24 @@ class TestAuthCacheObjStore:
     def test_save_resources_to_obj_store_cache(self, obj_store):
         with friend_account() as test_account_dict:
             token = test_account_dict["token"]
+            username = test_account_dict["username"]
+            default_folder = test_account_dict["default_folder"]
+
+            # Use cluster token when validating access
+            cluster_token = rns_client.cluster_token(
+                resource_address=default_folder, username=username, den_token=token
+            )
 
             # Add test account resources to the local cache
             resource_uri = f"/{test_account_dict['username']}/summer"
-            access_level = obj_store.resource_access_level(token, resource_uri)
+            access_level = obj_store.resource_access_level(cluster_token, resource_uri)
 
             assert access_level == "write"
 
     @pytest.mark.level("unit")
     def test_no_resource_access_for_invalid_token(self, obj_store):
         with friend_account() as test_account_dict:
-            token = "abc"
+            cluster_token = "abc"
             resource_uri = f"/{test_account_dict['username']}/summer"
-            access_level = obj_store.resource_access_level(token, resource_uri)
+            access_level = obj_store.resource_access_level(cluster_token, resource_uri)
             assert access_level is None
