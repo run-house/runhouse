@@ -270,6 +270,29 @@ class ObjStore:
             runtime_env,
         )
 
+    """
+    Initialize node servlets: This can't be done in the cluster servlet constructor because there'll be a circular
+    dependency between the cluster servlet and the node servlets. We'll call this only on the head node in
+    the server
+    """
+
+    async def ainitialize_node_servlets(self):
+        # Initialize the node servlets on each node_idx the same way we can specify a node_idx when creating
+        # servlets, we can specify a node_idx when initializing them.
+
+        from runhouse.servers.node_servlet import NodeServlet
+
+        for ip in self.get_internal_ips():
+            resources = {f"node:{ip}": 0.001}
+            ray.remote(NodeServlet).options(
+                name=f"node_servlet_{ip}",
+                get_if_exists=True,
+                lifetime="detached",
+                namespace="runhouse",
+                max_concurrency=1000,
+                resources=resources,
+            ).remote()
+
     def get_process_env(self) -> Optional["Env"]:
         """
         If this is an env servlet object store, then we are within a Runhouse env.
