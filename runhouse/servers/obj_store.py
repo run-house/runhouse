@@ -1623,3 +1623,13 @@ class ObjStore:
 
     def add_sys_path_to_all_processes(self, path: str):
         return sync_function(self.aadd_sys_path_to_all_processes)(path)
+
+    ##############################################
+    # Install a package everywhere
+    ##############################################
+    async def ainstall_package_in_all_nodes_and_processes(self, package: "Package"):
+        # Step 1: Make sure that the package is a Package object and the path that it may reference exists if there's path involved
+        # Step 2: Run the actual installation of any relevant libraries in all nodes asynchronously and concurrently
+        # Step 3: Update the sys.path in all processes to include the new package path if relevant
+        # Step 4: Add the path to the pacakge to all future created processes
+        pass
