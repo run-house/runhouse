@@ -241,25 +241,6 @@ class Package(Resource):
         """
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
 
-        if isinstance(self.install_target, InstallTarget):
-            if cluster and Path(self.install_target.local_path).expanduser().exists():
-                cluster.rsync(
-                    source=str(self.install_target.local_path),
-                    dest=str(self.install_target.path_to_sync_to_on_cluster),
-                    up=True,
-                    contents=True,
-                    node=node,
-                )
-
-                self.install_target.local_path = (
-                    self.install_target.path_to_sync_to_on_cluster
-                )
-
-            path = self.install_target.local_path
-
-            if not path:
-                return
-
         if self.install_method == "pip":
 
             # If this is a generic pip package, with no version pinned, we want to check if there is a version
@@ -309,7 +290,9 @@ class Package(Resource):
                         f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
                     )
             else:
-                logger.info(f"{path}/requirements.txt not found, skipping reqs install")
+                logger.info(
+                    f"{self.install_target.full_local_path_str()}/requirements.txt not found, skipping reqs install"
+                )
 
         else:
             if self.install_method != "local":
@@ -446,6 +429,7 @@ class Package(Resource):
                 dest=str(self.install_target.path_to_sync_to_on_cluster),
                 up=True,
                 contents=True,
+                node="all",
             )
 
             new_package = copy.copy(self)
