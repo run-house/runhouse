@@ -148,6 +148,11 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         system = "here" if dest.system == "file" else dest.system
         expected_fs_str = "ssh" if isinstance(dest.system, rh.Cluster) else dest.system
 
+        # Ensure dest path is empty to avoid FileExistsError when copying (dest path must not exist)
+        dest_path = str(Path.cwd() / folder.path.split("/")[-1])
+        if Path(dest_path).is_dir():
+            shutil.rmtree(dest_path)
+
         new_folder = folder.to(system=system)
 
         assert new_folder._fs_str == expected_fs_str

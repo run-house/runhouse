@@ -170,7 +170,7 @@ class Folder(Resource):
         if path is None:
             raise ValueError("A destination path must be specified.")
 
-        src_path = Path()
+        src_path = Path(self.path)
         dest_path = Path(path)
 
         if self._use_http_endpoint:
@@ -260,7 +260,7 @@ class Folder(Resource):
         # to_local, to_cluster and to_data_store are also overridden by subclasses to dispatch
         # to more performant cloud-specific APIs
         system = _get_cluster_from(system)
-        if system == self.DEFAULT_FS:
+        if system == "file":
             return self._to_local(dest_path=path)
         elif system in ["s3", "gs"]:
             return self._to_data_store(system=system, data_store_path=path)

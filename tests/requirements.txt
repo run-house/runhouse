@@ -8,11 +8,10 @@ tqdm
 
 # packages for local and unit tests
 boto3
+google-cloud-storage
 docker
-s3fs
 pandas
 numpy<=1.26.4
-pyarrow
 openapi-core==0.19.1
 plotly
 

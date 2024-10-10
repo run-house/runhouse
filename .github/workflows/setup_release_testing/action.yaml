@@ -76,7 +76,7 @@ runs:
     - name: Install python packages & dependencies
       run: |
         pip install runhouse[aws,gcp,kubernetes]
-        pip install -r tests/requirements.txt scipy pyarrow
+        pip install -r tests/requirements.txt
       shell: bash
 
     - name: Setup Runhouse
