@@ -26,6 +26,10 @@ class RequestContext(BaseModel):
     token: Optional[str]
 
 
+class InstallPackageParams(BaseModel):
+    package_config: Dict[str, Any]
+
+
 class ServerSettings(BaseModel):
     cluster_name: Optional[str] = None
     den_auth: Optional[bool] = None

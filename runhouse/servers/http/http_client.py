@@ -28,6 +28,7 @@ from runhouse.servers.http.http_utils import (
     FolderRmParams,
     GetObjectParams,
     handle_response,
+    InstallPackageParams,
     OutputType,
     PutObjectParams,
     PutResourceParams,
@@ -732,5 +733,14 @@ class HTTPClient:
             req_type="post",
             json_dict=SetProcessEnvVarsParams(
                 process_name=process_name, env_vars=env_vars
+            ).model_dump(),
+        )
+
+    def install_package(self, package: "Package"):
+        return self.request_json(
+            "/install_package",
+            req_type="post",
+            json_dict=InstallPackageParams(
+                package_config=package.config(),
             ).model_dump(),
         )
