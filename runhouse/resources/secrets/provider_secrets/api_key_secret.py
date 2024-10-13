@@ -21,11 +21,17 @@ class ApiKeySecret(ProviderSecret):
         path: str = None,
         env_vars: Dict = None,
         overwrite: bool = False,
+        write_config: bool = True,
     ):
         if not file or path:
             env = True
         super().write(
-            file=file, env=env, path=path, env_vars=env_vars, overwrite=overwrite
+            file=file,
+            env=env,
+            path=path,
+            env_vars=env_vars,
+            overwrite=overwrite,
+            write_config=write_config,
         )
 
     def to(
