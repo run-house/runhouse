@@ -383,9 +383,16 @@ class OnDemandCluster(Cluster):
         time.sleep(5)
 
     def _populate_connection_from_status_dict(self, cluster_dict: Dict[str, Any]):
+        logger.info(f"cluster dict passed in initially: {cluster_dict}")
         if cluster_dict and cluster_dict["status"].name in ["UP", "INIT"]:
             handle = cluster_dict["handle"]
+            logger.info(
+                f"Handle inside _populate_connection_from_status_dict: {handle}"
+            )
             self.address = handle.head_ip
+            logger.info(
+                f"address inside _populate_connection_from_status_dict: {self.address}"
+            )
             self.stable_internal_external_ips = handle.stable_internal_external_ips
             if self.stable_internal_external_ips is None or self.address is None:
                 raise ValueError(
@@ -444,13 +451,23 @@ class OnDemandCluster(Cluster):
                 self.launched_properties["pod_name"] = pod_name
 
     def _update_from_sky_status(self, dryrun: bool = False):
+        logger.info("inside _update_from_sky_status")
         # Try to get the cluster status from SkyDB
         if self.is_shared:
             # If the cluster is shared can ignore, since the sky data will only be saved on the machine where
             # the cluster was initially upped
+            logger.info("cluster is shared, returning")
             return
+        logger.info(f"dryrun: {dryrun}")
+        logger.info(f"refresh: {not dryrun}")
+
+        import sky.authentication
+
+        logger.info(f"sky.authentication.PRIVATE_SSH_KEY_PATH: {sky.authentication.PRIVATE_SSH_KEY_PATH}")
+        logger.info(f"sky.authentication.PUBLIC_SSH_KEY_PATH: {sky.authentication.PUBLIC_SSH_KEY_PATH}")
 
         cluster_dict = self._sky_status(refresh=not dryrun)
+        logger.info(f"calling _populate_connection_from_status_dict: {cluster_dict}")
         self._populate_connection_from_status_dict(cluster_dict)
 
     def get_instance_type(self):
@@ -572,8 +589,9 @@ class OnDemandCluster(Cluster):
                     f"<https://www.run.house/docs/api/python/cluster#runhouse.ondemand_cluster>`__)."
                 )
             raise e
-
+        logger.info("Calling update from sky status")
         self._update_from_sky_status()
+        logger.info("Finished calling update from sky status")
 
         if self.domain:
             logger.info(
@@ -582,10 +600,13 @@ class OnDemandCluster(Cluster):
                 f"public IP address ({self.address}) to ensure successful requests."
             )
 
+        logger.info("Restarting server")
         self.restart_server()
 
+        logger.info("Saving cluster to Den")
         if rns_client.autosave_resources():
             self.save()
+        logger.info("Finished saving resource")
 
         return self
 

@@ -438,7 +438,9 @@ class Cluster(Resource):
     def is_shared(self) -> bool:
         from runhouse import Secret
 
+        logger.info(f"inside is_shared")
         ssh_creds = self.creds_values
+        logger.info(f"ssh_creds: {ssh_creds}")
         if not ssh_creds:
             return False
 
@@ -517,7 +519,9 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").up_if_not()
         """
+        logger.info("Inside up if not")
         if not self.is_up():
+            logger.info("No up, resetting IPs")
             # Don't store stale IPs
             self.ips = None
             self.up()
@@ -601,8 +605,11 @@ class Cluster(Resource):
             if not _install_url:
                 import runhouse
 
-                _install_url = f"runhouse=={runhouse.__version__}"
+                # _install_url = f"runhouse=={runhouse.__version__}"
+                _install_url = "git+https://github.com/run-house/runhouse.git@launcher-updates#egg=runhouse[all]"
             rh_install_cmd = f"python3 -m pip install {_install_url}"
+
+        logger.info(f"Running command: {rh_install_cmd} on ips: {self.ips}")
 
         for node in self.ips:
             status_codes = self.run(
@@ -976,10 +983,14 @@ class Cluster(Resource):
         restart_ray: bool = True,
         restart_proxy: bool = False,
     ):
+        logger.info("inside _start_or_restart_helper")
+        logger.info(f"cluster config at beginning of restart: {self.config()}")
+        logger.info(f"ips in beginning of restart: {self.ips}")
         default_env = _get_env_from(self._default_env) if self._default_env else None
         if default_env:
             self._sync_default_env_to_cluster()
 
+        logger.info("before local package")
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
         local_rh_package_path = None
         if resync_rh is not False:
@@ -1002,18 +1013,21 @@ class Cluster(Resource):
 
         # If resync_rh is still not confirmed to happen, check if Runhouse is installed on the cluster
         if resync_rh is None:
+            logger.info("resyncing runhouse")
             return_codes = self.run(["runhouse --version"], node="all")
             if return_codes[0][0][0] != 0:
                 logger.debug("Runhouse is not installed on the cluster.")
                 resync_rh = True
 
         if resync_rh:
+            logger.info("resyncing runhouse to cluster")
             self._sync_runhouse_to_cluster(
                 _install_url=_rh_install_url,
                 local_rh_package_path=local_rh_package_path,
             )
             logger.debug("Finished syncing Runhouse to cluster.")
 
+        logger.info("more stuff")
         https_flag = self._use_https
         caddy_flag = self._use_caddy
         domain = self.domain
@@ -1051,16 +1065,22 @@ class Cluster(Resource):
                 cluster_cert_path = f"{base_caddy_dir}/{self.cert_config.CERT_NAME}"
 
         # Update the cluster config on the cluster
+        logger.info("Saving config onto cluster")
         self.save_config_to_cluster()
 
         # Save a limited version of the local ~/.rh config to the cluster with the user's hashed token,
         # if such does not exist on the cluster
+        logger.info(f"All configs saved: {configs.__dict__}")
+        logger.info(f"Username for RNS client: {rns_client.username}")
+        logger.info(f"RNS client token: {rns_client.token}")
         if rns_client.token:
+            cluster_token = rns_client.cluster_token(
+                resource_address=rns_client.username
+            )
+            logger.info(f"Cluster token to sync to cluster: {cluster_token}")
             user_config = yaml.safe_dump(
                 {
-                    "token": rns_client.cluster_token(
-                        resource_address=rns_client.username
-                    ),
+                    "token": cluster_token,
                     "username": rns_client.username,
                     "default_folder": rns_client.default_folder,
                 }
@@ -1078,6 +1098,7 @@ class Cluster(Resource):
                 self._run_cli_commands_on_cluster_helper([command])
                 logger.debug("Saved user config to cluster")
 
+        logger.info("Running restart commands")
         restart_cmd = (
             base_cli_cmd
             + (" --restart-ray" if restart_ray else "")
@@ -1098,6 +1119,9 @@ class Cluster(Resource):
             + " --from-python"
         )
 
+        logger.info(f"Restart cmd: {restart_cmd}")
+        logger.info(f"server connection type: {self.server_connection_type}")
+        logger.info(f"server port: {self.server_port} - ({type(self.server_port)})")
         status_codes = self._run_cli_commands_on_cluster_helper(commands=[restart_cmd])
 
         if not status_codes[0] == 0:
