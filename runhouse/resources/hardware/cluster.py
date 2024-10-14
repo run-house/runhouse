@@ -551,11 +551,24 @@ class Cluster(Resource):
             logger.info("Disabling observability on the cluster")
 
         logger.info(f"Syncing default env {self._default_env.name} to cluster")
+
+        from runhouse.resources.envs.utils import _process_env_vars, run_setup_command
+
+        env_vars = _process_env_vars(self._default_env.env_vars)
+        setup_cmds = self._default_env.setup_cmds
+
         for node in self.ips:
-            # Run setup cmds cluster.run
-            # Set up env vars
-            # Install reqs
-            self._default_env.install(cluster=self, node=node)
+            self.install_packages(self._default_env.reqs, node=node)
+
+            if setup_cmds:
+                for cmd in setup_cmds:
+                    run_setup_command(
+                        cmd=cmd,
+                        cluster=self,
+                        env_vars=env_vars,
+                        stream_logs=True,
+                        node=node,
+                    )
 
     def _sync_runhouse_to_cluster(
         self,
@@ -2168,5 +2181,7 @@ class Cluster(Resource):
 
         if isinstance(package, str):
             package = Package.from_string(package)
+            if package.install_method in ["reqs", "local"]:
+                package = package.to(self)
 
         package._install(cluster=self, node=node)
