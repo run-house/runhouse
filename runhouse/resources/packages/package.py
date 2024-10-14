@@ -238,7 +238,7 @@ class Package(Resource):
             env (Env or str): Environment to install package on. If left empty, defaults to base environment.
                 (Default: ``None``)
             cluster (Optional[Cluster]): If provided, will install package on cluster using SSH. Otherwise, the
-            assumption is that we are installing locally. (Default: ``None``)
+                assumption is that we are installing locally. (Default: ``None``)
         """
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
 
