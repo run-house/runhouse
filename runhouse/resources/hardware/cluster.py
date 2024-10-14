@@ -618,7 +618,8 @@ class Cluster(Resource):
                 )
 
     def install_packages(
-        self, reqs: List[Union["Package", str]], env: Union["Env", str] = None
+        self,
+        reqs: List[Union["Package", str]],
     ):
         """Install the given packages on the cluster.
 
@@ -631,9 +632,8 @@ class Cluster(Resource):
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"])
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"], env="my_conda_env")
         """
-        env = _get_env_from(env) if env else self.default_env
-        env.reqs = env._reqs + reqs
-        env.to(self)
+        for req in reqs:
+            self.install_package(req)
 
     def get(self, key: str, default: Any = None, remote=False):
         """Get the result for a given key from the cluster's object store.
