@@ -2119,3 +2119,17 @@ class Cluster(Resource):
             "sky_clusters": sky_live_clusters,
         }
         return clusters
+
+    def list_processes(self):
+        """List all workers on the cluster."""
+        return self.client.list_processes()
+
+    def create_process(
+        self,
+        name: str,
+        compute: Optional[Dict] = None,
+        runtime_env: Optional[Dict] = None,
+    ):
+        return self.client.create_process(
+            name=name, compute=compute, runtime_env=runtime_env
+        )
