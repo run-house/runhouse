@@ -261,13 +261,6 @@ from tests.fixtures.resource_fixtures import (
 
 from tests.fixtures.static_cluster_fixtures import static_cpu_pwd_cluster  # noqa: F401
 
-from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
-    other_sm_cluster,  # noqa: F401
-    sm_cluster,  # noqa: F401
-    sm_cluster_with_auth,  # noqa: F401
-    sm_gpu_cluster,  # noqa: F401
-)
-
 
 # ----------------- Folders -----------------
 

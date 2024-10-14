@@ -247,6 +247,7 @@ jobs:
       - ondemand-aws-tests
       - ondemand-gcp-tests
       - kubernetes-tests
+      - ondemand-aws-multinode-tests
     runs-on: ubuntu-latest
     permissions:
       id-token: write

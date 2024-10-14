@@ -21,7 +21,12 @@ class S3Folder(Folder):
     DEFAULT_FS = "s3"
 
     def __init__(self, dryrun: bool, **kwargs):
-        import boto3
+        try:
+            import boto3
+        except ImportError:
+            raise ImportError(
+                "`boto3` is required for S3 folders. You can install it with `pip install boto3`."
+            )
 
         super().__init__(dryrun=dryrun, **kwargs)
         self.client = boto3.client("s3")
