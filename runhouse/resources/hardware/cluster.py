@@ -552,6 +552,9 @@ class Cluster(Resource):
 
         logger.info(f"Syncing default env {self._default_env.name} to cluster")
         for node in self.ips:
+            # Run setup cmds cluster.run
+            # Set up env vars
+            # Install reqs
             self._default_env.install(cluster=self, node=node)
 
     def _sync_runhouse_to_cluster(
@@ -620,6 +623,7 @@ class Cluster(Resource):
     def install_packages(
         self,
         reqs: List[Union["Package", str]],
+        node: Optional[str] = None,
     ):
         """Install the given packages on the cluster.
 
@@ -633,7 +637,10 @@ class Cluster(Resource):
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"], env="my_conda_env")
         """
         for req in reqs:
-            self.install_package(req)
+            if not node:
+                self.install_package(req)
+            else:
+                self.install_package_over_ssh(req, node=node)
 
     def get(self, key: str, default: Any = None, remote=False):
         """Get the result for a given key from the cluster's object store.
@@ -2155,3 +2162,11 @@ class Cluster(Resource):
         else:
             package = package.to(self)
             self.client.install_package(package)
+
+    def install_package_over_ssh(self, package: Union["Package", str], node: str):
+        from runhouse.resources.packages.package import Package
+
+        if isinstance(package, str):
+            package = Package.from_string(package)
+
+        package._install(cluster=self, node=node)
