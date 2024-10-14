@@ -1293,3 +1293,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
             for status in statues:
                 assert status not in cmd_stdout
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_list_and_create_process(self, cluster):
+        assert cluster.default_env.name in cluster.list_processes()
+        rh.env(name="env_created_before_process_list", reqs=["pytest"]).to(cluster)
+        assert "env_created_before_process_list" in cluster.list_processes()
+
+        # Now create a process manually with the create_process functionality
+        cluster.create_process(name="new_test_process_created_with_utility")
+        time.sleep(3)
+        assert "new_test_process_created_with_utility" in cluster.list_processes()
