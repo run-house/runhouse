@@ -26,7 +26,13 @@ class AWSSecret(ProviderSecret):
     def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         return AWSSecret(**config, dryrun=dryrun)
 
-    def _write_to_file(self, path: str, values: Dict, overwrite: bool = False):
+    def _write_to_file(
+        self,
+        path: str,
+        values: Dict,
+        overwrite: bool = False,
+        write_config: bool = True,
+    ):
         new_secret = copy.deepcopy(self)
 
         if not _check_file_for_mismatches(
@@ -50,7 +56,9 @@ class AWSSecret(ProviderSecret):
             full_path = create_local_dir(path)
             with open(full_path, "w+") as f:
                 parser.write(f)
-            new_secret._add_to_rh_config(path)
+
+            if write_config:
+                new_secret._add_to_rh_config(path)
 
         new_secret._values = None
         new_secret.path = path
