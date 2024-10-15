@@ -36,7 +36,7 @@ jobs:
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest --level release tests -k "not cluster" --detached
-        timeout-minutes: 180
+        timeout-minutes: 60
 
       - name: Teardown all clusters
         if: always()
@@ -73,8 +73,8 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "cluster and not ondemand" --detached
-        timeout-minutes: 180
+        run: pytest --level release tests -k "clustertest and not ondemand" --detached
+        timeout-minutes: 60
 
       - name: Teardown all cluster-tests clusters
         if: always()
@@ -111,8 +111,11 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "ondemand_aws_docker_cluster" --detached
-        timeout-minutes: 180
+        # running with on-demand cluster that not using docker image, because the latter causing nightly tests in CI to
+        # run for a very long time (does not happen locally).
+        # TODO: [JL / SB]: check how we could make CI run with docker on-demand cluster
+        run: pytest --level release tests -k "ondemand_aws_https_cluster_with_auth" --detached
+        timeout-minutes: 60
 
       - name: Teardown all ondemand-aws-tests clusters
         if: always()
@@ -120,6 +123,45 @@ jobs:
           sky status
           sky down --all -y
           sky status
+
+  ondemand-aws-multinode-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Release Testing
+        uses: ./.github/workflows/setup_release_testing
+        with:
+          AWS_OSS_ROLE_ARN: ${{ secrets.AWS_OSS_ROLE_ARN }}
+          DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
+          DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          API_SERVER_URL: ${{ env.API_SERVER_URL }}
+
+      - name: Run on-demand aws tests
+        env:
+          KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_PROD_TOKEN }}
+          KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
+          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
+          ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
+        run: pytest --level release tests -k "TestMultiNodeCluster" --detached
+        timeout-minutes: 60
+
+      - name: Teardown all ondemand-aws-multinode clusters
+        if: always()
+        run: |
+          sky status
+          sky down --all -y
+          sky status
+
 
   ondemand-gcp-tests:
     runs-on: ubuntu-latest
@@ -150,7 +192,7 @@ jobs:
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest --level release tests -k "ondemand_gcp_cluster" --detached
-        timeout-minutes: 180
+        timeout-minutes: 60
 
       - name: Teardown all ondemand-gcp-tests clusters
         if: always()
@@ -188,7 +230,7 @@ jobs:
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest --level release tests -k "ondemand_k8s_cluster" --detached
-        timeout-minutes: 180
+        timeout-minutes: 60
 
       - name: Teardown all kubernetes-tests clusters
         if: always()
@@ -205,6 +247,7 @@ jobs:
       - ondemand-aws-tests
       - ondemand-gcp-tests
       - kubernetes-tests
+      - ondemand-aws-multinode-tests
     runs-on: ubuntu-latest
     permissions:
       id-token: write

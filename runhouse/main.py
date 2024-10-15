@@ -45,12 +45,13 @@ from runhouse.constants import (
 from runhouse.globals import rns_client
 
 from runhouse.logger import get_logger
-from runhouse.resources.hardware.ray_utils import (
+
+from runhouse.resources.hardware import (
     check_for_existing_ray_instance,
+    ClustersListStatus,
+    get_all_sky_clusters,
     kill_actors,
 )
-
-from runhouse.resources.hardware.utils import ClustersListStatus, get_all_sky_clusters
 
 SKY_LIVE_CLUSTERS_MSG = (
     "Live on-demand clusters created via Sky may exist that are not saved in Den. "

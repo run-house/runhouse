@@ -1124,7 +1124,9 @@ class Cluster(Resource):
 
             env_vars = _process_env_vars(default_env.env_vars)
             if env_vars:
-                self.call(default_env.name, "_set_env_vars", env_vars)
+                self.set_process_env_vars(
+                    process_name=default_env.name, env_vars=env_vars
+                )
 
         return status_codes
 
@@ -2119,3 +2121,22 @@ class Cluster(Resource):
             "sky_clusters": sky_live_clusters,
         }
         return clusters
+
+    def list_processes(self):
+        """List all workers on the cluster."""
+        return self.client.list_processes()
+
+    def create_process(
+        self,
+        name: str,
+        compute: Optional[Dict] = None,
+        runtime_env: Optional[Dict] = None,
+    ):
+        return self.client.create_process(
+            name=name, compute=compute, runtime_env=runtime_env
+        )
+
+    def set_process_env_vars(self, process_name: str, env_vars: Dict):
+        return self.client.set_process_env_vars(
+            process_name=process_name, env_vars=env_vars
+        )

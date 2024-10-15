@@ -23,6 +23,7 @@ from runhouse.resources.packages import (
     package,
     Package,
 )
+from runhouse.resources.processes import Process, process
 from runhouse.resources.resource import Resource
 from runhouse.resources.secrets import provider_secret, ProviderSecret, Secret, secret
 

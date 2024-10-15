@@ -97,18 +97,18 @@ def run_node_all(cmd):
     return rh.here.run(cmd, node="all")
 
 
-def sort_env_servlet_processes(env_servlet_processes: dict):
-    """helping function for the test_send_status_to_db test, sort the env_servlet_processed dict (including its sub
+def sort_servlet_processes(servlet_processes: dict):
+    """helping function for the test_send_status_to_db test, sort the servlet_processed dict (including its sub
     dicts) by their keys."""
-    keys = list(env_servlet_processes.keys())
+    keys = list(servlet_processes.keys())
     keys.sort()
-    sorted_env_servlet_processes = {}
+    sorted_servlet_processes = {}
     for k in keys:
-        sub_keys = list(env_servlet_processes[k].keys())
+        sub_keys = list(servlet_processes[k].keys())
         sub_keys.sort()
-        nested_dict = {i: env_servlet_processes[k][i] for i in sub_keys}
-        sorted_env_servlet_processes[k] = nested_dict
-    return sorted_env_servlet_processes
+        nested_dict = {i: servlet_processes[k][i] for i in sub_keys}
+        sorted_servlet_processes[k] = nested_dict
+    return sorted_servlet_processes
 
 
 class TestCluster(tests.test_resources.test_resource.TestResource):
@@ -541,7 +541,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
 
         # test memory usage info
-        expected_env_servlet_keys = [
+        expected_servlet_keys = [
             "env_cpu_usage",
             "env_gpu_usage",
             "env_resource_mapping",
@@ -553,15 +553,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         envs_names = list(cluster_data.get("env_servlet_processes").keys())
         envs_names.sort()
         assert "env_servlet_processes" in cluster_data.keys()
-        env_servlets_info = cluster_data.get("env_servlet_processes")
-        env_actors_keys = list(env_servlets_info.keys())
+        servlets_info = cluster_data.get("env_servlet_processes")
+        env_actors_keys = list(servlets_info.keys())
         env_actors_keys.sort()
         assert envs_names == env_actors_keys
         for env_name in envs_names:
-            env_servlet_info = env_servlets_info.get(env_name)
-            env_servlet_info_keys = list(env_servlet_info.keys())
-            env_servlet_info_keys.sort()
-            assert env_servlet_info_keys == expected_env_servlet_keys
+            servlet_info = servlets_info.get(env_name)
+            servlet_info_keys = list(servlet_info.keys())
+            servlet_info_keys.sort()
+            assert servlet_info_keys == expected_servlet_keys
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -696,12 +696,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_send_status_to_db(self, cluster):
 
         status = cluster.status()
-        env_servlet_processes = status.pop("env_servlet_processes")
+        servlet_processes = status.pop("env_servlet_processes")
         status_data = {
             "status": ResourceServerStatus.running,
             "resource_type": status.get("cluster_config").get("resource_type"),
             "resource_info": status,
-            "env_servlet_processes": env_servlet_processes,
+            "env_servlet_processes": servlet_processes,
         }
         cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
         headers = rh.globals.rns_client.request_headers()
@@ -724,18 +724,18 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert get_status_data["status"] == ResourceServerStatus.running
 
         assert get_status_data["resource_info"] == status
-        for k in env_servlet_processes:
-            if env_servlet_processes[k]["env_gpu_usage"] == {}:
-                env_servlet_processes[k]["env_gpu_usage"] = {
+        for k in servlet_processes:
+            if servlet_processes[k]["env_gpu_usage"] == {}:
+                servlet_processes[k]["env_gpu_usage"] = {
                     "used_memory": None,
                     "utilization_percent": None,
                     "total_memory": None,
                 }
-        env_servlet_processes = sort_env_servlet_processes(env_servlet_processes)
-        get_status_data["env_servlet_processes"] = sort_env_servlet_processes(
+        servlet_processes = sort_servlet_processes(servlet_processes)
+        get_status_data["env_servlet_processes"] = sort_servlet_processes(
             get_status_data["env_servlet_processes"]
         )
-        assert get_status_data["env_servlet_processes"] == env_servlet_processes
+        assert get_status_data["env_servlet_processes"] == servlet_processes
 
         status_data["status"] = ResourceServerStatus.terminated
         post_status_data_resp = requests.post(
@@ -1293,3 +1293,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
             for status in statues:
                 assert status not in cmd_stdout
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_list_and_create_process(self, cluster):
+        assert cluster.default_env.name in cluster.list_processes()
+        rh.env(name="env_created_before_process_list", reqs=["pytest"]).to(cluster)
+        assert "env_created_before_process_list" in cluster.list_processes()
+
+        # Now create a process manually with the create_process functionality
+        cluster.create_process(name="new_test_process_created_with_utility")
+        time.sleep(3)
+        assert "new_test_process_created_with_utility" in cluster.list_processes()

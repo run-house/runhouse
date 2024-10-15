@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import inspect
 import json
+import time
 import traceback
 import uuid
 from functools import wraps
@@ -33,6 +34,7 @@ from runhouse.servers.http.auth import averify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     CallParams,
+    CreateProcessParams,
     DeleteObjectParams,
     deserialize_data,
     folder_exists,
@@ -58,6 +60,7 @@ from runhouse.servers.http.http_utils import (
     Response,
     serialize_data,
     ServerSettings,
+    SetProcessEnvVarsParams,
 )
 from runhouse.servers.obj_store import (
     ClusterServletSetupOption,
@@ -158,7 +161,7 @@ class HTTPServer:
             )
 
         # We initialize a default env servlet where some things may run.
-        _ = obj_store.get_env_servlet(
+        _ = obj_store.get_servlet(
             env_name=default_env_name,
             create=True,
             runtime_env=runtime_env,
@@ -555,6 +558,54 @@ class HTTPServer:
                 f.close()
 
     @staticmethod
+    @app.get("/processes")
+    @validate_cluster_access
+    async def get_processes(request: Request):
+        try:
+            processes = await obj_store.aget_all_initialized_servlet_names()
+            return Response(
+                output_type=OutputType.RESULT_SERIALIZED,
+                data=serialize_data(processes, "json"),
+                serialization="json",
+            )
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/create_process")
+    @validate_cluster_access
+    async def create_process(request: Request, params: CreateProcessParams):
+        try:
+            _ = obj_store.get_servlet(
+                env_name=params.name,
+                create=True,
+                runtime_env=params.runtime_env,
+                resources=params.compute,
+            )
+            time.sleep(1)
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/process_env_vars")
+    @validate_cluster_access
+    async def set_process_env_vars(request: Request, params: SetProcessEnvVarsParams):
+        try:
+            await obj_store.acall_servlet_method(
+                params.process_name, "aset_env_vars", params.env_vars
+            )
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
     @app.post("/resource")
     @validate_cluster_access
     async def put_resource(request: Request, params: PutResourceParams):
@@ -769,7 +820,7 @@ class HTTPServer:
             if not env_name:
                 output = await obj_store.akeys()
             else:
-                output = await obj_store.akeys_for_env_servlet_name(env_name)
+                output = await obj_store.akeys_for_servlet_name(env_name)
 
             # Expicitly tell the client not to attempt to deserialize the output
             return Response(
@@ -1232,7 +1283,9 @@ async def main():
 
         env_vars = _process_env_vars(cluster.default_env.env_vars)
         if env_vars:
-            cluster.call(cluster.default_env.name, "_set_env_vars", env_vars)
+            cluster.set_process_env_vars(
+                process_name=cluster.default_env.name, env_vars=env_vars
+            )
 
 
 if __name__ == "__main__":

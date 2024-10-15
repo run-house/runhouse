@@ -63,7 +63,13 @@ class SSHSecret(ProviderSecret):
             folder=folder,
         )
 
-    def _write_to_file(self, path: str, values: Dict = None, overwrite: bool = False):
+    def _write_to_file(
+        self,
+        path: str,
+        values: Dict = None,
+        overwrite: bool = False,
+        write_config: bool = True,
+    ):
         priv_key_path = path
 
         priv_key_path = Path(os.path.expanduser(priv_key_path))
@@ -95,10 +101,12 @@ class SSHSecret(ProviderSecret):
         new_secret = copy.deepcopy(self)
         new_secret._values = None
         new_secret.path = path
-        try:
-            new_secret._add_to_rh_config(val=path)
-        except TypeError:
-            pass
+
+        if write_config:
+            try:
+                new_secret._add_to_rh_config(val=path)
+            except TypeError:
+                pass
 
         return new_secret
 

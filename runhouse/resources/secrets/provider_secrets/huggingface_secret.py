@@ -25,7 +25,13 @@ class HuggingFaceSecret(ProviderSecret):
     def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         return HuggingFaceSecret(**config, dryrun=dryrun)
 
-    def _write_to_file(self, path: str, values: Dict = None, overwrite: bool = False):
+    def _write_to_file(
+        self,
+        path: str,
+        values: Dict = None,
+        overwrite: bool = False,
+        write_config: bool = True,
+    ):
         new_secret = copy.deepcopy(self)
         if not _check_file_for_mismatches(
             path, self._from_path(path), values, overwrite
@@ -34,7 +40,9 @@ class HuggingFaceSecret(ProviderSecret):
             full_path = create_local_dir(path)
             with open(full_path, "a") as f:
                 f.write(token)
-            new_secret._add_to_rh_config(path)
+
+            if write_config:
+                new_secret._add_to_rh_config(path)
 
         new_secret._values = None
         new_secret.path = path

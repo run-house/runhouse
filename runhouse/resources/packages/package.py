@@ -464,7 +464,7 @@ class Package(Resource):
 
     @staticmethod
     def from_config(config: Dict, dryrun: bool = False, _resolve_children: bool = True):
-        if isinstance(config.get("install_target"), tuple):
+        if isinstance(config.get("install_target"), (tuple, list)):
             config["install_target"] = InstallTarget(
                 local_path=config["install_target"][0],
                 _path_to_sync_to_on_cluster=config["install_target"][1],
@@ -519,7 +519,7 @@ class Package(Resource):
 
         # If install method is not provided, we need to infer it
         if not install_method:
-            if Path(specifier).resolve().exists():
+            if Path(specifier).expanduser().resolve().exists():
                 install_method = "reqs"
             else:
                 install_method = "pip"
