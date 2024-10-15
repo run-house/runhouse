@@ -82,6 +82,23 @@ field.
         provider="aws",
     )
 
+Runhouse Docker Image
+~~~~~~~~~~~~~~~~~~~~~
+You can also use the Runhouse base image when launching a cluster, which also includes SkyPilot and Ray already
+pre-installed. For the full list of images please check the Runhouse container registry
+
+You can find the complete list of images on the
+Runhouse `container registry <https://github.com/run-house/runhouse/pkgs/container/runhouse>`_.
+
+Below is an example of how to use the latest Runhouse image:
+
+.. code:: ipython3
+
+    cluster = rh.ondemand_cluster(name="my-cpu-cluster",
+                                  instance_type="CPU:2+",
+                                  provider="aws",
+                                  image_id="docker:ghcr.io/run-house/runhouse:latest").up_if_not()
+
 Launching the Cluster
 ^^^^^^^^^^^^^^^^^^^^^
 
