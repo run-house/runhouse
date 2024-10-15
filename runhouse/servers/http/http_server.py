@@ -1322,7 +1322,7 @@ async def main():
     if cluster:
         cluster.put_resource(cluster.default_env)
 
-        from runhouse.resources.envs.utils import _process_env_vars
+        from runhouse.utils import _process_env_vars
 
         env_vars = _process_env_vars(cluster.default_env.env_vars)
         if env_vars:
