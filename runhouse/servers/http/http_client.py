@@ -33,6 +33,7 @@ from runhouse.servers.http.http_utils import (
     PutResourceParams,
     RenameObjectParams,
     serialize_data,
+    SetProcessEnvVarsParams,
 )
 
 from runhouse.utils import ClusterLogsFormatter, generate_default_name
@@ -700,6 +701,10 @@ class HTTPClient:
             f"keys/?env_name={env_name}" if env_name else "keys", req_type="get"
         )
 
+    ################################################################################################
+    # Process related functions
+    ################################################################################################
+
     def list_processes(self):
         return self.request_json("/processes", req_type="get")
 
@@ -714,5 +719,18 @@ class HTTPClient:
             req_type="post",
             json_dict=CreateProcessParams(
                 name=name, compute=compute, runtime_env=runtime_env
+            ).model_dump(),
+        )
+
+    def set_process_env_vars(
+        self,
+        process_name: str,
+        env_vars: Dict[str, str],
+    ):
+        return self.request_json(
+            "/process_env_vars",
+            req_type="post",
+            json_dict=SetProcessEnvVarsParams(
+                process_name=process_name, env_vars=env_vars
             ).model_dump(),
         )
