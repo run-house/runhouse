@@ -463,8 +463,12 @@ class OnDemandCluster(Cluster):
 
         import sky.authentication
 
-        logger.info(f"sky.authentication.PRIVATE_SSH_KEY_PATH: {sky.authentication.PRIVATE_SSH_KEY_PATH}")
-        logger.info(f"sky.authentication.PUBLIC_SSH_KEY_PATH: {sky.authentication.PUBLIC_SSH_KEY_PATH}")
+        logger.info(
+            f"sky.authentication.PRIVATE_SSH_KEY_PATH: {sky.authentication.PRIVATE_SSH_KEY_PATH}"
+        )
+        logger.info(
+            f"sky.authentication.PUBLIC_SSH_KEY_PATH: {sky.authentication.PUBLIC_SSH_KEY_PATH}"
+        )
 
         cluster_dict = self._sky_status(refresh=not dryrun)
         logger.info(f"calling _populate_connection_from_status_dict: {cluster_dict}")
@@ -533,9 +537,12 @@ class OnDemandCluster(Cluster):
             >>> rh.ondemand_cluster("rh-cpu").up()
         """
         if self.on_this_cluster():
+            logger.info("on the cluster, returning")
             return self
 
+        logger.info("inside up....")
         supported_providers = ["cheapest"] + list(sky.clouds.CLOUD_REGISTRY)
+        logger.info(f"supported providers: {supported_providers}")
         if self.provider not in supported_providers:
             raise ValueError(
                 f"Cluster provider {self.provider} not supported. Must be one {supported_providers} supported by SkyPilot."

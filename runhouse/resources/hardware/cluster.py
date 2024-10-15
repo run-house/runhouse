@@ -444,6 +444,11 @@ class Cluster(Resource):
         if not ssh_creds:
             return False
 
+        if "private_key" in ssh_creds and "public_key" in ssh_creds:
+            # Secret values contain fields associated with a sky secret, which are not shared
+            logger.info("using sky key object")
+            return False
+
         ssh_private_key = ssh_creds.get("ssh_private_key")
         ssh_private_key_path = Path(ssh_private_key).expanduser()
         secrets_base_dir = Path(Secret.DEFAULT_DIR).expanduser()
@@ -525,6 +530,7 @@ class Cluster(Resource):
             # Don't store stale IPs
             self.ips = None
             self.up()
+        logger.info("already up, returning")
         return self
 
     def up(self):
@@ -607,11 +613,14 @@ class Cluster(Resource):
 
                 # _install_url = f"runhouse=={runhouse.__version__}"
                 _install_url = "git+https://github.com/run-house/runhouse.git@launcher-updates#egg=runhouse[all]"
-            rh_install_cmd = f"python3 -m pip install {_install_url}"
+            rh_install_cmd = f"python3 -m pip install '{_install_url}'"
 
         logger.info(f"Running command: {rh_install_cmd} on ips: {self.ips}")
 
         for node in self.ips:
+            logger.info(f"running run command on node: {node}")
+            logger.info(f"cmd: {rh_install_cmd}")
+            logger.info(f"env to use: {env}")
             status_codes = self.run(
                 [rh_install_cmd],
                 node=node,
@@ -621,7 +630,7 @@ class Cluster(Resource):
 
             if status_codes[0][0] != 0:
                 raise ValueError(
-                    f"Error installing runhouse on cluster <{self.name}> node <{node}>"
+                    f"Error installing runhouse on cluster <{self.name}> node <{node}>: {status_codes}"
                 )
 
     def install_packages(
@@ -1549,12 +1558,18 @@ class Cluster(Resource):
         if isinstance(commands, str):
             commands = [commands]
 
+        logger.info(f"env initial: {env}")
+        logger.info(f"default env: {self._default_env}")
+
         if isinstance(env, Env) and not env.name:
             env = self._default_env
         env = env or self.default_env
         env = _get_env_from(env)
 
+        logger.info(f"env: {env}")
+
         # If node is not specified, then we just use normal logic, knowing that we are likely on the head node
+        logger.info(f"node: {node}")
         if not node:
             env_name = (
                 env
@@ -1563,8 +1578,11 @@ class Cluster(Resource):
                 if isinstance(env, Env)
                 else None
             )
+            logger.info(f"env_name: {env_name}")
+
             return_codes = []
             for command in commands:
+                logger.info(f"command: {command}")
                 ret_code = self.call(
                     env_name,
                     "_run_command",
@@ -1572,14 +1590,20 @@ class Cluster(Resource):
                     require_outputs=require_outputs,
                     stream_logs=stream_logs,
                 )
+                logger.info(f"Ret code from call: {ret_code}")
                 return_codes.append(ret_code)
             return return_codes
 
         # Node is specified, so we do everything via ssh
         else:
+            logger.info("Node is speciifed and set to all")
             if node == "all":
                 res_list = []
                 for node in self.ips:
+                    logger.info(f"calling run on node: {node}")
+                    logger.info(f"stream_logs: {stream_logs}")
+                    logger.info(f"require_outputs: {require_outputs}")
+                    logger.info(f"_ssh_mode: {_ssh_mode}")
                     res = self.run(
                         commands=commands,
                         env=env,
@@ -1588,13 +1612,14 @@ class Cluster(Resource):
                         node=node,
                         _ssh_mode=_ssh_mode,
                     )
+                    logger.info(f"res in node run: {res}")
                     res_list.append(res)
                 return res_list
 
             else:
 
                 full_commands = [env._full_command(cmd) for cmd in commands]
-
+                logger.info(f"Running full commands: {full_commands}")
                 return_codes = self._run_commands_with_runner(
                     full_commands,
                     cmd_prefix="",
@@ -1603,6 +1628,7 @@ class Cluster(Resource):
                     require_outputs=require_outputs,
                     _ssh_mode=_ssh_mode,
                 )
+                logger.info(f"return_codes from full commands: {return_codes}")
 
                 return return_codes
 
@@ -2143,3 +2169,17 @@ class Cluster(Resource):
             "sky_clusters": sky_live_clusters,
         }
         return clusters
+
+    def list_processes(self):
+        """List all workers on the cluster."""
+        return self.client.list_processes()
+
+    def create_process(
+        self,
+        name: str,
+        compute: Optional[Dict] = None,
+        runtime_env: Optional[Dict] = None,
+    ):
+        return self.client.create_process(
+            name=name, compute=compute, runtime_env=runtime_env
+        )
