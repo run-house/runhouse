@@ -12,7 +12,7 @@ import psutil
 import pynvml
 import requests
 
-import runhouse
+import runhouse as rh
 
 from runhouse.constants import (
     DEFAULT_AUTOSTOP_CHECK_INTERVAL,
@@ -66,6 +66,8 @@ class ClusterServlet:
         self._initialized_servlet_names: Set[str] = set()
         self._key_to_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache(self.cluster_config)
+        self._metrics_collector = None
+
         self.autostop_helper = None
 
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
@@ -106,6 +108,45 @@ class ClusterServlet:
             target=self.periodic_autostop_check, daemon=True
         )
         self.autostop_check_thread.start()
+
+    ##############################################
+    # Metrics collection
+    ##############################################
+    @property
+    def metrics_collector(self):
+        if (
+            not os.getenv("disable_observability", False)
+            and self._metrics_collector is None
+        ):
+            from runhouse.servers.telemetry import TelemetryAgentConfig
+            from runhouse.servers.telemetry.metrics_collection import MetricsCollector
+
+            # Make sure the telemetry receiver agent has started
+            obj_store.initialize_telemetry_agent()
+
+            attributes = self._metrics_resource_attributes()
+            self._metrics_collector = MetricsCollector(
+                resource_attributes=attributes,
+                agent_endpoint=f"localhost:{TelemetryAgentConfig.grpc_port}",
+            )
+
+        return self._metrics_collector
+
+    def _metrics_resource_attributes(self):
+        from runhouse.servers.telemetry import ResourceAttributes
+
+        cluster_or_local = rh.here
+        if cluster_or_local == "file":
+            cluster_name = cluster_or_local
+        else:
+            cluster_rns_address = cluster_or_local.rns_address
+            cluster_name = (
+                cluster_rns_address if cluster_rns_address else cluster_or_local.name
+            )
+
+        return ResourceAttributes(
+            username=rns_client.username, cluster_name=cluster_name
+        )
 
     ##############################################
     # Cluster config state storage methods
@@ -505,7 +546,9 @@ class ClusterServlet:
                 with self.lock:
                     if not self.gpu_metrics:
                         self.gpu_metrics = {device: [] for device in range(gpu_count)}
+                        self.metrics_collector.update_gpu_metrics()
 
+                    # TODO [SB / JL] remove once migrated onto otel
                     for gpu_index in range(gpu_count):
                         handle = pynvml.nvmlDeviceGetHandleByIndex(gpu_index)
                         util_info = pynvml.nvmlDeviceGetUtilizationRates(handle)
@@ -563,6 +606,8 @@ class ClusterServlet:
         return cluster_gpu_usage
 
     async def astatus(self, send_to_den: bool = False) -> Tuple[Dict, Optional[int]]:
+        """Gather utilization and memory data for the various env servlets and have the local telemetry
+        agent export the metrics to the Runhouse collector."""
         config_cluster = copy.deepcopy(self.cluster_config)
 
         # Popping out creds because we don't want to show them in the status
@@ -598,7 +643,14 @@ class ClusterServlet:
                 )
                 servlet_utilization_data[servlet_name] = env_memory_info
 
-        # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
+        # -------------------------------------------------------
+        # use the otel metrics collector to collect cpu and gpu utilization
+        self.metrics_collector.update_cpu_metrics()
+
+        if self.cluster_config.get("has_cuda"):
+            self.metrics_collector.update_gpu_metrics()
+        # -------------------------------------------------------
+        # TODO [SB/JL]: remove this once fully migrated onto otel
         cpu_utilization = psutil.cpu_percent(interval=0)
 
         # A dictionary that match the keys of psutil.virtual_memory()._asdict() to match the keys we expect in Den.
@@ -612,7 +664,6 @@ class ClusterServlet:
         # Fields: `total`, `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
         # according to psutil docs, percent = (total - available) / total * 100
         memory_usage = psutil.virtual_memory()._asdict()
-
         memory_usage = {
             relevant_memory_info[k]: memory_usage[k]
             for k in relevant_memory_info.keys()
@@ -636,9 +687,10 @@ class ClusterServlet:
             with self.lock:
                 self.gpu_metrics = None
 
+        # TODO [SB/JL]: remove otel data from the status
         status_data = {
             "cluster_config": config_cluster,
-            "runhouse_version": runhouse.__version__,
+            "runhouse_version": rh.__version__,
             "server_pid": self.pid,
             "env_servlet_processes": servlet_utilization_data,
             "server_cpu_utilization": cpu_utilization,
@@ -649,9 +701,8 @@ class ClusterServlet:
 
         # converting status_data to ResourceStatusData instance to verify we constructed the status data correctly
         status_data = ResourceStatusData(**status_data).model_dump()
-
         if send_to_den:
-
+            # TODO [SB/JL]: remove (data will be sent directly to the backend collector)
             logger.debug("Sending cluster status to Den")
             den_resp = self.save_status_metrics_to_den(status=status_data)
             return status_data, den_resp.status_code

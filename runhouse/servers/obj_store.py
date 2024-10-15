@@ -21,7 +21,6 @@ from pydantic import BaseModel
 
 import runhouse as rh
 from runhouse.logger import get_logger
-
 from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import generate_uuid, ResourceVisibility
 from runhouse.utils import (
@@ -267,9 +266,9 @@ class ObjStore:
         from runhouse.servers.telemetry import TelemetryAgentReceiver
 
         try:
-            ta = TelemetryAgentReceiver()
-            ta.start()
-            return ta
+            telemetry_agent = TelemetryAgentReceiver()
+            telemetry_agent.start()
+            return telemetry_agent
 
         except Exception as e:
             logger.warning(f"Failed to start telemetry agent: {e}")
