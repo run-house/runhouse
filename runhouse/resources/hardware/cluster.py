@@ -442,6 +442,10 @@ class Cluster(Resource):
         if not ssh_creds:
             return False
 
+        if "private_key" in ssh_creds and "public_key" in ssh_creds:
+            # Cred values contain fields associated with a sky secret object, which are not shared
+            return False
+
         ssh_private_key = ssh_creds.get("ssh_private_key")
         ssh_private_key_path = Path(ssh_private_key).expanduser()
         secrets_base_dir = Path(Secret.DEFAULT_DIR).expanduser()
