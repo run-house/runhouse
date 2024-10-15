@@ -18,6 +18,7 @@ from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import (
     CallParams,
+    CreateProcessParams,
     DeleteObjectParams,
     FolderGetParams,
     FolderLsParams,
@@ -32,6 +33,7 @@ from runhouse.servers.http.http_utils import (
     PutResourceParams,
     RenameObjectParams,
     serialize_data,
+    SetProcessEnvVarsParams,
 )
 
 from runhouse.utils import ClusterLogsFormatter, generate_default_name
@@ -697,4 +699,38 @@ class HTTPClient:
             env_name = env
         return self.request(
             f"keys/?env_name={env_name}" if env_name else "keys", req_type="get"
+        )
+
+    ################################################################################################
+    # Process related functions
+    ################################################################################################
+
+    def list_processes(self):
+        return self.request_json("/processes", req_type="get")
+
+    def create_process(
+        self,
+        name: str,
+        compute: Optional[Dict] = {},
+        runtime_env: Union[Dict, str] = {},
+    ):
+        return self.request_json(
+            "/create_process",
+            req_type="post",
+            json_dict=CreateProcessParams(
+                name=name, compute=compute, runtime_env=runtime_env
+            ).model_dump(),
+        )
+
+    def set_process_env_vars(
+        self,
+        process_name: str,
+        env_vars: Dict[str, str],
+    ):
+        return self.request_json(
+            "/process_env_vars",
+            req_type="post",
+            json_dict=SetProcessEnvVarsParams(
+                process_name=process_name, env_vars=env_vars
+            ).model_dump(),
         )

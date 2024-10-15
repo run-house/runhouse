@@ -89,7 +89,7 @@ install_requires = [
 # packages dependencies are changed.
 extras_require = {
     "sky": ["skypilot==0.6.0"],
-    "data": ["pandas", "pyarrow"],
+    "data": ["pandas"],
     "aws": [
         "skypilot[aws]==0.6.0",
         # https://github.com/aio-libs/aiobotocore/issues/983

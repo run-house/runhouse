@@ -16,7 +16,13 @@ class GCSFolder(Folder):
     DEFAULT_FS = "gcp"
 
     def __init__(self, dryrun: bool, **kwargs):
-        from google.cloud import storage
+        try:
+            from google.cloud import storage
+        except ImportError:
+            raise ImportError(
+                "`google-cloud-storage` is required for GCS folders. "
+                "You can install it with `pip install google-cloud-storage`."
+            )
 
         super().__init__(dryrun=dryrun, **kwargs)
         self.client = storage.Client()

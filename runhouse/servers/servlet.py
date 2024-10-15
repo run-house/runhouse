@@ -38,6 +38,7 @@ from runhouse.utils import (
     get_node_ip,
     get_pid,
     ServletType,
+    set_env_vars_in_current_process,
 )
 
 logger = get_logger(__name__)
@@ -89,7 +90,7 @@ def error_handling_decorator(func):
     return wrapper
 
 
-class EnvServlet:
+class Servlet:
     async def __init__(self, env_name: str, *args, **kwargs):
         self.env_name = env_name
 
@@ -130,6 +131,12 @@ class EnvServlet:
                 target=self._collect_env_gpu_usage, daemon=True
             )
             collect_gpu_thread.start()
+
+    ##############################################################
+    # Simple system interactions for this worker process
+    ##############################################################
+    async def aset_env_vars(self, env_vars: Dict[str, str]):
+        set_env_vars_in_current_process(env_vars)
 
     ##############################################################
     # Methods to disable or enable den auth
@@ -333,14 +340,14 @@ class EnvServlet:
                 time.sleep(GPU_COLLECTION_INTERVAL)
 
     def _status_local_helper(self):
-        objects_in_env_servlet = obj_store.keys_with_info()
+        objects_in_servlet = obj_store.keys_with_info()
         cluster_config = obj_store.cluster_config
 
         (
             env_memory_usage,
             node_name,
             total_memory,
-            env_servlet_pid,
+            servlet_pid,
             node_ip,
             node_index,
         ) = self._get_env_cpu_usage(cluster_config)
@@ -357,7 +364,7 @@ class EnvServlet:
 
         # TODO: [sb]: once introduced, we could use ClusterServlet _cluster_periodic_thread_alive() to replace the
         #  'should_send_status_and_logs_to_den' logic below.
-        # Only if one of these is true, do we actually need to get the status from each EnvServlet
+        # Only if one of these is true, do we actually need to get the status from each Servlet
         should_send_status_and_logs_to_den: bool = (
             configs.token is not None and interval_size != -1
         )
@@ -367,16 +374,16 @@ class EnvServlet:
             with self.lock:
                 self.gpu_metrics = None
 
-        env_servlet_utilization_data = {
+        servlet_utilization_data = {
             "env_gpu_usage": env_gpu_usage,
             "node_ip": node_ip,
             "node_name": node_name,
             "node_index": node_index,
             "env_cpu_usage": env_memory_usage,
-            "pid": env_servlet_pid,
+            "pid": servlet_pid,
         }
 
-        return objects_in_env_servlet, env_servlet_utilization_data
+        return objects_in_servlet, servlet_utilization_data
 
     async def astatus_local(self):
         return await arun_in_thread(self._status_local_helper)
