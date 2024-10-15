@@ -109,6 +109,7 @@ class ProviderSecret(Secret):
         file: bool = False,
         env: bool = False,
         overwrite: bool = False,
+        write_config: bool = True,
     ):
         if not self.values:
             raise ValueError("Could not determine values to write down.")
@@ -119,7 +120,9 @@ class ProviderSecret(Secret):
 
         if file or path:
             path = path or self.path or self._DEFAULT_CREDENTIALS_PATH
-            return self._write_to_file(path, values=self.values, overwrite=overwrite)
+            return self._write_to_file(
+                path, values=self.values, overwrite=overwrite, write_config=write_config
+            )
         elif env or env_vars:
             env_vars = env_vars or self.env_vars or self._DEFAULT_ENV_VARS
             return self._write_to_env(env_vars, values=self.values, overwrite=overwrite)
@@ -193,7 +196,7 @@ class ProviderSecret(Secret):
             env_vars = self.env_vars or self._DEFAULT_ENV_VARS
             if env_vars:
                 env_vars = {env_vars[k]: self.values[k] for k in self.values}
-                system.call(env_key, "_set_env_vars", env_vars)
+                system.set_process_env_vars(process_name=env_key, env_vars=env_vars)
         return new_secret
 
     def _file_to(
@@ -206,7 +209,9 @@ class ProviderSecret(Secret):
         system.call(key, "_write_to_file", path=path, values=values)
         return path
 
-    def _write_to_file(self, path: str, values: Any, overwrite: bool = False):
+    def _write_to_file(
+        self, path: str, values: Any, overwrite: bool = False, write_config: bool = True
+    ):
         new_secret = copy.deepcopy(self)
         if not _check_file_for_mismatches(
             path, self._from_path(path), values, overwrite
@@ -214,7 +219,9 @@ class ProviderSecret(Secret):
             full_path = create_local_dir(path)
             with open(full_path, "w") as f:
                 json.dump(values, f, indent=4)
-            self._add_to_rh_config(path)
+
+            if write_config:
+                self._add_to_rh_config(path)
 
         new_secret._values = None
         new_secret.path = path

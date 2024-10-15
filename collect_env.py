@@ -22,7 +22,6 @@ pip_pkgs = "\n".join(
             # required installs
             "wheel",
             "rich",
-            "pyarrow",
             "typer",
             "skypilot",
             "fastapi",
