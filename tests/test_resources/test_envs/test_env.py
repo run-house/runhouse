@@ -323,5 +323,7 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     def test_env_in_function_factory(self, cluster):
-        remote_function = rh.function(scipy_import, env=["scipy"]).to(system=cluster)
+        remote_function = rh.function(scipy_import, env=["scipy<1.14.1"]).to(
+            system=cluster
+        )
         assert remote_function() is not None
