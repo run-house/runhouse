@@ -1,16 +1,12 @@
-import subprocess
-
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-import yaml
-
-from runhouse.constants import CONDA_PREFERRED_PYTHON_VERSION, ENVS_DIR
+from runhouse.constants import CONDA_PREFERRED_PYTHON_VERSION
 from runhouse.globals import obj_store
 from runhouse.logger import get_logger
-
-from runhouse.resources.envs.utils import install_conda, run_setup_command
 from runhouse.resources.packages import Package
+
+from runhouse.utils import create_conda_env, install_conda, run_setup_command
 
 from .env import Env
 
@@ -59,53 +55,6 @@ class CondaEnv(Env):
     def env_name(self):
         return self.conda_yaml["name"]
 
-    def _create_conda_env(
-        self, force: bool = False, cluster: "Cluster" = None, node: Optional[str] = None
-    ):
-        yaml_path = Path(ENVS_DIR) / f"{self.env_name}.yml"
-
-        env_exists = (
-            f"\n{self.env_name} "
-            in run_setup_command("conda info --envs", cluster=cluster, node=node)[1]
-        )
-        run_setup_command(f"mkdir -p {ENVS_DIR}", cluster=cluster, node=node)
-        yaml_exists = (
-            (Path(ENVS_DIR).expanduser() / f"{self.env_name}.yml").exists()
-            if not cluster
-            else run_setup_command(f"ls {yaml_path}", cluster=cluster, node=node)[0]
-            == 0
-        )
-
-        if force or not (yaml_exists and env_exists):
-            # dump config into yaml file on cluster
-            if not cluster:
-                python_commands = "; ".join(
-                    [
-                        "import yaml",
-                        "from pathlib import Path",
-                        f"path = Path('{ENVS_DIR}').expanduser()",
-                        f"yaml.dump({self.conda_yaml}, open(path / '{self.env_name}.yml', 'w'))",
-                    ]
-                )
-                subprocess.run(f'python -c "{python_commands}"', shell=True)
-            else:
-                contents = yaml.dump(self.conda_yaml)
-                run_setup_command(
-                    f"echo $'{contents}' > {yaml_path}", cluster=cluster, node=node
-                )
-
-            # create conda env from yaml file
-            run_setup_command(
-                f"conda env create -f {yaml_path}", cluster=cluster, node=node
-            )
-
-            env_exists = (
-                f"\n{self.env_name} "
-                in run_setup_command("conda info --envs", cluster=cluster, node=node)[1]
-            )
-            if not env_exists:
-                raise RuntimeError(f"conda env {self.env_name} not created properly.")
-
     def install(
         self, force: bool = False, cluster: "Cluster" = None, node: Optional[str] = None
     ):
@@ -150,7 +99,13 @@ class CondaEnv(Env):
                 return
             obj_store.installed_envs[install_hash] = self.name
 
-        self._create_conda_env(force=force, cluster=cluster, node=node)
+        create_conda_env(
+            env_name=self.env_name,
+            conda_yaml=self.conda_yaml,
+            force=force,
+            cluster=cluster,
+            node=node,
+        )
 
         self._install_reqs(cluster=cluster, node=node)
         self._run_setup_cmds(cluster=cluster, node=node)
