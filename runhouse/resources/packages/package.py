@@ -8,19 +8,20 @@ from typing import Dict, Optional, Union
 from runhouse.globals import obj_store
 
 from runhouse.logger import get_logger
-
-from runhouse.resources.envs.utils import install_conda, run_setup_command
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import (
     _get_cluster_from,
     detect_cuda_version_or_cpu,
 )
 from runhouse.resources.resource import Resource
+
 from runhouse.utils import (
     find_locally_installed_version,
     get_local_install_path,
+    install_conda,
     is_python_package_string,
     locate_working_dir,
+    run_setup_command,
 )
 
 
