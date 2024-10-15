@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import inspect
+import json
 import logging
 import os
 import time
@@ -10,12 +11,19 @@ from functools import wraps
 from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
+
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
 from pydantic import BaseModel
 
+import runhouse as rh
 from runhouse.logger import get_logger
 
 from runhouse.rns.defaults import req_ctx
-from runhouse.rns.utils.api import ResourceVisibility
+from runhouse.rns.utils.api import generate_uuid, ResourceVisibility
 from runhouse.utils import (
     arun_in_thread,
     generate_default_name,
@@ -119,6 +127,86 @@ def context_wrapper(func):
     return wrapper
 
 
+def trace_method():
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(self, *args, **kwargs):
+            tracer = self.tracer
+            if tracer is None:
+                return await func(self, *args, **kwargs)
+
+            span_id = kwargs.pop("span_id", None) or generate_uuid()
+            span_name = f"{self.__class__.__name__}.{func.__name__}"
+            func_name = func.__name__
+            cluster_config = self.cluster_config
+
+            try:
+                from opentelemetry.trace.status import Status, StatusCode
+
+                with tracer.start_as_current_span(span_name) as span:
+                    try:
+                        span.set_attribute("function_name", func_name)
+                        span.set_attribute("span_id", span_id)
+                        for k, v in cluster_config.items():
+                            if isinstance(v, rh.Resource):
+                                v = {
+                                    "name": v.name,
+                                    "rns_address": v.rns_address,
+                                    "resource_type": v.RESOURCE_TYPE,
+                                }
+                            span_key = f"rh.{k}"
+                            try:
+                                json_value = json.dumps(v)
+                                span.set_attribute(span_key, json_value)
+                            except TypeError:
+                                # If the value is not JSON serializable, convert it to a string
+                                span.set_attribute(span_key, str(v))
+
+                        # Set attributes for arguments
+                        sig = inspect.signature(func)
+                        param_names = list(sig.parameters.keys())
+                        # Ignore the 'self' arg
+                        for i, arg in enumerate(args, start=1):
+                            if i < len(param_names):
+                                span.set_attribute(param_names[i], str(arg))
+                        for arg_name, arg_value in kwargs.items():
+                            span.set_attribute(arg_name, str(arg_value))
+
+                        # Manually add log to the span
+                        span.add_event(f"Starting execution for func: {func_name}")
+
+                        result = await func(self, *args, **kwargs)
+
+                        # Add another log event for successful execution
+                        span.add_event(f"Finished execution for func: {func_name}")
+                        span.set_status(Status(StatusCode.OK))
+                        return result
+
+                    except Exception as e:
+                        # Log the exception in the span
+                        span.add_event(
+                            "Exception occurred",
+                            {
+                                "exception.type": type(e).__name__,
+                                "exception.message": str(e),
+                            },
+                        )
+                        span.record_exception(e)
+                        span.set_status(Status(StatusCode.ERROR, str(e)))
+                        raise Exception
+
+            except Exception as e:
+                # Catch any OpenTelemetry-related exceptions
+                logger.warning(f"OpenTelemetry error in {func_name}: {e}")
+
+                # Execute the function without tracing
+                return await func(self, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 class ObjStore:
     """Class to handle internal IPC and storage for Runhouse.
 
@@ -151,7 +239,69 @@ class ObjStore:
         self._kv_store: Dict[Any, Any] = None
         self.servlet_cache = {}
         self.active_function_calls = {}
+        self._kv_store: Dict[Any, Any] = None
+        self._telemetry_agent = None
+        self._tracer = None
 
+    ##############################################
+    # Telemetry
+    ##############################################
+    @property
+    def telemetry_agent(self):
+        if (
+            rh.here.on_this_cluster()
+            and not os.getenv("disable_observability", False)
+            and self._telemetry_agent is None
+        ):
+            self._telemetry_agent = self.initialize_telemetry_agent()
+        return self._telemetry_agent
+
+    @property
+    def tracer(self):
+        if self.telemetry_agent and self._tracer is None:
+            self._tracer = self._initialize_tracer()
+        return self._tracer
+
+    @staticmethod
+    def initialize_telemetry_agent():
+        from runhouse.servers.telemetry import TelemetryAgentReceiver
+
+        try:
+            ta = TelemetryAgentReceiver()
+            ta.start()
+            return ta
+
+        except Exception as e:
+            logger.warning(f"Failed to start telemetry agent: {e}")
+            return None
+
+    def _initialize_tracer(self):
+        from runhouse.globals import rns_client
+        from runhouse.servers.telemetry import (
+            ResourceAttributes,
+            TelemetryAgentReceiver,
+        )
+
+        resource_attributes = ResourceAttributes(
+            username=rns_client.username, cluster_name=self.cluster_config.get("name")
+        )
+        resource = TelemetryAgentReceiver.default_resource(resource_attributes)
+
+        trace.set_tracer_provider(TracerProvider(resource=resource))
+        tracer = trace.get_tracer(__name__)
+
+        # Export to local agent, which handles sending to the backend collector
+        endpoint = f"localhost:{self.telemetry_agent.agent_config.grpc_port}"
+
+        # Capture spans and add them to an internal buffer to be exported to the local agent receiver automatically
+        otlp_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
+        span_processor = BatchSpanProcessor(otlp_exporter)
+
+        trace.get_tracer_provider().add_span_processor(span_processor)
+
+        return tracer
+
+    # ----------------------------------------------------
     async def ainitialize(
         self,
         servlet_name: Optional[str] = None,
@@ -649,6 +799,7 @@ class ObjStore:
             serialization=serialization,
         )
 
+    @trace_method()
     async def aput_local(self, key: Any, value: Any):
         if self.has_local_storage:
             self._kv_store[key] = value
@@ -656,6 +807,7 @@ class ObjStore:
         else:
             raise NoLocalObjStoreError()
 
+    @trace_method()
     async def aput(
         self,
         key: Any,
@@ -708,6 +860,7 @@ class ObjStore:
     ##############################################
     # KV Store: Get
     ##############################################
+    @trace_method()
     async def aget_from_servlet_name(
         self,
         servlet_name: str,
@@ -759,12 +912,14 @@ class ObjStore:
                 raise KeyError(f"No local store exists; key {key} not found.")
             return default
 
+    @trace_method()
     async def aget(
         self,
         key: Any,
         serialization: Optional[str] = None,
         remote: bool = False,
         default: Optional[Any] = None,
+        request_id: Optional[str] = None,
     ):
         servlet_name_containing_key = await self.aget_servlet_name_for_key(key)
 
@@ -930,12 +1085,15 @@ class ObjStore:
     ##############################################
     # KV Store: Delete
     ##############################################
+    @trace_method()
     async def adelete_for_servlet_name(self, servlet_name: str, key: Any):
         return await self.acall_servlet_method(servlet_name, "adelete_local", key)
 
+    @trace_method()
     async def adelete_local(self, key: Any):
         await self.apop_local(key)
 
+    @trace_method()
     async def adelete_env_contents(self, env_name: Any):
 
         # delete the env servlet actor and remove its references
@@ -946,9 +1104,11 @@ class ObjStore:
         deleted_keys = await self.aclear_all_references_to_servlet_name(env_name)
         return deleted_keys
 
+    @trace_method()
     def delete_env_contents(self, env_name: Any):
         return sync_function(self.adelete_env_contents)(env_name)
 
+    @trace_method()
     async def adelete(self, key: Union[Any, List[Any]]):
         keys_to_delete = [key] if isinstance(key, str) else key
         deleted_keys = []
@@ -984,6 +1144,7 @@ class ObjStore:
     async def aclear_for_servlet_name(self, servlet_name: str):
         return await self.acall_servlet_method(servlet_name, "aclear_local")
 
+    @trace_method()
     async def aclear_local(self):
         if self.has_local_storage:
             # Use asyncio gather to run all the deletes concurrently
@@ -991,6 +1152,7 @@ class ObjStore:
                 *[self.apop_local(k) for k in list(self._kv_store.keys())]
             )
 
+    @trace_method()
     async def aclear(self):
         logger.warning("Clearing all keys from all envs in the object store!")
         for servlet_name in await self.aget_all_initialized_servlet_names():
@@ -1049,6 +1211,7 @@ class ObjStore:
     ##############################################
     # KV Store: Call
     ##############################################
+    @trace_method()
     async def acall_for_servlet_name(
         self,
         servlet_name: str,
@@ -1073,6 +1236,7 @@ class ObjStore:
             ctx=dict(req_ctx.get()),
         )
 
+    @trace_method()
     async def acall_local(
         self,
         key: str,
@@ -1127,6 +1291,7 @@ class ObjStore:
 
         return res
 
+    @trace_method()
     async def _acall_local_helper(
         self,
         key: str,
@@ -1316,6 +1481,7 @@ class ObjStore:
         else:
             raise ValueError(f"Invalid laziness type {laziness_type}")
 
+    @trace_method()
     @context_wrapper
     async def acall(
         self,
@@ -1435,6 +1601,7 @@ class ObjStore:
     ##############################################
     # More specific helpers
     ##############################################
+    @trace_method()
     async def aput_resource(
         self,
         serialized_data: Any,
@@ -1492,6 +1659,7 @@ class ObjStore:
             serialized_data, serialization, env_name
         )
 
+    @trace_method()
     async def aput_resource_local(
         self,
         resource_config: Dict[str, Any],
@@ -1568,6 +1736,7 @@ class ObjStore:
 
         return keys_and_info
 
+    @trace_method()
     async def astatus(self, send_to_den: bool = False):
         return await self.acall_actor_method(
             self.cluster_servlet, "status", send_to_den
