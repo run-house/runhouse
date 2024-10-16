@@ -19,11 +19,12 @@ from datetime import datetime
 from enum import Enum
 from io import SEEK_SET, StringIO
 from pathlib import Path
-from typing import Callable, Optional, Type, Union
+from typing import Callable, Dict, Optional, Type, Union
 
 import pexpect
+import yaml
 
-from runhouse.constants import RH_LOGFILE_PATH
+from runhouse.constants import CONDA_INSTALL_CMDS, ENVS_DIR, RH_LOGFILE_PATH
 
 from runhouse.logger import get_logger, init_logger
 
@@ -31,12 +32,127 @@ logger = get_logger(__name__)
 
 
 ####################################################################################################
-# Simple env utilities
+# Simple env setup utilities
 ####################################################################################################
 def set_env_vars_in_current_process(env_vars: dict):
     for k, v in env_vars.items():
         if v is not None:
             os.environ[k] = v
+
+
+def conda_env_cmd(cmd, conda_name):
+    return f"conda run -n {conda_name} ${{SHELL:-/bin/bash}} -c {shlex.quote(cmd)}"
+
+
+def run_setup_command(
+    cmd: str,
+    cluster: "Cluster" = None,
+    env_vars: Dict = None,
+    stream_logs: bool = True,
+    node: Optional[str] = None,
+):
+    """
+    Helper function to run a command during possibly the cluster default env setup. If a cluster is provided,
+    run command on the cluster using SSH. If the cluster is not provided, run locally, as if already on the
+    cluster (rpc call).
+
+    Args:
+        cmd (str): Command to run on the
+        cluster (Optional[Cluster]): (default: None)
+        stream_logs (bool): (default: True)
+
+    Returns:
+       (status code, stdout)
+    """
+    if not cluster:
+        return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
+    elif cluster.on_this_cluster():
+        cmd = cluster.default_env._full_command(cmd)
+        return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
+
+    return cluster._run_commands_with_runner(
+        [cmd], stream_logs=stream_logs, env_vars=env_vars, node=node
+    )[0]
+
+
+def install_conda(cluster: "Cluster" = None, node: Optional[str] = None):
+    if run_setup_command("conda --version", cluster=cluster, node=node)[0] != 0:
+        logging.info("Conda is not installed. Installing...")
+        for cmd in CONDA_INSTALL_CMDS:
+            run_setup_command(cmd, cluster=cluster, node=node, stream_logs=True)
+        if run_setup_command("conda --version", cluster=cluster, node=node)[0] != 0:
+            raise RuntimeError("Could not install Conda.")
+
+
+def create_conda_env(
+    env_name: str,
+    conda_yaml: Dict,
+    force: bool = False,
+    cluster: "Cluster" = None,
+    node: Optional[str] = None,
+):
+    yaml_path = Path(ENVS_DIR) / f"{env_name}.yml"
+
+    env_exists = (
+        f"\n{env_name} "
+        in run_setup_command("conda info --envs", cluster=cluster, node=node)[1]
+    )
+    run_setup_command(f"mkdir -p {ENVS_DIR}", cluster=cluster, node=node)
+    yaml_exists = (
+        (Path(ENVS_DIR).expanduser() / f"{env_name}.yml").exists()
+        if not cluster
+        else run_setup_command(f"ls {yaml_path}", cluster=cluster, node=node)[0] == 0
+    )
+
+    if force or not (yaml_exists and env_exists):
+        # dump config into yaml file on cluster
+        if not cluster:
+            python_commands = "; ".join(
+                [
+                    "import yaml",
+                    "from pathlib import Path",
+                    f"path = Path('{ENVS_DIR}').expanduser()",
+                    f"yaml.dump({conda_yaml}, open(path / '{env_name}.yml', 'w'))",
+                ]
+            )
+            subprocess.run(f'python -c "{python_commands}"', shell=True)
+        else:
+            contents = yaml.dump(conda_yaml)
+            run_setup_command(
+                f"echo $'{contents}' > {yaml_path}", cluster=cluster, node=node
+            )
+
+        # create conda env from yaml file
+        run_setup_command(
+            f"conda env create -f {yaml_path}", cluster=cluster, node=node
+        )
+
+        env_exists = (
+            f"\n{env_name} "
+            in run_setup_command("conda info --envs", cluster=cluster, node=node)[1]
+        )
+        if not env_exists:
+            raise RuntimeError(f"conda env {env_name} not created properly.")
+
+
+def _env_vars_from_file(env_file):
+    try:
+        from dotenv import dotenv_values, find_dotenv
+    except ImportError:
+        raise ImportError(
+            "`dotenv` package is needed. You can install it with `pip install python-dotenv`."
+        )
+
+    dotenv_path = find_dotenv(str(env_file), usecwd=True)
+    env_vars = dotenv_values(dotenv_path)
+    return dict(env_vars)
+
+
+def _process_env_vars(env_vars):
+    processed_vars = (
+        _env_vars_from_file(env_vars) if isinstance(env_vars, str) else env_vars
+    )
+    return processed_vars
 
 
 ####################################################################################################
