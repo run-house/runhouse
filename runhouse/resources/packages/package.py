@@ -430,9 +430,7 @@ class Package(Resource):
             system (str, Dict, or Cluster): Cluster to send the package to.
         """
         if not isinstance(self.install_target, InstallTarget):
-            raise TypeError(
-                "`install_target` must be an InstallTarget in order to copy the package to a system."
-            )
+            return self
 
         system = _get_cluster_from(system)
         if isinstance(system, Cluster) and system.on_this_cluster():
