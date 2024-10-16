@@ -139,6 +139,7 @@ class Env(Resource):
         self, cluster: Cluster = None, reqs: List = None, node: str = "all"
     ):
         reqs = reqs or self.reqs
+
         if reqs:
             for package in reqs:
                 if isinstance(package, str):
@@ -151,7 +152,8 @@ class Env(Resource):
                     raise ValueError(f"package {package} not recognized")
 
                 logger.debug(f"Installing package: {str(pkg)}")
-                pkg._install(env=self, cluster=cluster, node=node)
+                conda_name = self.env_name if hasattr(self, "conda_yaml") else None
+                pkg._install(conda_name=conda_name, cluster=cluster, node=node)
 
     def _run_setup_cmds(
         self, cluster: Cluster = None, setup_cmds: List = None, node: str = "all"

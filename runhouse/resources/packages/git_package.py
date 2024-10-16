@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict, Optional
 
 from runhouse.utils import run_setup_command
 
@@ -51,7 +51,7 @@ class GitPackage(Package):
         return f"GitPackage: {self.git_url}@{self.revision}"
 
     # TODO for cluster
-    def _install(self, env: Union[str, "Env"] = None, cluster: "Cluster" = None):
+    def _install(self, cluster: "Cluster" = None, conda_name: Optional[str] = None):
         from runhouse.resources.folders import Folder, folder
 
         if cluster and isinstance(self.install_target, str):
@@ -80,7 +80,7 @@ class GitPackage(Package):
             run_setup_command(f"git -C {install_target} checkout {self.revision}")
 
         # Use super to install the package
-        super()._install(env, cluster=cluster)
+        super()._install(cluster=cluster, conda_name=conda_name)
 
     @staticmethod
     def from_config(config: Dict, dryrun: bool = False, _resolve_children: bool = True):

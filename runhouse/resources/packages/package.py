@@ -16,6 +16,7 @@ from runhouse.resources.hardware.utils import (
 from runhouse.resources.resource import Resource
 
 from runhouse.utils import (
+    conda_env_cmd,
     find_locally_installed_version,
     get_local_install_path,
     install_conda,
@@ -120,21 +121,18 @@ class Package(Resource):
 
     @staticmethod
     def _prepend_python_executable(
-        install_cmd: str, env: Union[str, "Env"] = None, cluster: "Cluster" = None
+        install_cmd: str, conda_name: Optional[str] = None, cluster: "Cluster" = None
     ):
         return (
             f"python3 -m {install_cmd}"
-            if cluster or env
+            if cluster or conda_name
             else f"{sys.executable} -m {install_cmd}"
         )
 
     @staticmethod
-    def _prepend_env_command(install_cmd: str, env: Union[str, "Env"] = None):
-        if env:
-            from runhouse.resources.envs.utils import _get_env_from
-
-            env = _get_env_from(env)
-            install_cmd = env._full_command(install_cmd)
+    def _prepend_env_command(install_cmd: str, conda_name: Optional[str] = None):
+        if conda_name:
+            install_cmd = conda_env_cmd(cmd=install_cmd, conda_name=conda_name)
 
         return install_cmd
 
@@ -152,7 +150,9 @@ class Package(Resource):
             )
 
     def _pip_install_cmd(
-        self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
+        self,
+        conda_name: Optional[str] = None,
+        cluster: "Cluster" = None,
     ):
         install_args = f" {self.install_args}" if self.install_args else ""
         if isinstance(self.install_target, InstallTarget):
@@ -163,13 +163,13 @@ class Package(Resource):
 
         install_cmd = f"pip install {self._install_cmd_for_torch(install_cmd, cluster)}"
         install_cmd = self._prepend_python_executable(
-            install_cmd, cluster=cluster, env=env
+            install_cmd, cluster=cluster, conda_name=conda_name
         )
-        install_cmd = self._prepend_env_command(install_cmd, env=env)
+        install_cmd = self._prepend_env_command(install_cmd, conda_name=conda_name)
         return install_cmd
 
     def _conda_install_cmd(
-        self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
+        self, conda_name: Optional[str] = None, cluster: "Cluster" = None
     ):
         install_args = f" {self.install_args}" if self.install_args else ""
         if isinstance(self.install_target, InstallTarget):
@@ -178,12 +178,12 @@ class Package(Resource):
             install_cmd = self.install_target + install_args
 
         install_cmd = f"conda install -y {install_cmd}"
-        install_cmd = self._prepend_env_command(install_cmd, env=env)
+        install_cmd = self._prepend_env_command(install_cmd, conda_name=conda_name)
         install_conda(cluster=cluster)
         return install_cmd
 
     def _reqs_install_cmd(
-        self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
+        self, conda_name: Optional[str] = None, cluster: "Cluster" = None
     ):
         install_args = f" {self.install_args}" if self.install_args else ""
         if not isinstance(self.install_target, InstallTarget):
@@ -221,24 +221,26 @@ class Package(Resource):
 
         install_cmd = f"pip install {install_cmd}"
         install_cmd = self._prepend_python_executable(
-            install_cmd, env=env, cluster=cluster
+            install_cmd, conda_name=conda_name, cluster=cluster
         )
-        install_cmd = self._prepend_env_command(install_cmd, env=env)
+        install_cmd = self._prepend_env_command(install_cmd, conda_name=conda_name)
         return install_cmd
 
     def _install(
         self,
-        env: Union[str, "Env"] = None,
         cluster: "Cluster" = None,
         node: Optional[str] = None,
+        conda_name: Optional[str] = None,
     ):
         """Install package.
 
         Args:
-            env (Env or str): Environment to install package on. If left empty, defaults to base environment.
-                (Default: ``None``)
             cluster (Optional[Cluster]): If provided, will install package on cluster using SSH. Otherwise, the
-            assumption is that we are installing locally. (Default: ``None``)
+                assumption is that we are installing locally. (Default: ``None``)
+            node (Optional[str]): Node on the cluster to install the package on, if using SSH. If ``cluster`` is
+                provided without a ``node``, package will be installed on the head node. (Default: ``None``)
+            conda_name (Optional[str]): Name of the conda environment to install the package on, if using SSH and
+                installing in a specific conda env that is not activated by default.
         """
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
 
@@ -263,7 +265,7 @@ class Package(Resource):
                         f"{self.install_target}=={self.preferred_version}"
                     )
 
-            install_cmd = self._pip_install_cmd(env=env, cluster=cluster)
+            install_cmd = self._pip_install_cmd(conda_name=conda_name, cluster=cluster)
             logger.info(f"Running via install_method pip: {install_cmd}")
             retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
             if retcode != 0:
@@ -272,7 +274,9 @@ class Package(Resource):
                 )
 
         elif self.install_method == "conda":
-            install_cmd = self._conda_install_cmd(env=env, cluster=cluster)
+            install_cmd = self._conda_install_cmd(
+                conda_name=conda_name, cluster=cluster
+            )
             logger.info(f"Running via install_method conda: {install_cmd}")
             retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
             if retcode != 0:
@@ -282,7 +286,7 @@ class Package(Resource):
                 )
 
         elif self.install_method == "reqs":
-            install_cmd = self._reqs_install_cmd(env=env, cluster=cluster)
+            install_cmd = self._reqs_install_cmd(conda_name=conda_name, cluster=cluster)
             if install_cmd:
                 logger.info(f"Running via install_method reqs: {install_cmd}")
                 retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
