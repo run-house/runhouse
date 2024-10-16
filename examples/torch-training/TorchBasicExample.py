@@ -219,7 +219,11 @@ if __name__ == "__main__":
     # Define a cluster type - here we launch an on-demand AWS cluster with 1 NVIDIA A10G GPU.
     # You can use any cloud you want, or existing compute
     cluster = rh.ondemand_cluster(
-        name="a10g-cluster", instance_type="A10G:1", provider="aws"
+        name="a10g-cluster",
+        instance_type="A10G:1",
+        provider="aws",
+        autopstop_mins=120
+        # name="a10g-cluster", instance_type="T4:1", provider="gcp", autopstop_mins=120 # If we wanted to use GCP, for example
     ).up_if_not()
 
     # Next, we define the environment for our module. This includes the required dependencies that need
@@ -243,9 +247,6 @@ if __name__ == "__main__":
     model = remote_torch_example(
         name="torch_model"
     )  # Instantiating it based on the remote RH module, and naming it "torch_model".
-
-    # Though we could just as easily run identical code on local
-    # model = SimpleTrainer()       # If instantiating a local example
 
     # We set some settings for the model training
     batch_size = 64
@@ -286,3 +287,6 @@ if __name__ == "__main__":
     example_data, example_target = local_dataset[0][0].unsqueeze(0), local_dataset[0][1]
     prediction = model.predict(example_data)
     print(f"Predicted: {prediction}, Actual: {example_target}")
+
+    # Down the cluster when done. If you have saved the cluster to Runhouse Den, you can also reuse the cluster by name for another task with `cluster = rh.cluster('a10g-cluster')`
+    cluster.teardown()
