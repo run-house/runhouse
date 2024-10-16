@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Union
 
+from runhouse.globals import obj_store
+
 from runhouse.logger import get_logger
 
 from runhouse.resources.envs.utils import install_conda, run_setup_command
@@ -234,7 +236,8 @@ class Package(Resource):
         Args:
             env (Env or str): Environment to install package on. If left empty, defaults to base environment.
                 (Default: ``None``)
-            cluster (Optional[Cluster]): If provided, will install package on cluster using SSH.
+            cluster (Optional[Cluster]): If provided, will install package on cluster using SSH. Otherwise, the
+            assumption is that we are installing locally. (Default: ``None``)
         """
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
 
@@ -317,8 +320,8 @@ class Package(Resource):
         # Need to append to path
         if self.install_method in ["local", "reqs"]:
             if isinstance(self.install_target, InstallTarget):
-                sys.path.insert(
-                    0, self.install_target.full_local_path_str()
+                obj_store.add_sys_path_to_all_processes(
+                    self.install_target.full_local_path_str()
                 ) if not cluster else run_setup_command(
                     f"export PATH=$PATH;{self.install_target.full_local_path_str()}",
                     cluster=cluster,
@@ -326,8 +329,8 @@ class Package(Resource):
                 )
             elif not cluster:
                 if Path(self.install_target).resolve().expanduser().exists():
-                    sys.path.insert(
-                        0, str(Path(self.install_target).resolve().expanduser())
+                    obj_store.add_sys_path_to_all_processes(
+                        str(Path(self.install_target).resolve().expanduser())
                     )
                 else:
                     raise ValueError(
