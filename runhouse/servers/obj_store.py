@@ -3,6 +3,7 @@ import copy
 import inspect
 import logging
 import os
+import sys
 import time
 import uuid
 from enum import Enum
@@ -244,6 +245,12 @@ class ObjStore:
         num_gpus = ray.cluster_resources().get("GPU", 0)
         cuda_visible_devices = list(range(int(num_gpus)))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
+
+        # Add to the sys.path the path that you need to prepend
+        paths_to_prepend = await self.aget_paths_to_prepend_in_new_processes()
+        for path in paths_to_prepend:
+            if path not in sys.path:
+                sys.path.insert(0, path)
 
     def initialize(
         self,
@@ -595,6 +602,16 @@ class ObjStore:
     async def _apop_servlet_name_for_key(self, key: Any, *args) -> str:
         return await self.acall_actor_method(
             self.cluster_servlet, "apop_servlet_name_for_key", key, *args
+        )
+
+    async def aget_paths_to_prepend_in_new_processes(self) -> str:
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aget_paths_to_prepend_in_new_processes"
+        )
+
+    async def aadd_path_to_prepend_in_new_processes(self, path: str):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aadd_path_to_prepend_in_new_processes", path
         )
 
     ##############################################
