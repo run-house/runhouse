@@ -15,6 +15,7 @@ Runhouse enables rapid, cost-effective machine learning development.
 
 With Runhouse, your ML code executes "serverlessly," since you dispatch Python functions and classes to any of your own cloud compute infrastructure, and call them
 eagerly as if they were local. This means:
+
 #. You can natively run and debug your code on remote GPUs or other powerful infra, like Ray, Spark, or Kubernetes, from your local IDE.
 #. This code then runs as-is in CI/CD or production, where the underlying code will be identically dispatched and executed on ephemeral remote infra.
 #. Hardware requirements and environment is captured in code and is reproducible across your team and in every setting.
