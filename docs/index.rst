@@ -15,13 +15,16 @@ Runhouse enables rapid, cost-effective machine learning development.
 
 With Runhouse, your ML code executes "serverlessly," since you dispatch Python functions and classes to any of your own cloud compute infrastructure, and call them
 eagerly as if they were local. This means:
-1. You can natively run and debug your code on remote GPUs or other powerful infra, like Ray, Spark, or Kubernetes, from your local IDE.
-2. This code then runs as-is in CI/CD or production, where the underlying code will be identically dispatched and executed on ephemeral remote infra.
-3. Hardware requirements and environment is captured in code and is reproducible across your team and in every setting.
+#. You can natively run and debug your code on remote GPUs or other powerful infra, like Ray, Spark, or Kubernetes, from your local IDE.
+#. This code then runs as-is in CI/CD or production, where the underlying code will be identically dispatched and executed on ephemeral remote infra.
+#. Hardware requirements and environment is captured in code and is reproducible across your team and in every setting.
 
 This greatly accelerates iteration cycles and close the gap between research and production, since research work is exactly reproducible in production with no code changes required.
+
 Once in production, this approach also delivers pipeline robustness and fault tolerance. By launching execution from Runhouse, you can easily catch and handle errors from
-within the driver program that would be impossible to do from within the ML application runtime itself. Finally, teams using Runhouse also gain close control of hardware utilization and begin bin packing available compute efficiently. Orchestrating execution
+within the driver program that would be impossible to do from within the ML application runtime itself.
+
+Teams using Runhouse also gain close control of hardware utilization and begin bin packing available compute efficiently. Orchestrating execution
 across clusters, regions, or clouds also becomes trivial. This delivers cost optimization, with teams often seeing cost savings of ~50%.
 
 Get In Touch
