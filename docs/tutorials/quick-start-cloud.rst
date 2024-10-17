@@ -1,21 +1,24 @@
-Cloud Quick Start
-=================
+Quick Start
+===========
 
 .. raw:: html
 
     <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-cloud.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
-Runhouse lets you easily deploy and run Python subroutines on remote
-infrastructure, granting you access to boundless compute from inside
-your Python interpreter.
+Runhouse lets you serverlessly dispatch and execute regular Python on
+your existing cloud infrastructure. You can quickly develop, test, and
+iterate on your ML programs, from your local IDE while executing on
+powerful remote compute. Then, identically execute your code in
+production simply by scheduling the dispatch while keeping the
+underlying program code exactly the same.
 
 This tutorial demonstrates how to
 
--  Connect to an existing remote IP, fresh cloud VM, or fresh Kubernetes
-   pod in Python as a Runhouse cluster
--  Send a locally defined function onto the remote compute and call it
-   as a service
+- Connect to an existing remote IP, fresh cloud VM, or fresh Kubernetes
+  pod in Python as a Runhouse cluster
+- Send a locally defined function onto the remote compute and call it as
+  a service
 
 Installing Runhouse
 -------------------
@@ -27,9 +30,7 @@ The Runhouse base package can be installed with:
     !pip install runhouse
 
 To use Runhouse to launch on-demand clusters, please instead run the
-following command. This additionally installs
-`SkyPilot <https://github.com/skypilot-org/skypilot>`__, which is used
-for launching fresh VMs through your cloud provider.
+following command.
 
 .. code:: ipython3
 
@@ -66,17 +67,6 @@ version <https://www.run.house/docs/tutorials/quick-start-local>`__ of
 this tutorial, which sets up and deploys the Python function to a local
 server, rather than a remote cluster.
 
-.. note::
-
-   Make sure that any code in your Python file that’s meant to only run
-   locally is placed within a ``if __name__ == "__main__":`` block.
-   Otherwise, that code will run when Runhouse attempts to import your
-   code remotely. For example, you wouldn’t want
-   ``function.to(cluster)`` to run again on the cluster. This is not
-   necessary when using a notebook. Please see our `examples
-   directory <https://github.com/run-house/runhouse/tree/main/examples>`__
-   for implementation details.
-
 To use a cluster that’s already running:
 
 .. code:: ipython3
@@ -87,11 +77,11 @@ To use a cluster that’s already running:
         ssh_creds={"ssh_user": "ubuntu", "ssh_private_key": "~/.ssh/id_rsa"},  # credentials for ssh-ing into the cluster
     )
 
-If you do not have a cluster up, but have cloud credentials (e.g. aws,
-gcp, azure) for launching clusters or a Kubernetes cluster, you can set
-up and launch an on-demand cluster with ``rh.ondemand_cluster``. This
-uses SkyPilot under the hood, so run ``sky check`` in a CLI first to
-make sure credentials are set up properly.
+If you do not have a cluster up, but have cloud credentials (e.g. AWS,
+Google Cloud, Azure) for launching clusters or a Kubernetes cluster, you
+can set up and launch an on-demand cluster with ``rh.ondemand_cluster``.
+This uses SkyPilot under the hood, so run ``sky check`` in a CLI first
+to make sure credentials are set up properly.
 
 .. code:: ipython3
 
@@ -149,11 +139,12 @@ cluster. These are covered in more detail in the API tutorials.
     INFO | 2024-05-16 03:20:55.960756 | Sending module get_platform of type <class 'runhouse.resources.functions.function.Function'> to rh-cluster
 
 
-The function we defined above, ``get_platform``, now exists remotely on
-the cluster, and can be called remotely using ``remote_fn``. You can
-call this remote function just as you would any other Python function,
-with ``remote_fn()``, and it runs on the cluster and returns the result
-to our local environment.
+Deploying the function to the cluster took ~2 seconds, and the function
+we defined above, ``get_platform``, now exists remotely on the cluster,
+and can be called remotely using ``remote_fn``. You can call this remote
+function just as you would any other Python function, with
+``remote_fn()``, and it runs on the cluster and returns the result to
+our local environment.
 
 Below, we run both the local and remote versions of this function, which
 give different results and confirms that the functions are indeed being
@@ -204,5 +195,6 @@ is just the tip of the iceberg of what’s possible with Runhouse. With a
 large suite of even more abstractions and features, Runhouse lets you
 quickly and seamlessly integrate between local and remote environments.
 
-To learn more, please take a look at our other tutorials, or at the `API
+To learn more, please take a look at our
+`examples <https://www.run.house/examples>`__ or at the `API
 reference <https://www.run.house/docs/api/python>`__

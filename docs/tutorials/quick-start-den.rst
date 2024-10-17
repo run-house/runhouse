@@ -1,6 +1,11 @@
 Den Quick Start
 ===============
 
+.. raw:: html
+
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-den.ipynb">
+    <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
+
 `Runhouse Den <https://www.run.house/dashboard>`__ lets you manage and
 track your infra, services, and resources (clusters, functions, secrets,
 etc). These resources can be easily reloaded from any environment, are
@@ -12,9 +17,7 @@ Installing Runhouse
 -------------------
 
 To use Runhouse to launch on-demand clusters, run the following
-installation command. This includes
-`SkyPilot <https://github.com/skypilot-org/skypilot>`__, which is used
-for launching fresh VMs through various cloud providers.
+installation command.
 
 .. code:: ipython3
 
@@ -26,47 +29,26 @@ Account Creation & Login
 You can create an account on the `run.house <https://www.run.house>`__
 website or by calling the login command in Python or CLI.
 
-To login on your dev environment, call ``rh.login()`` in Python or
-``runhouse login`` in CLI.
+To login, call ``runhouse login --sync-secrets`` in CLI. This will ask
+you a series of questions on whether to sync local secrets to Runhouse -
+e.g. your AWS / GCP / Azure secrets; once synced, you can launch compute
+via Runhouse anywhere you are authenticated with Runhouse.
+
+For more information on Secrets management, refer to the `Secrets
+Tutorial <https://www.run.house/docs/tutorials/api-secrets>`__. Secrets
+are always securely stored in `Vault <https://www.vaultproject.io/>`__.
+If you have any questions about Runhouse’s information security
+policies, please reach out at `hello@run.house <hello@run.house>`__.
+
+Launching and Saving Clusters
+-----------------------------
+
+Let’s start by constructing some runhouse resources that we’d like to
+save.
 
 .. code:: ipython3
 
     import runhouse as rh
-
-.. code:: ipython3
-
-    rh.login()
-
-As you’ll see in the login prompts, Runhouse also optionally offers
-secrets management, where it can automatically detect local AI provider
-secrets (e.g. clouds, Hugging Face, OpenAI, etc.), and gives you the
-option to upload them securely into your account to use on remote
-clusters or in other environments. For more information on Secrets
-management, refer to the `Secrets
-Tutorial <https://www.run.house/docs/tutorials/api-secrets>`__.
-
-Saving
-------
-
-Let’s start by constructing some runhouse resources that we’d like to
-save down. These resources were first defined in our `Cloud Quick Start
-Tutorial <https://www.run.house/docs/tutorials/quick-start-cloud>`__. As
-a reminder, you may need to confirm that your cloud credentials are
-properly configured by running ``sky check``.
-
-.. note::
-
-   Make sure that any code in your Python file that’s meant to only run
-   locally is placed within a ``if __name__ == "__main__":`` block.
-   Otherwise, that code will run when Runhouse attempts to import your
-   code remotely. For example, you wouldn’t want
-   ``function.to(cluster)`` to run again on the cluster. This is not
-   necessary when using a notebook. Please see our `examples
-   directory <https://github.com/run-house/runhouse/tree/main/examples>`__
-   for implementation details.
-
-.. code:: ipython3
-
     cluster = rh.ondemand_cluster(
         name="rh-cluster",
         instance_type="CPU:2+",
@@ -83,6 +65,7 @@ properly configured by running ``sky check``.
 
 
 .. parsed-literal::
+    :class: code-output
 
     INFO | 2024-05-16 03:51:58.483032 | Because this function is defined in a notebook, writing it out to /Users/donny/code/notebooks/docs/get_platform_fn.py to make it importable. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body). This restriction does not apply to functions defined in normal Python files.
     INFO | 2024-05-16 03:51:58.493093 | Port 32300 is already in use. Trying next port.
@@ -111,7 +94,7 @@ notebook, you can jump into your terminal, call ``runhouse login``, and
 then reconstruct and run the function on the cluster with the following
 Python script:
 
-.. code:: python
+.. code:: ipython3
 
    import runhouse as rh
 
@@ -122,7 +105,7 @@ Python script:
 The ``name`` used to reload the function is the method name by default.
 You can customize a function name using the following syntax:
 
-.. code:: python
+.. code:: ipython3
 
    remote_get_platform = rh.function(fn=get_platform, name="my_function").to(cluster)
 
@@ -158,6 +141,5 @@ Dive Deeper
 
 Check on more in-depth tutorials on:
 
--  Resource Management
-   https://www.run.house/docs/tutorials/api-resources
--  Secrets Management https://www.run.house/docs/tutorials/api-secrets
+- Resource Management https://www.run.house/docs/tutorials/api-resources
+- Secrets Management https://www.run.house/docs/tutorials/api-secrets

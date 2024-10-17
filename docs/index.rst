@@ -11,45 +11,30 @@
    <a class="github-button" href="https://github.com/run-house/runhouse/fork" data-icon="octicon-repo-forked" data-size="large" aria-label="Fork run-house/runhouse on GitHub">Fork</a>
    </p>
 
-Why did we build Runhouse? To enable fast, debuggable, and iterable development of machine learning workflows.
+Runhouse enables rapid, cost-effective machine learning development.
 
-**Without Runhouse:** ML workflow is fragmented and development is slow
+With Runhouse, your ML code executes "serverlessly," since you dispatch Python functions and classes to any of your own cloud compute infrastructure, and call them
+eagerly as if they were local. This means:
+1. You can natively run and debug your code on remote GPUs or other powerful infra, like Ray, Spark, or Kubernetes, from your local IDE.
+2. This code then runs as-is in CI/CD or production, where the underlying code will be identically dispatched and executed on ephemeral remote infra.
+3. Hardware requirements and environment is captured in code and is reproducible across your team and in every setting.
 
-* Researchers start in hosted notebooks or SSH'ed into a cluster:
+This greatly accelerates iteration cycles and close the gap between research and production, since research work is exactly reproducible in production with no code changes required.
+Once in production, this approach also delivers pipeline robustness and fault tolerance. By launching execution from Runhouse, you can easily catch and handle errors from
+within the driver program that would be impossible to do from within the ML application runtime itself. Finally, teams using Runhouse also gain close control of hardware utilization and begin bin packing available compute efficiently. Orchestrating execution
+across clusters, regions, or clouds also becomes trivial. This delivers cost optimization, with teams often seeing cost savings of ~50%.
 
-  * Fast and interactive development
-  * But usually non-standard compute environment and code
+Get In Touch
+------------
+You can join the Runhouse discord, or shoot us a quick note at (hello@run.house)[mailto:hello@run.house]
 
-* Research to production happens over the course of days or weeks:
-
-  * Notebook code needs translation to orchestrator nodes
-  * Most time spent waiting to rebuild and resubmit pipelines, with each iteration loop taking about 20+ minutes
-
-* Production debugging is challenging:
-
-  * Orchestrators designed for scheduling and logging runs, but are not development-friendly runtimes
-  * Continue "debug through deployment" that slowed down research to production in the first place
-
-**With Runhouse:** Regular code is dispatched to cloud compute for execution at every step
-
-* Researchers write normal code:
-
-  * Each dispatch takes <5 seconds, providing interactive development experience
-  * Code executes on the same compute and environment of production
-  * Logs stream back to local
-
-* Moving to production is instant:
-
-  * Orchestrator nodes contain 5 lines of dispatch code (not 200 lines of application code)
-  * Rather than being your ML runtime, orchestrators are simply used to schedule, log, and monitor runs
-
-* Easily debug or update pipelines in production:
-
-  * Branch the underlying code
-  * Make changes and dispatch iteratively, like in the research step
-  * Merge back into main
-
-In short, Runhouse makes ML development feel like normal software development.
+Examples
+---------
+- [Quick Start](tutorials/quick-start-cloud)
+- [PyTorch Training](https://www.run.house/examples/torch-vision-mnist-basic-model-train-test)
+- [PyTorch Distributed Training](https://www.run.house/examples/pytorch-multi-node-distributed-training)
+- [Llama3 Fine Tuning](https://www.run.house/examples/fine-tune-llama-3-with-lora)
+- [Llama3 vLLM Inference](https://www.run.house/examples/run-llama-3-8b-with-vllm-on-gcp)
 
 Table of Contents
 -----------------
@@ -58,7 +43,6 @@ Table of Contents
    :caption: Getting Started
 
    tutorials/quick-start-cloud
-   tutorials/quick-start-local
    tutorials/quick-start-den
    architecture
 
