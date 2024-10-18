@@ -35,18 +35,22 @@ ML Workflow with and without Runhouse
      - With Runhouse
    * - **Development / Research**
      - Researchers start in hosted notebooks or SSH'ed into a cluster:
+
        - Fast and interactive development
        - But usually non-standard compute environment and code
      - Researchers write normal code:
+
        - Each dispatch takes <5 seconds, providing interactive development experience
        - Code executes on the same compute and environment of production
        - Logs stream back to local
    * - **Research to Production**
      - Research to production happens over the course of days or weeks:
+
        - Notebook code needs translation to orchestrator nodes
        - Most time spent waiting to rebuild and resubmit pipelines
        - Each iteration loop takes about 20+ minutes
      - Moving to production is instant:
+
        - Orchestrator nodes contain 5 lines of dispatch code
        - Orchestrators are used to schedule, log, and monitor runs
    * - **Debugging and Updating**
