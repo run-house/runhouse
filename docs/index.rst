@@ -22,15 +22,15 @@ eagerly as if they were local. This means:
 
 Get In Touch
 ------------
-You can join the Runhouse discord, or shoot us a quick note at [hello@run.house](mailto:hello@run.house)
+You can join the Runhouse discord, or shoot us a quick note at `hello@run.house <mailto:hello@run.house>`_
 
 Examples
 ---------
-- [Quick Start](tutorials/quick-start-cloud)
-- [PyTorch Training](https://www.run.house/examples/torch-vision-mnist-basic-model-train-test)
-- [PyTorch Distributed Training](https://www.run.house/examples/pytorch-multi-node-distributed-training)
-- [Llama3 Fine Tuning](https://www.run.house/examples/fine-tune-llama-3-with-lora)
-- [Llama3 vLLM Inference](https://www.run.house/examples/run-llama-3-8b-with-vllm-on-gcp)
+- `Quick Start <https://www.run.house/docs/tutorials/quick-start-cloud>`_
+- `PyTorch Training <https://www.run.house/examples/torch-vision-mnist-basic-model-train-test>`_
+- `PyTorch Distributed Training <https://www.run.house/examples/pytorch-multi-node-distributed-training>`_
+- `Llama3 Fine Tuning <https://www.run.house/examples/fine-tune-llama-3-with-lora>`_
+- `Llama3 vLLM Inference <https://www.run.house/examples/run-llama-3-8b-with-vllm-on-gcp>`_
 
 Table of Contents
 -----------------
