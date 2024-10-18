@@ -1489,6 +1489,9 @@ class Cluster(Resource):
 
         logger.debug(f"Copied local certs onto the cluster in path: {dest}")
 
+        # private key should only live on the cluster
+        Path(self.cert_config.key_path).unlink()
+
     def run(
         self,
         commands: Union[str, List[str]],

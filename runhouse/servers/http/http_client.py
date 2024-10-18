@@ -551,7 +551,7 @@ class HTTPClient:
                 remote=remote,
                 run_async=run_async,
             ).model_dump(),
-            headers=rns_client.request_headers(resource_address),
+            headers=self._request_headers,
         )
         if response.status_code != 200:
             raise ValueError(
@@ -566,7 +566,6 @@ class HTTPClient:
         run_name: str,
         serialization: str,
         error_str: str,
-        resource_address=None,
         create_async_client=False,
     ) -> None:
         # When running this in another thread, we need to explicitly create an async client here. When running within
@@ -579,11 +578,12 @@ class HTTPClient:
         async with client.stream(
             "GET",
             self._formatted_url(f"logs/{run_name}/{serialization}"),
-            headers=rns_client.request_headers(resource_address),
+            headers=self._request_headers,
         ) as res:
             if res.status_code != 200:
+                error_resp = await res.aread()
                 raise ValueError(
-                    f"Error calling logs function on server: {res.content.decode()}"
+                    f"Error calling logs function on server: {error_resp.decode()}"
                 )
             async for response_json in res.aiter_lines():
                 resp = json.loads(response_json)
