@@ -1,7 +1,18 @@
-Recommended Usage Pattern
-=====================
+Using Runhouse
+==========================
+This page will guide you through how Runhouse fit
 
-FF
+Setup
+^^^^^^
+
+Starting a Project
+------------------
+
+Moving to Production
+--------------------
+
+Maintenance and Debug
+---------------------
 
 
 
@@ -103,6 +114,11 @@ over HTTP to the remote object on the cluster.
    region, or cloud than the local code.
 #. Python behavior like async, exceptions, printing, and logging are all preserved across remote calls but
    can be disabled or controlled if desired.
+
+This is a common pattern - calling a function or class as a remote service just a microservice.
+However, doing it manually divides the code into multiple applications, multiplying the DevOps overhead, as each requires its own configuration,
+automation, scaling, etc. Runhouse combines the best of both approaches: providing limitless compute dynamism and
+flexibility in Python without disrupting the runtime or fragmenting the application, by offloading functions and classes to remote compute as services on the fly.
 
 5. Saving and Loading
 ^^^^^^^^^^^^^^^^^^^^^
