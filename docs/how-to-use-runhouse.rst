@@ -3,16 +3,16 @@ Using Runhouse
 This page will guide you through how Runhouse fit
 
 Setup
-------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Starting a Project
-------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Moving to Production
---------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Maintenance and Debug
----------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
 

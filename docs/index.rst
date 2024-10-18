@@ -38,9 +38,11 @@ Table of Contents
    :maxdepth: 1
    :caption: Getting Started
 
+   why-runhouse
    tutorials/quick-start-cloud
    tutorials/quick-start-den
-   architecture
+   how-to-use-runhouse
+
 
 .. toctree::
    :maxdepth: 1

@@ -24,7 +24,9 @@ Runhouse solves a few major problems for machine learning and AI teams:
    contract between the application and infrastructure, and saving ML teams from learning all the networking,
    security, and DevOps underneath.
 
-.. list-table:: Comparison of ML Workflow
+ML Workflow with and without Runhouse
+-------------------------------------
+.. list-table::
    :widths: 25 35 40
    :header-rows: 1
 
