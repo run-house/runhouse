@@ -55,18 +55,20 @@ ML Workflow with and without Runhouse
        - Orchestrators are used to schedule, log, and monitor runs
    * - **Debugging and Updating**
      - Production debugging is challenging:
+
        - Orchestrators designed for scheduling and logging runs
        - Not development-friendly runtimes
        - Continue "debug through deployment"
      - Easily debug or update pipelines in production:
+
        - Branch the underlying code
        - Make changes and dispatch iteratively
        - Merge back into main
 
 
 
-Runhouse + ML Tools and Libraries
----------------------------------
+Using Runhouse with Common ML Tools and Libraries
+---------------------------------------------
 Runhouse is built to be extremely unopinionated and work closely with familiar tools and libraries in the ML ecosystem.
 Runhouse's APIs bear similarity to other systems, so it's helpful to compare and contrast. In many cases,
 Runhouse is not a replacement for these systems but rather a complement or extension. In others, you may be able
@@ -79,9 +81,17 @@ Hosted notebooks were a natural answer to enable the rapid iteration required at
 and introduced the "research-to-production" concept that does not exist in traditional software engineering.
 
 Runhouse believes the best pattern is using regular Python code to define your ML programs and pipelines. All of your classes and functions should
-be portable, importable, testable, and be managed through software best practices in a team repository. Operating on this underlying code can be done
-from the IDE of your choice, including local Jupyter notebooks.
+be portable, importable, testable, and be managed through software best practices in a team repository. The underlying code is best developed in a traditional IDE.
+But if the user wants to interactively *execute* these underlying pieces of code, then Runhouse is signficiantly less opinionated. You can launch compute, dispatch code,
+and execute script-style or use notebooks as interactive shells.
 
+Since Runhouse code is being dispatched to remote clusters, classes are actually remote objects that can be accessed by mutli-threaded calls. If we instantiate a remote
+class, and for instance, launch training loops in one *local* threads, we can actually make a separate connection to the remote object in another thread. This way, we can
+simultaneously do multiple things at the same time with the same remote object -- for instance, I might want to simultaneously to the training epochs also save model checkpoints down
+and run test evaluations. This can be done from three scripts, or three notebooks cells.
+
+We show here how a LoRA Fine Tuner class can be launched from a notebook
+in `this example <https://github.com/run-house/runhouse/tree/1b047c9b22839c212a1e2674407959e7e775f21b/examples/lora-example-with-notebook>`_.
 
 Workflow orchestrators (e.g. Airflow, Prefect, Dagster, Flyte, Metaflow, Argo)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

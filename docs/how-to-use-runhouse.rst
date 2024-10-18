@@ -2,14 +2,43 @@ Using Runhouse
 ==========================
 This page will guide you through how Runhouse fit
 
-Setup
+Example Production Usage of Runhouse
+---------------------------------------
+
+Quick Start
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Before reviewing this detailed guide, we recommend you start with the `Quick Start <https://www.run.house/docs/tutorials/quick-start-cloud>`_ guide.
+
+Compute Setup
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+In order to use Runhouse, users must be able to access compute resources, which can take any form (e.g. VMs, elastic compute, Kubernetes).
+
+For intitial projects and getting started quickly, launching from local credentials is possible. In this setting your local credentials will be
+used to launch Runhouse clusters on specified compute, but this compute will not be reusable or accessible from other contexts.
+
+* Kubernetes: All you need is a Kubeconfig
+* Elastic Compute: We use Skypilot under the hood to launch elastic compute, and support most clouds. You can run `sky check` after installing Runhouse to confirm you have access to the cloud.
+* Existing Clusters: Runhouse supports a variety of authentication methods to access existing clusters, including SSH with keys or passwords.
+
+For production settings, we recommend that users load available compute settings into Runhouse Den, and authenticate from all environments with Runhouse only. Once
+credentials are centrally stored, access to launch with available systems can be made available to all users on the ML team through Runhouse authentication.
+Teams also gain central observability over who and how often clusters are launched and used. Rotating keys also becomes simple, instead of having to load secrets into
+both all local environments and every single orchestator / CI runtime.
 
 Starting a Project
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+
+
 Moving to Production
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Once ready for production, Runhouse advises creating a Docker container which fixes the environment, dependencies, and code. While
+in development, the ability to interactively alter the remote environment is useful, in production, there are significant benefits to
+fixing packages, etc. in a container instead of worrying about what breaking changes installing from PyPi might introduce. This is unproblematic
+for additional future iteration or debug, since you can easily change the environment post-launch with the container.
+
+Then, from the context of whatever orchestrator or scheduler you already use for production, move the Runhouse code with a) compute / image definition,
+b) process details, c) remote dispatch, and d) call of remote code into node/task of the scheduler.
 
 Maintenance and Debug
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
