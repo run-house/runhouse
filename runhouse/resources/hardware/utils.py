@@ -213,6 +213,20 @@ def detect_cuda_version_or_cpu(cluster: "Cluster" = None, node: Optional[str] = 
     Note: A cpu-only machine may have the CUDA toolkit installed, which means nvcc will still return
     a valid version. Also check if the NVIDIA driver is installed to confirm we are on a GPU."""
 
+    status_codes = run_setup_command(
+        "ls /usr/local | grep cuda", cluster=cluster, node=node
+    )
+    if not status_codes[0] == 0:
+        return "cpu"
+
+    status_codes = run_setup_command("nvcc --version", cluster=cluster, node=node)
+    # If nvcc isn't installed, we need to install it
+    NVCC_NOT_PRESENT = "Command 'nvcc' not found"
+    if NVCC_NOT_PRESENT in status_codes[1]:
+        run_setup_command(
+            "sudo apt install -y nvidia-cuda-toolkit", cluster=cluster, node=node
+        )
+
     status_codes = run_setup_command("nvcc --version", cluster=cluster, node=node)
     if not status_codes[0] == 0:
         return "cpu"
