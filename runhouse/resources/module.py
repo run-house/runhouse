@@ -831,6 +831,21 @@ class Module(Resource):
                 **distribution_kwargs, name=name, module=self
             ).to(self.system, self.env.name)
             return ray_module
+        elif distribution == "pytorch":
+            from runhouse.resources.distributed.pytorch_distributed import (
+                PyTorchDistributed,
+            )
+
+            replicas = self.replicate(
+                num_replicas=num_replicas,
+                replicas_per_node=replicas_per_node,
+                **replication_kwargs,
+            )
+            name = name or f"pytorch_{self.local.name}"
+            ptd_module = PyTorchDistributed(
+                **distribution_kwargs, name=name, replicas=replicas
+            ).to(self.system, env=self.env.name)
+            return ptd_module
 
     @property
     def remote(self):
