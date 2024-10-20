@@ -13,6 +13,7 @@
 # allows for more complex orchestration, such as running multiple training jobs concurrently, handling exceptions,
 # running distributed training alongside other tasks on the same cluster. It's also significantly easier to debug
 # and monitor, as you can see the output of each rank in real-time and get stack traces if a worker fails.
+import os
 
 import runhouse as rh
 import torch
@@ -26,7 +27,13 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 def train_loop(epochs):
     # Initialize the distributed training environment,
     # per https://pytorch.org/docs/stable/distributed.html#initialization
+    print("Initializing distributed training environment")
+    print(os.environ["MASTER_ADDR"])
+    print(os.environ["MASTER_PORT"])
+    print(os.environ["RANK"])
+    print(os.environ["WORLD_SIZE"])
     torch.distributed.init_process_group(backend="nccl")
+    print(f"Rank {torch.distributed.get_rank()} initialized")
     rank = torch.distributed.get_rank()
     print(f"Rank {rank} of {torch.distributed.get_world_size()} initialized")
 
@@ -57,13 +64,21 @@ def train_loop(epochs):
 if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 2
-    cluster = rh.cluster(
-        name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-        instance_type=f"A10G:{gpus_per_node}",
-        num_instances=num_nodes,
-    ).up_if_not()
+    cluster = (
+        rh.cluster(
+            name=f"rh-{num_nodes}x{gpus_per_node}GPU",
+            instance_type=f"A10G:{gpus_per_node}",
+            num_instances=num_nodes,
+            default_env=rh.env(reqs=["torch"]),
+        )
+        .save()
+        .up_if_not()
+    )
+    # cluster.restart_server()
     remote_train_loop = rh.function(train_loop).to(cluster)
     train_ddp = remote_train_loop.distribute(
-        "pytorch", replicas=num_nodes * gpus_per_node, replicas_per_node=gpus_per_node
+        "pytorch",
+        num_replicas=num_nodes * gpus_per_node,
+        replicas_per_node=gpus_per_node,
     )
     train_ddp(epochs=10)
