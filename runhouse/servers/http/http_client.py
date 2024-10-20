@@ -826,11 +826,12 @@ class HTTPClient:
             ).model_dump(),
         )
 
-    def install_package(self, package: "Package"):
+    def install_package(self, package: "Package", conda_name: Optional[str] = None):
         return self.request_json(
             "/install_package",
             req_type="post",
             json_dict=InstallPackageParams(
                 package_config=package.config(),
+                conda_name=conda_name,
             ).model_dump(),
         )

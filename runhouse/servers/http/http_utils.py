@@ -28,6 +28,7 @@ class RequestContext(BaseModel):
 
 class InstallPackageParams(BaseModel):
     package_config: Dict[str, Any]
+    conda_name: Optional[str] = None
 
 
 class ServerSettings(BaseModel):

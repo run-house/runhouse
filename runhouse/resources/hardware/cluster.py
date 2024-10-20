@@ -682,7 +682,7 @@ class Cluster(Resource):
         """
         for req in reqs:
             if not node:
-                self.install_package(req)
+                self.install_package(req, conda_name=conda_name)
             else:
                 self.install_package_over_ssh(req, node=node, conda_name=conda_name)
 
@@ -2195,17 +2195,19 @@ class Cluster(Resource):
             process_name=process_name, env_vars=env_vars
         )
 
-    def install_package(self, package: Union["Package", str]):
+    def install_package(
+        self, package: Union["Package", str], conda_name: Optional[str] = None
+    ):
         from runhouse.resources.packages.package import Package
 
         if isinstance(package, str):
             package = Package.from_string(package)
 
         if self.on_this_cluster():
-            obj_store.ainstall_package_in_all_nodes_and_processes(package)
+            obj_store.ainstall_package_in_all_nodes_and_processes(package, conda_name)
         else:
             package = package.to(self)
-            self.client.install_package(package)
+            self.client.install_package(package, conda_name)
 
     def install_package_over_ssh(
         self, package: Union["Package", str], node: str, conda_name: str
