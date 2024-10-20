@@ -25,6 +25,7 @@ from runhouse.resources.hardware.utils import (
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import (
+    conda_env_cmd,
     find_locally_installed_version,
     locate_working_dir,
     run_command_with_password_login,
@@ -551,11 +552,53 @@ class Cluster(Resource):
             logger.info("Disabling observability on the cluster")
 
         logger.info(f"Syncing default env {self._default_env.name} to cluster")
+
+        from runhouse.utils import (
+            _process_env_vars,
+            create_conda_env,
+            run_setup_command,
+        )
+
+        conda_name = (
+            self._default_env.env_name
+            if hasattr(self._default_env, "conda_yaml")
+            else None
+        )
+        env_vars = _process_env_vars(self._default_env.env_vars)
+        setup_cmds = self._default_env.setup_cmds
+
         for node in self.ips:
-            # Run setup cmds cluster.run
-            # Set up env vars
-            # Install reqs
-            self._default_env.install(cluster=self, node=node)
+            if conda_name:
+                create_conda_env(
+                    env_name=conda_name,
+                    conda_yaml=self._default_env.conda_yaml,
+                    cluster=self,
+                )
+
+            self.install_packages(
+                self._default_env.reqs, node=node, conda_name=conda_name
+            )
+
+            if setup_cmds:
+                for cmd in setup_cmds:
+                    if conda_name:
+                        cmd = conda_env_cmd(cmd)
+
+                    run_setup_command(
+                        cmd=cmd,
+                        cluster=self,
+                        env_vars=env_vars,
+                        stream_logs=True,
+                        node=node,
+                    )
+
+        if self._default_env.secrets:
+            from runhouse.resources.secrets import Secret
+
+            for secret in self.secrets:
+                if isinstance(secret, str):
+                    secret = Secret.from_name(secret)
+                secret.to(system=self, env=self._default_env)
 
     def _sync_runhouse_to_cluster(
         self,
@@ -624,6 +667,7 @@ class Cluster(Resource):
         self,
         reqs: List[Union["Package", str]],
         node: Optional[str] = None,
+        conda_name: Optional[str] = None,
     ):
         """Install the given packages on the cluster.
 
@@ -640,7 +684,7 @@ class Cluster(Resource):
             if not node:
                 self.install_package(req)
             else:
-                self.install_package_over_ssh(req, node=node)
+                self.install_package_over_ssh(req, node=node, conda_name=conda_name)
 
     def get(self, key: str, default: Any = None, remote=False):
         """Get the result for a given key from the cluster's object store.
@@ -2163,10 +2207,14 @@ class Cluster(Resource):
             package = package.to(self)
             self.client.install_package(package)
 
-    def install_package_over_ssh(self, package: Union["Package", str], node: str):
+    def install_package_over_ssh(
+        self, package: Union["Package", str], node: str, conda_name: str
+    ):
         from runhouse.resources.packages.package import Package
 
         if isinstance(package, str):
             package = Package.from_string(package)
+            if package.install_method in ["reqs", "local"]:
+                package = package.to(self)
 
-        package._install(cluster=self, node=node)
+        package._install(cluster=self, node=node, conda_name=conda_name)
