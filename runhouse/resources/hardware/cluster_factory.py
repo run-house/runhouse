@@ -8,7 +8,7 @@ from runhouse.constants import RESERVED_SYSTEM_NAMES
 from runhouse.globals import rns_client
 
 from runhouse.logger import get_logger
-from runhouse.resources.hardware.utils import ServerConnectionType
+from runhouse.resources.hardware.utils import LauncherType, ServerConnectionType
 
 from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
@@ -23,6 +23,7 @@ def cluster(
     server_port: int = None,
     server_host: str = None,
     server_connection_type: Union[ServerConnectionType, str] = None,
+    launcher_type: Union[LauncherType, str] = None,
     ssl_keyfile: str = None,
     ssl_certfile: str = None,
     domain: str = None,
@@ -50,6 +51,9 @@ def cluster(
             API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
             with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
             without an SSH tunnel. (Default: ``None``).
+        launcher_type (LauncherType or str, optional): Method for launching the cluster. If set to `local`, will launch
+            locally via Sky. If set to `runhouse`, launching will be handled by Runhouse. Currently only relevant for
+            ondemand clusters and kubernetes clusters. (Default: ``local``).
         ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
             (Default: ``None``).
         ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
@@ -99,6 +103,7 @@ def cluster(
             server_port=server_port,
             server_host=server_host,
             server_connection_type=server_connection_type,
+            launcher_type=launcher_type,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
             domain=domain,
@@ -130,6 +135,7 @@ def cluster(
             server_port=server_port,
             server_host=server_host,
             server_connection_type=server_connection_type,
+            launcher_type=launcher_type,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
             domain=domain,
@@ -174,6 +180,7 @@ def kubernetes_cluster(
     kube_config_path: str = None,
     context: str = None,
     server_connection_type: Union[ServerConnectionType, str] = None,
+    launcher_type: Union[LauncherType, str] = None,
     **kwargs,
 ) -> OnDemandCluster:
 
@@ -260,6 +267,7 @@ def kubernetes_cluster(
         name=name,
         instance_type=instance_type,
         provider="kubernetes",
+        launcher_type=launcher_type,
         server_connection_type=server_connection_type,
         **kwargs,
     )
@@ -285,6 +293,7 @@ def ondemand_cluster(
     server_port: int = None,
     server_host: int = None,
     server_connection_type: Union[ServerConnectionType, str] = None,
+    launcher_type: Union[LauncherType, str] = None,
     ssl_keyfile: str = None,
     ssl_certfile: str = None,
     domain: str = None,
@@ -333,6 +342,8 @@ def ondemand_cluster(
             API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
             with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
             without an SSH tunnel.
+        launcher_type (LauncherType or str, optional): Method for launching the cluster. If set to `local`, will launch
+            locally via Sky. If set to `runhouse`, launching will be handled by Runhouse. (Default: ``local``).
         ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
         ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
         domain(str, optional): Domain name for the cluster. Relevant if enabling HTTPs on the cluster.
@@ -371,6 +382,9 @@ def ondemand_cluster(
             f"{RESERVED_SYSTEM_NAMES}."
         )
 
+    if launcher_type and launcher_type not in LauncherType.__members__.values():
+        raise ValueError(f"Invalid launcher type {launcher_type}.")
+
     if provider == "kubernetes":
         namespace = kwargs.pop("namespace", None)
         kube_config_path = kwargs.pop("kube_config_path", None)
@@ -385,6 +399,7 @@ def ondemand_cluster(
             kube_config_path=kube_config_path,
             context=context,
             server_connection_type=server_connection_type,
+            launcher_type=launcher_type,
             default_env=default_env,
             autostop_mins=autostop_mins,
             num_instances=num_instances,
@@ -419,6 +434,7 @@ def ondemand_cluster(
             server_host=server_host,
             server_port=server_port,
             server_connection_type=server_connection_type,
+            launcher_type=launcher_type,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
             domain=domain,
@@ -440,11 +456,12 @@ def ondemand_cluster(
                     c.save()
                 return c
         except ValueError as e:
-            import sky
+            if launcher_type == LauncherType.LOCAL:
+                import sky
 
-            state = sky.status(cluster_names=[name], refresh=False)
-            if len(state) == 0 and not alt_options:
-                raise e
+                state = sky.status(cluster_names=[name], refresh=False)
+                if len(state) == 0 and not alt_options:
+                    raise e
 
     c = OnDemandCluster(
         instance_type=instance_type,
@@ -461,6 +478,7 @@ def ondemand_cluster(
         server_host=server_host,
         server_port=server_port,
         server_connection_type=server_connection_type,
+        launcher_type=launcher_type,
         ssl_keyfile=ssl_keyfile,
         ssl_certfile=ssl_certfile,
         domain=domain,
