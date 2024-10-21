@@ -589,7 +589,7 @@ class Cluster(Resource):
             self.up()
         return self
 
-    def up(self):
+    def up(self, verbose: bool = True, force: bool = False):
         raise NotImplementedError(
             f"Cluster <{self.name}> does not have an up method. It must be brought up manually."
         )

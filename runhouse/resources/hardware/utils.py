@@ -5,6 +5,7 @@ import json
 import os
 import re
 import subprocess
+from asyncio import Event
 
 from enum import Enum
 from pathlib import Path
@@ -42,6 +43,11 @@ class ServerConnectionType(str, Enum):
     SSH = "ssh"
     TLS = "tls"
     NONE = "none"
+
+
+class LauncherType(str, Enum):
+    LOCAL = "local"
+    DEN = "den"
 
 
 class ResourceServerStatus(str, Enum):
@@ -512,6 +518,9 @@ def get_running_and_not_running_clusters(clusters: list):
     return running_clusters, not_running_clusters
 
 
+###################################
+# CLUSTER LOGS
+###################################
 def get_saved_logs_from_den(rns_address: str):
     """
     get the latest cluster logs saved in den.
@@ -522,3 +531,40 @@ def get_saved_logs_from_den(rns_address: str):
         headers=rns_client.request_headers(),
     )
     return clusters_in_den_resp
+
+
+async def stream_logs_from_url(
+    stop_event: Event, url: str, temp_dir: str, launch_id: str
+):
+    """Load logs returned from the specified Den URL. The response should be a stream of JSON logs."""
+    import httpx
+
+    client = httpx.AsyncClient(timeout=None)
+
+    async with client.stream(
+        "POST",
+        url,
+        json={"temp_dir": temp_dir, "launch_id": launch_id},
+        headers=rns_client.request_headers(),
+    ) as res:
+        if res.status_code != 200:
+            error_resp = await res.aread()
+            raise ValueError(f"Error calling Den logs API: {error_resp.decode()}")
+
+        async for response_json in res.aiter_lines():
+            if stop_event.is_set():
+                break
+            resp = json.loads(response_json)
+
+            # TODO [JL] any formatting to do here?
+            print(resp)
+
+    await client.aclose()
+
+
+def load_logs_in_thread(stop_event: Event, url: str, temp_dir: str, launch_id: str):
+    import asyncio
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(stream_logs_from_url(stop_event, url, temp_dir, launch_id))
