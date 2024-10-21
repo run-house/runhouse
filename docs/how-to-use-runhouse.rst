@@ -53,6 +53,7 @@ an A10 GPU attached using an Docker image, you can write:
 You can easily run commands against the cluster using ``cluster.run()`` to layer on setup steps beyond the underlying image.
 
 .. code:: python
+
     cluster.run(['pip install numpy'])
 
 You can find full documentation about the Runhouse cluster API `in the Cluster docs <https://www.run.house/docs/tutorials/api-clusters>`_.
@@ -63,12 +64,14 @@ as if they were local functions. For modules, you instantiate a remote instance 
 multi-threaded calls to its methods.
 
 .. code:: python
+
       def add_two_numbers(a,b):
             return a+b
 
       remote_add = rh.function(add_two_numbers).to(cluster)
 
-.. code:: ipython3
+.. code:: python
+
       class BERT:
          def __init__(self, model_id="google-bert/bert-base-uncased"):
             self.model_id = model_id
@@ -131,8 +134,12 @@ Maintenance and Debug
 
 Under the Hood: Details about the Runhouse API
 -------------------------------------------------------
-The technical details of how Runhouse offloads function and classes as services is as follows. You can follow along with this
-annotated code snippet:
+Where the above describes the usage flow of Runhouse, this section is intended to provide interested users with the technical details of
+how Runhouse offloads function and classes as services. Understanding this section is not necessary to use Runhouse, but it can help users
+who want to better understand what is happening under the hood. If you have any questions about what is described here, please reach out to
+`hello@run.house <mailto:hello@run.house`_ and we'd be happy to walk you through the details.
+
+You can follow along with this annotated code snippet:
 
 .. code-block:: python
 
