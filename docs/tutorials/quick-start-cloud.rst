@@ -92,8 +92,6 @@ to make sure credentials are set up properly.
     )
     cluster.up_if_not()
 
-    # terminate this cluster with `cluster.teardown()` in Python, or `sky down rh-cluster` in CLI
-
 There are a number of options to specify the resources more finely, such
 as GPUs (``instance_type="A10G:4"``), cloud provider names
 (``instance_type="m5.xlarge"``), ``num_instances=n`` for multiple
@@ -103,23 +101,19 @@ docs <https://www.run.house/docs/api/python/cluster#runhouse.ondemand_cluster>`_
 You can also omit the provider argument to allocate from the cheapest
 available source for which you have credentials.
 
-Deployment
-----------
+Deploy Code to the Cluster
+--------------------------
 
 Simply wrap the function in ``rh.function`` and send it to the cluster
 with ``.to``. This deploys the function to the cluster as a proper
 service by syncing over the code, setting up any specified dependencies
 (see ``Envs``), and importing and serving it in the Runhouse API server.
-We’re connected via an SSH tunnel here, so the service is secure, but we
-can also open ports and secure it with Runhouse’s out-of-the-box
-authentication and HTTPS.
 
 Classes, or ``Modules`` are also supported, opening up a world of
 possibilities through persistent state. ``Envs`` allow you to specify
 the environment in which the function or class is served, such as
 dependencies, environment variables, secrets, conda environments, and
-more, and allow you to easily achieve powerful parallelism across the
-cluster. These are covered in more detail in the API tutorials.
+more.
 
 .. code:: ipython3
 

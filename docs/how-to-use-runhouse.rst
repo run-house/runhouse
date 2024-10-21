@@ -58,8 +58,7 @@ You can easily run commands against the cluster using ``cluster.run()`` to layer
 
 You can find full documentation about the Runhouse cluster API `in the Cluster docs <https://www.run.house/docs/tutorials/api-clusters>`_.
 
-**2. Dispatch Your Code**:
-You can dispatch functions and classes to Runhouse, by wrapping with ``rh.function()`` or ``rh.module()``. For functions, you can call them directly
+**2. Dispatch Your Code**: You can dispatch functions and classes to Runhouse, by wrapping with ``rh.function()`` or ``rh.module()``. For functions, you can call them directly
 as if they were local functions. For modules, you instantiate a remote instance of the object; you can access this remote object by name and make
 multi-threaded calls to its methods.
 
@@ -72,44 +71,39 @@ multi-threaded calls to its methods.
 
 .. code:: python
 
-      class BERT:
-         def __init__(self, model_id="google-bert/bert-base-uncased"):
-            self.model_id = model_id
-            self.model = None
-            self.tokenizer = None
+      class TorchTrainer:
+         def __init__(self):
+            ..
 
-         def load_model(self):
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
-            self.model = AutoModel.from_pretrained(self.model_id)
+         def train(self, X, y):
+            ..
 
-         def embed(self, samples):
-            if not self.model:
-                  self.load_model()
-            tokens = self.tokenizer(samples, return_tensors="pt", padding=True, truncation=True)
-            return self.model(tokens.input_ids, attention_mask=tokens.attention_mask).last_hidden_state
+         def test(self, X, y):
+            ..
 
-      my_env = rh.env(reqs=["torch", "transformers"], name="bert-env") # Define the need for torch and transformers
-      RemoteBERT = rh.module(BERT).to(cluster, env=my_env) # Send to cluster
-      bert = RemoteBERT(name='remote-instance-of-bert') # Instantiate remote object
+      my_env = rh.env(reqs=["torch"], name="my-env") # Define the need for PyTorch
+      RemoteTrainer = rh.module(TorchTrainer).to(cluster, env=my_env) # Send to cluster
+      trainer = RemoteTrainer(name='remote-instance-of-trainer') # Instantiate remote object
 
-**3. Execute Your Code Remotely**:
-It's now possible to use your remote objects as if they were local.
 
-.. code:: ipython3
+**3. Execute Your Code Remotely**: It's now possible to use your remote objects as if they were local.
+
+.. code:: python
+
       result = remote_add(1,2)
       print(result)
+      X, y = ...  # Load data
+      trainer.train(X,y)
 
-      embedding = bert.embed(["Hello, how are you?"])
-
-In development, you should be iteratively dispatching and executing code. If you make updates to the ``add_two_numbers`` function or the ``BERT`` class, you can simply
-re-run `.to()`, and it should take <2 seconds to redeploy. The underlying cluster is persisted and stateful until you choose to down it, so you can take advantage
+In development, you should be iteratively dispatching and executing code. If you make updates to the ``add_two_numbers`` function or the ``TorchTrainer`` class, you can simply
+re-run ``.to()``, and it should take <2 seconds to redeploy. The underlying cluster is persisted and stateful until you choose to down it, so you can take advantage
 of the remote file system and memory during interactive development as well.
 
 These remote objects are accessible from anywhere you are authenticated with Runhouse, so you and your team can make multi-threaded calls against them. Runhouse essentially
 has automatically turned this BERT embedding class into a remote service (with the latency of a FastAPI app).
 
 Moving to Production
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
 A key advantage of using Runhouse is that the code developed locally has already been executing production-like on remote compute the entire time. This means
 research-to-production is a abstract checkpoint in development rather than an actual task to rewrite pipelines for production over different hardware/data.
 
@@ -118,8 +112,33 @@ job like recurring training, then simply move the Runhouse launching code into t
 repackage ML code into orchestrator nodes and make orchestrators your runtime. Instead, you should use orchestrators as minimal systems to schedule and observe your jobs,
 but the jobs themselves will continue to be executed serverlessly with Runhouse from each node. This saves considerable time upfront as setting up
 the first orchestrator run less than an hour (compared to multiple weeks in traditional ML research-to-production).
-In the long run, debugging failures and making updates to the pipeline is also extremely easy, as engineers can easily reproduce production runs on local,
-make changes to the underlying code, and simply push to the codebase.
+
+As an example, you might want to make the first task of your orchestrator pipeline simply bringing up the cluster and
+dispatching code to the new cluster. You can see that we are using the same underlying code (directly importing it from a source file), and then
+reusing the object and cluster by name across steps.
+
+.. code:: python
+
+      @task()
+      def up_and_dispatch():
+            cluster = rh.ondemand_cluster(
+                  name="rh-cluster",
+                  instance_type="A10G:1",
+                  provider="aws",
+                  image_id="docker:nvcr.io/nvidia/pytorch:23.10-py3",
+            ).up_if_not()
+
+            from my_code import TorchTrainer
+            my_env = rh.env(reqs=["torch"], name="my-env")
+            RemoteTrainer = rh.module(TorchTrainer).to(cluster, env=my_env)
+            trainer = RemoteTrainer(name='remote-instance-of-trainer')
+
+      @task()
+      def embed():
+            cluster = rh.cluster(name="rh-cluster")
+            trainer = cluster.get(name='remote-instance-of-trainer')
+            X, y = ...  # Load data
+            trainer.train(X,y)
 
 For production, Runhouse does recommend creating a Docker container which fixes the environment, dependencies, and program code. While
 in development, the ability to interactively alter the remote environment is useful, in production, there are significant benefits to
@@ -127,8 +146,10 @@ containerization, rather than, for instance, worrying about new breaking changes
 still unproblematic for additional future iteration or debug, since you can easily interactively layer on changes to the environment
 from local, even when you launch with the container.
 
-Maintenance and Debug
+Debugging and Maintenance
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+In the long run, debugging failures and making updates to the pipeline is also extremely easy, as engineers can easily reproduce production runs on local,
+make changes to the underlying code, and simply push to the codebase.
 
 
 
