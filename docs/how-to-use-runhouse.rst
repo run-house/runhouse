@@ -25,12 +25,11 @@ consider all the compute resources you have as a single pool, from which Runhous
 For intitial projects and getting started quickly, launching from local credentials is possible. In this setting, you already unlock
 serverless execution for your Python ML code, but you cannot take advantage of advanced usage patterns that are unlocked through compute saving and reuse.
 
-For production settings, we recommend that users load cloud secrets / Kubeconfig / available compute into Runhouse Den,
-and authenticate from all launch environments with the Runhouse token only. Once credentials are stored in Den,
-permissions to launch ephemeral compute can be granted to users on the ML team through Runhouse authentication.
-Platforms teams gain central observability over utilization, and specifically who is launching, how often clusters are launched, and what resources or tasks occur on them.
-Access management also becomes mucher simpler, especially in a multi-cloud or multi-cluster setting, where keys and authentication can be managed centrally.
-To get started with Den enabled, simply run ``runhouse login --sync-secrets`` in the CLI.
+For production settings, we recommend that users load cloud secrets, Kubeconfig, and available compute into Runhouse Den, and authenticate from all
+launch environments using the Runhouse token only. Once credentials are stored in Den, permissions to launch ephemeral compute can be granted to ML
+team members through Runhouse authentication. Platform teams gain centralized observability over utilization, including who is launching clusters,
+how often clusters are launched, and what resources or tasks are executed on them. Access management also becomes much simpler, especially in multi-cloud
+or multi-cluster settings, where keys and authentication can be managed centrally. To get started with Den enabled, simply run ``runhouse login --sync-secrets`` in the CLI.
 
 Starting a Project
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -40,7 +39,7 @@ Runhouse enables execution through three easy steps:
 Here, you can define the required CPU, GPU, memory, and disk requirements (or name a specific cluster) to use. For instance, to create a cluster on AWS with
 an A10 GPU attached using an Docker image, you can write:
 
-.. code:: ipython3
+.. code:: python
 
     import runhouse as rh
     cluster = rh.ondemand_cluster(
@@ -52,7 +51,8 @@ an A10 GPU attached using an Docker image, you can write:
 
 
 You can easily run commands against the cluster using ``cluster.run()`` to layer on setup steps beyond the underlying image.
-.. code:: ipython3
+
+.. code:: python
     cluster.run(['pip install numpy'])
 
 You can find full documentation about the Runhouse cluster API `in the Cluster docs <https://www.run.house/docs/tutorials/api-clusters>`_.
@@ -62,7 +62,7 @@ You can dispatch functions and classes to Runhouse, by wrapping with ``rh.functi
 as if they were local functions. For modules, you instantiate a remote instance of the object; you can access this remote object by name and make
 multi-threaded calls to its methods.
 
-.. code:: ipython3
+.. code:: python
       def add_two_numbers(a,b):
             return a+b
 
