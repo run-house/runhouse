@@ -152,12 +152,17 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert cluster.address == args["ips"][0]
 
         if "ssh_creds" in args:
+            args_creds = args["ssh_creds"]
+            args_creds_values = (
+                args_creds.values if isinstance(args_creds, rh.Secret) else args_creds
+            )
+
             cluster_creds = cluster.creds_values
             if "ssh_private_key" in cluster_creds:
                 # this means that the secret was created by accessing an ssh-key file
                 cluster_creds.pop("private_key", None)
                 cluster_creds.pop("public_key", None)
-            assert cluster_creds == args["ssh_creds"]
+            assert cluster_creds == args_creds_values
 
         if "server_host" in args:
             assert cluster.server_host == args["server_host"]
@@ -350,7 +355,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                 resource_class_name, cluster.rns_address
             )
             new_creds = curr_config.get("creds", None)
-            assert f'{config["name"]}-ssh-secret' in new_creds
+            assert "ssh-sky-key" in new_creds
             assert curr_config == config
 
         # TODO: If we are testing with an ondemand_cluster we to
@@ -364,7 +369,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             resource_class_name, cluster.rns_address
         )
         new_creds = curr_config.get("creds", None)
-        assert f'{config["name"]}-ssh-secret' in new_creds
+        assert "ssh-sky-key" in new_creds
         assert new_config == config
 
     @pytest.mark.level("local")
