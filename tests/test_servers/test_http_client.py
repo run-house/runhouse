@@ -27,7 +27,9 @@ class TestHTTPClient:
             name="local-cluster",
             host="localhost",
             server_host="0.0.0.0",
-            ssh_creds=provider_secret_values["ssh"],
+            ssh_creds=rh.provider_secret(
+                provider="ssh", values=provider_secret_values["ssh"]
+            ),
         )
         self.local_cluster = rh.cluster(**args)
         self.client = HTTPClient(

@@ -91,6 +91,7 @@ class Cluster(Resource):
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
         domain: str = None,
+        ssh_properties: Dict = None,
         den_auth: bool = False,
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
@@ -107,7 +108,6 @@ class Cluster(Resource):
         super().__init__(name=name, dryrun=dryrun)
 
         self._rpc_tunnel = None
-        self._creds = creds
 
         self.ips = ips
         self._http_client = None
@@ -120,12 +120,15 @@ class Cluster(Resource):
         self.server_port = server_port
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
+        self.ssh_properties = ssh_properties or {}
         self.server_host = server_host
         self.domain = domain
 
         self._default_env = _get_env_from(default_env)
         if self._default_env and not self._default_env.name:
             self._default_env.name = _unnamed_default_env_name(self.name)
+
+        self._setup_creds(creds)
 
     @property
     def address(self):
@@ -181,7 +184,7 @@ class Cluster(Resource):
         if not self._creds:
             return {}
 
-        return self._creds.values
+        return {**self._creds.values, **self.ssh_properties}
 
     @property
     def docker_user(self) -> Optional[str]:
@@ -216,7 +219,7 @@ class Cluster(Resource):
     ):
         config = self.config(condensed=False)
 
-        # popping creds, because we don't want the secret reds will be saved on the cluster.
+        # popping creds, because we don't want to save secret creds on the cluster.
         config.pop("creds")
 
         json_config = f"{json.dumps(config)}"
@@ -270,6 +273,69 @@ class Cluster(Resource):
             rns_client.delete_configs(self._creds)
 
         super().delete_configs()
+
+    def _setup_creds(self, ssh_creds: Union[Dict, "Secret", str]):
+        """Setup cluster credentials from user provided ssh_creds"""
+        from runhouse.resources.secrets import Secret
+        from runhouse.resources.secrets.provider_secrets.sky_secret import SkySecret
+        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
+
+        if not hasattr(self, "_creds"):
+            self._creds = None
+
+        if not ssh_creds:
+            return
+        elif isinstance(ssh_creds, Secret):
+            self._creds = ssh_creds
+            return
+        elif isinstance(ssh_creds, str):
+            self._creds = Secret.from_name(ssh_creds)
+            return
+
+        creds = (
+            copy.copy(ssh_creds) if isinstance(ssh_creds, Dict) else (ssh_creds or {})
+        )
+        private_key_path = (
+            creds["ssh_private_key"] if "ssh_private_key" in creds else None
+        )
+        self.ssh_properties["ssh_private_key"] = private_key_path
+        password = creds.pop("password") if "password" in creds else None
+
+        if private_key_path:
+            key = os.path.basename(private_key_path)
+
+            if password:
+                # extract ssh values and create ssh secret
+                values = (
+                    SSHSecret.extract_secrets_from_path(private_key_path)
+                    if private_key_path
+                    else {}
+                )
+                values["password"] = password
+                self._creds = SSHSecret(
+                    name=f"{self.name}-ssh-secret",
+                    provider="ssh",
+                    key=key,
+                    path=private_key_path,
+                    values=values,
+                )
+            else:
+                # set as standard SSH secret
+                constructor = SkySecret if key == "sky-key" else SSHSecret
+                self._creds = constructor(
+                    name=f"ssh-{key}", key=key, path=private_key_path
+                )
+        elif password:
+            self._creds = Secret(
+                name=f"{self.name}-ssh-secret", values={"password": password}
+            )
+
+        # save non secret values to `_ssh_properties` field
+        if isinstance(creds, Dict):
+            self.ssh_properties = creds
+
+        if self.den_auth or rns_client.autosave_resources():
+            self.save()
 
     def _should_save_creds(self, folder: str = None) -> bool:
         """Checks whether to save the creds associated with the cluster.
@@ -365,6 +431,7 @@ class Cluster(Resource):
                 "den_auth",
                 "ssh_port",
                 "client_port",
+                "ssh_properties",
             ],
         )
         creds = self._resource_string_for_subconfig(self._creds, condensed)
@@ -460,14 +527,14 @@ class Cluster(Resource):
             return False
 
         ssh_private_key = ssh_creds.get("ssh_private_key")
-        ssh_private_key_path = Path(ssh_private_key).expanduser()
-        secrets_base_dir = Path(Secret.DEFAULT_DIR).expanduser()
-
-        # Check if the key path is saved down in the local .rh directory, which we only do for shared credentials
-        if str(ssh_private_key_path).startswith(str(secrets_base_dir)):
-            return True
-
-        return f"{self._creds.name}/" in ssh_creds.get("ssh_private_key", "")
+        if ssh_private_key:
+            ssh_private_key_path = Path(ssh_private_key).expanduser()
+            secrets_base_dir = Path(Secret.DEFAULT_DIR).expanduser()
+            # Check if the key path is saved down in the local .rh directory, which we only do for shared credentials
+            if str(ssh_private_key_path).startswith(str(secrets_base_dir)):
+                return True
+            return f"{self._creds.name}/" in ssh_private_key
+        return False
 
     def _command_runner(
         self, node: Optional[str] = None, use_docker_exec: Optional[bool] = False
@@ -2003,17 +2070,14 @@ class Cluster(Resource):
         """Overload by child resources to load any resources they hold internally."""
         from runhouse.resources.envs.env import Env
         from runhouse.resources.secrets.secret import Secret
-        from runhouse.resources.secrets.utils import load_config, setup_cluster_creds
+        from runhouse.resources.secrets.utils import load_config
 
         creds = config.pop("creds", None) or config.pop("ssh_creds", None)
 
         if isinstance(creds, str):
             creds = Secret.from_config(config=load_config(name=creds))
         elif isinstance(creds, dict):
-            if "name" in creds.keys():
-                creds = Secret.from_config(creds)
-            else:
-                creds = setup_cluster_creds(creds, config["name"])
+            creds = Secret.from_config(creds)
         config["creds"] = creds
 
         default_env = config.pop("default_env", None)

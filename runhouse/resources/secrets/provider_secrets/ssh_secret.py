@@ -111,8 +111,10 @@ class SSHSecret(ProviderSecret):
         return new_secret
 
     def _from_path(self, path: str):
-        if path == self._DEFAULT_CREDENTIALS_PATH:
-            path = f"{self._DEFAULT_CREDENTIALS_PATH}/{self.key}"
+        if path == self._DEFAULT_CREDENTIALS_PATH or path == os.path.expanduser(
+            self._DEFAULT_CREDENTIALS_PATH
+        ):
+            path = f"{path}/{self.key}"
 
         return self.extract_secrets_from_path(path)
 

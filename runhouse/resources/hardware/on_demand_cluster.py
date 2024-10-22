@@ -170,7 +170,7 @@ class OnDemandCluster(Cluster):
 
         if not self._creds:
             return
-        self._docker_user = get_docker_user(self, self._creds.values)
+        self._docker_user = get_docker_user(self, self.creds_values)
 
         return self._docker_user
 
@@ -397,9 +397,7 @@ class OnDemandCluster(Cluster):
                     yaml_path, ssh_user=handle.ssh_user
                 )
                 if not self.creds_values:
-                    from runhouse.resources.secrets.utils import setup_cluster_creds
-
-                    self._creds = setup_cluster_creds(ssh_values, self.name)
+                    self._setup_creds(ssh_values)
 
             # Add worker IPs if multi-node cluster - keep the head node as the first IP
             self.ips = [ext for _, ext in self.stable_internal_external_ips]
