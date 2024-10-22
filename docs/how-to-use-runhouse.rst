@@ -30,6 +30,7 @@ To get started with Den enabled, simply run ``runhouse login --sync-secrets`` in
 
 .. image:: https://runhouse-tutorials.s3.amazonaws.com/Pull+Compute+from+Compute+Pool.jpg
   :alt: Runhouse pulls compute from a pool of resources
+  :width: 600
 
 Start Your Project
 -------------------
@@ -129,6 +130,7 @@ Python behavior like async, exceptions, printing, and logging are all preserved 
 
       result = remote_add(1,2)
       print(result)
+
       X, y = ...  # Load data
       trainer.train(X,y)
 
@@ -178,6 +180,7 @@ terminating its activities and freeing its memory.
 
 To down a cluster when the task is complete and the resource is no longer needed, you can simply call ``cluster.teardown()``
 or let the autostop handle the down.
+
 .. code-block:: python
 
     cluster.teardown()
@@ -227,6 +230,7 @@ from local, even when you launch with the container.
 
 .. image:: https://runhouse-tutorials.s3.amazonaws.com/Identical+Dispatch+in+Production.jpg
   :alt: Send code from research and production to compute
+  :width: 650
 
 My Pipeline is in Production, What's Next?
 ----------------------
