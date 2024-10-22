@@ -28,6 +28,9 @@ all launch environments using only the Runhouse token. Platform teams gain centr
 how often they are launched, and the resources or tasks executed on them. Access management becomes much simpler, especially in multi-cloud or multi-cluster environments.
 To get started with Den enabled, simply run ``runhouse login --sync-secrets`` in the CLI.
 
+.. image:: https://runhouse-tutorials.s3.amazonaws.com/Pull+Compute+from+Compute+Pool.jpg
+  :alt: Runhouse pulls compute from a pool of resources
+
 Start Your Project
 -------------------
 Once you have established access to compute, you can start developing a new ML project. The following steps will provide the details of how to use Runhouse, starting
@@ -140,6 +143,9 @@ These remote objects are accessible from anywhere you are authenticated with Run
 Calling microservices is actually a familiar pattern in programming; however, no team would ever manually split their ML pipeline into multiple applications due to the DevOps overhead.
 Runhouse offers
 
+.. image:: https://runhouse-tutorials.s3.amazonaws.com/Iterative+Dispatch+from+Notebook.jpg
+  :alt: Iteratively develop and dispatch code to remote execution
+
 4. Saving and Loading
 ^^^^^^^^^^^^^^^^^^^^^
 Runhouse resources (clusters, functions, modules, environments) can be saved, shared, and reused based on a compact
@@ -221,6 +227,9 @@ There are significant benefits to containerization, rather than, for instance, w
 installation with PyPi. This is actually still unproblematic for additional future iteration or debug, since you still easily interactively layer on changes to the environment
 from local, even when you launch with the container.
 
+.. image:: https://runhouse-tutorials.s3.amazonaws.com/Identical+Dispatch+in+Production.jpg
+  :alt: Send code from research and production to compute
+
 My Pipeline is in Production, What's Next?
 ----------------------
 Once in production, your ML pipelines will eventually experience some failures you need to debug. With Runhouse engineers can easily reproduce production runs on local,
@@ -243,47 +252,3 @@ adopted by the full team.
 to abandon your existing orchestrator, cloud provider, or any other tool, you simply have to move a small amount of dispatch code and infrastructure code configuration.
 * **Adopting Distributed Frameworks**: Runhouse is a perfect complement to distributed frameworks, with some built-in abstractions that let you scale to multiple clusters
 or start using Ray clusters easily.
-
-
-ML Workflow with and without Runhouse
--------------------------------------
-A quick high-level summary of the differences between developing and deploying ML code with and without Runhouse:
-
-.. list-table::
-   :widths: 25 35 40
-   :header-rows: 1
-
-   * - Aspect
-     - Without Runhouse
-     - With Runhouse
-   * - **Development / Research**
-     - Researchers start in hosted notebooks or SSH'ed into a cluster:
-
-       - Fast and interactive development
-       - But usually non-standard compute environment and code
-     - Researchers write normal code:
-
-       - Each dispatch takes <5 seconds, providing interactive development experience
-       - Code executes on the same compute and environment of production
-       - Logs stream back to local
-   * - **Research to Production**
-     - Research to production happens over the course of days or weeks:
-
-       - Notebook code needs translation to orchestrator nodes
-       - Most time spent waiting to rebuild and resubmit pipelines
-       - Each iteration loop takes about 20+ minutes
-     - Moving to production is instant:
-
-       - Orchestrator nodes contain 5 lines of dispatch code
-       - Orchestrators are used to schedule, log, and monitor runs
-   * - **Debugging and Updating**
-     - Production debugging is challenging:
-
-       - Orchestrators designed for scheduling and logging runs
-       - Not development-friendly runtimes
-       - Continue "debug through deployment"
-     - Easily debug or update pipelines in production:
-
-       - Branch the underlying code
-       - Make changes and dispatch iteratively
-       - Merge back into main

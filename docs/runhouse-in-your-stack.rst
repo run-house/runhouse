@@ -59,6 +59,9 @@ that could fail if one part disconnects or experiences downtime, whereas without
 error in a node has a high chance of crashing the entire application. Runhouse also enables the use of multiple clusters in a single application,
 and also supports sharing a cluster across multiple different callers.
 
+.. image:: https://runhouse-tutorials.s3.amazonaws.com/Runhouse+and+Distributed+DSLs.jpg
+  :alt: Runhouse distributes from Python to a Ray Cluster (or Spark)
+
 Serverless frameworks (e.g. Modal, AWS Lambda)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Serverless frameworks enable on-the-fly service allocation but often require pre-packaging or command-line interface (CLI) launches outside of
