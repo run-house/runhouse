@@ -29,13 +29,22 @@ Workflow orchestrators (e.g. Airflow, Prefect, Dagster, Flyte, Metaflow, Argo)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Workflow orchestrators are excellent for monitoring, telemetry, fault tolerance, and scheduling, so we recommend using them for these tasks.
 However, they shouldn't act as your application or runtime. For example, instead of converting a Python application into an Airflow DAG to run
-training on a GPU, you simply make an HTTP call within an Airflow step to trigger a training function running as a service.
+training on a GPU, you simply make an HTTP call within an Airflow step to trigger a training function running as a service. ML development
+with "notebooks-plus-DAGs" leads to poor reproducibility, bad debuggability, and slow research-to-production.
+
+.. image:: https://runhouse-tutorials.s3.amazonaws.com/R2P+WO+Runhouse.jpg
+  :alt: Fragmented research and production in separate compute environments
+  :width: 650
 
 By avoiding the need to repack ML code into pipelines, teams can significantly reduce research-to-production time and improve debuggability.
 Runhouse ensures that the code committed to the team repository will execute reproducibly in production without additional translation.
 Additionally, iteration loops remain fast in production, whether for debugging or further development.
 ML engineers can reproduce a failed production run locally by copying the dispatch code, quickly debug and iterate, then push the changes.
 This approach is much faster than the traditional 20+ minute cycles required to rebuild and rerun orchestrator pipelines.
+
+.. image:: https://runhouse-tutorials.s3.amazonaws.com/R2P+W+Runhouse.jpg
+  :alt: Unified dispatch from notebooks and nodes with Runhouse
+  :width: 650
 
 There are many clever patterns that Runhouse enables in conjunction with orchestrators that save time and money.
 
@@ -61,14 +70,16 @@ and also supports sharing a cluster across multiple different callers.
 
 .. image:: https://runhouse-tutorials.s3.amazonaws.com/Runhouse+and+Distributed+DSLs.jpg
   :alt: Runhouse distributes from Python to a Ray Cluster (or Spark)
+  :width: 650
 
-Serverless frameworks (e.g. Modal, AWS Lambda)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Serverless frameworks enable on-the-fly service allocation but often require pre-packaging or command-line interface (CLI) launches outside of
+Serverless frameworks (e.g. AWS Lambda, Google Cloud Functions, Fireworks, Modal)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Serverless frameworks enable on-the-fly service allocation, and similarly to Runhouse, abstract compute management away from engineers.
+However, they often require pre-packaging or command-line interface (CLI) launches outside of
 standard Python environments. Runhouse, on the other hand, runs entirely within a Python interpreter, allowing it to extend the
-compute capabilities of existing Python applications and allocate resources within your own infrastructure.
+compute capabilities of existing Python applications. Very critically, Runhouse lets you **allocate resources within your own infrastructure**.
 
-Many serverless solutions aren't suitable for ML workloads. For instance, AWS Lambda struggles with large datasets, GPU-accelerated tasks,
+Serverless solutions are a broad category, and many serverless solutions aren't suitable for ML workloads. For instance, AWS Lambda struggles with large datasets, GPU-accelerated tasks,
 or long-running jobs. Runhouse can offload these tasks to ephemerally launched, but powerful compute that lasts until the job is done.
 Even when evaluating serverless solutions optimized for ML, it's essential to distinguish between those optimized for inference and Runhouse.
 For inference, you likely prioritize latency, cold start times and typically execute on a few limited types of hardware.

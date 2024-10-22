@@ -28,10 +28,6 @@ all launch environments using only the Runhouse token. Platform teams gain centr
 how often they are launched, and the resources or tasks executed on them. Access management becomes much simpler, especially in multi-cloud or multi-cluster environments.
 To get started with Den enabled, simply run ``runhouse login --sync-secrets`` in the CLI.
 
-.. image:: https://runhouse-tutorials.s3.amazonaws.com/Pull+Compute+from+Compute+Pool.jpg
-  :alt: Runhouse pulls compute from a pool of resources
-  :width: 600
-
 Start Your Project
 -------------------
 Once you have established access to compute, you can start developing a new ML project. The following steps will provide the details of how to use Runhouse, starting
@@ -41,6 +37,11 @@ from a blank page in your IDE.
 ^^^^^^^^^^^^^^^^^
 Runhouse allows you to define compute requirements in code, and launch ephemeral clusters from the compute pool we described in the prior section.
 Here, you can define the required CPU, GPU, memory, and disk requirements (or name a specific cluster) to use.
+
+.. image:: https://runhouse-tutorials.s3.amazonaws.com/Pull+Compute+from+Compute+Pool.jpg
+  :alt: Runhouse pulls compute from a pool of resources
+  :width: 750
+
 For instance, to create a cluster on AWS with an A10 GPU attached using an arbitrary Docker image, you can write:
 
 .. code:: python
@@ -140,11 +141,11 @@ of the remote file system and memory during interactive development as well.
 
 These remote objects are accessible from anywhere you are authenticated with Runhouse, so you and your team can make multi-threaded calls against them.
 Calling microservices is actually a familiar pattern in programming; however, no team would ever manually split their ML pipeline into multiple applications due to the DevOps overhead.
-Runhouse offers
+
 
 .. image:: https://runhouse-tutorials.s3.amazonaws.com/Iterative+Dispatch+from+Notebook.jpg
   :alt: Iteratively develop and dispatch code to remote execution
-  :width: 450
+  :width: 550
 
 4. Saving and Loading
 ^^^^^^^^^^^^^^^^^^^^^
@@ -230,7 +231,7 @@ from local, even when you launch with the container.
 
 .. image:: https://runhouse-tutorials.s3.amazonaws.com/Identical+Dispatch+in+Production.jpg
   :alt: Send code from research and production to compute
-  :width: 650
+  :width: 750
 
 My Pipeline is in Production, What's Next?
 ----------------------
