@@ -1060,6 +1060,9 @@ async def main():
     else:
         logger.info("Loaded cluster config from Ray.")
 
+    logger.info("Initalizing all individual node servlets.")
+    await obj_store.ainitialize_node_servlets()
+
     ########################################
     # Handling args that could be specified in the
     # cluster_config.json or via CLI args

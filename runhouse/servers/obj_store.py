@@ -270,6 +270,55 @@ class ObjStore:
             runtime_env,
         )
 
+    ###################################################
+    # Node servlet functionality, mostly stored in cluster servlet for now
+    ###################################################
+
+    async def ainitialize_node_servlets(self):
+        """
+        Initialize node servlets: This can't be done in the cluster servlet constructor because there'll be a circular
+        dependency between the cluster servlet and the node servlets. We'll call this only on the head node in
+        the server
+        """
+        from runhouse.servers.node_servlet import NodeServlet
+
+        names = []
+        for ip in self.get_internal_ips():
+            resources = {f"node:{ip}": 0.001}
+            node_servlet_name = f"node_servlet_{ip}"
+            ray.remote(NodeServlet).options(
+                name=node_servlet_name,
+                get_if_exists=True,
+                lifetime="detached",
+                namespace="runhouse",
+                max_concurrency=1000,
+                resources=resources,
+                num_cpus=0,
+            ).remote()
+            names.append(node_servlet_name)
+
+        await self.acall_actor_method(
+            self.cluster_servlet, "aset_node_servlet_names", names
+        )
+
+    async def aget_node_servlet_names(self):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aget_node_servlet_names"
+        )
+
+    async def arun_command_on_all_nodes(self, command: str):
+        node_servlet_names = await self.aget_node_servlet_names()
+        node_servlet_actors = [
+            ray.get_actor(name, namespace="runhouse") for name in node_servlet_names
+        ]
+        results = await asyncio.gather(
+            *[
+                self.acall_actor_method(node_servlet, "arun_with_logs", command)
+                for node_servlet in node_servlet_actors
+            ]
+        )
+        return results
+
     def get_process_env(self) -> Optional["Env"]:
         """
         If this is an env servlet object store, then we are within a Runhouse env.
