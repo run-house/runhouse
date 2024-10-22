@@ -11,14 +11,34 @@
    <a class="github-button" href="https://github.com/run-house/runhouse/fork" data-icon="octicon-repo-forked" data-size="large" aria-label="Fork run-house/runhouse on GitHub">Fork</a>
    </p>
 
-Runhouse enables rapid, cost-effective machine learning development.
+Runhouse enables rapid, cost-effective machine learning development. With Runhouse, your ML code executes "serverlessly."
+Dispatch Python functions and classes to any of your own cloud compute infrastructure, and call them
+eagerly as if they were local.
 
-With Runhouse, your ML code executes "serverlessly." Dispatch Python functions and classes to any of your own cloud compute infrastructure, and call them
-eagerly as if they were local. This means:
+Runhouse is specifically designed for machine learning workloads — including online and offline tasks, training, and inference —
+where the need for heterogeneous remote compute resources is common, and flexibility is essential to keep development cycles fast and costs low.
 
-#. You can natively run and debug your code on remote GPUs or other powerful infra, like Ray, Spark, or Kubernetes, from your local IDE.
-#. This code then runs as-is in CI/CD or production, with no research-to-production delays, where the underlying code will be identically dispatched and executed on ephemeral Runhouse clusters.
-#. Hardware requirements and environment is captured in code and you gain fine-grained control to more efficiently bin pack jobs and utilize multiple clusters or even cluods.
+Key Benefits
+------------
+
+Runhouse solves a few major problems for machine learning and AI teams:
+
+#. **Iterability**: Developing with Runhouse feels like working locally, even if the code is executing on powerful, multi-node remote hardware.
+   In research, avoid writing non-standard code in hosted notebooks; in production, don't iterate by building and resubmitting pipelines.
+   The team writes standard Python code locally, and it takes less than 2 seconds per iteration to redeploy the code to remote compute.
+   The remote filesystem and any unaffected remote objects or functions remain accessible across iterations.
+#. **Debuggbility**: With Runhouse, there is perfect reproducibility between local and scheduled production execution.
+   Research code that works is already production-ready, while any production runs that fail can be debugged locally.
+   The combination of identical execution and fast iteration enables a straightforward, rapid debugging loop.
+#. **Cost**: Runhouse offers the flexibility to allocate compute resources only when needed, right-size instances based on workload,
+   work across multiple regions or clouds for lower costs, and share compute and services across tasks.
+   Users typically see cost savings of 50-75%, depending on the workload.
+#. **Development at Scale**: Adopting powerful, GPU accelerated hardware or distributed clusters (Spark, Ray) can be
+   disruptive. All development, debugging, automation, and deployment to occur on their runtime; for instance, users of Ray, Spark,
+   or PyTorch Distributed must work on the head node for development. Hosted notebook services often serve as stop-gaps for this issue.
+   Runhouse allows Python to orchestrate these systems remotely, bringing the development workflow back to standard Python.
+#. **Infrastructure Management**: Runhouse captures infrastructure as code, providing a clear contract between the application
+   and infrastructure, saving ML teams from having to learn the intricacies of networking, security, and DevOps.
 
 Get In Touch
 ------------
