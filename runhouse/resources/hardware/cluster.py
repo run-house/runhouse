@@ -1583,31 +1583,43 @@ class Cluster(Resource):
         if isinstance(commands, str):
             commands = [commands]
 
-        if isinstance(env, Env) and not env.name:
-            env = self._default_env
-        env = env or self.default_env
-        env = _get_env_from(env)
-
         # If node is not specified, then we just use normal logic, knowing that we are likely on the head node
         if not node:
-            env_name = (
-                env
-                if isinstance(env, str)
-                else env.name
-                if isinstance(env, Env)
-                else None
-            )
-            return_codes = []
-            for command in commands:
-                ret_code = self.call(
-                    env_name,
-                    "_run_command",
-                    command,
-                    require_outputs=require_outputs,
-                    stream_logs=stream_logs,
+
+            if env is not None:
+                if isinstance(env, Env) and not env.name:
+                    env = self._default_env
+                env = _get_env_from(env)
+
+                env_name = (
+                    env
+                    if isinstance(env, str)
+                    else env.name
+                    if isinstance(env, Env)
+                    else None
                 )
-                return_codes.append(ret_code)
-            return return_codes
+                return_codes = []
+                for command in commands:
+                    ret_code = self.call(
+                        env_name,
+                        "_run_command",
+                        command,
+                        require_outputs=require_outputs,
+                        stream_logs=stream_logs,
+                    )
+                    return_codes.append(ret_code)
+                return return_codes
+
+            else:
+                # Run on all nodes via HTTP if no node is specified and no env is specified
+                all_return_codes = []
+                for command in commands:
+                    cmd_return_codes = self.client.run_command(command)
+                    if len(cmd_return_codes) == 1:
+                        cmd_return_codes = cmd_return_codes[0]
+
+                    all_return_codes.append(cmd_return_codes)
+                return all_return_codes
 
         # Node is specified, so we do everything via ssh
         else:
