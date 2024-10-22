@@ -67,12 +67,9 @@ You can find full documentation about the Runhouse cluster API `in the Cluster d
 If not already running, the client will start the Runhouse API server daemon
 on the compute and form a secure network connection (either over SSH or HTTP/S).
 
-* The daemon can be thought of as a "Python object server," holding key-value pairs of names and Python objects in memory (objects you will dispatch
-to it in the next step), and exposing an HTTP API to call methods on those objects by name.
-* By default, objects are held in a single default worker process but can be sent to other worker processes, including on other nodes in the cluster,
-to achieve powerful parallelism out of the box.
-* When the object is used, and there is a ``GET http://myserver:32300/my_object/my_method``, the daemon will look up the object named "my_object,"
-issue an instruction for its worker to call the method "my_method" on it, and return the result.
+* The daemon can be thought of as a "Python object server," holding key-value pairs of names and Python objects in memory (objects you will dispatch to it in the next step), and exposing an HTTP API to call methods on those objects by name.
+* By default, objects are held in a single default worker process but can be sent to other worker processes, including on other nodes in the cluster, to achieve powerful parallelism out of the box.
+* When the object is used, and there is a ``GET http://myserver:32300/my_object/my_method``, the daemon will look up the object named "my_object," issue an instruction for its worker to call the method "my_method" on it, and return the result.
 * The HTTP server and workers can handle thousands of concurrent calls per second, and have similar latency to Flask under most conditions.
 
 2. Dispatch Your Code
@@ -116,9 +113,9 @@ over HTTP to the remote object on the cluster.
 
 .. note::
 
-   The code that should only run locally (e.g. defining compute, dispatch, and calling remote objects for execution)
-   should live within a ``if __name__ == "__main__":`` block in a script. This way, the code will not execute on remote compute
-   when it is sent there.
+      The code that should only run locally (e.g. defining compute, dispatch, and calling remote objects for execution)
+      should live within a ``if __name__ == "__main__":`` block in a script. This way, the code will not execute on remote compute
+      when it is sent there.
 
 Read more about `functions and modules <https://www.run.house/docs/tutorials/api-modules>`_.
 
@@ -145,6 +142,7 @@ Runhouse offers
 
 .. image:: https://runhouse-tutorials.s3.amazonaws.com/Iterative+Dispatch+from+Notebook.jpg
   :alt: Iteratively develop and dispatch code to remote execution
+  :width: 450
 
 4. Saving and Loading
 ^^^^^^^^^^^^^^^^^^^^^
