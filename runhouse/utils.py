@@ -41,8 +41,8 @@ def set_env_vars_in_current_process(env_vars: dict):
             os.environ[k] = v
 
 
-def conda_env_cmd(cmd, conda_name):
-    return f"conda run -n {conda_name} ${{SHELL:-/bin/bash}} -c {shlex.quote(cmd)}"
+def conda_env_cmd(cmd, conda_env_name):
+    return f"conda run -n {conda_env_name} ${{SHELL:-/bin/bash}} -c {shlex.quote(cmd)}"
 
 
 def run_setup_command(

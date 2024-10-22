@@ -1662,7 +1662,7 @@ class ObjStore:
     # Interact across nodes
     ##############################################
     async def ainstall_package_in_all_nodes_and_processes(
-        self, package: "Package", conda_name: Optional[str] = None
+        self, package: "Package", conda_env_name: Optional[str] = None
     ):
         from runhouse.resources.packages import InstallTarget, Package
         from runhouse.resources.packages.package import INSTALL_METHODS
@@ -1699,7 +1699,7 @@ class ObjStore:
                         f"{package.install_target}=={package.preferred_version}"
                     )
 
-            install_cmd = package._pip_install_cmd(conda_name=conda_name)
+            install_cmd = package._pip_install_cmd(conda_env_name=conda_env_name)
             logger.info(f"Running via install_method pip: {install_cmd}")
             run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
             if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
@@ -1708,7 +1708,7 @@ class ObjStore:
                 )
 
         elif package.install_method == "conda":
-            install_cmd = package._conda_install_cmd(conda_name=conda_name)
+            install_cmd = package._conda_install_cmd(conda_env_name=conda_env_name)
             logger.info(f"Running via install_method conda: {install_cmd}")
             run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
             if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
@@ -1718,7 +1718,7 @@ class ObjStore:
                 )
 
         elif package.install_method == "reqs":
-            install_cmd = package._reqs_install_cmd(conda_name=conda_name)
+            install_cmd = package._reqs_install_cmd(conda_env_name=conda_env_name)
             if install_cmd:
                 logger.info(f"Running via install_method reqs: {install_cmd}")
                 run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)

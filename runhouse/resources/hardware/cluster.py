@@ -559,7 +559,7 @@ class Cluster(Resource):
             run_setup_command,
         )
 
-        conda_name = (
+        conda_env_name = (
             self._default_env.env_name
             if hasattr(self._default_env, "conda_yaml")
             else None
@@ -568,20 +568,20 @@ class Cluster(Resource):
         setup_cmds = self._default_env.setup_cmds
 
         for node in self.ips:
-            if conda_name:
+            if conda_env_name:
                 create_conda_env(
-                    env_name=conda_name,
+                    env_name=conda_env_name,
                     conda_yaml=self._default_env.conda_yaml,
                     cluster=self,
                 )
 
             self.install_packages(
-                self._default_env.reqs, node=node, conda_name=conda_name
+                self._default_env.reqs, node=node, conda_env_name=conda_env_name
             )
 
             if setup_cmds:
                 for cmd in setup_cmds:
-                    if conda_name:
+                    if conda_env_name:
                         cmd = conda_env_cmd(cmd)
 
                     run_setup_command(
@@ -667,7 +667,7 @@ class Cluster(Resource):
         self,
         reqs: List[Union["Package", str]],
         node: Optional[str] = None,
-        conda_name: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
     ):
         """Install the given packages on the cluster.
 
@@ -682,9 +682,11 @@ class Cluster(Resource):
         """
         for req in reqs:
             if not node:
-                self.install_package(req, conda_name=conda_name)
+                self.install_package(req, conda_env_name=conda_env_name)
             else:
-                self.install_package_over_ssh(req, node=node, conda_name=conda_name)
+                self.install_package_over_ssh(
+                    req, node=node, conda_env_name=conda_env_name
+                )
 
     def get(self, key: str, default: Any = None, remote=False):
         """Get the result for a given key from the cluster's object store.
@@ -2196,7 +2198,7 @@ class Cluster(Resource):
         )
 
     def install_package(
-        self, package: Union["Package", str], conda_name: Optional[str] = None
+        self, package: Union["Package", str], conda_env_name: Optional[str] = None
     ):
         from runhouse.resources.packages.package import Package
 
@@ -2204,13 +2206,15 @@ class Cluster(Resource):
             package = Package.from_string(package)
 
         if self.on_this_cluster():
-            obj_store.ainstall_package_in_all_nodes_and_processes(package, conda_name)
+            obj_store.ainstall_package_in_all_nodes_and_processes(
+                package, conda_env_name
+            )
         else:
             package = package.to(self)
-            self.client.install_package(package, conda_name)
+            self.client.install_package(package, conda_env_name)
 
     def install_package_over_ssh(
-        self, package: Union["Package", str], node: str, conda_name: str
+        self, package: Union["Package", str], node: str, conda_env_name: str
     ):
         from runhouse.resources.packages.package import Package
 
@@ -2219,4 +2223,4 @@ class Cluster(Resource):
             if package.install_method in ["reqs", "local"]:
                 package = package.to(self)
 
-        package._install(cluster=self, node=node, conda_name=conda_name)
+        package._install(cluster=self, node=node, conda_env_name=conda_env_name)
