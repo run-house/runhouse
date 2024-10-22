@@ -18,12 +18,13 @@ from runhouse.constants import (
 from runhouse.globals import rns_client
 
 from runhouse.logger import get_logger
-from runhouse.resources.envs.utils import _get_env_from, run_setup_command
+from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.sky.command_runner import (
     _HASH_MAX_LENGTH,
     ssh_options_list,
     SshMode,
 )
+from runhouse.utils import run_setup_command
 
 logger = get_logger(__name__)
 

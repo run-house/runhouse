@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Union
 
-from runhouse.resources.envs.utils import run_setup_command
+from runhouse.utils import run_setup_command
 
 from .package import Package
 

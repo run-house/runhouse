@@ -1127,7 +1127,7 @@ class Cluster(Resource):
 
         self.put_resource(self.default_env)
         if default_env:
-            from runhouse.resources.envs.utils import _process_env_vars
+            from runhouse.utils import _process_env_vars
 
             env_vars = _process_env_vars(default_env.env_vars)
             if env_vars:

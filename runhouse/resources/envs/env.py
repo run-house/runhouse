@@ -5,12 +5,11 @@ from typing import Dict, List, Optional, Union
 
 from runhouse.globals import obj_store
 from runhouse.logger import get_logger
-
-from runhouse.resources.envs.utils import _process_env_vars, run_setup_command
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import InstallTarget, Package
 from runhouse.resources.resource import Resource
-from runhouse.utils import run_with_logs
+
+from runhouse.utils import _process_env_vars, run_setup_command, run_with_logs
 
 logger = get_logger(__name__)
 
