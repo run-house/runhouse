@@ -8,7 +8,9 @@ Quick Start
 Before reviewing this detailed guide, we recommend you start with the `Quick Start <https://www.run.house/docs/tutorials/quick-start-cloud>`_ guide.
 
 * Install Runhouse with ``pip install runhouse``
+
 * Optionally install with a specific cloud like ``pip install "runhouse[aws]"`` or with SkyPilot for elastic compute ``pip install "runhouse[sky]``
+
 * Optionally create an account on the `Runhouse website <https://www.run.house/dashboard>`_ or with ``runhouse login --sync-secrets`` to enable saving, reloading, and centralized authentication / secrets management.
 
 Access to a Pool of Compute
@@ -17,7 +19,9 @@ In order to use Runhouse, you must be able to access compute resources, which ca
 think about all the compute resources you have as a single pool, from which Runhouse allows you to launch ephemeral clusters to execute your code.
 
 * **Kubernetes**: All you need is a kubeconfig
+
 * **Elastic Compute**: We use Skypilot under the hood to launch elastic compute, and support most clouds. You can run ``sky check`` in CLI after installing Runhouse to confirm you have access to the cloud.
+
 * **Existing Clusters**: Runhouse supports a variety of authentication methods to access existing clusters, including SSH with keys or passwords.
 
 For initial projects and getting started quickly, launching from local credentials is possible. In this setting, you already unlock
