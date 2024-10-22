@@ -372,6 +372,7 @@ class Cluster(Resource):
         from runhouse.resources.envs import Env
 
         if self._should_save_creds(folder):
+            # TODO - check against existing secrets if already there, rename if conflict
             self._creds.save(folder=folder)
 
         if self._default_env and isinstance(self._default_env, Env):
