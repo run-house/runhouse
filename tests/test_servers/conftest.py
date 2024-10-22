@@ -83,7 +83,9 @@ def local_cluster():
         name="faux_local_cluster",
         server_connection_type="none",
         host="localhost",
-        ssh_creds=provider_secret_values["ssh"],
+        ssh_creds=rh.provider_secret(
+            provider="ssh", values=provider_secret_values["ssh"]
+        ),
     ).save()
 
 
