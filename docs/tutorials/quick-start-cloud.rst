@@ -79,10 +79,11 @@ To use a cluster that’s already running:
     )
 
 If you do not have a cluster up, but have cloud credentials (e.g. AWS,
-Google Cloud, Azure) for launching clusters or a Kubernetes cluster, you
-can set up and launch an on-demand cluster with ``rh.ondemand_cluster``.
-This uses SkyPilot under the hood, so run ``sky check`` in a CLI first
-to make sure credentials are set up properly.
+Google Cloud, Azure) for launching clusters or a kubeconfig for an
+existing Kubernetes cluster, you can set up and launch an on-demand
+cluster with ``rh.ondemand_cluster``. This uses SkyPilot under the hood,
+so run ``sky check`` in a CLI first to make sure credentials are set up
+properly.
 
 .. code:: ipython3
 
@@ -107,8 +108,8 @@ Deploy Code to the Cluster
 
 Simply wrap the function in ``rh.function`` and send it to the cluster
 with ``.to``. This deploys the function to the cluster as a service by
-syncing over the code, setting up any specified dependencies (see
-```Envs`` <https://www.run.house/docs/tutorials/api-envs>`__ or
+syncing over the code, setting up any specified Runhouse environment
+(see ```Envs`` <https://www.run.house/docs/tutorials/api-envs>`__ or
 dependencies, environment variables, secrets, conda environments),
 importing the synced code, and serving it in the Runhouse API server.
 
