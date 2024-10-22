@@ -845,3 +845,12 @@ class HTTPClient:
                 require_outputs=require_outputs,
             ).model_dump(),
         )
+
+    def run_command(self, command: str):
+        return self.request_json(
+            "/run_command",
+            req_type="post",
+            json_dict=RunCommandParams(
+                command=command,
+            ).model_dump(),
+        )
