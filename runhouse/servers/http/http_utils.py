@@ -36,10 +36,6 @@ class RunBashParams(BaseModel):
     require_outputs: bool = False
 
 
-class RunCommandParams(BaseModel):
-    command: str
-
-
 class ServerSettings(BaseModel):
     cluster_name: Optional[str] = None
     den_auth: Optional[bool] = None
