@@ -60,12 +60,13 @@ In Runhouse, a “cluster” is a unit of compute, somewhere you can send
 code, data, or requests to execute. We define a Runhouse cluster using
 the ``rh.cluster`` factory function.
 
-This requires having access to an existing box (via SSH), a cloud
-provider account, or a Kubernetes cluster (~/.kube/config). If you do
-not have access to a cluster, you can try the `local
+This requires having access to an existing VM (via SSH), a cloud
+provider account to launch elastic compute, or a Kubernetes cluster
+(~/.kube/config). If you do not have access to a cluster, you can try
+the `local
 version <https://www.run.house/docs/tutorials/quick-start-local>`__ of
 this tutorial, which sets up and deploys the Python function to a local
-server, rather than a remote cluster.
+server.
 
 To use a cluster that’s already running:
 
@@ -105,15 +106,14 @@ Deploy Code to the Cluster
 --------------------------
 
 Simply wrap the function in ``rh.function`` and send it to the cluster
-with ``.to``. This deploys the function to the cluster as a proper
-service by syncing over the code, setting up any specified dependencies
-(see ``Envs``), and importing and serving it in the Runhouse API server.
+with ``.to``. This deploys the function to the cluster as a service by
+syncing over the code, setting up any specified dependencies (see
+```Envs`` <https://www.run.house/docs/tutorials/api-envs>`__ or
+dependencies, environment variables, secrets, conda environments),
+importing the synced code, and serving it in the Runhouse API server.
 
-Classes, or ``Modules`` are also supported, opening up a world of
-possibilities through persistent state. ``Envs`` allow you to specify
-the environment in which the function or class is served, such as
-dependencies, environment variables, secrets, conda environments, and
-more.
+Classes, or ``Modules`` are also supported. Remote instances of a remote
+class have persisted state, enabling powerful usage patterns.
 
 .. code:: ipython3
 
@@ -136,13 +136,11 @@ more.
 Deploying the function to the cluster took ~2 seconds, and the function
 we defined above, ``get_platform``, now exists remotely on the cluster,
 and can be called remotely using ``remote_fn``. You can call this remote
-function just as you would any other Python function, with
-``remote_fn()``, and it runs on the cluster and returns the result to
-our local environment.
+function normally from local, with ``remote_fn()``, and it runs on the
+cluster and returns the result to our local environment.
 
-Below, we run both the local and remote versions of this function, which
-give different results and confirms that the functions are indeed being
-run on different processes.
+When we run the local and remote versions of this function, you see
+different results based on where it executes.
 
 .. code:: ipython3
 
@@ -189,6 +187,8 @@ is just the tip of the iceberg of what’s possible with Runhouse. With a
 large suite of even more abstractions and features, Runhouse lets you
 quickly and seamlessly integrate between local and remote environments.
 
-To learn more, please take a look at our
+We recommend you now review the `extended guide on getting
+started <https://www.run.house/docs/tutorials/quick-start-cloud>`__ with
+Runhouse. You can also take a look at our
 `examples <https://www.run.house/examples>`__ or at the `API
 reference <https://www.run.house/docs/api/python>`__

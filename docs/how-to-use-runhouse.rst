@@ -85,6 +85,7 @@ multi-threaded calls to its methods.
       RemoteTrainer = rh.module(TorchTrainer).to(cluster, env=my_env) # Send to cluster
       trainer = RemoteTrainer(name='remote-instance-of-trainer') # Instantiate remote object
 
+Read more about `functions and modules <https://www.run.house/docs/tutorials/api-modules>`_.
 
 **3. Execute Your Code Remotely**: It's now possible to use your remote objects as if they were local.
 
@@ -101,6 +102,14 @@ of the remote file system and memory during interactive development as well.
 
 These remote objects are accessible from anywhere you are authenticated with Runhouse, so you and your team can make multi-threaded calls against them. Runhouse essentially
 has automatically turned this BERT embedding class into a remote service (with the latency of a FastAPI app).
+
+.. note::
+
+   As a practical note, make sure that any code in your Python file that’s meant to only run
+   locally (such as creating a cluster, dispatching code, or calling remote code) is placed within a ``if __name__ == "__main__":`` block.
+   Otherwise, that code will run when Runhouse attempts to import your
+   code remotely. For example, you wouldn’t want ``function.to(cluster)`` to run again on the cluster. This is not necessary when using a notebook. Please see our `examples
+   directory <https://github.com/run-house/runhouse/tree/main/examples>`__ for implementation details.
 
 Moving to Production
 ^^^^^^^^^^^^^^^^^^^^^
@@ -146,19 +155,30 @@ containerization, rather than, for instance, worrying about new breaking changes
 still unproblematic for additional future iteration or debug, since you can easily interactively layer on changes to the environment
 from local, even when you launch with the container.
 
-Debugging and Maintenance
+In Production, for the Long Term
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 In the long run, debugging failures and making updates to the pipeline is also extremely easy, as engineers can easily reproduce production runs on local,
-make changes to the underlying code, and simply push to the codebase.
+make changes to the underlying code, and simply push to the codebase. This means that debugging pipelines
 
+This also makes production-to-research a seamless process. Many teams are loathe to revisit the research-to-production process again, and so when code is deployed
+to production, there is little appetite to make small incremental improvements to the pipeline. With Runhouse, the pipeline is already running serverlessly, and so
+incremental changes that are merged to the team codebase are automatically reflected in the production pipeline once tested via normal development processes.
 
+There are other benefits to using Runhouse in production as you scale up usage. A few are included here:
+
+* **Shared services**: You may want to deploy shared services like an embeddings endpoint, and have all pipelines call it by name as a live service *or* import the code
+from the underlying team repository and stand it up separately in each pipeline. Either way, if you every update or improve this shared service,
+all pipelines will receive the downstream updates without any changes to the pipeline code.
+* **Compute abstraction**: As you add new resources to your pool, get credits from new clouds, or get new quota, if all users are using Runhouse to allocate
+ephemeral compute, there is no need to update any code or configuration files at the user level. The new resources are added by the platform team, and then automatically
+adopted by the full team.
 
 Under the Hood: Details about the Runhouse API
 -------------------------------------------------------
 Where the above describes the usage flow of Runhouse, this section is intended to provide interested users with the technical details of
 how Runhouse offloads function and classes as services. Understanding this section is not necessary to use Runhouse, but it can help users
 who want to better understand what is happening under the hood. If you have any questions about what is described here, please reach out to
-`hello@run.house <mailto:hello@run.house`_ and we'd be happy to walk you through the details.
+`hello@run.house <mailto:hello@run.house>`_ and we'd be happy to walk you through the details.
 
 You can follow along with this annotated code snippet:
 
