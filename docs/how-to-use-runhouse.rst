@@ -7,40 +7,42 @@ Quick Start
 ----------------
 Before reviewing this detailed guide, we recommend you start with the `Quick Start <https://www.run.house/docs/tutorials/quick-start-cloud>`_ guide.
 
-* Install Runhouse with `pip install runhouse`
-* Optionally install with a specific cloud like `pip install "runhouse[aws]"` or with SkyPilot for elastic compute `pip install "runhouse[sky]`
-* Optionally create an account on the Runhouse website or with `runhouse login --sync-secrets` to enable saving, reloading, and centralized authentication / secrets management.
+* Install Runhouse with ``pip install runhouse``
+* Optionally install with a specific cloud like ``pip install "runhouse[aws]"`` or with SkyPilot for elastic compute ``pip install "runhouse[sky]``
+* Optionally create an account on the Runhouse website or with ``runhouse login --sync-secrets`` to enable saving, reloading, and centralized authentication / secrets management.
 
-Access to a Compute Pool
-----------------
+Access to a Pool of Compute
+-----------------------
 In order to use Runhouse, users must be able to access compute resources, which can take any form (e.g. VMs, elastic compute, Kubernetes). You should
-consider all the compute resources you have as a single pool, from which Runhouse allows you to launch ephemeral clusters to execute your code.
+think about all the compute resources you have as a single pool, from which Runhouse allows you to launch ephemeral clusters to execute your code.
 
-* Kubernetes: All you need is a Kubeconfig
-* Elastic Compute: We use Skypilot under the hood to launch elastic compute, and support most clouds. You can run `sky check` after installing Runhouse to confirm you have access to the cloud.
-* Existing Clusters: Runhouse supports a variety of authentication methods to access existing clusters, including SSH with keys or passwords.
+* **Kubernetes**: All you need is a kubeconfig
+* **Elastic Compute**: We use Skypilot under the hood to launch elastic compute, and support most clouds. You can run ``sky check`` in CLI after installing Runhouse to confirm you have access to the cloud.
+* **Existing Clusters**: Runhouse supports a variety of authentication methods to access existing clusters, including SSH with keys or passwords.
 
 For intitial projects and getting started quickly, launching from local credentials is possible. In this setting, you already unlock
 serverless execution for your Python ML code, but you cannot take advantage of advanced usage patterns that are unlocked through compute saving and reuse.
 
-For production settings, we recommend that users load cloud secrets, Kubeconfig, and available compute into Runhouse Den, and authenticate from all
-launch environments using the Runhouse token only. Once credentials are stored in Den, permissions to launch ephemeral compute can be granted to ML
-team members through Runhouse authentication. Platform teams gain centralized observability over utilization, including who is launching clusters,
-how often clusters are launched, and what resources or tasks are executed on them. Access management also becomes much simpler, especially in multi-cloud
-or multi-cluster settings, where keys and authentication can be managed centrally. To get started with Den enabled, simply run ``runhouse login --sync-secrets`` in the CLI.
+For production settings, we recommend that users load cloud secrets, Kubeconfig, and available compute resources into Runhouse Den and authenticate from
+all launch environments using only the Runhouse token. Once credentials are stored in Den, ML team members can be granted permissions to launch ephemeral
+compute through Runhouse authentication. Platform teams gain centralized observability over utilization, including insights into who is launching clusters,
+how often they are launched, and the resources or tasks executed on them. Access management becomes much simpler, especially in multi-cloud or multi-cluster environments,
+where keys and authentication can be managed centrally. To get started with Den enabled, simply run runhouse login --sync-secrets in the CLI.
 
-Starting a Project with Runhouse
-----------------
+Start Your Project
+-------------------
+Once you have established access to compute, you can start developing a new ML project. The following steps will provide the details of how to use Runhouse, starting
+from a blank page in your IDE.
 
 1. Define Compute
 ^^^^^^^^^^^^^^^^^
 Runhouse allows you to define compute requirements in code, and launch ephemeral clusters from the compute pool we described in the prior section.
-Here, you can define the required CPU, GPU, memory, and disk requirements (or name a specific cluster) to use. For instance, to create a cluster on AWS with
-an A10 GPU attached using an Docker image, you can write:
+Here, you can define the required CPU, GPU, memory, and disk requirements (or name a specific cluster) to use. For instance, to create a cluster on AWS with an A10 GPU attached using an Docker image, you can write:
 
 .. code:: python
 
     import runhouse as rh
+
     cluster = rh.ondemand_cluster(
         name="rh-cluster", # This cluster can be saved and reused by name. We will prefix your username when saved, e.g. /my_username/rh-cluster
         instance_type="A10G:1", # There are a number of options available for instance_type, check out the docs to see them all
@@ -74,8 +76,12 @@ installed before starting the daemon.
 
 2. Dispatch Your Code
 ^^^^^^^^^^^^^^^^^^^^^^
-You can dispatch functions and classes to Runhouse, by wrapping with ``rh.function()`` or ``rh.module()``. For functions, you can call them directly
-as if they were local functions. For modules, you instantiate a remote instance of the object; you can access this remote object by name and make
+Once you have established a connection to compute, the development pattern is to continuously dispatch code to the cluster and execute it there.
+You are doing local-like execution and debug, but with the power of the remote compute. Runhouse is agnostic to whether you dispatch
+using a notebook or a script (dispatch should live within a ``if __name__ == "__main__":`` block).
+
+Specifically to do the dispatch, you wrap your local function with ``rh.function()`` or class with ``rh.module()``. For functions, you can call them directly
+as if they were local functions. For modules, you instantiate a remote instance of the object which is stateful; you can access this remote object by name and make
 multi-threaded calls to its methods.
 
 The Runhouse client library extracts the path, module name, and importable name from the function or class.
@@ -125,22 +131,13 @@ Python behavior like async, exceptions, printing, and logging are all preserved 
       X, y = ...  # Load data
       trainer.train(X,y)
 
-In development, you should be iteratively dispatching and executing code. If you make updates to the ``add_two_numbers`` function or the ``TorchTrainer`` class, you can simply
+As noted above, you should be iteratively dispatching and executing code. If you make updates to the ``add_two_numbers`` function or the ``TorchTrainer`` class, you can simply
 re-run ``.to()``, and it should take <2 seconds to redeploy. The underlying cluster is persisted and stateful until you choose to down it, so you can take advantage
 of the remote file system and memory during interactive development as well.
 
 These remote objects are accessible from anywhere you are authenticated with Runhouse, so you and your team can make multi-threaded calls against them. Runhouse essentially
 has automatically turned this BERT embedding class into a remote service (with the latency and reliability of a FastAPI app).
 Calling a function or class as a microservice is a familiar pattern. However, no team would ever manually split their code into multiple applications due to the DevOps overhead.
-
-.. note::
-
-   Make sure that any code in your Python file that’s meant to only run
-   locally (such as creating a cluster, dispatching code, or calling remote code) is placed within a ``if __name__ == "__main__":`` block.
-   Otherwise, that code will run when Runhouse attempts to import your
-   code remotely. For example, you wouldn’t want ``function.to(cluster)`` to run again on the cluster. This is not necessary when using a notebook. Please see our `examples
-   directory <https://github.com/run-house/runhouse/tree/main/examples>`__ for implementation details.
-
 
 4. Saving and Loading
 ^^^^^^^^^^^^^^^^^^^^^
