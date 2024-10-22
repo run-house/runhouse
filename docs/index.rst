@@ -58,10 +58,10 @@ Table of Contents
    :maxdepth: 1
    :caption: Getting Started
 
-   why-runhouse
    tutorials/quick-start-cloud
    tutorials/quick-start-den
    how-to-use-runhouse
+   runhouse-in-your-stack
 
 
 .. toctree::
