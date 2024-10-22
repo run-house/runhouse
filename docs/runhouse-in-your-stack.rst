@@ -1,24 +1,26 @@
 Using Runhouse with Common ML Tools and Libraries
 ==========================================
 
-Runhouse is built to be extremely unopinionated and work closely with familiar tools and libraries in the ML ecosystem.
+Runhouse is built to be extremely unopinionated and works closely with familiar tools and libraries in the ML ecosystem.
 Its APIs are similar to those of other systems, making it easy to compare and contrast. In many cases, Runhouse complements or extends existing tools,
 while in other instances, it can replace them entirely.
 
 Notebooks and IDEs (Hosted or Local)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ML engineers often lose the ability to develop locally when dataset sizes and the need for accelerated compute exceed the capabilities of local hardware.
-Hosted notebooks have become a common solution for rapid iteration during the research phase, but they can fragment the development workflow and introduce the
-"research-to-production" gap that doesn't exist in traditional software engineering.
+Hosted notebooks have become a common solution for rapid iteration during the research phase, but they can fragment the development workflow and introduce
+a "research-to-production" gap that doesn't exist in traditional software engineering.
 
-Runhouse advocates for defining ML programs and pipelines with standard Python code. Classes and functions should be portable, importable, testable,
-and managed using software best practices within a team repository. Code development is best done in a traditional IDE,
-but Runhouse is flexible about how the code is executed interactively. You can launch compute, dispatch code, and execute it in script form or use Notebooks as interactive shells.
+Runhouse advocates for defining ML programs and pipelines using standard Python code. Classes and functions should be portable,
+importable, testable, and managed with software best practices within a team repository. Code development is best done in a traditional IDE,
+but Runhouse is flexible in how the code is executed interactively. You can launch compute, dispatch code,
+and execute it in script form or use Python notebooks as interactive shells.
 
-Since Runhouse code is being dispatched to remote clusters, classes are actually remote objects that can be accessed by mutli-threaded calls. If we instantiate a remote
-trainer class and launch training loops in one *local* thread, we can actually make a separate connection to the remote object in another thread. This way, we can
-simultaneously do multiple things at the same time with the same remote object: I might want to simultaneously to the training epochs also save model checkpoints down
-and run test evaluations. This can be done from three scripts, or three notebooks cells.
+With Runhouse, classes are remote objects that can be accessed through multi-threaded calls.
+If we instantiate a remote trainer class and launch training loops in one local thread, we can
+also establish a separate connection to the remote object in another thread. This allows us to perform multiple tasks
+simultaneously with the same remote object: for example, running training epochs, saving model checkpoints, and conducting test evaluations.
+These tasks can be done from three async calls, three scripts, or three notebook cells.
 
 We show here how a LoRA Fine Tuner class can be launched from a notebook
 in `this example <https://github.com/run-house/runhouse/tree/1b047c9b22839c212a1e2674407959e7e775f21b/examples/lora-example-with-notebook>`_.
@@ -35,11 +37,11 @@ Additionally, iteration loops remain fast in production, whether for debugging o
 ML engineers can reproduce a failed production run locally by copying the dispatch code, quickly debug and iterate, then push the changes.
 This approach is much faster than the traditional 20+ minute cycles required to rebuild and rerun orchestrator pipelines.
 
-There's many clever patterns that Runhouse enables in conjunction with orchestrators that saves time and money.
+There are many clever patterns that Runhouse enables in conjunction with orchestrators that save time and money.
 
-* Reusing of the same compute across multiple tasks, while separating the steps in the orchestrator for clarity. For instance, avoiding the I/O overhead of repeatedly writing/reading data for each step of an Argo/Kubeflow pipeline.
+* Reusing of the same compute across multiple tasks while separating the steps in the orchestrator for clarity. For instance, avoiding the I/O overhead of repeatedly writing/reading data for each step of an Argo/Kubeflow pipeline.
 * Sharing a single service to be shared across multiple orchestrator pipelines. For instance, a single embeddings service can be used by multiple pipelines.
-* Maintaining a single orchestrator, but dispatch each pipeline step to aribitrary clusters, regions, or even clouds. For instance, do pre-processing on AWS, but GPU training on GCP where you have quota/credits.
+* Maintaining a single orchestrator, but dispatching each pipeline step to arbitrary clusters, regions, or even clouds. For instance, do pre-processing on AWS, but GPU training on GCP where you have quota/credits.
 * Catching and handling errors natively from the orchestrator node, since the orchestrator runtime is a Python-based driver for the execution. For instance, on fail due to OOM, launch a larger box and rerun.
 
 Distributed frameworks (e.g. Ray, Spark, Elixr)
@@ -67,13 +69,13 @@ Many serverless solutions aren't suitable for ML workloads. For instance, AWS La
 or long-running jobs. Runhouse can offload these tasks to ephemerally launched, but powerful compute that lasts until the job is done.
 Even when evaluating serverless solutions optimized for ML, it's essential to distinguish between those optimized for inference and Runhouse.
 For inference, you likely prioritize latency, cold start times and typically execute on a few limited types of hardware.
-But if you are considering executing recurring training for instance, Runhouse is significantly more optimized; you have better hardware heterogeneity,
+But if you are considering executing recurring training, for instance, Runhouse is significantly more optimized; you have better hardware heterogeneity,
 debuggability, statefulness across epochs, and the ability to efficiently use compute.
 
 Slurm-Style Compute Interfaces (e.g. Slurm, SkyPilot, Mosaic, SageMaker Training)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 In this category of Slurm-style solutions, compute is allocated on the fly and scripts are used as entry points.
-For heavyweight jobs which are run manully, such as a research lab training a large language
+For heavyweight jobs that are run manually, such as a research lab training a large language
 model over hundreds of GPUs, this style of execution works quite well. However, for recurring enterprise ML use cases, there are several distinct disadvantages
 that Runhouse fixes.
 

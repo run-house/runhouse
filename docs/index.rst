@@ -27,13 +27,13 @@ Runhouse solves a few major problems for machine learning and AI teams:
    In research, avoid writing non-standard code in hosted notebooks; in production, don't iterate by building and resubmitting pipelines.
    The team writes standard Python code locally, and it takes less than 2 seconds per iteration to redeploy the code to remote compute.
    The remote filesystem and any unaffected remote objects or functions remain accessible across iterations.
-#. **Debuggbility**: With Runhouse, there is perfect reproducibility between local and scheduled production execution.
+#. **Debuggability**: With Runhouse, there is perfect reproducibility between local and scheduled production execution.
    Research code that works is already production-ready, while any production runs that fail can be debugged locally.
    The combination of identical execution and fast iteration enables a straightforward, rapid debugging loop.
-#. **Cost**: Runhouse offers the flexibility to allocate compute resources only when needed, right-size instances based on workload,
-   work across multiple regions or clouds for lower costs, and share compute and services across tasks.
-   Users typically see cost savings of 50-75%, depending on the workload.
-#. **Development at Scale**: Adopting powerful, GPU accelerated hardware or distributed clusters (Spark, Ray) can be
+#. **Cost**: Organizations adopting Runhouse utilize their available compute more efficiently, leading to typical cost savings of 50%.
+   With Runhouse, ephemeral clusters are allocated only when needed and can be launched across multiple regions or clouds based on quota or cost considerations.
+   It's easy to right-size instances based on workload, incorporate spot instances, and even share compute or services on compute across tasks.
+#. **Development at Scale**: Adopting powerful, GPU-accelerated hardware or distributed clusters (Spark, Ray) can be
    disruptive. All development, debugging, automation, and deployment to occur on their runtime; for instance, users of Ray, Spark,
    or PyTorch Distributed must work on the head node for development. Hosted notebook services often serve as stop-gaps for this issue.
    Runhouse allows Python to orchestrate these systems remotely, bringing the development workflow back to standard Python.

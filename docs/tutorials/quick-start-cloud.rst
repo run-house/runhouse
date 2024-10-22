@@ -108,7 +108,7 @@ Deploy Code to the Cluster
 Simply wrap the function in ``rh.function`` and send it to the cluster
 with ``.to``. This deploys the function to the cluster as a service by
 syncing over the code, setting up any specified dependencies (see
-`Envs <https://www.run.house/docs/tutorials/api-envs>`_ or
+```Envs`` <https://www.run.house/docs/tutorials/api-envs>`__ or
 dependencies, environment variables, secrets, conda environments),
 importing the synced code, and serving it in the Runhouse API server.
 
