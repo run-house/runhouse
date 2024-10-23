@@ -36,6 +36,7 @@ from runhouse.servers.http.http_utils import (
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
+    RunCommandParams,
     serialize_data,
     SetProcessEnvVarsParams,
 )
@@ -833,5 +834,14 @@ class HTTPClient:
             json_dict=InstallPackageParams(
                 package_config=package.config(),
                 conda_name=conda_name,
+            ).model_dump(),
+        )
+
+    def run_command(self, command: str):
+        return self.request_json(
+            "/run_command",
+            req_type="post",
+            json_dict=RunCommandParams(
+                command=command,
             ).model_dump(),
         )

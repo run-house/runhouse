@@ -62,6 +62,7 @@ from runhouse.servers.http.http_utils import (
     RenameObjectParams,
     resolve_folder_path,
     Response,
+    RunCommandParams,
     serialize_data,
     ServerSettings,
     SetProcessEnvVarsParams,
@@ -343,6 +344,18 @@ class HTTPServer:
                 package_obj, conda_name=params.conda_name
             )
             return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/run_command")
+    @validate_cluster_access
+    async def run_command(request: Request, params: RunCommandParams):
+        try:
+            retcodes = await obj_store.arun_command_on_all_nodes(params.command)
+            return Response(output_type=OutputType.RESULT_SERIALIZED, data=retcodes)
         except Exception as e:
             return handle_exception_response(
                 e, traceback.format_exc(), from_http_server=True
