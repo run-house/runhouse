@@ -347,8 +347,10 @@ class Cluster(Resource):
         # if not self.rns_address => we are saving the cluster first time in den
         # else, need to check if the username of the current saver is included in the rns_address.
         should_save_creds = (
-            not self.rns_address or local_default_folder in self.rns_address
-        ) and isinstance(self._creds, Secret)
+            (not self.rns_address or local_default_folder in self.rns_address)
+            and self._creds
+            and isinstance(self._creds, Secret)
+        )
 
         if should_save_creds:
             # update secret name if it already exists in den w/ different config, avoid overwriting
@@ -372,7 +374,6 @@ class Cluster(Resource):
         from runhouse.resources.envs import Env
 
         if self._should_save_creds(folder):
-            # TODO - check against existing secrets if already there, rename if conflict
             self._creds.save(folder=folder)
 
         if self._default_env and isinstance(self._default_env, Env):
@@ -397,9 +398,20 @@ class Cluster(Resource):
             _resolve_children=_resolve_children,
         )
         if cluster and cluster._creds and not dryrun:
-            from runhouse.resources.secrets.utils import _write_creds_to_local
+            from runhouse.resources.secrets import Secret
+            from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
-            _write_creds_to_local(cluster.creds_values)
+            if isinstance(cluster._creds, SSHSecret):
+                cluster._creds.write()
+            elif isinstance(cluster._creds, Secret):
+                # old version of cluster creds or password only
+                private_key_path = cluster._creds.values.get("ssh_private_key")
+                if private_key_path:
+                    SSHSecret._write_to_file(
+                        path=private_key_path,
+                        values=cluster._creds.values,
+                    )
+
         return cluster
 
     @classmethod
@@ -531,6 +543,7 @@ class Cluster(Resource):
         if ssh_private_key:
             ssh_private_key_path = Path(ssh_private_key).expanduser()
             secrets_base_dir = Path(Secret.DEFAULT_DIR).expanduser()
+
             # Check if the key path is saved down in the local .rh directory, which we only do for shared credentials
             if str(ssh_private_key_path).startswith(str(secrets_base_dir)):
                 return True
