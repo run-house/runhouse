@@ -14,12 +14,14 @@ import subprocess
 import sys
 import tempfile
 import threading
-
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from enum import Enum
 from io import SEEK_SET, StringIO
+
+from itertools import cycle
 from pathlib import Path
+from time import sleep
 from typing import Callable, Dict, Optional, Type, Union
 
 import pexpect
@@ -771,6 +773,58 @@ def create_local_dir(path: Union[str, Path]):
     full_path = os.path.expanduser(path) if isinstance(path, str) else path.expanduser()
     Path(full_path).parent.mkdir(parents=True, exist_ok=True)
     return full_path
+
+
+class Spinner:
+    def __init__(self, logger, desc: str, end=None, timeout=0.1):
+        """
+        A loader-like context manager with logging support.
+
+        Args:
+            desc (str, optional): The loader's description.
+            end (str, optional): Final print. Defaults to "Done!".
+            timeout (float, optional): Sleep time between prints. Defaults to 0.1.
+            logger (logging.Logger, optional): Logger for start and end messages.
+        """
+        self.desc = desc
+        self.end = end
+        self.timeout = timeout
+        self.logger = logger
+
+        self._thread = threading.Thread(target=self._animate, daemon=True)
+        self.steps = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "⡿"]
+        self.done = False
+
+    def start(self):
+        """Starts the loader thread."""
+        self._thread.start()
+        return self
+
+    def _animate(self):
+        """Animates the loader by cycling through steps."""
+        for c in cycle(self.steps):
+            if self.done:
+                break
+            print(f"\r{self.desc} {c}", flush=True, end="")
+            sleep(self.timeout)
+
+    def __enter__(self):
+        """Starts the loader when entering the context."""
+        self.logger.info(self.desc)
+        self.start()
+
+    def stop(self):
+        """Stops the loader and clears the line."""
+        self.done = True
+        print("\r", end="", flush=True)  # Clear the line
+        if self.end:
+            self.logger.info(self.end)
+
+    def __exit__(self, exc_type, exc_value, tb):
+        """Stops the loader on exit, logs the final message."""
+        self.stop()
+        if exc_type is not None:
+            self.logger.error(f"Error occurred: {exc_value}")
 
 
 ####################################################################################################
