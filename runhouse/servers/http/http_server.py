@@ -200,6 +200,52 @@ class HTTPServer:
             **kwargs,
         )
 
+    ################################################################################################
+    # Methods to expose Swagger UI and OpenAPI docs for given modules on the server
+    ################################################################################################
+
+    @staticmethod
+    @app.get("/{key}/openapi.json")
+    @validate_cluster_access
+    async def get_openapi_spec(request: Request, key: str):
+        try:
+            module_openapi_spec = await obj_store.acall(
+                key, method_name="openapi_spec", serialization=None
+            )
+        except (AttributeError, ObjStoreError):
+            # The object put on the server is not an `rh.Module`, so it doesn't have an openapi_spec method
+            # OR
+            # The object is not found in the object store at all
+            module_openapi_spec = None
+
+        if not module_openapi_spec:
+            raise HTTPException(status_code=404, detail=f"Module {key} not found.")
+
+        return module_openapi_spec
+
+    @staticmethod
+    @app.get("/{key}/redoc")
+    @validate_cluster_access
+    async def get_redoc(request: Request, key: str):
+        return get_redoc_html(
+            openapi_url=f"/{key}/openapi.json", title="Developer Documentation"
+        )
+
+    @staticmethod
+    @app.get("/{key}/docs")
+    @validate_cluster_access
+    async def get_swagger_ui_html(request: Request, key: str):
+        return get_swagger_ui_html(
+            openapi_url=f"/{key}/openapi.json",
+            title=f"{key} - Swagger UI",
+            oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
+            init_oauth=app.swagger_ui_init_oauth,
+        )
+
+    ################################################################################################
+    # Methods to deal with server authentication logic
+    ################################################################################################
+
     @classmethod
     async def get_den_auth(cls):
         return obj_store.is_den_auth_enabled()
@@ -261,32 +307,9 @@ class HTTPServer:
                 serialization=serialization,
             )
 
-    @staticmethod
-    @app.get("/check")
-    def check_server():
-
-        # Default for this endpoint is "pickle" serialization
-        serialization = "pickle"
-
-        try:
-            if not ray.is_initialized():
-                raise Exception("Ray is not initialized, restart the server.")
-            logger.info("Server is up.")
-
-            import runhouse
-
-            return {"rh_version": runhouse.__version__}
-        except Exception as e:
-            logger.exception(e)
-            exception_data = {
-                "error": serialize_data(e, serialization),
-                "traceback": traceback.format_exc(),
-            }
-            return Response(
-                output_type=OutputType.EXCEPTION,
-                data=exception_data,
-                serialization=serialization,
-            )
+    ################################################################################################
+    # Generic utility methods for global modifications of the server
+    ################################################################################################
 
     @staticmethod
     @app.post("/settings")
@@ -309,6 +332,309 @@ class HTTPServer:
             )
 
         return Response(output_type=OutputType.SUCCESS)
+
+    @staticmethod
+    @app.post("/install_package")
+    @validate_cluster_access
+    async def install_package(request: Request, params: InstallPackageParams):
+        try:
+            package_obj = Package.from_config(params.package_config)
+            await obj_store.ainstall_package_in_all_nodes_and_processes(
+                package_obj, conda_name=params.conda_name
+            )
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    ################################################################################################
+    # Logic to interact with individual processes running on the cluster
+    ################################################################################################
+
+    @staticmethod
+    @app.get("/processes")
+    @validate_cluster_access
+    async def get_processes(request: Request):
+        try:
+            processes = await obj_store.aget_all_initialized_servlet_names()
+            return Response(
+                output_type=OutputType.RESULT_SERIALIZED,
+                data=serialize_data(processes, "json"),
+                serialization="json",
+            )
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/create_process")
+    @validate_cluster_access
+    async def create_process(request: Request, params: CreateProcessParams):
+        try:
+            _ = obj_store.get_servlet(
+                env_name=params.name,
+                create=True,
+                runtime_env=params.runtime_env,
+                resources=params.compute,
+            )
+            time.sleep(1)
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/process_env_vars")
+    @validate_cluster_access
+    async def set_process_env_vars(request: Request, params: SetProcessEnvVarsParams):
+        try:
+            await obj_store.acall_servlet_method(
+                params.process_name, "aset_env_vars", params.env_vars
+            )
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    ################################################################################################
+    # Logic to interact with the filesystem
+    ################################################################################################
+
+    @staticmethod
+    @app.post("/folder/method/ls")
+    @validate_cluster_access
+    async def folder_ls_cmd(request: Request, ls_params: FolderLsParams):
+        try:
+            path = resolve_folder_path(ls_params.path)
+            return folder_ls(path, full_paths=ls_params.full_paths, sort=ls_params.sort)
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/mkdir")
+    @validate_cluster_access
+    async def folder_mkdir_cmd(request: Request, folder_params: FolderParams):
+        try:
+            path = resolve_folder_path(folder_params.path)
+            return folder_mkdir(path)
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/get")
+    @validate_cluster_access
+    async def folder_get_cmd(request: Request, get_params: FolderGetParams):
+        try:
+            path = resolve_folder_path(get_params.path)
+            return folder_get(path, mode=get_params.mode, encoding=get_params.encoding)
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/put")
+    @validate_cluster_access
+    async def folder_put_cmd(request: Request, put_params: FolderPutParams):
+        try:
+            path = resolve_folder_path(put_params.path)
+            serialization = put_params.serialization
+            serialized_contents = put_params.contents
+            contents = deserialize_data(serialized_contents, serialization)
+
+            return folder_put(
+                path,
+                contents=contents,
+                overwrite=put_params.overwrite,
+                mode=put_params.mode,
+                serialization=serialization,
+            )
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/rm")
+    @validate_cluster_access
+    async def folder_rm_cmd(request: Request, rm_params: FolderRmParams):
+        try:
+            path = resolve_folder_path(rm_params.path)
+            return folder_rm(
+                path, contents=rm_params.contents, recursive=rm_params.recursive
+            )
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/mv")
+    @validate_cluster_access
+    async def folder_mv_cmd(request: Request, mv_params: FolderMvParams):
+        try:
+            path = resolve_folder_path(mv_params.path)
+            return folder_mv(
+                src_path=path,
+                dest_path=mv_params.dest_path,
+                overwrite=mv_params.overwrite,
+            )
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/folder/method/exists")
+    @validate_cluster_access
+    async def folder_exists_cmd(request: Request, folder_params: FolderParams):
+        try:
+            path = resolve_folder_path(folder_params.path)
+            return folder_exists(path=path)
+
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    ################################################################################################
+    # Critical object store methods for interacting with Python objects living on the cluster
+    ################################################################################################
+
+    @staticmethod
+    @app.post("/resource")
+    @validate_cluster_access
+    async def put_resource(request: Request, params: PutResourceParams):
+        try:
+            env_name = params.env_name
+            return await obj_store.aput_resource(
+                serialized_data=params.serialized_data,
+                serialization=params.serialization,
+                env_name=env_name,
+            )
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/object")
+    @validate_cluster_access
+    async def put_object(request: Request, params: PutObjectParams):
+        try:
+            await obj_store.aput(
+                key=params.key,
+                value=params.serialized_data,
+                env=params.env_name,
+                serialization=params.serialization,
+                create_env_if_not_exists=True,
+            )
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e,
+                traceback.format_exc(),
+                serialization=params.serialization,
+                from_http_server=True,
+            )
+
+    @staticmethod
+    @app.get("/object")
+    @validate_cluster_access
+    async def get_object(
+        request: Request,
+        key: str,
+        serialization: Optional[str] = "json",
+        remote: bool = False,
+    ):
+        try:
+            return await obj_store.aget(
+                key=key,
+                serialization=serialization,
+                remote=remote,
+            )
+        except Exception as e:
+            return handle_exception_response(
+                e,
+                traceback.format_exc(),
+                serialization=serialization,
+                from_http_server=True,
+            )
+
+    @staticmethod
+    @app.post("/rename")
+    @validate_cluster_access
+    async def rename_object(request: Request, params: RenameObjectParams):
+        try:
+            await obj_store.arename(
+                old_key=params.key,
+                new_key=params.new_key,
+            )
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/delete_object")
+    @validate_cluster_access
+    async def delete_obj(request: Request, params: DeleteObjectParams):
+        try:
+            if len(params.keys) == 0:
+                cleared = await obj_store.akeys()
+                await obj_store.aclear()
+            else:
+                cleared = []
+                for key in params.keys:
+                    await obj_store.adelete(key)
+                    cleared.append(key)
+
+            # Expicitly tell the client not to attempt to deserialize the output
+            return Response(
+                data=cleared,
+                output_type=OutputType.RESULT_SERIALIZED,
+                serialization=None,
+            )
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.get("/keys")
+    @validate_cluster_access
+    async def get_keys(request: Request, env_name: Optional[str] = None):
+        try:
+            if not env_name:
+                output = await obj_store.akeys()
+            else:
+                output = await obj_store.akeys_for_servlet_name(env_name)
+
+            # Expicitly tell the client not to attempt to deserialize the output
+            return Response(
+                data=output,
+                output_type=OutputType.RESULT_SERIALIZED,
+                serialization=None,
+            )
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
 
     @staticmethod
     async def _call(
@@ -349,45 +675,6 @@ class HTTPServer:
                 serialization=params.serialization,
                 from_http_server=True,
             )
-
-    # Open API docs routes
-    @staticmethod
-    @app.get("/{key}/openapi.json")
-    @validate_cluster_access
-    async def get_openapi_spec(request: Request, key: str):
-        try:
-            module_openapi_spec = await obj_store.acall(
-                key, method_name="openapi_spec", serialization=None
-            )
-        except (AttributeError, ObjStoreError):
-            # The object put on the server is not an `rh.Module`, so it doesn't have an openapi_spec method
-            # OR
-            # The object is not found in the object store at all
-            module_openapi_spec = None
-
-        if not module_openapi_spec:
-            raise HTTPException(status_code=404, detail=f"Module {key} not found.")
-
-        return module_openapi_spec
-
-    @staticmethod
-    @app.get("/{key}/redoc")
-    @validate_cluster_access
-    async def get_redoc(request: Request, key: str):
-        return get_redoc_html(
-            openapi_url=f"/{key}/openapi.json", title="Developer Documentation"
-        )
-
-    @staticmethod
-    @app.get("/{key}/docs")
-    @validate_cluster_access
-    async def get_swagger_ui_html(request: Request, key: str):
-        return get_swagger_ui_html(
-            openapi_url=f"/{key}/openapi.json",
-            title=f"{key} - Swagger UI",
-            oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
-            init_oauth=app.swagger_ui_init_oauth,
-        )
 
     # TODO match "/{key}/{method_name}/{path:more_path}" for asgi / proxy requests
     @staticmethod
@@ -584,295 +871,35 @@ class HTTPServer:
             for f in open_logfiles:
                 f.close()
 
-    @staticmethod
-    @app.post("/install_package")
-    @validate_cluster_access
-    async def install_package(request: Request, params: InstallPackageParams):
-        try:
-            package_obj = Package.from_config(params.package_config)
-            await obj_store.ainstall_package_in_all_nodes_and_processes(
-                package_obj, conda_name=params.conda_name
-            )
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
+    ################################################################################################
+    # Cluster status and metadata methods
+    ################################################################################################
 
     @staticmethod
-    @app.get("/processes")
-    @validate_cluster_access
-    async def get_processes(request: Request):
+    @app.get("/check")
+    def check_server():
+
+        # Default for this endpoint is "pickle" serialization
+        serialization = "pickle"
+
         try:
-            processes = await obj_store.aget_all_initialized_servlet_names()
+            if not ray.is_initialized():
+                raise Exception("Ray is not initialized, restart the server.")
+            logger.info("Server is up.")
+
+            import runhouse
+
+            return {"rh_version": runhouse.__version__}
+        except Exception as e:
+            logger.exception(e)
+            exception_data = {
+                "error": serialize_data(e, serialization),
+                "traceback": traceback.format_exc(),
+            }
             return Response(
-                output_type=OutputType.RESULT_SERIALIZED,
-                data=serialize_data(processes, "json"),
-                serialization="json",
-            )
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
-    @staticmethod
-    @app.post("/create_process")
-    @validate_cluster_access
-    async def create_process(request: Request, params: CreateProcessParams):
-        try:
-            _ = obj_store.get_servlet(
-                env_name=params.name,
-                create=True,
-                runtime_env=params.runtime_env,
-                resources=params.compute,
-            )
-            time.sleep(1)
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
-    @staticmethod
-    @app.post("/process_env_vars")
-    @validate_cluster_access
-    async def set_process_env_vars(request: Request, params: SetProcessEnvVarsParams):
-        try:
-            await obj_store.acall_servlet_method(
-                params.process_name, "aset_env_vars", params.env_vars
-            )
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
-    @staticmethod
-    @app.post("/resource")
-    @validate_cluster_access
-    async def put_resource(request: Request, params: PutResourceParams):
-        try:
-            env_name = params.env_name
-            return await obj_store.aput_resource(
-                serialized_data=params.serialized_data,
-                serialization=params.serialization,
-                env_name=env_name,
-            )
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
-    @staticmethod
-    @app.post("/object")
-    @validate_cluster_access
-    async def put_object(request: Request, params: PutObjectParams):
-        try:
-            await obj_store.aput(
-                key=params.key,
-                value=params.serialized_data,
-                env=params.env_name,
-                serialization=params.serialization,
-                create_env_if_not_exists=True,
-            )
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            return handle_exception_response(
-                e,
-                traceback.format_exc(),
-                serialization=params.serialization,
-                from_http_server=True,
-            )
-
-    @staticmethod
-    @app.get("/object")
-    @validate_cluster_access
-    async def get_object(
-        request: Request,
-        key: str,
-        serialization: Optional[str] = "json",
-        remote: bool = False,
-    ):
-        try:
-            return await obj_store.aget(
-                key=key,
+                output_type=OutputType.EXCEPTION,
+                data=exception_data,
                 serialization=serialization,
-                remote=remote,
-            )
-        except Exception as e:
-            return handle_exception_response(
-                e,
-                traceback.format_exc(),
-                serialization=serialization,
-                from_http_server=True,
-            )
-
-    @staticmethod
-    @app.post("/rename")
-    @validate_cluster_access
-    async def rename_object(request: Request, params: RenameObjectParams):
-        try:
-            await obj_store.arename(
-                old_key=params.key,
-                new_key=params.new_key,
-            )
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
-    @staticmethod
-    @app.post("/folder/method/ls")
-    @validate_cluster_access
-    async def folder_ls_cmd(request: Request, ls_params: FolderLsParams):
-        try:
-            path = resolve_folder_path(ls_params.path)
-            return folder_ls(path, full_paths=ls_params.full_paths, sort=ls_params.sort)
-
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
-    @staticmethod
-    @app.post("/folder/method/mkdir")
-    @validate_cluster_access
-    async def folder_mkdir_cmd(request: Request, folder_params: FolderParams):
-        try:
-            path = resolve_folder_path(folder_params.path)
-            return folder_mkdir(path)
-
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
-    @staticmethod
-    @app.post("/folder/method/get")
-    @validate_cluster_access
-    async def folder_get_cmd(request: Request, get_params: FolderGetParams):
-        try:
-            path = resolve_folder_path(get_params.path)
-            return folder_get(path, mode=get_params.mode, encoding=get_params.encoding)
-
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
-    @staticmethod
-    @app.post("/folder/method/put")
-    @validate_cluster_access
-    async def folder_put_cmd(request: Request, put_params: FolderPutParams):
-        try:
-            path = resolve_folder_path(put_params.path)
-            serialization = put_params.serialization
-            serialized_contents = put_params.contents
-            contents = deserialize_data(serialized_contents, serialization)
-
-            return folder_put(
-                path,
-                contents=contents,
-                overwrite=put_params.overwrite,
-                mode=put_params.mode,
-                serialization=serialization,
-            )
-
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
-    @staticmethod
-    @app.post("/folder/method/rm")
-    @validate_cluster_access
-    async def folder_rm_cmd(request: Request, rm_params: FolderRmParams):
-        try:
-            path = resolve_folder_path(rm_params.path)
-            return folder_rm(
-                path, contents=rm_params.contents, recursive=rm_params.recursive
-            )
-
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
-    @staticmethod
-    @app.post("/folder/method/mv")
-    @validate_cluster_access
-    async def folder_mv_cmd(request: Request, mv_params: FolderMvParams):
-        try:
-            path = resolve_folder_path(mv_params.path)
-            return folder_mv(
-                src_path=path,
-                dest_path=mv_params.dest_path,
-                overwrite=mv_params.overwrite,
-            )
-
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
-    @staticmethod
-    @app.post("/folder/method/exists")
-    @validate_cluster_access
-    async def folder_exists_cmd(request: Request, folder_params: FolderParams):
-        try:
-            path = resolve_folder_path(folder_params.path)
-            return folder_exists(path=path)
-
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
-    @staticmethod
-    @app.post("/delete_object")
-    @validate_cluster_access
-    async def delete_obj(request: Request, params: DeleteObjectParams):
-        try:
-            if len(params.keys) == 0:
-                cleared = await obj_store.akeys()
-                await obj_store.aclear()
-            else:
-                cleared = []
-                for key in params.keys:
-                    await obj_store.adelete(key)
-                    cleared.append(key)
-
-            # Expicitly tell the client not to attempt to deserialize the output
-            return Response(
-                data=cleared,
-                output_type=OutputType.RESULT_SERIALIZED,
-                serialization=None,
-            )
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
-
-    @staticmethod
-    @app.get("/keys")
-    @validate_cluster_access
-    async def get_keys(request: Request, env_name: Optional[str] = None):
-        try:
-            if not env_name:
-                output = await obj_store.akeys()
-            else:
-                output = await obj_store.akeys_for_servlet_name(env_name)
-
-            # Expicitly tell the client not to attempt to deserialize the output
-            return Response(
-                data=output,
-                output_type=OutputType.RESULT_SERIALIZED,
-                serialization=None,
-            )
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
             )
 
     @staticmethod
