@@ -233,8 +233,8 @@ class Env(Resource):
             if env_vars:
                 system.set_process_env_vars(process_name=key, env_vars=env_vars)
 
-            conda_name = new_env.env_name if hasattr(self, "conda_yaml") else None
-            system.install_packages(reqs=new_env.reqs, conda_name=conda_name)
+            conda_env_name = new_env.env_name if hasattr(self, "conda_yaml") else None
+            system.install_packages(reqs=new_env.reqs, conda_env_name=conda_env_name)
             system.call(key, "_run_setup_cmds", setup_cmds=new_env.setup_cmds)
 
             # Secrets are resources that go in the env, so put them in after the env is created

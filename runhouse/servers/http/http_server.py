@@ -341,7 +341,7 @@ class HTTPServer:
         try:
             package_obj = Package.from_config(params.package_config)
             await obj_store.ainstall_package_in_all_nodes_and_processes(
-                package_obj, conda_name=params.conda_name
+                package_obj, conda_env_name=params.conda_env_name
             )
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
@@ -1085,7 +1085,7 @@ async def main():
 
     parse_args = parser.parse_args()
 
-    conda_name = parse_args.conda_env
+    conda_env_name = parse_args.conda_env
     restart_proxy = parse_args.restart_proxy
     api_server_url = parse_args.api_server_url
     default_env_name = parse_args.default_env_name
@@ -1277,7 +1277,7 @@ async def main():
 
     await HTTPServer.ainitialize(
         default_env_name=default_env_name,
-        conda_env=conda_name,
+        conda_env=conda_env_name,
     )
 
     if den_auth:
