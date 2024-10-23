@@ -452,19 +452,6 @@ class OnDemandCluster(Cluster):
         cluster_dict = self._sky_status(refresh=not dryrun)
         self._populate_connection_from_status_dict(cluster_dict)
 
-    def _update_from_den_response(self, config: dict):
-        """Updates cluster with config from Den."""
-        self.launched_properties = config.get("launched_properties", {})
-        self.ips = config.get("ips", {})
-        self.stable_internal_external_ips = config.get(
-            "stable_internal_external_ips", {}
-        )
-        creds = config.get("creds")
-        if not self.creds_values and creds:
-            from runhouse.resources.secrets.utils import setup_cluster_creds
-
-            self._creds = setup_cluster_creds(creds, self.name)
-
     def get_instance_type(self):
         """Returns instance type of the cluster."""
         if self.instance_type and "--" in self.instance_type:  # K8s specific syntax
@@ -537,29 +524,12 @@ class OnDemandCluster(Cluster):
             return self
 
         if self.launcher_type == LauncherType.DEN:
-            logger.info("Launching cluster with Den.")
-            launcher = DenLauncher(cluster=self, force=force)
-            data = launcher.up(verbose=verbose)
-            self._update_from_den_response(data)
+            logger.info("Launching cluster with Den")
+            DenLauncher.up(cluster=self, verbose=verbose, force=force)
 
         else:
-            logger.info("Launching cluster locally.")
-            launcher = LocalLauncher(cluster=self)
-            launcher.up(verbose=verbose)
-            self._update_from_sky_status()
-
-            if self.domain:
-                logger.info(
-                    f"Cluster has been launched with the custom domain '{self.domain}'. "
-                    "Please add an A record to your DNS provider to point this domain to the cluster's "
-                    f"public IP address ({self.address}) to ensure successful requests."
-                )
-
-            # TODO: Maybe apply the below to both cases?
-            self.restart_server()
-
-            if rns_client.autosave_resources():
-                self.save()
+            logger.info("Launching cluster locally")
+            LocalLauncher.up(cluster=self, verbose=verbose)
 
         return self
 
