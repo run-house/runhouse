@@ -49,7 +49,9 @@ def named_cluster():
     args = dict(
         name="test-simple-cluster",
         host="my_url.com",
-        ssh_creds=provider_secret_values["ssh"],
+        ssh_creds=rh.provider_secret(
+            provider="ssh", values=provider_secret_values["ssh"]
+        ),
     )
     c = rh.cluster(**args)
     init_args[id(c)] = args
@@ -287,8 +289,6 @@ def set_up_local_cluster(
         docker_client.containers.get(container_name).stop()
         docker_client.containers.prune()
         docker_client.images.prune()
-        if rh_cluster._creds:
-            rh_cluster._creds.delete()
         rh_cluster.delete_configs()
 
     return rh_cluster, cleanup
