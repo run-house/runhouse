@@ -75,7 +75,7 @@ class SSHSecret(ProviderSecret):
         priv_key_path = Path(os.path.expanduser(priv_key_path))
         pub_key_path = Path(f"{os.path.expanduser(priv_key_path)}.pub")
 
-        if priv_key_path.exists() and pub_key_path.exists():
+        if priv_key_path.exists() or pub_key_path.exists():
             if values == self._from_path(path=path):
                 logger.info(f"Secrets already exist in {path}. Skipping.")
                 self.path = path

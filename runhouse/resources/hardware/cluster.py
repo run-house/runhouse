@@ -123,11 +123,11 @@ class Cluster(Resource):
         self.server_host = server_host
         self.domain = domain
 
-        self._setup_creds(creds)
-
         self._default_env = _get_env_from(default_env)
         if self._default_env and not self._default_env.name:
             self._default_env.name = _unnamed_default_env_name(self.name)
+
+        self._setup_creds(creds)
 
     @property
     def address(self):
@@ -218,7 +218,7 @@ class Cluster(Resource):
     ):
         config = self.config(condensed=False)
 
-        # popping creds, because we don't want the secret reds will be saved on the cluster.
+        # popping creds, because we don't want to save secret creds on the cluster.
         config.pop("creds")
 
         json_config = f"{json.dumps(config)}"
@@ -280,7 +280,6 @@ class Cluster(Resource):
         from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
         self._creds = ssh_creds if isinstance(ssh_creds, Secret) else None
-        self.ssh_properties = {}
 
         if not ssh_creds or isinstance(ssh_creds, Secret):
             return
@@ -328,6 +327,9 @@ class Cluster(Resource):
         if isinstance(creds, Dict):
             self.ssh_properties = creds
 
+        if self.den_auth or rns_client.autosave_resources():
+            self.save()
+
     def _should_save_creds(self, folder: str = None) -> bool:
         """Checks whether to save the creds associated with the cluster.
         Only do so as part of the save() if the user making the call is the creator"""
@@ -338,8 +340,10 @@ class Cluster(Resource):
         # if not self.rns_address => we are saving the cluster first time in den
         # else, need to check if the username of the current saver is included in the rns_address.
         should_save_creds = (
-            not self.rns_address or local_default_folder in self.rns_address
-        ) and isinstance(self._creds, Secret)
+            (not self.rns_address or local_default_folder in self.rns_address)
+            and self._creds
+            and isinstance(self._creds, Secret)
+        )
 
         return should_save_creds
 
@@ -372,9 +376,21 @@ class Cluster(Resource):
             _resolve_children=_resolve_children,
         )
         if cluster and cluster._creds and not dryrun:
-            from runhouse.resources.secrets.utils import _write_creds_to_local
+            from runhouse.resources.secrets import Secret
+            from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
-            _write_creds_to_local(cluster.creds_values)
+            if isinstance(cluster._creds, SSHSecret):
+                cluster._creds.write(write_config=False)
+            elif isinstance(cluster._creds, Secret):
+                # old version of cluster creds or password only
+                private_key_path = cluster._creds.values.get("ssh_private_key")
+                if private_key_path:
+                    SSHSecret._write_to_file(
+                        path=private_key_path,
+                        values=cluster._creds.values,
+                        write_config=False,
+                    )
+
         return cluster
 
     @classmethod
@@ -503,12 +519,13 @@ class Cluster(Resource):
             return False
 
         ssh_private_key = ssh_creds.get("ssh_private_key")
-        ssh_private_key_path = Path(ssh_private_key).expanduser()
-        secrets_base_dir = Path(Secret.DEFAULT_DIR).expanduser()
+        if ssh_private_key:
+            ssh_private_key_path = Path(ssh_private_key).expanduser()
+            secrets_base_dir = Path(Secret.DEFAULT_DIR).expanduser()
 
-        # Check if the key path is saved down in the local .rh directory, which we only do for shared credentials
-        if str(ssh_private_key_path).startswith(str(secrets_base_dir)):
-            return True
+            # Check if the key path is saved down in the local .rh directory, which we only do for shared credentials
+            if str(ssh_private_key_path).startswith(str(secrets_base_dir)):
+                return True
 
         return f"{self._creds.name}/" in ssh_creds.get("ssh_private_key", "")
 
