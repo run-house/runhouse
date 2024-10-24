@@ -1,14 +1,20 @@
-import json
-from asyncio import Event
+import ast
 
 import requests
 
+import runhouse as rh
 from runhouse.constants import DOCKER_LOGIN_ENV_VARS
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
+from runhouse.resources.hardware.utils import SSEClient
 from runhouse.rns.utils.api import load_resp_content
 
 logger = get_logger(__name__)
+
+
+class SSEHandler:
+    def __init__(self, event):
+        self.event = event
 
 
 class Launcher:
@@ -30,80 +36,44 @@ class Launcher:
 
         return list(sky.clouds.CLOUD_REGISTRY)
 
-    def run_verbose(self, base_url: str, logs_url: str, payload: dict = None):
-        """Call a specified Den API while streaming logs back from a separate logs endpoint."""
-        from asyncio import Event
-        from concurrent.futures import ThreadPoolExecutor
-
-        # Create an event to stop the log streaming thread when finished
-        stop_event = Event()
-
-        with ThreadPoolExecutor() as executor:
-            # Send request to the Den URL specified
-            resp = requests.post(
-                base_url,
-                json=payload or self.cluster.config(),
-                headers=rns_client.request_headers(),
-            )
-
-            if resp.status_code != 200:
-                # Stop the log thread on failure
-                stop_event.set()
-                raise Exception(
-                    f"Received [{resp.status_code}] from Den POST '{base_url}': {load_resp_content(resp)}"
-                )
-
-            resp_data = resp.json().get("data", {})
-            launch_id = resp_data.get("launch_id")
-            temp_dir = resp_data.get("temp_dir")
-
-            # Start the log streaming in a separate thread
-            executor.submit(
-                self.load_logs_in_thread, stop_event, logs_url, temp_dir, launch_id
-            )
-
-            # Stop the log streaming once the request is done
-            stop_event.set()
-
-    def load_logs_in_thread(
-        self, stop_event: Event, url: str, temp_dir: str, launch_id: str
-    ):
-        import asyncio
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(
-            self.stream_logs_from_url(stop_event, url, temp_dir, launch_id)
+    def run_verbose(self, base_url: str, payload: dict = None):
+        """Call a specified Den API while streaming logs back using an SSE client."""
+        resp = requests.post(
+            base_url,
+            json=payload,
+            headers=rns_client.request_headers(),
+            stream=True,
         )
 
-    @staticmethod
-    async def stream_logs_from_url(
-        stop_event: Event, url: str, temp_dir: str, launch_id: str
-    ):
-        """Load logs returned from the specified Den URL. The response should be a stream of JSON logs."""
-        import httpx
+        if resp.status_code != 200:
+            raise Exception(
+                f"Received [{resp.status_code}] from Den POST '{base_url}': {load_resp_content(resp)}"
+            )
 
-        client = httpx.AsyncClient(timeout=None)
+        client = SSEClient(resp)
 
-        async with client.stream(
-            "POST",
-            url,
-            json={"temp_dir": temp_dir, "launch_id": launch_id},
-            headers=rns_client.request_headers(),
-        ) as res:
-            if res.status_code != 200:
-                error_resp = await res.aread()
-                raise ValueError(f"Error calling Den logs API: {error_resp.decode()}")
+        data = {}
+        for event in client.events():
+            # Stream through data events
+            # if event.event == "data":
+            #     print(event.data)
 
-            async for response_json in res.aiter_lines():
-                if stop_event.is_set():
-                    break
-                resp = json.loads(response_json)
+            # TODO: Properly send, recieve, and format logs
+            print(event.data)
 
-                # TODO [JL] any formatting to do here?
-                print(resp)
+            if event.event == "error":
+                event_data = ast.literal_eval(event.data)
+                raise Exception(
+                    f"Received [{event_data.get('code')}] from Den POST '{base_url}': {event_data.get('detail')}"
+                )
 
-        await client.aclose()
+            # End returns data for continuing this method
+            if event.event == "end":
+                logger.info("Successfully ran cluster operation via Den")
+                data = ast.literal_eval(event.data)
+                break
+
+        return data
 
 
 class DenLauncher(Launcher):
@@ -111,10 +81,6 @@ class DenLauncher(Launcher):
 
     LAUNCH_URL = f"{rns_client.api_server_url}/cluster/up"
     TEARDOWN_URL = f"{rns_client.api_server_url}/cluster/down"
-
-    # TODO update these URLs
-    LAUNCH_LOGS_URL = f"{rns_client.api_server_url}/cluster/logs/up"
-    TEARDOWN_LOGS_URL = f"{rns_client.api_server_url}/cluster/logs/teardown"
 
     def __init__(self, cluster, force: bool = False):
         super().__init__(cluster)
@@ -137,45 +103,71 @@ class DenLauncher(Launcher):
 
     def up(self, verbose: bool = True):
         """Launch the cluster via Den."""
-        if verbose:
-            config = self.cluster.config()
-            config["force"] = self.force
-            self.run_verbose(
-                base_url=self.LAUNCH_URL, logs_url=self.LAUNCH_LOGS_URL, payload=config
-            )
-        else:
-            # Blocking call with no streaming
-            resp = requests.post(
-                self.LAUNCH_URL,
-                json={**self.cluster.config(), "force": self.force},
-                headers=rns_client.request_headers(),
-            )
-            if resp.status_code != 200:
-                raise Exception(
-                    f"Received [{resp.status_code}] from Den POST '{self.LAUNCH_URL}': Failed to "
-                    f"launch cluster: {load_resp_content(resp)}"
-                )
+        # TODO: is this guaranteed to be the default SkySecret name?
+        secrets_name = "ssh-sky-key"
+        try:
+            sky_secret = rh.secret(secrets_name)
+        except ValueError:
+            raise ValueError(f"No cluster secret found in Den with name {secrets_name}")
 
+        secret_values = sky_secret.values
+        if (
+            not secret_values
+            or "public_key" not in secret_values
+            or "private_key" not in secret_values
+        ):
+            raise ValueError(
+                f"Public key and private key values not found in secret {secrets_name}"
+            )
+
+        payload = {
+            "cluster_config": {
+                **self.cluster.config(),
+                # TODO: update once secrets are updated to include pub + private key values (should have only one field)
+                "ssh_creds": "/mkandler/aws-cpu-matt-ssh-secret",
+                "sky_creds": sky_secret.rns_address,
+            },
+            "force": self.force,
+        }
+
+        if verbose:
+            data = self.run_verbose(base_url=self.LAUNCH_URL, payload=payload)
+            logger.info("Successfully launched cluster.")
+            return data
+
+        # Blocking call with no streaming
+        resp = requests.post(
+            self.LAUNCH_URL,
+            json=payload,
+            headers=rns_client.request_headers(),
+        )
+        if resp.status_code != 200:
+            raise Exception(
+                f"Received [{resp.status_code}] from Den POST '{self.LAUNCH_URL}': Failed to "
+                f"launch cluster: {load_resp_content(resp)}"
+            )
+        data = resp.json()
         logger.info("Successfully launched cluster.")
+        return data
 
     def teardown(self, verbose: bool = True):
         """Tearing down a cluster via Den."""
         # TODO [MK] what payload do we need here?
-        if verbose is False:
-            # Run blocking call, with no streaming
-            resp = requests.post(
-                self.TEARDOWN_URL,
-                json=self.cluster.config(),
-                headers=rns_client.request_headers(),
-            )
-            if resp.status_code != 200:
-                raise Exception(
-                    f"Received [{resp.status_code}] from Den POST '{self.TEARDOWN_URL}': Failed to "
-                    f"teardown cluster: {load_resp_content(resp)}"
-                )
+        if verbose:
+            self.run_verbose(base_url=self.TEARDOWN_URL)
             return
 
-        self.run_verbose(base_url=self.TEARDOWN_URL, logs_url=self.TEARDOWN_LOGS_URL)
+        # Run blocking call, with no streaming
+        resp = requests.post(
+            self.TEARDOWN_URL,
+            json=self.cluster.config(),
+            headers=rns_client.request_headers(),
+        )
+        if resp.status_code != 200:
+            raise Exception(
+                f"Received [{resp.status_code}] from Den POST '{self.TEARDOWN_URL}': Failed to "
+                f"teardown cluster: {load_resp_content(resp)}"
+            )
 
 
 class LocalLauncher(Launcher):
@@ -239,15 +231,6 @@ class LocalLauncher(Launcher):
                     f"<https://www.run.house/docs/api/python/cluster#runhouse.ondemand_cluster>`__)."
                 )
             raise e
-
-        self.cluster._update_from_sky_status()
-
-        if self.cluster.domain:
-            logger.info(
-                f"Cluster has been launched with the custom domain '{self.cluster.domain}'. "
-                "Please add an A record to your DNS provider to point this domain to the cluster's "
-                f"public IP address ({self.cluster.address}) to ensure successful requests."
-            )
 
     def teardown(self, verbose: bool = True):
         """Tearing down a cluster locally via Sky."""
