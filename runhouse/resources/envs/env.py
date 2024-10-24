@@ -151,7 +151,7 @@ class Env(Resource):
         Args:
             force (bool, optional): Whether to setup the installation again if the env already exists
                 on the cluster. (Default: ``False``)
-            cluster (Clsuter, optional): Cluster to install the env on. If not provided, env is installed
+            cluster (Cluster, optional): Cluster to install the env on. If not provided, env is installed
                 on the current cluster. (Default: ``None``)
             node (str, optional): Node to install the env on. (Default: ``"all"``)
         """
