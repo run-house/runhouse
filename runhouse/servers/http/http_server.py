@@ -807,20 +807,6 @@ class HTTPServer:
     ################################################################################################
     # Cluster status and metadata methods
     ################################################################################################
-    @staticmethod
-    @app.post("/install_package")
-    @validate_cluster_access
-    async def install_package(request: Request, params: InstallPackageParams):
-        try:
-            package_obj = Package.from_config(params.package_config)
-            await obj_store.ainstall_package_in_all_nodes_and_processes(
-                package_obj, conda_name=params.conda_name
-            )
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            return handle_exception_response(
-                e, traceback.format_exc(), from_http_server=True
-            )
 
     @staticmethod
     @app.get("/check")
