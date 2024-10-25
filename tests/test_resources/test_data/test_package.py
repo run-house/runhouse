@@ -154,9 +154,9 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     def test_local_package_version_gets_installed(self, cluster):
         run_with_logs("pip install beautifulsoup4==4.11.1")
-        env = rh.env(name="temp_env", reqs=["beautifulsoup4"])
+        env = rh.env(name="temp_env", reqs=["beautifulsoup4"]).to(cluster)
 
-        remote_fn = rh.function(get_bs4_version, env=env).to(cluster)
+        remote_fn = rh.function(get_bs4_version).to(cluster, process=env.name)
         assert remote_fn() == "4.11.1"
 
     # --------- basic torch index-url testing ---------

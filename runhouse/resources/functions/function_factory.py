@@ -1,10 +1,9 @@
 import re
 from pathlib import Path
-from typing import Callable, List, Optional, Union
+from typing import Callable, Optional, Union
 
 from runhouse.logger import get_logger
 
-from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.functions.function import Function
 from runhouse.resources.packages import git_package
 
@@ -14,7 +13,6 @@ logger = get_logger(__name__)
 def function(
     fn: Optional[Union[str, Callable]] = None,
     name: Optional[str] = None,
-    env: Optional[Union[List[str], Env, str]] = None,
     load_from_den: bool = True,
     dryrun: bool = False,
     serialize_notebook_fn: bool = False,
@@ -53,31 +51,13 @@ def function(
         >>> # Load function from above
         >>> reloaded_function = rh.function(name="my_func")
     """  # noqa: E501
-    if name and not any([fn, env]):
+    if name and not fn:
         # Try reloading existing function
         return Function.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
-
-    if env:
-        logger.warning(
-            "The `env` argument is deprecated and will be removed in a future version. Please first "
-            "construct your module and then do `module.to(system=system, system=env)` to set the environment. "
-            "You can do `module.to(system=rh.here, env=env)` to set the environment on the local system."
-        )
-
-    if not isinstance(env, Env):
-        env = _get_env_from(env) or Env()
 
     fn_pointers = None
     if callable(fn):
         fn_pointers = Function._extract_pointers(fn)
-        if isinstance(env, Env):
-            # Sometimes env may still be a string, in which case it won't be modified
-            (
-                local_path_containing_module,
-                should_add,
-            ) = Function._get_local_path_containing_module(fn_pointers[0], env.reqs)
-            if should_add:
-                env.reqs = [str(local_path_containing_module)] + env.reqs
 
         if fn_pointers[1] == "notebook":
             fn_pointers = Function._handle_nb_fn(
@@ -117,6 +97,6 @@ def function(
         )
         env.reqs = [repo_package] + env.reqs
 
-    new_function = Function(fn_pointers=fn_pointers, name=name, dryrun=dryrun, env=env)
+    new_function = Function(fn_pointers=fn_pointers, name=name, dryrun=dryrun)
 
     return new_function

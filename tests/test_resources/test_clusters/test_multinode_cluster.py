@@ -78,7 +78,7 @@ class TestMultiNodeCluster:
         env_2 = rh.env(
             name="worker_env_2",
             reqs=["transformers", "pytest"],
-        )
+        ).to(cluster, node_idx=2)
 
         with pytest.raises(ValueError):
             env_2.to(
@@ -89,13 +89,13 @@ class TestMultiNodeCluster:
         env_2.to(cluster, node_idx=1)
 
         get_pid_0 = rh.function(get_pid_and_ray_node).to(
-            name="get_pid_0", system=cluster, env=env_0
+            name="get_pid_0", system=cluster, process=env_0.name
         )
         get_pid_1 = rh.function(get_pid_and_ray_node).to(
-            name="get_pid_1", system=cluster, env=env_1
+            name="get_pid_1", system=cluster, process=env_1.name
         )
         get_pid_2 = rh.function(get_pid_and_ray_node).to(
-            name="get_pid_2", system=cluster, env=env_2
+            name="get_pid_2", system=cluster, process=env_2.name
         )
 
         with capture_stdout() as stdout_0:

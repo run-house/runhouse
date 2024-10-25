@@ -71,9 +71,8 @@ class Function(Module):
     def to(
         self,
         system: Union[str, Cluster],
-        env: Optional[Union[str, List[str], Env]] = None,
+        process: Optional[Union[str, "Process"]] = None,
         name: Optional[str] = None,
-        force_install: bool = False,
     ):
         """
         Send the function to the specified env on the cluster. This will sync over relevant code and packages
@@ -98,12 +97,10 @@ class Function(Module):
             from runhouse.resources.functions.aws_lambda_factory import aws_lambda_fn
 
             return aws_lambda_fn(
-                fn=self._get_obj_from_pointers(*self.fn_pointers), env=env
+                fn=self._get_obj_from_pointers(*self.fn_pointers),
             )
 
-        return super().to(
-            system=system, env=env, name=name, force_install=force_install
-        )
+        return super().to(system=system, process=process, name=name)
 
     # ----------------- Function call methods -----------------
 

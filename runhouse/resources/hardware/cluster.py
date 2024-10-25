@@ -130,6 +130,8 @@ class Cluster(Resource):
         self.domain = domain
         self.compute_properties = {}
 
+        self.reqs = []
+
         self._default_env = _get_env_from(default_env)
         if self._default_env and not self._default_env.name:
             self._default_env.name = _unnamed_default_env_name(self.name)
@@ -2349,7 +2351,11 @@ class Cluster(Resource):
             return self.client.list_processes()
 
     def create_process(
-        self, name: str, env_vars: Dict, compute: Dict, conda_env_name: str
+        self,
+        name: str,
+        env_vars: Optional[Dict] = None,
+        compute: Optional[Dict] = None,
+        conda_env_name: Optional[str] = None,
     ) -> str:
         runtime_env = {"conda_env": conda_env_name} if conda_env_name else {}
         process_init_args = CreateProcessParams(
@@ -2373,7 +2379,11 @@ class Cluster(Resource):
         return name
 
     def ensure_process_created(
-        self, name: str, env_vars: Dict, compute: Dict, conda_env_name: str
+        self,
+        name: str,
+        env_vars: Optional[Dict] = None,
+        compute: Optional[Dict] = None,
+        conda_env_name: Optional[str] = None,
     ) -> str:
         existing_processes = self.list_processes()
         if name in existing_processes:

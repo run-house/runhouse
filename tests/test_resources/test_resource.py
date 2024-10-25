@@ -274,7 +274,7 @@ class TestResource:
         args = {"name": resource_name, "fn": summer}
 
         # Sending function to the cluster will save the function and associated env under the organization
-        f = rh.function(**args).to(docker_cluster_pk_ssh_den_auth, env=["pytest"])
+        f = rh.function(**args).to(docker_cluster_pk_ssh_den_auth)
         init_args[id(f)] = args
 
         # Should be saved to Den under the org

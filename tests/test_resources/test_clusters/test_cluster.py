@@ -467,9 +467,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_rh_status_pythonic(self, cluster):
-        sleep_remote = rh.function(sleep_fn).to(
-            cluster, env=rh.env(reqs=["pytest", "pandas"], name="worker_env")
-        )
+        worker_env = rh.env(reqs=["pytest", "pandas"], name="worker_env").to(cluster)
+        sleep_remote = rh.function(sleep_fn).to(cluster, process=worker_env.name)
         cluster.put(key="status_key1", obj="status_value1", env="worker_env")
         # Run these in a separate thread so that the main thread can continue
         call_threads = [Thread(target=sleep_remote, args=[3]) for _ in range(3)]
@@ -572,7 +571,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.clustertest
     def test_rh_status_pythonic_delete_env(self, cluster):
         env = rh.env(reqs=["pytest"], name=f"env_{datetime.utcnow()}").to(cluster)
-        summer_temp = rh.function(summer).to(env=env, system=cluster)
+        summer_temp = rh.function(summer).to(system=cluster, process=env.name)
         call_summer_temp = summer_temp(1, 3)
         assert call_summer_temp == 4
 
