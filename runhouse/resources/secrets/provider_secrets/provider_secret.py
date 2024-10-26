@@ -64,13 +64,15 @@ class ProviderSecret(Secret):
             return self._from_env(self.env_vars)
         return {}
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True, values: bool = True):
         config = super().config(condensed)
         config.update({"provider": self.provider})
         if self.path:
             config.update({"path": self.path})
         if self.env_vars:
             config.update({"env_vars": self.env_vars})
+        if not values:
+            config.pop("values", None)
         return config
 
     @staticmethod

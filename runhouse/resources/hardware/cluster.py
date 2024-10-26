@@ -261,9 +261,9 @@ class Cluster(Resource):
 
         return self
 
-    def delete_configs(self):
+    def delete_configs(self, delete_creds: bool = False):
         """Delete configs for the cluster"""
-        if self._creds:
+        if delete_creds and self._creds:
             logger.debug(
                 f"Attempting to delete creds associated with cluster {self.name}"
             )
@@ -283,6 +283,22 @@ class Cluster(Resource):
         should_save_creds = (
             not self.rns_address or local_default_folder in self.rns_address
         ) and isinstance(self._creds, Secret)
+
+        if should_save_creds:
+            # update secret name if it already exists in den w/ different config, avoid overwriting
+            try:
+                if self._creds.rns_address:
+                    saved_secret = Secret.from_name(self._creds.rns_address)
+                    if saved_secret and (
+                        saved_secret.config(values=False)
+                        != self._creds.config(values=False)
+                        or (saved_secret.values != self._creds.values)
+                    ):
+                        new_creds = copy.deepcopy(self._creds)
+                        new_creds.name = f"{self.name}-ssh-secret"
+                        self._creds = new_creds
+            except ValueError:
+                pass
 
         return should_save_creds
 

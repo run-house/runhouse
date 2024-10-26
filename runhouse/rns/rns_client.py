@@ -555,7 +555,7 @@ class RNSClient:
 
         if rns_address.startswith("/"):
             resource_uri = self.resource_uri(rns_address)
-            uri = f"{self.api_server_url}/resource/{resource_uri}"
+            uri = f"{self.api_server_url}/resource/{resource_uri}?delete_creds=false"
             resp = self.session.delete(uri, headers=self.request_headers())
             if resp.status_code != 200:
                 logger.error(
