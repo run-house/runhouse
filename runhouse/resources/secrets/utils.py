@@ -153,7 +153,7 @@ def setup_cluster_creds(ssh_creds: Union[Dict, str], resource_name: str):
                 "SSH creds require both private and public key, but only private key was provided"
             )
 
-    elif "ssh_private_key" in creds_keys and "ssh_public key" in creds_keys:
+    elif "ssh_private_key" in creds_keys and "ssh_public_key" in creds_keys:
         private_key, public_key = (
             ssh_creds["ssh_private_key"],
             ssh_creds["ssh_public_key"],
