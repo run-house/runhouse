@@ -222,7 +222,7 @@ def cluster_status(
         console.print("Failed to load status for cluster.")
         return
 
-    except requests.exceptions.ConnectionError:
+    except ConnectionError:
         console.print(
             "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}"
         )
