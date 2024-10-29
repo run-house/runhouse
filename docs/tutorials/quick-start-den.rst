@@ -6,22 +6,27 @@ Den Quick Start
     <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-den.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
-`Runhouse Den <https://www.run.house/dashboard>`__ lets you manage and
-track your infra, services, and resources (clusters, functions, secrets,
-etc). These resources can be easily reloaded from any environment, are
-ready to be used without additional setup, and can even be shared with
-another user or teammate. Then, in the Den Web UI, you can access,
-visualize, and manage your resources along with version history.
+With `Runhouse Den <https://www.run.house/dashboard>`__, you can
+centrally manage all of your compute and make it available through
+ephemeral clusters for both research and production workflows. Runhouse
+ensures that your compute can be efficiently utilized and oversubscribed
+without slowing down the development velocity of your team.
 
-Installing Runhouse
--------------------
+- Centralize the management of multiple cloud accounts and Kubernetes
+  clusters in the same place.
+- Both developers and the platforms team can monitor resource usage in
+  detail and access persisted logs in the web UI.
+- Save and reload services and resources (clusters, functions, classes,
+  etc) - for instance, share an embeddings endpoint to be used by
+  multiple teams with perfect reproducibility.
+- Set limits and quotas for teams and individuals, and queue requests
+  for compute.
 
-To use Runhouse to launch on-demand clusters, run the following
-installation command.
-
-.. code:: ipython3
-
-    !pip install "runhouse[sky]"
+If you haven’t already, check-out
+`Quickstart <https://www.run.house/docs/tutorials/quick-start-cloud>`__
+or the `Runhouse usage
+guide <https://www.run.house/docs/main/en/how-to-use-runhouse>`__ to get
+started with Runhouse.
 
 Account Creation & Login
 ------------------------
