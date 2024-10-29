@@ -31,6 +31,10 @@ class InstallPackageParams(BaseModel):
     conda_name: Optional[str] = None
 
 
+class RunBashParams(BaseModel):
+    command: str
+
+
 class ServerSettings(BaseModel):
     cluster_name: Optional[str] = None
     den_auth: Optional[bool] = None

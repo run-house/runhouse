@@ -309,7 +309,7 @@ class ObjStore:
             self.cluster_servlet, "aget_node_servlet_names"
         )
 
-    async def arun_command_on_all_nodes(self, command: str):
+    async def arun_bash_command_on_all_nodes(self, command: str):
         node_servlet_names = await self.aget_node_servlet_names()
         node_servlet_actors = [
             ray.get_actor(name, namespace="runhouse") for name in node_servlet_names
@@ -1701,7 +1701,7 @@ class ObjStore:
 
             install_cmd = package._pip_install_cmd(conda_name=conda_name)
             logger.info(f"Running via install_method pip: {install_cmd}")
-            run_cmd_results = await self.arun_command_on_all_nodes(install_cmd)
+            run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
             if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
                 raise RuntimeError(
                     f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
@@ -1710,7 +1710,7 @@ class ObjStore:
         elif package.install_method == "conda":
             install_cmd = package._conda_install_cmd(conda_name=conda_name)
             logger.info(f"Running via install_method conda: {install_cmd}")
-            run_cmd_results = await self.arun_command_on_all_nodes(install_cmd)
+            run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
             if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
                 raise RuntimeError(
                     f"Conda install {install_cmd} failed, check that the package exists and is "
@@ -1721,7 +1721,7 @@ class ObjStore:
             install_cmd = package._reqs_install_cmd(conda_name=conda_name)
             if install_cmd:
                 logger.info(f"Running via install_method reqs: {install_cmd}")
-                run_cmd_results = await self.arun_command_on_all_nodes(install_cmd)
+                run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
                 if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
                     raise RuntimeError(
                         f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
