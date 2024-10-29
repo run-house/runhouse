@@ -425,7 +425,7 @@ def cluster_down(
     """
     if not force_deletion:
         if cluster_name:
-            proceed = typer.prompt(f"Terminating [reset]{cluster_name}. Proceed? [Y/n]")
+            proceed = typer.prompt(f"Terminating {cluster_name}. Proceed? [Y/n]")
         elif remove_all:
             proceed = typer.prompt(
                 "Terminating all running clusters saved in Den. Proceed? [Y/n]"
