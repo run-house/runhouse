@@ -214,7 +214,8 @@ def _login_upload_secrets(interactive: bool, headers: Optional[Dict] = None):
     names = list(local_secrets.keys())
 
     for name in names:
-        resource_uri = rns_client.resource_uri(name)
+        rns_address = name if "/" in name else f"{rns_client.current_folder}/{name}"
+        resource_uri = rns_client.resource_uri(rns_address)
         resp = requests.get(
             f"{rns_client.api_server_url}/resource/{resource_uri}",
             headers=headers or rns_client.request_headers(),
