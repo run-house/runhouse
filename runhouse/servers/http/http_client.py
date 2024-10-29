@@ -837,11 +837,12 @@ class HTTPClient:
             ).model_dump(),
         )
 
-    def run_bash(self, command: str):
+    def run_bash(self, command: str, require_outputs: bool = False):
         return self.request_json(
             "/run_bash",
             req_type="post",
             json_dict=RunBashParams(
                 command=command,
+                require_outputs=require_outputs,
             ).model_dump(),
         )

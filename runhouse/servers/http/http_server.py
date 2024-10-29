@@ -354,8 +354,10 @@ class HTTPServer:
     @validate_cluster_access
     async def run_bash(request: Request, params: RunBashParams):
         try:
-            retcodes = await obj_store.arun_bash_command_on_all_nodes(params.command)
-            return Response(output_type=OutputType.RESULT_SERIALIZED, data=retcodes)
+            results = await obj_store.arun_bash_command_on_all_nodes(
+                params.command, params.require_outputs
+            )
+            return Response(output_type=OutputType.RESULT_SERIALIZED, data=results)
         except Exception as e:
             return handle_exception_response(
                 e, traceback.format_exc(), from_http_server=True
