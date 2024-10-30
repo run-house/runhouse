@@ -142,6 +142,8 @@ def cluster(
     if isinstance(host, str):
         host = [host]
 
+    ssh_creds = ssh_creds or rns_client.default_ssh_key
+
     c = Cluster(
         ips=kwargs.pop("ips", None) or host,
         creds=ssh_creds,
