@@ -396,7 +396,7 @@ class OnDemandCluster(Cluster):
                 ssh_values = backend_utils.ssh_credential_from_yaml(
                     yaml_path, ssh_user=handle.ssh_user
                 )
-                if not self.creds_values:
+                if not self.creds_values or not self.ssh_properties:
                     self._setup_creds(ssh_values)
 
             # Add worker IPs if multi-node cluster - keep the head node as the first IP
