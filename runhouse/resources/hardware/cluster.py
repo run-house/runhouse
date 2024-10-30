@@ -510,6 +510,8 @@ class Cluster(Resource):
             return True
         except ValueError:
             return False
+        except ConnectionError:
+            return False
 
     def up_if_not(self):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
@@ -1243,7 +1245,7 @@ class Cluster(Resource):
 
     def stop_server(
         self,
-        stop_ray: bool = True,
+        stop_ray: bool = False,
         env: Union[str, "Env"] = None,
         cleanup_actors: bool = True,
     ):
@@ -1255,13 +1257,13 @@ class Cluster(Resource):
             cleanup_actors (bool, optional): Whether to kill all Ray actors. (Default: ``True``)
         """
         cmd = CLI_STOP_CMD
-        if not stop_ray:
-            cmd = cmd + " --no-stop-ray"
+        if stop_ray:
+            cmd = cmd + " --stop-ray"
         if not cleanup_actors:
             cmd = cmd + " --no-cleanup-actors"
 
-        status_codes = self.run([cmd], env=env or self._default_env)
-        assert status_codes[0][0] == 1
+        status_codes = self._run_cli_commands_on_cluster_helper([cmd])
+        assert status_codes[0] == 0
 
     @contextlib.contextmanager
     def pause_autostop(self):
