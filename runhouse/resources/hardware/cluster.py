@@ -24,6 +24,8 @@ from runhouse.resources.hardware.utils import (
     parse_filters,
 )
 
+from runhouse.resources.images import ImageSetupStepType
+
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import (
@@ -99,6 +101,7 @@ class Cluster(Resource):
         den_auth: bool = False,
         dryrun: bool = False,
         skip_creds: bool = False,
+        image: Optional["Image"] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -140,6 +143,7 @@ class Cluster(Resource):
             self._creds = None
         else:
             self._setup_creds(creds)
+        self.image = image
 
     @property
     def ips(self):
@@ -624,6 +628,46 @@ class Cluster(Resource):
             f"cluster.keep_warm will have no effect on self-managed cluster {self.name}."
         )
         return self
+
+    def _sync_image_to_cluster(self):
+        """
+        Image stuff that needs to happen over SSH because the daemon won't be up yet, so we can't
+        use the HTTP client.
+        """
+        if not self.image:
+            return
+
+        logger.info(f"Syncing default image {self.image} to cluster.")
+
+        env_vars = {}
+        log_level = os.getenv("RH_LOG_LEVEL")
+        if log_level:
+            # add log level to the default env to ensure it gets set on the cluster when the server is restarted
+            env_vars["RH_LOG_LEVEL"] = log_level
+            logger.info(f"Using log level {log_level} on cluster's default env")
+
+        if not configs.observability_enabled:
+            env_vars["disable_observability"] = "True"
+            logger.info("Disabling observability on the cluster")
+
+        from runhouse.utils import run_setup_command
+
+        for setup_step in self.image.setup_steps:
+            for node in self.ips:
+                if setup_step.step_type == ImageSetupStepType.REQS:
+                    self.install_packages(
+                        setup_step.kwargs.get("reqs"),
+                        conda_env_name=setup_step.kwargs.get("conda_env_name"),
+                        node=node,
+                    )
+                elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
+                    run_setup_command(
+                        cmd=setup_step.kwargs.get("cmd"),
+                        cluster=self,
+                        env_vars=env_vars,
+                        stream_logs=True,
+                        node=node,
+                    )
 
     def _sync_default_env_to_cluster(self):
         """Install and set up the default env requirements on the cluster. This does not put the env resource
@@ -1112,6 +1156,8 @@ class Cluster(Resource):
         default_env = _get_env_from(self._default_env) if self._default_env else None
         if default_env:
             self._sync_default_env_to_cluster()
+
+        self._sync_image_to_cluster()
 
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
         local_rh_package_path = None
