@@ -7,6 +7,9 @@ from runhouse.resources.secrets.provider_secrets.github_secret import GitHubSecr
 from runhouse.resources.secrets.provider_secrets.huggingface_secret import (
     HuggingFaceSecret,
 )
+from runhouse.resources.secrets.provider_secrets.kubeconfig_secret import (
+    KubeConfigSecret,
+)
 from runhouse.resources.secrets.provider_secrets.lambda_secret import LambdaSecret
 from runhouse.resources.secrets.provider_secrets.langchain_secret import LangChainSecret
 from runhouse.resources.secrets.provider_secrets.openai_secret import OpenAISecret
@@ -24,6 +27,7 @@ _str_to_provider_class = {
     "gcp": GCPSecret,
     "github": GitHubSecret,
     "huggingface": HuggingFaceSecret,
+    "kubernetes": KubeConfigSecret,
     "lambda": LambdaSecret,
     # SSH secrets
     "ssh": SSHSecret,

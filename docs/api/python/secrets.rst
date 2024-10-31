@@ -76,6 +76,15 @@ HuggingFaceSecret Class
    .. autoattribute:: _DEFAULT_CREDENTIALS_PATH
 
 
+KubeConfigSecret Class
+-----------------------
+.. autoclass:: runhouse.resources.secrets.provider_secrets.kubeconfig_secret.KubeConfigSecret
+   :show-inheritance:
+
+   .. autoattribute:: _PROVIDER
+   .. autoattribute:: _DEFAULT_CREDENTIALS_PATH
+
+
 LambdaSecret Class
 ------------------
 .. autoclass:: runhouse.resources.secrets.provider_secrets.lambda_secret.LambdaSecret

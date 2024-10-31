@@ -262,7 +262,7 @@ class ProviderSecret(Secret):
     def _from_path(self, path: str = None):
         path = path or self.path
         if not path:
-            return ""
+            return {}
 
         path = os.path.expanduser(path)
         if os.path.exists(path):
