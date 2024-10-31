@@ -5,7 +5,7 @@ import pytest
 
 import runhouse as rh
 
-from runhouse.constants import DEFAULT_HTTPS_PORT, EMPTY_DEFAULT_ENV_NAME
+from runhouse.constants import DEFAULT_HTTPS_PORT, EMPTY_DEFAULT_PROCESS_NAME
 from tests.conftest import init_args
 
 from tests.constants import TESTING_AUTOSTOP_INTERVAL, TESTING_LOG_LEVEL
@@ -28,7 +28,7 @@ def setup_test_cluster(args, request, create_env=False):
 
     cluster.save()
 
-    if create_env or cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
+    if create_env or cluster.default_env.name == EMPTY_DEFAULT_PROCESS_NAME:
         test_env().to(cluster)
     return cluster
 

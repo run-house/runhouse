@@ -2,7 +2,7 @@ import logging
 import sys
 from typing import Dict
 
-from runhouse.constants import EMPTY_DEFAULT_ENV_NAME
+from runhouse.constants import EMPTY_DEFAULT_PROCESS_NAME
 
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
@@ -87,7 +87,7 @@ async def get_local_cluster_object():
                     "name", _unnamed_default_env_name(cluster_config.get("name"))
                 )
             else:
-                servlet_name = EMPTY_DEFAULT_ENV_NAME
+                servlet_name = EMPTY_DEFAULT_PROCESS_NAME
 
         await obj_store.ainitialize(
             servlet_name=servlet_name,

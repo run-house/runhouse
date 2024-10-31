@@ -21,7 +21,7 @@ from runhouse.constants import (
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
-    EMPTY_DEFAULT_ENV_NAME,
+    EMPTY_DEFAULT_PROCESS_NAME,
 )
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
@@ -150,7 +150,7 @@ class HTTPServer:
         if not configs.observability_enabled:
             logger.info("disabling cluster observability")
 
-        default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
+        default_env_name = default_env_name or EMPTY_DEFAULT_PROCESS_NAME
 
         # Ray and ClusterServlet should already be
         # initialized by the start script (see below)
@@ -175,7 +175,7 @@ class HTTPServer:
             create=True,
         )
 
-        if default_env_name == EMPTY_DEFAULT_ENV_NAME:
+        if default_env_name == EMPTY_DEFAULT_PROCESS_NAME:
             from runhouse.resources.envs import Env
 
             default_env = Env(name=default_env_name)
