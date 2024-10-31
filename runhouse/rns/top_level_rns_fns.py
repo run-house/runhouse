@@ -67,7 +67,7 @@ async def get_local_cluster_object():
     # By default, obj_store.initialize does not initialize Ray, and instead
     # attempts to connect to an existing cluster.
     from runhouse.resources.hardware.utils import (
-        _unnamed_default_env_name,
+        _unnamed_default_process_name,
         load_cluster_config_from_file,
     )
 
@@ -84,7 +84,7 @@ async def get_local_cluster_object():
                 servlet_name = default_env
             elif isinstance(default_env, Dict):
                 servlet_name = default_env.get(
-                    "name", _unnamed_default_env_name(cluster_config.get("name"))
+                    "name", _unnamed_default_process_name(cluster_config.get("name"))
                 )
             else:
                 servlet_name = EMPTY_DEFAULT_PROCESS_NAME
