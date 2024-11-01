@@ -4,7 +4,13 @@
 import runhouse as rh
 
 
-def download_data(dataset_name, train_sample, save_bucket_name, save_s3_folder_prefix):
+def download_data(
+    dataset_name,
+    train_sample,
+    save_bucket_name=None,
+    save_s3_folder_prefix=None,
+    cache_dir="~/rh_download",
+):
     from datasets import load_dataset
 
     ds = load_dataset(
@@ -13,10 +19,16 @@ def download_data(dataset_name, train_sample, save_bucket_name, save_s3_folder_p
         trust_remote_code=True,
         split=[f"train[:{train_sample}]", "test"],
         download_mode="reuse_cache_if_exists",
-        cache_dir="/mnt/nvme/huggingface_cache",
+        cache_dir=f"{cache_dir}/huggingface_cache/",
     )
-    s3_path = f"s3://{save_bucket_name}/{save_s3_folder_prefix}"
-    ds.save_to_disk(s3_path)
+
+    for split_name in ds.keys():
+        dataset = ds[split_name]
+        dataset.save_to_disk(f"{cache_dir}/{split_name}/")
+
+        if save_bucket_name:
+            s3_path = f"s3://{save_bucket_name}/{save_s3_folder_prefix}/{split_name}/"
+            dataset.save_to_disk(s3_path)
 
     print("Downloaded Data")
 
@@ -25,7 +37,7 @@ def preprocess_data(load_path, save_bucket_name, save_s3_folder_prefix=""):
     from datasets import load_dataset
     from torchvision import transforms
 
-    ds = load_dataset(load_path)  # "/mnt/nvme/downloaded_image_net"
+    ds = load_dataset(load_path)
 
     preprocess = transforms.Compose(
         [
@@ -46,12 +58,9 @@ def preprocess_data(load_path, save_bucket_name, save_s3_folder_prefix=""):
         return batch
 
     for split_name in ds.keys():
-        if split_name == "test":
-            dataset = ds[split_name].map(preprocess_example, batched=True)
-            print("Preprocessed Dataset")
-            dataset.save_to_disk(f"/mnt/nvme/preprocessed_imagenet/{split_name}")
-            s3_path = f"s3://{save_bucket_name}/{save_s3_folder_prefix}/{split_name}"
-            ds.save_to_disk(s3_path)
+        dataset = ds[split_name].map(preprocess_example, batched=True)
+        s3_path = f"s3://{save_bucket_name}/{save_s3_folder_prefix}/{split_name}"
+        dataset.save_to_disk(s3_path)
 
     print("Uploaded Preprocessed Data")
 
@@ -82,14 +91,17 @@ if __name__ == "__main__":
         region="us-east-1",
     ).up_if_not()
 
-    #
+    # Mount the disk to download the data to
+    s3_bucket = "rh-demo-external"
+    cache_dir = "/mnt/nvme"
+
     cluster.run(
         [
-            "sudo mkdir /mnt/nvme",
+            f"sudo mkdir {cache_dir}",
             "sudo mkfs.ext4 /dev/nvme1n1",
-            "sudo mount /dev/nvme1n1 /mnt/nvme",
-            "sudo chown ubuntu:ubuntu /mnt/nvme",
-            "export HF_DATASETS_CACHE=/mnt/nvme/huggingface_cache",
+            f"sudo mount /dev/nvme1n1 {cache_dir}",
+            f"sudo chown ubuntu:ubuntu {cache_dir}",
+            f"export HF_DATASETS_CACHE={cache_dir}/huggingface_cache",
             "mkdir -p $HF_DATASETS_CACHE",
         ]
     )
@@ -99,21 +111,17 @@ if __name__ == "__main__":
         secrets=["aws", "huggingface"],
         reqs=["torch", "torchvision", "Pillow", "datasets[s3]", "boto3"],
     )
-    s3_bucket = "rh-demo-external"
 
-    # Download the data, sampling down to 5% for our example
+    # Download the data, sampling down to 15% for our example
     remote_download_data = rh.function(download_data).to(cluster, env=env)
     remote_download_data(
-        dataset_name="imagenet-1k",
-        save_bucket_name=s3_bucket,
-        save_s3_folder_prefix="resnet-training-example/downloaded_image_net/",
-        train_sample="15%",
+        dataset_name="imagenet-1k", train_sample="15%", cache_dir=cache_dir
     )
 
     # Preprocess the data and upload to S3
     remote_preprocess_data = rh.function(preprocess_data).to(cluster, env=env)
     remote_preprocess_data(
-        load_path=s3_bucket + "/resnet-training-example/downloaded_image_net",
+        load_path=f"{cache_dir}/download/",
         save_bucket_name=s3_bucket,
         save_s3_folder_prefix="resnet-training-example/preprocessed_imagenet/",
     )

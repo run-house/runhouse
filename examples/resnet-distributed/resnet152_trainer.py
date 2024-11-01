@@ -181,7 +181,8 @@ class ResNet152Trainer:
                 f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Val Accuracy: {val_accuracy:.4f}"
             )
             # Save checkpoint every few epochs or based on validation performance
-            if (epoch + 1) % 5 == 0 and self.rank == 0:
+            if (epoch == 0 or (epoch + 1) % 5 == 0) and self.rank == 0:
+                print("Saving checkpoint")
                 self.save(f"resnet152_epoch_{epoch+1}.pth")
 
     def save(self, name):

@@ -50,7 +50,7 @@ async def start_training(
     await asyncio.gather(
         *[
             train_worker.train(
-                num_epochs=5,
+                num_epochs=11,
                 num_classes=1000,
                 train_data_path=train_data_path,
                 val_data_path=val_data_path,
