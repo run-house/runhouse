@@ -6,14 +6,15 @@ Den Quick Start
     <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-den.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
-With `Runhouse Den <https://www.run.house/dashboard>`__, you can
-centrally manage all of your compute and make it available through
-ephemeral clusters for both research and production workflows. Runhouse
-ensures that your compute can be efficiently utilized and oversubscribed
-without slowing down the development velocity of your team.
+With `Runhouse Den <https://www.run.house/dashboard>`__, you can manage
+all of your compute and make it available through ephemeral clusters for
+both research and production workflows. Whether you have a ML platforms
+team or just yourself, Runhouse is the easiest way to ensure your
+compute is efficiently utilized and oversubscribed without slowing down
+development velocity.
 
-- Centralize the management of multiple cloud accounts and Kubernetes
-  clusters in the same place.
+- Centrally manage multiple cloud accounts and Kubernetes clusters in
+  the same place.
 - Both developers and the platforms team can monitor resource usage in
   detail and access persisted logs in the web UI.
 - Save and reload services and resources (clusters, functions, classes,
@@ -22,11 +23,26 @@ without slowing down the development velocity of your team.
 - Set limits and quotas for teams and individuals, and queue requests
   for compute.
 
+A few of the ways Runhouse Den has helped teams include:
+
+- Moving research teams from locally or ad hoc hosted notebooks, towards
+  standardized, reproducible compute and training workflows that are
+  ready to be executed in production.
+- Improving Platform team observability over day-to-day activities as
+  the ML team grew, and getting much better disambiguation between waste
+  (clusters up too long, clusters underutilizing their resources) and
+  genuinely valuable workflows that just happen to be long-lived.
+- Reducing research-to-production time by 80% since resources launched
+  and saved to Den can be scheduled nearly as-is by orchestrators.
+- Improving key / credentials management
+- Adopting a second cloud due to better quotas and cloud credits (while
+  being mostly opaque to the end user)
+
 If you haven’t already, check-out
 `Quickstart <https://www.run.house/docs/tutorials/quick-start-cloud>`__
 or the `Runhouse usage
-guide <https://www.run.house/docs/main/en/how-to-use-runhouse>`__ to get
-started with Runhouse.
+guide <https://www.run.house/docs/main/en/how-to-use-runhouse>`__ to see
+how you can get started with the Runhouse client as well.
 
 Account Creation & Login
 ------------------------

@@ -90,7 +90,8 @@ properly.
     cluster = rh.ondemand_cluster(
         name="rh-cluster",
         instance_type="CPU:2+",
-        provider="aws"
+        provider="aws",
+        autostop_mins = 60
     )
     cluster.up_if_not()
 
