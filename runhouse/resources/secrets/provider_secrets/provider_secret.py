@@ -64,13 +64,15 @@ class ProviderSecret(Secret):
             return self._from_env(self.env_vars)
         return {}
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True, values: bool = True):
         config = super().config(condensed)
         config.update({"provider": self.provider})
         if self.path:
             config.update({"path": self.path})
         if self.env_vars:
             config.update({"env_vars": self.env_vars})
+        if not values:
+            config.pop("values", None)
         return config
 
     @staticmethod
@@ -260,7 +262,7 @@ class ProviderSecret(Secret):
     def _from_path(self, path: str = None):
         path = path or self.path
         if not path:
-            return ""
+            return {}
 
         path = os.path.expanduser(path)
         if os.path.exists(path):

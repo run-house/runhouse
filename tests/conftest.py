@@ -297,6 +297,7 @@ from tests.fixtures.secret_fixtures import (
     gcp_secret,  # noqa: F401
     github_secret,  # noqa: F401
     huggingface_secret,  # noqa: F401
+    kubeconfig_secret,  # noqa: F401
     lambda_secret,  # noqa: F401
     langchain_secret,  # noqa: F401
     openai_secret,  # noqa: F401

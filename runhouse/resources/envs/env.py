@@ -5,12 +5,11 @@ from typing import Dict, List, Optional, Union
 
 from runhouse.globals import obj_store
 from runhouse.logger import get_logger
-
-from runhouse.resources.envs.utils import _process_env_vars, run_setup_command
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.packages import InstallTarget, Package
 from runhouse.resources.resource import Resource
-from runhouse.utils import run_with_logs
+
+from runhouse.utils import _process_env_vars, run_setup_command, run_with_logs
 
 logger = get_logger(__name__)
 
@@ -119,13 +118,6 @@ class Env(Resource):
     def reqs(self, reqs):
         self._reqs = reqs
 
-    def _reqs_to(self, system: Union[str, Cluster], path=None):
-        """Send self.reqs to the system (cluster or file system)"""
-        new_reqs = install_reqs_on_cluster(system, self.reqs, path=path)
-        if self.working_dir:
-            return new_reqs[:-1], new_reqs[-1]
-        return new_reqs, None
-
     def _secrets_to(self, system: Union[str, Cluster]):
         from runhouse.resources.secrets import Secret
 
@@ -135,24 +127,6 @@ class Env(Resource):
                 secret = Secret.from_name(secret)
             new_secrets.append(secret.to(system=system, env=self))
         return new_secrets
-
-    def _install_reqs(
-        self, cluster: Cluster = None, reqs: List = None, node: str = "all"
-    ):
-        reqs = reqs or self.reqs
-        if reqs:
-            for package in reqs:
-                if isinstance(package, str):
-                    pkg = Package.from_string(package)
-                    if pkg.install_method in ["reqs", "local"] and cluster:
-                        pkg = pkg.to(cluster)
-                elif hasattr(package, "_install"):
-                    pkg = package
-                else:
-                    raise ValueError(f"package {package} not recognized")
-
-                logger.debug(f"Installing package: {str(pkg)}")
-                pkg._install(env=self, cluster=cluster, node=node)
 
     def _run_setup_cmds(
         self, cluster: Cluster = None, setup_cmds: List = None, node: str = "all"
@@ -243,7 +217,6 @@ class Env(Resource):
             )
 
         new_env = copy.deepcopy(self)
-        new_env.reqs, new_env.working_dir = self._reqs_to(system, path)
 
         if isinstance(system, Cluster):
             if node_idx is not None:
@@ -260,11 +233,9 @@ class Env(Resource):
             if env_vars:
                 system.set_process_env_vars(process_name=key, env_vars=env_vars)
 
-            if new_env.name:
-                system.call(key, "install", force=force_install)
-            else:
-                system.call(key, "_install_reqs", reqs=new_env.reqs)
-                system.call(key, "_run_setup_cmds", setup_cmds=new_env.setup_cmds)
+            conda_env_name = new_env.env_name if hasattr(self, "conda_yaml") else None
+            system.install_packages(reqs=new_env.reqs, conda_env_name=conda_env_name)
+            system.call(key, "_run_setup_cmds", setup_cmds=new_env.setup_cmds)
 
             # Secrets are resources that go in the env, so put them in after the env is created
             new_env.secrets = self._secrets_to(system)

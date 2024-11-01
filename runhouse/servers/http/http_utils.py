@@ -26,6 +26,15 @@ class RequestContext(BaseModel):
     token: Optional[str]
 
 
+class InstallPackageParams(BaseModel):
+    package_config: Dict[str, Any]
+    conda_env_name: Optional[str] = None
+
+
+class RunBashParams(BaseModel):
+    command: str
+
+
 class ServerSettings(BaseModel):
     cluster_name: Optional[str] = None
     den_auth: Optional[bool] = None

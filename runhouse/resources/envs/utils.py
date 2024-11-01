@@ -1,15 +1,14 @@
-import logging
 import subprocess
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import yaml
 
-from runhouse.constants import CONDA_INSTALL_CMDS, EMPTY_DEFAULT_ENV_NAME
+from runhouse.constants import EMPTY_DEFAULT_ENV_NAME
 from runhouse.globals import rns_client
 from runhouse.resources.resource import Resource
-from runhouse.utils import locate_working_dir, run_with_logs
+from runhouse.utils import locate_working_dir
 
 
 def _process_reqs(reqs):
@@ -32,13 +31,6 @@ def _process_reqs(reqs):
             package = Package.from_config(package)
         preprocessed_reqs.append(package)
     return preprocessed_reqs
-
-
-def _process_env_vars(env_vars):
-    processed_vars = (
-        _env_vars_from_file(env_vars) if isinstance(env_vars, str) else env_vars
-    )
-    return processed_vars
 
 
 def _get_env_from(env, load: bool = True):
@@ -110,57 +102,3 @@ def _get_conda_yaml(conda_env=None):
                 dep["pip"].append("ray >= 2.2.0, != 2.6.0")
                 continue
     return conda_yaml
-
-
-def _env_vars_from_file(env_file):
-    try:
-        from dotenv import dotenv_values, find_dotenv
-    except ImportError:
-        raise ImportError(
-            "`dotenv` package is needed. You can install it with `pip install python-dotenv`."
-        )
-
-    dotenv_path = find_dotenv(str(env_file), usecwd=True)
-    env_vars = dotenv_values(dotenv_path)
-    return dict(env_vars)
-
-
-# ------- Installation helpers -------
-def run_setup_command(
-    cmd: str,
-    cluster: "Cluster" = None,
-    env_vars: Dict = None,
-    stream_logs: bool = True,
-    node: Optional[str] = None,
-):
-    """
-    Helper function to run a command during possibly the cluster default env setup. If a cluster is provided,
-    run command on the cluster using SSH. If the cluster is not provided, run locally, as if already on the
-    cluster (rpc call).
-
-    Args:
-        cmd (str): Command to run on the
-        cluster (Optional[Cluster]): (default: None)
-        stream_logs (bool): (default: True)
-
-    Returns:
-       (status code, stdout)
-    """
-    if not cluster:
-        return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
-    elif cluster.on_this_cluster():
-        cmd = cluster.default_env._full_command(cmd)
-        return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
-
-    return cluster._run_commands_with_runner(
-        [cmd], stream_logs=stream_logs, env_vars=env_vars, node=node
-    )[0]
-
-
-def install_conda(cluster: "Cluster" = None, node: Optional[str] = None):
-    if run_setup_command("conda --version", cluster=cluster, node=node)[0] != 0:
-        logging.info("Conda is not installed. Installing...")
-        for cmd in CONDA_INSTALL_CMDS:
-            run_setup_command(cmd, cluster=cluster, node=node, stream_logs=True)
-        if run_setup_command("conda --version", cluster=cluster, node=node)[0] != 0:
-            raise RuntimeError("Could not install Conda.")

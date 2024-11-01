@@ -1,9 +1,9 @@
+import copy
 import json
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
 import runhouse as rh
 from runhouse.constants import DEFAULT_SERVER_PORT, EMPTY_DEFAULT_ENV_NAME
 
@@ -27,7 +27,9 @@ class TestHTTPClient:
             name="local-cluster",
             host="localhost",
             server_host="0.0.0.0",
-            ssh_creds=provider_secret_values["ssh"],
+            ssh_creds=rh.provider_secret(
+                provider="ssh", values=provider_secret_values["ssh"]
+            ),
         )
         self.local_cluster = rh.cluster(**args)
         self.client = HTTPClient(
@@ -145,22 +147,32 @@ class TestHTTPClient:
         expected_headers = rns_client.request_headers(
             resource_address=self.local_cluster.rns_address
         )
-        response_sequence = [
-            json.dumps({"output_type": "stdout", "data": "Log message"}),
-            json.dumps(
-                {
-                    "output_type": "result_serialized",
-                    "data": serialize_data("final_result", "pickle"),
-                    "serialization": "pickle",
-                }
-            ),
-        ]
-
         # Mock the response to iter_lines to return our simulated server response
         mock_response = mocker.Mock()
         mock_response.status_code = 200
-        mock_response.iter_lines.return_value = iter(response_sequence)
+        mock_response.json.return_value = {
+            "output_type": "result_serialized",
+            "data": serialize_data("final_result", "pickle"),
+            "serialization": "pickle",
+        }
         mock_post = mocker.patch("requests.Session.post", return_value=mock_response)
+
+        # Mock response to the logs function separately
+        mock_logs_aiter = AsyncMock()
+        mock_logs_aiter.__aiter__.return_value = iter(
+            [
+                json.dumps({"output_type": "stdout", "data": "Log message"}),
+            ]
+        )
+
+        mock_logs_iter = mocker.Mock()
+        mock_logs_iter.aiter_lines.return_value = mock_logs_aiter
+        mock_logs_iter.status_code = 200
+
+        mock_stream_get = AsyncMock()
+        mock_stream_get.__aenter__.return_value = mock_logs_iter
+
+        _ = mocker.patch("httpx.AsyncClient.stream", return_value=mock_stream_get)
 
         # Call the method under test
         method_name = "install"
@@ -187,29 +199,43 @@ class TestHTTPClient:
         }
 
         expected_verify = self.client.verify
-
         mock_post.assert_called_once_with(
             expected_url,
             json=expected_json_data,
             headers=expected_headers,
             auth=None,
-            stream=True,
             verify=expected_verify,
         )
 
     @pytest.mark.level("unit")
     def test_call_module_method_with_args_kwargs(self, mocker):
         expected_headers = rns_client.request_headers(self.local_cluster.rns_address)
-
-        mock_response = mocker.MagicMock()
+        # Mock the response to iter_lines to return our simulated server response
+        mock_response = mocker.Mock()
         mock_response.status_code = 200
-        # Set up iter_lines to return an iterator
-        mock_response.iter_lines.return_value = iter(
+        mock_response.json.return_value = {
+            "output_type": "success",
+            "data": None,
+            "serialization": None,
+        }
+        mock_post = mocker.patch("requests.Session.post", return_value=mock_response)
+
+        # Mock response to the logs function separately
+        mock_logs_aiter = AsyncMock()
+        mock_logs_aiter.__aiter__.return_value = iter(
             [
-                json.dumps({"output_type": "log", "data": "Log message"}),
+                json.dumps({"output_type": "stdout", "data": "Log message"}),
             ]
         )
-        mock_post = mocker.patch("requests.Session.post", return_value=mock_response)
+
+        mock_logs_iter = mocker.Mock()
+        mock_logs_iter.aiter_lines.return_value = mock_logs_aiter
+        mock_logs_iter.status_code = 200
+
+        mock_stream_get = AsyncMock()
+        mock_stream_get.__aenter__.return_value = mock_logs_iter
+
+        _ = mocker.patch("httpx.AsyncClient.stream", return_value=mock_stream_get)
 
         data = {"args": [1, 2], "kwargs": {"a": 3, "b": 4}}
         module_name = "module"
@@ -240,7 +266,6 @@ class TestHTTPClient:
             json=expected_json_data,
             headers=expected_headers,
             auth=None,
-            stream=True,
             verify=expected_verify,
         )
 
@@ -258,21 +283,20 @@ class TestHTTPClient:
     def test_call_module_method_config(self, mocker, local_cluster):
         request_headers = rns_client.request_headers(local_cluster.rns_address)
 
-        # Mock the response to iter_lines to return our simulated server response
         test_data = self.local_cluster.config()
         mock_response = mocker.Mock()
         mock_response.status_code = 200
-        mock_response.iter_lines.return_value = iter(
-            [
-                json.dumps({"output_type": "config", "data": test_data}),
-            ]
-        )
-        mocker.patch("requests.Session.post", return_value=mock_response)
+        mock_response.json.return_value = {
+            "output_type": "config",
+            "data": copy.copy(test_data),
+        }
+        _ = mocker.patch("requests.Session.post", return_value=mock_response)
 
         cluster = self.client.call(
             EMPTY_DEFAULT_ENV_NAME,
             "install",
             headers=request_headers,
+            stream_logs=False,
         )
         assert cluster.config() == test_data
 

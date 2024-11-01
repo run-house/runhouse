@@ -124,17 +124,9 @@ def cluster(
             if not alt_options:
                 raise e
 
-    if ssh_creds:
-        from runhouse.resources.secrets.utils import setup_cluster_creds
-
-        ssh_creds_secret = setup_cluster_creds(ssh_creds, name)
-    else:
-        ssh_creds_secret = ssh_creds
-
     if "instance_type" in kwargs.keys():
         return ondemand_cluster(
             name=name,
-            creds=ssh_creds_secret,
             server_port=server_port,
             server_host=server_host,
             server_connection_type=server_connection_type,
@@ -150,9 +142,11 @@ def cluster(
     if isinstance(host, str):
         host = [host]
 
+    ssh_creds = ssh_creds or rns_client.default_ssh_key
+
     c = Cluster(
         ips=kwargs.pop("ips", None) or host,
-        creds=ssh_creds_secret,
+        creds=ssh_creds,
         name=name,
         server_host=server_host,
         server_port=server_port,

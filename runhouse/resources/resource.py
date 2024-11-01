@@ -261,7 +261,6 @@ class Resource:
                 return None
         if not config:
             raise ValueError(f"Resource {name} not found.")
-        config["name"] = name
 
         if _resolve_children:
             config = cls._check_for_child_configs(config)

@@ -1,5 +1,5 @@
 How to Use Runhouse
-==========================
+===================
 This page offers a more detailed guide on using Runhouse to develop and deploy your ML projects. If you have any questions about what is described here, please reach out to
 `hello@run.house <mailto:hello@run.house>`_ or ping us on Discord and we'd be happy to walk you through the details.
 

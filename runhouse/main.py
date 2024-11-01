@@ -222,7 +222,7 @@ def cluster_status(
         console.print("Failed to load status for cluster.")
         return
 
-    except requests.exceptions.ConnectionError:
+    except ConnectionError:
         console.print(
             "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}"
         )
@@ -348,7 +348,7 @@ def cluster_keep_warm(
 
     """
 
-    current_cluster = get_cluster_or_local(cluster_name)
+    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
 
     try:
         if not current_cluster.is_up():
@@ -384,7 +384,7 @@ def cluster_up(
         ``$ runhouse cluster up /sashab/rh-basic-cpu``
 
     """
-    current_cluster = get_cluster_or_local(cluster_name)
+    current_cluster = rh.cluster(name=cluster_name, dryrun=True)
 
     try:
         current_cluster.up_if_not()
@@ -425,7 +425,7 @@ def cluster_down(
     """
     if not force_deletion:
         if cluster_name:
-            proceed = typer.prompt(f"Terminating [reset]{cluster_name}. Proceed? [Y/n]")
+            proceed = typer.prompt(f"Terminating {cluster_name}. Proceed? [Y/n]")
         elif remove_all:
             proceed = typer.prompt(
                 "Terminating all running clusters saved in Den. Proceed? [Y/n]"
@@ -466,7 +466,7 @@ def cluster_down(
         console.print(f"Successfully terminated [reset]{terminated_clusters} clusters.")
         raise typer.Exit(0)
 
-    current_cluster = get_cluster_or_local(cluster_name)
+    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
 
     try:
         if isinstance(current_cluster, rh.OnDemandCluster):
@@ -510,7 +510,7 @@ def cluster_logs(
         ``$ runhouse cluster logs /sashab/rh-basic-cpu --since 60``
 
     """
-    current_cluster = get_cluster_or_local(cluster_name)
+    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
 
     cluster_uri = rns_client.resource_uri(current_cluster.rns_address)
 
