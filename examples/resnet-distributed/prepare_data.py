@@ -57,6 +57,7 @@ class ResNet152DataPrep:
 
         for split_name in self.ds.keys():
             dataset = self.ds[split_name].map(preprocess_example, batched=True)
+            dataset.save_to_disk(f"{self.cache_dir}/{split_name}")
             s3_path = f"s3://{save_bucket_name}/{save_s3_folder_prefix}/{split_name}"
             dataset.save_to_disk(s3_path)
 
@@ -90,7 +91,7 @@ if __name__ == "__main__":
     env = rh.env(
         name="test_env",
         secrets=["aws", "huggingface"],
-        reqs=["torch", "torchvision", "Pillow", "datasets[s3]", "s3fs", "boto3"],
+        reqs=["torch", "torchvision", "Pillow", "datasets[s3]", "s3fs"],
     )
 
     # Download the data, sampling down to 15% for our example
