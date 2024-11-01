@@ -4,82 +4,63 @@
 import runhouse as rh
 
 
-def download_data(
-    dataset_name,
-    train_sample,
-    save_bucket_name=None,
-    save_s3_folder_prefix=None,
-    cache_dir="~/rh_download",
-):
-    from datasets import load_dataset
+class ResNet152DataPrep:
+    def __init__(self, cache_dir="~/rh_download"):
+        self.ds = None
+        self.cache_dir = cache_dir
 
-    ds = load_dataset(
+    def load_data(
+        self,
         dataset_name,
-        token=True,
-        trust_remote_code=True,
-        split=[f"train[:{train_sample}]", "test"],
-        download_mode="reuse_cache_if_exists",
-        cache_dir=f"{cache_dir}/huggingface_cache/",
-    )
+        train_sample="100%",
+    ):
+        from datasets import DatasetDict, load_dataset
 
-    for split_name in ds.keys():
-        dataset = ds[split_name]
-        dataset.save_to_disk(f"{cache_dir}/{split_name}/")
+        dataset = load_dataset(
+            dataset_name,
+            token=True,
+            trust_remote_code=True,
+            split=[f"train[:{train_sample}]", "validation"],
+            download_mode="reuse_cache_if_exists",
+            cache_dir=f"{self.cache_dir}/huggingface_cache/",
+        )
 
-        if save_bucket_name:
-            s3_path = f"s3://{save_bucket_name}/{save_s3_folder_prefix}/{split_name}/"
+        self.ds = DatasetDict(
+            {
+                "train": dataset[0],  # Assuming ds[0] is the train split
+                "validation": dataset[1],  # Assuming ds[1] is the test split
+            }
+        )
+
+    def preprocess_and_upload_data(self, save_bucket_name, save_s3_folder_prefix=""):
+        from torchvision import transforms
+
+        preprocess = transforms.Compose(
+            [
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
+
+        def preprocess_example(batch):
+            processed_images = []
+            for img in batch["image"]:
+                # Check if the image is grayscale
+                if img.mode != "RGB":
+                    img = img.convert("RGB")  # Convert grayscale to RGB
+                processed_images.append(preprocess(img))
+            batch["image"] = processed_images
+            return batch
+
+        for split_name in self.ds.keys():
+            dataset = self.ds[split_name].map(preprocess_example, batched=True)
+            s3_path = f"s3://{save_bucket_name}/{save_s3_folder_prefix}/{split_name}"
             dataset.save_to_disk(s3_path)
 
-    print("Downloaded Data")
-
-
-def preprocess_data(load_path, save_bucket_name, save_s3_folder_prefix=""):
-    from datasets import load_dataset
-    from torchvision import transforms
-
-    ds = load_dataset(load_path)
-
-    preprocess = transforms.Compose(
-        [
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    )
-
-    def preprocess_example(batch):
-        processed_images = []
-        for img in batch["image"]:
-            # Check if the image is grayscale
-            if img.mode != "RGB":
-                img = img.convert("RGB")  # Convert grayscale to RGB
-            processed_images.append(preprocess(img))
-        batch["image"] = processed_images
-        return batch
-
-    for split_name in ds.keys():
-        dataset = ds[split_name].map(preprocess_example, batched=True)
-        s3_path = f"s3://{save_bucket_name}/{save_s3_folder_prefix}/{split_name}"
-        dataset.save_to_disk(s3_path)
-
-    print("Uploaded Preprocessed Data")
-
-
-def send_data_to_s3(bucket_name, s3_folder_prefix, local_folder_path):
-    import os
-
-    import boto3
-
-    s3 = boto3.client("s3")
-
-    for root, dirs, files in os.walk(local_folder_path):
-        for file in files:
-            local_path = os.path.join(root, file)
-            relative_path = os.path.relpath(local_path, local_folder_path)
-            s3_path = os.path.join(s3_folder_prefix, relative_path)
-
-            s3.upload_file(local_path, bucket_name, s3_path)
-            print(f"Uploaded {local_path} to s3://{bucket_name}/{s3_path}")
+        print("Uploaded Preprocessed Data")
 
 
 if __name__ == "__main__":
@@ -109,19 +90,16 @@ if __name__ == "__main__":
     env = rh.env(
         name="test_env",
         secrets=["aws", "huggingface"],
-        reqs=["torch", "torchvision", "Pillow", "datasets[s3]", "boto3"],
+        reqs=["torch", "torchvision", "Pillow", "datasets[s3]", "s3fs", "boto3"],
     )
 
     # Download the data, sampling down to 15% for our example
-    remote_download_data = rh.function(download_data).to(cluster, env=env)
-    remote_download_data(
-        dataset_name="imagenet-1k", train_sample="15%", cache_dir=cache_dir
-    )
+    remote_ResNet152DataPrep = rh.module(ResNet152DataPrep).to(cluster, env=env)
 
-    # Preprocess the data and upload to S3
-    remote_preprocess_data = rh.function(preprocess_data).to(cluster, env=env)
-    remote_preprocess_data(
-        load_path=f"{cache_dir}/download/",
+    dataprep = remote_ResNet152DataPrep(cache_dir=cache_dir, name="dataprep")
+    dataprep.load_data(dataset_name="imagenet-1k", train_sample="1%")
+
+    dataprep.preprocess_and_upload_data(
         save_bucket_name=s3_bucket,
         save_s3_folder_prefix="resnet-training-example/preprocessed_imagenet/",
     )

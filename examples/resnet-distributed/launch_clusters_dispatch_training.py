@@ -34,6 +34,7 @@ async def start_training(
                     "boto3",
                     "s3fs",
                 ],
+                secrets=["aws", "huggingface"],
                 env_vars=dist_config,
                 compute={"node_idx": i},
             )

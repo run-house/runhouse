@@ -163,7 +163,7 @@ class ResNet152Trainer:
             num_classes, model_weights_path, lr, weight_decay, step_size, gamma
         )
         print("Model initialized")
-
+        self.save_checkpoint("resnet152_epoch_0.pth")
         # Load training and validation data
         self.load_train(train_data_path)
         self.load_test(val_data_path)
@@ -183,12 +183,14 @@ class ResNet152Trainer:
             # Save checkpoint every few epochs or based on validation performance
             if (epoch == 0 or (epoch + 1) % 5 == 0) and self.rank == 0:
                 print("Saving checkpoint")
-                self.save(f"resnet152_epoch_{epoch+1}.pth")
+                self.save_checkpoint(f"resnet152_epoch_{epoch+1}.pth")
 
-    def save(self, name):
+    def save_checkpoint(self, name):
         import boto3
 
+        print("Saving model state")
         torch.save(self.model.state_dict(), name)
+        print("Trying to put onto s3")
         s3 = boto3.client("s3")
         s3.upload_file(name, self.s3_bucket, self.s3_path + "checkpoints/" + name)
         print(f"Model saved to s3://{self.s3_bucket}/{self.s3_path}checkpoints/{name}")
