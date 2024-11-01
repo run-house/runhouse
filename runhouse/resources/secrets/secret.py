@@ -45,9 +45,9 @@ class Secret(Resource):
     def values(self):
         return self._values
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True, values: bool = True):
         config = super().config(condensed)
-        if self._values:
+        if self._values and values:
             config.update(
                 {
                     "values": self._values,
@@ -218,10 +218,12 @@ class Secret(Resource):
 
         names = names or _str_to_provider_class.keys()
         for provider in names:
-            if provider == "ssh":
+            if provider in ["ssh", "sky"]:
                 continue
             try:
                 secret = provider_secret(provider=provider)
+                if provider == "sky":
+                    provider = f"ssh-{secret.key}"
                 secrets[provider] = secret
             except ValueError:
                 continue

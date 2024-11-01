@@ -5,20 +5,24 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Union
 
-from runhouse.logger import get_logger
+from runhouse.globals import obj_store
 
-from runhouse.resources.envs.utils import install_conda, run_setup_command
+from runhouse.logger import get_logger
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import (
     _get_cluster_from,
     detect_cuda_version_or_cpu,
 )
 from runhouse.resources.resource import Resource
+
 from runhouse.utils import (
+    conda_env_cmd,
     find_locally_installed_version,
     get_local_install_path,
+    install_conda,
     is_python_package_string,
     locate_working_dir,
+    run_setup_command,
 )
 
 
@@ -117,21 +121,20 @@ class Package(Resource):
 
     @staticmethod
     def _prepend_python_executable(
-        install_cmd: str, env: Union[str, "Env"] = None, cluster: "Cluster" = None
+        install_cmd: str,
+        conda_env_name: Optional[str] = None,
+        cluster: "Cluster" = None,
     ):
         return (
             f"python3 -m {install_cmd}"
-            if cluster or env
+            if cluster or conda_env_name
             else f"{sys.executable} -m {install_cmd}"
         )
 
     @staticmethod
-    def _prepend_env_command(install_cmd: str, env: Union[str, "Env"] = None):
-        if env:
-            from runhouse.resources.envs.utils import _get_env_from
-
-            env = _get_env_from(env)
-            install_cmd = env._full_command(install_cmd)
+    def _prepend_env_command(install_cmd: str, conda_env_name: Optional[str] = None):
+        if conda_env_name:
+            install_cmd = conda_env_cmd(cmd=install_cmd, conda_env_name=conda_env_name)
 
         return install_cmd
 
@@ -149,7 +152,9 @@ class Package(Resource):
             )
 
     def _pip_install_cmd(
-        self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
+        self,
+        conda_env_name: Optional[str] = None,
+        cluster: "Cluster" = None,
     ):
         install_args = f" {self.install_args}" if self.install_args else ""
         if isinstance(self.install_target, InstallTarget):
@@ -160,13 +165,15 @@ class Package(Resource):
 
         install_cmd = f"pip install {self._install_cmd_for_torch(install_cmd, cluster)}"
         install_cmd = self._prepend_python_executable(
-            install_cmd, cluster=cluster, env=env
+            install_cmd, cluster=cluster, conda_env_name=conda_env_name
         )
-        install_cmd = self._prepend_env_command(install_cmd, env=env)
+        install_cmd = self._prepend_env_command(
+            install_cmd, conda_env_name=conda_env_name
+        )
         return install_cmd
 
     def _conda_install_cmd(
-        self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
+        self, conda_env_name: Optional[str] = None, cluster: "Cluster" = None
     ):
         install_args = f" {self.install_args}" if self.install_args else ""
         if isinstance(self.install_target, InstallTarget):
@@ -175,12 +182,14 @@ class Package(Resource):
             install_cmd = self.install_target + install_args
 
         install_cmd = f"conda install -y {install_cmd}"
-        install_cmd = self._prepend_env_command(install_cmd, env=env)
+        install_cmd = self._prepend_env_command(
+            install_cmd, conda_env_name=conda_env_name
+        )
         install_conda(cluster=cluster)
         return install_cmd
 
     def _reqs_install_cmd(
-        self, env: Union[str, "Env"] = None, cluster: "Cluster" = None
+        self, conda_env_name: Optional[str] = None, cluster: "Cluster" = None
     ):
         install_args = f" {self.install_args}" if self.install_args else ""
         if not isinstance(self.install_target, InstallTarget):
@@ -218,44 +227,30 @@ class Package(Resource):
 
         install_cmd = f"pip install {install_cmd}"
         install_cmd = self._prepend_python_executable(
-            install_cmd, env=env, cluster=cluster
+            install_cmd, conda_env_name=conda_env_name, cluster=cluster
         )
-        install_cmd = self._prepend_env_command(install_cmd, env=env)
+        install_cmd = self._prepend_env_command(
+            install_cmd, conda_env_name=conda_env_name
+        )
         return install_cmd
 
     def _install(
         self,
-        env: Union[str, "Env"] = None,
         cluster: "Cluster" = None,
         node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
     ):
         """Install package.
 
         Args:
-            env (Env or str): Environment to install package on. If left empty, defaults to base environment.
-                (Default: ``None``)
-            cluster (Optional[Cluster]): If provided, will install package on cluster using SSH.
+            cluster (Optional[Cluster]): If provided, will install package on cluster using SSH. Otherwise, the
+                assumption is that we are installing locally. (Default: ``None``)
+            node (Optional[str]): Node on the cluster to install the package on, if using SSH. If ``cluster`` is
+                provided without a ``node``, package will be installed on the head node. (Default: ``None``)
+            conda_env_name (Optional[str]): Name of the conda environment to install the package on, if using SSH and
+                installing in a specific conda env that is not activated by default.
         """
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
-
-        if isinstance(self.install_target, InstallTarget):
-            if cluster and Path(self.install_target.local_path).expanduser().exists():
-                cluster.rsync(
-                    source=str(self.install_target.local_path),
-                    dest=str(self.install_target.path_to_sync_to_on_cluster),
-                    up=True,
-                    contents=True,
-                    node=node,
-                )
-
-                self.install_target.local_path = (
-                    self.install_target.path_to_sync_to_on_cluster
-                )
-
-            path = self.install_target.local_path
-
-            if not path:
-                return
 
         if self.install_method == "pip":
 
@@ -278,7 +273,9 @@ class Package(Resource):
                         f"{self.install_target}=={self.preferred_version}"
                     )
 
-            install_cmd = self._pip_install_cmd(env=env, cluster=cluster)
+            install_cmd = self._pip_install_cmd(
+                conda_env_name=conda_env_name, cluster=cluster
+            )
             logger.info(f"Running via install_method pip: {install_cmd}")
             retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
             if retcode != 0:
@@ -287,7 +284,9 @@ class Package(Resource):
                 )
 
         elif self.install_method == "conda":
-            install_cmd = self._conda_install_cmd(env=env, cluster=cluster)
+            install_cmd = self._conda_install_cmd(
+                conda_env_name=conda_env_name, cluster=cluster
+            )
             logger.info(f"Running via install_method conda: {install_cmd}")
             retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
             if retcode != 0:
@@ -297,7 +296,9 @@ class Package(Resource):
                 )
 
         elif self.install_method == "reqs":
-            install_cmd = self._reqs_install_cmd(env=env, cluster=cluster)
+            install_cmd = self._reqs_install_cmd(
+                conda_env_name=conda_env_name, cluster=cluster
+            )
             if install_cmd:
                 logger.info(f"Running via install_method reqs: {install_cmd}")
                 retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
@@ -306,7 +307,9 @@ class Package(Resource):
                         f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
                     )
             else:
-                logger.info(f"{path}/requirements.txt not found, skipping reqs install")
+                logger.info(
+                    f"{self.install_target.full_local_path_str()}/requirements.txt not found, skipping reqs install"
+                )
 
         else:
             if self.install_method != "local":
@@ -317,8 +320,8 @@ class Package(Resource):
         # Need to append to path
         if self.install_method in ["local", "reqs"]:
             if isinstance(self.install_target, InstallTarget):
-                sys.path.insert(
-                    0, self.install_target.full_local_path_str()
+                obj_store.add_sys_path_to_all_processes(
+                    self.install_target.full_local_path_str()
                 ) if not cluster else run_setup_command(
                     f"export PATH=$PATH;{self.install_target.full_local_path_str()}",
                     cluster=cluster,
@@ -326,8 +329,8 @@ class Package(Resource):
                 )
             elif not cluster:
                 if Path(self.install_target).resolve().expanduser().exists():
-                    sys.path.insert(
-                        0, str(Path(self.install_target).resolve().expanduser())
+                    obj_store.add_sys_path_to_all_processes(
+                        str(Path(self.install_target).resolve().expanduser())
                     )
                 else:
                     raise ValueError(
@@ -430,9 +433,7 @@ class Package(Resource):
             system (str, Dict, or Cluster): Cluster to send the package to.
         """
         if not isinstance(self.install_target, InstallTarget):
-            raise TypeError(
-                "`install_target` must be an InstallTarget in order to copy the package to a system."
-            )
+            return self
 
         system = _get_cluster_from(system)
         if isinstance(system, Cluster) and system.on_this_cluster():
@@ -445,6 +446,7 @@ class Package(Resource):
                 dest=str(self.install_target.path_to_sync_to_on_cluster),
                 up=True,
                 contents=True,
+                node="all",
             )
 
             new_package = copy.copy(self)

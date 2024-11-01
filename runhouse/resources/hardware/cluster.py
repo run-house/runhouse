@@ -25,6 +25,7 @@ from runhouse.resources.hardware.utils import (
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import (
+    conda_env_cmd,
     find_locally_installed_version,
     locate_working_dir,
     run_command_with_password_login,
@@ -90,6 +91,7 @@ class Cluster(Resource):
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
         domain: str = None,
+        ssh_properties: Dict = None,
         den_auth: bool = False,
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
@@ -106,7 +108,6 @@ class Cluster(Resource):
         super().__init__(name=name, dryrun=dryrun)
 
         self._rpc_tunnel = None
-        self._creds = creds
 
         self.ips = ips
         self._http_client = None
@@ -119,12 +120,15 @@ class Cluster(Resource):
         self.server_port = server_port
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
+        self.ssh_properties = ssh_properties or {}
         self.server_host = server_host
         self.domain = domain
 
         self._default_env = _get_env_from(default_env)
         if self._default_env and not self._default_env.name:
             self._default_env.name = _unnamed_default_env_name(self.name)
+
+        self._setup_creds(creds)
 
     @property
     def address(self):
@@ -180,7 +184,7 @@ class Cluster(Resource):
         if not self._creds:
             return {}
 
-        return self._creds.values
+        return {**self._creds.values, **self.ssh_properties}
 
     @property
     def docker_user(self) -> Optional[str]:
@@ -215,7 +219,7 @@ class Cluster(Resource):
     ):
         config = self.config(condensed=False)
 
-        # popping creds, because we don't want the secret reds will be saved on the cluster.
+        # popping creds, because we don't want to save secret creds on the cluster.
         config.pop("creds")
 
         json_config = f"{json.dumps(config)}"
@@ -260,15 +264,78 @@ class Cluster(Resource):
 
         return self
 
-    def delete_configs(self):
+    def delete_configs(self, delete_creds: bool = False):
         """Delete configs for the cluster"""
-        if self._creds:
+        if delete_creds and self._creds:
             logger.debug(
                 f"Attempting to delete creds associated with cluster {self.name}"
             )
             rns_client.delete_configs(self._creds)
 
         super().delete_configs()
+
+    def _setup_creds(self, ssh_creds: Union[Dict, "Secret", str]):
+        """Setup cluster credentials from user provided ssh_creds"""
+        from runhouse.resources.secrets import Secret
+        from runhouse.resources.secrets.provider_secrets.sky_secret import SkySecret
+        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
+
+        if not hasattr(self, "_creds"):
+            self._creds = None
+
+        if not ssh_creds:
+            return
+        elif isinstance(ssh_creds, Secret):
+            self._creds = ssh_creds
+            return
+        elif isinstance(ssh_creds, str):
+            self._creds = Secret.from_name(ssh_creds)
+            return
+
+        creds = (
+            copy.copy(ssh_creds) if isinstance(ssh_creds, Dict) else (ssh_creds or {})
+        )
+        private_key_path = (
+            creds["ssh_private_key"] if "ssh_private_key" in creds else None
+        )
+        self.ssh_properties["ssh_private_key"] = private_key_path
+        password = creds.pop("password") if "password" in creds else None
+
+        if private_key_path:
+            key = os.path.basename(private_key_path)
+
+            if password:
+                # extract ssh values and create ssh secret
+                values = (
+                    SSHSecret.extract_secrets_from_path(private_key_path)
+                    if private_key_path
+                    else {}
+                )
+                values["password"] = password
+                self._creds = SSHSecret(
+                    name=f"{self.name}-ssh-secret",
+                    provider="ssh",
+                    key=key,
+                    path=private_key_path,
+                    values=values,
+                )
+            else:
+                # set as standard SSH secret
+                constructor = SkySecret if key == "sky-key" else SSHSecret
+                self._creds = constructor(
+                    name=f"ssh-{key}", key=key, path=private_key_path
+                )
+        elif password:
+            self._creds = Secret(
+                name=f"{self.name}-ssh-secret", values={"password": password}
+            )
+
+        # save non secret values to `_ssh_properties` field
+        if isinstance(creds, Dict):
+            self.ssh_properties = creds
+
+        if self.den_auth or rns_client.autosave_resources():
+            self.save()
 
     def _should_save_creds(self, folder: str = None) -> bool:
         """Checks whether to save the creds associated with the cluster.
@@ -280,8 +347,26 @@ class Cluster(Resource):
         # if not self.rns_address => we are saving the cluster first time in den
         # else, need to check if the username of the current saver is included in the rns_address.
         should_save_creds = (
-            not self.rns_address or local_default_folder in self.rns_address
-        ) and isinstance(self._creds, Secret)
+            (not self.rns_address or local_default_folder in self.rns_address)
+            and self._creds
+            and isinstance(self._creds, Secret)
+        )
+
+        if should_save_creds:
+            # update secret name if it already exists in den w/ different config, avoid overwriting
+            try:
+                if self._creds.rns_address:
+                    saved_secret = Secret.from_name(self._creds.rns_address)
+                    if saved_secret and (
+                        saved_secret.config(values=False)
+                        != self._creds.config(values=False)
+                        or (saved_secret.values != self._creds.values)
+                    ):
+                        new_creds = copy.deepcopy(self._creds)
+                        new_creds.name = f"{self.name}-ssh-secret"
+                        self._creds = new_creds
+            except ValueError:
+                pass
 
         return should_save_creds
 
@@ -313,9 +398,20 @@ class Cluster(Resource):
             _resolve_children=_resolve_children,
         )
         if cluster and cluster._creds and not dryrun:
-            from runhouse.resources.secrets.utils import _write_creds_to_local
+            from runhouse.resources.secrets import Secret
+            from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
-            _write_creds_to_local(cluster.creds_values)
+            if isinstance(cluster._creds, SSHSecret):
+                cluster._creds.write()
+            elif isinstance(cluster._creds, Secret):
+                # old version of cluster creds or password only
+                private_key_path = cluster._creds.values.get("ssh_private_key")
+                if private_key_path:
+                    SSHSecret._write_to_file(
+                        path=private_key_path,
+                        values=cluster._creds.values,
+                    )
+
         return cluster
 
     @classmethod
@@ -348,6 +444,7 @@ class Cluster(Resource):
                 "den_auth",
                 "ssh_port",
                 "client_port",
+                "ssh_properties",
             ],
         )
         creds = self._resource_string_for_subconfig(self._creds, condensed)
@@ -443,14 +540,15 @@ class Cluster(Resource):
             return False
 
         ssh_private_key = ssh_creds.get("ssh_private_key")
-        ssh_private_key_path = Path(ssh_private_key).expanduser()
-        secrets_base_dir = Path(Secret.DEFAULT_DIR).expanduser()
+        if ssh_private_key:
+            ssh_private_key_path = Path(ssh_private_key).expanduser()
+            secrets_base_dir = Path(Secret.DEFAULT_DIR).expanduser()
 
-        # Check if the key path is saved down in the local .rh directory, which we only do for shared credentials
-        if str(ssh_private_key_path).startswith(str(secrets_base_dir)):
-            return True
-
-        return f"{self._creds.name}/" in ssh_creds.get("ssh_private_key", "")
+            # Check if the key path is saved down in the local .rh directory, which we only do for shared credentials
+            if str(ssh_private_key_path).startswith(str(secrets_base_dir)):
+                return True
+            return f"{self._creds.name}/" in ssh_private_key
+        return False
 
     def _command_runner(
         self, node: Optional[str] = None, use_docker_exec: Optional[bool] = False
@@ -509,6 +607,8 @@ class Cluster(Resource):
             return True
         except ValueError:
             return False
+        except ConnectionError:
+            return False
 
     def up_if_not(self):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
@@ -551,8 +651,53 @@ class Cluster(Resource):
             logger.info("Disabling observability on the cluster")
 
         logger.info(f"Syncing default env {self._default_env.name} to cluster")
+
+        from runhouse.utils import (
+            _process_env_vars,
+            create_conda_env,
+            run_setup_command,
+        )
+
+        conda_env_name = (
+            self._default_env.env_name
+            if hasattr(self._default_env, "conda_yaml")
+            else None
+        )
+        env_vars = _process_env_vars(self._default_env.env_vars)
+        setup_cmds = self._default_env.setup_cmds
+
         for node in self.ips:
-            self._default_env.install(cluster=self, node=node)
+            if conda_env_name:
+                create_conda_env(
+                    env_name=conda_env_name,
+                    conda_yaml=self._default_env.conda_yaml,
+                    cluster=self,
+                )
+
+            self.install_packages(
+                self._default_env.reqs, node=node, conda_env_name=conda_env_name
+            )
+
+            if setup_cmds:
+                for cmd in setup_cmds:
+                    if conda_env_name:
+                        cmd = conda_env_cmd(cmd)
+
+                    run_setup_command(
+                        cmd=cmd,
+                        cluster=self,
+                        env_vars=env_vars,
+                        stream_logs=True,
+                        node=node,
+                    )
+
+        if self._default_env.secrets:
+            from runhouse.resources.secrets import Secret
+
+            for secret in self.secrets:
+                if isinstance(secret, str):
+                    secret = Secret.from_name(secret)
+                secret.to(system=self, env=self._default_env)
 
     def _sync_runhouse_to_cluster(
         self,
@@ -618,7 +763,10 @@ class Cluster(Resource):
                 )
 
     def install_packages(
-        self, reqs: List[Union["Package", str]], env: Union["Env", str] = None
+        self,
+        reqs: List[Union["Package", str]],
+        node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
     ):
         """Install the given packages on the cluster.
 
@@ -631,9 +779,13 @@ class Cluster(Resource):
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"])
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"], env="my_conda_env")
         """
-        env = _get_env_from(env) if env else self.default_env
-        env.reqs = env._reqs + reqs
-        env.to(self)
+        for req in reqs:
+            if not node:
+                self.install_package(req, conda_env_name=conda_env_name)
+            else:
+                self.install_package_over_ssh(
+                    req, node=node, conda_env_name=conda_env_name
+                )
 
     def get(self, key: str, default: Any = None, remote=False):
         """Get the result for a given key from the cluster's object store.
@@ -1120,7 +1272,7 @@ class Cluster(Resource):
 
         self.put_resource(self.default_env)
         if default_env:
-            from runhouse.resources.envs.utils import _process_env_vars
+            from runhouse.utils import _process_env_vars
 
             env_vars = _process_env_vars(default_env.env_vars)
             if env_vars:
@@ -1190,7 +1342,7 @@ class Cluster(Resource):
 
     def stop_server(
         self,
-        stop_ray: bool = True,
+        stop_ray: bool = False,
         env: Union[str, "Env"] = None,
         cleanup_actors: bool = True,
     ):
@@ -1202,13 +1354,13 @@ class Cluster(Resource):
             cleanup_actors (bool, optional): Whether to kill all Ray actors. (Default: ``True``)
         """
         cmd = CLI_STOP_CMD
-        if not stop_ray:
-            cmd = cmd + " --no-stop-ray"
+        if stop_ray:
+            cmd = cmd + " --stop-ray"
         if not cleanup_actors:
             cmd = cmd + " --no-cleanup-actors"
 
-        status_codes = self.run([cmd], env=env or self._default_env)
-        assert status_codes[0][0] == 1
+        status_codes = self._run_cli_commands_on_cluster_helper([cmd])
+        assert status_codes[0] == 0
 
     @contextlib.contextmanager
     def pause_autostop(self):
@@ -1488,6 +1640,9 @@ class Cluster(Resource):
             )
 
         logger.debug(f"Copied local certs onto the cluster in path: {dest}")
+
+        # private key should only live on the cluster
+        Path(self.cert_config.key_path).unlink()
 
     def run(
         self,
@@ -1929,17 +2084,14 @@ class Cluster(Resource):
         """Overload by child resources to load any resources they hold internally."""
         from runhouse.resources.envs.env import Env
         from runhouse.resources.secrets.secret import Secret
-        from runhouse.resources.secrets.utils import load_config, setup_cluster_creds
+        from runhouse.resources.secrets.utils import load_config
 
         creds = config.pop("creds", None) or config.pop("ssh_creds", None)
 
         if isinstance(creds, str):
             creds = Secret.from_config(config=load_config(name=creds))
         elif isinstance(creds, dict):
-            if "name" in creds.keys():
-                creds = Secret.from_config(creds)
-            else:
-                creds = setup_cluster_creds(creds, config["name"])
+            creds = Secret.from_config(creds)
         config["creds"] = creds
 
         default_env = config.pop("default_env", None)
@@ -2140,3 +2292,31 @@ class Cluster(Resource):
         return self.client.set_process_env_vars(
             process_name=process_name, env_vars=env_vars
         )
+
+    def install_package(
+        self, package: Union["Package", str], conda_env_name: Optional[str] = None
+    ):
+        from runhouse.resources.packages.package import Package
+
+        if isinstance(package, str):
+            package = Package.from_string(package)
+
+        if self.on_this_cluster():
+            obj_store.ainstall_package_in_all_nodes_and_processes(
+                package, conda_env_name
+            )
+        else:
+            package = package.to(self)
+            self.client.install_package(package, conda_env_name)
+
+    def install_package_over_ssh(
+        self, package: Union["Package", str], node: str, conda_env_name: str
+    ):
+        from runhouse.resources.packages.package import Package
+
+        if isinstance(package, str):
+            package = Package.from_string(package)
+            if package.install_method in ["reqs", "local"]:
+                package = package.to(self)
+
+        package._install(cluster=self, node=node, conda_env_name=conda_env_name)

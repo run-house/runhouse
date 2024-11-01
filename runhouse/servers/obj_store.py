@@ -3,6 +3,7 @@ import copy
 import inspect
 import logging
 import os
+import sys
 import time
 import uuid
 from enum import Enum
@@ -16,10 +17,13 @@ from runhouse.logger import get_logger
 
 from runhouse.rns.defaults import req_ctx
 from runhouse.rns.utils.api import ResourceVisibility
+
 from runhouse.utils import (
     arun_in_thread,
     generate_default_name,
+    is_python_package_string,
     LogToFolder,
+    run_with_logs,
     sync_function,
 )
 
@@ -245,6 +249,12 @@ class ObjStore:
         cuda_visible_devices = list(range(int(num_gpus)))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, cuda_visible_devices))
 
+        # Add to the sys.path the path that you need to prepend
+        paths_to_prepend = await self.aget_paths_to_prepend_in_new_processes()
+        for path in paths_to_prepend:
+            if path not in sys.path:
+                sys.path.insert(0, path)
+
     def initialize(
         self,
         servlet_name: Optional[str] = None,
@@ -262,6 +272,55 @@ class ObjStore:
             setup_cluster_servlet,
             runtime_env,
         )
+
+    ###################################################
+    # Node servlet functionality, mostly stored in cluster servlet for now
+    ###################################################
+
+    async def ainitialize_node_servlets(self):
+        """
+        Initialize node servlets: This can't be done in the cluster servlet constructor because there'll be a circular
+        dependency between the cluster servlet and the node servlets. We'll call this only on the head node in
+        the server
+        """
+        from runhouse.servers.node_servlet import NodeServlet
+
+        names = []
+        for ip in self.get_internal_ips():
+            resources = {f"node:{ip}": 0.001}
+            node_servlet_name = f"node_servlet_{ip}"
+            ray.remote(NodeServlet).options(
+                name=node_servlet_name,
+                get_if_exists=True,
+                lifetime="detached",
+                namespace="runhouse",
+                max_concurrency=1000,
+                resources=resources,
+                num_cpus=0,
+            ).remote()
+            names.append(node_servlet_name)
+
+        await self.acall_actor_method(
+            self.cluster_servlet, "aset_node_servlet_names", names
+        )
+
+    async def aget_node_servlet_names(self):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aget_node_servlet_names"
+        )
+
+    async def arun_bash_command_on_all_nodes(self, command: str):
+        node_servlet_names = await self.aget_node_servlet_names()
+        node_servlet_actors = [
+            ray.get_actor(name, namespace="runhouse") for name in node_servlet_names
+        ]
+        results = await asyncio.gather(
+            *[
+                self.acall_actor_method(node_servlet, "arun_with_logs", command)
+                for node_servlet in node_servlet_actors
+            ]
+        )
+        return results
 
     def get_process_env(self) -> Optional["Env"]:
         """
@@ -595,6 +654,16 @@ class ObjStore:
     async def _apop_servlet_name_for_key(self, key: Any, *args) -> str:
         return await self.acall_actor_method(
             self.cluster_servlet, "apop_servlet_name_for_key", key, *args
+        )
+
+    async def aget_paths_to_prepend_in_new_processes(self) -> str:
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aget_paths_to_prepend_in_new_processes"
+        )
+
+    async def aadd_path_to_prepend_in_new_processes(self, path: str):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aadd_path_to_prepend_in_new_processes", path
         )
 
     ##############################################
@@ -1575,3 +1644,106 @@ class ObjStore:
 
     def status(self, send_to_den: bool = False):
         return sync_function(self.astatus)(send_to_den=send_to_den)
+
+    ##############################################
+    # Globally modify the sys.path in all processes
+    ##############################################
+    async def aadd_sys_path_to_all_processes(self, path: str):
+        tasks = [
+            self.acall_servlet_method(servlet_name, "aprepend_to_sys_path", path)
+            for servlet_name in await self.aget_all_initialized_servlet_names()
+        ]
+        await asyncio.gather(*tasks)
+
+    def add_sys_path_to_all_processes(self, path: str):
+        return sync_function(self.aadd_sys_path_to_all_processes)(path)
+
+    ##############################################
+    # Interact across nodes
+    ##############################################
+    async def ainstall_package_in_all_nodes_and_processes(
+        self, package: "Package", conda_env_name: Optional[str] = None
+    ):
+        from runhouse.resources.packages import InstallTarget, Package
+        from runhouse.resources.packages.package import INSTALL_METHODS
+
+        # Step 1: Make sure that the package is a Package object and the path that it may reference exists if there's path involved
+        if not isinstance(package, Package):
+            raise ValueError("The package must be a Package object.")
+
+        if isinstance(package.install_target, InstallTarget) and not os.path.exists(
+            package.install_target.full_local_path_str()
+        ):
+            raise FileNotFoundError(
+                f"Path {package.install_target.full_local_path_str()} does not exist."
+            )
+
+        logger.info(f"Installing {str(package)} with method {package.install_method}.")
+
+        if package.install_method == "pip":
+
+            # If this is a generic pip package, with no version pinned, we want to check if there is a version
+            # already installed. If there is, then we ignore preferred version and leave the existing version.
+            # The user can always force a version install by doing `numpy==2.0.0` for example. Else, we install
+            # the preferred version, that matches their local.
+            if (
+                is_python_package_string(package.install_target)
+                and package.preferred_version is not None
+            ):
+                # Check if this is installed
+                retcode = run_with_logs(
+                    f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{package.install_target}') else exit(1)\"",
+                )
+                if retcode != 0:
+                    package.install_target = (
+                        f"{package.install_target}=={package.preferred_version}"
+                    )
+
+            install_cmd = package._pip_install_cmd(conda_env_name=conda_env_name)
+            logger.info(f"Running via install_method pip: {install_cmd}")
+            run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
+            if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
+                raise RuntimeError(
+                    f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
+                )
+
+        elif package.install_method == "conda":
+            install_cmd = package._conda_install_cmd(conda_env_name=conda_env_name)
+            logger.info(f"Running via install_method conda: {install_cmd}")
+            run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
+            if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
+                raise RuntimeError(
+                    f"Conda install {install_cmd} failed, check that the package exists and is "
+                    "available for your platform."
+                )
+
+        elif package.install_method == "reqs":
+            install_cmd = package._reqs_install_cmd(conda_env_name=conda_env_name)
+            if install_cmd:
+                logger.info(f"Running via install_method reqs: {install_cmd}")
+                run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
+                if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
+                    raise RuntimeError(
+                        f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
+                    )
+            else:
+                logger.info(
+                    f"{package.install_target.full_local_path_str()}/requirements.txt not found, skipping reqs install"
+                )
+
+        else:
+            if package.install_method != "local":
+                raise ValueError(
+                    f"Unknown install method {package.install_method}. Must be one of {INSTALL_METHODS}"
+                )
+
+        # Need to append to path
+        if package.install_method in ["local", "reqs"]:
+            if isinstance(package.install_target, InstallTarget):
+                await self.aadd_sys_path_to_all_processes(
+                    package.install_target.full_local_path_str()
+                )
+
+                await self.aadd_path_to_prepend_in_new_processes(
+                    package.install_target.full_local_path_str()
+                )

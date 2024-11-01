@@ -90,11 +90,11 @@ class SSHSecret(ProviderSecret):
 
         priv_key_path.parent.mkdir(parents=True, exist_ok=True)
         private_key = values.get("private_key")
-        if private_key is not None:
+        if private_key is not None and not priv_key_path.exists():
             priv_key_path.write_text(private_key)
             priv_key_path.chmod(0o600)
         public_key = values.get("public_key")
-        if public_key is not None:
+        if public_key is not None and not pub_key_path.exists():
             pub_key_path.write_text(public_key)
             pub_key_path.chmod(0o600)
 
@@ -111,8 +111,10 @@ class SSHSecret(ProviderSecret):
         return new_secret
 
     def _from_path(self, path: str):
-        if path == self._DEFAULT_CREDENTIALS_PATH:
-            path = f"{self._DEFAULT_CREDENTIALS_PATH}/{self.key}"
+        if path == self._DEFAULT_CREDENTIALS_PATH or path == os.path.expanduser(
+            self._DEFAULT_CREDENTIALS_PATH
+        ):
+            path = f"{path}/{self.key}"
 
         return self.extract_secrets_from_path(path)
 

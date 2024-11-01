@@ -67,6 +67,8 @@ class ClusterServlet:
         self._key_to_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache(self.cluster_config)
         self.autostop_helper = None
+        self._paths_to_prepend_in_new_processes = []
+        self._node_servlet_names: List[str] = []
 
         if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
             self.autostop_helper = AutostopHelper()
@@ -106,6 +108,24 @@ class ClusterServlet:
             target=self.periodic_autostop_check, daemon=True
         )
         self.autostop_check_thread.start()
+
+    ##############################################
+    # List of node servlet names
+    ##############################################
+    async def aget_node_servlet_names(self) -> List[str]:
+        return self._node_servlet_names
+
+    async def aset_node_servlet_names(self, node_servlet_names: List[str]):
+        self._node_servlet_names = node_servlet_names
+
+    ##############################################
+    # Add to path and get path methods
+    ##############################################
+    async def aadd_path_to_prepend_in_new_processes(self, path: str):
+        self._paths_to_prepend_in_new_processes.append(path)
+
+    async def aget_paths_to_prepend_in_new_processes(self) -> List[str]:
+        return self._paths_to_prepend_in_new_processes
 
     ##############################################
     # Cluster config state storage methods
