@@ -12,6 +12,7 @@ async def start_training(
     working_s3_path,
     train_data_path,
     val_data_path,
+    epochs,
 ):
     train_workers = []
     for i in range(num_nodes):
@@ -51,7 +52,7 @@ async def start_training(
     await asyncio.gather(
         *[
             train_worker.train(
-                num_epochs=11,
+                num_epochs=epochs,
                 num_classes=1000,
                 train_data_path=train_data_path,
                 val_data_path=val_data_path,
@@ -65,16 +66,16 @@ async def start_training(
 if __name__ == "__main__":
     # Set up the s3 buckets we will use for training
     train_data_path = (
-        "s3://rh-demo-external/resnet-training-example/preprocessed/train/"
+        "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/train/"
     )
-    val_data_path = "s3://rh-demo-external/resnet-training-example/preprocessed/test/"
+    val_data_path = "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/validation/"
 
     working_s3_bucket = "rh-demo-external"
     working_s3_path = "resnet-training-example/"
 
     # Create a cluster of 2 GPUs
     gpus_per_node = 1
-    num_nodes = 2
+    num_nodes = 3
     gpu_cluster_name = f"py-{num_nodes}x{gpus_per_node}GPU"
 
     gpu_cluster = rh.cluster(
@@ -84,8 +85,9 @@ if __name__ == "__main__":
         provider="aws",
     ).up_if_not()
 
-    gpu_cluster.restart_server()
+    # gpu_cluster.restart_server()
 
+    epochs = 15
     asyncio.run(
         start_training(
             gpu_cluster,
@@ -95,5 +97,8 @@ if __name__ == "__main__":
             working_s3_path=working_s3_path,
             train_data_path=train_data_path,
             val_data_path=val_data_path,
+            epochs=epochs,
         )
     )
+
+    gpu_cluster.teardown()
