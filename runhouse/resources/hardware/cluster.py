@@ -275,7 +275,8 @@ class Cluster(Resource):
         super().delete_configs()
 
     def _setup_creds(self, ssh_creds: Union[Dict, "Secret", str]):
-        """Setup cluster credentials from user provided ssh_creds"""
+        """Setup cluster credentials from user provided ssh_creds. If no creds are provided, try using
+        the default SSH creds saved in Den."""
         from runhouse.resources.secrets import Secret
         from runhouse.resources.secrets.provider_secrets.sky_secret import SkySecret
         from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
@@ -284,10 +285,22 @@ class Cluster(Resource):
             self._creds = None
 
         if not ssh_creds:
+            from runhouse import ProviderSecret
+
+            try:
+                # Use the default ssh creds if saved in Den
+                ssh_secret = ProviderSecret.from_name("ssh")
+                self._creds = ssh_secret
+                return
+            except ValueError:
+                pass
+
             return
+
         elif isinstance(ssh_creds, Secret):
             self._creds = ssh_creds
             return
+
         elif isinstance(ssh_creds, str):
             self._creds = Secret.from_name(ssh_creds)
             return

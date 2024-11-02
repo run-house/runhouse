@@ -19,6 +19,7 @@ def secret(
         name (str, optional): Name to assign the secret resource.
         values (Dict, optional): Dictionary of secret key-value pairs.
         load_from_den (bool): Whether to try loading the secret from Den. (Default: ``True``)
+        provider (str): Provider corresponding to the secret.
         dryrun (bool, optional): Whether to create in dryrun mode. (Default: False)
     Returns:
         Secret: The resulting Secret object.
@@ -81,13 +82,18 @@ def provider_secret(
             return Secret.from_name(name, load_from_den=load_from_den)
 
     elif not any([values, path, env_vars]):
+        # try reloading by name or provider
+        try:
+            return ProviderSecret.from_name(
+                name or provider, load_from_den=load_from_den
+            )
+        except ValueError:
+            pass
         if provider in Secret.builtin_providers(as_str=True):
             secret_class = _get_provider_class(provider)
             return secret_class(name=name, provider=provider, dryrun=dryrun)
         else:
-            return ProviderSecret.from_name(
-                name or provider, load_from_den=load_from_den
-            )
+            raise ValueError(f"Provider {provider} not recognized.")
 
     elif sum([bool(x) for x in [values, path, env_vars]]) == 1:
         secret_class = _get_provider_class(provider)
