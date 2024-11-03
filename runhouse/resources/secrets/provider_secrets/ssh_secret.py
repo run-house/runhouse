@@ -56,7 +56,8 @@ class SSHSecret(ProviderSecret):
         if name:
             self.name = name
         elif not self.name:
-            self.name = f"ssh-{self.key}"
+            # If name not provided treat as the "default" SSH secret
+            self.name = self._PROVIDER
         return super().save(
             save_values=save_values,
             headers=headers or rns_client.request_headers(),
