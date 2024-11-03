@@ -189,7 +189,7 @@ class DenLauncher(Launcher):
 
         if verbose:
             cls.run_verbose(base_url=cls.TEARDOWN_URL, payload=payload)
-            cluster.address = None
+            cluster.ips = None
             return
 
         # Run blocking call, with no streaming
@@ -203,7 +203,7 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.TEARDOWN_URL}': Failed to "
                 f"teardown cluster: {load_resp_content(resp)}"
             )
-        cluster.address = None
+        cluster.head_ip = None
 
 
 class LocalLauncher(Launcher):
@@ -263,7 +263,7 @@ class LocalLauncher(Launcher):
                 logger.info(
                     f"Cluster has been launched with the custom domain '{cluster.domain}'. "
                     "Please add an A record to your DNS provider to point this domain to the cluster's "
-                    f"public IP address ({cluster.address}) to ensure successful requests."
+                    f"public IP address ({cluster.head_ip}) to ensure successful requests."
                 )
             logger.info("Starting Runhouse server on cluster")
             cluster.restart_server()
@@ -287,7 +287,7 @@ class LocalLauncher(Launcher):
         import sky
 
         sky.down(cluster.name)
-        cluster.address = None
+        cluster.ips = None
         cluster._http_client = None
 
         # Save to Den with updated null IPs

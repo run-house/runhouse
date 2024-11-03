@@ -128,12 +128,12 @@ class OnDemandCluster(Cluster):
         try:
             return super().client
         except ValueError as e:
-            if not self.address:
+            if not self.ips:
                 # Try loading in from local Sky DB
                 self._update_from_sky_status(dryrun=True)
-                if not self.address:
+                if not self.ips:
                     raise ValueError(
-                        f"Could not determine address for ondemand cluster <{self.name}>. "
+                        f"Could not determine ips for ondemand cluster <{self.name}>. "
                         "Up the cluster with `cluster.up_if_not`."
                     )
                 return super().client
@@ -203,7 +203,7 @@ class OnDemandCluster(Cluster):
         return config
 
     def endpoint(self, external: bool = False):
-        if not self.address or self.on_this_cluster():
+        if not self.ips or self.on_this_cluster():
             return None
 
         try:
@@ -221,7 +221,7 @@ class OnDemandCluster(Cluster):
             # Save SSH info to the ~/.ssh/config
             ray_yaml = yaml.safe_load(open(abs_yaml_path, "r"))
             backend_utils.SSHConfigHelper.add_cluster(
-                self.name, [self.address], ray_yaml["auth"]
+                self.name, [self.head_up], ray_yaml["auth"]
             )
 
     @staticmethod
@@ -370,7 +370,7 @@ class OnDemandCluster(Cluster):
             else self.stable_internal_external_ips
         )
         for internal, external in stable_internal_external_ips:
-            if external == self.address:
+            if external == self.head_ip:
                 internal_head_ip = internal
             else:
                 # NOTE: Using external worker address here because we're running from local
@@ -394,9 +394,9 @@ class OnDemandCluster(Cluster):
     def _populate_connection_from_status_dict(self, cluster_dict: Dict[str, Any]):
         if cluster_dict and cluster_dict["status"].name in ["UP", "INIT"]:
             handle = cluster_dict["handle"]
-            self.address = handle.head_ip
+            head_ip = handle.head_ip
             self.stable_internal_external_ips = handle.stable_internal_external_ips
-            if self.stable_internal_external_ips is None or self.address is None:
+            if self.stable_internal_external_ips is None or head_ip is None:
                 raise ValueError(
                     "Sky's cluster status does not have the necessary information to connect to the cluster. Please check if the cluster is up via `sky status`. Consider bringing down the cluster with `sky down` if you are still having issues."
                 )
@@ -471,7 +471,7 @@ class OnDemandCluster(Cluster):
                     ]
                     # Get the namespace for the first pod
                     self.launched_properties["namespace"] = pod_names_and_ips[
-                        self.ips[0]
+                        self.head_ip
                     ][1]
 
                 if not self.launched_properties.get("context"):

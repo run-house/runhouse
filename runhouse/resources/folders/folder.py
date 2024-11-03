@@ -328,7 +328,7 @@ class Folder(Resource):
 
     def _to_cluster(self, dest_cluster, path=None):
         """Copy the folder from a file or cluster source onto a destination cluster."""
-        if not dest_cluster.address:
+        if not dest_cluster.ips:
             raise ValueError("Cluster must be started before copying data to it.")
 
         dest_path = path or f"~/{Path(self.path).name}"
@@ -382,7 +382,7 @@ class Folder(Resource):
                 f"rsync -Pavz --filter='dir-merge,- .gitignore' -e \"ssh {creds_cmd}"
                 f"-o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes "
                 f"-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes "
-                f'-o ControlMaster=auto -o ControlPersist=300s" {src_path}/ {dest_cluster.address}:{dest_path}'
+                f'-o ControlMaster=auto -o ControlPersist=300s" {src_path}/ {dest_cluster.head_ip}:{dest_path}'
             )
             status_codes = self.system.run([command])
             if status_codes[0][0] != 0:
@@ -400,7 +400,7 @@ class Folder(Resource):
 
         This function rsyncs down the data and return a folder with system=='file'.
         """
-        if not cluster.address:
+        if not cluster.ips:
             raise ValueError("Cluster must be started before copying data from it.")
         Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
         cluster.rsync(

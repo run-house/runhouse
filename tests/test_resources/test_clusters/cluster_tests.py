@@ -29,7 +29,7 @@ def sd_generate_image(prompt):
 def test_cluster_config(ondemand_aws_docker_cluster):
     config = ondemand_aws_docker_cluster.config()
     cluster2 = OnDemandCluster.from_config(config)
-    assert cluster2.address == ondemand_aws_docker_cluster.address
+    assert cluster2.head_ip == ondemand_aws_docker_cluster.head_ip
 
 
 def test_cluster_sharing(ondemand_aws_docker_cluster):
@@ -117,7 +117,7 @@ def test_byo_cluster_with_https(static_cpu_pwd_cluster):
 def test_byo_proxy(static_cpu_pwd_cluster, local_folder):
     from tests.test_resources.test_modules.test_functions.conftest import summer
 
-    rh.globals.open_cluster_tunnels.pop(static_cpu_pwd_cluster.address)
+    rh.globals.open_cluster_tunnels.pop(static_cpu_pwd_cluster.head_ip)
     static_cpu_pwd_cluster.client = None
     # static_cpu_pwd_cluster._rpc_tunnel.close()
     static_cpu_pwd_cluster._rpc_tunnel = None
@@ -187,7 +187,7 @@ def test_start_server_with_custom_certs(
     TLSCertConfig(
         key_path=ssl_keyfile,
         cert_path=ssl_certfile,
-    ).generate_certs(address=ondemand_aws_https_cluster_with_auth.address)
+    ).generate_certs(address=ondemand_aws_https_cluster_with_auth.head_ip)
 
     # # Restart the server using the custom certs
     ondemand_aws_https_cluster_with_auth.ssl_certfile = ssl_certfile

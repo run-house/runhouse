@@ -43,7 +43,7 @@ class PyTorchDistributed(Supervisor):
             master_addr = (
                 self.system.internal_ips[0]
                 if isinstance(self.system, OnDemandCluster)
-                else self.system.address
+                else self.system.head_ip
                 if isinstance(self.system, Cluster)
                 else "localhost"
             )

@@ -38,7 +38,7 @@ def static_cpu_pwd_cluster():
         "password": "cluster-pass",
     }
     args = dict(
-        name="static-cpu-password", host=[sky_cluster.address], ssh_creds=ssh_creds
+        name="static-cpu-password", host=[sky_cluster.head_ip], ssh_creds=ssh_creds
     )
     c = rh.cluster(**args).save()
     c.restart_server(resync_rh=True)
