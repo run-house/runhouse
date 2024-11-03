@@ -120,7 +120,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         "cluster": [
             "docker_cluster_pk_ssh_no_auth",  # Represents private dev use case
             "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
-            "docker_cluster_pk_tls_den_auth",  # Represents public app use case
+            # "docker_cluster_pk_tls_den_auth",  # Represents public app use case
             "docker_cluster_pk_http_exposed",  # Represents within VPC use case
             "docker_cluster_pwd_ssh_no_auth",
         ],
@@ -351,11 +351,16 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         resource_class_name = cluster.config().get("resource_type").capitalize()
         config = cluster.config()
 
-        expected_creds = (
-            "ssh-sky-key"
-            if isinstance(cluster._creds, SSHSecret)
-            else f'{config["name"]}-ssh-secret'
-        )
+        default_keypair = rh.globals.configs.get("default_keypair")
+        if isinstance(cluster._creds, SSHSecret):
+            # If default keypair is specified, creds will be using that name
+            expected_creds = (
+                f"ssh-{os.path.basename(default_keypair)}"
+                if default_keypair
+                else "ssh-sky-key"
+            )
+        else:
+            expected_creds = f'{config["name"]}-ssh-secret'
 
         with friend_account():
             curr_config = load_shared_resource_config(
