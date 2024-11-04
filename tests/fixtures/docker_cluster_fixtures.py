@@ -289,6 +289,9 @@ def set_up_local_cluster(
         docker_client.containers.get(container_name).stop()
         docker_client.containers.prune()
         docker_client.images.prune()
+        if rh_cluster._creds and "ssh-secret" in rh_cluster._creds.name:
+            # secret was generated for the test cluster
+            rh_cluster._creds.delete_configs()
         rh_cluster.delete_configs()
 
     return rh_cluster, cleanup
