@@ -169,6 +169,12 @@ class SkySSHRunner(SSHCommandRunner):
             port_forward=port_forward,
             connect_timeout=connect_timeout,
         )
+        logger.info(
+            f"SkySSHRunner.run ssh mode: {ssh_mode}, stream logs: {stream_logs}"
+        )
+        logger.info(
+            f"SkySSHRunner.run use_docker_exec: {self.use_docker_exec}, docker_user: {self.docker_user}"
+        )
         if ssh_mode == SshMode.LOGIN:
             assert isinstance(cmd, list), "cmd must be a list for login mode."
             command = base_ssh_command + cmd

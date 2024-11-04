@@ -332,6 +332,9 @@ class OnDemandCluster(Cluster):
         <https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457>`__.
         """
         if not sky.global_user_state.get_cluster_from_name(self.name):
+            logger.info(
+                "Cluster._sky_status sky.global_user_state.get_cluster_from_name is None"
+            )
             return None
 
         try:
@@ -397,8 +400,18 @@ class OnDemandCluster(Cluster):
                 ssh_values = backend_utils.ssh_credential_from_yaml(
                     yaml_path, ssh_user=handle.ssh_user
                 )
-                if not self.creds_values:
-                    self._setup_creds(ssh_values)
+                logger.info(
+                    f"Cluster._populate_connection_from_status_dict got ssh_values {ssh_values}"
+                )
+                logger.info(
+                    f"Cluster._populate_connection_from_status_dict SSH Props {self.ssh_properties}"
+                )
+                if not self.creds_values or not self.ssh_properties:
+                    logger.info(
+                        "Cluster._populate_connection_from_status_dict setting up creds"
+                    )
+                    logger.info(f"Creds: {ssh_values}")
+                    self._setup_creds({**ssh_values, "ssh_user": "ubuntu"})
 
             # Add worker IPs if multi-node cluster - keep the head node as the first IP
             self.ips = [ext for _, ext in self.stable_internal_external_ips]
@@ -450,6 +463,7 @@ class OnDemandCluster(Cluster):
             return
 
         cluster_dict = self._sky_status(refresh=not dryrun)
+        logger.info(f"Cluster._update_from_sky_status cluster dict: {cluster_dict}")
         self._populate_connection_from_status_dict(cluster_dict)
 
     def get_instance_type(self):

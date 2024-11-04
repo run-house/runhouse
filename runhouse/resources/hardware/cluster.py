@@ -581,6 +581,8 @@ class Cluster(Resource):
                 "ssh_control_name", f"{node}:{self.ssh_port}"
             )
 
+            logger.info(f"cluster._command_runner SSH creds: {ssh_credentials}")
+
             runner = SkySSHRunner(
                 (node, self.ssh_port),
                 ssh_user=ssh_credentials.get("ssh_user"),
@@ -747,7 +749,7 @@ class Cluster(Resource):
                 # import runhouse
 
                 # _install_url = f"runhouse=={runhouse.__version__}"
-                _install_url = "git+https://github.com/run-house/runhouse.git@replace-sky-with-den-apis#egg=runhouse[all]"
+                _install_url = "git+https://github.com/run-house/runhouse.git@11-04-testing_runhouse_install#egg=runhouse[all]"
             rh_install_cmd = f"python3 -m pip install {_install_url}"
 
         for node in self.ips:
@@ -1688,6 +1690,8 @@ class Cluster(Resource):
         env = env or self.default_env
         env = _get_env_from(env)
 
+        logger.info(f"cluster.run <{commands}> <{node}>")
+
         # If node is not specified, then we just use normal logic, knowing that we are likely on the head node
         if not node:
             env_name = (
@@ -1728,6 +1732,8 @@ class Cluster(Resource):
             else:
 
                 full_commands = [env._full_command(cmd) for cmd in commands]
+
+                logger.info(f"_run_commands_with_runner <{full_commands}> <{node}>")
 
                 return_codes = self._run_commands_with_runner(
                     full_commands,
@@ -1794,6 +1800,10 @@ class Cluster(Resource):
                 )
                 if not ssh_mode:
                     raise ValueError(f"Invalid SSH mode: {_ssh_mode}.")
+
+                logger.info(f"cluster._run_ommands_with_runner run command: {command}")
+                logger.info(f"docker user: {self.docker_user}")
+
                 ret_code = runner.run(
                     command,
                     require_outputs=require_outputs,
@@ -2092,6 +2102,7 @@ class Cluster(Resource):
         if isinstance(creds, str):
             creds = Secret.from_config(config=load_config(name=creds))
         elif isinstance(creds, dict):
+
             creds = Secret.from_config(creds)
         config["creds"] = creds
 
