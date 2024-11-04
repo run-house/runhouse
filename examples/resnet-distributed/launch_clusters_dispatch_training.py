@@ -85,7 +85,7 @@ if __name__ == "__main__":
         provider="aws",
     ).up_if_not()
 
-    # gpu_cluster.restart_server()
+    gpu_cluster.restart_server()
 
     epochs = 15
     asyncio.run(

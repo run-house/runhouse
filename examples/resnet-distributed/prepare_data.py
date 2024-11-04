@@ -27,8 +27,8 @@ class ResNet152DataPrep:
 
         self.ds = DatasetDict(
             {
-                "train": dataset[0],  # Assuming ds[0] is the train split
-                "validation": dataset[1],  # Assuming ds[1] is the test split
+                "train": dataset[0],
+                "validation": dataset[1],
             }
         )
 
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     remote_ResNet152DataPrep = rh.module(ResNet152DataPrep).to(cluster, env=env)
 
     dataprep = remote_ResNet152DataPrep(cache_dir=cache_dir, name="dataprep")
-    dataprep.load_data(dataset_name="imagenet-1k", train_sample="1%")
+    dataprep.load_data(dataset_name="imagenet-1k", train_sample="20%")
 
     dataprep.preprocess_and_upload_data(
         save_bucket_name=s3_bucket,
