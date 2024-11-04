@@ -246,6 +246,8 @@ class LocalLauncher(Launcher):
             if cluster.image_id:
                 cls._set_docker_env_vars(task)
 
+            logger.info("LocalLauncher.up running sky.launch")
+
             sky.launch(
                 task,
                 cluster_name=cluster.name,
@@ -254,6 +256,9 @@ class LocalLauncher(Launcher):
                 **cluster.sky_kwargs.get("launch", {}),
             )
 
+            logger.info(
+                f"LocalLauncher.up running cluster._update_from_sky_status, is_shared: {cluster.is_shared}"
+            )
             cluster._update_from_sky_status()
             if cluster.domain:
                 logger.info(
@@ -261,6 +266,7 @@ class LocalLauncher(Launcher):
                     "Please add an A record to your DNS provider to point this domain to the cluster's "
                     f"public IP address ({cluster.address}) to ensure successful requests."
                 )
+            logger.info("LocalLauncher.up running cluster.restart_server")
             cluster.restart_server()
             if rns_client.autosave_resources():
                 cluster.save()
