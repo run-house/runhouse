@@ -1,5 +1,5 @@
 import ast
-from typing import Optional
+from typing import Any, Optional
 
 import requests
 
@@ -8,7 +8,7 @@ from runhouse.constants import DOCKER_LOGIN_ENV_VARS
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import SSEClient
-from runhouse.rns.utils.api import load_resp_content
+from runhouse.rns.utils.api import load_resp_content, read_resp_data
 from runhouse.utils import Spinner
 
 logger = get_logger(__name__)
@@ -33,7 +33,27 @@ class Launcher:
         return list(sky.clouds.CLOUD_REGISTRY)
 
     @classmethod
-    def run_verbose(cls, base_url: str, payload: dict = None):
+    def sky_secret(cls):
+        # TODO: is this guaranteed to be the default SkySecret name?
+        secrets_name = "ssh-sky-key"
+        try:
+            sky_secret = rh.secret(secrets_name)
+        except ValueError:
+            raise ValueError(f"No cluster secret found in Den with name {secrets_name}")
+
+        secret_values = sky_secret.values
+        if (
+            not secret_values
+            or "public_key" not in secret_values
+            or "private_key" not in secret_values
+        ):
+            raise ValueError(
+                f"Public key and private key values not found in secret {secrets_name}"
+            )
+        return sky_secret
+
+    @classmethod
+    def run_verbose(cls, base_url: str, payload: dict = None) -> Any:
         """Call a specified Den API while streaming logs back using an SSE client."""
         resp = requests.post(
             base_url,
@@ -84,7 +104,7 @@ class DenLauncher(Launcher):
     """Launcher APIs for operations handled remotely via Den."""
 
     LAUNCH_URL = f"{rns_client.api_server_url}/cluster/up"
-    TEARDOWN_URL = f"{rns_client.api_server_url}/cluster/down"
+    TEARDOWN_URL = f"{rns_client.api_server_url}/cluster/teardown"
 
     @classmethod
     def _update_from_den_response(cls, cluster, config: dict):
@@ -119,32 +139,16 @@ class DenLauncher(Launcher):
     def up(cls, cluster, verbose: bool = True, force: bool = False):
         """Launch the cluster via Den."""
         cls._validate_provider(cluster)
-
-        # TODO: is this guaranteed to be the default SkySecret name?
-        secrets_name = "ssh-sky-key"
-        try:
-            sky_secret = rh.secret(secrets_name)
-        except ValueError:
-            raise ValueError(f"No cluster secret found in Den with name {secrets_name}")
-
-        secret_values = sky_secret.values
-        if (
-            not secret_values
-            or "public_key" not in secret_values
-            or "private_key" not in secret_values
-        ):
-            raise ValueError(
-                f"Public key and private key values not found in secret {secrets_name}"
-            )
+        sky_secret = cls.sky_secret()
 
         payload = {
             "cluster_config": {
                 **cluster.config(),
                 # TODO: update once secrets are updated to include pub + private key values (should have only one field)
-                "ssh_creds": "/mkandler/aws-cpu-matt-ssh-secret",
-                "sky_creds": sky_secret.rns_address,
+                "ssh_creds": sky_secret.rns_address,
             },
             "force": force,
+            "verbose": verbose,
         }
 
         if verbose:
@@ -163,22 +167,31 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.LAUNCH_URL}': Failed to "
                 f"launch cluster: {load_resp_content(resp)}"
             )
-        data = resp.json()
+        data = read_resp_data(resp)
         logger.info("Successfully launched cluster")
         cls._update_from_den_response(cluster=cluster, config=data)
 
     @classmethod
     def teardown(cls, cluster, verbose: bool = True):
         """Tearing down a cluster via Den."""
-        # TODO [MK] what payload do we need here?
+        sky_secret = cls.sky_secret()
+
+        payload = {
+            "cluster_name": cluster.rns_address,
+            "delete_from_den": False,
+            "ssh_creds": sky_secret.rns_address,
+            "verbose": verbose,
+        }
+
         if verbose:
-            cls.run_verbose(base_url=cls.TEARDOWN_URL)
+            cls.run_verbose(base_url=cls.TEARDOWN_URL, payload=payload)
+            cluster.address = None
             return
 
         # Run blocking call, with no streaming
         resp = requests.post(
             cls.TEARDOWN_URL,
-            json=cluster.config(),
+            json=payload,
             headers=rns_client.request_headers(),
         )
         if resp.status_code != 200:
@@ -186,6 +199,7 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.TEARDOWN_URL}': Failed to "
                 f"teardown cluster: {load_resp_content(resp)}"
             )
+        cluster.address = None
 
 
 class LocalLauncher(Launcher):
@@ -266,6 +280,12 @@ class LocalLauncher(Launcher):
         import sky
 
         sky.down(cluster.name)
+        cluster.address = None
+        cluster._http_client = None
+
+        # Save to Den with updated null IPs
+        if rns_client.autosave_resources():
+            cluster.save()
 
     @staticmethod
     def _set_docker_env_vars(task):
