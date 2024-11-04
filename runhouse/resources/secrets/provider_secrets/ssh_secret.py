@@ -57,6 +57,13 @@ class SSHSecret(ProviderSecret):
             self.name = name
         elif not self.name:
             self.name = f"ssh-{self.key}"
+
+        try:
+            rel_path = Path(self.path).relative_to(Path.home())
+            self.path = str(rel_path)
+        except (ValueError, RuntimeError):
+            pass
+
         return super().save(
             save_values=save_values,
             headers=headers or rns_client.request_headers(),
