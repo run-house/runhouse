@@ -524,18 +524,12 @@ class OnDemandCluster(Cluster):
             return self
 
         if self.launcher_type == LauncherType.DEN:
-            logger.info("Launching cluster with Den.")
-            launcher = DenLauncher(cluster=self, force=force)
+            logger.info("Launching cluster with Den")
+            DenLauncher.up(cluster=self, verbose=verbose, force=force)
+
         else:
-            logger.info("Launching cluster locally.")
-            launcher = LocalLauncher(cluster=self)
-
-        launcher.up(verbose=verbose)
-
-        self.restart_server()
-
-        if rns_client.autosave_resources():
-            self.save()
+            logger.info("Launching cluster locally")
+            LocalLauncher.up(cluster=self, verbose=verbose)
 
         return self
 
@@ -582,18 +576,12 @@ class OnDemandCluster(Cluster):
         except Exception as e:
             logger.warning(e)
 
-        if self.launcher_type == LauncherType.LOCAL:
-            logger.info("Tearing down cluster locally via Sky.")
-            LocalLauncher(cluster=self).teardown()
-        else:
+        if self.launcher_type == LauncherType.DEN:
             logger.info("Tearing down cluster with Den.")
-            DenLauncher(cluster=self).teardown(verbose=verbose)
-
-        self.address = None
-
-        # Save to Den with updated null IPs
-        if rns_client.autosave_resources():
-            self.save()
+            DenLauncher.teardown(cluster=self, verbose=verbose)
+        else:
+            logger.info("Tearing down cluster locally via Sky.")
+            LocalLauncher.teardown(cluster=self, verbose=verbose)
 
     def teardown_and_delete(self, verbose: bool = True):
         """Teardown cluster and delete it from configs.

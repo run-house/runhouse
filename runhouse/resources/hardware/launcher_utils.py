@@ -1,25 +1,27 @@
-import json
-from asyncio import Event
+import ast
+from typing import Any, Optional
 
 import requests
 
+import runhouse as rh
 from runhouse.constants import DOCKER_LOGIN_ENV_VARS
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
-from runhouse.rns.utils.api import load_resp_content
+from runhouse.resources.hardware.utils import SSEClient
+from runhouse.rns.utils.api import load_resp_content, read_resp_data
+from runhouse.utils import Spinner
 
 logger = get_logger(__name__)
 
 
 class Launcher:
-    def __init__(self, cluster):
-        self.cluster = cluster
-
-    def up(self, verbose: bool = True):
+    @classmethod
+    def up(cls, cluster, verbose: bool = True):
         """Abstract method for launching a cluster."""
         raise NotImplementedError
 
-    def teardown(self, verbose: bool = True):
+    @classmethod
+    def teardown(cls, cluster, verbose: bool = True):
         """Abstract method for tearing down a cluster."""
         raise NotImplementedError
 
@@ -30,178 +32,198 @@ class Launcher:
 
         return list(sky.clouds.CLOUD_REGISTRY)
 
-    def run_verbose(self, base_url: str, logs_url: str, payload: dict = None):
-        """Call a specified Den API while streaming logs back from a separate logs endpoint."""
-        from asyncio import Event
-        from concurrent.futures import ThreadPoolExecutor
+    @classmethod
+    def sky_secret(cls):
+        # TODO: is this guaranteed to be the default SkySecret name?
+        secrets_name = "ssh-sky-key"
+        try:
+            sky_secret = rh.secret(secrets_name)
+        except ValueError:
+            raise ValueError(f"No cluster secret found in Den with name {secrets_name}")
 
-        # Create an event to stop the log streaming thread when finished
-        stop_event = Event()
-
-        with ThreadPoolExecutor() as executor:
-            # Send request to the Den URL specified
-            resp = requests.post(
-                base_url,
-                json=payload or self.cluster.config(),
-                headers=rns_client.request_headers(),
+        secret_values = sky_secret.values
+        if (
+            not secret_values
+            or "public_key" not in secret_values
+            or "private_key" not in secret_values
+        ):
+            raise ValueError(
+                f"Public key and private key values not found in secret {secrets_name}"
             )
+        return sky_secret
 
-            if resp.status_code != 200:
-                # Stop the log thread on failure
-                stop_event.set()
-                raise Exception(
-                    f"Received [{resp.status_code}] from Den POST '{base_url}': {load_resp_content(resp)}"
-                )
-
-            resp_data = resp.json().get("data", {})
-            launch_id = resp_data.get("launch_id")
-            temp_dir = resp_data.get("temp_dir")
-
-            # Start the log streaming in a separate thread
-            executor.submit(
-                self.load_logs_in_thread, stop_event, logs_url, temp_dir, launch_id
-            )
-
-            # Stop the log streaming once the request is done
-            stop_event.set()
-
-    def load_logs_in_thread(
-        self, stop_event: Event, url: str, temp_dir: str, launch_id: str
-    ):
-        import asyncio
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(
-            self.stream_logs_from_url(stop_event, url, temp_dir, launch_id)
+    @classmethod
+    def run_verbose(cls, base_url: str, payload: dict = None) -> Any:
+        """Call a specified Den API while streaming logs back using an SSE client."""
+        resp = requests.post(
+            base_url,
+            json=payload,
+            headers=rns_client.request_headers(),
+            stream=True,
         )
 
-    @staticmethod
-    async def stream_logs_from_url(
-        stop_event: Event, url: str, temp_dir: str, launch_id: str
-    ):
-        """Load logs returned from the specified Den URL. The response should be a stream of JSON logs."""
-        import httpx
+        if resp.status_code != 200:
+            raise Exception(
+                f"Received [{resp.status_code}] from Den POST '{base_url}': {load_resp_content(resp)}"
+            )
 
-        client = httpx.AsyncClient(timeout=None)
+        client = SSEClient(resp)
+        spinner: Optional[Spinner] = None
+        data = {}
 
-        async with client.stream(
-            "POST",
-            url,
-            json={"temp_dir": temp_dir, "launch_id": launch_id},
-            headers=rns_client.request_headers(),
-        ) as res:
-            if res.status_code != 200:
-                error_resp = await res.aread()
-                raise ValueError(f"Error calling Den logs API: {error_resp.decode()}")
+        for event in client.events():
+            # Stream through data events
+            if spinner:
+                spinner.stop()
+                spinner = None
 
-            async for response_json in res.aiter_lines():
-                if stop_event.is_set():
-                    break
-                resp = json.loads(response_json)
+            if event.event == "info_spinner":
+                logger.info(event.data)
+                spinner = Spinner(logger=logger, desc=str(event.data))
+                spinner.start()
 
-                # TODO [JL] any formatting to do here?
-                print(resp)
+            if event.event == "info":
+                logger.info(event.data)
 
-        await client.aclose()
+            if event.event == "error":
+                event_data = ast.literal_eval(event.data)
+                raise Exception(
+                    f"Received [{event_data.get('code')}] from Den POST '{base_url}': {event_data.get('detail')}"
+                )
+
+            if event.event == "end":
+                # End returns data for continuing this method
+                logger.info("Successfully ran cluster operation via Den")
+                data = ast.literal_eval(event.data)
+                break
+
+        return data
 
 
 class DenLauncher(Launcher):
     """Launcher APIs for operations handled remotely via Den."""
 
     LAUNCH_URL = f"{rns_client.api_server_url}/cluster/up"
-    TEARDOWN_URL = f"{rns_client.api_server_url}/cluster/down"
+    TEARDOWN_URL = f"{rns_client.api_server_url}/cluster/teardown"
 
-    # TODO update these URLs
-    LAUNCH_LOGS_URL = f"{rns_client.api_server_url}/cluster/logs/up"
-    TEARDOWN_LOGS_URL = f"{rns_client.api_server_url}/cluster/logs/teardown"
+    @classmethod
+    def _update_from_den_response(cls, cluster, config: dict):
+        """Updates cluster with config from Den."""
+        cluster.launched_properties = config.get("launched_properties", {})
+        cluster.ips = config.get("ips", {})
+        cluster.stable_internal_external_ips = config.get(
+            "stable_internal_external_ips", {}
+        )
+        creds = config.get("creds")
+        if not cluster.creds_values and creds:
+            from runhouse.resources.secrets.utils import setup_cluster_creds
 
-    def __init__(self, cluster, force: bool = False):
-        super().__init__(cluster)
-        self._validate_provider()
-        self.force = force
+            cluster._creds = setup_cluster_creds(creds, cluster.name)
 
-    def _validate_provider(self):
+    @classmethod
+    def _validate_provider(cls, cluster):
         """Ensure that the provider is supported."""
-        if self.cluster.provider == "cheapest":
+        if cluster.provider == "cheapest":
             raise ValueError(
                 "Cheapest not currently supported for Den launcher. Please specify a cloud provider."
             )
 
-        supported_providers = self.supported_providers()
-        if self.cluster.provider not in supported_providers:
+        supported_providers = cls.supported_providers()
+        if cluster.provider not in supported_providers:
             raise ValueError(
-                f"Cluster provider {self.cluster.provider} not supported. "
+                f"Cluster provider {cluster.provider} not supported. "
                 f"Must be one of {supported_providers} supported by SkyPilot."
             )
 
-    def up(self, verbose: bool = True):
+    @classmethod
+    def up(cls, cluster, verbose: bool = True, force: bool = False):
         """Launch the cluster via Den."""
+        cls._validate_provider(cluster)
+        sky_secret = cls.sky_secret()
+
+        payload = {
+            "cluster_config": {
+                **cluster.config(),
+                # TODO: update once secrets are updated to include pub + private key values (should have only one field)
+                "ssh_creds": sky_secret.rns_address,
+            },
+            "force": force,
+            "verbose": verbose,
+        }
+
         if verbose:
-            config = self.cluster.config()
-            config["force"] = self.force
-            self.run_verbose(
-                base_url=self.LAUNCH_URL, logs_url=self.LAUNCH_LOGS_URL, payload=config
-            )
-        else:
-            # Blocking call with no streaming
-            resp = requests.post(
-                self.LAUNCH_URL,
-                json={**self.cluster.config(), "force": self.force},
-                headers=rns_client.request_headers(),
-            )
-            if resp.status_code != 200:
-                raise Exception(
-                    f"Received [{resp.status_code}] from Den POST '{self.LAUNCH_URL}': Failed to "
-                    f"launch cluster: {load_resp_content(resp)}"
-                )
-
-        logger.info("Successfully launched cluster.")
-
-    def teardown(self, verbose: bool = True):
-        """Tearing down a cluster via Den."""
-        # TODO [MK] what payload do we need here?
-        if verbose is False:
-            # Run blocking call, with no streaming
-            resp = requests.post(
-                self.TEARDOWN_URL,
-                json=self.cluster.config(),
-                headers=rns_client.request_headers(),
-            )
-            if resp.status_code != 200:
-                raise Exception(
-                    f"Received [{resp.status_code}] from Den POST '{self.TEARDOWN_URL}': Failed to "
-                    f"teardown cluster: {load_resp_content(resp)}"
-                )
+            data = cls.run_verbose(base_url=cls.LAUNCH_URL, payload=payload)
+            cls._update_from_den_response(cluster=cluster, config=data)
             return
 
-        self.run_verbose(base_url=self.TEARDOWN_URL, logs_url=self.TEARDOWN_LOGS_URL)
+        # Blocking call with no streaming
+        resp = requests.post(
+            cls.LAUNCH_URL,
+            json=payload,
+            headers=rns_client.request_headers(),
+        )
+        if resp.status_code != 200:
+            raise Exception(
+                f"Received [{resp.status_code}] from Den POST '{cls.LAUNCH_URL}': Failed to "
+                f"launch cluster: {load_resp_content(resp)}"
+            )
+        data = read_resp_data(resp)
+        logger.info("Successfully launched cluster")
+        cls._update_from_den_response(cluster=cluster, config=data)
+
+    @classmethod
+    def teardown(cls, cluster, verbose: bool = True):
+        """Tearing down a cluster via Den."""
+        sky_secret = cls.sky_secret()
+
+        payload = {
+            "cluster_name": cluster.rns_address,
+            "delete_from_den": False,
+            "ssh_creds": sky_secret.rns_address,
+            "verbose": verbose,
+        }
+
+        if verbose:
+            cls.run_verbose(base_url=cls.TEARDOWN_URL, payload=payload)
+            cluster.address = None
+            return
+
+        # Run blocking call, with no streaming
+        resp = requests.post(
+            cls.TEARDOWN_URL,
+            json=payload,
+            headers=rns_client.request_headers(),
+        )
+        if resp.status_code != 200:
+            raise Exception(
+                f"Received [{resp.status_code}] from Den POST '{cls.TEARDOWN_URL}': Failed to "
+                f"teardown cluster: {load_resp_content(resp)}"
+            )
+        cluster.address = None
 
 
 class LocalLauncher(Launcher):
     """Launcher APIs for operations handled locally via Sky."""
 
-    def __init__(self, cluster):
-        super().__init__(cluster)
-        self._validate_provider()
-
-    def _validate_provider(self):
+    @classmethod
+    def _validate_provider(cls, cluster):
         """Check if LocalLauncher supports the provided cloud provider."""
-        supported_providers = ["cheapest"] + self.supported_providers()
-        if self.cluster.provider not in supported_providers:
+        supported_providers = ["cheapest"] + cls.supported_providers()
+        if cluster.provider not in supported_providers:
             raise ValueError(
-                f"Cluster provider {self.cluster.provider} not supported. "
+                f"Cluster provider {cluster.provider} not supported. "
                 f"Must be one of {supported_providers} supported by SkyPilot."
             )
 
-    def up(self, verbose: bool = True):
+    @classmethod
+    def up(cls, cluster, verbose: bool = True):
         """Launch the cluster locally."""
         import sky
 
-        task = sky.Task(num_nodes=self.cluster.num_instances)
+        task = sky.Task(num_nodes=cluster.num_instances)
         cloud_provider = (
-            sky.clouds.CLOUD_REGISTRY.from_str(self.cluster.provider)
-            if self.cluster.provider != "cheapest"
+            sky.clouds.CLOUD_REGISTRY.from_str(cluster.provider)
+            if cluster.provider != "cheapest"
             else None
         )
 
@@ -209,28 +231,40 @@ class LocalLauncher(Launcher):
             task.set_resources(
                 sky.Resources(
                     cloud=cloud_provider,
-                    instance_type=self.cluster.get_instance_type(),
-                    accelerators=self.cluster.accelerators(),
-                    cpus=self.cluster.num_cpus(),
-                    memory=self.cluster.memory,
-                    region=self.cluster.region or configs.get("default_region"),
-                    disk_size=self.cluster.disk_size,
-                    ports=self.cluster.open_ports,
-                    image_id=self.cluster.image_id,
-                    use_spot=self.cluster.use_spot,
-                    **self.cluster.sky_kwargs.get("resources", {}),
+                    instance_type=cluster.get_instance_type(),
+                    accelerators=cluster.accelerators(),
+                    cpus=cluster.num_cpus(),
+                    memory=cluster.memory,
+                    region=cluster.region or configs.get("default_region"),
+                    disk_size=cluster.disk_size,
+                    ports=cluster.open_ports,
+                    image_id=cluster.image_id,
+                    use_spot=cluster.use_spot,
+                    **cluster.sky_kwargs.get("resources", {}),
                 )
             )
-            if self.cluster.image_id:
-                self._set_docker_env_vars(task)
+            if cluster.image_id:
+                cls._set_docker_env_vars(task)
 
             sky.launch(
                 task,
-                cluster_name=self.cluster.name,
-                idle_minutes_to_autostop=self.cluster._autostop_mins,
+                cluster_name=cluster.name,
+                idle_minutes_to_autostop=cluster._autostop_mins,
                 down=True,
-                **self.cluster.sky_kwargs.get("launch", {}),
+                **cluster.sky_kwargs.get("launch", {}),
             )
+
+            cluster._update_from_sky_status()
+            if cluster.domain:
+                logger.info(
+                    f"Cluster has been launched with the custom domain '{cluster.domain}'. "
+                    "Please add an A record to your DNS provider to point this domain to the cluster's "
+                    f"public IP address ({cluster.address}) to ensure successful requests."
+                )
+            cluster.restart_server()
+            if rns_client.autosave_resources():
+                cluster.save()
+
         except TypeError as e:
             if "got multiple values for keyword argument" in str(e):
                 raise TypeError(
@@ -240,20 +274,18 @@ class LocalLauncher(Launcher):
                 )
             raise e
 
-        self.cluster._update_from_sky_status()
-
-        if self.cluster.domain:
-            logger.info(
-                f"Cluster has been launched with the custom domain '{self.cluster.domain}'. "
-                "Please add an A record to your DNS provider to point this domain to the cluster's "
-                f"public IP address ({self.cluster.address}) to ensure successful requests."
-            )
-
-    def teardown(self, verbose: bool = True):
+    @classmethod
+    def teardown(cls, cluster, verbose: bool = True):
         """Tearing down a cluster locally via Sky."""
         import sky
 
-        sky.down(self.cluster.name)
+        sky.down(cluster.name)
+        cluster.address = None
+        cluster._http_client = None
+
+        # Save to Den with updated null IPs
+        if rns_client.autosave_resources():
+            cluster.save()
 
     @staticmethod
     def _set_docker_env_vars(task):
