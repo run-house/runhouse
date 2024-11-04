@@ -744,9 +744,10 @@ class Cluster(Resource):
             # rh_package = 'runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl'
             # rh_download_cmd = f'curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}'
             if not _install_url:
-                import runhouse
+                # import runhouse
 
-                _install_url = f"runhouse=={runhouse.__version__}"
+                # _install_url = f"runhouse=={runhouse.__version__}"
+                _install_url = "git+https://github.com/run-house/runhouse.git@10-25-updates_cluster_teardown_via_den#egg=runhouse[all]"
             rh_install_cmd = f"python3 -m pip install {_install_url}"
 
         for node in self.ips:
