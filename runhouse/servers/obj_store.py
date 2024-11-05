@@ -14,7 +14,12 @@ from typing import Any, Dict, List, Optional, Set, Union
 import ray
 from pydantic import BaseModel
 
-from runhouse.constants import LOGGING_WAIT_TIME, RH_LOGFILE_PATH
+from runhouse.constants import (
+    LOGGING_WAIT_TIME,
+    LOGS_TO_SHOW_UP_CHECK_TIME,
+    MAX_LOGS_TO_SHOW_UP_WAIT_TIME,
+    RH_LOGFILE_PATH,
+)
 from runhouse.logger import get_logger
 
 from runhouse.rns.defaults import req_ctx
@@ -1437,9 +1442,15 @@ class ObjStore:
             # with the run_name and print them while the call runs
             logs_task = None
             if stream_logs:
-                logs_task = asyncio.create_task(
-                    self.alogs_for_servlet_name(servlet_name_containing_key, run_name)
-                )
+
+                async def print_logs():
+                    async for logs in self.alogs_for_run_name(
+                        run_name, servlet_name=servlet_name_containing_key
+                    ):
+                        for log in logs:
+                            print(f"({key}): {log}", end="")
+
+                logs_task = asyncio.create_task(print_logs())
 
             res = await self.acall_for_servlet_name(
                 servlet_name_containing_key,
@@ -1496,30 +1507,20 @@ class ObjStore:
             remote,
         )
 
-    async def alogs_for_servlet_name(
+    async def alogs_for_run_name(
         self,
-        servlet_name: str,
         run_name: Optional[str] = None,
-        print_stream: bool = True,
+        key: str = None,
+        servlet_name: str = None,
     ):
+        if not servlet_name:
+            servlet_name = await self.aget_servlet_name_for_key(key)
+        servlet = self.get_servlet(servlet_name)
         # If stream_logs is True, print the logs as they come in. Otherwise just concatenate them together
         # and return them as a long string.
-        printed_first_log = False
-        servlet = self.get_servlet(servlet_name)
-        full_logs = ""
         async for log_ref in servlet.alogs_local.remote(run_name=run_name):
             logs = await log_ref
-            for log in logs:
-                if print_stream:
-                    if not printed_first_log:
-                        print(f"---------------- Call {run_name} ----------------")
-                        printed_first_log = True
-                    print(log, end="")
-                full_logs += log
-
-        if print_stream and printed_first_log:
-            print(f"---------------- End Call {run_name} ------------")
-        return full_logs
+            yield logs
 
     @staticmethod
     def _get_logfiles(log_key, log_type=None):
@@ -1554,15 +1555,20 @@ class ObjStore:
         open_logfiles = []
 
         # Wait for a maximum of 5 seconds for the log files to be created
-        for _ in range(20):
+        sleeps = 0
+        while (sleeps * LOGS_TO_SHOW_UP_CHECK_TIME) <= MAX_LOGS_TO_SHOW_UP_WAIT_TIME:
             open_logfiles = ObjStore.open_new_logfiles(run_name, open_logfiles)
             if open_logfiles:
                 break
             else:
-                await asyncio.sleep(LOGGING_WAIT_TIME)
+                await asyncio.sleep(LOGS_TO_SHOW_UP_CHECK_TIME)
+                sleeps += 1
 
         if not open_logfiles:
             logger.warning(f"No logfiles found for call {run_name}")
+            # raise ObjStoreError(
+            #     f"Logs for call {run_name} not found."
+            # )
 
         call_in_progress = True
 
