@@ -70,6 +70,7 @@ class Supervisor(Module):
                         data={"args": [item] + (args or []), "kwargs": kwargs},
                     )
                 else:
+                    args = args or []
                     return client_call_wrapper(
                         client,
                         system,
@@ -79,7 +80,7 @@ class Supervisor(Module):
                         run_name=kwargs.pop("run_name", None),
                         stream_logs=kwargs.pop("stream_logs", True),
                         remote=kwargs.pop("remote", False),
-                        data={"args": [item] + (args or []), "kwargs": kwargs},
+                        data={"args": [item] + list(args), "kwargs": kwargs},
                     )
 
             def remote(self, *args, stream_logs=True, run_name=None, **kwargs):

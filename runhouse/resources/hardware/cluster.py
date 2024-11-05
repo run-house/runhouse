@@ -44,6 +44,7 @@ from runhouse.constants import (
     CLI_START_CMD,
     CLI_STOP_CMD,
     CLUSTER_CONFIG_PATH,
+    DEFAULT_DASK_PORT,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
     DEFAULT_RAY_PORT,
@@ -140,6 +141,10 @@ class Cluster(Resource):
     def address(self, addr):
         self.ips = self.ips or [None]
         self.ips[0] = addr
+
+    @property
+    def internal_ips(self):
+        return self.ips
 
     @property
     def client(self):
@@ -1643,9 +1648,8 @@ class Cluster(Resource):
         from runhouse.resources.envs import Env
 
         if self.on_this_cluster() and node:
-            raise ValueError(
-                "Cannot specify a node when running from within the cluster."
-            )
+            # Switch the external ip to an internal ip
+            node = self.internal_ips[self.ips.index(node)]
 
         if isinstance(commands, str):
             commands = [commands]
@@ -1695,6 +1699,14 @@ class Cluster(Resource):
             else:
 
                 full_commands = [env._full_command(cmd) for cmd in commands]
+                if self.on_this_cluster():
+                    # TODO add log streaming
+                    return_codes = obj_store.run_bash_command_on_node(
+                        node_ip=node,
+                        commands=full_commands,
+                        require_outputs=require_outputs,
+                    )
+                    return return_codes
 
                 return_codes = self._run_commands_with_runner(
                     full_commands,
@@ -1926,6 +1938,78 @@ class Cluster(Resource):
                 tunnel.terminate()
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
                 self.run(commands=[kill_jupyter_cmd])
+
+    def connect_dask(
+        self,
+        port: int = DEFAULT_DASK_PORT,
+        scheduler_options: Dict = None,
+        worker_options: Dict = None,
+        client_timeout: str = "3s",
+    ):
+        local_scheduler_address = f"tcp://localhost:{port}"
+        remote_scheduler_address = f"tcp://{self.internal_ips[0]}:{port}"
+
+        # First check if dask is already running at the specified port
+        from dask.distributed import Client
+
+        # TODO: Handle case where we're on a worker node
+        if not self.on_this_cluster():
+            self.ssh_tunnel(
+                local_port=port, remote_port=port, num_ports_to_try=NUM_PORTS_TO_TRY
+            )
+
+        try:
+            # We need to connect to localhost both when we're on the head node and if we've formed
+            # an SSH tunnel
+            client = Client(local_scheduler_address, timeout=client_timeout)
+            logger.info(f"Connected to Dask client {client}")
+            return client
+        except OSError:
+            client = None
+
+        logger.info(f"Starting Dask on {self.name}.")
+        if scheduler_options:
+            scheduler_options = " ".join(
+                [f"--{key} {val}" for key, val in scheduler_options.items()]
+            )
+        else:
+            scheduler_options = ""
+        self.run(
+            f"nohup dask scheduler --port {port} {scheduler_options} > dask_scheduler.out 2>&1 &",
+            node=self.ips[0],
+            stream_logs=True,
+            require_outputs=True,
+        )
+
+        worker_options = worker_options or {}
+        if "nworkers" not in worker_options:
+            worker_options["nworkers"] = "auto"
+        worker_options_str = " ".join(
+            [f"--{key} {val}" for key, val in worker_options.items()]
+        )
+
+        # Note: We need to do this on the head node too, because this creates all the worker processes
+        for node in self.ips:
+            logger.info(f"Starting Dask worker on {node}.")
+            # Connect to localhost if on the head node, otherwise use the internal ip of head node
+            scheduler = (
+                local_scheduler_address
+                if node == self.ips[0]
+                else remote_scheduler_address
+            )
+            self.run(
+                f"nohup dask worker {scheduler} {worker_options_str} > dask_worker.out 2>&1 &",
+                node=node,
+            )
+
+        client = Client(local_scheduler_address, timeout=client_timeout)
+        logger.info(f"Connected to Dask on {self.name}:{port} with client {client}.")
+        return client
+
+    def kill_dask(self):
+        self.run("pkill -f 'dask scheduler'", node=self.ips[0])
+        for node in self.ips:
+            self.run("pkill -f 'dask worker'", node=node)
 
     def remove_conda_env(
         self,

@@ -317,6 +317,24 @@ class ObjStore:
             self.cluster_servlet, "aget_node_servlet_names"
         )
 
+    def run_bash_command_on_node(
+        self, node_ip: str, commands: List[str], require_outputs: bool = False
+    ):
+        return sync_function(self.arun_bash_command_on_node)(
+            node_ip, commands, require_outputs
+        )
+
+    async def arun_bash_command_on_node(
+        self, node_ip: str, commands: List[str], require_outputs: bool = False
+    ):
+        logger.info(f"Running bash commands on node {node_ip}: {commands}")
+        node_servlet_name = f"node_servlet_{node_ip}"
+        node_servlet_actor = ray.get_actor(node_servlet_name, namespace="runhouse")
+        for command in commands:
+            return await self.acall_actor_method(
+                node_servlet_actor, "arun_with_logs", command, require_outputs
+            )
+
     async def arun_bash_command_on_all_nodes(
         self, command: str, require_outputs: bool = False
     ):
@@ -427,7 +445,8 @@ class ObjStore:
         # Otherwise, create it
         if create:
             if resources is None:
-                resources = {}
+                # Put servlets on head node by default
+                resources = {"node_idx": 0}
 
             if "node_idx" in resources and ("CPU" in resources or "GPU" in resources):
                 raise ValueError(
