@@ -1566,9 +1566,6 @@ class ObjStore:
 
         if not open_logfiles:
             logger.warning(f"No logfiles found for call {run_name}")
-            # raise ObjStoreError(
-            #     f"Logs for call {run_name} not found."
-            # )
 
         call_in_progress = True
 
