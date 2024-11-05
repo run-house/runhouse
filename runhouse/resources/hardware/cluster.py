@@ -747,7 +747,7 @@ class Cluster(Resource):
                 # import runhouse
 
                 # _install_url = f"runhouse=={runhouse.__version__}"
-                _install_url = "git+https://github.com/run-house/runhouse.git@replace-sky-with-den-apis#egg=runhouse[all]"
+                _install_url = "git+https://github.com/run-house/runhouse.git@11-04-fix_ssh_creds_from_den_launcher#egg=runhouse[all]"
             rh_install_cmd = f"python3 -m pip install {_install_url}"
 
         for node in self.ips:

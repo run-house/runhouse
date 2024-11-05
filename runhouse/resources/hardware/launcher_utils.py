@@ -114,11 +114,11 @@ class DenLauncher(Launcher):
         cluster.stable_internal_external_ips = config.get(
             "stable_internal_external_ips", {}
         )
-        creds = config.get("creds")
-        if not cluster.creds_values and creds:
-            from runhouse.resources.secrets.utils import setup_cluster_creds
+        cluster.ssh_properties = config.get("ssh_properties", {})
 
-            cluster._creds = setup_cluster_creds(creds, cluster.name)
+        creds = config.get("creds")
+        if not cluster._creds and creds:
+            cluster._setup_creds(creds)
 
     @classmethod
     def _validate_provider(cls, cluster):
