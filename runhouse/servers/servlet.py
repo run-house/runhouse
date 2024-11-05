@@ -200,6 +200,13 @@ class Servlet:
             **kwargs,
         )
 
+    async def alogs_local(
+        self,
+        run_name: Optional[str] = None,
+    ):
+        async for ret_lines in obj_store.alogs_local(run_name=run_name):
+            yield ret_lines
+
     @error_handling_decorator
     async def aget_local(
         self,
