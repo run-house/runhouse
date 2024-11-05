@@ -17,6 +17,7 @@ if __name__ == "__main__":
     # You can do this here if you want the Dask cluster to be ephemeral, or in a separate notebook/script if long lived
     launch_dask_cluster(cluster)
 
+    # ## Setup the remote training
     from lightgbm_training import LightGBMModelTrainer
 
     # The environment for the remote cluster

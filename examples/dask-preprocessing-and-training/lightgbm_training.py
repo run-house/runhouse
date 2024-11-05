@@ -122,16 +122,15 @@ class LightGBMModelTrainer:
         import numpy as np
 
         if isinstance(X, dd.DataFrame):  # Check for Dask DataFrame
-            return self.model.predict(X.to_dask_array())
+            result = self.model.predict(X.to_dask_array())
         elif isinstance(X, da.Array):  # Check for Dask Array
-            return self.model.predict(X)
-        elif isinstance(X, np.ndarray):  # Check for NumPy Array
-            return self.model.predict(da.from_array(X))
+            result = self.model.predict(X)
         elif isinstance(X, (list, tuple)):  # Check for list or tuple
-            return self.model.predict(da.from_array(np.array(X)))
-        elif isinstance(X, pd.DataFrame):  # Check for Pandas DataFrame
-            return self.model.predict(dd.from_pandas(X, npartitions=1).to_dask_array())
-        elif np.isscalar(X):  # Check for scalar
-            return self.model.predict(da.from_array(np.array([X])))
+            X = da.from_array(np.array(X).reshape(1, -1), chunks=(1, 7))
+            result = self.model.predict(X)
         else:
             raise ValueError("Unsupported data type for prediction.")
+
+        print(result)
+        print(result.compute())
+        return float(result.compute()[0])
