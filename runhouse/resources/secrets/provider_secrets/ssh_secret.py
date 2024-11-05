@@ -83,6 +83,8 @@ class SSHSecret(ProviderSecret):
         priv_key_path = Path(os.path.expanduser(priv_key_path))
         pub_key_path = Path(f"{os.path.expanduser(priv_key_path)}.pub")
 
+        values = values or self.values
+
         if priv_key_path.exists() and pub_key_path.exists():
             if values == self._from_path(path=path):
                 logger.info(f"Secrets already exist in {path}. Skipping.")
@@ -109,6 +111,7 @@ class SSHSecret(ProviderSecret):
         new_secret = copy.deepcopy(self)
         new_secret._values = None
         new_secret.path = path
+        new_secret.name = f"ssh-{os.path.basename(path)}"
 
         if write_config:
             try:
