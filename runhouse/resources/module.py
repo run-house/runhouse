@@ -51,6 +51,9 @@ MODULE_ATTRS = [
     "_dumb_signature_cache",
 ]
 
+# Module methods which should still run remotely when called on a remote module
+MODULE_METHODS_REMOTEABLE = ["distribute"]
+
 logger = get_logger(__name__)
 
 
@@ -603,7 +606,7 @@ class Module(Resource):
         """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
         __getattr__ will be called."""
         if (
-            item in MODULE_METHODS
+            (item in MODULE_METHODS and item not in MODULE_METHODS_REMOTEABLE)
             or item in MODULE_ATTRS
             or not hasattr(self, "_client")
         ):
@@ -702,6 +705,7 @@ class Module(Resource):
     def replicate(
         self,
         num_replicas: int = 1,
+        replicas_per_node: Optional[int] = None,
         names: List[str] = None,
         envs: List["Env"] = None,
         parallel: bool = False,
@@ -747,11 +751,25 @@ class Module(Resource):
                 env = copy.copy(self.env)
                 env.name = f"{self.env.name}_replica_{i}"
 
+                # TODO remove
+                env.reqs = None
+
+                if replicas_per_node is not None:
+                    if env.compute:
+                        raise ValueError(
+                            "Cannot specify replicas_per_node of other compute requirements for env "
+                            "placement are specified."
+                        )
+                    env.compute = env.compute or {}
+                    env.compute["node_idx"] = i // replicas_per_node
+
             new_module = copy.copy(self)
             new_module.name = name
             new_module.env = None
             new_module.system = None
-            new_module = new_module.to(self.system, env=env)
+
+            env.to(self.system)
+            new_module = new_module.to(self.system, env=env.name)
             return new_module
 
         if parallel:
@@ -761,6 +779,73 @@ class Module(Resource):
                 return list(p.imap(create_replica, range(num_replicas)))
 
         return [create_replica(i) for i in range(num_replicas)]
+
+    def distribute(
+        self,
+        distribution: str,
+        name: Optional[str] = None,
+        num_replicas: Optional[int] = 1,
+        replicas_per_node: Optional[int] = None,
+        replication_kwargs: Optional[dict] = {},
+        **distribution_kwargs,
+    ):
+        """Distribute the module on the cluster and return the distributed module.
+
+        Args:
+            distribution (str): The distribution method to use, e.g. "pool", "queue", "ray", "pytorch", or "tensorflow".
+            name (str, optional): The name to give to the distributed module, if applicable. Overwrites current module name by default. (Default: ``None``)
+            num_replicas (int, optional): The number of replicas to create. (Default: 1)
+            replicas_per_node (int, optional): The number of replicas to create per node. (Default: ``None``)
+            replication_kwargs: The keyword arguments to pass to the replicate method.
+            distribution_kwargs: The keyword arguments to pass to the distribution method.
+        """
+        # TODO create the replicas remotely
+        if distribution == "pool":
+            if name:
+                raise ValueError("Cannot specify a name for a pool distribution.")
+            return [self] + self.replicate(
+                num_replicas=num_replicas,
+                replicas_per_node=replicas_per_node,
+                **replication_kwargs,
+            )
+        elif distribution == "queue":
+            from runhouse.resources.distributed.distributed_queue import (
+                DistributedQueue,
+            )
+
+            replicas = self.replicate(
+                num_replicas=num_replicas,
+                replicas_per_node=replicas_per_node,
+                **replication_kwargs,
+            )
+            name = name or f"distributed_{self.name}"
+            pooled_module = DistributedQueue(
+                **distribution_kwargs, name=name, replicas=replicas
+            ).to(self.system, env=self.env.name)
+            return pooled_module
+        elif distribution == "ray":
+            from runhouse.resources.distributed.ray_distributed import RayDistributed
+
+            name = name or f"ray_{self.name}"
+            ray_module = RayDistributed(
+                **distribution_kwargs, name=name, module=self
+            ).to(self.system, self.env.name)
+            return ray_module
+        elif distribution == "pytorch":
+            from runhouse.resources.distributed.pytorch_distributed import (
+                PyTorchDistributed,
+            )
+
+            replicas = self.replicate(
+                num_replicas=num_replicas,
+                replicas_per_node=replicas_per_node,
+                **replication_kwargs,
+            )
+            name = name or f"pytorch_{self.local.name}"
+            ptd_module = PyTorchDistributed(
+                **distribution_kwargs, name=name, replicas=replicas
+            ).to(self.system, env=self.env.name)
+            return ptd_module
 
     @property
     def remote(self):

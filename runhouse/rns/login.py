@@ -107,15 +107,20 @@ def login(
         if not rns_client.default_ssh_key:
             default_ssh_path = typer.prompt(
                 "Input the private key path for your default SSH key to use for launching clusters (e.g. ~/.ssh/id_rsa), or press `Enter` to skip",
-                default=None,
+                default="",
             )
 
             if default_ssh_path:
                 from runhouse import provider_secret
 
                 secret = provider_secret(provider="ssh", path=default_ssh_path)
-                secret.save()
-                configs.set("default_ssh_key", secret.name)
+                if secret.values:
+                    secret.save()
+                    configs.set("default_ssh_key", secret.name)
+                else:
+                    console.print(
+                        f"Could not detect SSH key at {default_ssh_path}. Skipping"
+                    )
 
         if sync_secrets:
             from runhouse import Secret
