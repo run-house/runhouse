@@ -247,6 +247,7 @@ def nested_call_logs_stream_helper(slow_numpy_array):
         vals.append(val)
     return vals
 
+
 @pytest.mark.moduletest
 class TestModule:
 
@@ -676,17 +677,19 @@ class TestModule:
             "slow_iter",
             "home",
             "cpu_count",
+            "print_and_log",
             "size_minus_cpus",
             "factory_constructor",
         }
         # Check that rich signature is json-able and has the same number of keys as the regular signature
-        assert len(json.loads(json.dumps(SlowNumpy.signature(rich=True)))) == 5
+        assert len(json.loads(json.dumps(SlowNumpy.signature(rich=True)))) == 6
 
         arr = SlowNumpy(size=5)
         assert set(arr.signature()) == {
             "slow_iter",
             "home",
             "cpu_count",
+            "print_and_log",
             "size_minus_cpus",
             "factory_constructor",
         }
@@ -998,7 +1001,9 @@ class TestModule:
 
         # Send to different env
         helper_env = rh.env(name="helper_env", reqs=["pandas", "numpy"])
-        remote_helper_call = rh.function(nested_call_logs_stream_helper).to(cluster, env=helper_env)
+        remote_helper_call = rh.function(nested_call_logs_stream_helper).to(
+            cluster, env=helper_env
+        )
 
         # TODO test with slow_iter call because not working with generator as of 4-Nov-24
         with capture_stdout() as stdout:
