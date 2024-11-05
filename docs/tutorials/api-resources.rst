@@ -111,7 +111,7 @@ to signal that it lives in the current folder.
         "resource_type": "cluster",
         "resource_subtype": "OnDemandCluster",
         "instance_type": "V100:1",
-        "num_instances": null,
+        "num_nodes": null,
         "provider": "aws",
         "autostop_mins": 30,
         "use_spot": false,

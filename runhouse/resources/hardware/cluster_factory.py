@@ -272,7 +272,7 @@ def kubernetes_cluster(
 def ondemand_cluster(
     name: str,
     instance_type: Optional[str] = None,
-    num_instances: Optional[int] = None,
+    num_nodes: Optional[int] = None,
     provider: Optional[str] = None,
     autostop_mins: Optional[int] = None,
     use_spot: bool = False,
@@ -303,7 +303,7 @@ def ondemand_cluster(
         name (str): Name for the cluster, to re-use later on.
         instance_type (int, optional): Type of cloud instance to use for the cluster. This could
             be a Runhouse built-in type, or your choice of instance type.
-        num_instances (int, optional): Number of instances to use for the cluster.
+        num_nodes (int, optional): Number of nodes to use for the cluster.
         provider (str, optional): Cloud provider to use for the cluster.
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
             or ``-1`` to keep cluster up indefinitely.
@@ -371,6 +371,13 @@ def ondemand_cluster(
             f"{RESERVED_SYSTEM_NAMES}."
         )
 
+    if "num_nodes" in kwargs:
+        logger.warning(
+            "The `num_nodes` argument is deprecated and will be removed in a future version. "
+            "Please use the argument `num_nodes` instead to refer to the number of nodes for the cluster."
+        )
+        num_nodes = kwargs.get("num_nodes")
+
     if provider == "kubernetes":
         namespace = kwargs.pop("namespace", None)
         kube_config_path = kwargs.pop("kube_config_path", None)
@@ -387,7 +394,7 @@ def ondemand_cluster(
             server_connection_type=server_connection_type,
             default_env=default_env,
             autostop_mins=autostop_mins,
-            num_instances=num_instances,
+            num_nodes=num_nodes,
             provider=provider,
             use_spot=use_spot,
             image_id=image_id,
@@ -409,7 +416,7 @@ def ondemand_cluster(
     if name:
         alt_options = dict(
             instance_type=instance_type,
-            num_instances=num_instances,
+            num_nodes=num_nodes,
             provider=provider,
             region=region,
             image_id=image_id,
@@ -449,7 +456,7 @@ def ondemand_cluster(
     c = OnDemandCluster(
         instance_type=instance_type,
         provider=provider,
-        num_instances=num_instances,
+        num_nodes=num_nodes,
         autostop_mins=autostop_mins,
         use_spot=use_spot,
         image_id=image_id,

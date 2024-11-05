@@ -59,7 +59,7 @@ async def train():
     cluster = rh.cluster(
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
         instance_type=f"A10G:{gpus_per_node}",
-        num_instances=num_nodes,
+        num_nodes=num_nodes,
     ).up_if_not()
     train_workers = []
     for i in range(num_nodes):

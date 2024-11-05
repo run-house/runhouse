@@ -49,7 +49,7 @@ class OnDemandCluster(Cluster):
         self,
         name,
         instance_type: str = None,
-        num_instances: int = None,
+        num_nodes: int = None,
         provider: str = None,
         default_env: "Env" = None,
         dryrun: bool = False,
@@ -90,8 +90,12 @@ class OnDemandCluster(Cluster):
             **kwargs,
         )
 
+        if "num_nodes" in kwargs and not num_nodes:
+            # Handle BC for configs previously saved with `num_instances`
+            num_nodes = kwargs.get("num_nodes")
+
         self.instance_type = instance_type
-        self.num_instances = num_instances
+        self.num_nodes = num_nodes
         self.provider = provider or configs.get("default_provider")
         self._autostop_mins = (
             autostop_mins
@@ -180,7 +184,7 @@ class OnDemandCluster(Cluster):
             config,
             [
                 "instance_type",
-                "num_instances",
+                "num_nodes",
                 "provider",
                 "open_ports",
                 "use_spot",
@@ -522,7 +526,7 @@ class OnDemandCluster(Cluster):
                 f"Cluster provider {self.provider} not supported. Must be one {supported_providers} supported by SkyPilot."
             )
 
-        task = sky.Task(num_nodes=self.num_instances)
+        task = sky.Task(num_nodes=self.num_nodes)
         cloud_provider = (
             sky.clouds.CLOUD_REGISTRY.from_str(self.provider)
             if self.provider != "cheapest"
