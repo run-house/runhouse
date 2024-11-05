@@ -513,6 +513,12 @@ class ObjStore:
     async def adisable_den_auth(self):
         await self.aset_den_auth(False)
 
+    async def aset_process_env_vars(self, servlet_name: str, env_vars: Dict[str, str]):
+        return await self.acall_servlet_method(servlet_name, "aset_env_vars", env_vars)
+
+    def set_process_env_vars(self, servlet_name: str, env_vars: Dict[str, str]):
+        return sync_function(self.aset_process_env_vars)(servlet_name, env_vars)
+
     ##############################################
     # Cluster config state storage methods
     ##############################################
