@@ -52,7 +52,7 @@ def cluster(
             with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
             without an SSH tunnel. (Default: ``None``).
         launcher_type (LauncherType or str, optional): Method for launching the cluster. If set to `local`, will launch
-            locally via Sky. If set to `runhouse`, launching will be handled by Runhouse. Currently only relevant for
+            locally via Sky. If set to `den`, launching will be handled by Runhouse. Currently only relevant for
             ondemand clusters and kubernetes clusters. (Default: ``local``).
         ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
             (Default: ``None``).
@@ -343,7 +343,7 @@ def ondemand_cluster(
             with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
             without an SSH tunnel.
         launcher_type (LauncherType or str, optional): Method for launching the cluster. If set to `local`, will launch
-            locally via Sky. If set to `runhouse`, launching will be handled by Runhouse. (Default: ``local``).
+            locally via Sky. If set to `den`, launching will be handled by Runhouse. (Default: ``local``).
         ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
         ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
         domain(str, optional): Domain name for the cluster. Relevant if enabling HTTPs on the cluster.
