@@ -73,7 +73,7 @@ if __name__ == "__main__":
     working_s3_bucket = "rh-demo-external"
     working_s3_path = "resnet-training-example/"
 
-    # Create a cluster of 2 GPUs
+    # Create a cluster of 3 GPUs
     gpus_per_node = 1
     num_nodes = 3
     gpu_cluster_name = f"py-{num_nodes}x{gpus_per_node}GPU"
