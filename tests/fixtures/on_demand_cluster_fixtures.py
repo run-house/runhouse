@@ -182,6 +182,19 @@ def a10g_gpu_cluster(request):
 
 
 @pytest.fixture(scope="session")
+def multinode_k8s_cpu_cluster(request):
+    args = {
+        "name": "rh-cpu-multinode",
+        "num_instances": NUM_OF_INSTANCES,
+        "default_env": test_env(),
+        "provider": "kubernetes",
+        "instance_type": "CPU:2+",
+    }
+    cluster = setup_test_cluster(args, request)
+    return cluster
+
+
+@pytest.fixture(scope="session")
 def multinode_cpu_docker_conda_cluster(request):
     args = {
         "name": "rh-cpu-multinode",
