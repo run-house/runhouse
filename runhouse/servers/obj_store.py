@@ -1437,7 +1437,9 @@ class ObjStore:
             # with the run_name and print them while the call runs
             logs_task = None
             if stream_logs:
-                logs_task = asyncio.create_task(self.alogs_for_servlet_name(servlet_name_containing_key, run_name))
+                logs_task = asyncio.create_task(
+                    self.alogs_for_servlet_name(servlet_name_containing_key, run_name)
+                )
 
             res = await self.acall_for_servlet_name(
                 servlet_name_containing_key,
@@ -1568,14 +1570,15 @@ class ObjStore:
             while call_in_progress:
                 # If the call is not in the active calls, it has finished (even if it finished before we
                 # started streaming logs)
-                active_run_names = [v.run_name for v in self.active_function_calls.values()]
+                active_run_names = [
+                    v.run_name for v in self.active_function_calls.values()
+                ]
                 if run_name not in active_run_names:
                     call_in_progress = False
                 else:
                     await asyncio.sleep(LOGGING_WAIT_TIME)
                 # Grab all the lines written to all the log files since the last time we checked, including
                 # any new log files that have been created
-                yield f"Getting logs for {run_name}\n"
                 open_logfiles = ObjStore.open_new_logfiles(run_name, open_logfiles)
                 ret_lines = []
                 for i, f in enumerate(open_logfiles):
