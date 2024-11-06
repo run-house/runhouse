@@ -752,7 +752,7 @@ class Module(Resource):
                 env.name = f"{self.env.name}_replica_{i}"
 
                 # TODO remove
-                env.reqs = []
+                env.reqs = None
 
                 if replicas_per_node is not None:
                     if env.compute:
