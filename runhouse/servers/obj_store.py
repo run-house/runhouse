@@ -309,14 +309,18 @@ class ObjStore:
             self.cluster_servlet, "aget_node_servlet_names"
         )
 
-    async def arun_bash_command_on_all_nodes(self, command: str):
+    async def arun_bash_command_on_all_nodes(
+        self, command: str, require_outputs: bool = False
+    ):
         node_servlet_names = await self.aget_node_servlet_names()
         node_servlet_actors = [
             ray.get_actor(name, namespace="runhouse") for name in node_servlet_names
         ]
         results = await asyncio.gather(
             *[
-                self.acall_actor_method(node_servlet, "arun_with_logs", command)
+                self.acall_actor_method(
+                    node_servlet, "arun_with_logs", command, require_outputs
+                )
                 for node_servlet in node_servlet_actors
             ]
         )
@@ -512,6 +516,12 @@ class ObjStore:
 
     async def adisable_den_auth(self):
         await self.aset_den_auth(False)
+
+    async def aset_process_env_vars(self, servlet_name: str, env_vars: Dict[str, str]):
+        return await self.acall_servlet_method(servlet_name, "aset_env_vars", env_vars)
+
+    def set_process_env_vars(self, servlet_name: str, env_vars: Dict[str, str]):
+        return sync_function(self.aset_process_env_vars)(servlet_name, env_vars)
 
     ##############################################
     # Cluster config state storage methods
@@ -1702,7 +1712,7 @@ class ObjStore:
             install_cmd = package._pip_install_cmd(conda_env_name=conda_env_name)
             logger.info(f"Running via install_method pip: {install_cmd}")
             run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
-            if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
+            if any(run_cmd_result != 0 for run_cmd_result in run_cmd_results):
                 raise RuntimeError(
                     f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
                 )
@@ -1711,7 +1721,7 @@ class ObjStore:
             install_cmd = package._conda_install_cmd(conda_env_name=conda_env_name)
             logger.info(f"Running via install_method conda: {install_cmd}")
             run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
-            if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
+            if any(run_cmd_result != 0 for run_cmd_result in run_cmd_results):
                 raise RuntimeError(
                     f"Conda install {install_cmd} failed, check that the package exists and is "
                     "available for your platform."
@@ -1722,7 +1732,7 @@ class ObjStore:
             if install_cmd:
                 logger.info(f"Running via install_method reqs: {install_cmd}")
                 run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
-                if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
+                if any(run_cmd_result != 0 for run_cmd_result in run_cmd_results):
                     raise RuntimeError(
                         f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
                     )

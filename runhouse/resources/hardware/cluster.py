@@ -15,6 +15,8 @@ import requests
 import yaml
 
 from runhouse.resources.hardware.utils import (
+    _setup_creds_from_dict,
+    _setup_default_creds,
     ClustersListStatus,
     get_clusters_from_den,
     get_running_and_not_running_clusters,
@@ -277,65 +279,25 @@ class Cluster(Resource):
     def _setup_creds(self, ssh_creds: Union[Dict, "Secret", str]):
         """Setup cluster credentials from user provided ssh_creds"""
         from runhouse.resources.secrets import Secret
-        from runhouse.resources.secrets.provider_secrets.sky_secret import SkySecret
-        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
-        if not hasattr(self, "_creds"):
-            self._creds = None
-
-        if not ssh_creds:
-            return
-        elif isinstance(ssh_creds, Secret):
+        if isinstance(ssh_creds, Secret):
             self._creds = ssh_creds
             return
         elif isinstance(ssh_creds, str):
             self._creds = Secret.from_name(ssh_creds)
             return
 
-        creds = (
-            copy.copy(ssh_creds) if isinstance(ssh_creds, Dict) else (ssh_creds or {})
-        )
-        private_key_path = (
-            creds["ssh_private_key"] if "ssh_private_key" in creds else None
-        )
-        self.ssh_properties["ssh_private_key"] = private_key_path
-        password = creds.pop("password") if "password" in creds else None
+        if not ssh_creds:
+            from runhouse.resources.hardware.on_demand_cluster import OnDemandCluster
 
-        if private_key_path:
-            key = os.path.basename(private_key_path)
-
-            if password:
-                # extract ssh values and create ssh secret
-                values = (
-                    SSHSecret.extract_secrets_from_path(private_key_path)
-                    if private_key_path
-                    else {}
-                )
-                values["password"] = password
-                self._creds = SSHSecret(
-                    name=f"{self.name}-ssh-secret",
-                    provider="ssh",
-                    key=key,
-                    path=private_key_path,
-                    values=values,
-                )
-            else:
-                # set as standard SSH secret
-                constructor = SkySecret if key == "sky-key" else SSHSecret
-                self._creds = constructor(
-                    name=f"ssh-{key}", key=key, path=private_key_path
-                )
-        elif password:
-            self._creds = Secret(
-                name=f"{self.name}-ssh-secret", values={"password": password}
+            cluster_subtype = (
+                "OnDemandCluster" if isinstance(self, OnDemandCluster) else "Cluster"
             )
-
-        # save non secret values to `_ssh_properties` field
-        if isinstance(creds, Dict):
-            self.ssh_properties = creds
-
-        if self.den_auth or rns_client.autosave_resources():
-            self.save()
+            self._creds = _setup_default_creds(cluster_subtype)
+        elif isinstance(ssh_creds, Dict):
+            creds, ssh_properties = _setup_creds_from_dict(ssh_creds, self.name)
+            self._creds = creds
+            self.ssh_properties = ssh_properties
 
     def _should_save_creds(self, folder: str = None) -> bool:
         """Checks whether to save the creds associated with the cluster.
@@ -447,15 +409,19 @@ class Cluster(Resource):
                 "ssh_properties",
             ],
         )
-        creds = self._resource_string_for_subconfig(self._creds, condensed)
+        creds = (
+            self._resource_string_for_subconfig(self._creds, condensed)
+            if hasattr(self, "_creds") and self._creds
+            else None
+        )
+        if creds:
+            if "loaded_secret_" in creds:
+                # user A shares cluster with user B, with "write" permissions. If user B will save the cluster to Den, we
+                # would NOT like that the loaded secret will overwrite the original secret that was created and shared by
+                # user A.
+                creds = creds.replace("loaded_secret_", "")
+            config["creds"] = creds
 
-        # user A shares cluster with user B, with "write" permissions. If user B will save the cluster to Den, we
-        # would NOT like that the loaded secret will overwrite the original secret that was created and shared by
-        # user A.
-        if creds and "loaded_secret_" in creds:
-            creds = creds.replace("loaded_secret_", "")
-
-        config["creds"] = creds
         config["api_server_url"] = rns_client.api_server_url
 
         if self._default_env:
@@ -2289,9 +2255,12 @@ class Cluster(Resource):
         )
 
     def set_process_env_vars(self, process_name: str, env_vars: Dict):
-        return self.client.set_process_env_vars(
-            process_name=process_name, env_vars=env_vars
-        )
+        if self.on_this_cluster():
+            return obj_store.set_process_env_vars(process_name, env_vars)
+        else:
+            return self.client.set_process_env_vars(
+                process_name=process_name, env_vars=env_vars
+            )
 
     def install_package(
         self, package: Union["Package", str], conda_env_name: Optional[str] = None

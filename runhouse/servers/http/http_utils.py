@@ -33,6 +33,7 @@ class InstallPackageParams(BaseModel):
 
 class RunBashParams(BaseModel):
     command: str
+    require_outputs: bool = False
 
 
 class ServerSettings(BaseModel):

@@ -1,6 +1,8 @@
+import copy
 import datetime
 import hashlib
 import json
+import os
 import re
 import subprocess
 
@@ -136,11 +138,94 @@ def _unnamed_default_env_name(cluster_name):
     return f"{cluster_name}_default_env"
 
 
+def _setup_default_creds(cluster_type: str):
+    from runhouse.resources.secrets import Secret
+
+    default_ssh_key = rns_client.default_ssh_key
+    if cluster_type == "OnDemandCluster":
+        try:
+            sky_secret = Secret.from_name("sky")
+            return sky_secret
+        except ValueError:
+            if default_ssh_key:
+                # copy over default key to sky-key for launching use
+                default_secret = Secret.from_name(default_ssh_key)
+                sky_secret = default_secret._write_to_file("~/.ssh/sky-key")
+                return sky_secret
+            else:
+                return None
+    elif default_ssh_key:
+        return Secret.from_name(default_ssh_key)
+    return None
+
+
+def _setup_creds_from_dict(ssh_creds: Dict, cluster_name: str):
+    from runhouse.resources.secrets import Secret
+    from runhouse.resources.secrets.provider_secrets.sky_secret import SkySecret
+    from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
+
+    creds = copy.copy(ssh_creds)
+    ssh_properties = {}
+    cluster_secret = None
+
+    private_key_path = creds["ssh_private_key"] if "ssh_private_key" in creds else None
+    password = creds.pop("password") if "password" in creds else None
+
+    if private_key_path:
+        key = os.path.basename(private_key_path)
+
+        if password:
+            # extract ssh values and create ssh secret
+            values = (
+                SSHSecret.extract_secrets_from_path(private_key_path)
+                if private_key_path
+                else {}
+            )
+            values["password"] = password
+            cluster_secret = SSHSecret(
+                name=f"{cluster_name}-ssh-secret",
+                provider="ssh",
+                key=key,
+                path=private_key_path,
+                values=values,
+            )
+        else:
+            # set as standard SSH secret
+            constructor = SkySecret if key == "sky-key" else SSHSecret
+            cluster_secret = constructor(
+                name=f"ssh-{key}", key=key, path=private_key_path
+            )
+    elif password:
+        cluster_secret = Secret(
+            name=f"{cluster_name}-ssh-secret", values={"password": password}
+        )
+
+    # keep track of non secret/password values in ssh_properties
+    if isinstance(creds, Dict):
+        ssh_properties = creds
+
+    return cluster_secret, ssh_properties
+
+
 def detect_cuda_version_or_cpu(cluster: "Cluster" = None, node: Optional[str] = None):
     """Return the CUDA version on the cluster. If we are on a CPU-only cluster return 'cpu'.
 
     Note: A cpu-only machine may have the CUDA toolkit installed, which means nvcc will still return
     a valid version. Also check if the NVIDIA driver is installed to confirm we are on a GPU."""
+
+    status_codes = run_setup_command(
+        "ls /usr/local | grep cuda", cluster=cluster, node=node
+    )
+    if not status_codes[0] == 0:
+        return "cpu"
+
+    status_codes = run_setup_command("nvcc --version", cluster=cluster, node=node)
+    # If nvcc isn't installed, we need to install it
+    NVCC_NOT_PRESENT = "Command 'nvcc' not found"
+    if NVCC_NOT_PRESENT in status_codes[1]:
+        run_setup_command(
+            "sudo apt install -y nvidia-cuda-toolkit", cluster=cluster, node=node
+        )
 
     status_codes = run_setup_command("nvcc --version", cluster=cluster, node=node)
     if not status_codes[0] == 0:

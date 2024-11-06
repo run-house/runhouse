@@ -60,7 +60,7 @@ class PyTorchDistributed(Supervisor):
                 env_name = replica.env
             else:
                 raise ValueError("env must be an Env or a string")
-            replica.system.call(env_name, "_set_env_vars", dist_config)
+            replica.system.set_process_env_vars(env_name, dist_config)
             method = getattr(replica, item)
             return method(*args, **kwargs)
 

@@ -12,5 +12,5 @@ class NodeServlet:
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
         )
 
-    async def arun_with_logs(self, cmd: str):
-        return run_with_logs(cmd, stream_logs=True, require_outputs=True)[:2]
+    async def arun_with_logs(self, cmd: str, require_outputs: bool = True):
+        return run_with_logs(cmd, stream_logs=True, require_outputs=require_outputs)

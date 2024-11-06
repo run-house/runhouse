@@ -354,8 +354,10 @@ class HTTPServer:
     @validate_cluster_access
     async def run_bash(request: Request, params: RunBashParams):
         try:
-            retcodes = await obj_store.arun_bash_command_on_all_nodes(params.command)
-            return Response(output_type=OutputType.RESULT_SERIALIZED, data=retcodes)
+            results = await obj_store.arun_bash_command_on_all_nodes(
+                params.command, params.require_outputs
+            )
+            return Response(output_type=OutputType.RESULT_SERIALIZED, data=results)
         except Exception as e:
             return handle_exception_response(
                 e, traceback.format_exc(), from_http_server=True
@@ -404,9 +406,7 @@ class HTTPServer:
     @validate_cluster_access
     async def set_process_env_vars(request: Request, params: SetProcessEnvVarsParams):
         try:
-            await obj_store.acall_servlet_method(
-                params.process_name, "aset_env_vars", params.env_vars
-            )
+            await obj_store.aset_process_env_vars(params.process_name, params.env_vars)
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             return handle_exception_response(
