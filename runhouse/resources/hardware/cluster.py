@@ -660,7 +660,7 @@ class Cluster(Resource):
         if self._default_env.secrets:
             from runhouse.resources.secrets import Secret
 
-            for secret in self.secrets:
+            for secret in self._default_env.secrets:
                 if isinstance(secret, str):
                     secret = Secret.from_name(secret)
                 secret.to(system=self, env=self._default_env)
