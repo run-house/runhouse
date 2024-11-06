@@ -2255,9 +2255,12 @@ class Cluster(Resource):
         )
 
     def set_process_env_vars(self, process_name: str, env_vars: Dict):
-        return self.client.set_process_env_vars(
-            process_name=process_name, env_vars=env_vars
-        )
+        if self.on_this_cluster():
+            return obj_store.set_process_env_vars(process_name, env_vars)
+        else:
+            return self.client.set_process_env_vars(
+                process_name=process_name, env_vars=env_vars
+            )
 
     def install_package(
         self, package: Union["Package", str], conda_env_name: Optional[str] = None
