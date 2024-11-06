@@ -92,30 +92,39 @@ if __name__ == "__main__":
         secrets=["aws", "huggingface"],
         reqs=["torch", "torchvision", "Pillow", "datasets[s3]", "boto3", "s3fs"],
     )
-    # remote_trainer_class = rh.module(ResNet152Trainer).to(gpu_cluster, env=env)
-    remote_trainer_class = (
-        rh.module(ResNet152Trainer)
-        .to(gpu_cluster, env=env)
-        .distribute(
-            distribution="pytorch",
-            replicas_per_node=gpus_per_node,
-            num_replicas=gpus_per_node * num_nodes,
-        )
-    )
-    # remote_trainer = remote_trainer_class(name = 'trainer', s3_bucket=working_s3_bucket, s3_path=working_s3_path)
-    # remote_trainer.train(num_epochs=epochs, num_classes=1000, train_data_path=train_data_path, val_data_path=val_data_path)
 
-    # asyncio.run(
-    #     start_training(
-    #         gpu_cluster,
-    #         num_nodes=num_nodes,
-    #         gpus_per_node=gpus_per_node,
-    #         working_s3_bucket=working_s3_bucket,
-    #         working_s3_path=working_s3_path,
-    #         train_data_path=train_data_path,
-    #         val_data_path=val_data_path,
-    #         epochs=epochs,
+    # remote_trainer_class = (
+    #     rh.module(ResNet152Trainer)
+    #     .to(gpu_cluster, env=env)
+    #     .distribute(
+    #         distribution="pytorch",
+    #         replicas_per_node=gpus_per_node,
+    #         num_replicas=gpus_per_node * num_nodes,
     #     )
     # )
+
+    remote_trainer_class = rh.module(ResNet152Trainer).to(gpu_cluster, env=env)
+    remote_trainer = remote_trainer_class(
+        name="trainer", s3_bucket=working_s3_bucket, s3_path=working_s3_path
+    )
+    remote_trainer.train(
+        num_epochs=epochs,
+        num_classes=1000,
+        train_data_path=train_data_path,
+        val_data_path=val_data_path,
+    )
+
+    asyncio.run(
+        start_training(
+            gpu_cluster,
+            num_nodes=num_nodes,
+            gpus_per_node=gpus_per_node,
+            working_s3_bucket=working_s3_bucket,
+            working_s3_path=working_s3_path,
+            train_data_path=train_data_path,
+            val_data_path=val_data_path,
+            epochs=epochs,
+        )
+    )
 
     # gpu_cluster.teardown()

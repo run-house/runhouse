@@ -163,7 +163,7 @@ class ResNet152Trainer:
             num_classes, model_weights_path, lr, weight_decay, step_size, gamma
         )
         print("Model initialized")
-        self.save_checkpoint("resnet152_epoch_0.pth")
+
         # Load training and validation data
         self.load_train(train_data_path)
         self.load_test(val_data_path)
@@ -181,7 +181,7 @@ class ResNet152Trainer:
                 f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Val Accuracy: {val_accuracy:.4f}"
             )
             # Save checkpoint every few epochs or based on validation performance
-            if (epoch == 0 or (epoch + 1) % 5 == 0) and self.rank == 0:
+            if ((epoch + 1) % 5 == 0) and self.rank == 0:
                 print("Saving checkpoint")
                 self.save_checkpoint(f"resnet152_epoch_{epoch+1}.pth")
 
