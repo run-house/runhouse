@@ -87,6 +87,7 @@ class OnDemandCluster(Cluster):
             domain=domain,
             den_auth=den_auth,
             dryrun=dryrun,
+            creds=kwargs.pop("ssh_creds", None),
             **kwargs,
         )
 

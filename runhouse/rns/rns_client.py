@@ -37,13 +37,6 @@ class ResourceStatusData(BaseModel):
     runhouse_version: str
 
 
-class NonPoolingSession(requests.Session):
-    def request(self, *args, **kwargs):
-        # Use a fresh session for each request
-        with requests.Session() as session:
-            return session.request(*args, **kwargs)
-
-
 class RNSClient:
     """Manage a particular resource with the runhouse database"""
 
@@ -83,7 +76,7 @@ class RNSClient:
         self._index_base_folders(rns_base_folders)
         self._current_folder = None
 
-        self.session = NonPoolingSession()
+        self.session = requests.Session()
 
     @property
     def default_folder(self):
