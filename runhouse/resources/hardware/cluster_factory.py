@@ -389,7 +389,11 @@ def ondemand_cluster(
         num_nodes = kwargs.get("num_nodes")
 
     if launcher_type and launcher_type not in LauncherType.__members__.values():
-        raise ValueError(f"Invalid launcher type {launcher_type}.")
+        raise ValueError(
+            f"Invalid launcher type {launcher_type}. Specify either 'den' or 'local' "
+            f"in the cluster factory or add a `launcher_type` field to your "
+            f"local ~/.rh/config.yaml."
+        )
 
     if provider == "kubernetes":
         namespace = kwargs.pop("namespace", None)

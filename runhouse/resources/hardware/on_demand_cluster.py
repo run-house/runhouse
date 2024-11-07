@@ -110,7 +110,7 @@ class OnDemandCluster(Cluster):
         self.memory = memory
         self.disk_size = disk_size
         self.sky_kwargs = sky_kwargs or {}
-        self.launcher_type = launcher_type or LauncherType.LOCAL
+        self.launcher_type = launcher_type or configs.launcher_type
 
         self.stable_internal_external_ips = kwargs.get(
             "stable_internal_external_ips", None
@@ -562,7 +562,7 @@ class OnDemandCluster(Cluster):
             logger.info("Launching cluster with Den")
             DenLauncher.up(cluster=self, verbose=verbose, force=force)
 
-        else:
+        elif self.launcher_type == LauncherType.LOCAL:
             logger.info("Launching cluster locally")
             LocalLauncher.up(cluster=self, verbose=verbose)
 

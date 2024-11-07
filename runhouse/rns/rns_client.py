@@ -99,6 +99,10 @@ class RNSClient:
         return self._configs.username
 
     @property
+    def launcher_type(self):
+        return self._configs.launcher_type
+
+    @property
     def api_server_url(self):
         url_as_env_var = os.getenv("API_SERVER_URL")
         if url_as_env_var:
