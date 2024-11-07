@@ -53,7 +53,7 @@ class ResNet152Trainer:
         self.scheduler = None
 
         self.train_loader = None
-        self.test_loader = None
+        self.val_loader = None
 
         self.s3_bucket = s3_bucket
         self.s3_path = s3_path
@@ -104,13 +104,13 @@ class ResNet152Trainer:
             dataset, batch_size=32, shuffle=False, sampler=sampler
         )
 
-    def load_test(self, path):
-        print("Loading test data")
-        subprocess.run(f"aws s3 sync {path} ~/test_dataset", shell=True)
-        dataset = load_from_disk("~/test_dataset").with_format("torch")
+    def load_validation(self, path):
+        print("Loading validation data")
+        subprocess.run(f"aws s3 sync {path} ~/val_dataset", shell=True)
+        dataset = load_from_disk("~/val_dataset").with_format("torch")
 
         sampler = DistributedSampler(dataset)
-        self.test_loader = DataLoader(
+        self.val_loader = DataLoader(
             dataset, batch_size=32, shuffle=False, sampler=sampler
         )
 
@@ -140,7 +140,7 @@ class ResNet152Trainer:
         avg_loss = running_loss / num_batches
         return avg_loss
 
-    def test_epoch(self):
+    def validate_epoch(self):
         self.model.eval()
         correct = 0
         total = 0
@@ -160,7 +160,7 @@ class ResNet152Trainer:
         num_classes,
         num_epochs,
         train_data_path,
-        test_data_path,
+        val_data_path,
         lr=1e-4,
         weight_decay=1e-4,
         step_size=7,
@@ -175,23 +175,23 @@ class ResNet152Trainer:
         )
         print("Model initialized")
 
-        # Load training and test data
+        # Load training and validation data
         self.load_train(train_data_path)
-        self.load_test(test_data_path)
+        self.load_validation(val_data_path)
         print("Data loaded")
 
         # Train the model
         for epoch in range(num_epochs):
             print(f"entering epoch {epoch}")
             train_loss = self.train_epoch()
-            print(f"Testing {epoch}")
-            test_accuracy = self.test_epoch()
+            print(f"validating {epoch}")
+            val_accuracy = self.validate_epoch()
             print(f"scheduler stepping {epoch}")
             self.scheduler.step()
             print(
-                f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Val Accuracy: {test_accuracy:.4f}"
+                f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Val Accuracy: {val_accuracy:.4f}"
             )
-            # Save checkpoint every few epochs or based on test performance
+            # Save checkpoint every few epochs or based on validation performance
             if ((epoch + 1) % 5 == 0) and self.rank == 0:
                 print("Saving checkpoint")
                 self.save_checkpoint(f"resnet152_epoch_{epoch+1}.pth")
@@ -235,7 +235,7 @@ if __name__ == "__main__":
     train_data_path = (
         "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/train/"
     )
-    test_data_path = "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/validation/"
+    val_data_path = "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/validation/"
 
     working_s3_bucket = "rh-demo-external"
     working_s3_path = "resnet-training-example/"
@@ -282,5 +282,5 @@ if __name__ == "__main__":
         num_epochs=epochs,
         num_classes=1000,
         train_data_path=train_data_path,
-        test_data_path=test_data_path,
+        val_data_path=val_data_path,
     )
