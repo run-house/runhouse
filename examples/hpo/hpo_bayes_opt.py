@@ -16,7 +16,7 @@ async def find_best_params():
     from bayes_opt import BayesianOptimization, UtilityFunction
 
     cluster = rh.cluster(
-        name="rh-4x16-cpu", instance_type="CPU:16", num_instances=4, provider="aws"
+        name="rh-4x16-cpu", instance_type="CPU:16", num_nodes=4, provider="aws"
     ).up_if_not()
     train_env = rh.env(name="worker_env", compute={"CPU": 8})
     remote_fn = rh.function(train_fn).to(cluster, env=train_env)

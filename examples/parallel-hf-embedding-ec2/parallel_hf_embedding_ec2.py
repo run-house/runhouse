@@ -154,7 +154,7 @@ async def main():
     cluster = rh.cluster(
         f"rh-{num_replicas}xa10g",
         instance_type="A10G:1",
-        num_instances=num_replicas,
+        num_nodes=num_replicas,
         spot=True,
     ).up_if_not()
 

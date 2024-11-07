@@ -11,7 +11,7 @@ from tests.conftest import init_args
 from tests.constants import TESTING_AUTOSTOP_INTERVAL, TESTING_LOG_LEVEL
 from tests.utils import test_env
 
-NUM_OF_INSTANCES = 2
+NUM_OF_NODES = 2
 
 
 @pytest.fixture()
@@ -185,7 +185,7 @@ def a10g_gpu_cluster(request):
 def multinode_cpu_docker_conda_cluster(request):
     args = {
         "name": "rh-cpu-multinode",
-        "num_instances": NUM_OF_INSTANCES,
+        "num_nodes": NUM_OF_NODES,
         "image_id": "docker:rayproject/ray:latest-py311-cpu",
         "default_env": rh.conda_env(
             name="default_env",
@@ -203,7 +203,7 @@ def multinode_cpu_docker_conda_cluster(request):
 def multinode_gpu_cluster(request):
     args = {
         "name": "rh-gpu-multinode",
-        "num_instances": NUM_OF_INSTANCES,
+        "num_nodes": NUM_OF_NODES,
         "instance_type": "g5.xlarge",
     }
     cluster = setup_test_cluster(args, request)
