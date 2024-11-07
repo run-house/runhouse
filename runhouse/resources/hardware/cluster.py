@@ -2268,8 +2268,8 @@ class Cluster(Resource):
         from runhouse.resources.packages.package import Package
 
         if isinstance(package, str):
+            logger.info(f"Installing package on cluster via HTTP: {package}.")
             package = Package.from_string(package)
-
         if self.on_this_cluster():
             obj_store.ainstall_package_in_all_nodes_and_processes(
                 package, conda_env_name
