@@ -450,6 +450,7 @@ class HTTPClient:
                 logs_future = executor.submit(
                     thread_coroutine,
                     self._alogs_request(
+                        key=key,
                         run_name=run_name,
                         serialization=serialization,
                         error_str=error_str,
@@ -565,6 +566,7 @@ class HTTPClient:
 
     async def _alogs_request(
         self,
+        key: str,
         run_name: str,
         serialization: str,
         error_str: str,
@@ -579,7 +581,7 @@ class HTTPClient:
 
         async with client.stream(
             "GET",
-            self._formatted_url(f"logs/{run_name}/{serialization}"),
+            self._formatted_url(f"logs/{key}/{run_name}/{serialization}"),
             headers=self._request_headers,
         ) as res:
             if res.status_code != 200:

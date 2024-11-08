@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 import runhouse as rh
+from runhouse.utils import capture_stdout
 
 from tests.utils import get_pid_and_ray_node
 
@@ -18,9 +19,10 @@ class TestMultiNodeCluster:
     UNIT = {"cluster": []}
     LOCAL = {"cluster": []}
     MINIMAL = {"cluster": []}
-    RELEASE = {"cluster": ["multinode_gpu_cluster"]}
+    RELEASE = {"cluster": ["multinode_k8s_cpu_cluster"]}
     MAXIMAL = {
         "cluster": [
+            "multinode_k8s_cpu_cluster",
             "multinode_cpu_docker_conda_cluster",
             "multinode_gpu_cluster",
         ]
@@ -95,8 +97,24 @@ class TestMultiNodeCluster:
         get_pid_2 = rh.function(get_pid_and_ray_node).to(
             name="get_pid_2", system=cluster, env=env_2
         )
-        assert get_pid_0()[1] != get_pid_1()[1]
-        assert get_pid_1()[1] == get_pid_2()[1]
+
+        with capture_stdout() as stdout_0:
+            pid_0, node_id_0 = get_pid_0()
+            assert str(pid_0) in str(stdout_0)
+            assert str(node_id_0) in str(stdout_0)
+
+        with capture_stdout() as stdout_1:
+            pid_1, node_id_1 = get_pid_1()
+            assert str(pid_1) in str(stdout_1)
+            assert str(node_id_1) in str(stdout_1)
+
+        with capture_stdout() as stdout_2:
+            pid_2, node_id_2 = get_pid_2()
+            assert str(pid_2) in str(stdout_2)
+            assert str(node_id_2) in str(stdout_2)
+
+        assert node_id_0 != node_id_1
+        assert node_id_1 == node_id_2
 
     @pytest.mark.level("release")
     def test_specifying_resources(self, cluster):

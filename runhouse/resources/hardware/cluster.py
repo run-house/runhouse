@@ -536,7 +536,8 @@ class Cluster(Resource):
             and self.launched_properties["cloud"] == "kubernetes"
         ):
             namespace = self.launched_properties.get("namespace", None)
-            pod_name = self.launched_properties.get("pod_name", None)
+            node_idx = self.ips.index(node)
+            pod_name = self.launched_properties.get("pod_names", None)[node_idx]
 
             runner = SkyKubernetesRunner(
                 (namespace, pod_name), docker_user=self.docker_user
@@ -660,7 +661,7 @@ class Cluster(Resource):
         if self._default_env.secrets:
             from runhouse.resources.secrets import Secret
 
-            for secret in self.secrets:
+            for secret in self._default_env.secrets:
                 if isinstance(secret, str):
                     secret = Secret.from_name(secret)
                 secret.to(system=self, env=self._default_env)
