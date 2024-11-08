@@ -1,5 +1,6 @@
 # ## Dask + LightGBM Training
 # This script contains the implementation of a class that trains a LightGBM model using Dask.
+
 class LightGBMModelTrainer:
     def __init__(self):
         self.model = None

@@ -20,15 +20,16 @@ class ResNet152DataPrep:
             dataset_name,
             token=True,
             trust_remote_code=True,
-            split=[f"train[:{train_sample}]", "validation"],
+            split=[f"train[:{train_sample}]", "test", "validation"],
             download_mode="reuse_cache_if_exists",
             cache_dir=f"{self.cache_dir}/huggingface_cache/",
         )
 
         self.ds = DatasetDict(
             {
-                "train": dataset[0],
-                "validation": dataset[1],
+            #    "train": dataset[0],
+            #    "test": dataset[1],
+                "validation": dataset[2],
             }
         )
 

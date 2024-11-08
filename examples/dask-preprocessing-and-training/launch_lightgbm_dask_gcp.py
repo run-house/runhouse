@@ -8,9 +8,9 @@ if __name__ == "__main__":
 
     cluster = rh.cluster(
         name=cluster_name,
-        instance_type="r5d.xlarge",
+        instance_type="c4-standard-4",
         num_instances=num_nodes,
-        provider="aws",
+        provider="gcp",
     ).up_if_not()
     
     # ## Launch a Dask cluster on the Runhouse cluster
