@@ -78,7 +78,6 @@ if __name__ == "__main__":
 
     cluster = rh.cluster(
         name="rh-preprocessing",
-        # name="rh-preprocessing",
         instance_type="i4i.2xlarge",
         provider="aws",
         region="us-east-1",

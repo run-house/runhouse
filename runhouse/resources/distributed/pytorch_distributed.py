@@ -4,7 +4,6 @@ from typing import List, Optional
 from runhouse.resources.distributed.supervisor import Supervisor
 
 from runhouse.resources.envs.env import Env
-from runhouse.resources.functions.function import Function
 
 from runhouse.resources.hardware import Cluster, OnDemandCluster
 
@@ -17,7 +16,7 @@ class PyTorchDistributed(Supervisor):
         self._replicas = replicas or []
         self._port = port
 
-    def signature(self, rich=False):
+    def _compute_signature(self, rich=False):
         return self.local._replicas[0].signature(rich=rich)
 
     def _find_available_port_on_head_rank(self):
@@ -73,9 +72,4 @@ class PyTorchDistributed(Supervisor):
         return res
 
     def __call__(self, *args, **kwargs):
-        if isinstance(self._replicas[0], Function):
-            return self.call(*args, **kwargs)
-        else:
-            raise NotImplementedError(
-                "DistributedQueue.__call__ can only be called on Function replicas."
-            )
+        return self.call(*args, **kwargs)

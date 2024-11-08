@@ -61,7 +61,8 @@ class ResNet152Trainer:
         print("Remote class initialized")
 
     def init_comms(self):
-        torch.distributed.init_process_group(backend="nccl")
+        if not torch.distributed.is_initialized():
+            torch.distributed.init_process_group(backend="nccl")
 
         if torch.distributed.is_initialized():
             self.rank = torch.distributed.get_rank()
@@ -235,7 +236,9 @@ if __name__ == "__main__":
     train_data_path = (
         "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/train/"
     )
-    val_data_path = "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/validation/"
+    val_data_path = (
+        "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/test/"
+    )
 
     working_s3_bucket = "rh-demo-external"
     working_s3_path = "resnet-training-example/"
@@ -257,14 +260,13 @@ if __name__ == "__main__":
                     "torchvision==0.20.1",
                     "Pillow==11.0.0",
                     "datasets",
-                    "boto3",
+                    "boto3 awscli",
                 ],
             ),
         )
         .up_if_not()
         .save()
     )
-    # gpu_cluster.restart_server()
     gpu_cluster.sync_secrets(["aws"])
 
     epochs = 15
