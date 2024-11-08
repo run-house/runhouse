@@ -6,9 +6,10 @@ if __name__ == "__main__":
     num_nodes = 3
     cluster_name = f"py-{num_nodes}"
 
-    cluster = rh.cluster(
+    cluster = rh.ondemand_cluster(
         name=cluster_name,
-        instance_type="c4-standard-4",
+        memory = "12+",
+        cpus = "4+",
         num_instances=num_nodes,
         provider="gcp",
     ).up_if_not()
@@ -25,17 +26,17 @@ if __name__ == "__main__":
             "dask-ml",
             "dask[distributed]",
             "dask[dataframe]",
-            "boto3",
-            "s3fs",
+            "gcfs",
             "lightgbm",
             "cloudpickle",
         ],
-        secrets=["aws"],
+        secrets=["gcp"],
     )
+
 
     # ## Send the trainer class to the remote cluster and instantiate a remote object named 'my_trainer'
     # LightGBMModelTrainer is a completely normal class encapsulating training, that a researcher would also be able to use locally as-is
-    from lightgbm_training import LightGBMModelTrainer, preprocess_small
+    from lightgbm_training import LightGBMModelTrainer
     remote_dask_trainer = rh.module(LightGBMModelTrainer).to(cluster, env=env)
     
     # Create is a locally callable, but remote instance of the trainer class
@@ -47,7 +48,7 @@ if __name__ == "__main__":
 
     # ## Do the processing and training on the remote cluster
     # Access the Dask client, data, and preprocess the data
-    dataset_path = "s3://rh-demo-external/taxi/*.parquet"  # 2024 NYC Taxi Data
+    dataset_path = "gs://rh-demo-external/*.parquet"  # 2024 NYC Taxi Data
     X_vars = ["passenger_count", "trip_distance", "fare_amount"]
     y_var = "tip_amount"
 
