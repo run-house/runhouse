@@ -185,7 +185,7 @@ def a10g_gpu_cluster(request):
 def multinode_k8s_cpu_cluster(request):
     args = {
         "name": "rh-cpu-multinode",
-        "num_instances": NUM_OF_INSTANCES,
+        "num_instances": NUM_OF_NODES,
         "default_env": test_env(),
         "provider": "kubernetes",
         "instance_type": "CPU:2+",

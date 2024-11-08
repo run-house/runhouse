@@ -434,10 +434,11 @@ class OnDemandCluster(Cluster):
                 if handle.cached_cluster_info:
                     self.launched_properties[
                         "namespace"
-                    ] = handle.cached_cluster_info.provider_config["namespace"]
+                    ] = handle.cached_cluster_info.provider_config.get("namespace")
                     self.launched_properties[
                         "context"
-                    ] = handle.cached_cluster_info.provider_config["context"]
+                    ] = handle.cached_cluster_info.provider_config.get("context")
+
                     instance_infos = list(handle.cached_cluster_info.instances.values())
                     pod_names_and_ips = {
                         instance_info[0].internal_ip: instance_info[0].instance_id
@@ -447,18 +448,19 @@ class OnDemandCluster(Cluster):
                     self.launched_properties["pod_names"] = [
                         pod_names_and_ips[ip] for ip in self.ips
                     ]
-                else:
+
+                if not self.launched_properties.get(
+                    "namespace"
+                ) or not self.launched_properties.get("pod_names"):
                     import kubernetes
 
-                    # Get the pod names for the given internal ips in self.ips
-                    k8s_config = kubernetes.config.load_kube_config()
                     k8s_client = kubernetes.client.CoreV1Api()
 
                     pod_names_and_ips = {
                         pod.status.pod_ip: (pod.metadata.name, pod.metadata.namespace)
                         for pod in k8s_client.list_pod_for_all_namespaces().items
                     }
-                    # Order the pod names to match the order of the IPs
+                    # Order the pod names to match the order of the IPsi
                     self.launched_properties["pod_names"] = [
                         pod_names_and_ips[ip][0] for ip in self.ips
                     ]
@@ -466,7 +468,12 @@ class OnDemandCluster(Cluster):
                     self.launched_properties["namespace"] = pod_names_and_ips[
                         self.ips[0]
                     ][1]
-                    self.launched_properties["context"] = k8s_config.context
+
+                if not self.launched_properties.get("context"):
+                    import kubernetes
+
+                    _, current_context = kubernetes.config.list_kube_config_contexts()
+                    self.launched_properties["context"] = current_context["name"]
 
     def _update_from_sky_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
