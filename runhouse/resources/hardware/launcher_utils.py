@@ -220,7 +220,7 @@ class LocalLauncher(Launcher):
         """Launch the cluster locally."""
         import sky
 
-        task = sky.Task(num_nodes=cluster.num_instances)
+        task = sky.Task(num_nodes=cluster.num_nodes)
         cloud_provider = (
             sky.clouds.CLOUD_REGISTRY.from_str(cluster.provider)
             if cluster.provider != "cheapest"
@@ -261,8 +261,11 @@ class LocalLauncher(Launcher):
                     "Please add an A record to your DNS provider to point this domain to the cluster's "
                     f"public IP address ({cluster.address}) to ensure successful requests."
                 )
+            logger.info("Starting Runhouse server on cluster")
             cluster.restart_server()
+
             if rns_client.autosave_resources():
+                logger.debug("Saving cluster to Den")
                 cluster.save()
 
         except TypeError as e:

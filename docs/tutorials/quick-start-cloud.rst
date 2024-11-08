@@ -96,7 +96,7 @@ properly.
 
 There are a number of options to specify the resources more finely, such
 as GPUs (``instance_type="A10G:4"``), cloud provider names
-(``instance_type="m5.xlarge"``), ``num_instances=n`` for multiple
+(``instance_type="m5.xlarge"``), ``num_nodes=n`` for multiple
 instances, ``memory``, ``disk_size``, ``region``, ``image_id``,
 ``open_ports``, ``spot``, and more. See the `on_demand_cluster
 docs <https://www.run.house/docs/api/python/cluster#runhouse.ondemand_cluster>`__.

@@ -48,7 +48,7 @@ class OnDemandCluster(Cluster):
         self,
         name,
         instance_type: str = None,
-        num_instances: int = None,
+        num_nodes: int = None,
         provider: str = None,
         default_env: "Env" = None,
         dryrun: bool = False,
@@ -90,8 +90,12 @@ class OnDemandCluster(Cluster):
             **kwargs,
         )
 
+        if "num_nodes" in kwargs and not num_nodes:
+            # Handle BC for configs previously saved with `num_instances`
+            num_nodes = kwargs.get("num_nodes")
+
         self.instance_type = instance_type
-        self.num_instances = num_instances
+        self.num_nodes = num_nodes
         self.provider = provider or configs.get("default_provider")
         self._autostop_mins = (
             autostop_mins
@@ -181,7 +185,7 @@ class OnDemandCluster(Cluster):
             config,
             [
                 "instance_type",
-                "num_instances",
+                "num_nodes",
                 "provider",
                 "open_ports",
                 "use_spot",
@@ -192,6 +196,7 @@ class OnDemandCluster(Cluster):
                 "disk_size",
                 "sky_kwargs",
                 "launched_properties",
+                "launcher_type",
             ],
         )
         config["autostop_mins"] = self._autostop_mins
