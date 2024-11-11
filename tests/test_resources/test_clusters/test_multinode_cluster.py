@@ -18,9 +18,10 @@ class TestMultiNodeCluster:
     UNIT = {"cluster": []}
     LOCAL = {"cluster": []}
     MINIMAL = {"cluster": []}
-    RELEASE = {"cluster": ["multinode_gpu_cluster"]}
+    RELEASE = {"cluster": ["multinode_k8s_cpu_cluster"]}
     MAXIMAL = {
         "cluster": [
+            "multinode_k8s_cpu_cluster",
             "multinode_cpu_docker_conda_cluster",
             "multinode_gpu_cluster",
         ]
