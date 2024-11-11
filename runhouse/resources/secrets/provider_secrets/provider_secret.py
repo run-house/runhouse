@@ -87,7 +87,7 @@ class ProviderSecret(Secret):
         headers: Optional[Dict] = None,
         folder: str = None,
     ):
-        name = name or self.name or self.rns_address or self.provider
+        name = name or self.rns_address or self.name or self.provider
         return super().save(
             name=name, save_values=save_values, headers=headers, folder=folder
         )
