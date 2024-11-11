@@ -238,6 +238,7 @@ from tests.fixtures.on_demand_cluster_fixtures import (
     k80_gpu_cluster,  # noqa: F401
     multinode_cpu_docker_conda_cluster,  # noqa: F401
     multinode_gpu_cluster,  # noqa: F401
+    multinode_k8s_cpu_cluster,  # noqa: F401
     ondemand_aws_docker_cluster,  # noqa: F401
     ondemand_aws_https_cluster_with_auth,  # noqa: F401
     ondemand_cluster,  # noqa: F401

@@ -536,7 +536,8 @@ class Cluster(Resource):
             and self.launched_properties["cloud"] == "kubernetes"
         ):
             namespace = self.launched_properties.get("namespace", None)
-            pod_name = self.launched_properties.get("pod_name", None)
+            node_idx = self.ips.index(node)
+            pod_name = self.launched_properties.get("pod_names", None)[node_idx]
 
             runner = SkyKubernetesRunner(
                 (namespace, pod_name), docker_user=self.docker_user
@@ -656,14 +657,6 @@ class Cluster(Resource):
                         stream_logs=True,
                         node=node,
                     )
-
-        if self._default_env.secrets:
-            from runhouse.resources.secrets import Secret
-
-            for secret in self._default_env.secrets:
-                if isinstance(secret, str):
-                    secret = Secret.from_name(secret)
-                secret.to(system=self, env=self._default_env)
 
     def _sync_runhouse_to_cluster(
         self,
@@ -1238,6 +1231,15 @@ class Cluster(Resource):
             self._start_ray_workers(DEFAULT_RAY_PORT, env=self.default_env)
 
         self.put_resource(self.default_env)
+
+        if self._default_env and self._default_env.secrets:
+            from runhouse.resources.secrets import Secret
+
+            for secret in self._default_env.secrets:
+                if isinstance(secret, str):
+                    secret = Secret.from_name(secret)
+                secret.to(system=self, env=self._default_env)
+
         if default_env:
             from runhouse.utils import _process_env_vars
 
