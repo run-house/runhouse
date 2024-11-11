@@ -17,10 +17,6 @@ class GCPSecret(ProviderSecret):
 
     _PROVIDER = "gcp"
     _DEFAULT_CREDENTIALS_PATH = "~/.config/gcloud/application_default_credentials.json"
-    _DEFAULT_ENV_VARS = {
-        "client_id": "CLIENT_ID",
-        "client_secret": "CLIENT_SECRET",
-    }
 
     @staticmethod
     def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
