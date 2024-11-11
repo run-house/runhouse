@@ -658,14 +658,6 @@ class Cluster(Resource):
                         node=node,
                     )
 
-        if self._default_env.secrets:
-            from runhouse.resources.secrets import Secret
-
-            for secret in self._default_env.secrets:
-                if isinstance(secret, str):
-                    secret = Secret.from_name(secret)
-                secret.to(system=self, env=self._default_env)
-
     def _sync_runhouse_to_cluster(
         self,
         _install_url: Optional[str] = None,
@@ -1238,6 +1230,15 @@ class Cluster(Resource):
             self._start_ray_workers(DEFAULT_RAY_PORT, env=self.default_env)
 
         self.put_resource(self.default_env)
+
+        if self._default_env and self._default_env.secrets:
+            from runhouse.resources.secrets import Secret
+
+            for secret in self._default_env.secrets:
+                if isinstance(secret, str):
+                    secret = Secret.from_name(secret)
+                secret.to(system=self, env=self._default_env)
+
         if default_env:
             from runhouse.utils import _process_env_vars
 
