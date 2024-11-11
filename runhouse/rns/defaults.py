@@ -13,7 +13,6 @@ from runhouse.logger import get_logger
 
 from runhouse.rns.utils.api import read_resp_data, to_bool
 
-
 req_ctx = contextvars.ContextVar("rh_ctx", default={})
 
 logger = get_logger(__name__)
@@ -37,6 +36,7 @@ class Defaults:
         "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
+        "launcher_type": "den",
         "autosave": True,
     }
 
@@ -44,6 +44,7 @@ class Defaults:
         self._token = None
         self._username = None
         self._default_folder = None
+        self._launcher_type = None
         self._defaults_cache = defaultdict(dict)
         self._simulate_logged_out = False
         self._use_caller_token = False
@@ -115,6 +116,22 @@ class Defaults:
     @default_folder.setter
     def default_folder(self, value):
         self._default_folder = value
+
+    @property
+    def launcher_type(self):
+        if self._launcher_type:
+            return self._launcher_type
+
+        if "launcher_type" in self.defaults_cache:
+            self._launcher_type = self.defaults_cache["launcher_type"]
+            return self._launcher_type
+
+        return self.BASE_DEFAULTS["launcher_type"]
+
+    @launcher_type.setter
+    def launcher_type(self, value):
+        self._launcher_type = value
+        self.set("launcher_type", value)
 
     @property
     def defaults_cache(self):

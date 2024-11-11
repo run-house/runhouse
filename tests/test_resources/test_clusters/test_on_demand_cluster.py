@@ -35,7 +35,6 @@ def get_last_active_time_from_on_cluster():
 
 
 def get_last_active_time_without_register(cluster):
-
     register_activity_cmd = shlex.quote(
         "from sky.skylet.autostop_lib import get_last_active_time; "
         "print(get_last_active_time())"
@@ -74,7 +73,6 @@ def torch_exists():
 
 
 class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCluster):
-
     MAP_FIXTURES = {"resource": "cluster"}
 
     UNIT = {"cluster": []}
@@ -110,6 +108,21 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             "multinode_gpu_cluster",
         ]
     }
+
+    @pytest.mark.level("minimal")
+    def test_launcher_type(self):
+        from runhouse.globals import configs
+
+        with pytest.raises(ValueError):
+            rh.ondemand_cluster(name="some-cluster", launcher_type="invalid")
+
+        configs.set("launcher_type", "local")
+
+        cluster = rh.ondemand_cluster(name="some-cluster", launcher_type="den")
+
+        # if specified in the factory override the local config value
+        assert cluster.launcher_type == "den"
+        assert configs.launcher_type == "local"
 
     @pytest.mark.level("minimal")
     def test_restart_does_not_change_config_yaml(self, cluster):
