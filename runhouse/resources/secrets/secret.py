@@ -282,7 +282,7 @@ class Secret(Resource):
 
         # Save metadata to Den
         if self.rns_address.startswith("/"):
-            logger.info(f"Saving config for {self.name} to Den")
+            logger.info(f"Saving config for {self.rns_address} to Den")
             payload = rns_client.resource_request_payload(config)
             uri = f"{rns_client.api_server_url}/resource"
             resp = rns_client.session.post(
@@ -298,7 +298,7 @@ class Secret(Resource):
                 )
 
             if save_values and self.values:
-                logger.info(f"Saving secrets for {self.name} to Vault")
+                logger.info(f"Saving secrets for {self.rns_address} to Vault")
                 resource_uri = rns_client.resource_uri(self.rns_address)
                 uri = f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}"
                 resp = rns_client.session.put(
