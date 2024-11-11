@@ -371,12 +371,12 @@ def ondemand_cluster(
             f"{RESERVED_SYSTEM_NAMES}."
         )
 
-    if "num_nodes" in kwargs:
+    if "num_instances" in kwargs:
         logger.warning(
-            "The `num_nodes` argument is deprecated and will be removed in a future version. "
+            "The `num_instances` argument is deprecated and will be removed in a future version. "
             "Please use the argument `num_nodes` instead to refer to the number of nodes for the cluster."
         )
-        num_nodes = kwargs.get("num_nodes")
+        num_nodes = kwargs.get("num_instances")
 
     if provider == "kubernetes":
         namespace = kwargs.pop("namespace", None)

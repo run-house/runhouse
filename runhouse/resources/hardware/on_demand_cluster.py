@@ -90,9 +90,9 @@ class OnDemandCluster(Cluster):
             **kwargs,
         )
 
-        if "num_nodes" in kwargs and not num_nodes:
+        if "num_instances" in kwargs and not num_nodes:
             # Handle BC for configs previously saved with `num_instances`
-            num_nodes = kwargs.get("num_nodes")
+            num_nodes = kwargs.get("num_instances")
 
         self.instance_type = instance_type
         self.num_nodes = num_nodes
