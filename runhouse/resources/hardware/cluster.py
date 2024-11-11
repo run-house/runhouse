@@ -1902,13 +1902,16 @@ class Cluster(Resource):
             local_port=port_forward,
             num_ports_to_try=NUM_PORTS_TO_TRY,
         )
-        port_fwd = tunnel.local_bind_port
+        port_fwd = tunnel.remote_bind_port
 
         try:
-            install_cmd = "pip install jupyterlab"
             jupyter_cmd = f"jupyter lab --port {port_fwd} --no-browser"
             with self.pause_autostop():
-                self.run(commands=[install_cmd, jupyter_cmd], stream_logs=True)
+                self.install_packages(["jupyterlab"])
+                # TODO figure out why logs are not streaming here if we don't use ssh.
+                # When we do, it may be better to switch it back because then jupyter is killed
+                # automatically when the cluster is restarted (and the process is killed).
+                self.run(commands=[jupyter_cmd], stream_logs=True, node=self.ips[0])
 
         finally:
             if sync_package_on_close:
