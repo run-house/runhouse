@@ -159,9 +159,6 @@ class ProviderSecret(Secret):
         system = _get_cluster_from(system)
         path = path or self.path
 
-        if not env or (env and isinstance(env, Env) and not env.name):
-            env = system.default_env
-
         if system.on_this_cluster():
             if not env and not path == self.path:
                 if name and not self.name == name:
@@ -191,13 +188,18 @@ class ProviderSecret(Secret):
             )
 
         if env or self.env_vars:
+            if not env or (env and isinstance(env, Env) and not env.name):
+                env = system.default_env
             env_key = env if isinstance(env, str) else env.name
+
             if not system.get(env_key):
                 env = env if isinstance(env, Env) else Env(name=env_key)
                 env_key = system.put_resource(env)
             env_vars = self.env_vars or self._DEFAULT_ENV_VARS
             if env_vars:
-                env_vars = {env_vars[k]: self.values[k] for k in self.values}
+                env_vars = {
+                    env_vars[k]: self.values[k] for k in self.values if k in env_vars
+                }
                 system.set_process_env_vars(process_name=env_key, env_vars=env_vars)
         return new_secret
 
