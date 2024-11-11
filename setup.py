@@ -79,6 +79,7 @@ install_requires = [
     "httpx",
     "pydantic >= 2.5.0",  # required for ray >= 2.9.0 (https://github.com/ray-project/ray/releases?page=2)
     "pynvml",
+    "cryptography",
 ]
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following

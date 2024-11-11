@@ -8,7 +8,7 @@ from runhouse.constants import DOCKER_LOGIN_ENV_VARS
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import SSEClient
-from runhouse.rns.utils.api import load_resp_content, read_resp_data
+from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content, read_resp_data
 from runhouse.utils import Spinner
 
 logger = get_logger(__name__)
@@ -34,12 +34,17 @@ class Launcher:
 
     @classmethod
     def sky_secret(cls):
-        # TODO: is this guaranteed to be the default SkySecret name?
         secrets_name = "ssh-sky-key"
         try:
             sky_secret = rh.secret(secrets_name)
         except ValueError:
-            raise ValueError(f"No cluster secret found in Den with name {secrets_name}")
+            # Create a new default key pair required for the Den launcher and save it to Den
+            from runhouse import provider_secret
+
+            default_ssh_path, _ = generate_ssh_keys()
+            logger.info(f"Saved new SSH key to path: {default_ssh_path} ")
+            sky_secret = provider_secret(provider="ssh", path=default_ssh_path)
+            sky_secret.save()
 
         secret_values = sky_secret.values
         if (
@@ -144,7 +149,6 @@ class DenLauncher(Launcher):
         payload = {
             "cluster_config": {
                 **cluster.config(),
-                # TODO: update once secrets are updated to include pub + private key values (should have only one field)
                 "ssh_creds": sky_secret.rns_address,
             },
             "force": force,
