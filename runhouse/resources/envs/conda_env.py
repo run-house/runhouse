@@ -55,7 +55,7 @@ class CondaEnv(Env):
     def env_name(self):
         return self.conda_yaml["name"]
 
-    def install(
+    def _create_conda_env(
         self, force: bool = False, cluster: "Cluster" = None, node: Optional[str] = None
     ):
         """Locally install packages and run setup commands.
@@ -106,9 +106,6 @@ class CondaEnv(Env):
             cluster=cluster,
             node=node,
         )
-
-        self._install_reqs(cluster=cluster, node=node)
-        self._run_setup_cmds(cluster=cluster, node=node)
 
         return
 

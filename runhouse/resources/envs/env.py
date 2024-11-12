@@ -234,6 +234,8 @@ class Env(Resource):
                 system.set_process_env_vars(process_name=key, env_vars=env_vars)
 
             conda_env_name = new_env.env_name if hasattr(self, "conda_yaml") else None
+            if conda_env_name:
+                system.call(key, "_create_conda_env")
             system.install_packages(reqs=new_env.reqs, conda_env_name=conda_env_name)
             system.call(key, "_run_setup_cmds", setup_cmds=new_env.setup_cmds)
 
