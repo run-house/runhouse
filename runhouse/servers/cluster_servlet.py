@@ -28,7 +28,7 @@ from runhouse.constants import (
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware import load_cluster_config_from_file
-from runhouse.resources.hardware.utils import detect_cuda_version_or_cpu
+from runhouse.resources.hardware.utils import is_gpu_cluster
 from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.autostop_helper import AutostopHelper
@@ -61,7 +61,7 @@ class ClusterServlet:
         self.cluster_config: Optional[Dict[str, Any]] = (
             cluster_config if cluster_config else {}
         )
-        self.cluster_config["has_cuda"] = detect_cuda_version_or_cpu() != "cpu"
+        self.cluster_config["has_cuda"] = is_gpu_cluster()
 
         self._initialized_servlet_names: Set[str] = set()
         self._key_to_servlet_name: Dict[Any, str] = {}
@@ -135,7 +135,7 @@ class ClusterServlet:
 
     async def aset_cluster_config(self, cluster_config: Dict[str, Any]):
         if "has_cuda" not in cluster_config.keys():
-            cluster_config["has_cuda"] = detect_cuda_version_or_cpu() != "cpu"
+            cluster_config["has_cuda"] = is_gpu_cluster()
 
         self.cluster_config = cluster_config
 

@@ -22,7 +22,7 @@ from runhouse.constants import (
 from runhouse.globals import obj_store
 from runhouse.logger import get_logger
 
-from runhouse.resources.hardware.utils import detect_cuda_version_or_cpu
+from runhouse.resources.hardware.utils import is_gpu_cluster
 
 from runhouse.servers.http.http_utils import (
     deserialize_data,
@@ -126,7 +126,7 @@ class Servlet:
             threading.Lock()
         )  # will be used when self.gpu_metrics will be updated by different threads.
 
-        if detect_cuda_version_or_cpu() != "cpu":
+        if is_gpu_cluster():
             logger.debug("Creating _periodic_gpu_check thread.")
             collect_gpu_thread = threading.Thread(
                 target=self._collect_env_gpu_usage, daemon=True
