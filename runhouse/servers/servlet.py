@@ -25,6 +25,7 @@ from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import is_gpu_cluster
 
 from runhouse.servers.http.http_utils import (
+    CreateProcessParams,
     deserialize_data,
     handle_exception_response,
     OutputType,
@@ -92,13 +93,14 @@ def error_handling_decorator(func):
 
 
 class Servlet:
-    async def __init__(self, env_name: str, *args, **kwargs):
-        self.env_name = env_name
+    async def __init__(self, process_init_args: CreateProcessParams, *args, **kwargs):
+        self.env_name = process_init_args.name
 
         await obj_store.ainitialize(
             self.env_name,
             has_local_storage=True,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
+            init_args=process_init_args,
         )
 
         # Ray defaults to setting OMP_NUM_THREADS to 1, which unexpectedly limit parallelism in user programs.

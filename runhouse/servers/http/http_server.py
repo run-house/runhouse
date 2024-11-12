@@ -161,14 +161,19 @@ class HTTPServer:
             await obj_store.ainitialize(
                 default_env_name,
                 setup_ray=RaySetupOption.TEST_PROCESS,
-                runtime_env=runtime_env,
+                init_args=CreateProcessParams(
+                    name=default_env_name, runtime_env=runtime_env
+                ),
             )
 
         # We initialize a default env servlet where some things may run.
         _ = obj_store.get_servlet(
             env_name=default_env_name,
+            process_init_args=CreateProcessParams(
+                name=default_env_name,
+                runtime_env=runtime_env,
+            ),
             create=True,
-            runtime_env=runtime_env,
         )
 
         if default_env_name == EMPTY_DEFAULT_ENV_NAME:
@@ -368,7 +373,8 @@ class HTTPServer:
     @validate_cluster_access
     async def get_processes(request: Request):
         try:
-            processes = await obj_store.aget_all_initialized_servlet_names()
+            processes = await obj_store.aget_all_initialized_servlet_args()
+            processes = {k: v.model_dump() for k, v in processes.items()}
             return Response(
                 output_type=OutputType.RESULT_SERIALIZED,
                 data=serialize_data(processes, "json"),
@@ -386,9 +392,8 @@ class HTTPServer:
         try:
             _ = obj_store.get_servlet(
                 env_name=params.name,
+                process_init_args=params,
                 create=True,
-                runtime_env=params.runtime_env,
-                resources=params.compute,
             )
             time.sleep(1)
             return Response(output_type=OutputType.SUCCESS)
