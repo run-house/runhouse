@@ -48,7 +48,6 @@ class Process:
         system.create_process(
             name=self.name,
             compute=self._compute,
-            env_vars=self._env_vars,
             runtime_env=self._runtime_env,
         )
 
