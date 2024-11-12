@@ -36,7 +36,7 @@ class Defaults:
         "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
-        "launcher_type": "den",
+        "launcher_type": "local",
         "autosave": True,
     }
 
