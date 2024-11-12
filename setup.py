@@ -85,22 +85,22 @@ install_requires = [
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following
 # packages dependencies are changed.
 extras_require = {
-    "sky": ["skypilot==0.6.0"],
+    "sky": ["skypilot==0.7.0"],
     "data": ["pandas"],
     "aws": [
-        "skypilot[aws]==0.6.0",
+        "skypilot[aws]==0.7.0",
         # https://github.com/aio-libs/aiobotocore/issues/983
         # If you don't want to use these exact versions, you can install runhouse without the aws extras, then
         # install your desired versions of awscli and boto3
         "pycryptodome==3.12.0",
     ],
-    "azure": ["skypilot[azure]==0.6.0"],
+    "azure": ["skypilot[azure]==0.7.0"],
     "gcp": [
-        "skypilot[gcp]==0.6.0",
+        "skypilot[gcp]==0.7.0",
         "gcsfs",
     ],
     "docker": ["docker"],
-    "kubernetes": ["skypilot==0.6.0", "kubernetes"],
+    "kubernetes": ["skypilot==0.7.0", "kubernetes"],
 }
 
 extras_require["all"] = sum(extras_require.values(), [])
