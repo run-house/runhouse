@@ -1,9 +1,11 @@
 import ast
 import datetime
+import functools
 import json
 import os
 import uuid
 from enum import Enum
+from typing import Tuple
 
 from requests import Response
 
@@ -85,6 +87,63 @@ def relative_file_path(file_path: str):
         relative_path = f"~/{relative_path}"
 
     return relative_path
+
+
+def generate_ssh_keys() -> Tuple[str, str]:
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    # Adapted from: https://github.com/skypilot-org/skypilot/blob/2c7419cdd22adb440bd37702be6f1ddc1c287684/sky/authentication.py#L106 # noqa
+    private_key_path = os.path.expanduser("~/.ssh/sky-key")
+    public_key_path = os.path.expanduser("~/.ssh/sky-key.pub")
+
+    if os.path.exists(private_key_path):
+        return private_key_path, public_key_path
+
+    key = rsa.generate_private_key(
+        backend=default_backend(), public_exponent=65537, key_size=2048
+    )
+
+    private_key = (
+        key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        .decode("utf-8")
+        .strip()
+    )
+
+    public_key = (
+        key.public_key()
+        .public_bytes(
+            serialization.Encoding.OpenSSH, serialization.PublicFormat.OpenSSH
+        )
+        .decode("utf-8")
+        .strip()
+    )
+
+    key_dir = os.path.dirname(private_key_path)
+    os.makedirs(key_dir, exist_ok=True, mode=0o700)
+
+    with open(
+        private_key_path,
+        "w",
+        encoding="utf-8",
+        opener=functools.partial(os.open, mode=0o600),
+    ) as f:
+        f.write(private_key)
+
+    with open(
+        public_key_path,
+        "w",
+        encoding="utf-8",
+        opener=functools.partial(os.open, mode=0o644),
+    ) as f:
+        f.write(public_key)
+
+    return private_key_path, public_key_path
 
 
 class ResourceAccess(str, Enum):
