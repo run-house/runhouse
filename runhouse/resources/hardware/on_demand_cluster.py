@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-import json
 import subprocess
 import time
 import warnings
@@ -23,19 +22,19 @@ from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
     DEFAULT_SERVER_PORT,
-    DOCKER_LOGIN_ENV_VARS,
     LOCAL_HOSTS,
 )
 
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import (
+    LauncherType,
     ResourceServerStatus,
     ServerConnectionType,
     up_cluster_helper,
 )
-
 from .cluster import Cluster
+from .launcher_utils import DenLauncher, LocalLauncher
 
 logger = get_logger(__name__)
 
@@ -62,6 +61,7 @@ class OnDemandCluster(Cluster):
         server_host: int = None,
         server_port: int = None,
         server_connection_type: str = None,
+        launcher_type: str = None,
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
         domain: str = None,
@@ -110,6 +110,7 @@ class OnDemandCluster(Cluster):
         self.memory = memory
         self.disk_size = disk_size
         self.sky_kwargs = sky_kwargs or {}
+        self.launcher_type = launcher_type or configs.launcher_type
 
         self.stable_internal_external_ips = kwargs.get(
             "stable_internal_external_ips", None
@@ -195,6 +196,7 @@ class OnDemandCluster(Cluster):
                 "disk_size",
                 "sky_kwargs",
                 "launched_properties",
+                "launcher_type",
             ],
         )
         config["autostop_mins"] = self._autostop_mins
@@ -541,8 +543,14 @@ class OnDemandCluster(Cluster):
             await self.a_up(capture_output=capture_output)
         return self
 
-    def up(self):
+    def up(self, verbose: bool = True, force: bool = False):
         """Up the cluster.
+
+        Args:
+            verbose (bool, optional): Whether to stream logs from Den when the cluster is being launched. Only
+                relevant if launching via Den. (Default: `True`)
+            force (bool, optional): Whether to launch the cluster even if one with the same configs already exists.
+                Only relevant if launching via Den. (Default: `False`)
 
         Example:
             >>> rh.ondemand_cluster("rh-cpu").up()
@@ -550,74 +558,13 @@ class OnDemandCluster(Cluster):
         if self.on_this_cluster():
             return self
 
-        supported_providers = ["cheapest"] + list(sky.clouds.CLOUD_REGISTRY)
-        if self.provider not in supported_providers:
-            raise ValueError(
-                f"Cluster provider {self.provider} not supported. Must be one {supported_providers} supported by SkyPilot."
-            )
+        if self.launcher_type == LauncherType.DEN:
+            logger.info("Launching cluster with Den")
+            DenLauncher.up(cluster=self, verbose=verbose, force=force)
 
-        task = sky.Task(num_nodes=self.num_nodes)
-        cloud_provider = (
-            sky.clouds.CLOUD_REGISTRY.from_str(self.provider)
-            if self.provider != "cheapest"
-            else None
-        )
-        try:
-            task.set_resources(
-                sky.Resources(
-                    # TODO: confirm if passing instance type in old way (without --) works when provider is k8s
-                    cloud=cloud_provider,
-                    instance_type=self.get_instance_type(),
-                    accelerators=self.accelerators(),
-                    cpus=self.num_cpus(),
-                    memory=self.memory,
-                    region=self.region or configs.get("default_region"),
-                    disk_size=self.disk_size,
-                    ports=self.open_ports,
-                    image_id=self.image_id,
-                    use_spot=self.use_spot,
-                    **self.sky_kwargs.get("resources", {}),
-                )
-            )
-            if self.image_id:
-                import os
-
-                docker_env_vars = {}
-                for env_var in DOCKER_LOGIN_ENV_VARS:
-                    if os.getenv(env_var):
-                        docker_env_vars[env_var] = os.getenv(env_var)
-                if docker_env_vars:
-                    task.update_envs(docker_env_vars)
-            sky.launch(
-                task,
-                cluster_name=self.name,
-                idle_minutes_to_autostop=self._autostop_mins,
-                down=True,
-                **self.sky_kwargs.get("launch", {}),
-            )
-        # Make sure no args are passed both in sky_kwargs and as explicit args
-        except TypeError as e:
-            if "got multiple values for keyword argument" in str(e):
-                raise TypeError(
-                    f"{str(e)}. If argument is in `sky_kwargs`, it may need to be passed directly through the "
-                    f"ondemand_cluster constructor (see `ondemand_cluster docs "
-                    f"<https://www.run.house/docs/api/python/cluster#runhouse.ondemand_cluster>`__)."
-                )
-            raise e
-
-        self._update_from_sky_status()
-
-        if self.domain:
-            logger.info(
-                f"Cluster has been launched with the custom domain '{self.domain}'. "
-                "Please add an A record to your DNS provider to point this domain to the cluster's "
-                f"public IP address ({self.address}) to ensure successful requests."
-            )
-
-        self.restart_server()
-
-        if rns_client.autosave_resources():
-            self.save()
+        elif self.launcher_type == LauncherType.LOCAL:
+            logger.info("Launching cluster locally")
+            LocalLauncher.up(cluster=self, verbose=verbose)
 
         return self
 
@@ -631,43 +578,57 @@ class OnDemandCluster(Cluster):
         self.autostop_mins = mins
         return self
 
-    def teardown(self):
+    def teardown(self, verbose: bool = True):
         """Teardown cluster.
+
+        Args:
+            verbose (bool, optional): Whether to stream logs from Den when the cluster is being downed. Only relevant
+                when tearing down via Den. (Default: `True`)
 
         Example:
             >>> rh.ondemand_cluster("rh-cpu").teardown()
         """
         try:
+            # Update Den with the cluster's status before tearing down
             cluster_status_data = self.status()
             status_data = {
                 "status": ResourceServerStatus.terminated,
                 "resource_type": self.__class__.__base__.__name__.lower(),
                 "data": cluster_status_data,
             }
+
             cluster_uri = rns_client.format_rns_address(self.rns_address)
-            api_server_url = rns_client.api_server_url
             status_resp = requests.post(
-                f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-                data=json.dumps(status_data),
+                f"{rns_client.api_server_url}/resource/{cluster_uri}/cluster/status",
+                json=status_data,
                 headers=rns_client.request_headers(),
             )
-            # 404 means that the cluster is not saved in den, it is fine that the status is not updated.
+
+            # Note: 404 means that the cluster is not saved in Den
             if status_resp.status_code not in [200, 404]:
                 logger.warning("Failed to update Den with terminated cluster status")
+
         except Exception as e:
             logger.warning(e)
 
-        # Stream logs
-        sky.down(self.name)
-        self.address = None
+        if self.launcher_type == LauncherType.DEN:
+            logger.info("Tearing down cluster with Den.")
+            DenLauncher.teardown(cluster=self, verbose=verbose)
+        else:
+            logger.info("Tearing down cluster locally via Sky.")
+            LocalLauncher.teardown(cluster=self, verbose=verbose)
 
-    def teardown_and_delete(self):
+    def teardown_and_delete(self, verbose: bool = True):
         """Teardown cluster and delete it from configs.
+
+        Args:
+            verbose (bool, optional): Whether to stream logs from Den when the cluster is being downed. Only relevant
+                when tearing down via Den. (Default: `True`)
 
         Example:
             >>> rh.ondemand_cluster("rh-cpu").teardown_and_delete()
         """
-        self.teardown()
+        self.teardown(verbose)
         rns_client.delete_configs(resource=self)
 
     @contextlib.contextmanager
