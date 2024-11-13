@@ -188,7 +188,7 @@ if __name__ == "__main__":
         name="doc_embedder",
     )
     embedder_pool = remote_url_embedder.distribute(
-        "queue", replicas=num_replicas, replicas_per_node=1, max_concurrency=32
+        "pool", replicas=num_replicas, replicas_per_node=1, max_concurrency=32
     )
 
     # ## Calling the Runhouse modules in parallel
