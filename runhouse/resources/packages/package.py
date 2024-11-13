@@ -353,7 +353,6 @@ class Package(Resource):
         if not any("torch" in req for req in reqs_list):
             return f"-r {reqs_path}" + install_args
 
-        cuda_version_or_cpu = detect_cuda_version_or_cpu(cluster=cluster)
         for req in reqs_list:
             if (
                 "--index-url" in req or "--extra-index-url" in req
@@ -361,6 +360,7 @@ class Package(Resource):
                 return f"-r {reqs_path}" + install_args
 
         # add extra-index-url for torch if not found
+        cuda_version_or_cpu = detect_cuda_version_or_cpu(cluster=cluster)
         return f"-r {reqs_path} --extra-index-url {self._torch_index_url(cuda_version_or_cpu)}"
 
     def _install_cmd_for_torch(self, install_cmd, cluster=None):
@@ -370,6 +370,8 @@ class Package(Resource):
 
         torch_source_packages = ["torch", "torchvision", "torchaudio"]
         if not any([x in install_cmd for x in torch_source_packages]):
+            return install_cmd
+        if "+" in install_cmd or "--extra-index-url" in install_cmd:
             return install_cmd
 
         packages_to_install: list = self._packages_to_install_from_cmd(install_cmd)

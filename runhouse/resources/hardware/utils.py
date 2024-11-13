@@ -214,20 +214,36 @@ def _setup_creds_from_dict(ssh_creds: Dict, cluster_name: str):
     return cluster_secret, ssh_properties
 
 
+def is_gpu_cluster(cluster: "Cluster" = None, node: Optional[str] = None):
+    if run_setup_command("nvidia-smi", cluster=cluster, node=node)[0] == 0:
+        return True
+    return False
+
+
 def detect_cuda_version_or_cpu(cluster: "Cluster" = None, node: Optional[str] = None):
     """Return the CUDA version on the cluster. If we are on a CPU-only cluster return 'cpu'.
 
     Note: A cpu-only machine may have the CUDA toolkit installed, which means nvcc will still return
     a valid version. Also check if the NVIDIA driver is installed to confirm we are on a GPU."""
 
+    if not is_gpu_cluster(cluster=cluster, node=node):
+        return "cpu"
+
     status_codes = run_setup_command("nvcc --version", cluster=cluster, node=node)
     if not status_codes[0] == 0:
-        return "cpu"
+        status_codes = run_setup_command(
+            "/usr/local/cuda/bin/nvcc --version", cluster=cluster, node=node
+        )
+        if not status_codes[0] == 0:
+            raise RuntimeError(
+                "Could not determine CUDA version on GPU cluster for installing the correct torch version. "
+                "Please install nvcc on the cluster to enable automatic CUDA version detection, or include "
+                "the exact version to install for the package, e.g. 'torch==1.13.1+cu117' or by including "
+                "the --index-url or --extra-index-url"
+            )
     cuda_version = status_codes[1].split("release ")[1].split(",")[0]
 
-    if run_setup_command("nvidia-smi", cluster=cluster, node=node)[0] == 0:
-        return cuda_version
-    return "cpu"
+    return cuda_version
 
 
 def _run_ssh_command(
