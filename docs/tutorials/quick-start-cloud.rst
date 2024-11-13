@@ -91,8 +91,8 @@ properly.
         name="rh-cluster",
         instance_type="CPU:2+",
         provider="aws",
-        autostop_mins = 60,
-        launcher_type = 'local'
+        autostop_mins=60,
+        launcher_type="local",
     )
     cluster.up_if_not()
 
