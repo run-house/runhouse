@@ -113,13 +113,20 @@ class DenLauncher(Launcher):
 
     @classmethod
     def _update_from_den_response(cls, cluster, config: dict):
-        """Updates cluster with config from Den."""
-        cluster.launched_properties = config.get("launched_properties", {})
-        cluster.ips = config.get("ips", {})
-        cluster.stable_internal_external_ips = config.get(
-            "stable_internal_external_ips", {}
-        )
-        cluster.ssh_properties = config.get("ssh_properties", {})
+        """Updates cluster with config from Den. Only add fields if found."""
+        if not config:
+            return
+
+        for attribute in [
+            "launched_properties",
+            "ips",
+            "stable_internal_external_ips",
+            "ssh_properties",
+            "client_port",
+        ]:
+            value = config.get(attribute)
+            if value:
+                setattr(cluster, attribute, value)
 
         creds = config.get("creds")
         if not cluster._creds and creds:
@@ -203,7 +210,7 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.TEARDOWN_URL}': Failed to "
                 f"teardown cluster: {load_resp_content(resp)}"
             )
-        cluster.head_ip = None
+        cluster.ips = None
 
 
 class LocalLauncher(Launcher):
