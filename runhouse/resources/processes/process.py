@@ -24,17 +24,30 @@ class Process:
         self._runtime_env = {"conda_env": conda_env_name} if conda_env_name else {}
         self._system = None
 
-    def get_or_to(self, system: Union[str, Cluster]):
-        system = _get_cluster_from(system)
+    def get(self, system: Optional[Union[str, Cluster]] = None):
+        if not system and not self._system:
+            raise ValueError("No system provided to get process from.")
+
+        if system is not None:
+            self._system = _get_cluster_from(system)
+
         if not isinstance(system, Cluster):
             raise ValueError(f"Could not find system {system}")
 
-        if self.name in system.list_processes():
-            logger.info("Found worker in system, ignoring _compute and _env_vars.")
-            process = Process(name=self.name)
-            process._system = system
-            return process
+        init_args = system.list_processes().get(self.name)
+        if init_args is not None:
+            logger.info(
+                "Found worker in system, setting server side initialization args."
+            )
+            self._compute = init_args.compute
+            self._env_vars = init_args.env_vars
+            self._runtime_env = init_args.runtime_env
+            self._system = system
 
+        return self
+
+    def get_or_to(self, system: Union[str, Cluster]):
+        self.get(system)
         return self.to(system)
 
     def to(self, system: Union[str, Cluster]):
