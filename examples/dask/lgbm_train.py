@@ -75,7 +75,7 @@ if __name__ == "__main__":
         rh.cluster(
             name=f"rh-{num_nodes}",
             instance_type="r5d.xlarge",
-            num_instances=num_nodes,
+            num_nodes=num_nodes,
             provider="aws",
             default_env=env,
             launcher_type="local",
