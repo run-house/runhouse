@@ -223,7 +223,7 @@ class Servlet:
     # These do not catch exceptions, and do not wrap the output
     # in a Response object.
     ##############################################################
-    async def akeys_local(self):
+    def keys_local(self):
         return obj_store.keys_local()
 
     async def arename_local(self, key: Any, new_key: Any):
