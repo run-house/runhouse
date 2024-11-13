@@ -8,11 +8,13 @@ import time
 import uuid
 from enum import Enum
 from functools import wraps
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
 import ray
 from pydantic import BaseModel
 
+from runhouse.constants import LOGGING_WAIT_TIME, RH_LOGFILE_PATH
 from runhouse.logger import get_logger
 
 from runhouse.rns.defaults import req_ctx
@@ -54,6 +56,7 @@ class ActiveFunctionCallInfo(BaseModel):
     method_name: str
     request_id: str
     start_time: float
+    run_name: str
 
 
 class NoLocalObjStoreError(ObjStoreError):
@@ -1188,6 +1191,7 @@ class ObjStore:
             method_name=method_name,
             request_id=request_id,
             start_time=time.time(),
+            run_name=run_name,
         )
         try:
             res = await self._acall_local_helper(
@@ -1334,14 +1338,6 @@ class ObjStore:
             else None
         )
 
-        # Make sure there's a run_name (if called through the HTTPServer there will be, but directly
-        # through the ObjStore there may not be)
-        run_name = run_name or generate_default_name(
-            prefix=key if method_name == "__call__" else f"{key}_{method_name}",
-            precision="ms",  # Higher precision because we see collisions within the same second
-            sep="@",
-        )
-
         if laziness_type:
             # If the result is a coroutine or generator, we can't return it over the process boundary
             # and need to store it to be retrieved later. In this case we return a "retrievable".
@@ -1412,6 +1408,13 @@ class ObjStore:
                 f"Key {key} not found in any env, cannot call method {method_name} on it."
             )
 
+        # If there is no run_name, this call was made directly through the obj_store and we need to set one
+        run_name = run_name or generate_default_name(
+            prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+            precision="ms",  # Higher precision because we see collisions within the same second
+            sep="@",
+        )
+
         if servlet_name_containing_key == self.servlet_name and self.has_local_storage:
             from runhouse.servers.http.http_utils import deserialize_data
 
@@ -1430,6 +1433,14 @@ class ObjStore:
                 **kwargs,
             )
         else:
+            # In the background, retrieve logs for this run_name with self.alogs_for_servlet_name
+            # with the run_name and print them while the call runs
+            logs_task = None
+            if stream_logs:
+                logs_task = asyncio.create_task(
+                    self.alogs_for_servlet_name(servlet_name_containing_key, run_name)
+                )
+
             res = await self.acall_for_servlet_name(
                 servlet_name_containing_key,
                 key,
@@ -1440,6 +1451,12 @@ class ObjStore:
                 stream_logs=stream_logs,
                 remote=remote,
             )
+
+            # TODO we only do this to prevent the task from being garbage collected after
+            # the function completes. We should put it somewhere else so it doesn't need to
+            # block execution for every internal call.
+            if stream_logs:
+                await logs_task
 
         if remote and isinstance(res, dict) and "resource_type" in res:
             config = res
@@ -1478,6 +1495,104 @@ class ObjStore:
             stream_logs,
             remote,
         )
+
+    async def alogs_for_servlet_name(
+        self,
+        servlet_name: str,
+        run_name: Optional[str] = None,
+        print_stream: bool = True,
+    ):
+        # If stream_logs is True, print the logs as they come in. Otherwise just concatenate them together
+        # and return them as a long string.
+        printed_first_log = False
+        servlet = self.get_servlet(servlet_name)
+        full_logs = ""
+        async for log_ref in servlet.alogs_local.remote(run_name=run_name):
+            logs = await log_ref
+            for log in logs:
+                if print_stream:
+                    if not printed_first_log:
+                        print(f"---------------- Call {run_name} ----------------")
+                        printed_first_log = True
+                    print(log, end="")
+                full_logs += log
+
+        if print_stream and printed_first_log:
+            print(f"---------------- End Call {run_name} ------------")
+        return full_logs
+
+    @staticmethod
+    def _get_logfiles(log_key, log_type=None):
+        if not log_key:
+            return None
+        key_logs_path = Path(RH_LOGFILE_PATH) / log_key
+        if key_logs_path.exists():
+            # Logs are like: `.rh/logs/key/key.[out|err]`
+            glob_pattern = (
+                "*.out"
+                if log_type == "stdout"
+                else "*.err"
+                if log_type == "stderr"
+                else "*.[oe][ur][tr]"
+            )
+            return [str(f.absolute()) for f in key_logs_path.glob(glob_pattern)]
+        else:
+            return None
+
+    @staticmethod
+    def open_new_logfiles(key, open_files):
+        logfiles = ObjStore._get_logfiles(key)
+        if logfiles:
+            for f in logfiles:
+                if f not in [o.name for o in open_files]:
+                    logger.info(f"Streaming logs from {f}")
+                    open_files.append(open(f, "r"))
+        return open_files
+
+    async def alogs_local(self, run_name: Optional[str] = None):
+        logger.debug(f"Streaming logs for key {run_name}")
+        open_logfiles = []
+
+        # Wait for a maximum of 5 seconds for the log files to be created
+        for _ in range(20):
+            open_logfiles = ObjStore.open_new_logfiles(run_name, open_logfiles)
+            if open_logfiles:
+                break
+            else:
+                await asyncio.sleep(LOGGING_WAIT_TIME)
+
+        if not open_logfiles:
+            logger.warning(f"No logfiles found for call {run_name}")
+
+        call_in_progress = True
+
+        try:
+            while call_in_progress:
+                # If the call is not in the active calls, it has finished (even if it finished before we
+                # started streaming logs)
+                active_run_names = [
+                    v.run_name for v in self.active_function_calls.values()
+                ]
+                if run_name not in active_run_names:
+                    call_in_progress = False
+                else:
+                    await asyncio.sleep(LOGGING_WAIT_TIME)
+                # Grab all the lines written to all the log files since the last time we checked, including
+                # any new log files that have been created
+                open_logfiles = ObjStore.open_new_logfiles(run_name, open_logfiles)
+                ret_lines = []
+                for i, f in enumerate(open_logfiles):
+                    file_lines = f.readlines()
+                    if file_lines:
+                        # if len(logfiles) > 1:
+                        #     ret_lines.append(f"Process {i}:")
+                        ret_lines += file_lines
+                if ret_lines:
+                    logger.debug(f"Yielding logs for key {run_name}")
+                    yield ret_lines
+        finally:
+            for f in open_logfiles:
+                f.close()
 
     ##############################################
     # Get several keys for function initialization utilities

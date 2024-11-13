@@ -48,6 +48,12 @@ class SlowNumpyArray:
             self.arr[i] = i
             yield f"Hello from the cluster! {self.arr}"
 
+    def print_and_log(self, i):
+        print(f"Hello from the cluster stdout! {i}")
+        logger.info(f"Hello from the cluster logs! {i}")
+        self.arr[i] = i
+        return f"Hello from the cluster! {self.arr}"
+
     @classmethod
     def local_home(cls, local=True):
         return os.path.expanduser("~")
@@ -231,6 +237,15 @@ def construct_and_use_calculator_module(mod_name):
     assert remote_calc.divider(16, 2) == 8
 
     return remote_calc
+
+
+def nested_call_logs_stream_helper(slow_numpy_array):
+    vals = []
+    for i in range(3):
+        time.sleep(1)
+        val = slow_numpy_array.print_and_log(i)
+        vals.append(val)
+    return vals
 
 
 @pytest.mark.moduletest
@@ -662,17 +677,19 @@ class TestModule:
             "slow_iter",
             "home",
             "cpu_count",
+            "print_and_log",
             "size_minus_cpus",
             "factory_constructor",
         }
         # Check that rich signature is json-able and has the same number of keys as the regular signature
-        assert len(json.loads(json.dumps(SlowNumpy.signature(rich=True)))) == 5
+        assert len(json.loads(json.dumps(SlowNumpy.signature(rich=True)))) == 6
 
         arr = SlowNumpy(size=5)
         assert set(arr.signature()) == {
             "slow_iter",
             "home",
             "cpu_count",
+            "print_and_log",
             "size_minus_cpus",
             "factory_constructor",
         }
@@ -972,3 +989,30 @@ class TestModule:
             system=cluster, env=env
         )
         assert remote_module.construct_and_get_env().name == env.name
+
+    @pytest.mark.level("local")
+    def test_logs_stream_in_nested_call(self, cluster):
+        size = 3
+        RemoteClass = rh.module(SlowNumpyArray).to(cluster)
+        remote_instance = RemoteClass(size=size, name="remote_instance1")
+
+        # TODO test in same env (works as of 4-Nov-24)
+        # remote_helper_call = rh.function(nested_call_logs_stream_helper).to(cluster)
+
+        # Send to different env
+        helper_env = rh.env(name="helper_env", reqs=["pandas", "numpy"])
+        remote_helper_call = rh.function(nested_call_logs_stream_helper).to(
+            cluster, env=helper_env
+        )
+
+        # TODO test with slow_iter call because not working with generator as of 4-Nov-24
+        with capture_stdout() as stdout:
+            results = remote_helper_call(remote_instance)
+            out = str(stdout)
+        assert len(results) == 3
+
+        # Check that stdout of the internal module calls was captured. Skip the last result because sometimes we
+        # don't catch it and it makes the test flaky.
+        for i in range(size):
+            assert f"Hello from the cluster stdout! {i}" in out
+            assert f"Hello from the cluster logs! {i}" in out
