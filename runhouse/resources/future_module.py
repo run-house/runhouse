@@ -50,7 +50,7 @@ class FutureModule(Module, Awaitable):
         return self._future.exception()
 
     def __getstate__(self):
-        state = self.__dict__.copy()
+        state = super().__getstate__()
         state["_future"] = None
         return state
 
@@ -83,7 +83,7 @@ class GeneratorModule(Module, Generator):
         return self._future.throw(__typ, __val, __tb)
 
     def __getstate__(self):
-        state = self.__dict__.copy()
+        state = super().__getstate__()
         state["_future"] = None
         return state
 
@@ -117,6 +117,6 @@ class AsyncGeneratorModule(Module, AsyncIterable):
         return self._future.throw(__typ, __val, __tb)
 
     def __getstate__(self):
-        state = self.__dict__.copy()
+        state = super().__getstate__()
         state["_future"] = None
         return state

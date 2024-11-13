@@ -241,6 +241,8 @@ def construct_and_use_calculator_module(mod_name):
 
 def nested_call_logs_stream_helper(slow_numpy_array):
     vals = []
+    print("Starting nested call")
+    time.sleep(1)
     for i in range(3):
         time.sleep(1)
         val = slow_numpy_array.print_and_log(i)

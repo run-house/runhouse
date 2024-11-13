@@ -49,6 +49,8 @@ MODULE_ATTRS = [
     "_resolve",
     "_signature",
     "_dumb_signature_cache",
+    "_openapi_spec",
+    "access_level",
 ]
 
 logger = get_logger(__name__)
@@ -116,11 +118,6 @@ class Module(Resource):
         self._openapi_spec = None
 
     def config(self, condensed: bool = True):
-        if not self.system:
-            raise ValueError(
-                "Cannot save an in-memory local module to RNS. Please send the module to a local "
-                "path or system first."
-            )
         config = super().config(condensed)
         if self.system:
             system = self._resource_string_for_subconfig(self.system, condensed)
@@ -226,6 +223,9 @@ class Module(Resource):
             new_module._signature = config.pop("signature", None)
             new_module.dryrun = config.pop("dryrun", False)
             new_module._openapi_spec = config.pop("openapi_spec", None)
+            # TODO not sure if we should keep this anymore given deserialization improvements
+            new_module._resolve = config.pop("resolve", False)
+            new_module._dumb_signature_cache = None
             return new_module
 
         if config.get("resource_subtype", None) == "module":
@@ -416,7 +416,7 @@ class Module(Resource):
 
         return getattr(obj_store.imported_modules[module_name], obj_name)
 
-    def _extract_state(self):
+    def __getstate__(self):
         # Exclude anything already being sent in the config and private module attributes
         state = {}
         # We only send over state for instances, not classes
@@ -687,6 +687,14 @@ class Module(Resource):
                 )
 
         return RemoteMethodWrapper()
+
+    # Overload the reduce method so all subclasses of Module can be pickled as
+    # a Module object, and not as a subclass of Module (which could cause deserialization
+    # errors when pickle attempts to look up those classes remotely). Now the "envelope"
+    # for how these objects are pickled is always the Module config, which means we can
+    # always deserialize them as Module objects (as long as we can find the pointers remotely).
+    def __reduce__(self):
+        return Resource.from_config, (self.config(),), self.__getstate__()
 
     def refresh(self):
         """Update the resource in the object store."""
@@ -1399,7 +1407,9 @@ def _module_subclass_factory(cls, cls_pointers):
         name=None,
         **kwargs,
     ):
+        system_backup = self.system
         new_module = copy.copy(self)
+        new_module.system = system_backup
         # Create a copy of the item on the cluster under the new name
         new_module.name = name or self.name
         new_module.dryrun = dryrun

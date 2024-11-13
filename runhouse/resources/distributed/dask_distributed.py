@@ -32,3 +32,9 @@ class DaskDistributed(Supervisor):
 
     def __call__(self, *args, **kwargs):
         return self.call(*args, **kwargs)
+
+    def __getstate__(self):
+        state = super().__getstate__()
+        # Dask client can't be serialized
+        state["_dask_client"] = None
+        return state
