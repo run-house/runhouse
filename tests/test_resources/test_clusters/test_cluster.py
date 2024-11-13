@@ -24,6 +24,7 @@ from runhouse.globals import rns_client
 
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import ResourceServerStatus
+from runhouse.resources.processes import Process
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
@@ -1314,6 +1315,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert "env_created_before_process_list" in cluster.list_processes()
 
         # Now create a process manually with the create_process functionality
-        cluster.create_process(name="new_test_process_created_with_utility")
+        new_proc = Process(name="new_test_process_created_with_utility")
+        new_proc.to(cluster)
         time.sleep(3)
         assert "new_test_process_created_with_utility" in cluster.list_processes()

@@ -1,8 +1,10 @@
 from typing import Dict, Optional, Union
 
-from runhouse.logger import get_logger
+from runhouse.globals import obj_store
 
+from runhouse.logger import get_logger
 from runhouse.resources.hardware import _get_cluster_from, Cluster
+from runhouse.servers.http.http_utils import CreateProcessParams
 
 logger = get_logger(__name__)
 
@@ -58,12 +60,24 @@ class Process:
         if not system:
             raise ValueError(f"Could not find system {system}")
 
-        system.create_process(
-            name=self.name,
-            compute=self._compute,
-            runtime_env=self._runtime_env,
-            env_vars=self._env_vars,
-        )
+        if system.on_this_cluster():
+            obj_store.get_servlet(
+                env_name=self.name,
+                process_init_args=CreateProcessParams(
+                    name=self.name,
+                    compute=self._compute,
+                    runtime_env=self._runtime_env,
+                    env_vars=self._env_vars,
+                ),
+                create=True,
+            )
+        else:
+            system.client.create_process(
+                name=self.name,
+                compute=self._compute,
+                runtime_env=self._runtime_env,
+                env_vars=self._env_vars,
+            )
 
         self._system = system
         return self
