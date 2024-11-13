@@ -29,7 +29,7 @@ if __name__ == "__main__":
     cluster = rh.cluster(
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
         instance_type=f"A10G:{gpus_per_node}",
-        num_instances=gpus_per_worker * num_hpo_workers,
+        num_nodes=gpus_per_worker * num_hpo_workers,
     ).up_if_not()
     train_ddp = (
         rh.function(train_loop)

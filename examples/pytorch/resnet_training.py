@@ -251,7 +251,7 @@ if __name__ == "__main__":
         rh.cluster(
             name=f"rh-{num_nodes}x{gpus_per_node}GPU",
             instance_type=f"A10G:{gpus_per_node}",
-            num_instances=num_nodes,
+            num_nodes=num_nodes,
             provider="aws",
             default_env=rh.env(
                 name="pytorch_env",
