@@ -828,6 +828,14 @@ class Module(Resource):
                 **distribution_kwargs, name=name, replicas=replicas
             ).to(self.system, env=self.env.name)
             return pooled_module
+        elif distribution == "ray":
+            from runhouse.resources.distributed.ray_distributed import RayDistributed
+
+            name = name or f"ray_{self.name}"
+            ray_module = RayDistributed(
+                **distribution_kwargs, name=name, module=self
+            ).to(self.system, self.env.name)
+            return ray_module
 
     @property
     def remote(self):
