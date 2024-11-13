@@ -363,9 +363,12 @@ class OnDemandCluster(Cluster):
         # Find the internal IP corresponding to the public_head_ip and the rest are workers
         internal_head_ip = None
         worker_ips = []
-        stable_internal_external_ips = self._sky_status()[
-            "handle"
-        ].stable_internal_external_ips
+        sky_status = self._sky_status()
+        stable_internal_external_ips = (
+            sky_status["handle"].stable_internal_external_ips
+            if sky_status
+            else self.stable_internal_external_ips
+        )
         for internal, external in stable_internal_external_ips:
             if external == self.address:
                 internal_head_ip = internal
