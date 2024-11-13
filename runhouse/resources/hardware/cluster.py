@@ -2337,9 +2337,13 @@ class Cluster(Resource):
         name: str,
         compute: Optional[Dict] = None,
         runtime_env: Optional[Dict] = None,
+        env_vars: Optional[Dict] = None,
     ):
         return self.client.create_process(
-            name=name, compute=compute, runtime_env=runtime_env
+            name=name,
+            compute=compute,
+            runtime_env=runtime_env,
+            env_vars=env_vars,
         )
 
     def set_process_env_vars(self, process_name: str, env_vars: Dict):

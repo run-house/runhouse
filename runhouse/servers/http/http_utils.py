@@ -48,6 +48,7 @@ class CreateProcessParams(BaseModel):
     name: str
     compute: Optional[Dict] = {}
     runtime_env: Optional[Dict] = {}
+    env_vars: Optional[Dict] = {}
 
 
 class SetProcessEnvVarsParams(BaseModel):
