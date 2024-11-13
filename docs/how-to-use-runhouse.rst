@@ -58,7 +58,7 @@ For instance, to create a cluster on AWS with an A10 GPU attached using an arbit
         provider="aws", # Specify a cloud provider
         image_id="docker:nvcr.io/nvidia/pytorch:23.10-py3", # Use a Docker image
         autostop_mins=90, # Remember to set autostop_mins to avoid leaving clusters running indefinitely.
-        launcher = 'den' # Launch the cluster with Runhouse
+        launcher = 'den' # Launch the cluster with Runhouse; use 'local' for local credentials
     ).up_if_not()
 
 You can run CLI commands on the cluster using ``cluster.run()`` to layer on setup steps beyond the underlying image; for instance, installing other packages.
