@@ -49,10 +49,8 @@ class Process:
             name=self.name,
             compute=self._compute,
             runtime_env=self._runtime_env,
+            env_vars=self._env_vars,
         )
-
-        if self._env_vars:
-            system.set_process_env_vars(self.name, self._env_vars)
 
         self._system = system
         return self

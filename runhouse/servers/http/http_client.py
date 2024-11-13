@@ -808,12 +808,13 @@ class HTTPClient:
         name: str,
         compute: Optional[Dict] = {},
         runtime_env: Union[Dict, str] = {},
+        env_vars: Dict[str, str] = {},
     ):
         return self.request_json(
             "/create_process",
             req_type="post",
             json_dict=CreateProcessParams(
-                name=name, compute=compute, runtime_env=runtime_env
+                name=name, compute=compute, runtime_env=runtime_env, env_vars=env_vars
             ).model_dump(),
         )
 

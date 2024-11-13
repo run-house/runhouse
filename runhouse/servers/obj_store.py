@@ -31,6 +31,7 @@ from runhouse.utils import (
     is_python_package_string,
     LogToFolder,
     run_with_logs,
+    set_env_vars_in_current_process,
     sync_function,
 )
 
@@ -262,6 +263,10 @@ class ObjStore:
         for path in paths_to_prepend:
             if path not in sys.path:
                 sys.path.insert(0, path)
+
+        # Set env vars that were passed in initialization
+        if init_args and init_args.env_vars:
+            self.set_process_env_vars_local(init_args.env_vars)
 
     def initialize(
         self,
@@ -554,8 +559,16 @@ class ObjStore:
     async def adisable_den_auth(self):
         await self.aset_den_auth(False)
 
+    def set_process_env_vars_local(self, env_vars: Dict[str, str]):
+        set_env_vars_in_current_process(env_vars)
+
     async def aset_process_env_vars(self, servlet_name: str, env_vars: Dict[str, str]):
-        return await self.acall_servlet_method(servlet_name, "aset_env_vars", env_vars)
+        if self.servlet_name == servlet_name and self.has_local_storage:
+            self.set_process_env_vars_local(env_vars)
+        else:
+            return await self.acall_servlet_method(
+                servlet_name, "aset_env_vars", env_vars
+            )
 
     def set_process_env_vars(self, servlet_name: str, env_vars: Dict[str, str]):
         return sync_function(self.aset_process_env_vars)(servlet_name, env_vars)

@@ -40,7 +40,6 @@ from runhouse.utils import (
     get_node_ip,
     get_pid,
     ServletType,
-    set_env_vars_in_current_process,
 )
 
 logger = get_logger(__name__)
@@ -139,7 +138,7 @@ class Servlet:
     # Simple system interactions for this worker process
     ##############################################################
     async def aset_env_vars(self, env_vars: Dict[str, str]):
-        set_env_vars_in_current_process(env_vars)
+        obj_store.set_process_env_vars_local(env_vars)
 
     async def aprepend_to_sys_path(self, path: str):
         sys.path.insert(0, path)
