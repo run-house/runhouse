@@ -2330,7 +2330,10 @@ class Cluster(Resource):
 
     def list_processes(self):
         """List all workers on the cluster."""
-        return self.client.list_processes()
+        if self.on_this_cluster():
+            return obj_store.get_all_initialized_servlet_names()
+        else:
+            return self.client.list_processes()
 
     def set_process_env_vars(self, process_name: str, env_vars: Dict):
         if self.on_this_cluster():
