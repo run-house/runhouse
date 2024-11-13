@@ -134,13 +134,12 @@ class Cluster(Resource):
         self._setup_creds(creds)
 
     @property
-    def address(self):
+    def head_ip(self):
         return self.ips[0] if isinstance(self.ips, List) else None
 
-    @address.setter
-    def address(self, addr):
-        self.ips = self.ips or [None]
-        self.ips[0] = addr
+    @property
+    def address(self):
+        return self.head_ip
 
     @property
     def internal_ips(self):
@@ -163,7 +162,7 @@ class Cluster(Resource):
                 self._update_from_sky_status(dryrun=False)
             if not self._ping(retry=False):
                 raise ConnectionError(
-                    f"Could not reach {self.name} {self.ips}. Is cluster up?"
+                    f"Could not reach {self.name} {self.head_ip}. Is cluster up?"
                 )
             if not check_connect_server():
                 raise ConnectionError(
@@ -451,7 +450,7 @@ class Cluster(Resource):
                 (including the local connected port rather than the sever port). If cluster is not up, returns
                 `None``. (Default: ``False``)
         """
-        if not self.address or self.on_this_cluster():
+        if not self.head_ip or self.on_this_cluster():
             return None
 
         client_port = self.client_port or self.server_port
@@ -500,7 +499,7 @@ class Cluster(Resource):
         if self.server_host in [LOCALHOST, "localhost"]:
             return LOCALHOST
 
-        return self.address
+        return self.head_ip
 
     @property
     def is_shared(self) -> bool:
@@ -534,7 +533,7 @@ class Cluster(Resource):
                 "CommandRunner can only be instantiated for individual nodes"
             )
 
-        node = node or self.address
+        node = node or self.head_ip
 
         if (
             hasattr(self, "launched_properties")
@@ -672,8 +671,8 @@ class Cluster(Resource):
         if self.on_this_cluster():
             return
 
-        if not self.address:
-            raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
+        if not self.ips:
+            raise ValueError(f"No IPs set for cluster <{self.name}>. Is it up?")
 
         env = env or self.default_env
 
@@ -919,8 +918,8 @@ class Cluster(Resource):
             )
 
     def connect_server_client(self, force_reconnect=False):
-        if not self.address:
-            raise ValueError(f"No address set for cluster <{self.name}>. Is it up?")
+        if not self.ips:
+            raise ValueError(f"No IPs set for cluster <{self.name}>. Is it up?")
 
         if self.server_connection_type == ServerConnectionType.SSH:
             # For a password cluster, the 'ssh_tunnel' command assumes a Control Master is already set up with
@@ -1021,7 +1020,7 @@ class Cluster(Resource):
         )
 
         return ssh_tunnel(
-            address=self.address,
+            address=self.head_ip,
             ssh_creds=self.creds_values,
             docker_user=self.docker_user,
             local_port=local_port,
@@ -1056,15 +1055,15 @@ class Cluster(Resource):
 
     def _start_ray_workers(self, ray_port, env):
         for host in self.ips:
-            if host == self.address:
+            if host == self.head_ip:
                 # This is the master node, skip
                 continue
             logger.info(
-                f"Starting Ray on worker {host} with head node at {self.address}:{ray_port}."
+                f"Starting Ray on worker {host} with head node at {self.head_ip}:{ray_port}."
             )
             self.run(
                 commands=[
-                    f"ray start --address={self.address}:{ray_port} --disable-usage-stats",
+                    f"ray start --address={self.head_ip}:{ray_port} --disable-usage-stats",
                 ],
                 node=host,
                 env=env,
@@ -1072,7 +1071,7 @@ class Cluster(Resource):
 
     def _run_cli_commands_on_cluster_helper(self, commands: List[str]):
         if self.on_this_cluster():
-            return self.run(commands=commands, env=self._default_env, node=self.address)
+            return self.run(commands=commands, env=self._default_env, node=self.head_ip)
         else:
             if self._default_env:
                 commands = [self._default_env._full_command(cmd) for cmd in commands]
@@ -1080,7 +1079,7 @@ class Cluster(Resource):
                 commands=commands,
                 cmd_prefix="",
                 env_vars=self._default_env.env_vars if self._default_env else {},
-                node=self.address,
+                node=self.head_ip,
                 require_outputs=False,
             )
 
@@ -1154,7 +1153,7 @@ class Cluster(Resource):
                 # Rebuild on restart to ensure the correct subject name is included in the cert SAN
                 # Cert subject name needs to match the target (IP address or domain)
                 self.cert_config.generate_certs(
-                    address=self.address, domain=self.domain
+                    address=self.head_ip, domain=self.domain
                 )
                 self._copy_certs_to_cluster()
 
@@ -1476,14 +1475,14 @@ class Cluster(Resource):
         from runhouse.resources.hardware.sky_command_runner import SshMode
 
         # If no address provided explicitly use the head node address
-        node = node or self.address
+        node = node or self.head_ip
         # FYI, could be useful: https://github.com/gchamon/sysrsync
         if contents:
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
 
         # If we're already on this cluster (and node, if multinode), this is just a local rsync
-        if self.on_this_cluster() and node == self.address:
+        if self.on_this_cluster() and node == self.head_ip:
             if Path(source).expanduser().resolve() == Path(dest).expanduser().resolve():
                 return
 
@@ -1563,7 +1562,7 @@ class Cluster(Resource):
         """
         creds = self.creds_values
         _run_ssh_command(
-            address=self.address,
+            address=self.head_ip,
             ssh_user=creds["ssh_user"],
             ssh_port=self.ssh_port,
             ssh_private_key=creds["ssh_private_key"],
@@ -1571,7 +1570,7 @@ class Cluster(Resource):
         )
 
     def _ping(self, timeout=5, retry=False):
-        if not self.address:
+        if not self.ips:
             return False
 
         def run_ssh_call():
@@ -1735,7 +1734,7 @@ class Cluster(Resource):
             commands = [commands]
 
         # If no address provided explicitly use the head node address
-        node = node or self.address
+        node = node or self.head_ip
 
         return_codes = []
 
@@ -1924,7 +1923,7 @@ class Cluster(Resource):
                 # TODO figure out why logs are not streaming here if we don't use ssh.
                 # When we do, it may be better to switch it back because then jupyter is killed
                 # automatically when the cluster is restarted (and the process is killed).
-                self.run(commands=[jupyter_cmd], stream_logs=True, node=self.ips[0])
+                self.run(commands=[jupyter_cmd], stream_logs=True, node=self.head_ip)
 
         finally:
             if sync_package_on_close:
@@ -1976,7 +1975,7 @@ class Cluster(Resource):
             scheduler_options = ""
         self.run(
             f"nohup dask scheduler --port {port} {scheduler_options} > dask_scheduler.out 2>&1 &",
-            node=self.ips[0],
+            node=self.head_ip,
             stream_logs=True,
             require_outputs=True,
         )
@@ -1994,7 +1993,7 @@ class Cluster(Resource):
             # Connect to localhost if on the head node, otherwise use the internal ip of head node
             scheduler = (
                 local_scheduler_address
-                if node == self.ips[0]
+                if node == self.head_ip
                 else remote_scheduler_address
             )
             self.run(
@@ -2007,7 +2006,7 @@ class Cluster(Resource):
         return client
 
     def kill_dask(self):
-        self.run("pkill -f 'dask scheduler'", node=self.ips[0])
+        self.run("pkill -f 'dask scheduler'", node=self.head_ip)
         for node in self.ips:
             self.run("pkill -f 'dask worker'", node=node)
 

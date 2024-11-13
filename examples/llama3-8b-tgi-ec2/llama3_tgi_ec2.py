@@ -224,7 +224,7 @@ if __name__ == "__main__":
     }
 
     response = requests.post(
-        f"http://{cluster.address}:{port}/generate",
+        f"http://{cluster.head_ip}:{port}/generate",
         headers=headers,
         json=data,
         verify=False,
@@ -240,7 +240,7 @@ if __name__ == "__main__":
     # Alternatively, we can also call the model via HTTP
     # Note: We can also use a streaming route by replacing `generate` with `generate_stream`:
     print(
-        f"curl http://{cluster.address}:{port}/generate -X POST -d '"
+        f"curl http://{cluster.head_ip}:{port}/generate -X POST -d '"
         f'{{"inputs":"{prompt_message}","parameters":{{"max_new_tokens":20}}}}'
         "' -H 'Content-Type: application/json'"
     )

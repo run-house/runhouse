@@ -66,7 +66,7 @@ class S3Folder(Folder):
             self.client.download_file(bucket_name, obj_key, str(dest_file_path))
 
     def _cluster_to_local(self, cluster, dest_path):
-        if not cluster.address:
+        if not cluster.ips:
             raise ValueError("Cluster must be started before copying data from it.")
 
         Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)

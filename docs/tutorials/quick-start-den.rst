@@ -73,7 +73,7 @@ save.
     cluster = rh.ondemand_cluster(
         name="rh-cluster",
         instance_type="CPU:2+",
-        provider="aws", 
+        provider="aws",
         launcher_type="den"
     ).up_if_not()
 

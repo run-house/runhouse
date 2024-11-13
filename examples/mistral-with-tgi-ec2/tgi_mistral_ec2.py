@@ -207,7 +207,7 @@ if __name__ == "__main__":
     # on the Messages API, and using the OpenAI python client
 
     # Initialize the OpenAI client, with the URL set to the cluster's address:
-    base_url = f"http://{cluster.address}:{port}/v1"
+    base_url = f"http://{cluster.head_ip}:{port}/v1"
     client = OpenAI(base_url=base_url, api_key="-")
 
     # Call the model with the prompt messages:
@@ -224,7 +224,7 @@ if __name__ == "__main__":
 
     # Alternatively, we can also call the model via HTTP:
     print(
-        f"curl http://{cluster.address}:{port}/v1/chat/completions -X POST -d '"
+        f"curl http://{cluster.head_ip}:{port}/v1/chat/completions -X POST -d '"
         '{"model": "tgi", "stream": false, "messages": [{"role": "system", "content": "You are a helpful assistant."},'
         '{"role": "user", "content": "What is deep learning?"}]}'
         "' -H 'Content-Type: application/json'"

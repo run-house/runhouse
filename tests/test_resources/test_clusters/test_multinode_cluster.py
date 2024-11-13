@@ -52,7 +52,7 @@ class TestMultiNodeCluster:
 
     @pytest.mark.level("release")
     def test_ray_started_on_worker_node_after_cluster_restart(self, cluster):
-        head_node = cluster.ips[0]
+        head_node = cluster.head_ip
 
         status_codes = cluster.run(["ray status"], node=head_node)
         assert status_codes[0][0] == 0

@@ -149,7 +149,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             # Check that it's a Cluster and not a subclass
             assert cluster.__class__.name == "Cluster"
             assert cluster.ips == args["ips"]
-            assert cluster.address == args["ips"][0]
+            assert cluster.head_ip == args["ips"][0]
 
         if "ssh_creds" in args:
             args_creds = args["ssh_creds"]
@@ -192,7 +192,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_endpoint(self, cluster):
-        if not cluster.address:
+        if not cluster.ips:
             assert cluster.endpoint() is None
             return
 
