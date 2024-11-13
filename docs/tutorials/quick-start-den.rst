@@ -6,22 +6,43 @@ Den Quick Start
     <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-den.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
-`Runhouse Den <https://www.run.house/dashboard>`__ lets you manage and
-track your infra, services, and resources (clusters, functions, secrets,
-etc). These resources can be easily reloaded from any environment, are
-ready to be used without additional setup, and can even be shared with
-another user or teammate. Then, in the Den Web UI, you can access,
-visualize, and manage your resources along with version history.
+With `Runhouse Den <https://www.run.house/dashboard>`__, you can manage
+all of your compute and make it available through ephemeral clusters for
+both research and production workflows. Whether you have a ML platforms
+team or just yourself, Runhouse is the easiest way to ensure your
+compute is efficiently utilized and oversubscribed without slowing down
+development velocity.
 
-Installing Runhouse
--------------------
+- Centrally manage multiple cloud accounts and Kubernetes clusters in
+  the same place.
+- Both developers and the platforms team can monitor resource usage in
+  detail and access persisted logs in the web UI.
+- Save and reload services and resources (clusters, functions, classes,
+  etc) - for instance, share an embeddings endpoint to be used by
+  multiple teams with perfect reproducibility.
+- Set limits and quotas for teams and individuals, and queue requests
+  for compute.
 
-To use Runhouse to launch on-demand clusters, run the following
-installation command.
+A few of the ways Runhouse Den has helped teams include:
 
-.. code:: ipython3
+- Moving research teams from locally or ad hoc hosted notebooks, towards
+  standardized, reproducible compute and training workflows that are
+  ready to be executed in production.
+- Improving Platform team observability over day-to-day activities as
+  the ML team grew, and getting much better disambiguation between waste
+  (clusters up too long, clusters underutilizing their resources) and
+  genuinely valuable workflows that just happen to be long-lived.
+- Reducing research-to-production time by 80% since resources launched
+  and saved to Den can be scheduled nearly as-is by orchestrators.
+- Improving key / credentials management
+- Adopting a second cloud due to better quotas and cloud credits (while
+  being mostly opaque to the end user)
 
-    !pip install "runhouse[sky]"
+If you haven’t already, check-out
+`Quickstart <https://www.run.house/docs/tutorials/quick-start-cloud>`__
+or the `Runhouse usage
+guide <https://www.run.house/docs/main/en/how-to-use-runhouse>`__ to see
+how you can get started with the Runhouse client as well.
 
 Account Creation & Login
 ------------------------
@@ -43,7 +64,7 @@ policies, please reach out at `hello@run.house <hello@run.house>`__.
 Launching and Saving Clusters
 -----------------------------
 
-Let’s start by constructing some runhouse resources that we’d like to
+Let’s start by constructing some Runhouse resources that we’d like to
 save.
 
 .. code:: ipython3
@@ -52,7 +73,8 @@ save.
     cluster = rh.ondemand_cluster(
         name="rh-cluster",
         instance_type="CPU:2+",
-        provider="aws"
+        provider="aws", 
+        launcher_type="den"
     ).up_if_not()
 
 .. code:: ipython3

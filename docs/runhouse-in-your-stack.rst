@@ -1,9 +1,7 @@
-Using Runhouse with Common ML Tools and Libraries
-==========================================
+Working with Common Libraries and Tools
+=======================================
 
-Runhouse is built to be extremely unopinionated and works closely with familiar tools and libraries in the ML ecosystem.
-Its APIs are similar to those of other systems, making it easy to compare and contrast. In many cases, Runhouse complements or extends existing tools,
-while in other instances, it can replace them entirely.
+Runhouse is built to be extremely unopinionated and designed to work closely with familiar tools and libraries in the ML ecosystem.
 
 Notebooks and IDEs (Hosted or Local)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
