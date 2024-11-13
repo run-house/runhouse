@@ -64,7 +64,7 @@ policies, please reach out at `hello@run.house <hello@run.house>`__.
 Launching and Saving Clusters
 -----------------------------
 
-Let’s start by constructing some runhouse resources that we’d like to
+Let’s start by constructing some Runhouse resources that we’d like to
 save.
 
 .. code:: ipython3
@@ -73,7 +73,8 @@ save.
     cluster = rh.ondemand_cluster(
         name="rh-cluster",
         instance_type="CPU:2+",
-        provider="aws"
+        provider="aws", 
+        launcher_type="den"
     ).up_if_not()
 
 .. code:: ipython3
