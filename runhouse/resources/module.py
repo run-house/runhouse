@@ -836,6 +836,18 @@ class Module(Resource):
                 **distribution_kwargs, name=name, module=self
             ).to(self.system, self.env.name)
             return ray_module
+        elif distribution == "dask":
+            from runhouse.resources.distributed.dask_distributed import DaskDistributed
+
+            name = name or f"dask_{self.name}"
+            dask_module = DaskDistributed(
+                name=name,
+                module=self,
+                num_replicas=num_replicas,
+                replicas_per_node=replicas_per_node,
+                **distribution_kwargs,
+            ).to(self.system, self.env.name)
+            return dask_module
         elif distribution == "pytorch":
             from runhouse.resources.distributed.pytorch_distributed import (
                 PyTorchDistributed,
