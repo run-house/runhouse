@@ -9,7 +9,7 @@ import uuid
 from enum import Enum
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Union
 
 import ray
 from pydantic import BaseModel
@@ -171,7 +171,7 @@ class ObjStore:
         setup_ray: RaySetupOption = RaySetupOption.GET_OR_FAIL,
         ray_address: str = "auto",
         setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
-        runtime_env: Optional[Dict] = None,
+        init_args: Optional["CreateProcessParams"] = None,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -216,7 +216,7 @@ class ObjStore:
         )
         self.cluster_servlet = get_cluster_servlet(
             create_if_not_exists=create_if_not_exists,
-            runtime_env=runtime_env,
+            runtime_env=init_args.runtime_env if init_args else None,
         )
         if self.cluster_servlet is None:
             # TODO: logger.<method> is not printing correctly here when doing `runhouse server start`.
@@ -243,7 +243,7 @@ class ObjStore:
                     f"There already exists an Servlet with name {servlet_name}."
                 )
             else:
-                await self.amark_servlet_name_as_initialized(servlet_name)
+                await self.aadd_servlet_initialized_args(servlet_name, init_args)
 
         self.servlet_name = servlet_name
         self.has_local_storage = has_local_storage
@@ -420,14 +420,17 @@ class ObjStore:
     def get_servlet(
         self,
         env_name: str,
+        process_init_args: Optional["CreateProcessParams"] = None,
         create: bool = False,
         raise_ex_if_not_found: bool = False,
-        resources: Optional[Dict[str, Any]] = None,
         use_servlet_cache: bool = True,
         **kwargs,
     ):
         # Need to import these here to avoid circular imports
         from runhouse.servers.servlet import Servlet
+
+        if process_init_args is not None and (env_name != process_init_args.name):
+            raise ValueError("env_name and process_init_args.name must be the same.")
 
         if use_servlet_cache and env_name in self.servlet_cache:
             return self.servlet_cache[env_name]
@@ -444,28 +447,37 @@ class ObjStore:
 
         # Otherwise, create it
         if create:
-            if resources is None:
-                # Put servlets on head node by default
-                resources = {"node_idx": 0}
-
-            if "node_idx" in resources and ("CPU" in resources or "GPU" in resources):
+            if not process_init_args:
                 raise ValueError(
-                    "Cannot specify both node_idx and CPU/GPU resources for an env."
+                    "Must provide process_init_args if creating a servlet."
+                )
+
+            ray_resources = copy.copy(process_init_args.compute)
+
+            if ray_resources is None:
+                # Put servlets on head node by default
+                ray_resources = {"node_idx": 0}
+
+            if "node_idx" in ray_resources and (
+                "CPU" in ray_resources or "GPU" in ray_resources
+            ):
+                raise ValueError(
+                    "Cannot specify both node_idx and CPU/GPU ray_resources for an env."
                 )
 
             # Replace node_idx with actual node IP in Ray resources request
-            node_idx = resources.pop("node_idx", None)
+            node_idx = ray_resources.pop("node_idx", None)
             if node_idx is not None:
                 cluster_ips = self.get_internal_ips()
                 if node_idx >= len(cluster_ips):
                     raise ValueError(
                         f"Node index {node_idx} is out of bounds for cluster with {len(cluster_ips)} nodes."
                     )
-                resources[f"node:{cluster_ips[node_idx]}"] = 0.001
+                ray_resources[f"node:{cluster_ips[node_idx]}"] = 0.001
 
             # Check if requested resources are available
             available_resources = ray.available_resources()
-            for k, v in resources.items():
+            for k, v in ray_resources.items():
                 if k not in available_resources or available_resources[k] < v:
                     raise Exception(
                         f"Requested resource {k}={v} is not available on the cluster. "
@@ -477,19 +489,17 @@ class ObjStore:
                 .options(
                     name=env_name,
                     get_if_exists=True,
-                    runtime_env=kwargs["runtime_env"]
-                    if "runtime_env" in kwargs
-                    else None,
+                    runtime_env=process_init_args.runtime_env,
                     # Default to 0 CPUs if not specified, Ray will default it to 1
-                    num_cpus=resources.pop("CPU", 0),
-                    num_gpus=resources.pop("GPU", None),
-                    memory=resources.pop("memory", None),
-                    resources=resources,
+                    num_cpus=ray_resources.pop("CPU", 0),
+                    num_gpus=ray_resources.pop("GPU", None),
+                    memory=ray_resources.pop("memory", None),
+                    resources=ray_resources,
                     lifetime="detached",
                     namespace="runhouse",
                     max_concurrency=1000,
                 )
-                .remote(env_name=env_name)
+                .remote(process_init_args=process_init_args)
             )
 
             # Make sure servlet is actually initialized
@@ -652,11 +662,14 @@ class ObjStore:
     ##############################################
     # Key to servlet where it is stored mapping
     ##############################################
-    async def amark_servlet_name_as_initialized(self, servlet_name: str):
+    async def aadd_servlet_initialized_args(
+        self, servlet_name: str, init_args: Optional["CreateProcessParams"] = None
+    ):
         return await self.acall_actor_method(
             self.cluster_servlet,
-            "amark_servlet_name_as_initialized",
+            "aadd_servlet_initialized_args",
             servlet_name,
+            init_args,
         )
 
     async def ais_servlet_name_initialized(self, servlet_name: str) -> bool:
@@ -664,16 +677,16 @@ class ObjStore:
             self.cluster_servlet, "ais_servlet_name_initialized", servlet_name
         )
 
-    async def aget_all_initialized_servlet_names(self) -> Set[str]:
-        return list(
-            await self.acall_actor_method(
-                self.cluster_servlet,
-                "aget_all_initialized_servlet_names",
-            )
+    async def aget_all_initialized_servlet_args(
+        self,
+    ) -> Dict[str, "CreateProcessParams"]:
+        return await self.acall_actor_method(
+            self.cluster_servlet,
+            "aget_all_initialized_servlet_args",
         )
 
-    def get_all_initialized_servlet_names(self) -> Set[str]:
-        return sync_function(self.aget_all_initialized_servlet_names)()
+    def get_all_initialized_servlet_args(self) -> Dict[str, "CreateProcessParams"]:
+        return sync_function(self.aget_all_initialized_servlet_args)()
 
     async def aget_servlet_name_for_key(self, key: Any):
         return await self.acall_actor_method(
@@ -770,6 +783,8 @@ class ObjStore:
         serialization: Optional[str] = None,
         create_env_if_not_exists: bool = False,
     ):
+        from runhouse.servers.http.http_utils import CreateProcessParams
+
         # Before replacing something else, check if this op will even be valid.
         if env is None and self.servlet_name is None:
             raise NoLocalObjStoreError()
@@ -779,7 +794,11 @@ class ObjStore:
 
         if self.get_servlet(env) is None:
             if create_env_if_not_exists:
-                self.get_servlet(env, create=True)
+                self.get_servlet(
+                    env_name=env,
+                    process_init_args=CreateProcessParams(name=env),
+                    create=True,
+                )
             else:
                 raise ObjStoreError(
                     f"Env {env} does not exist; cannot put key {key} there."
@@ -1060,7 +1079,7 @@ class ObjStore:
         deleted_keys = []
 
         for key_to_delete in keys_to_delete:
-            if key_to_delete in await self.aget_all_initialized_servlet_names():
+            if key_to_delete in await self.aget_all_initialized_servlet_args():
                 deleted_keys += await self.adelete_env_contents(key_to_delete)
 
             if key_to_delete in deleted_keys:
@@ -1099,7 +1118,7 @@ class ObjStore:
 
     async def aclear(self):
         logger.warning("Clearing all keys from all envs in the object store!")
-        for servlet_name in await self.aget_all_initialized_servlet_names():
+        for servlet_name in await self.aget_all_initialized_servlet_args():
             if servlet_name == self.servlet_name and self.has_local_storage:
                 await self.aclear_local()
             else:
@@ -1660,7 +1679,10 @@ class ObjStore:
         serialization: Optional[str] = None,
         env_name: Optional[str] = None,
     ) -> "Response":
-        from runhouse.servers.http.http_utils import deserialize_data
+        from runhouse.servers.http.http_utils import (
+            CreateProcessParams,
+            deserialize_data,
+        )
 
         if env_name is None and self.servlet_name is None:
             raise ObjStoreError("No env name provided and no servlet name set.")
@@ -1689,9 +1711,12 @@ class ObjStore:
 
             _ = self.get_servlet(
                 env_name=env_name,
+                process_init_args=CreateProcessParams(
+                    name=env_name,
+                    runtime_env=runtime_env,
+                    resources=resource_config.get("compute", None),
+                ),
                 create=True,
-                runtime_env=runtime_env,
-                resources=resource_config.get("compute", None),
             )
 
         return await self.acall_servlet_method(
@@ -1801,7 +1826,7 @@ class ObjStore:
     async def aadd_sys_path_to_all_processes(self, path: str):
         tasks = [
             self.acall_servlet_method(servlet_name, "aprepend_to_sys_path", path)
-            for servlet_name in await self.aget_all_initialized_servlet_names()
+            for servlet_name in await self.aget_all_initialized_servlet_args()
         ]
         await asyncio.gather(*tasks)
 

@@ -15,6 +15,7 @@ import yaml
 from runhouse.globals import rns_client
 
 from runhouse.resources.hardware.utils import ResourceServerStatus
+from runhouse.servers.http.http_utils import CreateProcessParams
 from runhouse.servers.obj_store import get_cluster_servlet, ObjStore, RaySetupOption
 
 from tests.constants import TESTING_AUTOSTOP_INTERVAL, TESTING_LOG_LEVEL
@@ -28,6 +29,7 @@ def get_ray_servlet_and_obj_store(env_name):
 
     test_servlet = test_obj_store.get_servlet(
         env_name=env_name,
+        process_init_args=CreateProcessParams(name=env_name),
         create=True,
     )
 

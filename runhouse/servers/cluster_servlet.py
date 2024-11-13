@@ -33,6 +33,7 @@ from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.autostop_helper import AutostopHelper
 from runhouse.servers.http.auth import AuthCache
+from runhouse.servers.http.http_utils import CreateProcessParams
 from runhouse.utils import (
     ColoredFormatter,
     get_gpu_usage,
@@ -63,7 +64,7 @@ class ClusterServlet:
         )
         self.cluster_config["has_cuda"] = is_gpu_cluster()
 
-        self._initialized_servlet_names: Set[str] = set()
+        self._initialized_servlet_args: Dict[str, CreateProcessParams] = {}
         self._key_to_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache(self.cluster_config)
         self.autostop_helper = None
@@ -148,7 +149,7 @@ class ClusterServlet:
                     cluster_config,
                     use_servlet_cache=False,
                 )
-                for servlet_name in await self.aget_all_initialized_servlet_names()
+                for servlet_name in await self.aget_all_initialized_servlet_args()
             ]
         )
 
@@ -169,7 +170,7 @@ class ClusterServlet:
                     value,
                     use_servlet_cache=False,
                 )
-                for servlet_name in await self.aget_all_initialized_servlet_names()
+                for servlet_name in await self.aget_all_initialized_servlet_args()
             ]
         )
 
@@ -230,14 +231,16 @@ class ClusterServlet:
     ##############################################
     # Key to servlet where it is stored mapping
     ##############################################
-    async def amark_servlet_name_as_initialized(self, servlet_name: str):
-        self._initialized_servlet_names.add(servlet_name)
+    async def aadd_servlet_initialized_args(
+        self, servlet_name: str, init_args: CreateProcessParams
+    ):
+        self._initialized_servlet_args[servlet_name] = init_args
 
     async def ais_servlet_name_initialized(self, servlet_name: str) -> bool:
-        return servlet_name in self._initialized_servlet_names
+        return servlet_name in self._initialized_servlet_args
 
-    async def aget_all_initialized_servlet_names(self) -> Set[str]:
-        return self._initialized_servlet_names
+    async def aget_all_initialized_servlet_args(self) -> Set[str]:
+        return self._initialized_servlet_args
 
     async def aget_key_to_servlet_name_dict_keys(self) -> List[Any]:
         return list(self._key_to_servlet_name.keys())
@@ -268,9 +271,9 @@ class ClusterServlet:
     # Remove Env Servlet
     ##############################################
     async def aclear_all_references_to_servlet_name(self, servlet_name: str):
-        # using lock to prevent status thread access self._initialized_servlet_names before the env is deleted.
+        # using lock to prevent status thread access self._initialized_servlet_args before the env is deleted.
         with self.lock:
-            self._initialized_servlet_names.remove(servlet_name)
+            del self._initialized_servlet_args[servlet_name]
             deleted_keys = [
                 key
                 for key, env in self._key_to_servlet_name.items()
@@ -594,7 +597,7 @@ class ClusterServlet:
             servlets_status = await asyncio.gather(
                 *[
                     self._status_for_servlet(servlet_name)
-                    for servlet_name in await self.aget_all_initialized_servlet_names()
+                    for servlet_name in await self.aget_all_initialized_servlet_args()
                 ],
             )
 
