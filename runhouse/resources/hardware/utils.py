@@ -430,7 +430,7 @@ def get_clusters_from_den(cluster_filters: dict):
     return clusters_in_den_resp
 
 
-def get_unsaved_live_clusters(den_clusters: list[Dict]):
+def get_unsaved_live_clusters(den_clusters: List[Dict]):
     import sky
 
     try:
