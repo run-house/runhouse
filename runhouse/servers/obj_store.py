@@ -508,7 +508,8 @@ class ObjStore:
             )
 
             # Make sure servlet is actually initialized
-            # ray.get(new_env_actor.register_activity.remote())
+            _ = self.call_actor_method(new_env_actor, "keys_local")
+
             if use_servlet_cache:
                 self.servlet_cache[env_name] = new_env_actor
             return new_env_actor
@@ -743,7 +744,7 @@ class ObjStore:
     # KV Store: Keys
     ##############################################
     async def akeys_for_servlet_name(self, servlet_name: str) -> List[Any]:
-        return await self.acall_servlet_method(servlet_name, "akeys_local")
+        return await self.acall_servlet_method(servlet_name, "keys_local")
 
     def keys_for_servlet_name(self, servlet_name: str) -> List[Any]:
         return sync_function(self.akeys_for_servlet_name)(servlet_name)

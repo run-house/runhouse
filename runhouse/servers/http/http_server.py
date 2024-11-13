@@ -2,7 +2,6 @@ import argparse
 import asyncio
 import inspect
 import json
-import time
 import traceback
 import uuid
 from functools import wraps
@@ -395,7 +394,6 @@ class HTTPServer:
                 process_init_args=params,
                 create=True,
             )
-            time.sleep(1)
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             return handle_exception_response(
