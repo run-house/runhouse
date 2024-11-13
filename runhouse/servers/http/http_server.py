@@ -23,10 +23,6 @@ from runhouse.constants import (
     DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
     EMPTY_DEFAULT_ENV_NAME,
-    LOGGING_WAIT_TIME,
-    LOGS_TO_SHOW_UP_CHECK_TIME,
-    MAX_LOGS_TO_SHOW_UP_WAIT_TIME,
-    RH_LOGFILE_PATH,
 )
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
@@ -770,93 +766,33 @@ class HTTPServer:
 
     # `/logs` POST endpoint that takes in request and LogParams
     @staticmethod
-    @app.get("/logs/{run_name}/{serialization}")
+    @app.get("/logs/{key}/{run_name}/{serialization}")
     @validate_cluster_access
     async def get_logs(
         request: Request,
+        key: str,
         run_name: str,
         serialization: str,
     ):
-        # This call could've been made fast enough that the future hasn't been stored yet
-        sleeps = 0
-        while run_name not in running_futures:
-            if sleeps * LOGS_TO_SHOW_UP_CHECK_TIME >= MAX_LOGS_TO_SHOW_UP_WAIT_TIME:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Logs for call {run_name} not found.",
-                )
-            await asyncio.sleep(LOGS_TO_SHOW_UP_CHECK_TIME)
-
         return StreamingResponse(
-            HTTPServer._get_results_and_logs_generator(
-                running_futures[run_name], run_name, serialization
-            ),
+            HTTPServer._get_logs_generator(key, run_name, serialization),
             media_type="application/json",
         )
 
     @staticmethod
-    def _get_logfiles(log_key, log_type=None):
-        if not log_key:
-            return None
-        key_logs_path = Path(RH_LOGFILE_PATH) / log_key
-        if key_logs_path.exists():
-            # Logs are like: `.rh/logs/key/key.[out|err]`
-            glob_pattern = (
-                "*.out"
-                if log_type == "stdout"
-                else "*.err"
-                if log_type == "stderr"
-                else "*.[oe][ur][tr]"
-            )
-            return [str(f.absolute()) for f in key_logs_path.glob(glob_pattern)]
-        else:
-            return None
-
-    @staticmethod
-    def open_new_logfiles(key, open_files):
-        logfiles = HTTPServer._get_logfiles(key)
-        if logfiles:
-            for f in logfiles:
-                if f not in [o.name for o in open_files]:
-                    logger.info(f"Streaming logs from {f}")
-                    open_files.append(open(f, "r"))
-        return open_files
-
-    @staticmethod
-    async def _get_results_and_logs_generator(fut, run_name, serialization=None):
+    async def _get_logs_generator(key, run_name, serialization=None):
         logger.debug(f"Streaming logs for key {run_name}")
-        open_logfiles = []
-        waiting_for_results = True
-
         try:
-            while waiting_for_results:
-                if fut.done():
-                    waiting_for_results = False
-                    del running_futures[run_name]
-                else:
-                    await asyncio.sleep(LOGGING_WAIT_TIME)
-                # Grab all the lines written to all the log files since the last time we checked, including
-                # any new log files that have been created
-                open_logfiles = HTTPServer.open_new_logfiles(run_name, open_logfiles)
-                ret_lines = []
-                for i, f in enumerate(open_logfiles):
-                    file_lines = f.readlines()
-                    if file_lines:
-                        # TODO [DG] handle .out vs .err, and multiple workers
-                        # if len(logfiles) > 1:
-                        #     ret_lines.append(f"Process {i}:")
-                        ret_lines += file_lines
-                if ret_lines:
-                    logger.debug(f"Yielding logs for key {run_name}")
-                    yield json.dumps(
-                        jsonable_encoder(
-                            Response(
-                                data=ret_lines,
-                                output_type=OutputType.STDOUT,
-                            )
+            async for log_lines in obj_store.alogs_for_run_name(run_name, key=key):
+                logger.debug(f"Yielding logs for key {run_name}")
+                yield json.dumps(
+                    jsonable_encoder(
+                        Response(
+                            data=log_lines,
+                            output_type=OutputType.STDOUT,
                         )
-                    ) + "\n"
-
+                    )
+                ) + "\n"
         except Exception as e:
             logger.exception(e)
             # NOTE: We do not convert the exception to an HTTPException here, because once we're inside this
@@ -878,11 +814,6 @@ class HTTPServer:
                     )
                 )
             )
-        finally:
-            if not open_logfiles:
-                logger.warning(f"No logfiles found for call {run_name}")
-            for f in open_logfiles:
-                f.close()
 
     ################################################################################################
     # Cluster status and metadata methods

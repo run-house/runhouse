@@ -47,12 +47,17 @@ def get_ray_cluster_servlet(cluster_config=None):
 
 
 def get_pid_and_ray_node(a=0):
+    import logging
+
     import ray
 
-    return (
-        os.getpid(),
-        ray.runtime_context.RuntimeContext(ray.worker.global_worker).get_node_id(),
-    )
+    pid = os.getpid()
+    node_id = ray.runtime_context.RuntimeContext(ray.worker.global_worker).get_node_id()
+
+    print(f"PID: {pid}")
+    logging.info(f"Node ID: {node_id}")
+
+    return pid, node_id
 
 
 def get_random_str(length: int = 8):
