@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Union
 import requests
 
 import rich.errors
-import yaml
 
 try:
     import sky
@@ -212,17 +211,6 @@ class OnDemandCluster(Cluster):
             return None
 
         return super().endpoint(external)
-
-    def _copy_sky_yaml_from_cluster(self, abs_yaml_path: str):
-        if not Path(abs_yaml_path).exists():
-            Path(abs_yaml_path).parent.mkdir(parents=True, exist_ok=True)
-            self.rsync("~/.sky/sky_ray.yml", abs_yaml_path, up=False)
-
-            # Save SSH info to the ~/.ssh/config
-            ray_yaml = yaml.safe_load(open(abs_yaml_path, "r"))
-            backend_utils.SSHConfigHelper.add_cluster(
-                self.name, [self.head_up], ray_yaml["auth"]
-            )
 
     @staticmethod
     def relative_yaml_path(yaml_path):
@@ -487,8 +475,9 @@ class OnDemandCluster(Cluster):
             # the cluster was initially upped
             return
 
-        cluster_dict = self._sky_status(refresh=not dryrun)
-        self._populate_connection_from_status_dict(cluster_dict)
+        if self.launcher_type == "local":
+            cluster_dict = self._sky_status(refresh=not dryrun)
+            self._populate_connection_from_status_dict(cluster_dict)
 
     def get_instance_type(self):
         """Returns instance type of the cluster."""
