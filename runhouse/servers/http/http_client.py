@@ -805,17 +805,12 @@ class HTTPClient:
 
     def create_process(
         self,
-        name: str,
-        compute: Optional[Dict] = {},
-        runtime_env: Union[Dict, str] = {},
-        env_vars: Dict[str, str] = {},
+        params: CreateProcessParams,
     ):
         return self.request_json(
             "/create_process",
             req_type="post",
-            json_dict=CreateProcessParams(
-                name=name, compute=compute, runtime_env=runtime_env, env_vars=env_vars
-            ).model_dump(),
+            json_dict=params.model_dump(),
         )
 
     def set_process_env_vars(

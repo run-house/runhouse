@@ -231,7 +231,7 @@ class Env(Resource):
 
             env_vars = _process_env_vars(self.env_vars)
             if env_vars:
-                system.set_process_env_vars(process_name=key, env_vars=env_vars)
+                system.set_process_env_vars(name=key, env_vars=env_vars)
 
             conda_env_name = new_env.env_name if hasattr(self, "conda_yaml") else None
             if conda_env_name:

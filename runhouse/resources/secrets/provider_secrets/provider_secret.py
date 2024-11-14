@@ -200,7 +200,7 @@ class ProviderSecret(Secret):
                 env_vars = {
                     env_vars[k]: self.values[k] for k in self.values if k in env_vars
                 }
-                system.set_process_env_vars(process_name=env_key, env_vars=env_vars)
+                system.set_process_env_vars(name=env_key, env_vars=env_vars)
         return new_secret
 
     def _file_to(
