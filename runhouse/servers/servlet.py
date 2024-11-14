@@ -247,26 +247,20 @@ class Servlet:
         node_ip = get_node_ip()
 
         if not cluster_config.get("resource_subtype") == "Cluster":
-            stable_internal_external_ips = cluster_config.get(
-                "stable_internal_external_ips", []
-            )
-            for ips_set in stable_internal_external_ips:
-                internal_ip, _ = ips_set[0], ips_set[1]
-                if internal_ip == node_ip:
-                    # head ip equals to cluster address equals to cluster.ips[0]
-                    if ips_set[1] == cluster_config.get("ips")[0]:
-                        node_index = 0
-                    else:
-                        node_index = stable_internal_external_ips.index(ips_set)
-                    node_name = f"worker_{node_index}"
-        else:
-            # a case it is a BYO cluster, assume that first ip in the ips list is the head.
-            ips = cluster_config.get("ips", [])
-            if len(ips) == 1 or node_ip == ips[0]:
-                node_index = 0
+            if cluster_config.get("internal_ips"):
+                internal_ips = cluster_config.get("internal_ips", [])
             else:
-                node_index = ips.index(node_ip)
-            node_name = f"worker_{node_index}"
+                stable_internal_external_ips = cluster_config.get(
+                    "stable_internal_external_ips", []
+                )
+                internal_ips = [int_ip for int_ip, _ in stable_internal_external_ips]
+        else:
+            # if it is a BYO cluster, assume that first ip in the ips list is the head.
+            internal_ips = cluster_config.get("ips", [])
+
+        node_index = 0 if len(internal_ips) == 1 else internal_ips.index(node_ip)
+        node_name = f"worker_{node_index}"
+
         try:
 
             memory_size_bytes = self.process.memory_full_info().uss

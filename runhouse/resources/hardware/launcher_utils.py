@@ -176,6 +176,7 @@ class DenLauncher(Launcher):
         for attribute in [
             "launched_properties",
             "ips",
+            "internal_ips",
             "stable_internal_external_ips",
             "ssh_properties",
             "client_port",

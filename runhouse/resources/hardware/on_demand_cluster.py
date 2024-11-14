@@ -111,9 +111,13 @@ class OnDemandCluster(Cluster):
         self.sky_kwargs = sky_kwargs or {}
         self.launcher_type = launcher_type or configs.launcher_type
 
-        self.stable_internal_external_ips = kwargs.get(
-            "stable_internal_external_ips", None
-        )
+        if kwargs.get("stable_internal_external_ips"):
+            self.internal_ips, self.ips = map(
+                list, zip(*kwargs.get("stable_internal_external_ips"))
+            )
+        elif kwargs.get("internal_ips"):
+            self.internal_ips = kwargs.get("internal_ips")
+
         self.launched_properties = kwargs.get("launched_properties", {})
         self._docker_user = None
 
@@ -190,7 +194,7 @@ class OnDemandCluster(Cluster):
                 "use_spot",
                 "image_id",
                 "region",
-                "stable_internal_external_ips",
+                "internal_ips",
                 "memory",
                 "disk_size",
                 "sky_kwargs",
@@ -341,50 +345,22 @@ class OnDemandCluster(Cluster):
             return None
         return state[0]
 
-    @property
-    def internal_ips(self):
-        if not self.stable_internal_external_ips:
-            self._update_from_sky_status()
-        return [int_ip for int_ip, _ in self.stable_internal_external_ips]
-
     def _start_ray_workers(self, ray_port, env):
-        # Find the internal IP corresponding to the public_head_ip and the rest are workers
-        internal_head_ip = None
-        worker_ips = []
-        sky_status = self._sky_status()
-        stable_internal_external_ips = (
-            sky_status["handle"].stable_internal_external_ips
-            if sky_status
-            else self.stable_internal_external_ips
-        )
-        for internal, external in stable_internal_external_ips:
-            if external == self.head_ip:
-                internal_head_ip = internal
-            else:
-                # NOTE: Using external worker address here because we're running from local
-                worker_ips.append(external)
+        if not self.internal_ips:
+            self._update_from_sky_status()
 
-        logger.debug(f"Internal head IP: {internal_head_ip}")
+        super()._start_ray_workers(ray_port, env)
 
-        for host in worker_ips:
-            logger.info(
-                f"Starting Ray on worker {host} with head node at {internal_head_ip}:{ray_port}."
-            )
-            self.run(
-                commands=[
-                    f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
-                ],
-                node=host,
-                env=env,
-            )
         time.sleep(5)
 
     def _populate_connection_from_status_dict(self, cluster_dict: Dict[str, Any]):
         if cluster_dict and cluster_dict["status"].name in ["UP", "INIT"]:
             handle = cluster_dict["handle"]
             head_ip = handle.head_ip
-            self.stable_internal_external_ips = handle.stable_internal_external_ips
-            if self.stable_internal_external_ips is None or head_ip is None:
+            self.internal_ips, self.ips = map(
+                list, zip(*handle.stable_internal_external_ips)
+            )
+            if self.ips is None or head_ip is None:
                 raise ValueError(
                     "Sky's cluster status does not have the necessary information to connect to the cluster. Please check if the cluster is up via `sky status`. Consider bringing down the cluster with `sky down` if you are still having issues."
                 )
@@ -395,9 +371,6 @@ class OnDemandCluster(Cluster):
                 )
                 if not self.creds_values or not self.ssh_properties:
                     self._setup_creds(ssh_values)
-
-            # Add worker IPs if multi-node cluster - keep the head node as the first IP
-            self.ips = [ext for _, ext in self.stable_internal_external_ips]
 
             launched_resource = handle.launched_resources
             cloud = str(launched_resource.cloud).lower()
@@ -536,6 +509,7 @@ class OnDemandCluster(Cluster):
         if not self.is_up():
             # Don't store stale IPs
             self.ips = None
+            self.internal_ips = None
             await self.a_up(capture_output=capture_output)
         return self
 
