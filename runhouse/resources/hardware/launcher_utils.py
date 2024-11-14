@@ -126,24 +126,8 @@ class DenLauncher(Launcher):
             cluster._setup_creds(creds)
 
     @classmethod
-    def _validate_provider(cls, cluster):
-        """Ensure that the provider is supported."""
-        if cluster.provider == "cheapest":
-            raise ValueError(
-                "Cheapest not currently supported for Den launcher. Please specify a cloud provider."
-            )
-
-        supported_providers = cls.supported_providers()
-        if cluster.provider not in supported_providers:
-            raise ValueError(
-                f"Cluster provider {cluster.provider} not supported. "
-                f"Must be one of {supported_providers} supported by SkyPilot."
-            )
-
-    @classmethod
     def up(cls, cluster, verbose: bool = True, force: bool = False):
         """Launch the cluster via Den."""
-        cls._validate_provider(cluster)
         sky_secret = cls.sky_secret()
 
         payload = {
@@ -223,6 +207,8 @@ class LocalLauncher(Launcher):
     def up(cls, cluster, verbose: bool = True):
         """Launch the cluster locally."""
         import sky
+
+        cls._validate_provider(cluster)
 
         task = sky.Task(num_nodes=cluster.num_nodes)
         cloud_provider = (
