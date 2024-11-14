@@ -468,11 +468,16 @@ def get_all_sky_clusters():
         return []
 
 
-def cluster_last_active_from_datetime_to_str(clusters: List[Dict[str, Any]]):
+def cast_last_active_timestamp(clusters: List[Dict[str, Any]]):
     for cluster in clusters:
-        cluster["Last Active (UTC)"] = cluster.get("Last Active (UTC)").strftime(
-            "%m/%d/%Y, %H:%M:%S"
+        timestamp = cluster.get("Last Active (UTC)")
+        timestamp = (
+            timestamp.strftime("%m/%d/%Y, %H:%M:%S")
+            if isinstance(timestamp, datetime.datetime)
+            else timestamp
         )
+        timestamp = timestamp if timestamp != "01/01/1970, 00:00:00" else None
+        cluster["Last Active (UTC)"] = timestamp
     return clusters
 
 
@@ -498,7 +503,6 @@ def get_running_and_not_running_clusters(clusters: list):
             else datetime.datetime(1970, 1, 1)
         )  # Convert to datetime
         last_active_at = last_active_at.replace(tzinfo=datetime.timezone.utc)
-
         if cluster_status == "running" and not last_active_at:
             # For BC, in case there are clusters that were saved and created before we introduced sending cluster status to den.
             cluster_status = "unknown"
@@ -520,17 +524,15 @@ def get_running_and_not_running_clusters(clusters: list):
         reverse=True,
     )
 
-    not_running_clusters = cluster_last_active_from_datetime_to_str(
-        clusters=not_running_clusters
-    )
+    not_running_clusters = cast_last_active_timestamp(clusters=not_running_clusters)
 
     running_clusters = sorted(
         running_clusters, key=lambda x: x["Last Active (UTC)"], reverse=True
     )
 
-    running_clusters = cluster_last_active_from_datetime_to_str(
-        clusters=running_clusters
-    )
+    running_clusters = cast_last_active_timestamp(clusters=running_clusters)
+
+    not_running_clusters = cast_last_active_timestamp(clusters=not_running_clusters)
 
     return running_clusters, not_running_clusters
 
