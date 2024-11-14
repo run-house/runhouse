@@ -13,21 +13,16 @@ def train_fn(x, y):
 
 
 if __name__ == "__main__":
-    cluster = (
-        rh.cluster(
-            name="rh-4x16-cpu",
-            instance_type="CPU:16",
-            num_nodes=2,
-            provider="aws",
-            default_env=rh.env(
-                reqs=["bayesian-optimization"], env_vars={"RH_LOG_LEVEL": "INFO"}
-            ),
-        )
-        .save()
-        .up_if_not()
-    )
-    train_env = rh.env(name="worker_env", load_from_den=False)
-    remote_train_fn = rh.function(train_fn).to(cluster, env=train_env)
+    cluster = rh.cluster(
+        name="rh-4x16-cpu",
+        instance_type="CPU:4+",
+        num_nodes=2,
+        provider="kubernetes",
+        default_env=rh.env(
+            reqs=["bayesian-optimization"],
+        ),
+    ).up_if_not()
+    remote_train_fn = rh.function(train_fn).to(cluster)
     train_fn_pool = remote_train_fn.distribute(
         "pool", num_replicas=NUM_WORKERS, replicas_per_node=NUM_WORKERS // 2
     )
