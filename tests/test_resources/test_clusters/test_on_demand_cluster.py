@@ -246,7 +246,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
         original_ips = cluster.ips
 
-        cluster.ips = None
+        cluster.ips = []
         assert not cluster._ping(retry=False)
 
         if not (

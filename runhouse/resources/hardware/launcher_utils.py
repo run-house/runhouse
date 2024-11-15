@@ -248,7 +248,7 @@ class DenLauncher(Launcher):
                 cluster_name=cluster_name,
                 payload=payload,
             )
-            cluster.ips = None
+            cluster.ips = []
             return
 
         # Run blocking call, with no streaming
@@ -262,7 +262,7 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.TEARDOWN_URL}': Failed to "
                 f"teardown cluster: {load_resp_content(resp)}"
             )
-        cluster.ips = None
+        cluster.ips = []
 
 
 class LocalLauncher(Launcher):
@@ -348,7 +348,7 @@ class LocalLauncher(Launcher):
         import sky
 
         sky.down(cluster.name)
-        cluster.ips = None
+        cluster.ips = []
         cluster._http_client = None
 
         # Save to Den with updated null IPs
