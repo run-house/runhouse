@@ -1,4 +1,6 @@
 import ast
+import logging
+import sys
 from typing import Any, Optional
 
 import requests
@@ -14,7 +16,52 @@ from runhouse.utils import Spinner
 logger = get_logger(__name__)
 
 
+class LogProcessor:
+    """Dedicated logger for handling streamed cluster logs"""
+
+    def __init__(self):
+        self.cluster_logger = self._init_cluster_logger()
+
+    def _init_cluster_logger(self):
+        cluster_logger = logging.getLogger("cluster_logs")
+
+        cluster_logger.setLevel(logging.DEBUG)
+
+        # Add a handler with a simple formatter if not already set
+        if not cluster_logger.handlers:
+            handler = logging.StreamHandler(sys.stdout)
+            handler.setFormatter(logging.Formatter("%(message)s"))
+            cluster_logger.addHandler(handler)
+
+        # Prevent propagation to root_logger
+        cluster_logger.propagate = False
+
+        return cluster_logger
+
+    def log_event(self, event, cluster_name: str):
+        """Log the event at the appropriate level using the cluster logger."""
+        # Note: we need to remove logger prefix from the local logger to just include the log in Den
+        event_type = event.log_level.upper()
+        log_message = f"[{cluster_name}] {event.data}"
+
+        if event_type == "INFO":
+            self.cluster_logger.info(log_message)
+        elif event_type == "WARNING":
+            self.cluster_logger.warning(log_message)
+        elif event_type == "ERROR":
+            self.cluster_logger.error(log_message)
+        elif event_type == "EXCEPTION":
+            self.cluster_logger.exception(log_message)
+        elif event_type == "DEBUG":
+            self.cluster_logger.debug(log_message)
+        else:
+            self.cluster_logger.info(log_message)
+
+
 class Launcher:
+
+    log_processor = LogProcessor()
+
     @classmethod
     def up(cls, cluster, verbose: bool = True):
         """Abstract method for launching a cluster."""
@@ -58,7 +105,12 @@ class Launcher:
         return sky_secret
 
     @classmethod
-    def run_verbose(cls, base_url: str, payload: dict = None) -> Any:
+    def run_verbose(
+        cls,
+        base_url: str,
+        cluster_name: str,
+        payload: dict = None,
+    ) -> Any:
         """Call a specified Den API while streaming logs back using an SSE client."""
         resp = requests.post(
             base_url,
@@ -89,6 +141,9 @@ class Launcher:
 
             if event.event == "info":
                 logger.info(event.data)
+
+            if event.event == "log":
+                cls.log_processor.log_event(event, cluster_name=cluster_name)
 
             if event.event == "error":
                 event_data = ast.literal_eval(event.data)
@@ -147,7 +202,11 @@ class DenLauncher(Launcher):
         }
 
         if verbose:
-            data = cls.run_verbose(base_url=cls.LAUNCH_URL, payload=payload)
+            data = cls.run_verbose(
+                base_url=cls.LAUNCH_URL,
+                payload=payload,
+                cluster_name=payload["cluster_config"].get("name"),
+            )
             cls._update_from_den_response(cluster=cluster, config=data)
             return
 
@@ -170,16 +229,21 @@ class DenLauncher(Launcher):
     def teardown(cls, cluster, verbose: bool = True):
         """Tearing down a cluster via Den."""
         sky_secret = cls.sky_secret()
+        cluster_name = cluster.rns_address or cluster.name
 
         payload = {
-            "cluster_name": cluster.rns_address,
+            "cluster_name": cluster_name,
             "delete_from_den": False,
             "ssh_creds": sky_secret.rns_address,
             "verbose": verbose,
         }
 
         if verbose:
-            cls.run_verbose(base_url=cls.TEARDOWN_URL, payload=payload)
+            cls.run_verbose(
+                base_url=cls.TEARDOWN_URL,
+                cluster_name=cluster_name,
+                payload=payload,
+            )
             cluster.ips = None
             return
 

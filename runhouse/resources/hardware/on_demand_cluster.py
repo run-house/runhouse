@@ -555,7 +555,7 @@ class OnDemandCluster(Cluster):
             DenLauncher.up(cluster=self, verbose=verbose, force=force)
 
         elif self.launcher_type == LauncherType.LOCAL:
-            logger.info("Launching cluster locally")
+            logger.info("Provisioning cluster")
             LocalLauncher.up(cluster=self, verbose=verbose)
 
         return self
