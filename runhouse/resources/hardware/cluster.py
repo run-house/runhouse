@@ -2266,16 +2266,18 @@ class Cluster(Resource):
         cls,
         show_all: bool = False,
         since: Optional[str] = None,
-        status: Optional[ClustersListStatus] = None,
+        status: Optional[Union[ClustersListStatus, str]] = None,
     ) -> Dict[str, List[Dict]]:
         """
-        Returns user's runhouse clusters saved in Den and locally via Sky. If filters are provided, only clusters that are matching the
-        filters are returned. If no filters are provided, clusters that were active in the last 24 hours are returned.
+        Loads Runhouse clusters saved in Den and locally via Sky. If filters are provided, only clusters that
+        are matching the filters are returned. If no filters are provided, all running clusters will be returned.
 
         Args:
-            show_all (bool, optional): Whether to list all clusters saved in Den. Maximum of 50 will be listed. (Default: False).
-            since (str, optional): Clusters that were active in the specified time period will be returned. Value can be in seconds, minutes, hours or days.
-            status (ResourceServerStatus, optional): Clusters with the provided status will be returned.
+            show_all (bool, optional): Whether to list all clusters saved in Den. Maximum of 50 will be listed.
+                (Default: False).
+            since (str, optional): Clusters that were active in the specified time period will be returned.
+                Value can be in seconds, minutes, hours or days.
+            status (ClustersListStatus or str, optional): Clusters with the provided status will be returned.
 
         Examples:
             >>> Cluster.list(since="75s")

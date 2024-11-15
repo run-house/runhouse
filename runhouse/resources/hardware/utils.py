@@ -410,16 +410,13 @@ def parse_filters(since: str, cluster_status: str):
 def get_clusters_from_den(cluster_filters: dict):
     get_clusters_params = {"resource_type": "cluster", "folder": rns_client.username}
 
-    # send den request with filters if the user specifies filters.
     # If "all" filter is specified - get all clusters (no filters are added to get_clusters_params)
     if cluster_filters and "all" not in cluster_filters.keys():
         get_clusters_params.update(cluster_filters)
 
-    # If not filters are specified, get only running clusters.
+    # If no filters are specified get all running clusters.
     elif not cluster_filters:
-        get_clusters_params.update(
-            {"cluster_status": "running", "since": LAST_ACTIVE_AT_TIMEFRAME}
-        )
+        get_clusters_params.update({"cluster_status": "running"})
 
     clusters_in_den_resp = rns_client.session.get(
         f"{rns_client.api_server_url}/resource",
