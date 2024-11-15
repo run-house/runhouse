@@ -1,0 +1,17 @@
+name: runhouse-poc
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - ipython
+      - jupyterlab
+      - numpy
+      - pandas
+      - dask
+      - dask-ml
+      - scikit-learn
+      - lightgbm
+      - runhouse[sky,gcp]
