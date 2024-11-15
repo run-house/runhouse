@@ -400,7 +400,6 @@ def ondemand_cluster(
         kube_config_path = kwargs.pop("kube_config_path", None)
         context = kwargs.pop("context", None)
         server_connection_type = kwargs.pop("server_connection_type", None)
-        default_env = kwargs.pop("default_env", None)
 
         return kubernetes_cluster(
             name=name,

@@ -135,7 +135,9 @@ class Cluster(Resource):
 
     @property
     def head_ip(self):
-        return self.ips[0] if isinstance(self.ips, List) else None
+        return (
+            self.ips[0] if (isinstance(self.ips, List) and len(self.ips) > 0) else None
+        )
 
     @property
     def address(self):
@@ -637,7 +639,7 @@ class Cluster(Resource):
         env_vars = _process_env_vars(self._default_env.env_vars)
         setup_cmds = self._default_env.setup_cmds
 
-        for node in self.ips:
+        for node in self.ips or []:
             if conda_env_name:
                 create_conda_env(
                     env_name=conda_env_name,
@@ -712,7 +714,7 @@ class Cluster(Resource):
                 _install_url = f"runhouse=={runhouse.__version__}"
             rh_install_cmd = f"python3 -m pip install {_install_url}"
 
-        for node in self.ips:
+        for node in self.ips or []:
             status_codes = self.run(
                 [rh_install_cmd],
                 node=node,
@@ -1460,7 +1462,7 @@ class Cluster(Resource):
             raise ValueError(f"Could not locate path to sync: {source}.")
 
         if up and (node == "all" or (len(self.ips) > 1 and not node)):
-            for node in self.ips:
+            for node in self.ips or []:
                 self.rsync(
                     source,
                     dest,
@@ -1683,7 +1685,7 @@ class Cluster(Resource):
         else:
             if node == "all":
                 res_list = []
-                for node in self.ips:
+                for node in self.ips or []:
                     res = self.run(
                         commands=commands,
                         env=env,
@@ -1988,7 +1990,7 @@ class Cluster(Resource):
         )
 
         # Note: We need to do this on the head node too, because this creates all the worker processes
-        for node in self.ips:
+        for node in self.ips or []:
             logger.info(f"Starting Dask worker on {node}.")
             # Connect to localhost if on the head node, otherwise use the internal ip of head node
             scheduler = (
@@ -2007,7 +2009,7 @@ class Cluster(Resource):
 
     def kill_dask(self):
         self.run("pkill -f 'dask scheduler'", node=self.head_ip)
-        for node in self.ips:
+        for node in self.ips or []:
             self.run("pkill -f 'dask worker'", node=node)
 
     def remove_conda_env(
