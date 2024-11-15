@@ -192,6 +192,7 @@ class DenLauncher(Launcher):
     def up(cls, cluster, verbose: bool = True, force: bool = False):
         """Launch the cluster via Den."""
         sky_secret = cls.sky_secret()
+        cluster._creds = sky_secret
 
         payload = {
             "cluster_config": {
