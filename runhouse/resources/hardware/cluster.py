@@ -97,6 +97,7 @@ class Cluster(Resource):
         ssh_properties: Dict = None,
         den_auth: bool = False,
         dryrun: bool = False,
+        skip_creds: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -131,7 +132,10 @@ class Cluster(Resource):
         if self._default_env and not self._default_env.name:
             self._default_env.name = _unnamed_default_env_name(self.name)
 
-        self._setup_creds(creds)
+        if skip_creds and not creds:
+            self._creds = None
+        else:
+            self._setup_creds(creds)
 
     @property
     def head_ip(self):
@@ -341,8 +345,13 @@ class Cluster(Resource):
     def _save_sub_resources(self, folder: str = None):
         from runhouse.resources.envs import Env
 
-        if self._should_save_creds(folder):
-            self._creds.save(folder=folder)
+        creds_folder = (
+            folder if (not self._creds or not self._creds._rns_folder) else None
+        )
+        if self._should_save_creds(creds_folder):
+            # Only automatically set the creds folder if it doesn't have one yet
+            # allows for org SSH keys to be associated with the user.
+            self._creds.save(folder=creds_folder)
 
         if self._default_env and isinstance(self._default_env, Env):
             if not self._default_env.name:
