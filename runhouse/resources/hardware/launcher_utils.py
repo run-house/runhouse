@@ -41,18 +41,19 @@ class LogProcessor:
     def log_event(self, event, cluster_name: str):
         """Log the event at the appropriate level using the cluster logger."""
         # Note: we need to remove logger prefix from the local logger to just include the log in Den
-        event_type = event.log_level.upper()
-        log_message = f"[{cluster_name}] {event.data}"
+        data = ast.literal_eval(event.data)
+        log_level = data["log_level"].upper()
+        log_message = f"[{cluster_name}] {data['log']}"
 
-        if event_type == "INFO":
+        if log_level == "INFO":
             self.cluster_logger.info(log_message)
-        elif event_type == "WARNING":
+        elif log_level == "WARNING":
             self.cluster_logger.warning(log_message)
-        elif event_type == "ERROR":
+        elif log_level == "ERROR":
             self.cluster_logger.error(log_message)
-        elif event_type == "EXCEPTION":
+        elif log_level == "EXCEPTION":
             self.cluster_logger.exception(log_message)
-        elif event_type == "DEBUG":
+        elif log_level == "DEBUG":
             self.cluster_logger.debug(log_message)
         else:
             self.cluster_logger.info(log_message)
