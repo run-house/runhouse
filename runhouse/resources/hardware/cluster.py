@@ -1648,10 +1648,6 @@ class Cluster(Resource):
         """
         from runhouse.resources.envs import Env
 
-        if self.on_this_cluster() and node:
-            # Switch the external ip to an internal ip
-            node = self.internal_ips[self.ips.index(node)]
-
         if isinstance(commands, str):
             commands = [commands]
 
@@ -1702,6 +1698,8 @@ class Cluster(Resource):
                 full_commands = [env._full_command(cmd) for cmd in commands]
                 if self.on_this_cluster():
                     # TODO add log streaming
+                    # Switch the external ip to an internal ip
+                    node = self.internal_ips[self.ips.index(node)]
                     return_codes = obj_store.run_bash_command_on_node(
                         node_ip=node,
                         commands=full_commands,
