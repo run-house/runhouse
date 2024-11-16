@@ -1,6 +1,9 @@
 python-dotenv
 fastapi
 pexpect
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp
 pyopenssl>=23.3.0
 ray[default] >= 2.9.0
 rich
