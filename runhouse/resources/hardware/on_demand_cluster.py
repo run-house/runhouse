@@ -406,6 +406,8 @@ class OnDemandCluster(Cluster):
             cost_per_hr = launched_resource.get_cost(60 * 60)
             disk_size = launched_resource.disk_size
             num_cpus = launched_resource.cpus
+            memory = launched_resource.memory
+            accelerators = launched_resource.accelerators
 
             self.launched_properties = {
                 "cloud": cloud,
@@ -413,6 +415,8 @@ class OnDemandCluster(Cluster):
                 "region": region,
                 "cost_per_hour": str(cost_per_hr),
                 "disk_size": disk_size,
+                "memory": memory,
+                "accelerators": accelerators,
                 "num_cpus": num_cpus,
             }
             if launched_resource.accelerators:
