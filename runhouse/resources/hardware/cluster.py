@@ -1917,14 +1917,20 @@ class Cluster(Resource):
             num_ports_to_try=NUM_PORTS_TO_TRY,
         )
         port_fwd = tunnel.remote_bind_port
+        jupyter_cmd = f"jupyter lab --port {port_fwd} --no-browser"
 
         try:
-            jupyter_cmd = f"jupyter lab --port {port_fwd} --no-browser"
+            # pause autostop support only if user has sky installed locally
             with self.pause_autostop():
                 self.install_packages(["jupyterlab"])
                 # TODO figure out why logs are not streaming here if we don't use ssh.
                 # When we do, it may be better to switch it back because then jupyter is killed
                 # automatically when the cluster is restarted (and the process is killed).
+                self.run(commands=[jupyter_cmd], stream_logs=True, node=self.head_ip)
+        except ModuleNotFoundError as e:
+            # if sky isn't found locally, autostop behaves as normal
+            if "sky" in str(e):
+                self.install_packages(["jupyterlab"])
                 self.run(commands=[jupyter_cmd], stream_logs=True, node=self.head_ip)
 
         finally:
