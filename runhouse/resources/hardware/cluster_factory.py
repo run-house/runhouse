@@ -108,6 +108,7 @@ def cluster(
             domain=domain,
             den_auth=den_auth,
             default_env=default_env,
+            launcher_type=launcher_type,
             kwargs=kwargs if len(kwargs) > 0 else None,
         )
         # Filter out None/default values
@@ -448,6 +449,7 @@ def ondemand_cluster(
             domain=domain,
             den_auth=den_auth,
             default_env=default_env,
+            launcher_type=launcher_type,
         )
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
