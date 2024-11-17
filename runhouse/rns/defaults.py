@@ -28,7 +28,7 @@ class Defaults:
     BASE_DEFAULTS = {
         "default_folder": "~",
         "default_provider": "cheapest",
-        "default_autostop": -1,
+        "default_autostop": 60,
         "use_spot": False,
         "use_local_configs": True,
         "disable_data_collection": False,

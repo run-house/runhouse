@@ -159,7 +159,8 @@ When a remote object is no longer needed, it can be deallocated from
 the remote compute by calling ``cluster.delete(obj_name)``. This will remove the object from the key-value store and
 free up the memory on the worker. A worker process can similarly be terminated with ``cluster.delete(worker_name)``,
 terminating its activities and freeing its memory. An on-demand cluster can be terminated with ``cluster.teardown()``,
-or by setting its ``autostop_mins``, which will auto-terminate it after a period of inactivity.
+or by setting its ``autostop_mins``, which will auto-terminate it after that period of inactivity. The default autostop
+is 60 minutes unless otherwise specified.
 
 Comparing to other systems
 --------------------------
