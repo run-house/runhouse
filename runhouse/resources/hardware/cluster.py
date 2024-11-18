@@ -594,9 +594,13 @@ class Cluster(Resource):
         except ConnectionError:
             return False
 
-    def up_if_not(self):
+    def up_if_not(self, verbose: bool = True):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
         This only applies to on-demand clusters, and has no effect on self-managed clusters.
+
+        Args:
+            verbose (bool, optional): Whether to stream logs from Den if the cluster is being launched. Only
+                relevant if launching via Den. (Default: `True`)
 
         Example:
             >>> rh.cluster("rh-cpu").up_if_not()
@@ -606,7 +610,7 @@ class Cluster(Resource):
             self.compute_properties["ips"] = []
             if "internal_ips" in self.compute_properties:
                 self.compute_properties["internal_ips"] = []
-            self.up()
+            self.up(verbose=verbose, force=False)
         return self
 
     def up(self, verbose: bool = True, force: bool = False):
