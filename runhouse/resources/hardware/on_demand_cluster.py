@@ -364,7 +364,7 @@ class OnDemandCluster(Cluster):
             self.internal_ips, self.ips = map(
                 list, zip(*handle.stable_internal_external_ips)
             )
-            if self.ips is None or head_ip is None:
+            if not self.ips or not head_ip:
                 raise ValueError(
                     "Sky's cluster status does not have the necessary information to connect to the cluster. Please check if the cluster is up via `sky status`. Consider bringing down the cluster with `sky down` if you are still having issues."
                 )
@@ -512,8 +512,8 @@ class OnDemandCluster(Cluster):
     async def a_up_if_not(self, capture_output: Union[bool, str] = True):
         if not self.is_up():
             # Don't store stale IPs
-            self.ips = None
-            self.internal_ips = None
+            self.ips = []
+            self.internal_ips = []
             await self.a_up(capture_output=capture_output)
         return self
 
