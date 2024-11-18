@@ -10,7 +10,7 @@ from runhouse.constants import DOCKER_LOGIN_ENV_VARS
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import SSEClient
-from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content, read_resp_data
+from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content
 from runhouse.utils import Spinner
 
 logger = get_logger(__name__)
@@ -168,27 +168,6 @@ class DenLauncher(Launcher):
     TEARDOWN_URL = f"{rns_client.api_server_url}/cluster/teardown"
 
     @classmethod
-    def _update_from_den_response(cls, cluster, config: dict):
-        """Updates cluster with config from Den. Only add fields if found."""
-        if not config:
-            return
-
-        for attribute in [
-            "launched_properties",
-            "ips",
-            "stable_internal_external_ips",
-            "ssh_properties",
-            "client_port",
-        ]:
-            value = config.get(attribute)
-            if value:
-                setattr(cluster, attribute, value)
-
-        creds = config.get("creds")
-        if not cluster._creds and creds:
-            cluster._setup_creds(creds)
-
-    @classmethod
     def up(cls, cluster, verbose: bool = True, force: bool = False):
         """Launch the cluster via Den."""
         sky_secret = cls.sky_secret()
@@ -203,12 +182,11 @@ class DenLauncher(Launcher):
         }
 
         if verbose:
-            data = cls.run_verbose(
+            cls.run_verbose(
                 base_url=cls.LAUNCH_URL,
                 payload=payload,
                 cluster_name=payload["cluster_config"].get("name"),
             )
-            cls._update_from_den_response(cluster=cluster, config=data)
             return
 
         # Blocking call with no streaming
@@ -222,9 +200,7 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.LAUNCH_URL}': Failed to "
                 f"launch cluster: {load_resp_content(resp)}"
             )
-        data = read_resp_data(resp)
         logger.info("Successfully launched cluster")
-        cls._update_from_den_response(cluster=cluster, config=data)
 
     @classmethod
     def teardown(cls, cluster, verbose: bool = True):
