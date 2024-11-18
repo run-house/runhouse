@@ -115,20 +115,32 @@ class OnDemandCluster(Cluster):
         self.sky_kwargs = sky_kwargs or {}
         self.launcher_type = cluster_launcher_type
 
+        # backwards compatibility
         if kwargs.get("stable_internal_external_ips"):
-            self.internal_ips, self.ips = map(
+            internal_ips, ips = map(
                 list, zip(*kwargs.get("stable_internal_external_ips"))
             )
-        elif kwargs.get("internal_ips"):
-            self.internal_ips = kwargs.get("internal_ips")
+            self.launched_properties["ips"] = ips
+            self.launched_properties["internal_ips"] = internal_ips
 
-        self.launched_properties = kwargs.get("launched_properties", {})
+        self.launched_properties = {
+            **self.launched_properties,
+            **kwargs.get("launched_properties", {}),
+        }
         self._docker_user = None
 
         # Checks if state info is in local sky db, populates if so.
         if not dryrun and not self.ips and not self.creds_values:
             # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
             self._update_from_sky_status(dryrun=True)
+
+    @property
+    def ips(self):
+        return self.launched_properties.get("ips", [])
+
+    @property
+    def internal_ips(self):
+        return self.launched_properties.get("internal_ips", [])
 
     @property
     def client(self):
@@ -173,7 +185,7 @@ class OnDemandCluster(Cluster):
         if not self.image_id or "docker:" not in self.image_id:
             return None
 
-        if self.launched_properties["cloud"] == "kubernetes":
+        if self.launched_properties.get("cloud") == "kubernetes":
             return self.launched_properties.get(
                 "docker_user", self.launched_properties.get("ssh_user", "root")
             )
@@ -198,14 +210,17 @@ class OnDemandCluster(Cluster):
                 "use_spot",
                 "image_id",
                 "region",
-                "internal_ips",
                 "memory",
                 "disk_size",
                 "sky_kwargs",
-                "launched_properties",
                 "launcher_type",
             ],
         )
+        # pop ips from launched_properties
+        launched_properties = self.launched_properties.copy()
+        launched_properties.pop("ips")
+        if launched_properties:
+            config["launched_properties"] = launched_properties
         config["autostop_mins"] = self._autostop_mins
         return config
 
@@ -361,10 +376,8 @@ class OnDemandCluster(Cluster):
         if cluster_dict and cluster_dict["status"].name in ["UP", "INIT"]:
             handle = cluster_dict["handle"]
             head_ip = handle.head_ip
-            self.internal_ips, self.ips = map(
-                list, zip(*handle.stable_internal_external_ips)
-            )
-            if not self.ips or not head_ip:
+            internal_ips, ips = map(list, zip(*handle.stable_internal_external_ips))
+            if not ips or not head_ip:
                 raise ValueError(
                     "Sky's cluster status does not have the necessary information to connect to the cluster. Please check if the cluster is up via `sky status`. Consider bringing down the cluster with `sky down` if you are still having issues."
                 )
@@ -387,6 +400,8 @@ class OnDemandCluster(Cluster):
             accelerators = launched_resource.accelerators
 
             self.launched_properties = {
+                "ips": ips,
+                "internal_ips": internal_ips,
                 "cloud": cloud,
                 "instance_type": instance_type,
                 "region": region,
@@ -512,8 +527,8 @@ class OnDemandCluster(Cluster):
     async def a_up_if_not(self, capture_output: Union[bool, str] = True):
         if not self.is_up():
             # Don't store stale IPs
-            self.ips = []
-            self.internal_ips = []
+            self.launched_properties["ips"] = []
+            self.launched_properties["internal_ips"] = []
             await self.a_up(capture_output=capture_output)
         return self
 

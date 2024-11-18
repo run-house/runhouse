@@ -113,8 +113,9 @@ class Cluster(Resource):
 
         self._rpc_tunnel = None
 
-        self.ips = ips or []
-        self.internal_ips = ips or []
+        self.launched_properties = kwargs.get("launched_properties") or {
+            "ips": ips or []
+        }
         self._http_client = None
         self.den_auth = den_auth or False
         self.cert_config = TLSCertConfig(cert_path=ssl_certfile, key_path=ssl_keyfile)
@@ -137,6 +138,14 @@ class Cluster(Resource):
             self._creds = None
         else:
             self._setup_creds(creds)
+
+    @property
+    def ips(self):
+        return self.launched_properties.get("ips", [])
+
+    @property
+    def internal_ips(self):
+        return self.ips
 
     @property
     def head_ip(self):
@@ -406,6 +415,8 @@ class Cluster(Resource):
 
     def config(self, condensed: bool = True):
         config = super().config(condensed)
+        if self.ips:
+            config["ips"] = self.ips
         self.save_attrs_to_config(
             config,
             [
@@ -542,10 +553,7 @@ class Cluster(Resource):
 
         node = node or self.head_ip
 
-        if (
-            hasattr(self, "launched_properties")
-            and self.launched_properties["cloud"] == "kubernetes"
-        ):
+        if self.launched_properties.get("cloud") == "kubernetes":
             namespace = self.launched_properties.get("namespace", None)
             node_idx = self.ips.index(node)
             pod_name = self.launched_properties.get("pod_names", None)[node_idx]
@@ -597,8 +605,9 @@ class Cluster(Resource):
         """
         if not self.is_up():
             # Don't store stale IPs
-            self.ips = []
-            self.internal_ips = []
+            self.launched_properties["ips"] = []
+            if "internal_ips" in self.launched_properties:
+                self.launched_properties["internal_ips"] = []
             self.up()
         return self
 
@@ -1022,12 +1031,7 @@ class Cluster(Resource):
     ) -> "SshTunnel":
         from runhouse.resources.hardware.ssh_tunnel import ssh_tunnel
 
-        cloud = (
-            self.launched_properties["cloud"]
-            if hasattr(self, "launched_properties")
-            else None
-        )
-
+        cloud = self.launched_properties.get("cloud")
         return ssh_tunnel(
             address=self.head_ip,
             ssh_creds=self.creds_values,

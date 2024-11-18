@@ -174,16 +174,23 @@ class DenLauncher(Launcher):
             return
 
         for attribute in [
-            "launched_properties",
-            "ips",
-            "internal_ips",
-            "stable_internal_external_ips",
             "ssh_properties",
             "client_port",
         ]:
             value = config.get(attribute)
             if value:
                 setattr(cluster, attribute, value)
+
+        # TODO: remove, backwards compatibility
+        launched_properties = config.get("launched_properties", {})
+        if "stable_internal_external_ips" in config:
+            stable_internal_external_ips = config.get("stable_internal_external_ips")
+            internal_ips, ips = map(list, zip(*stable_internal_external_ips))
+            launched_properties["internal_ips"] = internal_ips
+        else:
+            ips = config.get("ips")
+        launched_properties["ips"] = ips
+        setattr(cluster, "launched_properties", launched_properties)
 
         creds = config.get("creds")
         if not cluster._creds and creds:
@@ -248,7 +255,8 @@ class DenLauncher(Launcher):
                 cluster_name=cluster_name,
                 payload=payload,
             )
-            cluster.ips = []
+            cluster.launched_properties["ips"] = []
+            cluster.launched_properties["internal_ips"] = []
             return
 
         # Run blocking call, with no streaming
@@ -262,7 +270,8 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.TEARDOWN_URL}': Failed to "
                 f"teardown cluster: {load_resp_content(resp)}"
             )
-        cluster.ips = []
+        cluster.launched_properties["ips"] = []
+        cluster.launched_properties["internal_ips"] = []
 
 
 class LocalLauncher(Launcher):
@@ -348,7 +357,8 @@ class LocalLauncher(Launcher):
         import sky
 
         sky.down(cluster.name)
-        cluster.ips = []
+        cluster.launched_properties["ips"] = []
+        cluster.launched_properties["internal_ips"] = []
         cluster._http_client = None
 
         # Save to Den with updated null IPs
