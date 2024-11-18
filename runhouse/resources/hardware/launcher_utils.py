@@ -135,6 +135,10 @@ class Launcher:
                 spinner.stop()
                 spinner = None
 
+            if event.event == "log_spinner":
+                spinner = Spinner(logger=logger, desc=str(event.data))
+                spinner.start()
+
             if event.event == "info_spinner":
                 logger.info(event.data)
                 spinner = Spinner(logger=logger, desc=str(event.data))
