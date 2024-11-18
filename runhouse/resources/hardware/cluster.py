@@ -583,7 +583,7 @@ class Cluster(Resource):
         except ConnectionError:
             return False
 
-    def up_if_not(self):
+    def up_if_not(self, verbose: bool = True, force: bool = False):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
         This only applies to on-demand clusters, and has no effect on self-managed clusters.
 
@@ -593,7 +593,7 @@ class Cluster(Resource):
         if not self.is_up():
             # Don't store stale IPs
             self.ips = None
-            self.up()
+            self.up(verbose=verbose, force=force)
         return self
 
     def up(self, verbose: bool = True, force: bool = False):

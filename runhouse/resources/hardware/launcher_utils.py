@@ -208,7 +208,9 @@ class DenLauncher(Launcher):
                 payload=payload,
                 cluster_name=payload["cluster_config"].get("name"),
             )
-            cls._update_from_den_response(cluster=cluster, config=data)
+            cls._update_from_den_response(
+                cluster=cluster, config=data.get("cluster_config")
+            )
             return
 
         # Blocking call with no streaming
@@ -224,7 +226,9 @@ class DenLauncher(Launcher):
             )
         data = read_resp_data(resp)
         logger.info("Successfully launched cluster")
-        cls._update_from_den_response(cluster=cluster, config=data)
+        cls._update_from_den_response(
+            cluster=cluster, config=data.get("cluster_config")
+        )
 
     @classmethod
     def teardown(cls, cluster, verbose: bool = True):
