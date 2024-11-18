@@ -311,15 +311,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         on_cluster_config = remove_config_keys(on_cluster_config, keys_to_skip)
         local_cluster_config = remove_config_keys(local_cluster_config, keys_to_skip)
 
-        if local_cluster_config.get("stable_internal_external_ips", False):
-            cluster_ips = local_cluster_config.pop(
-                "stable_internal_external_ips", None
-            )[0]
-            on_cluster_ips = on_cluster_config.pop(
-                "stable_internal_external_ips", None
-            )[0]
-            assert tuple(cluster_ips) == tuple(on_cluster_ips)
-
         assert on_cluster_config == local_cluster_config
 
     @pytest.mark.level("local")

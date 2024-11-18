@@ -114,6 +114,7 @@ class Cluster(Resource):
         self._rpc_tunnel = None
 
         self.ips = ips
+        self.internal_ips = ips
         self._http_client = None
         self.den_auth = den_auth or False
         self.cert_config = TLSCertConfig(cert_path=ssl_certfile, key_path=ssl_keyfile)
@@ -146,10 +147,6 @@ class Cluster(Resource):
     @property
     def address(self):
         return self.head_ip
-
-    @property
-    def internal_ips(self):
-        return self.ips
 
     @property
     def client(self):
@@ -603,6 +600,7 @@ class Cluster(Resource):
         if not self.is_up():
             # Don't store stale IPs
             self.ips = None
+            self.internal_ips = None
             self.up()
         return self
 
@@ -655,6 +653,7 @@ class Cluster(Resource):
                     env_name=conda_env_name,
                     conda_yaml=self._default_env.conda_yaml,
                     cluster=self,
+                    node=node,
                 )
 
             self.install_packages(
@@ -1066,16 +1065,18 @@ class Cluster(Resource):
         return self._use_https and not (self._use_caddy and self.domain is not None)
 
     def _start_ray_workers(self, ray_port, env):
-        for host in self.ips:
-            if host == self.head_ip:
-                # This is the master node, skip
-                continue
+        internal_head_ip = self.internal_ips[0]
+        worker_ips = self.ips[
+            1:
+        ]  # Using external worker address here because we're running from local
+
+        for host in worker_ips:
             logger.info(
-                f"Starting Ray on worker {host} with head node at {self.head_ip}:{ray_port}."
+                f"Starting Ray on worker {host} with head node at {internal_head_ip}:{ray_port}."
             )
             self.run(
                 commands=[
-                    f"ray start --address={self.head_ip}:{ray_port} --disable-usage-stats",
+                    f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
                 ],
                 node=host,
                 env=env,
