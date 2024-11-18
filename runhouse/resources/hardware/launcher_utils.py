@@ -174,7 +174,7 @@ class DenLauncher(Launcher):
             return
 
         for attribute in [
-            "launched_properties",
+            "compute_properties",
             "ips",
             "internal_ips",
             "stable_internal_external_ips",
