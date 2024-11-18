@@ -625,7 +625,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert "node: " in status_output_string
         assert status_output_string.count("node: ") >= 1
 
-        cloud_properties = cluster.config().get("launched_properties", None)
+        cloud_properties = cluster.config().get("compute_properties", None)
         if cloud_properties:
             properties_to_check = ["cloud", "instance_type", "region", "cost_per_hour"]
             for p in properties_to_check:

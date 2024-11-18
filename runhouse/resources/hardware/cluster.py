@@ -113,9 +113,7 @@ class Cluster(Resource):
 
         self._rpc_tunnel = None
 
-        self.launched_properties = kwargs.get("launched_properties") or {
-            "ips": ips or []
-        }
+        self.compute_properties = {"ips": ips or []} or kwargs.get("compute_properties")
         self._http_client = None
         self.den_auth = den_auth or False
         self.cert_config = TLSCertConfig(cert_path=ssl_certfile, key_path=ssl_keyfile)
@@ -141,7 +139,7 @@ class Cluster(Resource):
 
     @property
     def ips(self):
-        return self.launched_properties.get("ips", [])
+        return self.compute_properties.get("ips", [])
 
     @property
     def internal_ips(self):
@@ -553,10 +551,10 @@ class Cluster(Resource):
 
         node = node or self.head_ip
 
-        if self.launched_properties.get("cloud") == "kubernetes":
-            namespace = self.launched_properties.get("namespace", None)
+        if self.compute_properties.get("cloud") == "kubernetes":
+            namespace = self.compute_properties.get("namespace", None)
             node_idx = self.ips.index(node)
-            pod_name = self.launched_properties.get("pod_names", None)[node_idx]
+            pod_name = self.compute_properties.get("pod_names", None)[node_idx]
 
             runner = SkyKubernetesRunner(
                 (namespace, pod_name), docker_user=self.docker_user
@@ -605,9 +603,9 @@ class Cluster(Resource):
         """
         if not self.is_up():
             # Don't store stale IPs
-            self.launched_properties["ips"] = []
-            if "internal_ips" in self.launched_properties:
-                self.launched_properties["internal_ips"] = []
+            self.compute_properties["ips"] = []
+            if "internal_ips" in self.compute_properties:
+                self.compute_properties["internal_ips"] = []
             self.up()
         return self
 
@@ -1031,7 +1029,7 @@ class Cluster(Resource):
     ) -> "SshTunnel":
         from runhouse.resources.hardware.ssh_tunnel import ssh_tunnel
 
-        cloud = self.launched_properties.get("cloud")
+        cloud = self.compute_properties.get("cloud")
         return ssh_tunnel(
             address=self.head_ip,
             ssh_creds=self.creds_values,

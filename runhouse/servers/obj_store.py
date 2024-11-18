@@ -375,8 +375,8 @@ class ObjStore:
                 internal_ip
                 for internal_ip, _ in cluster_config["stable_internal_external_ips"]
             ]
-        elif cluster_config.get("launched_properties", {}).get("internal_ips", []):
-            return cluster_config.get("launched_properties").get("internal_ips")
+        elif cluster_config.get("compute_properties", {}).get("internal_ips", []):
+            return cluster_config.get("compute_properties").get("internal_ips")
         else:
             if not ray.is_initialized():
                 raise ConnectionError("Ray is not initialized.")

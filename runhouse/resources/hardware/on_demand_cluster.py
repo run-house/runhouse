@@ -120,11 +120,12 @@ class OnDemandCluster(Cluster):
             internal_ips, ips = map(
                 list, zip(*kwargs.get("stable_internal_external_ips"))
             )
-            self.launched_properties["ips"] = ips
-            self.launched_properties["internal_ips"] = internal_ips
+            self.compute_properties["ips"] = ips
+            self.compute_properties["internal_ips"] = internal_ips
 
-        self.launched_properties = {
-            **self.launched_properties,
+        self.compute_properties = {
+            **self.compute_properties,
+            **kwargs.get("compute_properties", {}),
             **kwargs.get("launched_properties", {}),
         }
         self._docker_user = None
@@ -136,11 +137,11 @@ class OnDemandCluster(Cluster):
 
     @property
     def ips(self):
-        return self.launched_properties.get("ips", [])
+        return self.compute_properties.get("ips", [])
 
     @property
     def internal_ips(self):
-        return self.launched_properties.get("internal_ips", [])
+        return self.compute_properties.get("internal_ips", [])
 
     @property
     def client(self):
@@ -185,9 +186,9 @@ class OnDemandCluster(Cluster):
         if not self.image_id or "docker:" not in self.image_id:
             return None
 
-        if self.launched_properties.get("cloud") == "kubernetes":
-            return self.launched_properties.get(
-                "docker_user", self.launched_properties.get("ssh_user", "root")
+        if self.compute_properties.get("cloud") == "kubernetes":
+            return self.compute_properties.get(
+                "docker_user", self.compute_properties.get("ssh_user", "root")
             )
 
         from runhouse.resources.hardware.sky_command_runner import get_docker_user
@@ -216,11 +217,11 @@ class OnDemandCluster(Cluster):
                 "launcher_type",
             ],
         )
-        # pop ips from launched_properties
-        launched_properties = self.launched_properties.copy()
-        launched_properties.pop("ips")
-        if launched_properties:
-            config["launched_properties"] = launched_properties
+        # pop ips from compute_properties
+        compute_properties = self.compute_properties.copy()
+        compute_properties.pop("ips")
+        if compute_properties:
+            config["compute_properties"] = compute_properties
         config["autostop_mins"] = self._autostop_mins
         return config
 
@@ -399,7 +400,7 @@ class OnDemandCluster(Cluster):
             memory = launched_resource.memory
             accelerators = launched_resource.accelerators
 
-            self.launched_properties = {
+            self.compute_properties = {
                 "ips": ips,
                 "internal_ips": internal_ips,
                 "cloud": cloud,
@@ -412,19 +413,17 @@ class OnDemandCluster(Cluster):
                 "num_cpus": num_cpus,
             }
             if launched_resource.accelerators:
-                self.launched_properties[
-                    "accelerators"
-                ] = launched_resource.accelerators
+                self.compute_properties["accelerators"] = launched_resource.accelerators
             if handle.ssh_user:
-                self.launched_properties["ssh_user"] = handle.ssh_user
+                self.compute_properties["ssh_user"] = handle.ssh_user
             if handle.docker_user:
-                self.launched_properties["docker_user"] = handle.docker_user
+                self.compute_properties["docker_user"] = handle.docker_user
             if cloud == "kubernetes":
                 if handle.cached_cluster_info:
-                    self.launched_properties[
+                    self.compute_properties[
                         "namespace"
                     ] = handle.cached_cluster_info.provider_config.get("namespace")
-                    self.launched_properties[
+                    self.compute_properties[
                         "context"
                     ] = handle.cached_cluster_info.provider_config.get("context")
 
@@ -434,13 +433,13 @@ class OnDemandCluster(Cluster):
                         for instance_info in instance_infos
                     }
                     # Order the pod names to match the order of the IPs
-                    self.launched_properties["pod_names"] = [
+                    self.compute_properties["pod_names"] = [
                         pod_names_and_ips[ip] for ip in self.ips
                     ]
 
-                if not self.launched_properties.get(
+                if not self.compute_properties.get(
                     "namespace"
-                ) or not self.launched_properties.get("pod_names"):
+                ) or not self.compute_properties.get("pod_names"):
                     import kubernetes
 
                     k8s_client = kubernetes.client.CoreV1Api()
@@ -450,19 +449,19 @@ class OnDemandCluster(Cluster):
                         for pod in k8s_client.list_pod_for_all_namespaces().items
                     }
                     # Order the pod names to match the order of the IPsi
-                    self.launched_properties["pod_names"] = [
+                    self.compute_properties["pod_names"] = [
                         pod_names_and_ips[ip][0] for ip in self.ips
                     ]
                     # Get the namespace for the first pod
-                    self.launched_properties["namespace"] = pod_names_and_ips[
+                    self.compute_properties["namespace"] = pod_names_and_ips[
                         self.head_ip
                     ][1]
 
-                if not self.launched_properties.get("context"):
+                if not self.compute_properties.get("context"):
                     import kubernetes
 
                     _, current_context = kubernetes.config.list_kube_config_contexts()
-                    self.launched_properties["context"] = current_context["name"]
+                    self.compute_properties["context"] = current_context["name"]
 
     def _update_from_sky_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
@@ -527,8 +526,8 @@ class OnDemandCluster(Cluster):
     async def a_up_if_not(self, capture_output: Union[bool, str] = True):
         if not self.is_up():
             # Don't store stale IPs
-            self.launched_properties["ips"] = []
-            self.launched_properties["internal_ips"] = []
+            self.compute_properties["ips"] = []
+            self.compute_properties["internal_ips"] = []
             await self.a_up(capture_output=capture_output)
         return self
 

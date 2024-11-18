@@ -246,13 +246,13 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
         original_ips = cluster.ips
 
-        cluster.launched_properties["ips"] = []
-        cluster.launched_properties["internal_ips"] = []
+        cluster.compute_properties["ips"] = []
+        cluster.compute_properties["internal_ips"] = []
         assert not cluster._ping(retry=False)
 
-        if cluster.launched_properties.get("cloud") == "kubernetes":
+        if cluster.compute_properties.get("cloud") == "kubernetes":
             # kubernetes does not use ips in command runner
-            cluster.launched_properties["ips"] = ["00.00.000.11"]
+            cluster.compute_properties["ips"] = ["00.00.000.11"]
             assert not cluster._ping(retry=False)
 
         assert cluster._ping(retry=True)

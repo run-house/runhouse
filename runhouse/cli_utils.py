@@ -374,7 +374,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
 def print_cloud_properties(cluster_config: dict):
     from runhouse.main import console
 
-    cloud_properties = cluster_config.get("launched_properties", None)
+    cloud_properties = cluster_config.get("compute_properties", None)
     if not cloud_properties:
         return
     cloud = cloud_properties.get("cloud")
