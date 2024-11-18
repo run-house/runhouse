@@ -384,10 +384,11 @@ class Cluster(Resource):
                 # old version of cluster creds or password only
                 private_key_path = cluster._creds.values.get("ssh_private_key")
                 if private_key_path:
-                    SSHSecret._write_to_file(
+                    ssh_creds = SSHSecret(
                         path=private_key_path,
                         values=cluster._creds.values,
                     )
+                    ssh_creds.write()
 
         return cluster
 
