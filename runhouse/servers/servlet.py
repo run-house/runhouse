@@ -247,8 +247,9 @@ class Servlet:
         node_ip = get_node_ip()
 
         if not cluster_config.get("resource_subtype") == "Cluster":
-            if cluster_config.get("internal_ips"):
-                internal_ips = cluster_config.get("internal_ips", [])
+            launched_properties = cluster_config.get("launched_properties", {})
+            if launched_properties.get("internal_ips"):
+                internal_ips = launched_properties.get("internal_ips", [])
             else:
                 stable_internal_external_ips = cluster_config.get(
                     "stable_internal_external_ips", []
