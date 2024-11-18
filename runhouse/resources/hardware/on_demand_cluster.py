@@ -75,6 +75,9 @@ class OnDemandCluster(Cluster):
         .. note::
             To build a cluster, please use the factory method :func:`cluster`.
         """
+        cluster_launcher_type = launcher_type or configs.launcher_type
+        skip_creds = cluster_launcher_type == LauncherType.DEN
+
         super().__init__(
             name=name,
             default_env=default_env,
@@ -86,6 +89,7 @@ class OnDemandCluster(Cluster):
             domain=domain,
             den_auth=den_auth,
             dryrun=dryrun,
+            skip_creds=skip_creds,
             **kwargs,
         )
 
@@ -109,7 +113,7 @@ class OnDemandCluster(Cluster):
         self.memory = memory
         self.disk_size = disk_size
         self.sky_kwargs = sky_kwargs or {}
-        self.launcher_type = launcher_type or configs.launcher_type
+        self.launcher_type = cluster_launcher_type
 
         self.stable_internal_external_ips = kwargs.get(
             "stable_internal_external_ips", None
