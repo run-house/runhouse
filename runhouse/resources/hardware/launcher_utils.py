@@ -1,4 +1,5 @@
 import ast
+import json
 import logging
 import sys
 from typing import Any, Optional
@@ -155,7 +156,7 @@ class Launcher:
             if event.event == "end":
                 # End returns data for continuing this method
                 logger.info("Successfully ran cluster operation via Den")
-                data = ast.literal_eval(event.data)
+                data = json.loads(event.data)
                 break
 
         return data
