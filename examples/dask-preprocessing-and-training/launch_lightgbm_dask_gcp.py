@@ -151,7 +151,7 @@ class LightGBMModelTrainer:
 if __name__ == "__main__":
     # ## Create a Runhouse cluster with 2 nodes
     num_nodes = 3
-    cluster_name = f"py-{num_nodes}-dask-gcp-2_1_mac"
+    cluster_name = f"py-{num_nodes}-dask-gcp-2_6_mac"
 
     # The environment for the remote cluster
     env = rh.env(
@@ -187,7 +187,6 @@ if __name__ == "__main__":
     # ## Send the trainer class to the remote cluster and instantiate a remote object named 'my_trainer'
     # LightGBMModelTrainer is a completely normal class that contains our training methods, 
     # that a researcher would also be able to use locally as-is as well (on non-distributed Dask)
-    print(cluster.config())
     from lightgbm_training import LightGBMModelTrainer
     remote_dask_trainer = rh.module(LightGBMModelTrainer).to(cluster)
     
@@ -213,8 +212,11 @@ if __name__ == "__main__":
 
     # Train, test, and save the model
     dask_trainer.train_model()
+    print('Model trained')
     dask_trainer.test_model()
+    print('Model tested')
     dask_trainer.save_model("gs://rh-model-checkpoints/lightgbm_dask/model.pkl")
-
+    print('Model saved')
     # cluster.teardown() # Optionally, automatically teardown the cluster after training
+    print('Launching notebook')
     cluster.notebook() # Optionally, open a Jupyter notebook on the cluster to interact with the trained model
