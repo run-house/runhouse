@@ -97,6 +97,7 @@ class Cluster(Resource):
         ssh_properties: Dict = None,
         den_auth: bool = False,
         dryrun: bool = False,
+        skip_creds: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
@@ -112,7 +113,7 @@ class Cluster(Resource):
 
         self._rpc_tunnel = None
 
-        self.ips = ips
+        self.compute_properties = {"ips": ips or []} or kwargs.get("compute_properties")
         self._http_client = None
         self.den_auth = den_auth or False
         self.cert_config = TLSCertConfig(cert_path=ssl_certfile, key_path=ssl_keyfile)
@@ -131,21 +132,26 @@ class Cluster(Resource):
         if self._default_env and not self._default_env.name:
             self._default_env.name = _unnamed_default_env_name(self.name)
 
-        self._setup_creds(creds)
+        if skip_creds and not creds:
+            self._creds = None
+        else:
+            self._setup_creds(creds)
 
     @property
-    def head_ip(self):
-        return (
-            self.ips[0] if (isinstance(self.ips, List) and len(self.ips) > 0) else None
-        )
-
-    @property
-    def address(self):
-        return self.head_ip
+    def ips(self):
+        return self.compute_properties.get("ips", [])
 
     @property
     def internal_ips(self):
         return self.ips
+
+    @property
+    def head_ip(self):
+        return self.ips[0] if self.ips else None
+
+    @property
+    def address(self):
+        return self.head_ip
 
     @property
     def client(self):
@@ -341,8 +347,13 @@ class Cluster(Resource):
     def _save_sub_resources(self, folder: str = None):
         from runhouse.resources.envs import Env
 
-        if self._should_save_creds(folder):
-            self._creds.save(folder=folder)
+        creds_folder = (
+            folder if (not self._creds or not self._creds._rns_folder) else None
+        )
+        if self._should_save_creds(creds_folder):
+            # Only automatically set the creds folder if it doesn't have one yet
+            # allows for org SSH keys to be associated with the user.
+            self._creds.save(folder=creds_folder)
 
         if self._default_env and isinstance(self._default_env, Env):
             if not self._default_env.name:
@@ -375,10 +386,11 @@ class Cluster(Resource):
                 # old version of cluster creds or password only
                 private_key_path = cluster._creds.values.get("ssh_private_key")
                 if private_key_path:
-                    SSHSecret._write_to_file(
+                    ssh_creds = SSHSecret(
                         path=private_key_path,
                         values=cluster._creds.values,
                     )
+                    ssh_creds.write()
 
         return cluster
 
@@ -401,6 +413,8 @@ class Cluster(Resource):
 
     def config(self, condensed: bool = True):
         config = super().config(condensed)
+        if self.ips:
+            config["ips"] = self.ips
         self.save_attrs_to_config(
             config,
             [
@@ -537,13 +551,10 @@ class Cluster(Resource):
 
         node = node or self.head_ip
 
-        if (
-            hasattr(self, "launched_properties")
-            and self.launched_properties["cloud"] == "kubernetes"
-        ):
-            namespace = self.launched_properties.get("namespace", None)
+        if self.compute_properties.get("cloud") == "kubernetes":
+            namespace = self.compute_properties.get("namespace", None)
             node_idx = self.ips.index(node)
-            pod_name = self.launched_properties.get("pod_names", None)[node_idx]
+            pod_name = self.compute_properties.get("pod_names", None)[node_idx]
 
             runner = SkyKubernetesRunner(
                 (namespace, pod_name), docker_user=self.docker_user
@@ -583,17 +594,23 @@ class Cluster(Resource):
         except ConnectionError:
             return False
 
-    def up_if_not(self):
+    def up_if_not(self, verbose: bool = True):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
         This only applies to on-demand clusters, and has no effect on self-managed clusters.
+
+        Args:
+            verbose (bool, optional): Whether to stream logs from Den if the cluster is being launched. Only
+                relevant if launching via Den. (Default: `True`)
 
         Example:
             >>> rh.cluster("rh-cpu").up_if_not()
         """
         if not self.is_up():
             # Don't store stale IPs
-            self.ips = None
-            self.up()
+            self.compute_properties["ips"] = []
+            if "internal_ips" in self.compute_properties:
+                self.compute_properties["internal_ips"] = []
+            self.up(verbose=verbose, force=False)
         return self
 
     def up(self, verbose: bool = True, force: bool = False):
@@ -639,12 +656,13 @@ class Cluster(Resource):
         env_vars = _process_env_vars(self._default_env.env_vars)
         setup_cmds = self._default_env.setup_cmds
 
-        for node in self.ips or []:
+        for node in self.ips:
             if conda_env_name:
                 create_conda_env(
                     env_name=conda_env_name,
                     conda_yaml=self._default_env.conda_yaml,
                     cluster=self,
+                    node=node,
                 )
 
             self.install_packages(
@@ -714,7 +732,7 @@ class Cluster(Resource):
                 _install_url = f"runhouse=={runhouse.__version__}"
             rh_install_cmd = f"python3 -m pip install {_install_url}"
 
-        for node in self.ips or []:
+        for node in self.ips:
             status_codes = self.run(
                 [rh_install_cmd],
                 node=node,
@@ -1015,12 +1033,7 @@ class Cluster(Resource):
     ) -> "SshTunnel":
         from runhouse.resources.hardware.ssh_tunnel import ssh_tunnel
 
-        cloud = (
-            self.launched_properties["cloud"]
-            if hasattr(self, "launched_properties")
-            else None
-        )
-
+        cloud = self.compute_properties.get("cloud")
         return ssh_tunnel(
             address=self.head_ip,
             ssh_creds=self.creds_values,
@@ -1056,16 +1069,18 @@ class Cluster(Resource):
         return self._use_https and not (self._use_caddy and self.domain is not None)
 
     def _start_ray_workers(self, ray_port, env):
-        for host in self.ips:
-            if host == self.head_ip:
-                # This is the master node, skip
-                continue
+        internal_head_ip = self.internal_ips[0]
+        worker_ips = self.ips[
+            1:
+        ]  # Using external worker address here because we're running from local
+
+        for host in worker_ips:
             logger.info(
-                f"Starting Ray on worker {host} with head node at {self.head_ip}:{ray_port}."
+                f"Starting Ray on worker {host} with head node at {internal_head_ip}:{ray_port}."
             )
             self.run(
                 commands=[
-                    f"ray start --address={self.head_ip}:{ray_port} --disable-usage-stats",
+                    f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
                 ],
                 node=host,
                 env=env,
@@ -1462,7 +1477,7 @@ class Cluster(Resource):
             raise ValueError(f"Could not locate path to sync: {source}.")
 
         if up and (node == "all" or (len(self.ips) > 1 and not node)):
-            for node in self.ips or []:
+            for node in self.ips:
                 self.rsync(
                     source,
                     dest,
@@ -1648,10 +1663,6 @@ class Cluster(Resource):
         """
         from runhouse.resources.envs import Env
 
-        if self.on_this_cluster() and node:
-            # Switch the external ip to an internal ip
-            node = self.internal_ips[self.ips.index(node)]
-
         if isinstance(commands, str):
             commands = [commands]
 
@@ -1685,7 +1696,7 @@ class Cluster(Resource):
         else:
             if node == "all":
                 res_list = []
-                for node in self.ips or []:
+                for node in self.ips:
                     res = self.run(
                         commands=commands,
                         env=env,
@@ -1702,6 +1713,8 @@ class Cluster(Resource):
                 full_commands = [env._full_command(cmd) for cmd in commands]
                 if self.on_this_cluster():
                     # TODO add log streaming
+                    # Switch the external ip to an internal ip
+                    node = self.internal_ips[self.ips.index(node)]
                     return_codes = obj_store.run_bash_command_on_node(
                         node_ip=node,
                         commands=full_commands,
@@ -1990,7 +2003,7 @@ class Cluster(Resource):
         )
 
         # Note: We need to do this on the head node too, because this creates all the worker processes
-        for node in self.ips or []:
+        for node in self.ips:
             logger.info(f"Starting Dask worker on {node}.")
             # Connect to localhost if on the head node, otherwise use the internal ip of head node
             scheduler = (
@@ -2009,7 +2022,7 @@ class Cluster(Resource):
 
     def kill_dask(self):
         self.run("pkill -f 'dask scheduler'", node=self.head_ip)
-        for node in self.ips or []:
+        for node in self.ips:
             self.run("pkill -f 'dask worker'", node=node)
 
     def remove_conda_env(
@@ -2275,8 +2288,8 @@ class Cluster(Resource):
         Args:
             show_all (bool, optional): Whether to list all clusters saved in Den. Maximum of 50 will be listed.
                 (Default: False).
-            since (str, optional): Clusters that were active in the specified time period will be returned.
-                Value can be in seconds, minutes, hours or days.
+            since (str, optional): Currently running clusters that were active in the specified time period will
+                be returned. Value can be in seconds, minutes, hours or days.
             status (ClustersListStatus or str, optional): Clusters with the provided status will be returned.
 
         Examples:

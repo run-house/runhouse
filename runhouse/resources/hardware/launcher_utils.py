@@ -1,4 +1,6 @@
 import ast
+import logging
+import sys
 from typing import Any, Optional
 
 import requests
@@ -14,7 +16,53 @@ from runhouse.utils import Spinner
 logger = get_logger(__name__)
 
 
+class LogProcessor:
+    """Dedicated logger for handling streamed cluster logs"""
+
+    def __init__(self):
+        self.cluster_logger = self._init_cluster_logger()
+
+    def _init_cluster_logger(self):
+        cluster_logger = logging.getLogger("cluster_logs")
+
+        cluster_logger.setLevel(logging.DEBUG)
+
+        # Add a handler with a simple formatter if not already set
+        if not cluster_logger.handlers:
+            handler = logging.StreamHandler(sys.stdout)
+            handler.setFormatter(logging.Formatter("%(message)s"))
+            cluster_logger.addHandler(handler)
+
+        # Prevent propagation to root_logger
+        cluster_logger.propagate = False
+
+        return cluster_logger
+
+    def log_event(self, event, cluster_name: str):
+        """Log the event at the appropriate level using the cluster logger."""
+        # Note: we need to remove logger prefix from the local logger to just include the log in Den
+        data = ast.literal_eval(event.data)
+        log_level = data["log_level"].upper()
+        log_message = f"[{cluster_name}] {data['log']}"
+
+        if log_level == "INFO":
+            self.cluster_logger.info(log_message)
+        elif log_level == "WARNING":
+            self.cluster_logger.warning(log_message)
+        elif log_level == "ERROR":
+            self.cluster_logger.error(log_message)
+        elif log_level == "EXCEPTION":
+            self.cluster_logger.exception(log_message)
+        elif log_level == "DEBUG":
+            self.cluster_logger.debug(log_message)
+        else:
+            self.cluster_logger.info(log_message)
+
+
 class Launcher:
+
+    log_processor = LogProcessor()
+
     @classmethod
     def up(cls, cluster, verbose: bool = True):
         """Abstract method for launching a cluster."""
@@ -58,7 +106,12 @@ class Launcher:
         return sky_secret
 
     @classmethod
-    def run_verbose(cls, base_url: str, payload: dict = None) -> Any:
+    def run_verbose(
+        cls,
+        base_url: str,
+        cluster_name: str,
+        payload: dict = None,
+    ) -> Any:
         """Call a specified Den API while streaming logs back using an SSE client."""
         resp = requests.post(
             base_url,
@@ -82,6 +135,10 @@ class Launcher:
                 spinner.stop()
                 spinner = None
 
+            if event.event == "log_spinner":
+                spinner = Spinner(logger=logger, desc=str(event.data))
+                spinner.start()
+
             if event.event == "info_spinner":
                 logger.info(event.data)
                 spinner = Spinner(logger=logger, desc=str(event.data))
@@ -89,6 +146,9 @@ class Launcher:
 
             if event.event == "info":
                 logger.info(event.data)
+
+            if event.event == "log":
+                cls.log_processor.log_event(event, cluster_name=cluster_name)
 
             if event.event == "error":
                 event_data = ast.literal_eval(event.data)
@@ -118,15 +178,23 @@ class DenLauncher(Launcher):
             return
 
         for attribute in [
-            "launched_properties",
-            "ips",
-            "stable_internal_external_ips",
             "ssh_properties",
             "client_port",
         ]:
             value = config.get(attribute)
             if value:
                 setattr(cluster, attribute, value)
+
+        # TODO: remove, backwards compatibility
+        compute_properties = config.get("compute_properties", {})
+        if "stable_internal_external_ips" in config:
+            stable_internal_external_ips = config.get("stable_internal_external_ips")
+            internal_ips, ips = map(list, zip(*stable_internal_external_ips))
+            compute_properties["internal_ips"] = internal_ips
+        else:
+            ips = config.get("ips")
+        compute_properties["ips"] = ips
+        setattr(cluster, "compute_properties", compute_properties)
 
         creds = config.get("creds")
         if not cluster._creds and creds:
@@ -136,6 +204,8 @@ class DenLauncher(Launcher):
     def up(cls, cluster, verbose: bool = True, force: bool = False):
         """Launch the cluster via Den."""
         sky_secret = cls.sky_secret()
+        cluster._setup_creds(sky_secret)
+        cluster.save()
 
         payload = {
             "cluster_config": {
@@ -147,7 +217,11 @@ class DenLauncher(Launcher):
         }
 
         if verbose:
-            data = cls.run_verbose(base_url=cls.LAUNCH_URL, payload=payload)
+            data = cls.run_verbose(
+                base_url=cls.LAUNCH_URL,
+                payload=payload,
+                cluster_name=payload["cluster_config"].get("name"),
+            )
             cls._update_from_den_response(cluster=cluster, config=data)
             return
 
@@ -170,17 +244,23 @@ class DenLauncher(Launcher):
     def teardown(cls, cluster, verbose: bool = True):
         """Tearing down a cluster via Den."""
         sky_secret = cls.sky_secret()
+        cluster_name = cluster.rns_address or cluster.name
 
         payload = {
-            "cluster_name": cluster.rns_address,
+            "cluster_name": cluster_name,
             "delete_from_den": False,
             "ssh_creds": sky_secret.rns_address,
             "verbose": verbose,
         }
 
         if verbose:
-            cls.run_verbose(base_url=cls.TEARDOWN_URL, payload=payload)
-            cluster.ips = None
+            cls.run_verbose(
+                base_url=cls.TEARDOWN_URL,
+                cluster_name=cluster_name,
+                payload=payload,
+            )
+            cluster.compute_properties["ips"] = []
+            cluster.compute_properties["internal_ips"] = []
             return
 
         # Run blocking call, with no streaming
@@ -194,7 +274,8 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.TEARDOWN_URL}': Failed to "
                 f"teardown cluster: {load_resp_content(resp)}"
             )
-        cluster.ips = None
+        cluster.compute_properties["ips"] = []
+        cluster.compute_properties["internal_ips"] = []
 
 
 class LocalLauncher(Launcher):
@@ -280,7 +361,8 @@ class LocalLauncher(Launcher):
         import sky
 
         sky.down(cluster.name)
-        cluster.ips = None
+        cluster.compute_properties["ips"] = []
+        cluster.compute_properties["internal_ips"] = []
         cluster._http_client = None
 
         # Save to Den with updated null IPs

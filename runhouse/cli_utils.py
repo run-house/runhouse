@@ -101,13 +101,11 @@ def create_output_table(
 
 def add_cluster_as_table_row(table: Table, rh_cluster: dict):
     """Adding an info of a single cluster to the output table."""
-    last_active = rh_cluster.get("Last Active (UTC)")
-    last_active = last_active if last_active != "01/01/1970, 00:00:00" else "Unknown"
     table.add_row(
         rh_cluster.get("Name"),
         rh_cluster.get("Cluster Type"),
         rh_cluster.get("Status"),
-        last_active,
+        rh_cluster.get("Last Active (UTC)"),
     )
 
     return table
@@ -117,9 +115,12 @@ def add_clusters_to_output_table(table: Table, clusters: List[Dict]):
     """Adding clusters info to the output table."""
     for rh_cluster in clusters:
         last_active_at = rh_cluster.get("Last Active (UTC)")
-        last_active_at_no_offset = str(last_active_at).split("+")[
-            0
-        ]  # The split is required to remove the offset (according to UTC)
+        if not last_active_at:  # case when last_active_at == None
+            last_active_at_no_offset = last_active_at
+        else:
+            last_active_at_no_offset = str(last_active_at).split("+")[
+                0
+            ]  # The split is required to remove the offset (according to UTC)
         rh_cluster["Last Active (UTC)"] = last_active_at_no_offset
         rh_cluster["Status"] = StatusColors.get_status_color(rh_cluster.get("Status"))
 
@@ -141,10 +142,8 @@ def condense_resource_type(resource_type: str):
 ####################################################################################################
 # Cluster status utils
 ####################################################################################################
-
-
 class StatusType(str, Enum):
-    server = ("sever",)
+    server = "server"
     cluster = "cluster"
 
 
@@ -373,7 +372,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
 def print_cloud_properties(cluster_config: dict):
     from runhouse.main import console
 
-    cloud_properties = cluster_config.get("launched_properties", None)
+    cloud_properties = cluster_config.get("compute_properties", None)
     if not cloud_properties:
         return
     cloud = cloud_properties.get("cloud")
@@ -408,10 +407,10 @@ def print_cloud_properties(cluster_config: dict):
 
 
 def print_status(status_data: dict, current_cluster) -> None:
+    """Prints the status of the cluster to the console"""
     from runhouse.globals import rns_client
     from runhouse.main import console
 
-    """Prints the status of the cluster to the console"""
     cluster_config = status_data.get("cluster_config")
     servlet_processes = status_data.get("env_servlet_processes")
 

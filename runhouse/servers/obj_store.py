@@ -370,12 +370,13 @@ class ObjStore:
         """Get list of internal IPs of all nodes in the cluster."""
         cluster_config = self.get_cluster_config()
         if "stable_internal_external_ips" in cluster_config:
+            # TODO: remove, backwards compatibility
             return [
                 internal_ip
-                for internal_ip, external_ip in cluster_config[
-                    "stable_internal_external_ips"
-                ]
+                for internal_ip, _ in cluster_config["stable_internal_external_ips"]
             ]
+        elif cluster_config.get("compute_properties", {}).get("internal_ips", []):
+            return cluster_config.get("compute_properties").get("internal_ips")
         else:
             if not ray.is_initialized():
                 raise ConnectionError("Ray is not initialized.")

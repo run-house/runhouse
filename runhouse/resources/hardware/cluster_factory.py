@@ -314,7 +314,7 @@ def ondemand_cluster(
         num_nodes (int, optional): Number of nodes to use for the cluster.
         provider (str, optional): Cloud provider to use for the cluster.
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
-            or ``-1`` to keep cluster up indefinitely.
+            or ``-1`` to keep cluster up indefinitely. (Default: ``60``).
         use_spot (bool, optional): Whether or not to use spot instance.
         image_id (str, optional): Custom image ID for the cluster. If using a docker image, please use the following
             string format: "docker:<registry>/<image>:<tag>". See `user guide <https://www.run.house/docs/docker>`__

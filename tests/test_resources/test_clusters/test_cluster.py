@@ -310,15 +310,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         on_cluster_config = remove_config_keys(on_cluster_config, keys_to_skip)
         local_cluster_config = remove_config_keys(local_cluster_config, keys_to_skip)
 
-        if local_cluster_config.get("stable_internal_external_ips", False):
-            cluster_ips = local_cluster_config.pop(
-                "stable_internal_external_ips", None
-            )[0]
-            on_cluster_ips = on_cluster_config.pop(
-                "stable_internal_external_ips", None
-            )[0]
-            assert tuple(cluster_ips) == tuple(on_cluster_ips)
-
         assert on_cluster_config == local_cluster_config
 
     @pytest.mark.level("local")
@@ -633,7 +624,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert "node: " in status_output_string
         assert status_output_string.count("node: ") >= 1
 
-        cloud_properties = cluster.config().get("launched_properties", None)
+        cloud_properties = cluster.config().get("compute_properties", None)
         if cloud_properties:
             properties_to_check = ["cloud", "instance_type", "region", "cost_per_hour"]
             for p in properties_to_check:
@@ -990,10 +981,36 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     ####################################################################################################
     # Cluster list test
     ####################################################################################################
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_list_default_pythonic(self, cluster):
+        original_username = rns_client.username
+        new_username = (
+            "test-org"
+            if cluster.rns_address.startswith("/test-org/")
+            else original_username
+        )
+
+        with org_friend_account(
+            new_username=new_username,
+            token=rns_client.token,
+            original_username=original_username,
+        ):
+            default_clusters = Cluster.list().get("den_clusters", {})
+            assert len(default_clusters) > 0
+            assert [
+                den_cluster.get("Status") == "running"
+                for den_cluster in default_clusters
+            ]
+            assert any(
+                den_cluster
+                for den_cluster in default_clusters
+                if den_cluster.get("Name") == cluster.name
+            )
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_cluster_list_contains_pythonic(self, cluster):
+    def test_cluster_list_all_pythonic(self, cluster):
         original_username = rns_client.username
         new_username = (
             "test-org"
@@ -1007,22 +1024,18 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             original_username=original_username,
         ):
             all_clusters = Cluster.list(show_all=True).get("den_clusters", {})
-            running_clusters = Cluster.list().get(
-                "den_clusters", {}
-            )  # by default we get only running clusters
+            present_statuses = set(
+                [den_cluster.get("Status") for den_cluster in all_clusters]
+            )
+            assert "running" in present_statuses
+            assert "terminated" in present_statuses
 
-            assert 0 <= len(all_clusters) <= 200  # den limit
-            assert len(all_clusters) >= len(running_clusters)
-            assert len(running_clusters) > 0
-
-            all_clusters_names = [
-                den_cluster.get("Name") for den_cluster in all_clusters
-            ]
-            running_clusters_names = [
-                running_cluster.get("Name") for running_cluster in running_clusters
-            ]
-            assert cluster.name in running_clusters_names
-            assert cluster.name in all_clusters_names
+            test_cluster = [
+                den_cluster
+                for den_cluster in all_clusters
+                if den_cluster.get("Name") == cluster.name
+            ][0]
+            assert test_cluster.get("Status") == "running"
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest

@@ -148,6 +148,16 @@ def login(
 
     if download_config:
         configs.download_and_save_defaults()
+
+    autostop_mins = configs.defaults_cache.get("default_autostop")
+    if autostop_mins is None:
+        new_autostop_mins = typer.prompt(
+            "Set the default number of minutes of inactivity after which to auto-terminate on-demand clusters. "
+            "Press `Enter` to set to 60 minutes, or `-1` to disable autostop entirely.",
+            default=60,
+        )
+        configs.set("default_autostop", int(new_autostop_mins))
+
     if upload_config:
         configs.load_defaults_from_file()
         configs.upload_defaults(defaults=configs.defaults_cache)

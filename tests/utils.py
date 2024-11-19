@@ -142,7 +142,11 @@ def org_friend_account(new_username: str, token: str, original_username: str):
         dotenv_path = None  # Default to standard .env file search
 
     try:
-        account = rns_client.load_account_from_env(dotenv_path=dotenv_path)
+        account = rns_client.load_account_from_env(
+            token_env_var="RH_TOKEN",
+            usr_env_var="RH_USERNAME",
+            dotenv_path=dotenv_path,
+        )
         if account is None:
             pytest.skip("`RH_USERNAME` or `RH_TOKEN` not set, skipping test.")
         yield account
