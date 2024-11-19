@@ -129,6 +129,8 @@ class OnDemandCluster(Cluster):
             **kwargs.get("launched_properties", {}),
         }
         self._docker_user = None
+        self._namespace = kwargs.get("namespace")
+        self._context = kwargs.get("context")
 
         # Checks if state info is in local sky db, populates if so.
         if not dryrun and not self.ips and not self.creds_values:
@@ -222,7 +224,13 @@ class OnDemandCluster(Cluster):
         compute_properties.pop("ips")
         if compute_properties:
             config["compute_properties"] = compute_properties
+
         config["autostop_mins"] = self._autostop_mins
+        if self._namespace is not None:
+            config["namespace"] = self._namespace
+        if self._context is not None:
+            config["context"] = self._context
+
         return config
 
     def endpoint(self, external: bool = False):
