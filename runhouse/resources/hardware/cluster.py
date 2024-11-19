@@ -2277,7 +2277,7 @@ class Cluster(Resource):
     @classmethod
     def list(
         cls,
-        show_all: Optional[bool] = False,
+        show_all: bool = False,
         since: Optional[str] = None,
         status: Optional[ClustersListStatus] = None,
     ) -> Dict[str, List[Dict]]:
