@@ -178,8 +178,10 @@ class DenLauncher(Launcher):
             return
 
         for attribute in [
-            "ssh_properties",
             "client_port",
+            "compute_properties",
+            "ssh_properties",
+            "launched_status",
         ]:
             value = config.get(attribute)
             if value:
@@ -223,6 +225,7 @@ class DenLauncher(Launcher):
                 cluster_name=payload["cluster_config"].get("name"),
             )
             cls._update_from_den_response(cluster=cluster, config=data)
+            cluster.launched_status = "UP"
             return
 
         # Blocking call with no streaming
@@ -239,17 +242,46 @@ class DenLauncher(Launcher):
         data = read_resp_data(resp)
         logger.info("Successfully launched cluster")
         cls._update_from_den_response(cluster=cluster, config=data)
+        cluster.launched_status = "UP"
+
+    @classmethod
+    def check_status(cls, cluster, ping_cluster: bool = False) -> Optional[dict]:
+        """Fetch status for a cluster via Den."""
+        cluster_uri = rns_client.format_rns_address(cluster.rns_address)
+        url = f"{rns_client.api_server_url}/cluster/{cluster_uri}/status?ping={ping_cluster}"
+
+        # Run blocking call, with no streaming
+        resp = requests.get(
+            url,
+            headers=rns_client.request_headers(),
+        )
+        if resp.status_code != 200:
+            raise Exception(
+                f"Received [{resp.status_code}] from Den GET '{url}': Failed to "
+                f"fetch cluster status: {load_resp_content(resp)}"
+            )
+        data = read_resp_data(resp)
+        DenLauncher._update_from_den_response(cluster, data)
+        if data:
+            logger.info("Successfully fetched existing cluster status from Den")
+        else:
+            logger.info("No existing cluster found with name in Den")
 
     @classmethod
     def teardown(cls, cluster, verbose: bool = True):
         """Tearing down a cluster via Den."""
-        sky_secret = cls.sky_secret()
+        from runhouse.resources.secrets import Secret
+
+        ssh_creds = cluster._creds
+        if isinstance(ssh_creds, Secret):
+            ssh_creds = ssh_creds.rns_address
+
         cluster_name = cluster.rns_address or cluster.name
 
         payload = {
             "cluster_name": cluster_name,
             "delete_from_den": False,
-            "ssh_creds": sky_secret.rns_address,
+            "ssh_creds": ssh_creds,
             "verbose": verbose,
         }
 
@@ -259,6 +291,7 @@ class DenLauncher(Launcher):
                 cluster_name=cluster_name,
                 payload=payload,
             )
+            cluster.launched_status = "STOPPED"
             cluster.compute_properties["ips"] = []
             cluster.compute_properties["internal_ips"] = []
             return
@@ -274,6 +307,7 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.TEARDOWN_URL}': Failed to "
                 f"teardown cluster: {load_resp_content(resp)}"
             )
+        cluster.launched_status = "STOPPED"
         cluster.compute_properties["ips"] = []
         cluster.compute_properties["internal_ips"] = []
 

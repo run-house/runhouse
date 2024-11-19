@@ -105,6 +105,7 @@ class OnDemandCluster(Cluster):
             if autostop_mins is not None
             else configs.get("default_autostop")
         )
+        self._launched_status = None
 
         self.open_ports = open_ports
         self.use_spot = use_spot if use_spot is not None else configs.get("use_spot")
@@ -131,6 +132,9 @@ class OnDemandCluster(Cluster):
         self._docker_user = None
         self._namespace = kwargs.get("namespace")
         self._context = kwargs.get("context")
+
+        if not dryrun and self.launcher_type == "den" and self.rns_address:
+            DenLauncher.check_status(self)
 
         # Checks if state info is in local sky db, populates if so.
         if not dryrun and not self.ips and not self.creds_values:
@@ -177,6 +181,14 @@ class OnDemandCluster(Cluster):
             #     )
             self.call_client_method("set_settings", {"autostop_mins": mins})
             sky.autostop(self.name, mins, down=True)
+
+    @property
+    def launched_status(self):
+        return self._launched_status
+
+    @launched_status.setter
+    def launched_status(self, status):
+        self._launched_status = status
 
     @property
     def docker_user(self) -> str:
