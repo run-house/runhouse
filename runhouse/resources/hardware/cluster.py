@@ -1770,7 +1770,7 @@ class Cluster(Resource):
 
         for command in commands:
             command = f"{cmd_prefix} {command}" if cmd_prefix else command
-            logger.info(f"Running command on {self.name}: {command}")
+            logger.debug(f"Running command on {self.name}: {command}")
 
             # set env vars after log statement
             command = f"{env_var_prefix} {command}" if env_var_prefix else command
