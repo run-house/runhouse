@@ -243,13 +243,18 @@ class DenLauncher(Launcher):
     @classmethod
     def teardown(cls, cluster, verbose: bool = True):
         """Tearing down a cluster via Den."""
-        sky_secret = cls.sky_secret()
+        from runhouse.resources.secrets import Secret
+
+        ssh_creds = cluster._creds
+        if isinstance(ssh_creds, Secret):
+            ssh_creds = ssh_creds.rns_address
+
         cluster_name = cluster.rns_address or cluster.name
 
         payload = {
             "cluster_name": cluster_name,
             "delete_from_den": False,
-            "ssh_creds": sky_secret.rns_address,
+            "ssh_creds": ssh_creds,
             "verbose": verbose,
         }
 
