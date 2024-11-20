@@ -57,6 +57,9 @@ class SSHSecret(ProviderSecret):
             self.name = name
         elif not self.name:
             self.name = f"ssh-{self.key}"
+            # Append username if available
+            if rns_client.username:
+                self.name = f"/{rns_client.username}/{self.name}"
 
         if self.path:
             try:

@@ -115,6 +115,7 @@ class Secret(Resource):
     def from_name(
         cls,
         name,
+        provider: str = None,
         load_from_den: bool = True,
         dryrun: bool = False,
         _alt_options: Dict = None,
@@ -126,13 +127,14 @@ class Secret(Resource):
                 return cls.from_config(config=config, dryrun=dryrun)
         except ValueError:
             pass
-        if name in cls.builtin_providers(as_str=True):
+        provider = provider or name
+        if provider in cls.builtin_providers(as_str=True):
             from runhouse.resources.secrets.provider_secrets.providers import (
                 _get_provider_class,
             )
 
-            provider_class = _get_provider_class(name)
-            return provider_class(provider=name, dryrun=dryrun)
+            provider_class = _get_provider_class(provider)
+            return provider_class(name=name, provider=provider, dryrun=dryrun)
         raise ValueError(f"Could not locate secret {name}")
 
     @classmethod

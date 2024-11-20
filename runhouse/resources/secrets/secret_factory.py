@@ -78,6 +78,11 @@ def provider_secret(
         >>> gcp_secret = rh.provider("gcp", path="~/.gcp/credentials")
         >>> lamdba_secret = rh.provider_secret("lambda", values={"api_key": "xxxxx"})
     """
+    from runhouse.globals import rns_client
+
+    if name and "/" not in name and rns_client.username:
+        name = f"/{rns_client.username}/{name}"
+
     if not provider:
         if not name:
             raise ValueError("Either name or provider must be provided.")
@@ -90,7 +95,7 @@ def provider_secret(
             return secret_class(name=name, provider=provider, dryrun=dryrun)
         else:
             return ProviderSecret.from_name(
-                name or provider, load_from_den=load_from_den
+                name, provider=provider, load_from_den=load_from_den
             )
 
     elif sum([bool(x) for x in [values, path, env_vars]]) == 1:
