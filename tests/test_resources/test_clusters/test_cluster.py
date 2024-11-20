@@ -35,6 +35,7 @@ from tests.utils import (
     get_random_str,
     org_friend_account,
     remove_config_keys,
+    set_cluster_status,
     set_output_env_vars,
 )
 
@@ -1023,10 +1024,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             token=rns_client.token,
             original_username=original_username,
         ):
+            # create dummy terminated cluster
+            terminated_cluster = rh.cluster(name="terminated-cluster", ips=None).save()
+            set_cluster_status(terminated_cluster, ResourceServerStatus.terminated)
+
             all_clusters = Cluster.list(show_all=True).get("den_clusters", {})
             present_statuses = set(
                 [den_cluster.get("Status") for den_cluster in all_clusters]
             )
+            assert len(present_statuses) > 1
             assert "running" in present_statuses
             assert "terminated" in present_statuses
 
@@ -1106,36 +1112,48 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         import re
         import subprocess
 
-        env = set_output_env_vars()
-
-        process = subprocess.Popen(
-            "runhouse cluster list",
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
+        original_username = rns_client.username
+        new_username = (
+            "test-org"
+            if cluster.rns_address.startswith("/test-org/")
+            else original_username
         )
-        process.wait()
-        stdout = process.communicate()[0]
-        capsys.readouterr()
-        cmd_stdout = stdout.decode("utf-8")
 
-        assert cmd_stdout
+        with org_friend_account(
+            new_username=new_username,
+            token=rns_client.token,
+            original_username=original_username,
+        ):
+            env = set_output_env_vars()
 
-        # The output is printed as a table.
-        # testing that the table name is printed correctly
-        regex = f".*Clusters for {rh.configs.username}.*\(Running: .*/.*, Total Displayed: .*/.*\).*"
-        assert re.search(regex, cmd_stdout)
+            process = subprocess.Popen(
+                "runhouse cluster list",
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+            )
+            process.wait()
+            stdout = process.communicate()[0]
+            capsys.readouterr()
+            cmd_stdout = stdout.decode("utf-8")
 
-        # testing that the table column names is printed correctly
-        col_names = ["┃ Name", "┃ Cluster Type", "┃ Status", "┃ Last Active (UTC)"]
-        for name in col_names:
-            assert name in cmd_stdout
-        assert (
-            f"Showing clusters that were active in the last {int(LAST_ACTIVE_AT_TIMEFRAME / HOUR)} hours."
-            in cmd_stdout
-        )
-        assert cluster.name in cmd_stdout
+            assert cmd_stdout
+
+            # The output is printed as a table.
+            # testing that the table name is printed correctly
+            regex = f".*Clusters for {rh.configs.username}.*\(Running: .*/.*, Total Displayed: .*/.*\).*"
+            assert re.search(regex, cmd_stdout)
+
+            # testing that the table column names is printed correctly
+            col_names = ["┃ Name", "┃ Cluster Type", "┃ Status", "┃ Last Active (UTC)"]
+            for name in col_names:
+                assert name in cmd_stdout
+            assert (
+                f"Showing clusters that were active in the last {int(LAST_ACTIVE_AT_TIMEFRAME / HOUR)} hours."
+                in cmd_stdout
+            )
+            assert cluster.name in cmd_stdout
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest

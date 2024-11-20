@@ -208,7 +208,9 @@ def kubernetes_cluster(
             UserWarning,
         )
 
-    if namespace is not None:  # check if user passed a user-defined namespace
+    if namespace is not None and launcher_type == "local":
+        # Set the context only if launching locally
+        # check if user passed a user-defined namespace
         cmd = f"kubectl config set-context --current --namespace={namespace}"
         try:
             process = subprocess.run(
@@ -254,7 +256,8 @@ def kubernetes_cluster(
         except subprocess.CalledProcessError as e:
             logger.info(f"Error copying kubeconfig: {e}")
 
-    if context is not None:  # check if user passed a user-defined context
+    if context is not None and launcher_type == "local":
+        # check if user passed a user-defined context
         try:
             cmd = f"kubectl config use-context {context}"  # set user-defined context as current context
             subprocess.run(cmd, shell=True, check=True)
@@ -268,6 +271,8 @@ def kubernetes_cluster(
         provider="kubernetes",
         launcher_type=launcher_type,
         server_connection_type=server_connection_type,
+        namespace=namespace,
+        context=context,
         **kwargs,
     )
     c.set_connection_defaults()

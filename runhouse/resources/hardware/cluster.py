@@ -2286,7 +2286,7 @@ class Cluster(Resource):
         are matching the filters are returned. If no filters are provided, all running clusters will be returned.
 
         Args:
-            show_all (bool, optional): Whether to list all clusters saved in Den. Maximum of 50 will be listed.
+            show_all (bool, optional): Whether to list all clusters saved in Den. Maximum of 200 will be listed.
                 (Default: False).
             since (str, optional): Currently running clusters that were active in the specified time period will
                 be returned. Value can be in seconds, minutes, hours or days.
