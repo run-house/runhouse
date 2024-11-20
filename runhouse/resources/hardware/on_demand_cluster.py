@@ -115,6 +115,7 @@ class OnDemandCluster(Cluster):
         self.sky_kwargs = sky_kwargs or {}
         self.launcher_type = cluster_launcher_type
 
+        self.compute_properties = {}
         # backwards compatibility
         if kwargs.get("stable_internal_external_ips"):
             internal_ips, ips = map(
@@ -122,6 +123,8 @@ class OnDemandCluster(Cluster):
             )
             self.compute_properties["ips"] = ips
             self.compute_properties["internal_ips"] = internal_ips
+        elif kwargs.get("ips"):
+            self.compute_properties["ips"] = kwargs.get("ips")
 
         self.compute_properties = {
             **self.compute_properties,
@@ -217,14 +220,9 @@ class OnDemandCluster(Cluster):
                 "disk_size",
                 "sky_kwargs",
                 "launcher_type",
+                "compute_properties",
             ],
         )
-        # pop ips from compute_properties
-        compute_properties = self.compute_properties.copy()
-        compute_properties.pop("ips")
-        if compute_properties:
-            config["compute_properties"] = compute_properties
-
         config["autostop_mins"] = self._autostop_mins
         if self._namespace is not None:
             config["namespace"] = self._namespace

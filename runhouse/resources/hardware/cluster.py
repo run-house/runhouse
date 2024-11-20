@@ -113,7 +113,7 @@ class Cluster(Resource):
 
         self._rpc_tunnel = None
 
-        self.compute_properties = {"ips": ips or []} or kwargs.get("compute_properties")
+        self._ips = ips
         self._http_client = None
         self.den_auth = den_auth or False
         self.cert_config = TLSCertConfig(cert_path=ssl_certfile, key_path=ssl_keyfile)
@@ -127,6 +127,7 @@ class Cluster(Resource):
         self.ssh_properties = ssh_properties or {}
         self.server_host = server_host
         self.domain = domain
+        self.compute_properties = {}
 
         self._default_env = _get_env_from(default_env)
         if self._default_env and not self._default_env.name:
@@ -139,7 +140,7 @@ class Cluster(Resource):
 
     @property
     def ips(self):
-        return self.compute_properties.get("ips", [])
+        return self._ips
 
     @property
     def internal_ips(self):
@@ -413,12 +414,11 @@ class Cluster(Resource):
 
     def config(self, condensed: bool = True):
         config = super().config(condensed)
-        if self.ips:
-            config["ips"] = self.ips
+        if config.get("resource_subtype") == "Cluster":
+            config["ips"] = self._ips
         self.save_attrs_to_config(
             config,
             [
-                "ips",
                 "server_port",
                 "server_host",
                 "server_connection_type",
@@ -607,8 +607,8 @@ class Cluster(Resource):
         """
         if not self.is_up():
             # Don't store stale IPs
-            self.compute_properties["ips"] = []
-            if "internal_ips" in self.compute_properties:
+            if self.compute_properties:
+                self.compute_properties["ips"] = []
                 self.compute_properties["internal_ips"] = []
             self.up(verbose=verbose, force=False)
         return self

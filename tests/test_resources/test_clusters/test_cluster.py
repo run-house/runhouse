@@ -501,7 +501,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert res.get("server_connection_type") == cluster.server_connection_type
         assert res.get("den_auth") == cluster.den_auth
         assert res.get("resource_type") == cluster.RESOURCE_TYPE
-        assert res.get("ips") == cluster.ips
+        if res.get("resource_subtype") == "Cluster":
+            assert res.get("ips") == cluster.ips
+        else:
+            res.get("compute_properties").get("ips") == cluster.ips
 
         assert "worker_env" in cluster_data.get("env_servlet_processes").keys()
         assert "status_key1" in cluster_data.get("env_servlet_processes").get(

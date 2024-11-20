@@ -350,7 +350,8 @@ class Resource:
         """Save the given attributes to the config"""
         for attr in attrs:
             val = self.__getattribute__(attr)
-            if val is not None:
+            if val or (val is False):
+                # allow for saving `False` but not other falsey types
                 if isinstance(val, Enum):
                     val = val.value
                 config[attr] = val
