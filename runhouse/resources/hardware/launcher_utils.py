@@ -91,7 +91,7 @@ class Launcher:
 
             default_ssh_path, _ = generate_ssh_keys()
             logger.info(f"Saved new SSH key to path: {default_ssh_path} ")
-            sky_secret = provider_secret(provider="ssh", path=default_ssh_path)
+            sky_secret = provider_secret(provider="sky", path=default_ssh_path)
             sky_secret.save()
 
         secret_values = sky_secret.values
