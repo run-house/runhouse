@@ -187,10 +187,18 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
                 f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: autostop disabled"
             )
         else:
+            if (
+                key == "ips"
+                and cluster_config.get("resource_subtype") == "OnDemandCluster"
+            ):
+                val = cluster_config["compute_properties"].get("ips")
+            else:
+                val = cluster_config[key]
+
             console.print(
-                f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: {cluster_config[key]}"
+                f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
             ) if status_type == StatusType.cluster else console.print(
-                f"{BULLET_UNICODE} {key.replace('_', ' ')}: {cluster_config[key]}"
+                f"{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
             )
 
 
