@@ -1,8 +1,14 @@
+import logging
+import time
+
 import pytest
+import ray
 
 from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import deserialize_data, serialize_data
 from runhouse.servers.obj_store import ObjStore
+
+from tests.utils import init_remote_cluster_servlet_actor
 
 
 @pytest.mark.servertest
@@ -75,3 +81,37 @@ class TestServlet:
         assert resp.output_type == "exception"
         error = deserialize_data(resp.data["error"], "pickle")
         assert isinstance(error, KeyError)
+
+    @pytest.mark.level("local")
+    def test_failed_cluster_servlet(self):
+
+        # need to initialize ray so the cluster servlet will be initialized when calling get_cluster_servlet.
+        ray.init(
+            ignore_reinit_error=True,
+            logging_level=logging.ERROR,
+            namespace="runhouse",
+        )
+
+        invalid_cluster_config = {
+            "api_server_url": "https://api.run.house.invalid",
+            "name": "mocked-cluster",
+        }
+
+        current_ip = ray.get_runtime_context().worker.node_ip_address
+
+        init_remote_cluster_servlet_actor(
+            current_ip=current_ip,
+            cluster_config=invalid_cluster_config,
+            servlet_name="invalid_cluster_servlet",
+        )
+
+        # wait for the async cluster status check thread to fail and kill the cluster servlet.
+        time.sleep(5)
+
+        with pytest.raises(ValueError) as error:
+
+            ray.get_actor(name="invalid_cluster_servlet", namespace="runhouse")
+        assert (
+            str(error.value)
+            == "Failed to look up actor with name 'invalid_cluster_servlet'. This could because 1. You are trying to look up a named actor you didn't create. 2. The named actor died. 3. You did not use a namespace matching the namespace of the actor."
+        )
