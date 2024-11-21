@@ -7,7 +7,7 @@ on:
 
 env:
   API_SERVER_URL: https://api.run.house
-  RH_LOG_LEVEL: INFO
+  RH_LOG_LEVEL: DEBUG
 
 jobs:
   # TODO: THESE ARE ONLY SEPARATE JOBS BECAUSE THERE ARE

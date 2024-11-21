@@ -16,6 +16,7 @@ import runhouse
 
 from runhouse.constants import (
     DEFAULT_AUTOSTOP_CHECK_INTERVAL,
+    DEFAULT_LOG_LEVEL,
     DEFAULT_STATUS_CHECK_INTERVAL,
     GPU_COLLECTION_INTERVAL,
     INCREASED_STATUS_CHECK_INTERVAL,
@@ -28,6 +29,7 @@ from runhouse.constants import (
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware import load_cluster_config_from_file
+from runhouse.resources.hardware.ray_utils import kill_actors
 from runhouse.resources.hardware.utils import is_gpu_cluster
 from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
@@ -90,6 +92,11 @@ class ClusterServlet:
 
         # will be used when self.gpu_metrics will be updated by different threads.
         self.lock = threading.Lock()
+
+        # will be used in the periodic loop which sends cluster logs to den. Since we are saving logs to the server.log
+        # file asynchronously, there might be a use case where we want to send logs to den but the server.log has not
+        # been created yet, since it is a freshly initialized cluster servlet. In this case, we will return an empty string.
+        self.is_freshly_initialized = True
 
         if self.cluster_config.get("has_cuda"):
             logger.debug("Creating _periodic_gpu_check thread.")
@@ -332,7 +339,9 @@ class ClusterServlet:
 
         return status, den_resp_status_code
 
-    async def acheck_cluster_logs(self, interval_size: int):
+    async def acheck_cluster_logs(
+        self, interval_size: Optional[int] = DEFAULT_STATUS_CHECK_INTERVAL
+    ):
         logger.debug("Performing logs checks")
 
         cluster_config = await self.aget_cluster_config()
@@ -376,7 +385,17 @@ class ClusterServlet:
                     logger.debug("Successfully updated autostop")
 
             except Exception as e:
+
                 logger.error(f"Autostop check has failed: {e}")
+
+                # killing the cluster servlet only if log level is debug: this indicates that the cluster is created
+                # during test, or by a runhouse team member
+                log_level = os.getenv("RH_LOG_LEVEL") or DEFAULT_LOG_LEVEL
+                if log_level.lower() == "debug":
+                    # Before killing the cluster_servlet, we are sending last logs to den, so the user will easily access
+                    # the final cluster logs. Those logs should indicate why the cluster servlet is down.
+                    await self.acheck_cluster_logs()
+                    kill_actors(namespace="runhouse", gracefully=False)
 
             finally:
                 logger.debug(f"Autostop interval set to {autostop_interval} seconds")
@@ -398,6 +417,7 @@ class ClusterServlet:
             )
 
             if not should_send_status_and_logs_to_den:
+                self.is_freshly_initialized = False
                 break
 
             cluster_config = await self.aget_cluster_config()
@@ -411,6 +431,7 @@ class ClusterServlet:
                 )
 
                 if interval_size == -1 or not should_send_status_and_logs_to_den:
+                    self.is_freshly_initialized = False
                     continue
 
                 logger.debug("Performing cluster checks")
@@ -419,6 +440,7 @@ class ClusterServlet:
                     logger.info(
                         "Cluster observability not enabled, skipping metrics collection."
                     )
+                    self.is_freshly_initialized = False
                     break
 
                 if den_resp_code == 404:
@@ -458,11 +480,23 @@ class ClusterServlet:
                     await self.acheck_cluster_logs(interval_size=interval_size)
 
             except Exception as e:
-                logger.error(
-                    f"Cluster checks have failed: {e}.\n"
-                    "Temporarily increasing the interval between status checks."
-                )
-                await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
+
+                logger.error(f"Cluster checks have failed: {e}.\n")
+
+                # killing the cluster servlet only if log level is debug: this indicates that the cluster is created
+                # during test, or by a runhouse team member
+                log_level = os.getenv("RH_LOG_LEVEL") or DEFAULT_LOG_LEVEL
+                if log_level.lower() == "debug":
+                    # Before killing the cluster_servlet, we are sending last logs to den, so the user will easily access
+                    # the final cluster logs. Those logs should indicate why the cluster servlet is down.
+                    await self.acheck_cluster_logs()
+                    kill_actors(namespace="runhouse", gracefully=False)
+
+                else:
+                    # making sure that the flag is set to False after the first run, even if we catch an exception
+                    if self.is_freshly_initialized:
+                        self.is_freshly_initialized = False
+                    await asyncio.sleep(INCREASED_STATUS_CHECK_INTERVAL)
 
             finally:
                 # make sure that the thread will go to sleep, even if the interval size == -1
@@ -566,9 +600,23 @@ class ClusterServlet:
                         self.gpu_metrics[gpu_index] = updated_gpu_info
 
             except Exception as e:
-                logger.error(str(e))
+
+                logger.error(
+                    f"{self._cluster_name}'s GPU metrics collection failed: {str(e)}"
+                )
+
                 pynvml.nvmlShutdown()
-                break
+
+                # killing the cluster servlet only if log level is debug: this indicates that the cluster is created
+                # during test, or by a runhouse team member
+                log_level = os.getenv("RH_LOG_LEVEL") or DEFAULT_LOG_LEVEL
+                if log_level.lower() == "debug":
+                    # Before killing the cluster_servlet, we are sending last logs to den, so the user will easily access
+                    # the final cluster logs. Those logs should indicate why the cluster servlet is down.
+                    await self.acheck_cluster_logs()
+                    kill_actors(namespace="runhouse", gracefully=False)
+                else:
+                    break
 
             finally:
                 # collects gpu usage every 5 seconds.
@@ -696,6 +744,14 @@ class ClusterServlet:
     # Save cluster logs to Den
     ##############################################
     def _get_logs(self):
+        from pathlib import Path
+
+        if not Path(SERVER_LOGFILE).exists():
+            if self.is_freshly_initialized:
+                self.is_freshly_initialized = False
+                return ""
+            raise ValueError(f"{SERVER_LOGFILE} is not found, can't send logs to den")
+
         with open(SERVER_LOGFILE) as log_file:
             log_lines = log_file.readlines()
         cleaned_log_lines = [ColoredFormatter.format_log(line) for line in log_lines]
@@ -719,7 +775,13 @@ class ClusterServlet:
             # Likely a sign that the daemon was restarted, so we should start from the beginning
             prev_end_log_line = 0
 
-        logs_to_den = "\n".join(latest_logs[prev_end_log_line:])
+        # len(latest_logs) may equal to 0 if we are in the process of setting up the cluster servlet.
+        # In this case the server.log might nov have been created yet, therefore self._get_logs() returns an empty string ("").
+        logs_to_den = (
+            "\n".join(latest_logs[prev_end_log_line:])
+            if len(latest_logs) > 0
+            else latest_logs
+        )
 
         if len(logs_to_den) == 0:
             return None, None, None

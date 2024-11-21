@@ -191,6 +191,10 @@ class OnDemandCluster(Cluster):
             except ImportError:
                 set_cluster_autostop_cmd = _cluster_set_autostop_command(mins)
                 self.run([set_cluster_autostop_cmd], node=self.head_ip)
+            except ConnectionError:
+                logger.error(
+                    "Failed to update autostop: unable to connect to cluster's HTTP client."
+                )
 
     @property
     def docker_user(self) -> str:
