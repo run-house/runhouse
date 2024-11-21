@@ -1,3 +1,11 @@
+# ## ResNet-152 Training with PyTorch Distributed
+# This script demonstrates how to set up a distributed training pipeline using PyTorch, ResNet-152, and AWS S3.
+# The training pipeline involves initializing a distributed model, loading data from S3, and saving model checkpoints back to S3.
+# Key components include:
+# - A custom ResNet-152 model class with optional pretrained weights from S3.
+# - A trainer class for managing the training loop, data loading, and distributed communication.
+# - Integration with Runhouse for cluster management and remote execution.
+
 import subprocess
 
 import boto3
@@ -15,7 +23,9 @@ from torch.utils.data.distributed import DistributedSampler
 
 from torchvision import models
 
-
+# ### ResNet152 Model Class
+# Define the ResNet-152 model class, with support for loading pretrained weights from S3.
+# This is used by the trainer class to initialize the model.
 class ResNet152Model(nn.Module):
     def __init__(self, num_classes=1000, pretrained=False, s3_bucket=None, s3_key=None):
         super(ResNet152Model, self).__init__()
@@ -40,7 +50,13 @@ class ResNet152Model(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-
+# ### Trainer Class
+# The Trainer class orchestrates the distributed training process, including:
+# - Initializing the distributed communication backend
+# - Setting up the model, data loaders, and optimizer
+# - Implementing training and validation loops
+# - Saving model checkpoints to S3
+# - A predict method for inference using the trainer object
 class ResNet152Trainer:
     def __init__(self, s3_bucket, s3_path):
         self.rank = None
@@ -134,7 +150,6 @@ class ResNet152Trainer:
 
             running_loss += loss.item()
 
-            # Print progress every `print_interval` batches
             if (batch_idx + 1) % print_interval == 0:
                 print(f"Batch {batch_idx + 1}/{num_batches}, Loss: {loss.item():.4f}")
 
@@ -168,7 +183,6 @@ class ResNet152Trainer:
         gamma=0.1,
         model_weights_path=None,
     ):
-        # Initialize distributed training
         self.init_comms()
         print("Remote comms initialized")
         self.init_model(
@@ -208,7 +222,6 @@ class ResNet152Trainer:
     def cleanup(self):
         torch.distributed.destroy_process_group()
 
-    # Return a prediction with the model, pass in a PIL image
     def predict(self, image):
         from torchvision import transforms
 
@@ -230,9 +243,14 @@ class ResNet152Trainer:
             _, predicted = torch.max(output, 1)
             return predicted.item()
 
-
+# ### Run distributed training with Runhouse
+# The following code snippet demonstrates how to create a Runhouse cluster and run the distributed training pipeline on the cluster.
+# - We define a 3 node cluster with GPUs where we will do the training. 
+# - Then we dispatch the trainer class to the remote cluster 
+# - We create an instance of the trainer class on remote, and call .distribute('pytorch') to properly setup the distributed training. It's that easy. 
+# - This remote trainer instance is accessible by name - if we construct the cluster by name, and run cluster.get('trainer') we will get the remote trainer instance. This means you can make multithreaded calls against the trainer class. 
+# - The main training loop trains the model for 15 epochs and the model checkpoints are saved to S3
 if __name__ == "__main__":
-    # Set up the s3 buckets we will use for training
     train_data_path = (
         "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/train/"
     )
@@ -245,7 +263,7 @@ if __name__ == "__main__":
 
     # Create a cluster of 3 GPUs
     gpus_per_node = 1
-    num_nodes = 2
+    num_nodes = 3
 
     img = rh.Image(name="pytorch").install_packages(
         [
