@@ -28,6 +28,7 @@ from runhouse.rns.utils.api import ResourceVisibility
 from runhouse.utils import (
     arun_in_thread,
     generate_default_name,
+    init_remote_cluster_servlet_actor,
     is_python_package_string,
     LogToFolder,
     run_with_logs,
@@ -74,7 +75,6 @@ def get_cluster_servlet(
     create_if_not_exists: bool = False,
     runtime_env: Optional[Dict] = None,
 ):
-    from runhouse.servers.cluster_servlet import ClusterServlet
 
     if not ray.is_initialized():
         raise ConnectionError("Ray is not initialized.")
@@ -91,19 +91,8 @@ def get_cluster_servlet(
     # https://discuss.ray.io/t/how-to-ensure-actor-is-running-on-the-same-node-only/2083/3
     current_ip = ray.get_runtime_context().worker.node_ip_address
     if cluster_servlet is None and create_if_not_exists:
-        cluster_servlet = (
-            ray.remote(ClusterServlet)
-            .options(
-                name="cluster_servlet",
-                get_if_exists=True,
-                lifetime="detached",
-                namespace="runhouse",
-                max_concurrency=1000,
-                resources={f"node:{current_ip}": 0.001},
-                num_cpus=0,
-                runtime_env=runtime_env,
-            )
-            .remote()
+        cluster_servlet = init_remote_cluster_servlet_actor(
+            current_ip=current_ip, runtime_env=runtime_env
         )
 
         # Make sure cluster servlet is actually initialized
