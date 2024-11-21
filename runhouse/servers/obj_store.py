@@ -73,6 +73,8 @@ class NoLocalObjStoreError(ObjStoreError):
 def get_cluster_servlet(
     create_if_not_exists: bool = False,
     runtime_env: Optional[Dict] = None,
+    cluster_config: Optional[Dict] = None,
+    name: Optional[str] = "cluster_servlet",
 ):
     from runhouse.servers.cluster_servlet import ClusterServlet
 
@@ -83,7 +85,7 @@ def get_cluster_servlet(
     # when there are several Ray clusters running. In tests, we typically run multiple
     # clusters, so let's avoid this.
     try:
-        cluster_servlet = ray.get_actor("cluster_servlet", namespace="runhouse")
+        cluster_servlet = ray.get_actor(name, namespace="runhouse")
     except ValueError:
         cluster_servlet = None
 
@@ -94,7 +96,7 @@ def get_cluster_servlet(
         cluster_servlet = (
             ray.remote(ClusterServlet)
             .options(
-                name="cluster_servlet",
+                name=name,
                 get_if_exists=True,
                 lifetime="detached",
                 namespace="runhouse",
@@ -103,7 +105,7 @@ def get_cluster_servlet(
                 num_cpus=0,
                 runtime_env=runtime_env,
             )
-            .remote()
+            .remote(cluster_config=cluster_config, name=name)
         )
 
         # Make sure cluster servlet is actually initialized
