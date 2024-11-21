@@ -17,7 +17,7 @@ from runhouse.globals import rns_client
 
 from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatus
 from runhouse.servers.http.http_utils import CreateProcessParams
-from runhouse.servers.obj_store import get_cluster_servlet, ObjStore, RaySetupOption
+from runhouse.servers.obj_store import ObjStore, RaySetupOption
 
 from tests.constants import TEST_ENV_VARS, TEST_REQS
 
@@ -35,18 +35,6 @@ def get_ray_servlet_and_obj_store(env_name):
     )
 
     return test_servlet, test_obj_store
-
-
-def get_ray_cluster_servlet(cluster_config=None):
-    """Helper method for getting base cluster servlet"""
-    cluster_servlet = get_cluster_servlet(create_if_not_exists=True)
-
-    if cluster_config:
-        ObjStore.call_actor_method(
-            cluster_servlet, "aset_cluster_config", cluster_config
-        )
-
-    return cluster_servlet
 
 
 def get_pid_and_ray_node(a=0):
