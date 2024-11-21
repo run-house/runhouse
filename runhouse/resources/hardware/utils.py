@@ -51,7 +51,7 @@ class LauncherType(str, Enum):
     DEN = "den"
 
 
-class ResourceServerStatus(str, Enum):
+class RunhouseDaemonStatus(str, Enum):
     running = "running"
     terminated = "terminated"
     unauthorized = "unauthorized"
@@ -62,9 +62,10 @@ class ResourceServerStatus(str, Enum):
 
 
 class ClustersListStatus(str, Enum):
-    running = "running"
-    terminated = "terminated"
-    down = "down"
+    UP = "UP"
+    STOPPED = "STOPPED"
+    INIT = "INIT"
+    UNKNOWN = "UNKNOWN"
 
 
 def cluster_config_file_exists() -> bool:
@@ -398,10 +399,6 @@ def parse_filters(since: str, cluster_status: str):
             cluster_filters["since"] = last_active_in
 
     if cluster_status:
-
-        if cluster_status.lower() == ClustersListStatus.down:
-            cluster_status = ResourceServerStatus.runhouse_daemon_down
-
         cluster_filters["cluster_status"] = cluster_status
 
     return cluster_filters
@@ -418,9 +415,14 @@ def get_clusters_from_den(cluster_filters: dict):
     # If not filters are specified, get only running clusters.
     elif not cluster_filters:
         get_clusters_params.update(
-            {"cluster_status": "running", "since": LAST_ACTIVE_AT_TIMEFRAME}
+            {
+                "cluster_status": ClustersListStatus.UP,
+                "since": LAST_ACTIVE_AT_TIMEFRAME,
+            }
         )
 
+    # Note: for resource querying the cluster status refers to the cluster itself, not the Runhouse daemon running
+    # on the cluster
     clusters_in_den_resp = rns_client.session.get(
         f"{rns_client.api_server_url}/resource",
         params=get_clusters_params,
@@ -489,23 +491,25 @@ def get_running_and_not_running_clusters(clusters: list):
         cluster_name = den_cluster.get("name").split("/")[-1]
         cluster_type = den_cluster.get("data").get("resource_subtype")
         cluster_status = (
-            den_cluster.get("status") if den_cluster.get("status") else "unknown"
+            den_cluster.get("status")
+            if den_cluster.get("status")
+            else ClustersListStatus.UNKNOWN
         )
 
         # currently relying on status pings to den as a sign of cluster activity.
         # The split is required to remove milliseconds and the offset (according to UTC) from the timestamp.
         # (status_last_checked is in the following format: YYYY-MM-DD HH:MM:SS.ssssss±HH:MM)
-
         last_active_at = den_cluster.get("status_last_checked")
         last_active_at = (
             datetime.datetime.fromisoformat(last_active_at.split(".")[0])
             if isinstance(last_active_at, str)
             else datetime.datetime(1970, 1, 1)
         )  # Convert to datetime
+
         last_active_at = last_active_at.replace(tzinfo=datetime.timezone.utc)
-        if cluster_status == "running" and not last_active_at:
+        if cluster_status == ClustersListStatus.UP and not last_active_at:
             # For BC, in case there are clusters that were saved and created before we introduced sending cluster status to den.
-            cluster_status = "unknown"
+            cluster_status = ClustersListStatus.UNKNOWN
 
         cluster_info = {
             "Name": cluster_name,
@@ -515,7 +519,9 @@ def get_running_and_not_running_clusters(clusters: list):
         }
         running_clusters.append(
             cluster_info
-        ) if cluster_status == "running" else not_running_clusters.append(cluster_info)
+        ) if cluster_status == ClustersListStatus.UP else not_running_clusters.append(
+            cluster_info
+        )
 
     # Sort clusters by the 'Last Active (UTC)' and 'Status' column
     not_running_clusters = sorted(

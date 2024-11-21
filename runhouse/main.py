@@ -249,8 +249,7 @@ def cluster_list(
     cluster_status: Optional[ClustersListStatus] = typer.Option(
         None,
         "--status",
-        help="Cluster status to filter on. Supported filter values: 'running', 'terminated' (cluster is not live), "
-        "'down' (Runhouse server is down, but the cluster might be live).",
+        help="Cluster status to filter on. Supported filter values: 'up', 'stopped', 'init', 'unknown'.",
     ),
 ):
     """
@@ -262,7 +261,7 @@ def cluster_list(
 
         ``$ runhouse cluster list --all``
 
-        ``$ runhouse cluster list --status terminated``
+        ``$ runhouse cluster list --status up``
 
         ``$ runhouse cluster list --since 15m``
 
@@ -284,7 +283,7 @@ def cluster_list(
         [
             den_cluster
             for den_cluster in den_clusters
-            if den_cluster.get("Status") == "running"
+            if den_cluster.get("Status").lower() == "up"
         ]
         if den_clusters
         else None
@@ -439,7 +438,7 @@ def cluster_down(
             raise typer.Exit(0)
 
     if remove_all:
-        running_den_clusters = Cluster.list(status=ClustersListStatus.running).get(
+        running_den_clusters = Cluster.list(status=ClustersListStatus.UP).get(
             "den_clusters"
         )
 

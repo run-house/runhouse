@@ -23,7 +23,7 @@ from runhouse.constants import (
 from runhouse.globals import rns_client
 
 from runhouse.resources.hardware.cluster import Cluster
-from runhouse.resources.hardware.utils import ResourceServerStatus
+from runhouse.resources.hardware.utils import ClustersListStatus, RunhouseDaemonStatus
 from runhouse.resources.processes import Process
 
 import tests.test_resources.test_resource
@@ -699,14 +699,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_send_status_to_db(self, cluster):
-
-        status = cluster.status()
-        servlet_processes = status.pop("env_servlet_processes")
+    def test_send_rh_daemon_status_to_db(self, cluster):
+        rh_daemon_status_data = cluster.status()
+        servlet_processes = rh_daemon_status_data.pop("env_servlet_processes")
         status_data = {
-            "status": ResourceServerStatus.running,
-            "resource_type": status.get("cluster_config").get("resource_type"),
-            "resource_info": status,
+            "status": RunhouseDaemonStatus.running,
+            "resource_type": rh_daemon_status_data.get("cluster_config").get(
+                "resource_type"
+            ),
+            "resource_info": rh_daemon_status_data,
             "env_servlet_processes": servlet_processes,
         }
         cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
@@ -724,12 +725,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         assert get_status_data_resp.status_code == 200
         get_status_data = get_status_data_resp.json()["data"][0]
-        assert get_status_data["resource_type"] == status.get("cluster_config").get(
-            "resource_type"
-        )
-        assert get_status_data["status"] == ResourceServerStatus.running
+        assert get_status_data["resource_type"] == rh_daemon_status_data.get(
+            "cluster_config"
+        ).get("resource_type")
+        assert get_status_data["status"] == RunhouseDaemonStatus.running
 
-        assert get_status_data["resource_info"] == status
+        assert get_status_data["resource_info"] == rh_daemon_status_data
         for k in servlet_processes:
             if servlet_processes[k]["env_gpu_usage"] == {}:
                 servlet_processes[k]["env_gpu_usage"] = {
@@ -743,7 +744,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         assert get_status_data["env_servlet_processes"] == servlet_processes
 
-        status_data["status"] = ResourceServerStatus.terminated
+        status_data["status"] = RunhouseDaemonStatus.terminated
         post_status_data_resp = requests.post(
             f"{api_server_url}/resource/{cluster_uri}/cluster/status",
             data=json.dumps(status_data),
@@ -756,7 +757,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         assert (
             get_status_data_resp.json()["data"][0]["status"]
-            == ResourceServerStatus.terminated
+            == RunhouseDaemonStatus.terminated
         )
 
         # setting the status to running again, so it won't mess with the following tests
@@ -1003,8 +1004,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             default_clusters = Cluster.list().get("den_clusters", {})
             assert len(default_clusters) > 0
             assert [
-                den_cluster.get("Status") == "running"
-                for den_cluster in default_clusters
+                den_cluster.get("Status") == "up" for den_cluster in default_clusters
             ]
             assert any(
                 den_cluster
@@ -1029,22 +1029,22 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         ):
             # create dummy terminated cluster
             terminated_cluster = rh.cluster(name="terminated-cluster", ips=None).save()
-            set_cluster_status(terminated_cluster, ResourceServerStatus.terminated)
+            set_cluster_status(terminated_cluster, ClustersListStatus.STOPPED)
 
             all_clusters = Cluster.list(show_all=True).get("den_clusters", {})
             present_statuses = set(
                 [den_cluster.get("Status") for den_cluster in all_clusters]
             )
             assert len(present_statuses) > 1
-            assert "running" in present_statuses
-            assert "terminated" in present_statuses
+            assert "up" in present_statuses
+            assert "stopped" in present_statuses
 
             test_cluster = [
                 den_cluster
                 for den_cluster in all_clusters
                 if den_cluster.get("Name") == cluster.name
             ][0]
-            assert test_cluster.get("Status") == "running"
+            assert test_cluster.get("Status").lower() == "up"
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -1061,7 +1061,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             token=rns_client.token,
             original_username=original_username,
         ):
-            for status in ["running", "terminated"]:
+            for status in ["UP", "STOPPED"]:
                 # check that filtered requests contains only specific status
                 filtered_clusters = Cluster.list(status=status).get("den_clusters", {})
                 if filtered_clusters:
@@ -1181,7 +1181,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
             env = set_output_env_vars()
 
-            for status in ["running", "terminated"]:
+            for status in ["UP", "STOPPED"]:
 
                 process = subprocess.Popen(
                     f"runhouse cluster list --status {status}",
@@ -1217,12 +1217,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                     not in cmd_stdout
                 )
 
-                if status == "running":
+                if status.upper() == "UP":
                     assert cluster.name in cmd_stdout
 
                 # Check other statuses not found in output
                 cmd_stdout = cmd_stdout.replace("Running:", "")
-                statuses = list(ResourceServerStatus.__members__.keys())
+                statuses = list(ClustersListStatus.__members__.keys())
                 statuses.remove(status)
 
                 for status in statuses:

@@ -28,7 +28,7 @@ from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import (
     LauncherType,
-    ResourceServerStatus,
+    RunhouseDaemonStatus,
     ServerConnectionType,
     up_cluster_helper,
 )
@@ -583,10 +583,10 @@ class OnDemandCluster(Cluster):
             >>> rh.ondemand_cluster("rh-cpu").teardown()
         """
         try:
-            # Update Den with the cluster's status before tearing down
+            # Update Den with the runhouse server status on the cluster before tearing down
             cluster_status_data = self.status()
             status_data = {
-                "status": ResourceServerStatus.terminated,
+                "status": RunhouseDaemonStatus.terminated,
                 "resource_type": self.__class__.__base__.__name__.lower(),
                 "data": cluster_status_data,
             }

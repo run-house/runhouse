@@ -145,7 +145,7 @@ def condense_resource_type(resource_type: str):
 
 
 class StatusType(str, Enum):
-    server = ("sever",)
+    server = "server"
     cluster = "cluster"
 
 
@@ -417,10 +417,11 @@ def print_cloud_properties(cluster_config: dict):
 
 
 def print_status(status_data: dict, current_cluster) -> None:
+    """Prints the status of the cluster to the console"""
+
     from runhouse.globals import rns_client
     from runhouse.main import console
 
-    """Prints the status of the cluster to the console"""
     cluster_config = status_data.get("cluster_config")
     servlet_processes = status_data.get("env_servlet_processes")
 

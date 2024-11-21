@@ -287,7 +287,7 @@ class ClusterServlet:
     # Periodic Cluster Checks APIs
     ##############################################
     async def asave_status_metrics_to_den(self, status: dict):
-        from runhouse.resources.hardware.utils import ResourceServerStatus
+        from runhouse.resources.hardware.utils import RunhouseDaemonStatus
 
         # making a copy so the status won't be modified with pop, since it will be returned after sending to den.
         # (status is passed as pointer).
@@ -295,7 +295,7 @@ class ClusterServlet:
         servlet_processes = status_copy.pop("env_servlet_processes")
 
         status_data = {
-            "status": ResourceServerStatus.running,
+            "status": RunhouseDaemonStatus.running,
             "resource_type": status_copy.get("cluster_config").pop(
                 "resource_type", "cluster"
             ),
