@@ -531,9 +531,6 @@ class OnDemandCluster(Cluster):
 
     async def a_up_if_not(self, capture_output: Union[bool, str] = True):
         if not self.is_up():
-            # Don't store stale IPs
-            self.compute_properties["ips"] = []
-            self.compute_properties["internal_ips"] = []
             await self.a_up(capture_output=capture_output)
         return self
 
