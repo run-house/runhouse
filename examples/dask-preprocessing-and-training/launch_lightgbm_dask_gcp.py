@@ -151,7 +151,7 @@ class LightGBMModelTrainer:
 if __name__ == "__main__":
     # ## Create a Runhouse cluster with 2 nodes
     num_nodes = 3
-    cluster_name = f"py-{num_nodes}-dask-gcp"
+    cluster_name = f"rh-{num_nodes}-dask-gcp"
 
     # The environment for the remote cluster
     env = rh.env(

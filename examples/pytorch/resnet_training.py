@@ -89,15 +89,15 @@ class ResNet152Trainer:
         self.device = torch.device(f"cuda:{self.device_id}")
 
     def init_model(
-        self, num_classes, path_to_model_weights, lr, weight_decay, step_size, gamma
+        self, num_classes, weight_path, lr, weight_decay, step_size, gamma
     ):
-        if path_to_model_weights:
+        if weight_path:
             self.model = DDP(
                 ResNet152Model(
                     num_classes=num_classes,
                     pretrained=True,
                     s3_bucket=self.s3_bucket,
-                    s3_key=path_to_model_weights,
+                    s3_key=weight_path,
                 ).to(self.device),
                 device_ids=[self.device_id],
             )
@@ -181,12 +181,12 @@ class ResNet152Trainer:
         weight_decay=1e-4,
         step_size=7,
         gamma=0.1,
-        model_weights_path=None,
+        weights_path=None,
     ):
         self.init_comms()
         print("Remote comms initialized")
         self.init_model(
-            num_classes, model_weights_path, lr, weight_decay, step_size, gamma
+            num_classes, weights_path, lr, weight_decay, step_size, gamma
         )
         print("Model initialized")
 
@@ -263,7 +263,7 @@ if __name__ == "__main__":
 
     # Create a cluster of 3 GPUs
     gpus_per_node = 1
-    num_nodes = 3
+    num_nodes = 2
 
     img = rh.Image(name="pytorch").install_packages(
         [
