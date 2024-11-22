@@ -606,10 +606,6 @@ class Cluster(Resource):
             >>> rh.cluster("rh-cpu").up_if_not()
         """
         if not self.is_up():
-            # Don't store stale IPs
-            if self.compute_properties:
-                self.compute_properties["ips"] = []
-                self.compute_properties["internal_ips"] = []
             self.up(verbose=verbose, force=False)
         return self
 

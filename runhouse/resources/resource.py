@@ -206,6 +206,12 @@ class Resource:
 
         def str_dict_or_resource_to_str(val):
             if isinstance(val, Resource):
+                if not val.rns_address and val.name and config.get("name"):
+                    # If rns_address is missing, try current resource folder
+                    _, folder = rns_client.split_rns_name_and_path(
+                        rns_client.resolve_rns_path(config.get("name"))
+                    )
+                    return f"{folder}/{val.name}"
                 return val.rns_address
             elif isinstance(val, dict):
                 # This can either be a sub-resource which hasn't been converted to a resource yet, or an

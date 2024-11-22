@@ -178,23 +178,13 @@ class DenLauncher(Launcher):
             return
 
         for attribute in [
+            "compute_properties",
             "ssh_properties",
             "client_port",
         ]:
             value = config.get(attribute)
             if value:
                 setattr(cluster, attribute, value)
-
-        # TODO: remove, backwards compatibility
-        compute_properties = config.get("compute_properties", {})
-        if "stable_internal_external_ips" in config:
-            stable_internal_external_ips = config.get("stable_internal_external_ips")
-            internal_ips, ips = map(list, zip(*stable_internal_external_ips))
-            compute_properties["internal_ips"] = internal_ips
-        else:
-            ips = config.get("ips")
-        compute_properties["ips"] = ips
-        setattr(cluster, "compute_properties", compute_properties)
 
         creds = config.get("creds")
         if not cluster._creds and creds:
