@@ -579,8 +579,15 @@ class OnDemandCluster(Cluster):
         Example:
             >>> rh.ondemand_cluster("rh-cpu").teardown()
         """
+        if self.launcher_type == LauncherType.DEN:
+            logger.info("Tearing down cluster with Den.")
+            DenLauncher.teardown(cluster=self, verbose=verbose)
+        else:
+            logger.info("Tearing down cluster locally via Sky.")
+            LocalLauncher.teardown(cluster=self, verbose=verbose)
+
         try:
-            # Update Den with the cluster's status before tearing down
+            # Update Den with terminated cluster status
             cluster_status_data = self.status()
             status_data = {
                 "status": ResourceServerStatus.terminated,
@@ -601,13 +608,6 @@ class OnDemandCluster(Cluster):
 
         except Exception as e:
             logger.warning(e)
-
-        if self.launcher_type == LauncherType.DEN:
-            logger.info("Tearing down cluster with Den.")
-            DenLauncher.teardown(cluster=self, verbose=verbose)
-        else:
-            logger.info("Tearing down cluster locally via Sky.")
-            LocalLauncher.teardown(cluster=self, verbose=verbose)
 
     def teardown_and_delete(self, verbose: bool = True):
         """Teardown cluster and delete it from configs.
