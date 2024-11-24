@@ -9,7 +9,7 @@ import requests
 import runhouse as rh
 
 from runhouse.globals import rns_client
-from runhouse.resources.hardware.utils import ResourceServerStatus
+from runhouse.resources.hardware.utils import RunhouseDaemonStatus
 
 import tests.test_resources.test_clusters.test_cluster
 from tests.constants import TESTING_AUTOSTOP_INTERVAL
@@ -299,6 +299,6 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         # The latest status info is the first element in the list returned by the endpoint.
         get_status_data = get_status_data_resp.json()["data"][0]
         assert get_status_data["resource_type"] == cluster_config.get("resource_type")
-        assert get_status_data["status"] == ResourceServerStatus.terminated
+        assert get_status_data["status"] == RunhouseDaemonStatus.TERMINATED
 
         assert cluster.is_up()

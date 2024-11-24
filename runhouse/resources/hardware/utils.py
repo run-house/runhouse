@@ -51,20 +51,21 @@ class LauncherType(str, Enum):
     DEN = "den"
 
 
-class ResourceServerStatus(str, Enum):
-    running = "running"
-    terminated = "terminated"
-    unauthorized = "unauthorized"
-    unknown = "unknown"
-    internal_server_error = "internal_server_error"
-    runhouse_daemon_down = "runhouse_daemon_down"
-    invalid_url = "invalid_url"
+class RunhouseDaemonStatus(str, Enum):
+    RUNNING = "running"
+    TERMINATED = "terminated"
+    UNAUTHORIZED = "unauthorized"
+    UNKNOWN = "unknown"
+    INTERNAL_SERVER_ERROR = "internal_server_error"
+    RUNHOUSE_DAEMON_DOWN = "runhouse_daemon_down"
+    INVALID_URL = "invalid_url"
 
 
-class ClustersListStatus(str, Enum):
-    running = "running"
-    terminated = "terminated"
-    down = "down"
+class ClusterStatus(str, Enum):
+    RUNNING = "running"
+    TERMINATED = "terminated"
+    INITIALIZING = "initializing"
+    UNKNOWN = "unknown"
 
 
 def cluster_config_file_exists() -> bool:
@@ -387,7 +388,7 @@ def parse_time_duration(duration: str):
         return LAST_ACTIVE_AT_TIMEFRAME
 
 
-def parse_filters(since: str, cluster_status: str):
+def parse_filters(since: str, cluster_status: Union[str, ClusterStatus]):
     cluster_filters = {}
 
     if since:
@@ -398,10 +399,6 @@ def parse_filters(since: str, cluster_status: str):
             cluster_filters["since"] = last_active_in
 
     if cluster_status:
-
-        if cluster_status.lower() == ClustersListStatus.down:
-            cluster_status = ResourceServerStatus.runhouse_daemon_down
-
         cluster_filters["cluster_status"] = cluster_status
 
     return cluster_filters
@@ -410,15 +407,26 @@ def parse_filters(since: str, cluster_status: str):
 def get_clusters_from_den(cluster_filters: dict):
     get_clusters_params = {"resource_type": "cluster", "folder": rns_client.username}
 
-    # send den request with filters if the user specifies filters.
-    # If "all" filter is specified - get all clusters (no filters are added to get_clusters_params)
+    if (
+        "cluster_status" in cluster_filters
+        and cluster_filters["cluster_status"] == ClusterStatus.TERMINATED
+    ):
+        # Include the relevant daemon status for the filter
+        cluster_filters["status"] = RunhouseDaemonStatus.TERMINATED
+
+    # If "all" filter is specified load all clusters (no filters are added to get_clusters_params)
     if cluster_filters and "all" not in cluster_filters.keys():
         get_clusters_params.update(cluster_filters)
 
     # If not filters are specified, get only running clusters.
     elif not cluster_filters:
+        # For ondemand clusters, use cluster status (via Sky). for other clusters, use the status of the daemon
         get_clusters_params.update(
-            {"cluster_status": "running", "since": LAST_ACTIVE_AT_TIMEFRAME}
+            {
+                "cluster_status": ClusterStatus.RUNNING,
+                "status": RunhouseDaemonStatus.RUNNING,
+                "since": LAST_ACTIVE_AT_TIMEFRAME,
+            }
         )
 
     clusters_in_den_resp = rns_client.session.get(
@@ -482,30 +490,30 @@ def cast_last_active_timestamp(clusters: List[Dict[str, Any]]):
 
 
 def get_running_and_not_running_clusters(clusters: list):
-    running_clusters, not_running_clusters = [], []
+    up_clusters, down_clusters = [], []
 
     for den_cluster in clusters:
-        # get just name, not full rns address. reset is used so the name will be printed all in white.
+        # Display the name instead of the full RNS address
         cluster_name = den_cluster.get("name").split("/")[-1]
         cluster_type = den_cluster.get("data").get("resource_subtype")
-        cluster_status = (
-            den_cluster.get("status") if den_cluster.get("status") else "unknown"
-        )
+        cluster_status = den_cluster.get("cluster_status")
+        cluster_status = cluster_status or ClusterStatus.UNKNOWN.value
 
-        # currently relying on status pings to den as a sign of cluster activity.
         # The split is required to remove milliseconds and the offset (according to UTC) from the timestamp.
         # (status_last_checked is in the following format: YYYY-MM-DD HH:MM:SS.ssssss±HH:MM)
-
         last_active_at = den_cluster.get("status_last_checked")
+
+        # Convert to datetime
         last_active_at = (
             datetime.datetime.fromisoformat(last_active_at.split(".")[0])
             if isinstance(last_active_at, str)
             else datetime.datetime(1970, 1, 1)
-        )  # Convert to datetime
+        )
+
         last_active_at = last_active_at.replace(tzinfo=datetime.timezone.utc)
-        if cluster_status == "running" and not last_active_at:
-            # For BC, in case there are clusters that were saved and created before we introduced sending cluster status to den.
-            cluster_status = "unknown"
+        if cluster_status == ClusterStatus.RUNNING and not last_active_at:
+            # For BC, in case there are clusters that were saved and created before sending cluster status to Den
+            cluster_status = ClusterStatus.UNKNOWN.value
 
         cluster_info = {
             "Name": cluster_name,
@@ -513,28 +521,27 @@ def get_running_and_not_running_clusters(clusters: list):
             "Status": cluster_status,
             "Last Active (UTC)": last_active_at,
         }
-        running_clusters.append(
-            cluster_info
-        ) if cluster_status == "running" else not_running_clusters.append(cluster_info)
+
+        if cluster_status == ClusterStatus.RUNNING:
+            up_clusters.append(cluster_info)
+        else:
+            down_clusters.append(cluster_info)
 
     # Sort clusters by the 'Last Active (UTC)' and 'Status' column
-    not_running_clusters = sorted(
-        not_running_clusters,
+    down_clusters = sorted(
+        down_clusters,
         key=lambda x: (x["Last Active (UTC)"], x["Status"]),
         reverse=True,
     )
 
-    not_running_clusters = cast_last_active_timestamp(clusters=not_running_clusters)
-
-    running_clusters = sorted(
-        running_clusters, key=lambda x: x["Last Active (UTC)"], reverse=True
+    down_clusters = cast_last_active_timestamp(clusters=down_clusters)
+    up_clusters = sorted(
+        up_clusters, key=lambda x: x["Last Active (UTC)"], reverse=True
     )
 
-    running_clusters = cast_last_active_timestamp(clusters=running_clusters)
-
-    not_running_clusters = cast_last_active_timestamp(clusters=not_running_clusters)
-
-    return running_clusters, not_running_clusters
+    return cast_last_active_timestamp(clusters=up_clusters), cast_last_active_timestamp(
+        clusters=down_clusters
+    )
 
 
 ###################################

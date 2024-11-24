@@ -17,7 +17,7 @@ import yaml
 from runhouse.resources.hardware.utils import (
     _setup_creds_from_dict,
     _setup_default_creds,
-    ClustersListStatus,
+    ClusterStatus,
     get_clusters_from_den,
     get_running_and_not_running_clusters,
     get_unsaved_live_clusters,
@@ -2275,22 +2275,26 @@ class Cluster(Resource):
         cls,
         show_all: bool = False,
         since: Optional[str] = None,
-        status: Optional[ClustersListStatus] = None,
+        status: Optional[Union[str, ClusterStatus]] = None,
     ) -> Dict[str, List[Dict]]:
         """
-        Returns user's runhouse clusters saved in Den and locally via Sky. If filters are provided, only clusters that are matching the
-        filters are returned. If no filters are provided, clusters that were active in the last 24 hours are returned.
+        Loads Runhouse clusters saved in Den and locally via Sky. If filters are provided, only clusters that
+        are matching the filters are returned. If no filters are provided, all running clusters will be returned.
 
         Args:
-            show_all (bool, optional): Whether to list all clusters saved in Den. Maximum of 50 will be listed. (Default: False).
-            since (str, optional): Clusters that were active in the specified time period will be returned. Value can be in seconds, minutes, hours or days.
-            status (ResourceServerStatus, optional): Clusters with the provided status will be returned.
+            show_all (bool, optional): Whether to list all clusters saved in Den. Maximum of 200 will be listed.
+                (Default: False).
+            since (str, optional): Clusters that were active in the specified time period will be returned.
+                Value can be in seconds, minutes, hours or days.
+            status (str or ClusterStatus, optional): Clusters with the provided status will be returned.
+                Options include: ``running``, ``terminated``, ``initializing``, ``unknown``.
 
         Examples:
             >>> Cluster.list(since="75s")
             >>> Cluster.list(since="3m")
-            >>> Cluster.list(since="2h")
+            >>> Cluster.list(since="2h", status="running")
             >>> Cluster.list(since="7d")
+            >>> Cluster.list(show_all=True)
         """
         cluster_filters = (
             parse_filters(since=since, cluster_status=status)
@@ -2307,7 +2311,6 @@ class Cluster(Resource):
             den_clusters = den_clusters_resp.json().get("data")
 
         try:
-
             # get sky live clusters
             sky_live_clusters = get_unsaved_live_clusters(den_clusters=den_clusters)
             sky_live_clusters = [

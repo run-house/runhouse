@@ -14,7 +14,7 @@ import yaml
 
 from runhouse.globals import rns_client
 
-from runhouse.resources.hardware.utils import ResourceServerStatus
+from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatus
 from runhouse.servers.http.http_utils import CreateProcessParams
 from runhouse.servers.obj_store import get_cluster_servlet, ObjStore, RaySetupOption
 
@@ -181,14 +181,19 @@ def remove_config_keys(config, keys_to_skip):
     return config
 
 
-def set_cluster_status(cluster: rh.Cluster, status: ResourceServerStatus):
+def set_daemon_and_cluster_status(
+    cluster: rh.Cluster,
+    daemon_status: RunhouseDaemonStatus,
+    cluster_status: ClusterStatus,
+):
     cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
     headers = rh.globals.rns_client.request_headers()
     api_server_url = rh.globals.rns_client.api_server_url
 
-    # updating the resource collection as well, because the cluster.list() gets the info from the resource
+    # Note: the resource includes the cluster's status and the runhouse daemon status
     status_data_resource = {
-        "status": status,
+        "status": daemon_status,
+        "cluster_status": cluster_status,
         "status_last_checked": datetime.utcnow().isoformat(),
     }
     requests.put(
