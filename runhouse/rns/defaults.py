@@ -37,7 +37,7 @@ class Defaults:
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
         "launcher_type": "local",
-        "autosave": True,
+        "autosave": False,
     }
 
     def __init__(self):
