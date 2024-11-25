@@ -705,7 +705,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         status = cluster.status()
         servlet_processes = status.pop("env_servlet_processes")
         status_data = {
-            "status": RunhouseDaemonStatus.RUNNING,
+            "daemon_status": RunhouseDaemonStatus.RUNNING,
             "resource_type": status.get("cluster_config").get("resource_type"),
             "resource_info": status,
             "env_servlet_processes": servlet_processes,
@@ -744,7 +744,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         assert get_status_data["env_servlet_processes"] == servlet_processes
 
-        status_data["status"] = RunhouseDaemonStatus.TERMINATED
+        status_data["daemon_status"] = RunhouseDaemonStatus.TERMINATED
         post_status_data_resp = requests.post(
             f"{api_server_url}/resource/{cluster_uri}/cluster/status",
             data=json.dumps(status_data),

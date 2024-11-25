@@ -597,7 +597,7 @@ class OnDemandCluster(Cluster):
             # Update Den with the Runhouse daemon status on the cluster before tearing down
             cluster_status_data = self.status()
             status_data = {
-                "status": RunhouseDaemonStatus.TERMINATED,
+                "daemon_status": RunhouseDaemonStatus.TERMINATED,
                 "resource_type": self.__class__.__base__.__name__.lower(),
                 "data": cluster_status_data,
             }

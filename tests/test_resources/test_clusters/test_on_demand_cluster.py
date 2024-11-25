@@ -299,6 +299,6 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         # The latest status info is the first element in the list returned by the endpoint.
         get_status_data = get_status_data_resp.json()["data"][0]
         assert get_status_data["resource_type"] == cluster_config.get("resource_type")
-        assert get_status_data["status"] == RunhouseDaemonStatus.TERMINATED
+        assert get_status_data["daemon_status"] == RunhouseDaemonStatus.TERMINATED
 
         assert cluster.is_up()

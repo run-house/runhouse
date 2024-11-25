@@ -192,7 +192,7 @@ def set_daemon_and_cluster_status(
 
     # Note: the resource includes the cluster's status and the runhouse daemon status
     status_data_resource = {
-        "status": daemon_status,
+        "daemon_status": daemon_status,
         "cluster_status": cluster_status,
         "status_last_checked": datetime.utcnow().isoformat(),
     }

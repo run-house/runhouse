@@ -400,7 +400,7 @@ def get_clusters_from_den(cluster_filters: dict):
         and cluster_filters["cluster_status"] == ClusterStatus.TERMINATED
     ):
         # Include the relevant daemon status for the filter
-        cluster_filters["status"] = RunhouseDaemonStatus.TERMINATED
+        cluster_filters["daemon_status"] = RunhouseDaemonStatus.TERMINATED
 
     # If "all" filter is specified load all clusters (no filters are added to get_clusters_params)
     if cluster_filters and "all" not in cluster_filters.keys():
@@ -412,7 +412,7 @@ def get_clusters_from_den(cluster_filters: dict):
         get_clusters_params.update(
             {
                 "cluster_status": ClusterStatus.RUNNING,
-                "status": RunhouseDaemonStatus.RUNNING,
+                "daemon_status": RunhouseDaemonStatus.RUNNING,
                 "since": LAST_ACTIVE_AT_TIMEFRAME,
             }
         )

@@ -14,7 +14,6 @@ import runhouse as rh
 
 from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
 from runhouse.globals import rns_client
-from runhouse.resources.hardware.utils import RunhouseDaemonStatus
 from runhouse.resources.images import Image
 from tests.conftest import init_args
 
@@ -104,7 +103,7 @@ def build_and_run_image(
         all=True,
         filters={
             "ancestor": f"runhouse:{image_name}",
-            "status": RunhouseDaemonStatus.RUNNING,
+            "status": "running",
             "name": container_name,
         },
     )
