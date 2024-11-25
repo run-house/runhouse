@@ -144,7 +144,7 @@ def _get_cluster_from(system, dryrun=False):
     return system
 
 
-def _unnamed_default_env_name(cluster_name):
+def _unnamed_default_process_name(cluster_name):
     return f"{cluster_name}_default_env"
 
 

@@ -583,7 +583,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         self.test_rh_status_pythonic(cluster=cluster)
 
     def status_cli_test_logic(self, cluster, status_cli_command: str):
-        default_env_name = cluster.default_env.name
+        default_process_name = cluster.default_env.name
 
         cluster.put(key="status_key2", obj="status_value2")
         status_output_response = cluster.run(
@@ -612,8 +612,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert f"ips: {str(cluster.ips)}" in status_output_string
         assert "Serving " in status_output_string
         assert (
-            f"{default_env_name} (runhouse.Env)" in status_output_string
-            or f"{default_env_name} (runhouse.CondaEnv)" in status_output_string
+            f"{default_process_name} (runhouse.Env)" in status_output_string
+            or f"{default_process_name} (runhouse.CondaEnv)" in status_output_string
         )
         assert "status_key2 (str)" in status_output_string
         assert "creds" not in status_output_string
@@ -652,7 +652,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.clustertest
     # TODO: once fixed, extend this tests for gpu clusters as well.
     def test_rh_status_cli_not_in_cluster(self, cluster):
-        default_env_name = cluster.default_env.name
+        default_process_name = cluster.default_env.name
 
         cluster.put(key="status_key3", obj="status_value3")
         res = str(
@@ -668,7 +668,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert f"resource subtype: {cluster.RESOURCE_TYPE.capitalize()}" in res
         assert f"ips: {str(cluster.ips)}" in res
         assert "Serving 🍦 :" in res
-        assert f"{default_env_name} (runhouse.Env)" in res
+        assert f"{default_process_name} (runhouse.Env)" in res
         assert "status_key3 (str)" in res
         assert "ssh certs" not in res
 

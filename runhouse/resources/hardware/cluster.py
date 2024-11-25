@@ -62,7 +62,7 @@ from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
     _current_cluster,
     _run_ssh_command,
-    _unnamed_default_env_name,
+    _unnamed_default_process_name,
     ServerConnectionType,
 )
 from runhouse.resources.resource import Resource
@@ -134,7 +134,7 @@ class Cluster(Resource):
 
         self._default_env = _get_env_from(default_env)
         if self._default_env and not self._default_env.name:
-            self._default_env.name = _unnamed_default_env_name(self.name)
+            self._default_env.name = _unnamed_default_process_name(self.name)
 
         if skip_creds and not creds:
             self._creds = None
@@ -222,7 +222,7 @@ class Cluster(Resource):
     def default_env(self, env):
         self._default_env = _get_env_from(env)
         if not self._default_env.name:
-            self._default_env.name = _unnamed_default_env_name(self.name)
+            self._default_env.name = _unnamed_default_process_name(self.name)
 
         if self.is_up():
             self._default_env.to(self)
@@ -363,7 +363,7 @@ class Cluster(Resource):
 
         if self._default_env and isinstance(self._default_env, Env):
             if not self._default_env.name:
-                self._default_env.name = _unnamed_default_env_name(self.name)
+                self._default_env.name = _unnamed_default_process_name(self.name)
             self._default_env.save(folder=folder)
 
     @classmethod
@@ -1222,7 +1222,7 @@ class Cluster(Resource):
             + (f" --domain {domain}" if domain else "")
             + f" --port {self.server_port}"
             + f" --api-server-url {rns_client.api_server_url}"
-            + f" --default-env-name {self.default_env.name}"
+            + f" --default-process-name {self.default_env.name}"
             + (
                 f" --conda-env {self.default_env.env_name}"
                 if self.default_env.config().get("resource_subtype", None) == "CondaEnv"

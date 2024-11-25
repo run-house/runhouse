@@ -223,10 +223,10 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
     first_envs_to_print = []
 
     # First: if the default env does not have resources, print it.
-    default_env_name = current_cluster.default_env.name
-    if len(env_resource_mapping[default_env_name]) <= 1:
+    default_process_name = current_cluster.default_env.name
+    if len(env_resource_mapping[default_process_name]) <= 1:
         # case where the default env doesn't hve any other resources, apart from the default env itself.
-        console.print(f"{BULLET_UNICODE} {default_env_name} (runhouse.Env)")
+        console.print(f"{BULLET_UNICODE} {default_process_name} (runhouse.Env)")
         console.print(
             f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if provided. No "
             "resources were found."
@@ -234,7 +234,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
 
     else:
         # if the default env has other resources make sure it gets printed first
-        first_envs_to_print = [default_env_name]
+        first_envs_to_print = [default_process_name]
 
     # Make sure to print envs with no resources first.
     # (the only resource they have is a runhouse.env, which is the env itself).
@@ -243,7 +243,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
         for env_name in env_resource_mapping
         if (
             len(env_resource_mapping[env_name]) <= 1
-            and env_name != default_env_name
+            and env_name != default_process_name
             and env_resource_mapping[env_name]
         )
     ]
@@ -255,7 +255,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
     envs_to_print = first_envs_to_print + [
         env_name
         for env_name in env_resource_mapping
-        if env_name not in first_envs_to_print + [default_env_name]
+        if env_name not in first_envs_to_print + [default_process_name]
         and env_resource_mapping[env_name]
     ]
 
