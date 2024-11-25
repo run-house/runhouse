@@ -23,7 +23,6 @@ runs:
       run: |
         mkdir ~/.rh && touch ~/.rh/config.yaml
         echo "default_folder: /${{ inputs.username }}" > ~/.rh/config.yaml
-        echo "disable_data_collection: true" >> ~/.rh/config.yaml
         echo "token: ${{ inputs.token }}" >> ~/.rh/config.yaml
         echo "username: ${{ inputs.username }}" >> ~/.rh/config.yaml
         echo "api_server_url: ${{ inputs.api_server_url }}" >> ~/.rh/config.yaml
