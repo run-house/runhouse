@@ -738,7 +738,7 @@ class ClusterLogsFormatter:
         self.system = system
         self._display_title = False
 
-    def format(self, output_type):
+    def format_server_log(self, output_type):
         from runhouse import Resource
         from runhouse.servers.http.http_utils import OutputType
 
@@ -761,6 +761,22 @@ class ClusterLogsFormatter:
             dotted_line = "-" * len(system_name)
             print(dotted_line)
             print(f"{system_color}{system_name}{reset_color}")
+            print(dotted_line)
+
+            # Only display the system name once
+            self._display_title = True
+
+        return system_color, reset_color
+
+    def format_launcher_log(self):
+        system_color = ColoredFormatter.get_color("cyan")
+        reset_color = ColoredFormatter.get_color("reset")
+
+        if not self._display_title:
+            # Display the system name before subsequent logs only once
+            dotted_line = "-" * len(self.system)
+            print(dotted_line)
+            print(f"{system_color}{self.system}{reset_color}")
             print(dotted_line)
 
             # Only display the system name once

@@ -11,7 +11,7 @@ from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import SSEClient
 from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content, read_resp_data
-from runhouse.utils import Spinner
+from runhouse.utils import ClusterLogsFormatter, Spinner
 
 logger = get_logger(__name__)
 
@@ -19,18 +19,34 @@ logger = get_logger(__name__)
 class LogProcessor:
     """Dedicated logger for handling streamed cluster logs"""
 
-    def __init__(self):
+    def __init__(self, cluster_name: str):
+        self.cluster_name = cluster_name
         self.cluster_logger = self._init_cluster_logger()
 
     def _init_cluster_logger(self):
         cluster_logger = logging.getLogger("cluster_logs")
+        log_formatter = ClusterLogsFormatter(system=self.cluster_name)
 
         cluster_logger.setLevel(logging.DEBUG)
 
         # Add a handler with a simple formatter if not already set
         if not cluster_logger.handlers:
+            system_color, reset_color = log_formatter.format_launcher_log()
+
+            class PrependColorFormatter(logging.Formatter):
+                """Custom formatter to add colors to log messages."""
+
+                def __init__(self, system_color, reset_color, fmt="%(message)s"):
+                    super().__init__(fmt)
+                    self.system_color = system_color
+                    self.reset_color = reset_color
+
+                def format(self, record):
+                    message = super().format(record)
+                    return f"{self.system_color}{message}{self.reset_color}"
+
             handler = logging.StreamHandler(sys.stdout)
-            handler.setFormatter(logging.Formatter("%(message)s"))
+            handler.setFormatter(PrependColorFormatter(system_color, reset_color))
             cluster_logger.addHandler(handler)
 
         # Prevent propagation to root_logger
@@ -38,12 +54,12 @@ class LogProcessor:
 
         return cluster_logger
 
-    def log_event(self, event, cluster_name: str):
+    def log_event(self, event):
         """Log the event at the appropriate level using the cluster logger."""
         # Note: we need to remove logger prefix from the local logger to just include the log in Den
         data = ast.literal_eval(event.data)
         log_level = data["log_level"].upper()
-        log_message = f"[{cluster_name}] {data['log']}"
+        log_message = data["log"]
 
         if log_level == "INFO":
             self.cluster_logger.info(log_message)
@@ -60,8 +76,9 @@ class LogProcessor:
 
 
 class Launcher:
-
-    log_processor = LogProcessor()
+    @classmethod
+    def log_processor(cls, cluster_name: str):
+        return LogProcessor(cluster_name)
 
     @classmethod
     def up(cls, cluster, verbose: bool = True):
@@ -127,6 +144,7 @@ class Launcher:
 
         client = SSEClient(resp)
         spinner: Optional[Spinner] = None
+        log_processor = cls.log_processor(cluster_name)
         data = {}
 
         for event in client.events():
@@ -148,7 +166,7 @@ class Launcher:
                 logger.info(event.data)
 
             if event.event == "log":
-                cls.log_processor.log_event(event, cluster_name=cluster_name)
+                log_processor.log_event(event)
 
             if event.event == "error":
                 event_data = ast.literal_eval(event.data)
