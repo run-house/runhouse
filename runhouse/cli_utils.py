@@ -169,11 +169,6 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
         if cluster_config.get("resource_subtype") != "Cluster":
             backend_config.append("autostop_mins")
 
-        if cluster_config.get("default_env") and isinstance(
-            cluster_config.get("default_env"), Dict
-        ):
-            cluster_config["default_env"] = cluster_config["default_env"]["name"]
-
     for key in top_level_config:
         console.print(
             f"{BULLET_UNICODE} {key.replace('_', ' ')}: {cluster_config[key]}"

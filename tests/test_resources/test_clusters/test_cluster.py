@@ -26,6 +26,8 @@ from runhouse.globals import rns_client
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatus
 
+from runhouse.resources.images.image import ImageSetupStepType
+
 import tests.test_resources.test_resource
 from tests.conftest import init_args
 from tests.test_resources.test_envs.test_env import _get_env_var_value
@@ -773,25 +775,25 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_default_env_in_status(self, cluster):
+    def test_default_process_in_status(self, cluster):
         res = cluster.status()
-        assert cluster.default_env.name in res.get("env_servlet_processes")
+        assert DEFAULT_PROCESS_NAME in res.get("env_servlet_processes")
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_put_in_default_env(self, cluster):
+    def test_put_in_default_process(self, cluster):
         k1 = get_random_str()
         cluster.put(k1, "v1")
 
-        assert k1 in cluster.keys(env=cluster.default_env.name)
+        assert k1 in cluster.keys(env=DEFAULT_PROCESS_NAME)
         cluster.delete(k1)
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_fn_to_default_env(self, cluster):
+    def test_fn_to_default_process(self, cluster):
         remote_summer = rh.function(summer).to(cluster)
 
-        assert remote_summer.name in cluster.keys(env=cluster.default_env.name)
+        assert remote_summer.name in cluster.keys(env=DEFAULT_PROCESS_NAME)
         assert remote_summer(3, 4) == 7
 
         # Test function with non-trivial imports
@@ -800,8 +802,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_run_in_default_env(self, cluster):
-        for req in cluster.default_env.reqs:
+    def test_run_in_default_process(self, cluster):
+        reqs = []
+        if cluster.image:
+            for step in cluster.image.setup_steps:
+                if step.step_type == ImageSetupStepType.REQS:
+                    reqs += step.kwargs.get("reqs")
+        for req in reqs:
             if isinstance(req, str) and "_" in req:
                 # e.g. pytest_asyncio
                 req = req.replace("_", "-")
@@ -810,15 +817,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_default_conda_env_created(self, cluster):
-        if not isinstance(cluster.default_env, rh.CondaEnv):
-            pytest.skip("Default env is not a CondaEnv")
+        if not cluster.image or not cluster.image.conda_env_name:
+            pytest.skip("Default process is not in a conda env")
 
-        assert cluster.default_env.env_name in cluster.run("conda info --envs")[0][1]
-        assert isinstance(cluster.get(cluster.default_env.name), rh.CondaEnv)
+        assert cluster.image.conda_env_name in cluster.run("conda info --envs")[0][1]
 
+    @pytest.mark.skip("TODO - Image does not yet support env vars")
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_default_env_var_run(self, cluster):
+    def test_default_process_env_var_run(self, cluster):
         env_vars = cluster.default_env.env_vars
         if not env_vars:
             pytest.skip("No env vars in default env")
@@ -946,30 +953,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         assert not cluster._folder_exists(path="~/new-folder")
 
-    @pytest.mark.level("release")
-    @pytest.mark.clustertest
-    def test_switch_default_env(self, cluster):
-        # test setting a new default env, w/o restarting the runhouse server
-        test_env = cluster.default_env
-        new_env = rh.conda_env(name="new_conda_env", reqs=["diffusers"])
-        cluster.default_env = new_env
-
-        # check cluster attr set, and  new env exists on the system
-        assert new_env.env_name in cluster.run("conda info --envs")[0][1]
-        assert cluster.default_env.name == new_env.name
-        assert new_env.name in cluster.status().get("env_servlet_processes")
-
-        # check that env defaults to new default env for run/put
-        assert cluster.run("pip freeze | grep diffusers")[0][0] == 0
-
-        k1 = get_random_str()
-        cluster.put(k1, "v1")
-        assert k1 in cluster.keys(env=new_env.env_name)
-
-        # set it back
-        cluster.default_env = test_env
-        cluster.delete(new_env.name)
-
+    @pytest.mark.skip(
+        "TODO - Image does not yet support env vars / disabling observability shortly"
+    )
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_observability_enabled_by_default_on_cluster(self, cluster):
@@ -1234,7 +1220,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_list_and_create_process(self, cluster):
-        assert cluster.default_env.name in cluster.list_processes()
+        assert DEFAULT_PROCESS_NAME in cluster.list_processes()
         rh.env(name="env_created_before_process_list", reqs=["pytest"]).to(cluster)
         assert "env_created_before_process_list" in cluster.list_processes()
 

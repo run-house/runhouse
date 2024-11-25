@@ -12,6 +12,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 from apispec import APISpec
 from pydantic import create_model
 
+from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import obj_store, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.envs import _get_env_from, Env
@@ -83,9 +84,9 @@ class Module(Resource):
             if not self._env:
 
                 env_for_current_process = obj_store.get_process_env()
-                self._env = env_for_current_process or (
-                    self._system.default_env if self._system else Env()
-                )
+                self._env = (
+                    env_for_current_process or Env()
+                )  # Env() or Env(name=DEFAULT_PROCESS_NAME)?
 
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
             # If we're creating pointers, we're also local to the class definition and package, so it should be
@@ -165,9 +166,7 @@ class Module(Resource):
                         if isinstance(env, Dict)
                         else env.name
                         if isinstance(env, Env) and env.name
-                        else system.default_env.name
-                        if system.default_env
-                        else None
+                        else DEFAULT_PROCESS_NAME
                     )
 
                     # If we are on the same cluster, and in the env where the module lives, we should be able to
@@ -459,7 +458,7 @@ class Module(Resource):
             raise ValueError("No system specified to send module to.")
 
         if not process:
-            process = system.default_env.name
+            process = DEFAULT_PROCESS_NAME
 
         if isinstance(process, Dict):
             process = system.ensure_process_created(**process)

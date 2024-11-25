@@ -82,7 +82,7 @@ class CondaEnv(Env):
             in run_setup_command("conda info --envs", cluster=cluster, node=node)[1]
         )
 
-        # If we're doing the install remotely via SSH (e.g. for default_env), there is no cache
+        # If we're doing the install remotely via SSH (e.g. for image), there is no cache
         if not cluster:
             # Hash the config_for_rns to check if we need to create/install the conda env
             env_config = self.config()

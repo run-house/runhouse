@@ -4,7 +4,6 @@ from .on_demand_cluster import OnDemandCluster
 from .ray_utils import check_for_existing_ray_instance, kill_actors, list_actor_states
 from .utils import (
     _current_cluster,
-    _default_env_if_on_cluster,
     _get_cluster_from,
     cluster_config_file_exists,
     ClusterStatus,

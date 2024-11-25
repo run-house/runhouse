@@ -1250,7 +1250,7 @@ async def main():
         from runhouse.resources.hardware import Cluster
 
         cluster = Cluster.from_config(cluster_config)
-        cluster._sync_default_env_to_cluster()
+        cluster._sync_image_to_cluster()  # TODO - image needs to be part of the cluster config
 
     # Only launch uvicorn with certs if HTTPS is enabled and not using Caddy
     uvicorn_cert = parsed_ssl_certfile if not use_caddy and use_https else None
@@ -1267,16 +1267,7 @@ async def main():
     server = uvicorn.Server(config)
     await server.serve()
 
-    if cluster:
-        cluster.put_resource(cluster.default_env)
-
-        from runhouse.utils import _process_env_vars
-
-        env_vars = _process_env_vars(cluster.default_env.env_vars)
-        if env_vars:
-            cluster.set_process_env_vars(
-                name=cluster.default_env.name, env_vars=env_vars
-            )
+    # TODO - image env vars (+ secrets?)
 
 
 if __name__ == "__main__":

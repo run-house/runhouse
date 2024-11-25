@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 
+from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import rns_client
 from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import (
@@ -145,7 +146,7 @@ class TestHTTPServerDocker:
 
         if resp_obj["output_type"] == "stdout":
             assert (
-                "default_env env: Calling method call on module summer\n"
+                f"{DEFAULT_PROCESS_NAME} env: Calling method call on module summer\n"
                 in resp_obj["data"][0]
             )
 
@@ -204,7 +205,7 @@ class TestHTTPServerDocker:
                 if resp_obj["output_type"] == "stdout":
                     if "env" in resp_obj["data"][0]:
                         assert (
-                            "default_env env: Calling method call on module do_printing_and_logging\n"
+                            f"{DEFAULT_PROCESS_NAME} env: Calling method call on module do_printing_and_logging\n"
                             in resp_obj["data"][0]
                         )
                     else:
