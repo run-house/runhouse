@@ -653,7 +653,7 @@ def shared_function(shared_cluster):
     username_to_share = rh.configs.username
     with friend_account():
         # Create function on shared cluster with the same test account
-        f = rh.function(summer).to(shared_cluster, env=["pytest"]).save()
+        f = rh.function(summer).to(shared_cluster).save()
 
         # Share the cluster & function with the current account
         f.share(username_to_share, access_level="read", notify_users=False)

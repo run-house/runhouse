@@ -151,27 +151,27 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         ).to(cluster)
 
         get_autostop = rh.fn(get_auotstop_from_on_cluster).to(
-            cluster, env="autostop_env"
+            cluster, process="autostop_env"
         )
         # First check that the autostop is set to whatever the cluster set it to
         assert get_autostop() == cluster.autostop_mins
         original_autostop = cluster.autostop_mins
 
         set_autostop = rh.fn(set_autostop_from_on_cluster_via_ah).to(
-            cluster, env="autostop_env"
+            cluster, process="autostop_env"
         )
         set_autostop(5)
         assert get_autostop() == 5
 
         set_autostop_via_cluster_keep_warm = rh.fn(
             set_autostop_from_on_cluster_via_cluster_keep_warm
-        ).to(cluster, env="autostop_env")
+        ).to(cluster, process="autostop_env")
         set_autostop_via_cluster_keep_warm()
         assert get_autostop() == -1
 
         set_autostop_via_cluster_obj = rh.fn(
             set_autostop_from_on_cluster_via_cluster_obj
-        ).to(cluster, env="autostop_env")
+        ).to(cluster, process="autostop_env")
         # reset the autostop to the original value
         set_autostop_via_cluster_obj(original_autostop)
         assert get_autostop() == original_autostop
@@ -183,10 +183,10 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         ).to(cluster)
 
         register_activity = rh.fn(register_activity_from_on_cluster).to(
-            cluster, env="autostop_env"
+            cluster, process="autostop_env"
         )
         get_last_active = rh.fn(get_last_active_time_from_on_cluster).to(
-            cluster, env="autostop_env"
+            cluster, process="autostop_env"
         )
 
         register_activity()
@@ -219,7 +219,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
         from .test_cluster import sleep_fn
 
-        sleep_remote = rh.fn(sleep_fn).to(cluster, env="autostop_env")
+        sleep_remote = rh.fn(sleep_fn).to(cluster, process="autostop_env")
         sleep_time = TESTING_AUTOSTOP_INTERVAL * 4
         threading.Thread(target=sleep_remote, args=(sleep_time,)).start()
 

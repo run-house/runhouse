@@ -1303,7 +1303,7 @@ async def main():
         env_vars = _process_env_vars(cluster.default_env.env_vars)
         if env_vars:
             cluster.set_process_env_vars(
-                process_name=cluster.default_env.name, env_vars=env_vars
+                name=cluster.default_env.name, env_vars=env_vars
             )
 
 

@@ -141,8 +141,9 @@ class TestFunction:
 
     @pytest.mark.level("local")
     def test_function_in_new_env_with_multiprocessing(self, cluster):
+        numpy_env = rh.env(reqs=["numpy"], name="numpy_env").to(cluster)
         multiproc_remote_sum = rh.function(multiproc_np_sum, name="test_function").to(
-            cluster, env=rh.env(reqs=["numpy"], name="numpy_env")
+            cluster, process=numpy_env.name
         )
 
         summands = [[1, 3], [2, 4], [3, 5]]
@@ -254,7 +255,8 @@ class TestFunction:
         """Test functioning a module from reqs, not from working_dir"""
         import numpy as np
 
-        re_fn = rh.function(np.sum).to(cluster, env=["numpy"])
+        cluster.install_packages(["numpy"])
+        re_fn = rh.function(np.sum).to(cluster)
         res = re_fn(np.arange(5))
         assert int(res) == 10
 
@@ -262,8 +264,9 @@ class TestFunction:
     # originally used ondemand_aws_docker_cluster, therefore marked as minimal
     @pytest.mark.level("minimal")
     def test_notebook(self, cluster):
+        cluster.install_packages(["numpy"])
         nb_sum = lambda x: multiproc_np_sum(x)
-        re_fn = rh.function(nb_sum).to(cluster, env=["numpy"])
+        re_fn = rh.function(nb_sum).to(cluster)
 
         re_fn.notebook()
         summands = list(zip(range(5), range(4, 9)))
@@ -543,5 +546,5 @@ class TestFunction:
     @pytest.mark.level("local")
     def test_send_function_to_fresh_env(self, cluster):
         env = rh.env(name="fresh_env", reqs=["numpy"])
-        summer_remote = rh.function(summer).to(cluster, env=env)
+        summer_remote = rh.function(summer).to(cluster, process=env.name)
         summer_remote(2, 3)

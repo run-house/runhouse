@@ -187,23 +187,21 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
     def test_fn_to_env(self, env, cluster):
         package = "numpy"
         env.reqs = env.reqs + [package] or [package]
-        fn = rh.function(np_summer).to(system=cluster, env=env, force_install=True)
+        fn = rh.function(np_summer).to(system=cluster, process=env.name)
         assert fn(1, 4) == 5
 
     @pytest.mark.level("local")
-    def test_env_vars_dict(self, env, cluster):
+    def test_env_vars_dict(self, cluster):
         test_env_var = "TEST_ENV_VAR"
         test_value = "value"
-        env.env_vars = {test_env_var: test_value}
 
         get_env_var_cpu = rh.function(_get_env_var_value).to(
-            system=cluster, env=env, force_install=True
+            system=cluster,
+            process={"name": "env_var_process", "env_vars": {test_env_var: test_value}},
         )
         res = get_env_var_cpu(test_env_var)
 
         assert res == test_value
-
-        _uninstall_env(env, cluster)
 
     @pytest.mark.level("local")
     def test_env_vars_file(self, env, cluster, tmp_path):
@@ -221,8 +219,11 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
 
         env.env_vars = env_file
 
+        env.to(cluster, force_install=True)
+
         get_env_var_cpu = rh.function(_get_env_var_value).to(
-            system=cluster, env=env, force_install=True
+            system=cluster,
+            process=env.name,
         )
         assert get_env_var_cpu("ENV_VAR1") == "value"
         assert get_env_var_cpu("ENV_VAR2") == "val2"
@@ -266,8 +267,10 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         secrets = [path_secret, api_key_secret, named_secret.provider]
 
         env.secrets = secrets
+
+        env.to(cluster, force_install=True)
         get_env_var_cpu = rh.function(_get_env_var_value).to(
-            system=cluster, env=env, force_install=True
+            system=cluster, process=env.name
         )
 
         for secret in secrets:
@@ -320,10 +323,3 @@ class TestEnv(tests.test_resources.test_resource.TestResource):
         os.environ["HF_TOKEN"] = "test_hf_token"
         env = rh.env(name="hf_env", secrets=["huggingface"])
         env.to(cluster)
-
-    @pytest.mark.level("local")
-    def test_env_in_function_factory(self, cluster):
-        remote_function = rh.function(scipy_import, env=["scipy<1.14.1"]).to(
-            system=cluster
-        )
-        assert remote_function() is not None
