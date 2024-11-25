@@ -287,7 +287,7 @@ def handle_response(
     err_str: str,
     log_formatter: ClusterLogsFormatter,
 ):
-    system_color, reset_color = log_formatter.format(output_type)
+    system_color, reset_color = log_formatter.format_server_log(output_type)
 
     if output_type == OutputType.RESULT_SERIALIZED:
         return deserialize_data(response_data["data"], response_data["serialization"])
