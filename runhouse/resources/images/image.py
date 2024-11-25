@@ -22,13 +22,14 @@ class Image:
     def __init__(self, name: str):
         self.name = name
         self.setup_steps = []
+        self.conda_env_name = None
 
     def install_reqs(self, reqs: List[str], conda_env_name: Optional[str] = None):
         self.setup_steps.append(
             ImageSetupStep(
                 step_type=ImageSetupStepType.REQS,
                 reqs=reqs,
-                conda_env_name=conda_env_name,
+                conda_env_name=conda_env_name or self.conda_env_name,
             )
         )
         return self
@@ -38,7 +39,7 @@ class Image:
             ImageSetupStep(
                 step_type=ImageSetupStepType.CMD_RUN,
                 command=command,
-                conda_env_name=conda_env_name,
+                conda_env_name=conda_env_name or self.conda_env_name,
             )
         )
         return self
@@ -51,4 +52,5 @@ class Image:
                 conda_yaml=conda_yaml,
             )
         )
+        self.conda_env_name = conda_env_name
         return self
