@@ -17,6 +17,7 @@ import runhouse as rh
 
 from runhouse.constants import (
     BULLET_UNICODE,
+    DEFAULT_PROCESS_NAME,
     DOUBLE_SPACE_UNICODE,
     HOUR,
     LAST_ACTIVE_AT_TIMEFRAME,
@@ -223,7 +224,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
     first_envs_to_print = []
 
     # First: if the default env does not have resources, print it.
-    default_process_name = current_cluster.default_env.name
+    default_process_name = DEFAULT_PROCESS_NAME
     if len(env_resource_mapping[default_process_name]) <= 1:
         # case where the default env doesn't hve any other resources, apart from the default env itself.
         console.print(f"{BULLET_UNICODE} {default_process_name} (runhouse.Env)")

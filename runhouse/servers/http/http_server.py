@@ -19,9 +19,9 @@ from fastapi.responses import StreamingResponse
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
+    DEFAULT_PROCESS_NAME,
     DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
-    EMPTY_DEFAULT_PROCESS_NAME,
 )
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
@@ -139,18 +139,15 @@ class HTTPServer:
     @classmethod
     async def ainitialize(
         cls,
-        default_process_name=None,
-        conda_env=None,
+        conda_env_name: str = None,
         from_test: bool = False,
         *args,
         **kwargs,
     ):
-        runtime_env = {"conda": conda_env} if conda_env else None
+        runtime_env = {"conda": conda_env_name} if conda_env_name else None
 
         if not configs.observability_enabled:
             logger.info("disabling cluster observability")
-
-        default_process_name = default_process_name or EMPTY_DEFAULT_PROCESS_NAME
 
         # Ray and ClusterServlet should already be
         # initialized by the start script (see below)
@@ -158,44 +155,33 @@ class HTTPServer:
         # We still want to make sure the cluster servlet is initialized
         if from_test:
             await obj_store.ainitialize(
-                default_process_name,
+                DEFAULT_PROCESS_NAME,
                 setup_ray=RaySetupOption.TEST_PROCESS,
                 init_args=CreateProcessParams(
-                    name=default_process_name, runtime_env=runtime_env
+                    name=DEFAULT_PROCESS_NAME, runtime_env=runtime_env
                 ),
             )
 
         # We initialize a default env servlet where some things may run.
         _ = obj_store.get_servlet(
-            env_name=default_process_name,
+            env_name=DEFAULT_PROCESS_NAME,
             process_init_args=CreateProcessParams(
-                name=default_process_name,
+                name=DEFAULT_PROCESS_NAME,
                 runtime_env=runtime_env,
             ),
             create=True,
         )
 
-        if default_process_name == EMPTY_DEFAULT_PROCESS_NAME:
-            from runhouse.resources.envs import Env
-
-            default_env = Env(name=default_process_name)
-            data = (default_env.config(condensed=False), {}, False)
-            obj_store.put_resource(
-                serialized_data=data, serialization=None, env_name=default_process_name
-            )
-
     @classmethod
     def initialize(
         cls,
-        default_process_name=None,
-        conda_env=None,
+        conda_env_name: str = None,
         from_test: bool = False,
         *args,
         **kwargs,
     ):
         return sync_function(cls.ainitialize)(
-            default_process_name,
-            conda_env,
+            conda_env_name,
             from_test,
             *args,
             **kwargs,
@@ -999,12 +985,6 @@ async def main():
         help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
     )
     parser.add_argument(
-        "--default-process-name",
-        type=str,
-        default=None,
-        help="Name of env where the HTTP server is started.",
-    )
-    parser.add_argument(
         "--api-server-url",
         type=str,
         default=rns_client.api_server_url,
@@ -1022,15 +1002,6 @@ async def main():
     conda_env_name = parse_args.conda_env
     restart_proxy = parse_args.restart_proxy
     api_server_url = parse_args.api_server_url
-    default_process_name = parse_args.default_process_name
-
-    if not hasattr(parse_args, "from_python") and not default_process_name:
-        # detect default env if called from runhouse cli (start/restart) and cluster_config exists
-        from runhouse.resources.hardware.utils import load_cluster_config_from_file
-
-        cluster_config = load_cluster_config_from_file()
-        if cluster_config.get("default_env"):
-            default_process_name = cluster_config.get("default_env")["name"]
 
     # The object store and the cluster servlet within it need to be
     # initialized in order to call `obj_store.get_cluster_config()`, which
@@ -1040,7 +1011,7 @@ async def main():
     # We connect this to the "base" env, which we'll initialize later,
     # so writes to the obj_store within the server get proxied to the "base" env.
     await obj_store.ainitialize(
-        default_process_name,
+        DEFAULT_PROCESS_NAME,
         setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
     )
 
@@ -1211,7 +1182,7 @@ async def main():
     await obj_store.aset_cluster_config(cluster_config)
 
     await HTTPServer.ainitialize(
-        default_process_name=default_process_name,
+        default_process_name=DEFAULT_PROCESS_NAME,
         conda_env=conda_env_name,
     )
 
@@ -1275,7 +1246,7 @@ async def main():
     )
 
     cluster = None
-    if not hasattr(parse_args, "from_python") and default_process_name:
+    if not hasattr(parse_args, "from_python"):
         from runhouse.resources.hardware import Cluster
 
         cluster = Cluster.from_config(cluster_config)

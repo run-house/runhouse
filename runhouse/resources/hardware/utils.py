@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
-    EMPTY_DEFAULT_PROCESS_NAME,
+    DEFAULT_PROCESS_NAME,
     LAST_ACTIVE_AT_TIMEFRAME,
     RESERVED_SYSTEM_NAMES,
     SKY_VENV,
@@ -112,7 +112,7 @@ def _default_env_if_on_cluster():
         _get_env_from(
             config.get(
                 "default_env",
-                Env(name=EMPTY_DEFAULT_PROCESS_NAME),
+                Env(name=DEFAULT_PROCESS_NAME),
             )
         )
         if config
@@ -142,10 +142,6 @@ def _get_cluster_from(system, dryrun=False):
             pass
 
     return system
-
-
-def _unnamed_default_process_name(cluster_name):
-    return f"{cluster_name}_default_env"
 
 
 def _setup_default_creds(cluster_type: str):

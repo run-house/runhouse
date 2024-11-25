@@ -68,7 +68,7 @@ CONDA_INSTALL_CMDS = [
 # from platform import python_version; python_version()
 CONDA_PREFERRED_PYTHON_VERSION = "3.10.9"
 
-EMPTY_DEFAULT_PROCESS_NAME = "_cluster_default_env"
+DEFAULT_PROCESS_NAME = "default_process"
 DEFAULT_DOCKER_CONTAINER_NAME = "sky_container"
 DOCKER_LOGIN_ENV_VARS = {
     "SKYPILOT_DOCKER_USERNAME",

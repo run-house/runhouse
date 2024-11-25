@@ -49,10 +49,10 @@ from runhouse.constants import (
     DEFAULT_DASK_PORT,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
+    DEFAULT_PROCESS_NAME,
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
     DEFAULT_STATUS_CHECK_INTERVAL,
-    EMPTY_DEFAULT_PROCESS_NAME,
     LOCALHOST,
     NUM_PORTS_TO_TRY,
     RESERVED_SYSTEM_NAMES,
@@ -64,7 +64,6 @@ from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
     _current_cluster,
     _run_ssh_command,
-    _unnamed_default_process_name,
     ServerConnectionType,
 )
 from runhouse.resources.resource import Resource
@@ -80,7 +79,7 @@ class Cluster(Resource):
     REQUEST_TIMEOUT = 5  # seconds
 
     DEFAULT_SSH_PORT = 22
-    EMPTY_DEFAULT_PROCESS_NAME = EMPTY_DEFAULT_PROCESS_NAME
+    DEFAULT_PROCESS_NAME = DEFAULT_PROCESS_NAME
 
     def __init__(
         self,
@@ -137,7 +136,7 @@ class Cluster(Resource):
 
         self._default_env = _get_env_from(default_env)
         if self._default_env and not self._default_env.name:
-            self._default_env.name = _unnamed_default_process_name(self.name)
+            self._default_env.name = DEFAULT_PROCESS_NAME
 
         if skip_creds and not creds:
             self._creds = None
@@ -217,16 +216,14 @@ class Cluster(Resource):
         from runhouse.resources.envs import Env
 
         return (
-            self._default_env
-            if self._default_env
-            else Env(name=EMPTY_DEFAULT_PROCESS_NAME)
+            self._default_env if self._default_env else Env(name=DEFAULT_PROCESS_NAME)
         )
 
     @default_env.setter
     def default_env(self, env):
         self._default_env = _get_env_from(env)
         if not self._default_env.name:
-            self._default_env.name = _unnamed_default_process_name(self.name)
+            self._default_env.name = DEFAULT_PROCESS_NAME
 
         if self.is_up():
             self._default_env.to(self)
@@ -367,7 +364,7 @@ class Cluster(Resource):
 
         if self._default_env and isinstance(self._default_env, Env):
             if not self._default_env.name:
-                self._default_env.name = _unnamed_default_process_name(self.name)
+                self._default_env.name = DEFAULT_PROCESS_NAME
             self._default_env.save(folder=folder)
 
     @classmethod
@@ -1271,7 +1268,6 @@ class Cluster(Resource):
             + (f" --domain {domain}" if domain else "")
             + f" --port {self.server_port}"
             + f" --api-server-url {rns_client.api_server_url}"
-            + f" --default-process-name {self.default_env.name}"
             + f" --conda-env {conda_env_name}"
             + " --from-python"
         )
