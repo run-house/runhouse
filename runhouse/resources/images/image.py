@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 class ImageSetupStepType(Enum):
     REQS = "reqs"
     CMD_RUN = "cmd_run"
+    SETUP_CONDA_ENV = "setup_conda_env"
 
 
 class ImageSetupStep:
@@ -42,8 +43,12 @@ class Image:
         )
         return self
 
-    def add_secrets(self, secrets: List[Union[str, "Secret"]]):
+    def setup_conda_env(self, conda_env_name: str, conda_yaml: Union[str, Dict]):
         self.setup_steps.append(
-            ImageSetupStep(step_type=ImageSetupStepType.SECRETS, secrets=secrets)
+            ImageSetupStep(
+                step_type=ImageSetupStepType.SETUP_CONDA_ENV,
+                conda_env_name=conda_env_name,
+                conda_yaml=conda_yaml,
+            )
         )
         return self

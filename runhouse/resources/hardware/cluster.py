@@ -654,6 +654,15 @@ class Cluster(Resource):
 
         for setup_step in self.image.setup_steps:
             for node in self.ips:
+                if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
+                    from runhouse.utils import create_conda_env
+
+                    create_conda_env(
+                        env_name=setup_step.kwargs.get("conda_env_name"),
+                        conda_yaml=setup_step.kwargs.get("conda_yaml"),
+                        cluster=self,
+                    )
+
                 if setup_step.step_type == ImageSetupStepType.REQS:
                     self.install_packages(
                         setup_step.kwargs.get("reqs"),
