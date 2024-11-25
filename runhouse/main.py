@@ -549,7 +549,6 @@ def _start_server(
     domain=None,
     certs_address=None,
     api_server_url=None,
-    default_process_name=None,
     conda_env=None,
     from_python=None,
 ):
@@ -626,15 +625,6 @@ def _start_server(
     if api_server_url_flag:
         logger.info(f"Setting api_server url to {api_server_url}")
         flags.append(api_server_url_flag)
-
-    default_env_flag = (
-        f" --default-process-name {default_process_name}"
-        if default_process_name
-        else ""
-    )
-    if default_env_flag:
-        logger.info(f"Starting server in default env named: {default_process_name}")
-        flags.append(default_env_flag)
 
     conda_env_flag = f" --conda-env {conda_env}" if conda_env else ""
     if conda_env_flag:
@@ -784,9 +774,6 @@ def server_start(
         default="https://api.run.house",
         help="URL of Runhouse Den",
     ),
-    default_process_name: str = typer.Option(
-        None, help="Default env to start the server on."
-    ),
     conda_env: str = typer.Option(
         None, help="Name of conda env corresponding to default env if it is a CondaEnv."
     ),
@@ -833,7 +820,6 @@ def server_start(
         domain=domain,
         certs_address=certs_address,
         api_server_url=api_server_url,
-        default_process_name=default_process_name,
         conda_env=conda_env,
         from_python=from_python,
     )
@@ -896,9 +882,6 @@ def server_restart(
         default="https://api.run.house",
         help="URL of Runhouse Den",
     ),
-    default_process_name: str = typer.Option(
-        None, help="Default env to start the server on."
-    ),
     conda_env: str = typer.Option(
         None, help="Name of conda env corresponding to default env if it is a CondaEnv."
     ),
@@ -930,7 +913,6 @@ def server_restart(
         domain=domain,
         certs_address=certs_address,
         api_server_url=api_server_url,
-        default_process_name=default_process_name,
         conda_env=conda_env,
         from_python=from_python,
     )

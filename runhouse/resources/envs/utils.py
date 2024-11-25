@@ -5,7 +5,7 @@ from typing import Dict, List
 
 import yaml
 
-from runhouse.constants import EMPTY_DEFAULT_PROCESS_NAME
+from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import rns_client
 from runhouse.resources.resource import Resource
 from runhouse.utils import locate_working_dir
@@ -45,7 +45,7 @@ def _get_env_from(env, load: bool = True):
         return Env(reqs=env)
     elif isinstance(env, Dict):
         return Env.from_config(env)
-    elif isinstance(env, str) and EMPTY_DEFAULT_PROCESS_NAME not in env:
+    elif isinstance(env, str) and DEFAULT_PROCESS_NAME not in env:
         if not load:
             return env
 

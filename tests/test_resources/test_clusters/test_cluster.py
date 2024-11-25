@@ -14,6 +14,7 @@ import runhouse as rh
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
+    DEFAULT_PROCESS_NAME,
     DEFAULT_SERVER_PORT,
     HOUR,
     LAST_ACTIVE_AT_TIMEFRAME,
@@ -583,7 +584,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         self.test_rh_status_pythonic(cluster=cluster)
 
     def status_cli_test_logic(self, cluster, status_cli_command: str):
-        default_process_name = cluster.default_env.name
+        default_process_name = DEFAULT_PROCESS_NAME
 
         cluster.put(key="status_key2", obj="status_value2")
         status_output_response = cluster.run(
@@ -652,7 +653,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.clustertest
     # TODO: once fixed, extend this tests for gpu clusters as well.
     def test_rh_status_cli_not_in_cluster(self, cluster):
-        default_process_name = cluster.default_env.name
+        default_process_name = DEFAULT_PROCESS_NAME
 
         cluster.put(key="status_key3", obj="status_value3")
         res = str(
