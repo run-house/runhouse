@@ -27,6 +27,7 @@ from runhouse.constants import (
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import (
+    _cluster_set_autostop_command,
     LauncherType,
     ResourceServerStatus,
     ServerConnectionType,
@@ -179,7 +180,13 @@ class OnDemandCluster(Cluster):
             #         "Skypilot must be installed on the cluster in order to set autostop."
             #     )
             self.call_client_method("set_settings", {"autostop_mins": mins})
-            sky.autostop(self.name, mins, down=True)
+            try:
+                import sky
+
+                sky.autostop(self.name, mins, down=True)
+            except ImportError:
+                set_cluster_autostop_cmd = _cluster_set_autostop_command(mins)
+                self.run([set_cluster_autostop_cmd], node=self.head_ip)
 
     @property
     def docker_user(self) -> str:
@@ -630,9 +637,9 @@ class OnDemandCluster(Cluster):
             >>> with rh.ondemand_cluster.pause_autostop():
             >>>     rh.ondemand_cluster.run(["python train.py"])
         """
-        sky.autostop(self.name, idle_minutes=-1)
+        self.run(_cluster_set_autostop_command(-1), node=self.head_ip)
         yield
-        sky.autostop(self.name, idle_minutes=self._autostop_mins, down=True)
+        self.run(_cluster_set_autostop_command(self._autostop_mins), node=self.head_ip)
 
     # ----------------- SSH Methods ----------------- #
 

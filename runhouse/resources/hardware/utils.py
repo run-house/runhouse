@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import subprocess
 from asyncio import Event
 
@@ -17,6 +18,7 @@ from runhouse.constants import (
     EMPTY_DEFAULT_ENV_NAME,
     LAST_ACTIVE_AT_TIMEFRAME,
     RESERVED_SYSTEM_NAMES,
+    SKY_VENV,
     TIME_UNITS,
 )
 from runhouse.globals import rns_client
@@ -332,6 +334,14 @@ def _ssh_base_command(
 
 def _generate_ssh_control_hash(ssh_control_name):
     return hashlib.md5(ssh_control_name.encode()).hexdigest()[:_HASH_MAX_LENGTH]
+
+
+def _cluster_set_autostop_command(autostop_mins: int):
+    sky_set_autostop_cmd = shlex.quote(
+        f"from sky.skylet.autostop_lib import set_autostop; "
+        f'set_autostop({autostop_mins}, "cloudvmray", True)'
+    )
+    return f"{SKY_VENV}/bin/python -c {sky_set_autostop_cmd}"
 
 
 def up_cluster_helper(cluster, capture_output: Union[bool, str] = True):
