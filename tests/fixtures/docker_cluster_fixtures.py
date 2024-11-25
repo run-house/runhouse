@@ -20,6 +20,7 @@ from runhouse.constants import (
 )
 from runhouse.globals import rns_client
 from runhouse.resources.hardware.utils import RunhouseDaemonStatus
+from runhouse.resources.images import Image
 from tests.conftest import init_args
 
 from tests.constants import TESTING_LOG_LEVEL
@@ -282,7 +283,10 @@ def set_up_local_cluster(
     # Runhouse is already installed on the Docker clusters, but we need to sync our actual version
     rh_cluster.restart_server(resync_rh=True)
 
-    if rh_cluster.default_env.name == EMPTY_DEFAULT_PROCESS_NAME:
+    if (
+        not rh_cluster.image
+        or rh_cluster.default_env.name == EMPTY_DEFAULT_PROCESS_NAME
+    ):
         test_env(logged_in=logged_in).to(rh_cluster)
 
     def cleanup():
@@ -371,20 +375,15 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
 
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 2
-    default_env = rh.env(
-        reqs=[
+    default_image = Image(name="default_image").install_reqs(
+        [
             "ray==2.30.0",
             "pytest",
             "httpx",
             "pytest_asyncio",
             "pandas",
             "numpy<=1.26.4",
-        ],
-        working_dir=None,
-        name="default_env",
-        env_vars={
-            "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
-        },
+        ]
     )
 
     local_cluster, cleanup = set_up_local_cluster(
@@ -403,7 +402,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
         additional_cluster_init_args={
             "name": f"{test_org_rns_folder}_docker_cluster_pk_ssh",
             "server_connection_type": "ssh",
-            "default_env": default_env,
+            "image": default_image,
         },
     )
 
