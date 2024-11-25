@@ -670,8 +670,11 @@ class Cluster(Resource):
                         node=node,
                     )
                 elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
+                    command = setup_step.kwargs.get("cmd")
+                    if setup_step.conda_env_name:
+                        command = conda_env_cmd(command, setup_step.conda_env_name)
                     run_setup_command(
-                        cmd=setup_step.kwargs.get("cmd"),
+                        cmd=command,
                         cluster=self,
                         env_vars=env_vars,
                         stream_logs=True,
@@ -739,7 +742,6 @@ class Cluster(Resource):
     def _sync_runhouse_to_cluster(
         self,
         _install_url: Optional[str] = None,
-        env: "Env" = None,
         local_rh_package_path: Optional[Path] = None,
     ):
         if self.on_this_cluster():
@@ -748,9 +750,7 @@ class Cluster(Resource):
         if not self.ips:
             raise ValueError(f"No IPs set for cluster <{self.name}>. Is it up?")
 
-        env = env or self.default_env
-
-        remote_ray_version_call = self.run(["ray --version"], node="all", env=env)
+        remote_ray_version_call = self.run(["ray --version"], node="all")
         ray_installed_remotely = remote_ray_version_call[0][0][0] == 0
         if not ray_installed_remotely:
             local_ray_version = find_locally_installed_version("ray")
@@ -758,7 +758,7 @@ class Cluster(Resource):
             # if Ray is installed locally, install the same version on the cluster
             if local_ray_version:
                 ray_install_cmd = f"python3 -m pip install ray=={local_ray_version}"
-                self.run([ray_install_cmd], node="all", env=env, stream_logs=True)
+                self.run([ray_install_cmd], node="all", stream_logs=True)
 
         # If local_rh_package_path is provided, install the package from the local path
         if local_rh_package_path:
@@ -790,7 +790,6 @@ class Cluster(Resource):
             status_codes = self.run(
                 [rh_install_cmd],
                 node=node,
-                env=env,
                 stream_logs=True,
             )
 
@@ -1140,20 +1139,6 @@ class Cluster(Resource):
                 env=env,
             )
 
-    def _run_cli_commands_on_cluster_helper(self, commands: List[str]):
-        if self.on_this_cluster():
-            return self.run(commands=commands, env=self._default_env, node=self.head_ip)
-        else:
-            if self._default_env:
-                commands = [self._default_env._full_command(cmd) for cmd in commands]
-            return self._run_commands_with_runner(
-                commands=commands,
-                cmd_prefix="",
-                env_vars=self._default_env.env_vars if self._default_env else {},
-                node=self.head_ip,
-                require_outputs=False,
-            )
-
     def _start_or_restart_helper(
         self,
         base_cli_cmd: str,
@@ -1255,16 +1240,25 @@ class Cluster(Resource):
             )
 
             if (
-                self._run_cli_commands_on_cluster_helper(["[ -f ~/.rh/config.yaml ]"])[
-                    0
-                ]
+                self.run(
+                    ["[ -f ~/.rh/config.yaml ]"],
+                    node=self.head_ip,
+                    require_outputs=False,
+                )[0]
                 == 0
             ):
                 logger.debug("Did not change config.yaml")
             else:
                 command = f"echo '{user_config}' > ~/.rh/config.yaml"
-                self._run_cli_commands_on_cluster_helper([command])
+                self.run([command], node=self.head_ip, require_outputs=False)
                 logger.debug("Saved user config to cluster")
+
+        if self.image and self.image.conda_env_name:
+            conda_env_name = self.image.conda_env_name
+        elif self.default_env.config().get("resource_subtype", None) == "CondaEnv":
+            conda_env_name = self.default_env.env_name
+        else:
+            conda_env_name = ""
 
         restart_cmd = (
             base_cli_cmd
@@ -1278,15 +1272,13 @@ class Cluster(Resource):
             + f" --port {self.server_port}"
             + f" --api-server-url {rns_client.api_server_url}"
             + f" --default-process-name {self.default_env.name}"
-            + (
-                f" --conda-env {self.default_env.env_name}"
-                if self.default_env.config().get("resource_subtype", None) == "CondaEnv"
-                else ""
-            )
+            + f" --conda-env {conda_env_name}"
             + " --from-python"
         )
 
-        status_codes = self._run_cli_commands_on_cluster_helper(commands=[restart_cmd])
+        status_codes = self.run(
+            commands=[restart_cmd], node=self.head_ip, require_outputs=False
+        )
 
         if not status_codes[0] == 0:
             raise ValueError(f"Failed to restart server {self.name}")
@@ -1402,7 +1394,7 @@ class Cluster(Resource):
         if not cleanup_actors:
             cmd = cmd + " --no-cleanup-actors"
 
-        status_codes = self._run_cli_commands_on_cluster_helper([cmd])
+        status_codes = self.run([cmd], require_outputs=False)
         assert status_codes[0] == 0
 
     @contextlib.contextmanager
@@ -1720,6 +1712,11 @@ class Cluster(Resource):
         if isinstance(commands, str):
             commands = [commands]
 
+        if not env and self.image and self.image.conda_env_name:
+            commands = [
+                conda_env_cmd(cmd, self.image.conda_env_name) for cmd in commands
+            ]
+
         if isinstance(env, Env) and not env.name:
             env = self._default_env
         env = env or self.default_env
@@ -1763,7 +1760,6 @@ class Cluster(Resource):
                 return res_list
 
             else:
-
                 full_commands = [env._full_command(cmd) for cmd in commands]
                 if self.on_this_cluster():
                     # TODO add log streaming
