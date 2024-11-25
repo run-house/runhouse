@@ -68,6 +68,7 @@ from runhouse.resources.hardware.utils import (
 from runhouse.resources.resource import Resource
 
 from runhouse.servers.http import HTTPClient
+from runhouse.servers.http.http_utils import CreateProcessParams
 
 logger = get_logger(__name__)
 
@@ -1261,9 +1262,7 @@ class Cluster(Resource):
 
             env_vars = _process_env_vars(default_env.env_vars)
             if env_vars:
-                self.set_process_env_vars(
-                    process_name=default_env.name, env_vars=env_vars
-                )
+                self.set_process_env_vars(name=default_env.name, env_vars=env_vars)
 
         return status_codes
 
@@ -2349,12 +2348,46 @@ class Cluster(Resource):
         else:
             return self.client.list_processes()
 
-    def set_process_env_vars(self, process_name: str, env_vars: Dict):
+    def create_process(
+        self, name: str, env_vars: Dict, compute: Dict, conda_env_name: str
+    ) -> str:
+        runtime_env = {"conda_env": conda_env_name} if conda_env_name else {}
+        process_init_args = CreateProcessParams(
+            name=name, compute=compute, runtime_env=runtime_env, env_vars=env_vars
+        )
+
+        # If it exists, but with the exact same args, then we're good, else raise an error
+        existing_processes = self.list_processes()
+        if name in existing_processes and existing_processes[name] != process_init_args:
+            raise ValueError(
+                f"Process {name} already exists and was started with different arguments."
+            )
+
         if self.on_this_cluster():
-            return obj_store.set_process_env_vars(process_name, env_vars)
+            obj_store.get_servlet(
+                env_name=name, process_init_args=process_init_args, create=True
+            )
+        else:
+            self.client.create_process(params=process_init_args)
+
+        return name
+
+    def ensure_process_created(
+        self, name: str, env_vars: Dict, compute: Dict, conda_env_name: str
+    ) -> str:
+        existing_processes = self.list_processes()
+        if name in existing_processes:
+            return name
+
+        self.create_process(name, env_vars, compute, conda_env_name)
+        return name
+
+    def set_process_env_vars(self, name: str, env_vars: Dict):
+        if self.on_this_cluster():
+            return obj_store.set_process_env_vars(name, env_vars)
         else:
             return self.client.set_process_env_vars(
-                process_name=process_name, env_vars=env_vars
+                process_name=name, env_vars=env_vars
             )
 
     def install_package(
