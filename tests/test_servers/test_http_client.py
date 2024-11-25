@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 import runhouse as rh
-from runhouse.constants import DEFAULT_SERVER_PORT, EMPTY_DEFAULT_ENV_NAME
+from runhouse.constants import DEFAULT_SERVER_PORT, EMPTY_DEFAULT_PROCESS_NAME
 
 from runhouse.globals import rns_client
 
@@ -176,7 +176,7 @@ class TestHTTPClient:
 
         # Call the method under test
         method_name = "install"
-        module_name = EMPTY_DEFAULT_ENV_NAME
+        module_name = EMPTY_DEFAULT_PROCESS_NAME
 
         # Need to specify the run_name to avoid generating a unique one that contains the timestamp
         result = self.client.call(
@@ -293,7 +293,7 @@ class TestHTTPClient:
         _ = mocker.patch("requests.Session.post", return_value=mock_response)
 
         cluster = self.client.call(
-            EMPTY_DEFAULT_ENV_NAME,
+            EMPTY_DEFAULT_PROCESS_NAME,
             "install",
             headers=request_headers,
             stream_logs=False,

@@ -50,7 +50,7 @@ from runhouse.constants import (
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
     DEFAULT_STATUS_CHECK_INTERVAL,
-    EMPTY_DEFAULT_ENV_NAME,
+    EMPTY_DEFAULT_PROCESS_NAME,
     LOCALHOST,
     NUM_PORTS_TO_TRY,
     RESERVED_SYSTEM_NAMES,
@@ -78,7 +78,7 @@ class Cluster(Resource):
     REQUEST_TIMEOUT = 5  # seconds
 
     DEFAULT_SSH_PORT = 22
-    EMPTY_DEFAULT_ENV_NAME = EMPTY_DEFAULT_ENV_NAME
+    EMPTY_DEFAULT_PROCESS_NAME = EMPTY_DEFAULT_PROCESS_NAME
 
     def __init__(
         self,
@@ -213,7 +213,9 @@ class Cluster(Resource):
         from runhouse.resources.envs import Env
 
         return (
-            self._default_env if self._default_env else Env(name=EMPTY_DEFAULT_ENV_NAME)
+            self._default_env
+            if self._default_env
+            else Env(name=EMPTY_DEFAULT_PROCESS_NAME)
         )
 
     @default_env.setter
