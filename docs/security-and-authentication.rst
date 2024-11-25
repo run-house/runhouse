@@ -14,16 +14,6 @@ We collect non-sensitive data on the cluster that helps us understand how Runhou
 - Instance type
 
 
-Performance & Error Monitoring
-------------------------------------
-We collect data from normal package usage that helps us understand the performance and errors that are raised.
-This data is collected and sent to `Sentry <https://sentry.io/>`_, a third-party error tracking service.
-
-Removing Collected Data
-------------------------------------
-If you would like us to remove your collected data, please contact
-the `Runhouse team <https://www.run.house/about>`__ (first name at run.house)
-
 Disabling Data Collection
 -----------------------------------
 To disable data collection and error tracking collection, set the environment variable :code:`DISABLE_DATA_COLLECTION`

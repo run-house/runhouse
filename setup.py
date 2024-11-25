@@ -70,7 +70,6 @@ install_requires = [
     "ray[default] >= 2.9.0",
     "async_timeout",  # Needed for ray<=2.9
     "rich",
-    "sentry-sdk",
     "setuptools < 70.0.0",  # Bug in setuptools 70.0.0: https://github.com/AUTOMATIC1111/stable-diffusion-webui/issues/15863 noqa
     "typer",
     "uvicorn",

@@ -4,7 +4,6 @@ pexpect
 pyopenssl>=23.3.0
 ray[default] >= 2.9.0
 rich
-sentry-sdk
 setuptools < 70.0.0
 typer
 uvicorn
