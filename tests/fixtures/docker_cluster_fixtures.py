@@ -23,7 +23,6 @@ from runhouse.resources.hardware.utils import RunhouseDaemonStatus
 from runhouse.resources.images import Image
 from tests.conftest import init_args
 
-from tests.constants import TESTING_LOG_LEVEL
 from tests.utils import friend_account, test_env
 
 SSH_USER = "rh-docker-user"
@@ -476,22 +475,24 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 3
     local_client_port = LOCAL_HTTP_SERVER_PORT + 3
-    default_env = rh.conda_env(
-        reqs=[
-            "ray==2.30.0",
-            "pytest",
-            "httpx",
-            "pytest_asyncio",
-            "pandas",
-            "numpy<=1.26.4",
-        ],
-        conda_env={"dependencies": ["python=3.11"], "name": "default_env"},
-        env_vars={
-            "OMP_NUM_THREADS": "8",
-            "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
-        },
-        working_dir=None,
-        name="default_env",
+
+    default_image = (
+        Image(name="default_image")
+        .setup_conda_env(
+            conda_env_name="default_env",
+            conda_yaml={"dependencies": ["python=3.11"], "name": "default_env"},
+        )
+        .install_reqs(
+            [
+                "ray==2.30.0",
+                "pytest",
+                "httpx",
+                "pytest_asyncio",
+                "pandas",
+                "numpy<=1.26.4",
+            ],
+            conda_env_name="default_env",
+        )
     )
 
     local_cluster, cleanup = set_up_local_cluster(
@@ -516,7 +517,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
             "server_port": DEFAULT_HTTP_PORT,
             "client_port": local_client_port,
             "den_auth": False,
-            "default_env": default_env,
+            "image": default_image,
         },
     )
     # Yield the cluster
