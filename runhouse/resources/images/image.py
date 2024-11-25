@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 # Internal class to represent the image construction process
 class ImageSetupStepType(Enum):
@@ -11,14 +11,10 @@ class ImageSetupStep:
     def __init__(
         self,
         step_type: ImageSetupStepType,
-        command: Optional[str] = None,
-        reqs: Optional[List[str]] = None,
-        secrets: Optional[List[Union[str, "Secret"]]] = None,
+        **kwargs: Dict[str, Any],
     ):
         self.step_type = step_type
-        self.command = command
-        self.reqs = reqs
-        self.secrets = secrets
+        self.kwargs = kwargs
 
 
 class Image:
