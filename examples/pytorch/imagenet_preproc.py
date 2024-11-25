@@ -9,6 +9,7 @@ def download_preproc_and_upload(
     save_bucket_name,
     train_sample="100%",
     test_sample="100%",
+    val_sample="100%",
     cache_dir="~/rh_download",
     save_s3_folder_prefix="",
 ):
@@ -22,7 +23,7 @@ def download_preproc_and_upload(
         dataset_name,
         token=True,
         trust_remote_code=True,
-        split=[f"train[:{train_sample}]", f"test[:{test_sample}]"],
+        split=[f"train[:{train_sample}]", f"validation[:{val_sample}]", f"test[:{test_sample}]"],
         download_mode="reuse_cache_if_exists",
         cache_dir=f"{cache_dir}/huggingface_cache/",
     )
@@ -31,7 +32,8 @@ def download_preproc_and_upload(
     ds = DatasetDict(
         {
             "train": dataset[0],
-            "test": dataset[1],
+            "validation": dataset[1],
+            "test": dataset[2],
         }
     )
 
@@ -54,6 +56,7 @@ def download_preproc_and_upload(
         return batch
 
     print("Preprocessing Data")
+    
     for split_name in ds.keys():
         print(split_name)
         dataset = ds[split_name].map(preprocess_example, batched=True)
@@ -62,16 +65,6 @@ def download_preproc_and_upload(
         dataset.save_to_disk(s3_path)
 
     print("Uploaded Preprocessed Data")
-
-
-# A helper function that can be used to save a disk dataset to S3 -- may be useful if
-# you want to save the dataset to S3 after manually preprocessing on the remote instance
-def disk_dataset_to_s3(cache_dir, split_name, save_bucket_name, save_s3_folder_prefix):
-    from datasets import load_from_disk
-
-    dataset = load_from_disk(f"{cache_dir}/{split_name}/")
-    s3_path = f"s3://{save_bucket_name}/{save_s3_folder_prefix}/{split_name}"
-    dataset.save_to_disk(s3_path)
 
 
 if __name__ == "__main__":
@@ -117,8 +110,9 @@ if __name__ == "__main__":
         save_bucket_name=s3_bucket,
         cache_dir=cache_dir,
         train_sample="20%",
+        validation_sample="50%",
         test_sample="20%",
-        save_s3_folder_prefix="resnet-training-example/preprocessed_imagenet/tiny",
+        save_s3_folder_prefix="resnet-training-example/preprocessed_imagenet",
     )
 
     cluster.teardown()

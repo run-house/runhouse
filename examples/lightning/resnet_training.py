@@ -21,7 +21,7 @@ class ResNet152LitModule(L.LightningModule):
         # Initialize the ResNet-152 model
         self.model = models.resnet152(pretrained=False)
         self.model.fc = nn.Linear(self.model.fc.in_features, num_classes)
-
+        
         # Load weights from S3 if specified
         if pretrained and s3_bucket and s3_key:
             self.load_weights_from_s3(s3_bucket, s3_key, weights_path)
@@ -38,14 +38,14 @@ class ResNet152LitModule(L.LightningModule):
         return self.model(x)
 
     def training_step(self, batch):
-        images, labels = batch["image"], batch["label"]
+        images, labels = batch["image"].to(self.device), batch["label"].to(self.device)
         outputs = self(images)
         loss = self.criterion(outputs, labels)
         self.log("train_loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch):
-        images, labels = batch["image"], batch["label"]
+        images, labels = batch["image"].to(self.device), batch["label"].to(self.device)
         outputs = self(images)
         loss = self.criterion(outputs, labels)
         _, preds = torch.max(outputs, 1)
@@ -64,10 +64,16 @@ class ResNet152LitModule(L.LightningModule):
         s3.upload_file("resnet152.pth", s3_bucket, s3_key)
         print("Weights saved to S3.")
 
+    def teardown(self, stage=None):
+        print(f"Teardown stage: {stage}")
+        super().teardown(stage)
+
+
 # ### Data Module
 class ImageNetDataModule(L.LightningDataModule):
     def __init__(self, train_data_path, val_data_path, batch_size):
         super().__init__()
+        print('init for imagenet')
         self.train_data_path = train_data_path
         self.val_data_path = val_data_path
         self.batch_size = batch_size
@@ -84,55 +90,80 @@ class ImageNetDataModule(L.LightningDataModule):
         return DataLoader(self.train_dataset, batch_size=self.batch_size, sampler=sampler)
 
     def val_dataloader(self):
-        sampler = DistributedSampler(self.val_dataset)
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, sampler=sampler)
+        sampler = DistributedSampler(self.train_dataset)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, sampler=sampler)
 
 # ### Trainer Encapsulation 
 class ResNetTrainer(): 
-    def __init__(self, num_nodes, gpus_per_node, epochs, batch_size, working_s3_bucket, working_s3_path):
+    def __init__(self, num_nodes, gpus_per_node, working_s3_bucket, working_s3_path):
         self.num_nodes = num_nodes
         self.gpus_per_node = gpus_per_node
-        self.epochs = epochs
-        self.batch_size = batch_size
         
         self.working_s3_bucket = working_s3_bucket
         self.working_s3_path = working_s3_path
+
         self.data_module = None 
+        self.train_loader = None 
+        self.val_loader = None
+
         self.lit_module = None 
         self.trainer = None 
-        
-    def load_data(self, train_data_path, val_data_path): 
-        self.data_module = ImageNetDataModule(
-            train_data_path=train_data_path,
-            val_data_path=val_data_path,
-            batch_size=self.batch_size
-        )
     
-    def load_model(self, num_classes, pretrained, s3_bucket = None, s3_key = None): 
+    # def load_train(self, path, batch_size):
+    #     print("Loading training data")
+    #     subprocess.run(f"aws s3 sync {path} ~/train_dataset", shell=True)
+    #     dataset = load_from_disk("~/train_dataset").with_format("torch")
+    #     sampler = DistributedSampler(dataset)
+    #     self.train_loader = DataLoader(
+    #         dataset, batch_size=batch_size, shuffle=False, sampler = sampler
+    #     )
+
+    # def load_validation(self, path, batch_size):
+    #     print("Loading validation data")
+    #     subprocess.run(f"aws s3 sync {path} ~/val_dataset", shell=True)
+    #     dataset = load_from_disk("~/val_dataset").with_format("torch")
+    #     sampler = DistributedSampler(dataset)
+    #     self.val_loader = DataLoader(
+    #         dataset, batch_size=batch_size, shuffle=False, sampler = sampler
+    #     )
+
+    def load_data(self, train_data_path, val_data_path, batch_size = 32): 
+        self.data_module = ImageNetDataModule(train_data_path=train_data_path, val_data_path=val_data_path, batch_size=batch_size)
+        # self.load_train(path = train_data_path, batch_size=batch_size)
+        # self.load_validation(path = val_data_path, batch_size = batch_size)
+    
+    def load_model(self, num_classes, pretrained = False, s3_bucket = None, s3_key = None, weights_path = None): 
         self.lit_module = ResNet152LitModule(
             num_classes=num_classes,
             pretrained=pretrained,
             s3_bucket=s3_bucket,
-            s3_key=s3_key
+            s3_key=s3_key,
+            weights_path=weights_path
         )
     
-    def load_trainer(self, max_epochs, gpus, num_nodes, strategy): 
+    def load_trainer(self, epochs, strategy): 
         self.trainer = L.Trainer(
-            max_epochs=max_epochs,
-            gpus=gpus,
-            num_nodes=num_nodes,
-            strategy=strategy
+            max_epochs=epochs,
+            devices=self.gpus_per_node,
+            num_nodes=self.num_nodes,
+            strategy=strategy,
+            logger=True,
+            log_every_n_steps=1,
+            accelerator='gpu'
+
         )
 
     def fit(self): 
-        if self.data_module is None: 
+        if self.train_loader is None and self.data_module is None: 
             raise ValueError("Data module not loaded. Please call load_data() before calling fit().")
         if self.lit_module is None:
             raise ValueError("Lightning module not loaded. PLease call load_model() before calling fit().")
         if self.trainer is None: 
             raise ValueError("Trainer not loaded. Please call load_trainer() before calling fit().")    
         
-        self.trainer.fit(self.lit_module, self.data_module)
+        import torch.distributed as dist
+        #dist.init_process_group(backend="nccl", init_method="env://")
+        self.trainer.fit(self.lit_module, self.data_module) 
 
     def save(self): 
         if self.lit_module is None: 
@@ -158,49 +189,42 @@ if __name__ == "__main__":
             provider="aws",
             launch_type='local',
             default_env=rh.env(
-                name="pytorch_env",
                 reqs=[
                     "torch==2.5.1",
                     "torchvision==0.20.1",
                     "Pillow==11.0.0",
                     "datasets",
-                    "boto3 awscli",
+                    "boto3",
+                    "awscli",
                     "lightning",
                     "runhouse==0.0.36"
                 ],
+                env_vars={"CUDA_LAUNCH_BLOCKING": "1", "NCCL_DEBUG": "INFO"}
             ),
         )
         .up_if_not()
         .save()
     )
-    #gpu_cluster.restart_server()
+#    gpu_cluster.restart_server()
     gpu_cluster.sync_secrets(["aws"])
 
+    # Send the Trainer class to the remote GPU cluster 
+    trainer = rh.module(ResNetTrainer).to(gpu_cluster)
+
+    # Setup the Trainer class as a remote object we interact with locally 
     epochs = 15
     batch_size = 32
-
-    model = ResNet152LitModule(
-        num_classes=1000,
-        pretrained=False,
-        s3_bucket=working_s3_bucket,
-        s3_key=None,
-        
-    )
-
-    data_module = ImageNetDataModule(
-        train_data_path=train_data_path,
-        val_data_path=val_data_path,
-        batch_size=batch_size
-    )
-
-    trainer = rh.module(ResNetTrainer).to(gpu_cluster).distribute('pytorch')
-    remote_trainer = trainer(name = 'resnet_trainer') 
-    remote_trainer.load_data(train_data_path, val_data_path)
-    remote_trainer.load_model(1000, False)
+    
+    remote_trainer = trainer(name = 'resnet_trainer'
+                             , num_nodes = num_nodes
+                             , gpus_per_node = gpus_per_node
+                             , working_s3_bucket=working_s3_bucket
+                             , working_s3_path=working_s3_path).distribute('pytorch',replicas_per_node=gpus_per_node,num_replicas=gpus_per_node * num_nodes,) # note we call .distribute()
+    
+    remote_trainer.load_data(train_data_path= train_data_path, val_data_path=val_data_path, batch_size = batch_size)
+    remote_trainer.load_model(num_classes = 1000, pretrained = False)
     remote_trainer.load_trainer(
-        max_epochs=epochs,
-        gpus=gpus_per_node,
-        num_nodes=num_nodes,
+        epochs=epochs,
         strategy="ddp"
     )
     remote_trainer.fit()
