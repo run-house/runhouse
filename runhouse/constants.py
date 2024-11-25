@@ -115,3 +115,5 @@ TIME_UNITS = {"s": SECOND, "m": MINUTE, "h": HOUR, "d": DAY}
 # ANSI Constants
 ITALIC_BOLD = "\x1B[3m\x1B[1m"
 RESET_FORMAT = "\x1B[0m"
+
+SKY_VENV = "~/skypilot-runtime"
