@@ -21,10 +21,10 @@ from runhouse import __version__, cluster, Cluster, configs
 
 from runhouse.cli_utils import (
     add_clusters_to_output_table,
-    check_if_command_exists,
     create_output_table,
     get_cluster_or_local,
     get_wrapped_server_start_cmd,
+    is_command_available,
     LogsSince,
     print_bring_cluster_up_msg,
     print_cluster_config,
@@ -48,10 +48,10 @@ from runhouse.logger import get_logger
 
 from runhouse.resources.hardware import (
     check_for_existing_ray_instance,
-    ClustersListStatus,
     get_all_sky_clusters,
     kill_actors,
 )
+from runhouse.resources.hardware.utils import ClusterStatus
 
 SKY_LIVE_CLUSTERS_MSG = (
     "Live on-demand clusters created via Sky may exist that are not saved in Den. "
@@ -246,11 +246,10 @@ def cluster_list(
         help="Time duration to filter on. Minimum allowable filter is 1 minute. You may filter by seconds (s), "
         "minutes (m), hours (h) or days (s). Examples: 30s, 15m, 2h, 3d.",
     ),
-    cluster_status: Optional[ClustersListStatus] = typer.Option(
+    cluster_status: Optional[ClusterStatus] = typer.Option(
         None,
         "--status",
-        help="Cluster status to filter on. Supported filter values: 'running', 'terminated' (cluster is not live), "
-        "'down' (Runhouse server is down, but the cluster might be live).",
+        help="Cluster status to filter on.",
     ),
 ):
     """
@@ -262,7 +261,7 @@ def cluster_list(
 
         ``$ runhouse cluster list --all``
 
-        ``$ runhouse cluster list --status terminated``
+        ``$ runhouse cluster list --status running``
 
         ``$ runhouse cluster list --since 15m``
 
@@ -284,7 +283,7 @@ def cluster_list(
         [
             den_cluster
             for den_cluster in den_clusters
-            if den_cluster.get("Status") == "running"
+            if den_cluster.get("Status") == ClusterStatus.RUNNING
         ]
         if den_clusters
         else None
@@ -355,6 +354,7 @@ def cluster_keep_warm(
             print_bring_cluster_up_msg(cluster_name=cluster_name)
             return
         current_cluster.keep_warm(mins=mins)
+
     except ValueError:
         console.print(f"{cluster_name} is not saved in Den.")
         sky_live_clusters = get_all_sky_clusters()
@@ -365,6 +365,7 @@ def cluster_keep_warm(
             console.print(
                 f"You can keep warm the cluster by running [italic bold] `sky autostop {cluster_name} -i {mins}`"
             )
+
     except Exception as e:
         console.print(f"Failed to keep the cluster warm: {e}")
 
@@ -439,7 +440,7 @@ def cluster_down(
             raise typer.Exit(0)
 
     if remove_all:
-        running_den_clusters = Cluster.list(status=ClustersListStatus.running).get(
+        running_den_clusters = Cluster.list(status=ClusterStatus.RUNNING).get(
             "den_clusters"
         )
 
@@ -641,8 +642,8 @@ def _start_server(
     flags.append(" --from-python" if from_python else "")
 
     # Check if screen or nohup are available
-    screen = screen and check_if_command_exists("screen")
-    nohup = not screen and nohup and check_if_command_exists("nohup")
+    screen = screen and is_command_available("screen")
+    nohup = not screen and nohup and is_command_available("nohup")
 
     # Create logfile if we are using backgrounding
     if (screen or nohup) and create_logfile and not Path(SERVER_LOGFILE).exists():

@@ -36,9 +36,9 @@ logger = get_logger(__name__)
 ####################################################################################################
 
 
-class StatusColors(str, Enum):
+class ClusterStatusColors(str, Enum):
     RUNNING = "[green]Running[/green]"
-    SERVER_DOWN = "[orange1]Runhouse server down[/orange1]"
+    INITIALIZING = "[yellow]Initializing[/yellow]"
     TERMINATED = "[red]Terminated[/red]"
     UNKNOWN = "Unknown"
 
@@ -122,7 +122,9 @@ def add_clusters_to_output_table(table: Table, clusters: List[Dict]):
                 0
             ]  # The split is required to remove the offset (according to UTC)
         rh_cluster["Last Active (UTC)"] = last_active_at_no_offset
-        rh_cluster["Status"] = StatusColors.get_status_color(rh_cluster.get("Status"))
+        rh_cluster["Status"] = ClusterStatusColors.get_status_color(
+            rh_cluster.get("Status")
+        )
 
         table = add_cluster_as_table_row(table, rh_cluster)
 
@@ -142,10 +144,8 @@ def condense_resource_type(resource_type: str):
 ####################################################################################################
 # Cluster status utils
 ####################################################################################################
-
-
 class StatusType(str, Enum):
-    server = ("sever",)
+    server = "server"
     cluster = "cluster"
 
 
@@ -153,7 +153,6 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
     """
     Helping function to the `_print_status` which prints the relevant info from the cluster config.
     """
-
     from runhouse.main import console
 
     top_level_config = [
@@ -181,6 +180,7 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
 
     if status_type == StatusType.cluster:
         console.print(f"{BULLET_UNICODE} backend config:")
+
     for key in backend_config:
         if key == "autostop_mins" and cluster_config[key] == -1:
             console.print(
@@ -252,7 +252,6 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
     # If the env have packages installed, that means that it contains an env resource. In that case:
     # * If the env contains only itself, we will print that the env contains only the installed packages.
     # * Else, we will print the resources (rh.function, th.module) associated with the env.
-
     envs_to_print = first_envs_to_print + [
         env_name
         for env_name in env_resource_mapping
@@ -329,8 +328,8 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
         if len(resources_in_env) == 0:
             # No resources were found in the env, only the associated installed python reqs were installed.
             console.print(
-                f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if provided. No resources were "
-                "found."
+                f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if provided. "
+                f"No resources were found."
             )
 
         else:
@@ -363,7 +362,10 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
                             func_end_time_utc - func_start_time_utc
                         ).total_seconds()
 
-                        is_func_running: str = f" [italic bright_green]Running for {func_running_time} seconds[/italic bright_green]"
+                        is_func_running: str = (
+                            f" [italic bright_green]Running for {func_running_time} "
+                            f"seconds[/italic bright_green]"
+                        )
 
                     elif (
                         resource_type == "runhouse.Function"
@@ -385,6 +387,7 @@ def print_cloud_properties(cluster_config: dict):
     cloud_properties = cluster_config.get("compute_properties", None)
     if not cloud_properties:
         return
+
     cloud = cloud_properties.get("cloud")
     instance_type = cloud_properties.get("instance_type")
     region = cloud_properties.get("region")
@@ -417,15 +420,14 @@ def print_cloud_properties(cluster_config: dict):
 
 
 def print_status(status_data: dict, current_cluster) -> None:
+    """Prints the status of the cluster to the console"""
     from runhouse.globals import rns_client
     from runhouse.main import console
 
-    """Prints the status of the cluster to the console"""
     cluster_config = status_data.get("cluster_config")
     servlet_processes = status_data.get("env_servlet_processes")
 
     cluster_name = cluster_config.get("name", None)
-
     if cluster_name:
         cluster_uri = rns_client.format_rns_address(cluster_name)
         cluster_link_in_den_ui = f"https://www.run.house/resources/{cluster_uri}"
@@ -452,7 +454,7 @@ def print_status(status_data: dict, current_cluster) -> None:
     # print general cpu and gpu utilization
     cluster_gpu_utilization: float = status_data.get("server_gpu_utilization")
 
-    # cluster_gpu_utilization can be none, if the cluster was not using its GPU at the moment cluster.status() was invoked.
+    # Note: GPU utilization can be none if the cluster was not using its GPU when cluster.status() was invoked
     if cluster_gpu_utilization is None and has_cuda:
         cluster_gpu_utilization: float = 0.0
 
@@ -527,12 +529,10 @@ def get_cluster_or_local(cluster_name: str = None):
 
 
 ####################################################################################################
-# Cluster logs utils
+# General utils
 ####################################################################################################
-
-
 class LogsSince(str, Enum):
-    # minutes
+    # Note: All options are represented in minutes
     one = 1
     five = 5
     ten = 10
@@ -542,8 +542,8 @@ class LogsSince(str, Enum):
     day = int(24 * (HOUR / 60))  # one day
 
 
-# General CLI and main.py utils
-def check_if_command_exists(cmd: str):
+def is_command_available(cmd: str) -> bool:
+    """Checks if a command is available on the system."""
     cmd_check = subprocess.run(
         f"command -v {cmd}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
@@ -554,6 +554,7 @@ def check_if_command_exists(cmd: str):
 
 
 def get_wrapped_server_start_cmd(flags: List[str], screen: bool, nohup: bool):
+    """Add flags to the base server start command"""
     if screen:
         wrapped_cmd = START_SCREEN_CMD
     elif nohup:

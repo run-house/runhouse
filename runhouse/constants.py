@@ -108,7 +108,7 @@ INCREASED_INTERVAL = 1 * HOUR
 
 # Constants runhouse cluster list
 LAST_ACTIVE_AT_TIMEFRAME = 24 * HOUR
-MAX_CLUSTERS_DISPLAY = 50
+MAX_CLUSTERS_DISPLAY = 200
 
 # in seconds
 TIME_UNITS = {"s": SECOND, "m": MINUTE, "h": HOUR, "d": DAY}

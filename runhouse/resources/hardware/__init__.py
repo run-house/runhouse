@@ -7,7 +7,7 @@ from .utils import (
     _default_env_if_on_cluster,
     _get_cluster_from,
     cluster_config_file_exists,
-    ClustersListStatus,
+    ClusterStatus,
     get_all_sky_clusters,
     load_cluster_config_from_file,
     SSEClient,
