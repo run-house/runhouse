@@ -14,18 +14,6 @@ We collect non-sensitive data on the cluster that helps us understand how Runhou
 - Instance type
 
 
-Disabling Data Collection
------------------------------------
-To disable data collection and error tracking collection, set the environment variable :code:`DISABLE_DATA_COLLECTION`
-to :code:`True`. Alternatively, set :code:`disable_data_collection` to :code:`true` in your
-local Runhouse config (:code:`~/.rh/config.yaml`), or in Python:
-
-.. code-block:: python
-
-    import runhouse as rh
-    rh.configs.disable_data_collection()
-
-
 Cluster Observability
 ---------------------------------------
 Runhouse collects various telemetry data by default on clusters. This data will be used to provide better observability
