@@ -488,8 +488,8 @@ def get_running_and_not_running_clusters(clusters: list):
         cluster_status = cluster_status or ClusterStatus.UNKNOWN.value
 
         # The split is required to remove milliseconds and the offset (according to UTC) from the timestamp.
-        # (status_last_checked is in the following format: YYYY-MM-DD HH:MM:SS.ssssss±HH:MM)
-        last_active_at = den_cluster.get("status_last_checked")
+        # (cluster_status_last_checked is in the following format: YYYY-MM-DD HH:MM:SS.ssssss±HH:MM)
+        last_active_at = den_cluster.get("cluster_status_last_checked")
 
         # Convert to datetime
         last_active_at = (

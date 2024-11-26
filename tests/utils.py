@@ -194,7 +194,7 @@ def set_daemon_and_cluster_status(
     status_data_resource = {
         "daemon_status": daemon_status,
         "cluster_status": cluster_status,
-        "status_last_checked": datetime.utcnow().isoformat(),
+        "cluster_status_last_checked": datetime.utcnow().isoformat(),
     }
     requests.put(
         f"{api_server_url}/resource/{cluster_uri}",
