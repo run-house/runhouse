@@ -1024,7 +1024,7 @@ class Cluster(Resource):
         and a domain is provided."""
         return self._use_https and not (self._use_caddy and self.domain is not None)
 
-    def _start_ray_workers(self, ray_port, env):
+    def _start_ray_workers(self, ray_port):
         internal_head_ip = self.internal_ips[0]
         worker_ips = self.ips[
             1:
@@ -1039,7 +1039,6 @@ class Cluster(Resource):
                     f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
                 ],
                 node=host,
-                env=env,
             )
 
     def _start_or_restart_helper(
