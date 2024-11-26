@@ -1852,6 +1852,11 @@ class Cluster(Resource):
         # https://towardsdatascience.com/using-jupyter-notebook-running-on-a-remote-docker-container-via-ssh-ea2c3ebb9055
         # https://docs.ray.io/en/latest/ray-core/using-ray-with-jupyter.html
 
+        from runhouse.resources.hardware.ssh_tunnel import is_port_in_use
+
+        while is_port_in_use(port_forward):
+            port_forward += 1
+
         tunnel = self.ssh_tunnel(
             local_port=port_forward,
             num_ports_to_try=NUM_PORTS_TO_TRY,
