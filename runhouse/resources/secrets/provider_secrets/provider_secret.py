@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import configs, rns_client
 from runhouse.resources.envs.env import Env
 from runhouse.resources.hardware.cluster import Cluster
@@ -189,7 +190,7 @@ class ProviderSecret(Secret):
 
         if env or self.env_vars:
             if not env or (env and isinstance(env, Env) and not env.name):
-                env = system.default_env
+                env = DEFAULT_PROCESS_NAME
             env_key = env if isinstance(env, str) else env.name
 
             if not system.get(env_key):

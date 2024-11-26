@@ -1,14 +1,13 @@
-import os
 from pathlib import Path
 
 import pytest
 
 import runhouse as rh
 
-from runhouse.constants import DEFAULT_HTTPS_PORT, DEFAULT_PROCESS_NAME
+from runhouse.constants import DEFAULT_HTTPS_PORT
+from runhouse.resources.images.image import Image
 from tests.conftest import init_args
 
-from tests.constants import TESTING_AUTOSTOP_INTERVAL, TESTING_LOG_LEVEL
 from tests.utils import test_env
 
 NUM_OF_NODES = 2
@@ -28,7 +27,7 @@ def setup_test_cluster(args, request, create_env=False):
 
     cluster.save()
 
-    if create_env or cluster.default_env.name == DEFAULT_PROCESS_NAME:
+    if create_env or not cluster.image:
         test_env().to(cluster)
     return cluster
 
@@ -60,7 +59,7 @@ def ondemand_aws_docker_cluster(request):
         "provider": "aws",
         "image_id": "docker:rayproject/ray:latest-py311-cpu",
         "region": "us-east-2",
-        "default_env": rh.env(reqs=["ray==2.30.0"], working_dir=None),
+        "image": Image(name="default_image").install_reqs(["ray==2.30.0"]),
         "sky_kwargs": {"launch": {"retry_until_up": True}},
     }
     cluster = setup_test_cluster(args, request, create_env=True)
@@ -89,25 +88,28 @@ def ondemand_gcp_cluster(request):
     """
     Note: Also used to test conda default env.
     """
-    env_vars = {
-        "var1": "val1",
-        "var2": "val2",
-        "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
-        "RH_AUTOSTOP_INTERVAL": str(
-            os.getenv("RH_AUTOSTOP_INTERVAL") or TESTING_AUTOSTOP_INTERVAL
-        ),
-    }
-    default_env = rh.conda_env(
-        name="default_env",
-        reqs=test_env().reqs + ["ray==2.30.0"],
-        env_vars=env_vars,
-        conda_env={"dependencies": ["python=3.11"], "name": "default_env"},
+    # env_vars = {
+    #     "var1": "val1",
+    #     "var2": "val2",
+    #     "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
+    #     "RH_AUTOSTOP_INTERVAL": str(
+    #         os.getenv("RH_AUTOSTOP_INTERVAL") or TESTING_AUTOSTOP_INTERVAL
+    #     ),
+    # }
+    image = (
+        Image(name="default_image")
+        .setup_conda_env(
+            conda_env_name="base_env",
+            conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
+        )
+        .install_reqs(test_env().reqs + ["ray==2.30.0"], conda_env_name="base_env")
+        # TODO - env vars
     )
     args = {
         "name": "gcp-cpu",
         "instance_type": "CPU:2+",
         "provider": "gcp",
-        "default_env": default_env,
+        "image": image,
     }
     cluster = setup_test_cluster(args, request)
     return cluster
@@ -186,7 +188,6 @@ def multinode_k8s_cpu_cluster(request):
     args = {
         "name": "rh-cpu-multinode",
         "num_instances": NUM_OF_NODES,
-        "default_env": test_env(),
         "provider": "kubernetes",
         "instance_type": "CPU:2+",
     }
@@ -196,15 +197,19 @@ def multinode_k8s_cpu_cluster(request):
 
 @pytest.fixture(scope="session")
 def multinode_cpu_docker_conda_cluster(request):
+    image = (
+        Image(name="default_image")
+        .setup_conda_env(
+            conda_env_name="base_env",
+            conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
+        )
+        .install_reqs(test_env().reqs + ["ray==2.30.0"], conda_env_name="base_env")
+    )
     args = {
         "name": "rh-cpu-multinode",
         "num_nodes": NUM_OF_NODES,
         "image_id": "docker:rayproject/ray:latest-py311-cpu",
-        "default_env": rh.conda_env(
-            name="default_env",
-            reqs=test_env().reqs + ["ray==2.30.0"],
-            conda_env={"dependencies": ["python=3.11"], "name": "default_env"},
-        ),
+        "image": image,
         "provider": "aws",
         "instance_type": "CPU:2+",
     }

@@ -15,7 +15,6 @@ from typing import Any, Dict, List, Optional, Union
 
 from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
-    DEFAULT_PROCESS_NAME,
     LAST_ACTIVE_AT_TIMEFRAME,
     RESERVED_SYSTEM_NAMES,
     SKY_VENV,
@@ -24,7 +23,6 @@ from runhouse.constants import (
 from runhouse.globals import rns_client
 
 from runhouse.logger import get_logger
-from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.sky.command_runner import (
     _HASH_MAX_LENGTH,
     ssh_options_list,
@@ -102,22 +100,6 @@ def _current_cluster(key="config"):
         return cluster_config[key]
     else:
         return None
-
-
-def _default_env_if_on_cluster():
-    from runhouse import Env
-
-    config = _current_cluster()
-    return (
-        _get_env_from(
-            config.get(
-                "default_env",
-                Env(name=DEFAULT_PROCESS_NAME),
-            )
-        )
-        if config
-        else None
-    )
 
 
 def _get_cluster_from(system, dryrun=False):

@@ -84,7 +84,6 @@ def saved_resource(resource, saved_resource_pool, test_rns_folder):
                     # Need org access in order to save the resource to the org
                     # Remove subresources to avoid resaving shared resource which is not allowed
                     resource_copy._creds = None
-                    resource_copy._default_env = None
                     saved_resource = resource_copy.save(folder=top_level_folder)
             else:
                 saved_resource = resource_copy.save(folder=top_level_folder)

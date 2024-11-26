@@ -70,7 +70,6 @@ def run_setup_command(
     if not cluster:
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
     elif cluster.on_this_cluster():
-        cmd = cluster.default_env._full_command(cmd)
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
 
     return cluster._run_commands_with_runner(

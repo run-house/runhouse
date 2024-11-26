@@ -12,12 +12,7 @@ import pytest
 
 import runhouse as rh
 
-from runhouse.constants import (
-    DEFAULT_HTTP_PORT,
-    DEFAULT_HTTPS_PORT,
-    DEFAULT_PROCESS_NAME,
-    DEFAULT_SSH_PORT,
-)
+from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
 from runhouse.globals import rns_client
 from runhouse.resources.hardware.utils import RunhouseDaemonStatus
 from runhouse.resources.images import Image
@@ -282,7 +277,7 @@ def set_up_local_cluster(
     # Runhouse is already installed on the Docker clusters, but we need to sync our actual version
     rh_cluster.restart_server(resync_rh=True)
 
-    if not rh_cluster.image or rh_cluster.default_env.name == DEFAULT_PROCESS_NAME:
+    if not rh_cluster.image:
         test_env(logged_in=logged_in).to(rh_cluster)
 
     def cleanup():
@@ -476,8 +471,8 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
     default_image = (
         Image(name="default_image")
         .setup_conda_env(
-            conda_env_name="default_env",
-            conda_yaml={"dependencies": ["python=3.11"], "name": "default_env"},
+            conda_env_name="base_env",
+            conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
         )
         .install_reqs(
             [
@@ -488,7 +483,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
                 "pandas",
                 "numpy<=1.26.4",
             ],
-            conda_env_name="default_env",
+            conda_env_name="base_env",
         )
     )
 

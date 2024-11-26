@@ -3,6 +3,7 @@ import shlex
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import obj_store
 from runhouse.logger import get_logger
 from runhouse.resources.hardware import _get_cluster_from, Cluster
@@ -155,7 +156,7 @@ class Env(Resource):
                 on the current cluster. (Default: ``None``)
             node (str, optional): Node to install the env on. (Default: ``"all"``)
         """
-        # If we're doing the install remotely via SSH (e.g. for default_env), there is no cache
+        # If we're doing the install remotely via SSH (e.g. for image), there is no cache
         if not cluster:
             # Hash the config_for_rns to check if we need to install
             env_config = self.config()
@@ -223,11 +224,7 @@ class Env(Resource):
                 new_env.compute = new_env.compute or {}
                 new_env.compute["node_idx"] = node_idx
 
-            key = (
-                system.put_resource(new_env)
-                if new_env.name
-                else system.default_env.name
-            )
+            key = system.put_resource(new_env) if new_env.name else DEFAULT_PROCESS_NAME
 
             env_vars = _process_env_vars(self.env_vars)
             if env_vars:
