@@ -295,7 +295,7 @@ class ClusterServlet:
         servlet_processes = status_copy.pop("env_servlet_processes")
 
         status_data = {
-            "status": RunhouseDaemonStatus.RUNNING,
+            "daemon_status": RunhouseDaemonStatus.RUNNING,
             "resource_type": status_copy.get("cluster_config").pop(
                 "resource_type", "cluster"
             ),
@@ -605,7 +605,7 @@ class ClusterServlet:
         for env_status in servlets_status:
             servlet_name = env_status.get("servlet_name")
 
-            # Nothing if there was an exception
+            # Nothing to store if there was an exception
             if "Exception" in env_status.keys():
                 e = env_status.get("Exception")
                 logger.warning(
@@ -613,8 +613,8 @@ class ClusterServlet:
                 )
                 servlet_utilization_data[servlet_name] = {}
 
-            # Otherwise, store what was in the env and the utilization data
             else:
+                # Store what was in the env and the utilization data
                 env_memory_info = env_status.get("servlet_utilization_data")
                 env_memory_info["env_resource_mapping"] = env_status.get(
                     "objects_in_servlet"
@@ -674,7 +674,6 @@ class ClusterServlet:
         status_data = ResourceStatusData(**status_data).model_dump()
 
         if send_to_den:
-
             logger.debug("Sending cluster status to Den")
             den_resp = self.save_status_metrics_to_den(status=status_data)
             return status_data, den_resp.status_code
