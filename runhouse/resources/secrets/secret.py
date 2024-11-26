@@ -5,6 +5,8 @@ from pathlib import Path
 
 from typing import Dict, List, Optional, Union
 
+import yaml
+
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
 
@@ -392,6 +394,23 @@ class Secret(Resource):
             system.put_resource(new_secret, env=env)
 
         return new_secret
+
+    def _write_to_file(self, path: str, overwrite: bool = False, format: str = "json"):
+        full_path = os.path.expanduser(path)
+        if os.path.exists(full_path) and not overwrite:
+            logger.info(
+                f"{path} already exists and overwrite set to `False`. Not overriding contents."
+            )
+        elif format == "json":
+            with open(full_path, "w+") as f:
+                json.dump(self.values, f, indent=4)
+        elif format == "yaml":
+            with open(full_path, "w+") as f:
+                yaml.safe_dump(self.values, f)
+        else:
+            logger.error(
+                f"Only 'json' and 'yaml' formats currently supported, not {format}."
+            )
 
     def in_local(self):
         """Whether the secret config is stored locally (as opposed to Vault)."""
