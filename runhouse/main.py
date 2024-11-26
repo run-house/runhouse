@@ -251,6 +251,12 @@ def cluster_list(
         "--status",
         help="Cluster status to filter on.",
     ),
+    force: bool = typer.Option(
+        False,
+        "-f",
+        "--force",
+        help="Whether to force a status update for all relevant clusters, or load the latest values.",
+    ),
 ):
     """
     Load Runhouse clusters
@@ -276,7 +282,9 @@ def cluster_list(
         )
         return
 
-    clusters = Cluster.list(show_all=show_all, since=since, status=cluster_status)
+    clusters = Cluster.list(
+        show_all=show_all, since=since, status=cluster_status, force=force
+    )
 
     den_clusters = clusters.get("den_clusters", None)
     running_clusters = (
