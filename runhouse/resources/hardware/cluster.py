@@ -617,6 +617,8 @@ class Cluster(Resource):
 
         from runhouse.utils import run_setup_command
 
+        secrets_to_sync = []
+
         for setup_step in self.image.setup_steps:
             for node in self.ips:
                 if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
@@ -627,8 +629,7 @@ class Cluster(Resource):
                         conda_yaml=setup_step.kwargs.get("conda_yaml"),
                         cluster=self,
                     )
-
-                if setup_step.step_type == ImageSetupStepType.PACKAGES:
+                elif setup_step.step_type == ImageSetupStepType.PACKAGES:
                     self.install_packages(
                         setup_step.kwargs.get("reqs"),
                         conda_env_name=setup_step.kwargs.get("conda_env_name"),
@@ -645,7 +646,8 @@ class Cluster(Resource):
                         stream_logs=True,
                         node=node,
                     )
-
+                elif setup_step.step_type == ImageSetupStepType.SYNC_SECRETS:
+                    secrets_to_sync += setup_step.kwargs.get("providers")
                 elif setup_step.step_type == ImageSetupStepType.RSYNC:
                     self.rsync(
                         source=setup_step.kwargs.get("source"),
@@ -655,6 +657,7 @@ class Cluster(Resource):
                         contents=setup_step.kwargs.get("contents"),
                         filter_options=setup_step.kwargs.get("filter_options"),
                     )
+        return secrets_to_sync
 
     def _sync_runhouse_to_cluster(
         self,
@@ -1056,7 +1059,7 @@ class Cluster(Resource):
     ):
         from runhouse.resources.envs import Env
 
-        self._sync_image_to_cluster()
+        secrets_to_sync = self._sync_image_to_cluster()
 
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
         local_rh_package_path = None
@@ -1197,7 +1200,9 @@ class Cluster(Resource):
             self._start_ray_workers(DEFAULT_RAY_PORT)
 
         self.put_resource(Env(name=DEFAULT_PROCESS_NAME))
-        # TODO - image env vars and secrets
+
+        if secrets_to_sync:
+            self.sync_secrets(secrets_to_sync)
 
         return status_codes
 
