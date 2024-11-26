@@ -253,6 +253,39 @@ def nested_call_logs_stream_helper(slow_numpy_array):
 @pytest.mark.moduletest
 class TestModule:
 
+    MAP_FIXTURES = {"resource": "cluster"}
+
+    UNIT = {"cluster": ["named_cluster"]}
+    LOCAL = {
+        "cluster": [
+            "docker_cluster_pk_ssh_no_auth",  # Represents private dev use case
+            "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
+            "docker_cluster_pk_http_exposed",  # Represents within VPC use case
+            "docker_cluster_pwd_ssh_no_auth",
+        ],
+    }
+    MINIMAL = {
+        "cluster": [
+            "static_cpu_pwd_cluster_den_launcher",
+            "static_gpu_pwd_cluster_den_launcher",
+        ]
+    }
+    RELEASE = {
+        "cluster": [
+            "static_cpu_pwd_cluster_den_launcher",  # tests modules on a den-launched cpu cluster
+            "static_gpu_pwd_cluster_den_launcher",  # tests modules on a den-launched gpu cluster
+        ]
+    }
+    MAXIMAL = {
+        "cluster": [
+            "docker_cluster_pk_ssh_no_auth",
+            "docker_cluster_pk_ssh_den_auth",
+            "docker_cluster_pwd_ssh_no_auth",
+            "static_cpu_pwd_cluster",
+            "multinode_cpu_docker_conda_cluster",
+        ]
+    }
+
     # --------- integration tests ---------
     @pytest.mark.level("local")
     def test_call_module_method(self, cluster):
