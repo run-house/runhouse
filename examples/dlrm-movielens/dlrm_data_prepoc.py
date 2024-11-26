@@ -1,83 +1,75 @@
 import runhouse as rh 
 
 
-def preprocess_data(s3_base_path): 
-    import ray
-    from sklearn.preprocessing import LabelEncoder
-    import pandas as pd
+import ray
+import ray.data
 
-    genome_scores = ray.data.read_csv(f'{s3_base_path}/genome-scores.csv')
-    genome_tags = ray.data.read_csv(f'{s3_base_path}/genome-tags.csv')
-    movies = ray.data.read_csv(f'{s3_base_path}/movies.csv')
-    ratings = ray.data.read_csv(f'{s3_base_path}/ratings.csv')
-    tags = ray.data.read_csv(f'{s3_base_path}/tags.csv')
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
+from typing import Dict, Any
+import subprocess 
 
-    # Join ratings and movies datasets
-    def join_ratings_movies(row):
-        movie = movies.filter(lambda m: m['movieId'] == row['movieId']).take(1)[0]
-        return {**row, **movie}
+def download_data(s3_path: str, local_path: str):
+    import subprocess  
+    subprocess.run(f"aws s3 sync {s3_path} {local_path}", shell=True)
 
-    data = ratings.map(join_ratings_movies)
 
-    # Join genome scores with genome tags to get descriptive tags
-    genome_combined = genome_scores.map(lambda row: {
-        **row,
-        'tag': genome_tags.filter(lambda tag: tag['tagId'] == row['tagId']).take(1)[0]['tag']
-    })
+def preprocess_data(local_path: str, s3_write_path: str):
+    """
+    Preprocess MovieLens dataset using Ray Data for distributed processing.
+    
+    Args:
+        local_path (str): Local path to the directory containing CSV files.
+        s3_write_path (str): Path to save the processed dataset in S3.
+    """
+    # Load datasets using Ray Data
+    def load_dataset(filename: str):
+        print('Reading file:', filename)
+        return ray.data.read_csv(f"{local_path}/{filename}")
 
-    # Aggregate genome data to create features for each movie
-    def aggregate_genomic_features(block_iter):
-        df = pd.DataFrame(block_iter)
-        genomic_features_df = df.pivot_table(
-            index='movieId',
-            columns='tag',
-            values='relevance',
-            fill_value=0
-        )
-        return genomic_features_df.reset_index()
+    # Load datasets
+    print('Loading datasets')
+    ratings = load_dataset("ratings.csv")
+    print("Schema:", ratings.schema())
 
-    genomic_features = genome_combined.map_batches(aggregate_genomic_features).to_pandas()
+    # Preprocess data for DLRM model
+    print('Preprocessing data for DLRM')
+    def normalize_ratings(batch):
+        min_rating = batch["rating"].min()
+        max_rating = batch["rating"].max()
+        batch["rating"] = (batch["rating"] - min_rating) / (max_rating - min_rating)
+        return batch
+    
+    ratings = ratings.map_batches(normalize_ratings, batch_format="pandas")
+    train_ds, remaining_ds = ratings.train_test_split(test_size=0.3, shuffle=True, seed=42)
+    eval_ds, test_ds = remaining_ds.train_test_split(test_size=0.5, shuffle=True, seed=42)
 
-    # Add genomic features to the movie dataset
-    def add_genomic_features(row):
-        movie_id = row['movieId']
-        genomic_features_row = genomic_features.loc[genomic_features['movieId'] == movie_id]
-        if not genomic_features_row.empty:
-            genomic_data = genomic_features_row.iloc[0].to_dict()
-            row.update(genomic_data)
-        return row
+    def prepare_features_labels(batch):
+        import torch
+        # Prepare dense features as (userId, movieId) and labels as normalized ratings
+        dense_features = torch.tensor(list(zip(batch["userId"], batch["movieId"])), dtype=torch.float32)
+        labels = torch.tensor(batch["rating"].values, dtype=torch.float32)
+        return {"dense_features": dense_features, "labels": labels}
 
-    data = data.map(add_genomic_features)
+    train_ds = train_ds.map_batches(prepare_features_labels, batch_format="pandas")
+    eval_ds = eval_ds.map_batches(prepare_features_labels, batch_format="pandas")
+    test_ds = test_ds.map_batches(prepare_features_labels, batch_format="pandas")
 
-    # Feature engineering
-    def feature_engineering(row):
-        # Extracting year from title
-        title = row.get('title', '')
-        year = int(title[-5:-1]) if '(' in title and title[-5:-1].isdigit() else 0
-        row['year'] = year
-        # Fill missing tag values
-        row['tag'] = row['tag'] if pd.notnull(row['tag']) else ''
-        return row
+    def write_to_s3(ds, s3_path):
+        ds.write_parquet(s3_path)   
+        print(f"Processed data saved to {s3_path}")
+    
+    # Save processed data to S3
+    datasets = {'train': train_ds
+                , 'eval': eval_ds
+                , 'test': test_ds}
 
-    data = data.map(feature_engineering)
+    for dataset_name, dataset in datasets.items():
+        s3_path = f"{s3_write_path}/{dataset_name}/processed_movielens_data.parquet"
+        write_to_s3(dataset, s3_path)
 
-    # Encode categorical data
-    def encode_categorical(data):
-        df = pd.DataFrame(data)
-        user_encoder = LabelEncoder()
-        movie_encoder = LabelEncoder()
-        df['userId'] = user_encoder.fit_transform(df['userId'])
-        df['movieId'] = movie_encoder.fit_transform(df['movieId'])
-        return df.to_dict(orient="records")
+    print('Preprocessing complete')
 
-    encoded_data = data.map_batches(encode_categorical)
-
-    # Save the preprocessed data to a CSV file
-    processed_data_df = encoded_data.to_pandas()
-    processed_data_file = 'processed_movielens_data_with_genomic_features.csv'
-    processed_data_df.to_csv(processed_data_file, index=False)
-
-    print(f"Data preprocessing complete. Processed data saved to {processed_data_file}.")
 
 
 if __name__ == "__main__":
@@ -86,17 +78,28 @@ if __name__ == "__main__":
     cluster = rh.cluster(
         name="rh-preprocessing",
         instance_type="CPU:4+",
+        #memory = "32+",
         provider="aws",
         region="us-east-1",
         num_nodes = num_nodes,
         default_env=rh.env(
             reqs=[
-                "sklearn",
+                "scikit-learn",
                 "pandas",
                 "ray[data]",
+                "awscli",
             ],
         ),
     ).up_if_not()
+    
+    cluster.sync_secrets(["aws"])   
 
-    remote_preprocess = rh.function(preprocess_data).to(cluster).distribute('ray')
-    remote_preprocess('s3://rh-demo-external/dlrm-training-example/raw_data/')
+    cluster.restart_server()
+    remote_download = rh.function(download_data).to(cluster)
+    remote_download(s3_path = 's3://rh-demo-external/dlrm-training-example/raw_data'
+                    , local_path = '~/dlrm')
+
+    remote_preprocess = rh.function(preprocess_data).to(cluster, name = 'preprocess_data').distribute('ray')
+    print('sent function to cluster')
+    remote_preprocess(local_path= '~/dlrm'
+                      , s3_write_path= 's3://rh-demo-external/dlrm-training-example/preprocessed_data/')

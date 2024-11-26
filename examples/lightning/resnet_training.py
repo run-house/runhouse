@@ -109,28 +109,8 @@ class ResNetTrainer():
         self.lit_module = None 
         self.trainer = None 
     
-    # def load_train(self, path, batch_size):
-    #     print("Loading training data")
-    #     subprocess.run(f"aws s3 sync {path} ~/train_dataset", shell=True)
-    #     dataset = load_from_disk("~/train_dataset").with_format("torch")
-    #     sampler = DistributedSampler(dataset)
-    #     self.train_loader = DataLoader(
-    #         dataset, batch_size=batch_size, shuffle=False, sampler = sampler
-    #     )
-
-    # def load_validation(self, path, batch_size):
-    #     print("Loading validation data")
-    #     subprocess.run(f"aws s3 sync {path} ~/val_dataset", shell=True)
-    #     dataset = load_from_disk("~/val_dataset").with_format("torch")
-    #     sampler = DistributedSampler(dataset)
-    #     self.val_loader = DataLoader(
-    #         dataset, batch_size=batch_size, shuffle=False, sampler = sampler
-    #     )
-
     def load_data(self, train_data_path, val_data_path, batch_size = 32): 
         self.data_module = ImageNetDataModule(train_data_path=train_data_path, val_data_path=val_data_path, batch_size=batch_size)
-        # self.load_train(path = train_data_path, batch_size=batch_size)
-        # self.load_validation(path = val_data_path, batch_size = batch_size)
     
     def load_model(self, num_classes, pretrained = False, s3_bucket = None, s3_key = None, weights_path = None): 
         self.lit_module = ResNet152LitModule(
@@ -162,7 +142,7 @@ class ResNetTrainer():
             raise ValueError("Trainer not loaded. Please call load_trainer() before calling fit().")    
         
         import torch.distributed as dist
-        #dist.init_process_group(backend="nccl", init_method="env://")
+        dist.init_process_group(backend="nccl", init_method="env://")
         self.trainer.fit(self.lit_module, self.data_module) 
 
     def save(self): 
@@ -171,15 +151,16 @@ class ResNetTrainer():
         
         self.lit_module.save_weights_to_s3(self.working_s3_bucket, self.working_s3_path)
 
-# ### Main training routine
+# ### Training routine
 if __name__ == "__main__":
     train_data_path = "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/train/"
     val_data_path = "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/test/"
+    
     working_s3_bucket = "rh-demo-external"
     working_s3_path = "resnet-training-example/"
 
     gpus_per_node = 1
-    num_nodes = 2
+    num_nodes = 3
 
     gpu_cluster = (
         rh.cluster(
@@ -205,8 +186,9 @@ if __name__ == "__main__":
         .up_if_not()
         .save()
     )
-#    gpu_cluster.restart_server()
-    gpu_cluster.sync_secrets(["aws"])
+    
+    # gpu_cluster.restart_server() # to restart the Runhouse server, does not tear down the actual underlying compute 
+    gpu_cluster.sync_secrets(["aws"]) # sends our AWS secret to the remote cluster
 
     # Send the Trainer class to the remote GPU cluster 
     trainer = rh.module(ResNetTrainer).to(gpu_cluster)
@@ -228,3 +210,5 @@ if __name__ == "__main__":
         strategy="ddp"
     )
     remote_trainer.fit()
+
+    # gpu_cluster.teardown() # to teardown the underlying compute resources
