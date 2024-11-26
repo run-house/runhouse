@@ -119,7 +119,7 @@ class SlowPandas(rh.Module):
 class ModuleConstructingOtherModule:
     def construct_and_get_env(self):
         remote_calc = rh.module(Calculator)()
-        return remote_calc.env
+        return remote_calc.process
 
 
 class Calculator:
@@ -977,7 +977,7 @@ class TestModule:
         remote_module = rh.module(ModuleConstructingOtherModule).to(
             system=cluster, process=env.name
         )
-        assert remote_module.construct_and_get_env().name == env.name
+        assert remote_module.construct_and_get_env() == env.name
 
     @pytest.mark.level("local")
     def test_logs_stream_in_nested_call(self, cluster):

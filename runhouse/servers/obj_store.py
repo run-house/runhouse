@@ -366,6 +366,17 @@ class ObjStore:
             # Each env is stored within itself, I believe
             return self.get(self.servlet_name)
 
+    def get_process_name(self) -> str:
+        """
+        If this is an env servlet object store, then we are within a Runhouse env.
+        Return the env name.
+        """
+        return (
+            self.servlet_name
+            if (self.servlet_name is not None and self.has_local_storage)
+            else None
+        )
+
     def get_internal_ips(self):
         """Get list of internal IPs of all nodes in the cluster."""
         cluster_config = self.get_cluster_config()
@@ -1764,6 +1775,7 @@ class ObjStore:
         state: Dict[Any, Any],
         dryrun: bool,
     ) -> str:
+        from runhouse.resources.envs import Env
         from runhouse.resources.module import Module
         from runhouse.resources.resource import Resource
 
@@ -1782,6 +1794,10 @@ class ObjStore:
         resource_config["resource_subtype"] = subtype
         if provider:
             resource_config["provider"] = provider
+
+        if "process" in resource_config and isinstance(resource_config["process"], Env):
+            # We don't want to store the Env, we just want to store the process string
+            resource_config["process"] = resource_config["process"].name
 
         logger.debug(f"Message received from client to construct resource: {name}")
 

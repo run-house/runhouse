@@ -772,7 +772,7 @@ class Cluster(Resource):
         resource: Resource,
         state: Dict = None,
         dryrun: bool = False,
-        env: Union[str, "Env"] = None,
+        process: Optional[str] = None,
     ):
         """Put the given resource on the cluster's object store. Returns the key (important if name is not set).
 
@@ -787,19 +787,11 @@ class Cluster(Resource):
             resource.name = DEFAULT_PROCESS_NAME
 
         # Logic to get env_name from different ways env can be provided
-        env = env or (
-            resource.env
-            if hasattr(resource, "env")
-            else resource.name or resource.env_name
-            if resource.RESOURCE_TYPE == "env"
+        env_name = (
+            process or resource.process
+            if hasattr(resource, "process")
             else DEFAULT_PROCESS_NAME
         )
-
-        if env and not isinstance(env, str):
-            env = _get_env_from(env)
-            env_name = env.name or DEFAULT_PROCESS_NAME
-        else:
-            env_name = env
 
         # Env name could somehow be a full length `username/base_env`, trim it down to just the env name
         if env_name:

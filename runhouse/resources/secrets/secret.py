@@ -383,6 +383,7 @@ class Secret(Resource):
         Example:
             >>> secret.to(my_cluster, path=secret.path)
         """
+        from runhouse import Env
 
         new_secret = copy.deepcopy(self)
         new_secret.name = name or self.name or generate_default_name(prefix="secret")
@@ -391,7 +392,14 @@ class Secret(Resource):
         if system.on_this_cluster():
             new_secret.pin()
         else:
-            system.put_resource(new_secret, env=env)
+            process = (
+                env
+                if isinstance(env, str)
+                else env.name
+                if isinstance(env, Env)
+                else None
+            )
+            system.put_resource(new_secret, process=process)
 
         return new_secret
 
