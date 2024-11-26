@@ -619,6 +619,8 @@ class Cluster(Resource):
 
         secrets_to_sync = []
 
+        secrets_to_sync = []
+
         for setup_step in self.image.setup_steps:
             for node in self.ips:
                 if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
@@ -1066,7 +1068,11 @@ class Cluster(Resource):
     ):
         from runhouse.resources.envs import Env
 
+<<<<<<< HEAD
         image_secrets, image_env_vars = self._sync_image_to_cluster()
+=======
+        secrets_to_sync = self._sync_image_to_cluster()
+>>>>>>> 496887f4 (Add sync_secrets to image)
 
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
         local_rh_package_path = None
@@ -1214,8 +1220,13 @@ class Cluster(Resource):
 
         self.put_resource(Env(name=DEFAULT_PROCESS_NAME))
 
+<<<<<<< HEAD
         if image_secrets:
             self.sync_secrets(image_secrets)
+=======
+        if secrets_to_sync:
+            self.sync_secrets(secrets_to_sync)
+>>>>>>> 496887f4 (Add sync_secrets to image)
 
         return status_codes
 
