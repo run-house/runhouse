@@ -73,15 +73,15 @@ class ResNet152Trainer:
         self.device = torch.device(f"cuda:{self.device_id}")
 
     def init_model(
-        self, num_classes, model_weight_path, lr, weight_decay, step_size, gamma
+        self, num_classes, path_to_model_weights, lr, weight_decay, step_size, gamma
     ):
-        if model_weight_path:
+        if path_to_model_weights:
             self.model = DDP(
                 ResNet152Model(
                     num_classes=num_classes,
                     pretrained=True,
                     s3_bucket=self.s3_bucket,
-                    s3_key=model_weight_path,
+                    s3_key=path_to_model_weights,
                 ).to(self.device),
                 device_ids=[self.device_id],
             )
@@ -253,9 +253,8 @@ if __name__ == "__main__":
             instance_type=f"A10G:{gpus_per_node}",
             num_nodes=num_nodes,
             provider="aws",
-            default_env=rh.env(
-                name="pytorch_env",
-                reqs=[
+            image=rh.Image("pytorch").install_reqs(
+                [
                     "torch==2.5.1",
                     "torchvision==0.20.1",
                     "Pillow==11.0.0",
