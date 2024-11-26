@@ -12,8 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
 
-import yaml
-
 from runhouse.resources.hardware.utils import (
     _setup_creds_from_dict,
     _setup_default_creds,
@@ -1129,33 +1127,6 @@ class Cluster(Resource):
         # Update the cluster config on the cluster
         self.save_config_to_cluster()
 
-        # Save a limited version of the local ~/.rh config to the cluster with the user's hashed token,
-        # if such does not exist on the cluster
-        if rns_client.token:
-            user_config = yaml.safe_dump(
-                {
-                    "token": rns_client.cluster_token(
-                        resource_address=rns_client.username
-                    ),
-                    "username": rns_client.username,
-                    "default_folder": rns_client.default_folder,
-                }
-            )
-
-            if (
-                self.run(
-                    ["[ -f ~/.rh/config.yaml ]"],
-                    node=self.head_ip,
-                    require_outputs=False,
-                )[0]
-                == 0
-            ):
-                logger.debug("Did not change config.yaml")
-            else:
-                command = f"echo '{user_config}' > ~/.rh/config.yaml"
-                self.run([command], node=self.head_ip, require_outputs=False)
-                logger.debug("Saved user config to cluster")
-
         restart_cmd = (
             base_cli_cmd
             + (" --restart-ray" if restart_ray else "")
@@ -1195,6 +1166,28 @@ class Cluster(Resource):
 
         self.put_resource(Env(name=DEFAULT_PROCESS_NAME))
         # TODO - image env vars and secrets
+
+        # Save a limited version of the local ~/.rh config to the cluster with the user's hashed token,
+        # if such does not exist on the cluster
+        if rns_client.token:
+            from runhouse.resources.secrets import Secret
+
+            user_config = {
+                "token": rns_client.cluster_token(resource_address=rns_client.username),
+                "username": rns_client.username,
+                "default_folder": rns_client.default_folder,
+            }
+
+            user_config_secret = Secret(name="rh_user_config", values=user_config).to(
+                self
+            )
+            self.call(
+                user_config_secret.name,
+                "_write_to_file",
+                path="~/.rh/config.yaml",
+                format="yaml",
+            )
+            logger.debug("Saved user config to cluster")
 
         return status_codes
 
