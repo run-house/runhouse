@@ -11,19 +11,6 @@ logger = get_logger(__name__)
 
 logging.getLogger("numexpr").setLevel(logging.WARNING)
 
-collect_data: bool = configs.data_collection_enabled()
-if collect_data:
-    import sentry_sdk
-
-    sentry_sdk.init(
-        dsn="https://93f64f9efc194d5bb66edc0693fde714@o4505521613307904.ingest.sentry.io/4505522385911808",
-        environment="production",
-        # Set traces_sample_rate to 1.0 to capture 100%
-        # of transactions for performance monitoring.
-        # We recommend adjusting this value in production,
-        traces_sample_rate=1.0,
-    )
-
 
 def resolve_rns_path(path: str):
     return rns_client.resolve_rns_path(path)
