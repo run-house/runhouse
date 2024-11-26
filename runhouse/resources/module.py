@@ -742,7 +742,9 @@ class Module(Resource):
                             "Cannot specify replicas_per_node if other compute requirements for env "
                             "placement are specified."
                         )
-                    new_process_init_args["compute"] = {"node_idx": i // replicas_per_node}
+                    new_process_init_args["compute"] = {
+                        "node_idx": i // replicas_per_node
+                    }
                 self.system.create_process(**new_process_init_args)
 
             new_module = copy.copy(self)
