@@ -1167,7 +1167,11 @@ class Cluster(Resource):
             + (f" --domain {domain}" if domain else "")
             + f" --port {self.server_port}"
             + f" --api-server-url {rns_client.api_server_url}"
-            + f" --conda-env {self.image.conda_env_name if self.image else None}"
+            + (
+                f" --conda-env {self.image.conda_env_name}"
+                if self.image and self.image.conda_env_name
+                else ""
+            )
             + " --from-python"
         )
 
