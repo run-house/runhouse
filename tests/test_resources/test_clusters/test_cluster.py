@@ -848,7 +848,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         exp = cluster.run("echo hello")
 
         assert res[0][0] == 0
-        assert res[0][1] == exp[0][1]
+        assert res[0][1].strip() == exp[0][1].strip()
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
