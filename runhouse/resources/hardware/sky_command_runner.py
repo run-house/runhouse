@@ -238,6 +238,7 @@ class SkySSHRunner(SSHCommandRunner):
         stream_logs: bool = True,
         max_retry: int = 1,
         return_cmd: bool = False,  # RH MODIFIED
+        ignore_existing: bool = False,  # RH MODIFIED
     ) -> None:
         """Uses 'rsync' to sync 'source' to 'target'.
 
@@ -282,6 +283,7 @@ class SkySSHRunner(SSHCommandRunner):
             max_retry=max_retry,
             filter_options=filter_options,
             return_cmd=return_cmd,
+            ignore_existing=ignore_existing,
         )
 
 
@@ -431,6 +433,7 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
         max_retry: int = 1,
         filter_options: bool = False,  # RH MODIFIED
         return_cmd: bool = False,  # RH MODIFIED
+        ignore_existing: bool = False,  # RH MODIFIED
     ) -> None:
         """Uses 'rsync' to sync 'source' to 'target'.
         Args:
@@ -481,4 +484,5 @@ class SkyKubernetesRunner(KubernetesCommandRunner):
             get_remote_home_dir=get_remote_home_dir,
             filter_options=filter_options,
             return_cmd=return_cmd,
+            ignore_existing=ignore_existing,
         )

@@ -4,13 +4,16 @@ import importlib
 import json
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 import threading
 import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
+import yaml
 
 from runhouse.resources.hardware.utils import (
     _setup_creds_from_dict,
@@ -1128,6 +1131,30 @@ class Cluster(Resource):
         # Update the cluster config on the cluster
         self.save_config_to_cluster()
 
+        # Save a limited version of the local ~/.rh config to the cluster with the user's
+        # if such does not exist on the cluster
+        if rns_client.token:
+            user_config = {
+                "token": rns_client.cluster_token(resource_address=rns_client.username),
+                "username": rns_client.username,
+                "default_folder": rns_client.default_folder,
+            }
+
+            yaml_path = Path(f"{tempfile.mkdtemp()}/config.yaml")
+            with open(yaml_path, "w") as config_file:
+                yaml.safe_dump(user_config, config_file)
+
+            try:
+                self.rsync(
+                    source=yaml_path,
+                    dest="~/.rh/",
+                    up=True,
+                    ignore_existing=True,
+                )
+                logger.debug("saved config.yaml on the cluster")
+            finally:
+                shutil.rmtree(yaml_path.parent)
+
         restart_cmd = (
             base_cli_cmd
             + (" --restart-ray" if restart_ray else "")
@@ -1171,28 +1198,6 @@ class Cluster(Resource):
 
         self.put_resource(Env(name=DEFAULT_PROCESS_NAME))
         # TODO - image env vars and secrets
-
-        # Save a limited version of the local ~/.rh config to the cluster with the user's hashed token,
-        # if such does not exist on the cluster
-        if rns_client.token:
-            from runhouse.resources.secrets import Secret
-
-            user_config = {
-                "token": rns_client.cluster_token(resource_address=rns_client.username),
-                "username": rns_client.username,
-                "default_folder": rns_client.default_folder,
-            }
-
-            user_config_secret = Secret(name="rh_user_config", values=user_config).to(
-                self
-            )
-            self.call(
-                user_config_secret.name,
-                "_write_to_file",
-                path="~/.rh/config.yaml",
-                format="yaml",
-            )
-            logger.debug("Saved user config to cluster")
 
         return status_codes
 
@@ -1370,6 +1375,7 @@ class Cluster(Resource):
         contents: bool = False,
         filter_options: str = None,
         stream_logs: bool = False,
+        ignore_existing: Optional[bool] = False,
     ):
         """
         Sync the contents of the source directory into the destination.
@@ -1389,6 +1395,8 @@ class Cluster(Resource):
                 an additional directory layer at the destination. (Default: ``False``).
             filter_options (Optional[str], optional): The filter options for rsync.
             stream_logs (Optional[bool], optional): Whether to stream logs to the stdout/stderr. (Default: ``False``).
+            ignore_existing (Optional[bool], optional): Whether the rsync should skip updating files that already exist
+                on the destination. (Default: ``False``).
 
         .. note::
             Ending ``source`` with a slash will copy the contents of the directory into dest,
@@ -1411,6 +1419,7 @@ class Cluster(Resource):
                     contents=contents,
                     filter_options=filter_options,
                     stream_logs=stream_logs,
+                    ignore_existing=ignore_existing,
                 )
             return
 
@@ -1445,6 +1454,8 @@ class Cluster(Resource):
                 source,
                 dest,
             ]  # -a is archive mode, -v is verbose, -z is compress
+            if ignore_existing:
+                cmd += ["--ignore-existing"]
             if filter_options:
                 cmd += [filter_options]
 
@@ -1473,6 +1484,7 @@ class Cluster(Resource):
                 up=up,
                 filter_options=filter_options,
                 stream_logs=stream_logs,
+                ignore_existing=ignore_existing,
             )
 
         else:
@@ -1493,6 +1505,7 @@ class Cluster(Resource):
                 filter_options=filter_options,
                 stream_logs=stream_logs,
                 return_cmd=True,
+                ignore_existing=ignore_existing,
             )
             run_command_with_password_login(rsync_cmd, pwd, stream_logs)
 

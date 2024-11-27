@@ -30,6 +30,7 @@ GIT_EXCLUDE = '.git/info/exclude'
 # to get a total progress bar, but it requires rsync>=3.1.0 and Mac
 # OS has a default rsync==2.6.9 (16 years old).
 RSYNC_DISPLAY_OPTION = '-Pavz'
+RSYNC_IGNORE_EXISTING = '--ignore-existing'
 # Legend
 #   dir-merge: ignore file can appear in any subdir, applies to that
 #     subdir downwards
@@ -233,6 +234,7 @@ class CommandRunner:
             get_remote_home_dir: Callable[[], str] = lambda: '~',
             filter_options: Optional[str] = None,  # RH MODIFIED,
             return_cmd: bool = False,  # RH MODIFIED,
+            ignore_existing: bool = False # RH MODIFIED,
         ) -> None:
         """Builds the rsync command."""
         # Build command.
@@ -240,6 +242,9 @@ class CommandRunner:
         if prefix_command is not None:
             rsync_command.append(prefix_command)
         rsync_command += ['rsync', RSYNC_DISPLAY_OPTION]
+
+        if ignore_existing:
+            rsync_command += [RSYNC_IGNORE_EXISTING]
 
         # --filter
         addtl_filter_options = f" --filter='{filter_options}'" if filter_options else ""    # RH MODIFIED
