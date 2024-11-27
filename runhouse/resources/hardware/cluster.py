@@ -619,8 +619,6 @@ class Cluster(Resource):
 
         secrets_to_sync = []
 
-        secrets_to_sync = []
-
         for setup_step in self.image.setup_steps:
             for node in self.ips:
                 if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
