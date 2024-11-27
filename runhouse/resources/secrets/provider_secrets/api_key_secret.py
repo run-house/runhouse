@@ -1,7 +1,5 @@
 from typing import Dict, Optional, Union
 
-from runhouse.resources.envs.env import Env
-from runhouse.resources.envs.env_factory import env as env_factory
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.secrets.provider_secrets.provider_secret import ProviderSecret
 
@@ -38,10 +36,10 @@ class ApiKeySecret(ProviderSecret):
         self,
         system: Union[str, Cluster],
         path: str = None,
-        env: Union[str, Env] = None,
+        process: Optional[str] = None,
         values: bool = True,
         name: Optional[str] = None,
     ):
-        if not (self.path or path or env):
-            env = env_factory()
-        return super().to(system=system, path=path, env=env, values=values, name=name)
+        return super().to(
+            system=system, path=path, process=process, values=values, name=name
+        )

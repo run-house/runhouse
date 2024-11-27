@@ -1802,11 +1802,10 @@ class Cluster(Resource):
         Example:
             >>> cpu.sync_secrets(secrets=["aws", "lambda"])
         """
+        from runhouse.resources.envs import Env
         from runhouse.resources.secrets import Secret
 
         if isinstance(env, str):
-            from runhouse.resources.envs import Env
-
             env = Env.from_name(env)
 
         secrets = []
@@ -1822,7 +1821,14 @@ class Cluster(Resource):
             secrets = secrets.values()
 
         for secret in secrets:
-            secret.to(self, env=env)
+            process = (
+                env
+                if isinstance(env, str)
+                else env.name
+                if isinstance(env, Env)
+                else None
+            )
+            secret.to(self, process=process)
 
     def ipython(self):
         # TODO tunnel into python interpreter in cluster
