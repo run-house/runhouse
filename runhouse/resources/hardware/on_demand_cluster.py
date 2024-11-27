@@ -384,11 +384,11 @@ class OnDemandCluster(Cluster):
             return None
         return state[0]
 
-    def _start_ray_workers(self, ray_port):
+    def _start_ray_workers(self, ray_port, env_vars):
         if not self.internal_ips:
             self._update_from_sky_status()
 
-        super()._start_ray_workers(ray_port)
+        super()._start_ray_workers(ray_port, env_vars)
 
         time.sleep(5)
 

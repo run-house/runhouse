@@ -1037,7 +1037,7 @@ class Cluster(Resource):
         and a domain is provided."""
         return self._use_https and not (self._use_caddy and self.domain is not None)
 
-    def _start_ray_workers(self, ray_port):
+    def _start_ray_workers(self, ray_port, env_vars):
         internal_head_ip = self.internal_ips[0]
         worker_ips = self.ips[
             1:
@@ -1047,10 +1047,11 @@ class Cluster(Resource):
             logger.info(
                 f"Starting Ray on worker {host} with head node at {internal_head_ip}:{ray_port}."
             )
-            self.run(
-                commands=[
+            run_setup_command(
+                cmd=[
                     f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
                 ],
+                env_vars=env_vars,
                 node=host,
             )
 
@@ -1208,7 +1209,7 @@ class Cluster(Resource):
             self.client.use_https = https_flag
 
         if restart_ray and len(self.ips) > 1:
-            self._start_ray_workers(DEFAULT_RAY_PORT)
+            self._start_ray_workers(DEFAULT_RAY_PORT, env_vars=image_env_vars)
 
         self.put_resource(Env(name=DEFAULT_PROCESS_NAME))
 
