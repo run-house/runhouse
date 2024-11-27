@@ -534,6 +534,7 @@ def ondemand_cluster(
         domain=domain,
         den_auth=den_auth,
         default_env=default_env,
+        image=image,
         name=name,
         dryrun=dryrun,
         **kwargs,
