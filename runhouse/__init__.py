@@ -13,6 +13,8 @@ from runhouse.resources.hardware import (
     OnDemandCluster,
 )
 
+from runhouse.resources.images import Image, ImageSetupStepType
+
 # WARNING: Any built-in module that is imported here must be capitalized followed by all lowercase, or we will
 # will not find the module class when attempting to reconstruct it from a config.
 from runhouse.resources.module import Module, module
