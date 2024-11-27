@@ -1,6 +1,6 @@
 # # An Argo Training Pipeline with Runhouse
 
-# This example demonstrates how to use Argo to orchestrate the training and inference for a recoemmender model
+# This example demonstrates how to use Argo to orchestrate the training and inference for a recommender model
 # with the training function dispatched to a GPU-enabled AWS cloud instance with Ray enabled to actually do the work.
 #
 # We use the very popular MovieLens dataset, which is a dataset of movie ratings. We will train a deep learning model
@@ -18,113 +18,95 @@
 #
 # ## Setting up the Argo pipeline
 # The code actually executed by the pipeline is extremely lean, with each step being setup and dispatch for the Runhouse functions. 
+# The main for local script-style execution is nearly identical to the code put into the pipeline. This enables complete 
+# reproducibility across research, production, and debugging. 
 
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
-  generateName: pytorch-training-pipeline-
+  generateName: ray-training-pipeline-
 spec:
-  entrypoint: pytorch-training-pipeline
+  entrypoint: ray-training-pipeline
   templates:
-  - name: pytorch-training-pipeline
+  - name: ray-training-pipeline
     steps:
-    - - name: bring-up-cluster
-        template: bring-up-cluster-task
-    - - name: access-data
-        template: access-data-task
+    - - name: preprocess-data
+        template: preprocess-data-task
     - - name: train-model
         template: train-model-task
-    - - name: down-cluster
-        template: down-cluster-task
+    - - name: inference-data
+        template: inference-task
 
-  # First, we can bring up an on-demand cluster using Runhouse. This can be done from elastic compute or Kubernetes
-  - name: bring-up-cluster-task
+  - name: preprocess-data-task
     script:
       image: pypypypy/my-pipeline-image:latest
       command: [python]
       env:
-      - name: AWS_ACCESS_KEY_ID
-        valueFrom:
-          secretKeyRef:
-            name: my-secret
-            key: AWS_ACCESS_KEY_ID
-      - name: AWS_SECRET_ACCESS_KEY
-        valueFrom:
-          secretKeyRef:
-            name: my-secret
-            key: AWS_SECRET_ACCESS_KEY
+      # - name: AWS_ACCESS_KEY_ID
+      #   valueFrom:
+      #     secretKeyRef:
+      #       name: my-secret
+      #       key: AWS_ACCESS_KEY_ID
+      # - name: AWS_SECRET_ACCESS_KEY
+      #   valueFrom:
+      #     secretKeyRef:
+      #       name: my-secret
+      #       key: AWS_SECRET_ACCESS_KEY
       - name: RUNHOUSE_API_KEY
         valueFrom:
           secretKeyRef:
             name: my-secret
             key: RUNHOUSE_API_KEY
       source: |
-        # We show the code here for simpler illustration of the workflow, but Runhouse does not require any special setup. Use scripts or containers.
+        # We show the code here for simpler illustration of the workflow, but Runhouse is agnostic to how the steps is run. 
         import os, runhouse as rh
 
         # First we configure the environment to setup Runhouse and AWS credentials. We only need to configure the AWS credentials in the first step since the cluster is saved to Runhouse and we reuse the resource.
         rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
+        aws_secret = rh.secret("aws")
+        aws_secret._write_to_file('~/.aws/credentials',aws_secret.values)
 
-        import subprocess
-        subprocess.run(
-            [
-                "aws",
-                "configure",
-                "set",
-                "aws_access_key_id",
-                os.getenv("AWS_ACCESS_KEY_ID"),
-            ],
-            check=True,
-        )
-        subprocess.run(
-            [
-                "aws",
-                "configure",
-                "set",
-                "aws_secret_access_key",
-                os.getenv("AWS_SECRET_ACCESS_KEY"),
-            ],
-            check=True,
-        )
-        print(os.getcwd())
+        # Now we can bring up the cluster with Runhouse. 
+        num_nodes = 2
+    
+        cluster = rh.cluster(
+            name="rh-preprocessing",
+            instance_type="CPU:4+",
+            #memory = "32+",
+            provider="aws",
+            region="us-east-1",
+            num_nodes = num_nodes,
+            autostop_minutes = 45, 
+            default_env=rh.env(
+                reqs=[
+                    "scikit-learn",
+                    "pandas",
+                    "ray[data]",
+                    "awscli",
+                    "torch"
+                ],
+            ),
+        ).up_if_not()
 
-        # Now we bring up the cluster and save it to Runhouse to reuse in subsequent steps. This allows for reuse of the same compute and much better statefulness across multiple Argo steps.
-        cluster = rh.ondemand_cluster(name="rh-a10g-torchtrain", instance_type="A10G:1", provider="aws", autostop_mins=90).up_if_not()
+        cluster.sync_secrets(["aws"])   
 
-        print(cluster.is_up())
-        cluster.save()
+        # Set some variables (maybe we would not hard code this in a proper production)
+        s3_raw = 's3://rh-demo-external/dlrm-training-example/raw_data'
+        local_path = '~/dlrm'
+        s3_preprocessed = 's3://rh-demo-external/dlrm-training-example/preprocessed_data'
 
+        # The underlying functions that we run are baked into the container image, but run identically to functions we run locally
+        # Here, we import the preprocessing function before sending it off to the remote cluster we launched in this step 
+        sys.path.append(os.path.expanduser("~/"))
+        from dlrm_data_preproc import preprocess_data
+
+        remote_preprocess = rh.function(preprocess_data).to(cluster, name = 'preprocess_data').distribute('ray')
+        print('sent function to cluster')
+        remote_preprocess(s3_read_path = s3_raw
+                          , s3_write_path = s3_preprocessed)
+        
+        cluster.teardown()
   # This step represents a step to access and lightly preprocess the dataset. The MNIST example is trivial, but it is worth calling out that we are doing this preprocessing on the same compute we will use later to do the training and we do not need to re-access the data or re-download it.
-  - name: access-data-task
-    script:
-      image: pypypypy/my-pipeline-image:latest
-      command: [python]
-      env:
-      - name: RUNHOUSE_API_KEY
-        valueFrom:
-          secretKeyRef:
-            name: my-secret
-            key: RUNHOUSE_API_KEY
-      source: |
-        import sys, os, runhouse as rh
-
-        sys.path.append(os.path.expanduser("~/training"))
-        from TorchBasicExample import download_data, preprocess_data
-
-        rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
-
-        env = rh.env(name="test_env", reqs=["torch", "torchvision"])
-
-        # I am adding /paul/ since I have saved the cluster to Runhouse with my account.
-        cluster = rh.cluster(name="/paul/rh-a10g-torchtrain")
-        cluster.is_up()
-        remote_download = rh.function(download_data).to(cluster, env=env)
-        remote_preprocess = rh.function(preprocess_data).to(cluster, env=env)
-
-        remote_download()
-        remote_preprocess("./data")
-
-  # Now we run the training. In this step, we dispatch the training to the remote cluster. The model is trained on the remote cluster, and the model checkpoints are saved to an S3 bucket.
   - name: train-model-task
     script:
       image: pypypypy/my-pipeline-image:latest
@@ -137,39 +119,69 @@ spec:
             key: RUNHOUSE_API_KEY
       source: |
         import sys, os, runhouse as rh
-
-        sys.path.append(os.path.expanduser("~/training"))
-        from TorchBasicExample import SimpleTrainer
-
         rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
+        aws_secret = rh.secret("aws")
+        aws_secret._write_to_file('~/.aws/credentials',aws_secret.values)
 
-        cluster = rh.cluster(name="/paul/rh-a10g-torchtrain").up_if_not()
+        sys.path.append(os.path.expanduser("~/"))
+        from dlrm_training import ray_trainer
+        
+        train_data_path = "s3://rh-demo-external/dlrm-training-example/preprocessed_data/train/"
+        val_data_path ="s3://rh-demo-external/dlrm-training-example/preprocessed_data/eval/"
 
-        env = rh.env(name="test_env", reqs=["torch", "torchvision"])
+        working_s3_bucket = "rh-demo-external"
+        working_s3_path = "dlrm-training-example/"
 
-        remote_torch_example = rh.module(SimpleTrainer).to(
-            cluster, env=env, name="torch-basic-training"
-        )
+        # Create a cluster of 3 GPUs
+        gpus_per_node = 1
+        num_nodes = 3
 
-        model = remote_torch_example()
-
-        batch_size = 64
-        epochs = 5
-        learning_rate = 0.01
-
-        model.load_train("./data", batch_size)
-        model.load_test("./data", batch_size)
-
-        for epoch in range(epochs):
-            model.train_model(learning_rate=learning_rate)
-            model.test_model()
-            model.save_model(
-                bucket_name="my-simple-torch-model-example",
-                s3_file_path=f"checkpoints/model_epoch_{epoch + 1}.pth",
+        gpu_cluster = (
+            rh.cluster(
+                name=f"rh-{num_nodes}x{gpus_per_node}GPU",
+                instance_type=f"A10G:{gpus_per_node}",
+                num_nodes=num_nodes,
+                provider="aws",
+                autostop_minutes=120,
+                default_env=rh.env(
+                    name="pytorch_env",
+                    reqs=[
+                        "torch==2.5.1",
+                        "datasets",
+                        "boto3",
+                        "awscli",
+                        "ray[data,train]"
+                    ],
+                ),
             )
+            .up_if_not()
+            .save()
+        )
+        gpu_cluster.restart_server()
+        gpu_cluster.sync_secrets(["aws"])
 
-  # Finally, we can down the cluster after the training is done.
-  - name: down-cluster-task
+        epochs = 15
+        remote_trainer = rh.function(ray_trainer).to(gpu_cluster, name = "ray_trainer").distribute('ray')
+        
+        remote_trainer(
+            num_nodes, 
+            gpus_per_node,
+            s3_bucket=working_s3_bucket,
+            s3_path=working_s3_path,
+            train_data_path=train_data_path, 
+            val_data_path=val_data_path, 
+            embedding_dim=64,
+            lr=0.001,
+            weight_decay=0.0001,
+            step_size=5,
+            gamma=0.5,
+            epochs=epochs,
+            save_every_epochs=5)
+        
+        cluster.teardown()
+
+  # Now we run the training. In this step, we dispatch the training to the remote cluster. The model is trained on the remote cluster, and the model checkpoints are saved to an S3 bucket.
+  - name: inference-task
     script:
       image: pypypypy/my-pipeline-image:latest
       command: [python]
@@ -180,9 +192,48 @@ spec:
             name: my-secret
             key: RUNHOUSE_API_KEY
       source: |
-        import os, runhouse as rh
-
+        import sys, os, runhouse as rh
         rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
+        aws_secret = rh.secret("aws")
+        aws_secret._write_to_file('~/.aws/credentials',aws_secret.values)
+        
+        sys.path.append(os.path.expanduser("~/"))
 
-        cluster = rh.cluster(name="/paul/rh-a10g-torchtrain")
-        cluster.teardown()
+        gpus_per_node = 1
+        num_nodes = 2
+
+        gpu_cluster = (
+            rh.cluster(
+                name=f"rh-{num_nodes}x{gpus_per_node}GPU",
+                instance_type=f"A10G:{gpus_per_node}",
+                num_nodes=num_nodes,
+                provider="aws",
+                autostop_minutes = 45,
+                default_env=rh.env(
+                    name="pytorch_env",
+                    reqs=[
+                        "torch==2.5.1",
+                        "datasets",
+                        "boto3",
+                        "awscli",
+                        "ray[data,train]"
+                    ],
+                ),
+            )
+            .up_if_not()
+            .save()
+        )
+        
+        gpu_cluster.sync_secrets(["aws"])
+        
+        from dlrm_inference import inference_dlrm
+        remote_inference = rh.function(inference_dlrm).to(gpu_cluster, name = "inference_dlrm").distribute('ray')
+        remote_inference(num_gpus = gpus_per_node, 
+                        num_nodes = num_nodes,
+                        model_s3_bucket="rh-demo-external",
+                        model_s3_key="dlrm-training-example/checkpoints/dlrm_model.pth",
+                        dataset_s3_path = "s3://rh-demo-external/dlrm-training-example/preprocessed_data/test/", 
+                        write_s3_path = "s3://rh-demo-external/dlrm-training-example/predictions/")
+        
+        gpu_cluster.teardown()
+
