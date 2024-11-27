@@ -728,7 +728,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert get_status_data["resource_type"] == status.get("cluster_config").get(
             "resource_type"
         )
-        assert get_status_data["status"] == RunhouseDaemonStatus.RUNNING
+        assert get_status_data["daemon_status"] == RunhouseDaemonStatus.RUNNING
 
         assert get_status_data["resource_info"] == status
         for k in servlet_processes:
@@ -756,7 +756,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             headers=headers,
         )
         assert (
-            get_status_data_resp.json()["data"][0]["status"]
+            get_status_data_resp.json()["data"][0]["daemon_status"]
             == RunhouseDaemonStatus.TERMINATED
         )
 
