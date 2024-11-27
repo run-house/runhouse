@@ -30,10 +30,12 @@ from runhouse.resources.images import ImageSetupStepType
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import (
+    _process_env_vars,
     conda_env_cmd,
     find_locally_installed_version,
     locate_working_dir,
     run_command_with_password_login,
+    run_setup_command,
     ThreadWithException,
 )
 
@@ -599,11 +601,6 @@ class Cluster(Resource):
         Image stuff that needs to happen over SSH because the daemon won't be up yet, so we can't
         use the HTTP client.
         """
-        if not self.image:
-            return
-
-        logger.info(f"Syncing default image {self.image} to cluster.")
-
         env_vars = {}
         log_level = os.getenv("RH_LOG_LEVEL")
         if log_level:
@@ -615,7 +612,10 @@ class Cluster(Resource):
             env_vars["disable_observability"] = "True"
             logger.info("Disabling observability on the cluster")
 
-        from runhouse.utils import run_setup_command
+        if not self.image:
+            return [], env_vars  # secrets, env vars
+
+        logger.info(f"Syncing default image {self.image} to cluster.")
 
         secrets_to_sync = []
 
@@ -657,7 +657,13 @@ class Cluster(Resource):
                         contents=setup_step.kwargs.get("contents"),
                         filter_options=setup_step.kwargs.get("filter_options"),
                     )
-        return secrets_to_sync
+                elif setup_step.step_type == ImageSetupStepType.SET_ENV_VARS:
+                    image_env_vars = _process_env_vars(
+                        setup_step.kwargs.get("env_vars")
+                    )
+                    env_vars.update(image_env_vars)
+
+        return secrets_to_sync, env_vars
 
     def _sync_runhouse_to_cluster(
         self,
@@ -1059,7 +1065,7 @@ class Cluster(Resource):
     ):
         from runhouse.resources.envs import Env
 
-        secrets_to_sync = self._sync_image_to_cluster()
+        image_secrets, image_env_vars = self._sync_image_to_cluster()
 
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
         local_rh_package_path = None
@@ -1177,8 +1183,14 @@ class Cluster(Resource):
             + " --from-python"
         )
 
-        status_codes = self.run(
-            commands=[restart_cmd], node=self.head_ip, require_outputs=False
+        if self.image and self.image.conda_env_name:
+            restart_cmd = conda_env_cmd(restart_cmd, self.image.conda_env_name)
+        status_codes = run_setup_command(
+            cmd=restart_cmd,
+            cluster=self,
+            env_vars=image_env_vars,
+            stream_logs=True,
+            node=self.head_ip,
         )
 
         if not status_codes[0] == 0:
@@ -1201,8 +1213,8 @@ class Cluster(Resource):
 
         self.put_resource(Env(name=DEFAULT_PROCESS_NAME))
 
-        if secrets_to_sync:
-            self.sync_secrets(secrets_to_sync)
+        if image_secrets:
+            self.sync_secrets(image_secrets)
 
         return status_codes
 

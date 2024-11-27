@@ -8,6 +8,7 @@ class ImageSetupStepType(Enum):
     SETUP_CONDA_ENV = "setup_conda_env"
     RSYNC = "rsync"
     SYNC_SECRETS = "sync_secrets"
+    SET_ENV_VARS = "set_env_vars"
 
 
 class ImageSetupStep:
@@ -70,6 +71,15 @@ class Image:
             ImageSetupStep(
                 step_type=ImageSetupStepType.SYNC_SECRETS,
                 providers=providers,
+            )
+        )
+        return self
+
+    def set_env_vars(self, env_vars: Union[str, Dict]):
+        self.setup_steps.append(
+            ImageSetupStep(
+                step_type=ImageSetupStepType.SET_ENV_VARS,
+                env_vars=env_vars,
             )
         )
         return self
