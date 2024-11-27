@@ -8,10 +8,7 @@ class ImageSetupStepType(Enum):
     SETUP_CONDA_ENV = "setup_conda_env"
     RSYNC = "rsync"
     SYNC_SECRETS = "sync_secrets"
-<<<<<<< HEAD
     SET_ENV_VARS = "set_env_vars"
-=======
->>>>>>> 496887f4 (Add sync_secrets to image)
 
 
 class ImageSetupStep:
