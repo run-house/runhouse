@@ -8,6 +8,7 @@ from runhouse.constants import DEFAULT_HTTPS_PORT
 from runhouse.resources.images.image import Image
 from tests.conftest import init_args
 
+from tests.constants import TEST_ENV_VARS
 from tests.utils import test_env
 
 NUM_OF_NODES = 2
@@ -88,14 +89,6 @@ def ondemand_gcp_cluster(request):
     """
     Note: Also used to test conda default env.
     """
-    # env_vars = {
-    #     "var1": "val1",
-    #     "var2": "val2",
-    #     "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
-    #     "RH_AUTOSTOP_INTERVAL": str(
-    #         os.getenv("RH_AUTOSTOP_INTERVAL") or TESTING_AUTOSTOP_INTERVAL
-    #     ),
-    # }
     image = (
         Image(name="default_image")
         .setup_conda_env(
@@ -103,7 +96,7 @@ def ondemand_gcp_cluster(request):
             conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
         )
         .install_packages(test_env().reqs + ["ray==2.30.0"], conda_env_name="base_env")
-        # TODO - env vars
+        .set_env_vars(env_vars=TEST_ENV_VARS)
     )
     args = {
         "name": "gcp-cpu",

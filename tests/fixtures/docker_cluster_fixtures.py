@@ -17,6 +17,7 @@ from runhouse.globals import rns_client
 from runhouse.resources.images import Image
 from tests.conftest import init_args
 
+from tests.constants import TEST_ENV_VARS
 from tests.utils import friend_account, test_env
 
 SSH_USER = "rh-docker-user"
@@ -365,15 +366,19 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
 
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 2
-    default_image = Image(name="default_image").install_packages(
-        [
-            "ray==2.30.0",
-            "pytest",
-            "httpx",
-            "pytest_asyncio",
-            "pandas",
-            "numpy<=1.26.4",
-        ]
+    default_image = (
+        Image(name="default_image")
+        .install_packages(
+            [
+                "ray==2.30.0",
+                "pytest",
+                "httpx",
+                "pytest_asyncio",
+                "pandas",
+                "numpy<=1.26.4",
+            ]
+        )
+        .set_env_vars(env_vars=TEST_ENV_VARS)
     )
 
     local_cluster, cleanup = set_up_local_cluster(
