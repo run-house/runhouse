@@ -2189,6 +2189,7 @@ class Cluster(Resource):
         show_all: bool = False,
         since: Optional[str] = None,
         status: Optional[Union[str, ClusterStatus]] = None,
+        force: bool = False,
     ) -> Dict[str, List[Dict]]:
         """
         Loads Runhouse clusters saved in Den and locally via Sky. If filters are provided, only clusters that
@@ -2201,6 +2202,8 @@ class Cluster(Resource):
                 Value can be in seconds, minutes, hours or days.
             status (str or ClusterStatus, optional): Clusters with the provided status will be returned.
                 Options include: ``running``, ``terminated``, ``initializing``, ``unknown``.
+            force (bool, optional): Whether to force a status update for all relevant clusters, or load the latest
+                values. (Default: False).
 
         Examples:
             >>> Cluster.list(since="75s")
@@ -2216,7 +2219,9 @@ class Cluster(Resource):
         )
 
         # get clusters from den
-        den_clusters_resp = get_clusters_from_den(cluster_filters=cluster_filters)
+        den_clusters_resp = get_clusters_from_den(
+            cluster_filters=cluster_filters, force=force
+        )
         if den_clusters_resp.status_code != 200:
             logger.error(f"Failed to load {rns_client.username}'s clusters from Den")
             den_clusters = []

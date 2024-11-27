@@ -392,7 +392,7 @@ def parse_filters(since: str, cluster_status: Union[str, ClusterStatus]):
     return cluster_filters
 
 
-def get_clusters_from_den(cluster_filters: dict):
+def get_clusters_from_den(cluster_filters: dict, force: bool):
     get_clusters_params = {"resource_type": "cluster", "folder": rns_client.username}
 
     if (
@@ -414,6 +414,7 @@ def get_clusters_from_den(cluster_filters: dict):
                 "cluster_status": ClusterStatus.RUNNING,
                 "daemon_status": RunhouseDaemonStatus.RUNNING,
                 "since": LAST_ACTIVE_AT_TIMEFRAME,
+                "force": force,
             }
         )
 
