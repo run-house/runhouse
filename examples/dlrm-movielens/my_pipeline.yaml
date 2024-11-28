@@ -59,7 +59,7 @@ spec:
             key: RUNHOUSE_API_KEY
       source: |
         # We show the code here for simpler illustration of the workflow, but Runhouse is agnostic to how the steps is run. 
-        import os, runhouse as rh
+        import os, sys, runhouse as rh
 
         # First we configure the environment to setup Runhouse and AWS credentials. We only need to configure the AWS credentials in the first step since the cluster is saved to Runhouse and we reuse the resource.
         rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
@@ -97,7 +97,7 @@ spec:
 
         # The underlying functions that we run are baked into the container image, but run identically to functions we run locally
         # Here, we import the preprocessing function before sending it off to the remote cluster we launched in this step 
-        sys.path.append(os.path.expanduser("~/"))
+        sys.path.append(os.path.expanduser("~/code/"))
         from dlrm_data_preproc import preprocess_data
 
         remote_preprocess = rh.function(preprocess_data).to(cluster, name = 'preprocess_data').distribute('ray')
@@ -123,7 +123,7 @@ spec:
         aws_secret = rh.secret("aws")
         aws_secret._write_to_file('~/.aws/credentials',aws_secret.values)
 
-        sys.path.append(os.path.expanduser("~/"))
+        sys.path.append(os.path.expanduser("~/code/"))
         from dlrm_training import ray_trainer
         
         train_data_path = "s3://rh-demo-external/dlrm-training-example/preprocessed_data/train/"
@@ -196,8 +196,8 @@ spec:
         rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
         aws_secret = rh.secret("aws")
         aws_secret._write_to_file('~/.aws/credentials',aws_secret.values)
-        
-        sys.path.append(os.path.expanduser("~/"))
+
+        sys.path.append(os.path.expanduser("~/code/"))
 
         gpus_per_node = 1
         num_nodes = 2
