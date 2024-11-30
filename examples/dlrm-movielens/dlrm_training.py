@@ -145,7 +145,6 @@ def dlrm_train(config):
         print(f"Model saved to s3://{s3_bucket}/{s3_path}checkpoints/{name}")
     
     # Run the training for `epochs` epochs, saving every fifth epoch
-    save_checkpoint(f"dlrm_model.pth")
     for epoch in range(epochs):
         print(f"Epoch {epoch + 1}")
     
@@ -159,7 +158,7 @@ def dlrm_train(config):
         if (epoch + 1) % save_every_epochs == 0:
             save_checkpoint(f"dlrm_model_epoch_{epoch + 1}.pth")
 
-        save_checkpoint(f"dlrm_model.pth")
+    save_checkpoint(f"dlrm_model.pth")
 
 def ray_trainer(num_nodes, gpus_per_node, s3_bucket, s3_path, train_data_path, val_data_path, embedding_dim, lr, weight_decay, step_size, gamma, epochs, save_every_epochs): 
     # Load data 
@@ -177,7 +176,7 @@ def ray_trainer(num_nodes, gpus_per_node, s3_bucket, s3_path, train_data_path, v
         num_workers=num_nodes, 
         use_gpu=True,
         resources_per_worker = {
-            "CPU": 3,  
+            "CPU": 2,  
             "GPU": gpus_per_node   
         },)
 
@@ -214,7 +213,7 @@ if __name__ == "__main__":
             default_env=rh.env(
                 name="pytorch_env",
                 reqs=[
-                    "torch==2.5.1",
+                    "torch",
                     "datasets",
                     "boto3",
                     "awscli",
@@ -244,4 +243,4 @@ if __name__ == "__main__":
         step_size=5,
         gamma=0.5,
         epochs=epochs,
-        save_every_epochs=5)
+        save_every_epochs=2)
