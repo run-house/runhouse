@@ -235,6 +235,8 @@ from tests.fixtures.docker_cluster_fixtures import (
 
 from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
+    den_launched_ondemand_aws_docker_cluster,  # noqa: F401
+    den_launcher_v100_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
     multinode_cpu_docker_conda_cluster,  # noqa: F401
     multinode_gpu_cluster,  # noqa: F401

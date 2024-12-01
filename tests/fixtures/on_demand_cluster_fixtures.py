@@ -5,6 +5,7 @@ import pytest
 import runhouse as rh
 
 from runhouse.constants import DEFAULT_HTTPS_PORT
+from runhouse.resources.hardware.utils import LauncherType
 from runhouse.resources.images.image import Image
 from tests.conftest import init_args
 
@@ -35,14 +36,26 @@ def setup_test_cluster(args, request, create_env=False):
 @pytest.fixture(
     params=[
         "ondemand_aws_docker_cluster",
+        "den_launched_ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_k8s_docker_cluster",
         "v100_gpu_cluster",
+        "den_launcher_v100_gpu_cluster",
         "k80_gpu_cluster",
         "a10g_gpu_cluster",
     ],
-    ids=["aws_cpu", "gcp_cpu", "k8s_cpu", "k8s_docker_cpu", "v100", "k80", "a10g"],
+    ids=[
+        "aws_cpu",
+        "aws_gpu_den_launcher",
+        "gcp_cpu",
+        "k8s_cpu",
+        "k8s_docker_cpu",
+        "v100",
+        "v100_den_launcher",
+        "k80",
+        "a10g",
+    ],
 )
 def ondemand_cluster(request):
     return request.getfixturevalue(request.param)
@@ -61,6 +74,25 @@ def ondemand_aws_docker_cluster(request):
         "region": "us-east-2",
         "image": Image(name="default_image").install_reqs(["ray==2.30.0"]),
         "sky_kwargs": {"launch": {"retry_until_up": True}},
+    }
+    cluster = setup_test_cluster(args, request, create_env=True)
+    return cluster
+
+
+@pytest.fixture(scope="session")
+def den_launched_ondemand_aws_docker_cluster(request):
+    """
+    Note: Also used to test docker and default env with alternate Ray version.
+    """
+    args = {
+        "name": "aws-cpu",
+        "instance_type": "CPU:2+",
+        "provider": "aws",
+        "image_id": "docker:rayproject/ray:latest-py311-cpu",
+        "region": "us-east-2",
+        "image": Image(name="default_image").install_reqs(["ray==2.30.0"]),
+        "sky_kwargs": {"launch": {"retry_until_up": True}},
+        "launcher_type": LauncherType.DEN,
     }
     cluster = setup_test_cluster(args, request, create_env=True)
     return cluster
@@ -157,7 +189,19 @@ def v100_gpu_cluster(request):
         "instance_type": "V100:1",
         "provider": "aws",
     }
-    cluster = setup_test_cluster(args, request)
+    cluster = setup_test_cluster(args, request, create_env=True)
+    return cluster
+
+
+@pytest.fixture(scope="session")
+def den_launcher_v100_gpu_cluster(request):
+    args = {
+        "name": "rh-v100",
+        "instance_type": "V100:1",
+        "provider": "aws",
+        "launcher_type": LauncherType.DEN,
+    }
+    cluster = setup_test_cluster(args, request, create_env=True)
     return cluster
 
 
