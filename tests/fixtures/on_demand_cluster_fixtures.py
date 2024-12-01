@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -5,6 +6,7 @@ import pytest
 import runhouse as rh
 
 from runhouse.constants import DEFAULT_HTTPS_PORT
+from runhouse.resources.hardware.utils import LauncherType
 from runhouse.resources.images.image import Image
 from tests.conftest import init_args
 
@@ -39,14 +41,30 @@ def setup_test_cluster(args, request, test_rns_folder, setup_base=False):
 @pytest.fixture(
     params=[
         "ondemand_aws_docker_cluster",
+        "den_launched_ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_k8s_docker_cluster",
         "v100_gpu_cluster",
+        "den_launcher_v100_gpu_cluster",
         "k80_gpu_cluster",
         "a10g_gpu_cluster",
+        "den_launched_ondemand_aws_k8s_cluster",
+        "den_launched_ondemand_gcp_k8s_cluster",
     ],
-    ids=["aws_cpu", "gcp_cpu", "k8s_cpu", "k8s_docker_cpu", "v100", "k80", "a10g"],
+    ids=[
+        "aws_cpu",
+        "aws_gpu_den_launcher",
+        "gcp_cpu",
+        "k8s_cpu",
+        "k8s_docker_cpu",
+        "v100",
+        "v100_den_launcher",
+        "k80",
+        "a10g",
+        "aws_k8_den_launcher",
+        "gcp_k8_den_launcher",
+    ],
 )
 def ondemand_cluster(request):
     return request.getfixturevalue(request.param)
@@ -71,6 +89,25 @@ def ondemand_aws_docker_cluster(request):
         "sky_kwargs": {"launch": {"retry_until_up": True}},
     }
     cluster = setup_test_cluster(args, request, setup_base=True)
+    return cluster
+
+
+@pytest.fixture(scope="session")
+def den_launched_ondemand_aws_docker_cluster(request):
+    """
+    Note: Also used to test docker and default env with alternate Ray version.
+    """
+    args = {
+        "name": "aws-cpu-den",
+        "instance_type": "CPU:2+",
+        "provider": "aws",
+        "image_id": "docker:rayproject/ray:latest-py311-cpu",
+        "region": "us-east-2",
+        "image": Image(name="default_image").install_packages(["ray==2.30.0"]),
+        "sky_kwargs": {"launch": {"retry_until_up": True}},
+        "launcher": LauncherType.DEN,
+    }
+    cluster = setup_test_cluster(args, request, create_env=True)
     return cluster
 
 
@@ -133,6 +170,42 @@ def ondemand_k8s_cluster(request):
 
 
 @pytest.fixture(scope="session")
+def den_launched_ondemand_aws_k8s_cluster(request):
+    kube_config_path = Path.home() / ".kube" / "config"
+
+    if not kube_config_path.exists():
+        pytest.skip("no kubeconfig found")
+
+    args = {
+        "name": "k8s-cpu-den",
+        "provider": "kubernetes",
+        "instance_type": "CPU:1",
+        "launcher": LauncherType.DEN,
+        "context": os.getenv("EKS_ARN"),
+    }
+    cluster = setup_test_cluster(args, request)
+    return cluster
+
+
+@pytest.fixture(scope="session")
+def den_launched_ondemand_gcp_k8s_cluster(request):
+    kube_config_path = Path.home() / ".kube" / "config"
+
+    if not kube_config_path.exists():
+        pytest.skip("no kubeconfig found")
+
+    args = {
+        "name": "k8s-cpu-den",
+        "provider": "kubernetes",
+        "instance_type": "CPU:1",
+        "launcher": LauncherType.DEN,
+        "context": "gke_testing",
+    }
+    cluster = setup_test_cluster(args, request)
+    return cluster
+
+
+@pytest.fixture(scope="session")
 def ondemand_k8s_docker_cluster(request):
     kube_config_path = Path.home() / ".kube" / "config"
 
@@ -143,7 +216,6 @@ def ondemand_k8s_docker_cluster(request):
         "name": "k8s-docker-cpu",
         "provider": "kubernetes",
         "instance_type": "CPU:1",
-        "memory": ".2",
         "image": Image(name="default_image").from_docker(
             "rayproject/ray:latest-py311-cpu"
         ),
@@ -159,7 +231,19 @@ def v100_gpu_cluster(request):
         "instance_type": "V100:1",
         "provider": "aws",
     }
-    cluster = setup_test_cluster(args, request)
+    cluster = setup_test_cluster(args, request, create_env=True)
+    return cluster
+
+
+@pytest.fixture(scope="session")
+def den_launcher_v100_gpu_cluster(request):
+    args = {
+        "name": "rh-v100-den",
+        "instance_type": "V100:1",
+        "provider": "aws",
+        "launcher": LauncherType.DEN,
+    }
+    cluster = setup_test_cluster(args, request, create_env=True)
     return cluster
 
 
