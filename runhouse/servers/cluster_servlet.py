@@ -63,7 +63,6 @@ class ClusterServlet:
             cluster_config if cluster_config else {}
         )
         self.cluster_config["has_cuda"] = is_gpu_cluster()
-
         self._initialized_servlet_args: Dict[str, CreateProcessParams] = {}
         self._key_to_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache(self.cluster_config)
