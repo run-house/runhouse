@@ -400,41 +400,6 @@ def ondemand_cluster(
             f"local ~/.rh/config.yaml."
         )
 
-    if provider == "kubernetes":
-        namespace = kwargs.pop("namespace", None)
-        kube_config_path = kwargs.pop("kube_config_path", None)
-        context = kwargs.pop("context", None)
-        server_connection_type = kwargs.pop("server_connection_type", None)
-
-        return kubernetes_cluster(
-            name=name,
-            instance_type=instance_type,
-            namespace=namespace,
-            kube_config_path=kube_config_path,
-            context=context,
-            server_connection_type=server_connection_type,
-            launcher_type=launcher_type,
-            default_env=default_env,
-            autostop_mins=autostop_mins,
-            num_nodes=num_nodes,
-            provider=provider,
-            use_spot=use_spot,
-            image_id=image_id,
-            region=region,
-            memory=memory,
-            disk_size=disk_size,
-            open_ports=open_ports,
-            sky_kwargs=sky_kwargs,
-            server_port=server_port,
-            server_host=server_host,
-            ssl_keyfile=ssl_keyfile,
-            ssl_certfile=ssl_certfile,
-            domain=domain,
-            den_auth=den_auth,
-            dryrun=dryrun,
-            **kwargs,
-        )
-
     if name:
         alt_options = dict(
             instance_type=instance_type,
@@ -475,6 +440,41 @@ def ondemand_cluster(
                 state = sky.status(cluster_names=[name], refresh=False)
                 if len(state) == 0 and not alt_options:
                     raise e
+
+    if provider == "kubernetes":
+        namespace = kwargs.pop("namespace", None)
+        kube_config_path = kwargs.pop("kube_config_path", None)
+        context = kwargs.pop("context", None)
+        server_connection_type = kwargs.pop("server_connection_type", None)
+
+        return kubernetes_cluster(
+            name=name,
+            instance_type=instance_type,
+            namespace=namespace,
+            kube_config_path=kube_config_path,
+            context=context,
+            server_connection_type=server_connection_type,
+            launcher_type=launcher_type,
+            default_env=default_env,
+            autostop_mins=autostop_mins,
+            num_nodes=num_nodes,
+            provider=provider,
+            use_spot=use_spot,
+            image_id=image_id,
+            region=region,
+            memory=memory,
+            disk_size=disk_size,
+            open_ports=open_ports,
+            sky_kwargs=sky_kwargs,
+            server_port=server_port,
+            server_host=server_host,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
+            domain=domain,
+            den_auth=den_auth,
+            dryrun=dryrun,
+            **kwargs,
+        )
 
     c = OnDemandCluster(
         instance_type=instance_type,
