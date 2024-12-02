@@ -6,6 +6,7 @@ class ImageSetupStepType(Enum):
     PACKAGES = "packages"
     CMD_RUN = "cmd_run"
     SETUP_CONDA_ENV = "setup_conda_env"
+    RSYNC = "rsync"
 
 
 class ImageSetupStep:
@@ -54,3 +55,11 @@ class Image:
         )
         self.conda_env_name = conda_env_name
         return self
+
+    def rsync(self, **kwargs):
+        self.setup_steps.append(
+            ImageSetupStep(
+                step_type=ImageSetupStepType.RSYNC,
+                **kwargs,
+            )
+        )
