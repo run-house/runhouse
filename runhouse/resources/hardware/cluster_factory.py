@@ -9,6 +9,7 @@ from runhouse.globals import rns_client
 
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import LauncherType, ServerConnectionType
+from runhouse.resources.images.image import Image
 
 from .cluster import Cluster
 from .on_demand_cluster import OnDemandCluster
@@ -29,6 +30,7 @@ def cluster(
     domain: str = None,
     den_auth: bool = None,
     default_env: Union["Env", str] = None,
+    image: Image = None,
     load_from_den: bool = True,
     dryrun: bool = False,
     **kwargs,
@@ -65,6 +67,8 @@ def cluster(
         default_env (Env or str, optional): Environment that the Runhouse server is started on in the cluster. Used to
             specify an isolated environment (e.g. conda env) or any setup and requirements prior to starting the Runhouse
             server. (Default: ``None``)
+        image (Image, optional): Default image containing setup steps to run during cluster setup. See :class:`Image`.
+            (Default: ``None``)
         load_from_den (bool): Whether to try loading the Cluster resource from Den. (Default: ``True``)
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
@@ -140,6 +144,7 @@ def cluster(
             domain=domain,
             den_auth=den_auth,
             default_env=default_env,
+            image=image,
             dryrun=dryrun,
             **kwargs,
         )
@@ -161,6 +166,7 @@ def cluster(
         domain=domain,
         den_auth=den_auth,
         default_env=default_env,
+        image=image,
         dryrun=dryrun,
         **kwargs,
     )
@@ -304,6 +310,7 @@ def ondemand_cluster(
     domain: str = None,
     den_auth: bool = None,
     default_env: Union["Env", str] = None,
+    image: Image = None,
     load_from_den: bool = True,
     dryrun: bool = False,
     **kwargs,
@@ -358,6 +365,8 @@ def ondemand_cluster(
         default_env (Env or str, optional): Environment that the Runhouse server is started on in the cluster. Used to
             specify an isolated environment (e.g. conda env) or any setup and requirements prior to starting the Runhouse
             server. (Default: ``None``)
+        image (Image, optional): Default image containing setup steps to run during cluster setup. See :class:`Image`.
+            (Default: ``None``)
         load_from_den (bool): Whether to try loading the Cluster resource from Den. (Default: ``True``)
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
@@ -458,6 +467,7 @@ def ondemand_cluster(
             server_connection_type=server_connection_type,
             launcher_type=launcher_type,
             default_env=default_env,
+            image=image,
             autostop_mins=autostop_mins,
             num_nodes=num_nodes,
             provider=provider,
@@ -501,6 +511,7 @@ def ondemand_cluster(
         domain=domain,
         den_auth=den_auth,
         default_env=default_env,
+        image=image,
         name=name,
         dryrun=dryrun,
         **kwargs,
