@@ -735,21 +735,23 @@ class Module(Resource):
                 new_process_init_args = self.system.list_processes()[self.env.name]
 
                 # Change the arguments for the new process to reflect the replica
-                new_process_init_args.name = replica_process_name
+                new_process_init_args["name"] = replica_process_name
                 if replicas_per_node is not None:
-                    if new_process_init_args.compute:
+                    if new_process_init_args["compute"]:
                         raise ValueError(
                             "Cannot specify replicas_per_node if other compute requirements for env "
                             "placement are specified."
                         )
-                    new_process_init_args.compute = {"node_idx": i // replicas_per_node}
+                    new_process_init_args["compute"] = {
+                        "node_idx": i // replicas_per_node
+                    }
+                self.system.create_process(**new_process_init_args)
 
             new_module = copy.copy(self)
             new_module.local.name = name
             new_module.local.env = None
             new_module.local.system = None
 
-            self.system.create_process(new_process_init_args)
             new_module = new_module.to(self.system, process=replica_process_name)
             return new_module
 

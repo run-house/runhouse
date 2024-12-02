@@ -358,8 +358,7 @@ class HTTPServer:
     @validate_cluster_access
     async def get_processes(request: Request):
         try:
-            processes = await obj_store.aget_all_initialized_servlet_args()
-            processes = {k: v.model_dump() for k, v in processes.items()}
+            processes = await obj_store.alist_processes()
             return Response(
                 output_type=OutputType.RESULT_SERIALIZED,
                 data=serialize_data(processes, "json"),

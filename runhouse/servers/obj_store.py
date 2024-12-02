@@ -700,6 +700,13 @@ class ObjStore:
             "aget_all_initialized_servlet_args",
         )
 
+    async def alist_processes(self):
+        processes = await self.aget_all_initialized_servlet_args()
+        return {k: v.model_dump() for k, v in processes.items()}
+
+    def list_processes(self):
+        return sync_function(self.alist_processes)()
+
     def get_all_initialized_servlet_args(self) -> Dict[str, "CreateProcessParams"]:
         return sync_function(self.aget_all_initialized_servlet_args)()
 

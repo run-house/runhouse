@@ -2268,7 +2268,7 @@ class Cluster(Resource):
     def list_processes(self):
         """List all workers on the cluster."""
         if self.on_this_cluster():
-            return obj_store.get_all_initialized_servlet_names()
+            return obj_store.list_processes()
         else:
             return self.client.list_processes()
 
@@ -2278,8 +2278,10 @@ class Cluster(Resource):
         env_vars: Optional[Dict] = None,
         compute: Optional[Dict] = None,
         conda_env_name: Optional[str] = None,
+        runtime_env: Optional[Dict] = None,
     ) -> str:
-        runtime_env = {"conda_env": conda_env_name} if conda_env_name else {}
+        runtime_env = runtime_env or {}
+        runtime_env["conda_env"] = conda_env_name or None
         process_init_args = CreateProcessParams(
             name=name, compute=compute, runtime_env=runtime_env, env_vars=env_vars
         )
