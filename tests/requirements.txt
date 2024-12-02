@@ -1,6 +1,6 @@
 pytest
 pytest-mock
-httpx
+httpx < 0.28.0
 pytest_asyncio
 datasets
 dask
