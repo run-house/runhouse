@@ -59,7 +59,7 @@ def ondemand_aws_docker_cluster(request):
         "provider": "aws",
         "image_id": "docker:rayproject/ray:latest-py311-cpu",
         "region": "us-east-2",
-        "image": Image(name="default_image").install_reqs(["ray==2.30.0"]),
+        "image": Image(name="default_image").install_packages(["ray==2.30.0"]),
         "sky_kwargs": {"launch": {"retry_until_up": True}},
     }
     cluster = setup_test_cluster(args, request, create_env=True)
@@ -102,7 +102,7 @@ def ondemand_gcp_cluster(request):
             conda_env_name="base_env",
             conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
         )
-        .install_reqs(test_env().reqs + ["ray==2.30.0"], conda_env_name="base_env")
+        .install_packages(test_env().reqs + ["ray==2.30.0"], conda_env_name="base_env")
         # TODO - env vars
     )
     args = {
@@ -203,7 +203,7 @@ def multinode_cpu_docker_conda_cluster(request):
             conda_env_name="base_env",
             conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
         )
-        .install_reqs(test_env().reqs + ["ray==2.30.0"], conda_env_name="base_env")
+        .install_packages(test_env().reqs + ["ray==2.30.0"], conda_env_name="base_env")
     )
     args = {
         "name": "rh-cpu-multinode",

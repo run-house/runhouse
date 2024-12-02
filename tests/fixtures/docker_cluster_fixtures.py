@@ -365,7 +365,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
 
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 2
-    default_image = Image(name="default_image").install_reqs(
+    default_image = Image(name="default_image").install_packages(
         [
             "ray==2.30.0",
             "pytest",
@@ -473,7 +473,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
             conda_env_name="base_env",
             conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
         )
-        .install_reqs(
+        .install_packages(
             [
                 "ray==2.30.0",
                 "pytest",
