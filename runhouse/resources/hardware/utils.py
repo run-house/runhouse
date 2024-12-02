@@ -388,6 +388,7 @@ def parse_filters(since: str, cluster_status: Union[str, ClusterStatus]):
 
     if cluster_status:
         cluster_filters["cluster_status"] = cluster_status
+        cluster_filters["daemon_status"] = cluster_status
 
     return cluster_filters
 
