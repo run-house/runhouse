@@ -594,12 +594,11 @@ class OnDemandCluster(Cluster):
             LocalLauncher.teardown(cluster=self, verbose=verbose)
 
         try:
-            # Update Den with the Runhouse daemon status on the cluster before tearing down
-            cluster_status_data = self.status()
+            # Update Den with the terminated status
             status_data = {
                 "daemon_status": RunhouseDaemonStatus.TERMINATED,
                 "resource_type": self.__class__.__base__.__name__.lower(),
-                "data": cluster_status_data,
+                "data": {},
             }
 
             cluster_uri = rns_client.format_rns_address(self.rns_address)
