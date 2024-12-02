@@ -57,7 +57,7 @@ def ondemand_aws_docker_cluster(request):
         "name": "aws-cpu",
         "instance_type": "CPU:2+",
         "provider": "aws",
-        "image_id": "docker:rayproject/ray:latest-py311-cpu",
+        "image_id": "docker:ghcr.io/run-house/runhouse:latest",
         "region": "us-east-2",
         "image": Image(name="default_image").install_reqs(["ray==2.30.0"]),
         "sky_kwargs": {"launch": {"retry_until_up": True}},
