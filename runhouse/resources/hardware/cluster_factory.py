@@ -415,7 +415,6 @@ def ondemand_cluster(
             num_nodes=num_nodes,
             provider=provider,
             region=region,
-            image=image,
             image_id=image_id,
             memory=memory,
             disk_size=disk_size,
