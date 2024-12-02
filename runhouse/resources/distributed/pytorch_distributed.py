@@ -19,24 +19,19 @@ class PyTorchDistributed(Supervisor):
     def _compute_signature(self, rich=False):
         return self.local._replicas[0].signature(rich=rich)
 
-    def _find_available_port_on_head_rank(self):
+    def _find_available_port_on_head_node(self):
         find_available_port_cmd = "python -c \"import socket; s=socket.socket(); s.bind(('', 0)); print(s.getsockname()[1]); s.close()\""
-        env_name = (
-            self._replicas[0].env.name
-            if isinstance(self._replicas[0].env, Env)
-            else self._replicas[0].env
-            if isinstance(self._replicas[0].env, str)
-            else None
-        )  # Todo make this run on the head node
         status_code, stdout, _ = self._replicas[0].system.run(
-            find_available_port_cmd, env=env_name, require_outputs=True
-        )[0]
+            find_available_port_cmd,
+            node=self._replicas[0].system.head_ip,
+            require_outputs=True,
+        )
         if status_code != 0:
             raise RuntimeError(f"Failed to find available port on head rank: {stdout}")
         return stdout
 
     def forward(self, item, timeout: Optional[int] = None, *args, **kwargs):
-        port = self._port or self._find_available_port_on_head_rank()
+        port = self._port or self._find_available_port_on_head_node()
 
         def run_on_replica(replica, rank):
             # Per https://pytorch.org/docs/stable/distributed.html#environment-variable-initialization

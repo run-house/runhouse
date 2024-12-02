@@ -5,6 +5,7 @@ from runhouse.resources.functions.aws_lambda import LambdaFunction
 from runhouse.resources.functions.aws_lambda_factory import aws_lambda_fn
 from runhouse.resources.functions.function import Function
 from runhouse.resources.functions.function_factory import function
+
 from runhouse.resources.hardware import (
     cluster,
     Cluster,
@@ -12,6 +13,7 @@ from runhouse.resources.hardware import (
     ondemand_cluster,
     OnDemandCluster,
 )
+from runhouse.resources.images.image import Image
 
 # WARNING: Any built-in module that is imported here must be capitalized followed by all lowercase, or we will
 # will not find the module class when attempting to reconstruct it from a config.
