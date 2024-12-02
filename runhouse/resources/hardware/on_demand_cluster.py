@@ -701,13 +701,20 @@ class OnDemandCluster(Cluster):
                 raise FileNotFoundError(f"Expected default sky key in path: {sky_key}")
 
             runner = self._command_runner(node=node)
-            cmd = runner.run(
-                cmd="bash --rcfile <(echo '. ~/.bashrc; conda deactivate')",
-                ssh_mode=SshMode.INTERACTIVE,
-                port_forward=None,
-                return_cmd=True,
-            )
-            subprocess.run(cmd, shell=True)
+            if self.docker_user:
+                cmd = runner.run(
+                    cmd="bash --rcfile <(echo '. ~/.bashrc; conda deactivate')",
+                    ssh_mode=SshMode.INTERACTIVE,
+                    port_forward=None,
+                    return_cmd=True,
+                )
+                subprocess.run(cmd, shell=True)
+            else:
+                subprocess.run(
+                    runner._ssh_base_command(
+                        ssh_mode=SshMode.INTERACTIVE, port_forward=None
+                    )
+                )
 
     def _ping(self, timeout=5, retry=False):
         if super()._ping(timeout=timeout, retry=False):
