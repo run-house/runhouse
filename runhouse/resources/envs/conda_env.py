@@ -6,7 +6,7 @@ from runhouse.globals import obj_store
 from runhouse.logger import get_logger
 from runhouse.resources.packages import Package
 
-from runhouse.utils import create_conda_env, install_conda, run_setup_command
+from runhouse.utils import create_conda_env_on_cluster, install_conda, run_setup_command
 
 from .env import Env
 
@@ -99,7 +99,7 @@ class CondaEnv(Env):
                 return
             obj_store.installed_envs[install_hash] = self.name
 
-        create_conda_env(
+        create_conda_env_on_cluster(
             env_name=self.env_name,
             conda_yaml=self.conda_yaml,
             force=force,
