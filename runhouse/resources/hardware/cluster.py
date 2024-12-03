@@ -625,7 +625,7 @@ class Cluster(Resource):
                         cluster=self,
                     )
 
-                if setup_step.step_type == ImageSetupStepType.REQS:
+                if setup_step.step_type == ImageSetupStepType.PACKAGES:
                     self.install_packages(
                         setup_step.kwargs.get("reqs"),
                         conda_env_name=setup_step.kwargs.get("conda_env_name"),

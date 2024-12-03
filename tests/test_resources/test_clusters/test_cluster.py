@@ -806,7 +806,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         reqs = []
         if cluster.image:
             for step in cluster.image.setup_steps:
-                if step.step_type == ImageSetupStepType.REQS:
+                if step.step_type == ImageSetupStepType.PACKAGES:
                     reqs += step.kwargs.get("reqs")
         for req in reqs:
             if isinstance(req, str) and "_" in req:
