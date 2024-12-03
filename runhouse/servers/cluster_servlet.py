@@ -385,6 +385,9 @@ class ClusterServlet:
     async def aperiodic_cluster_checks(self):
         """Periodically check the status of the cluster, gather metrics about the cluster's utilization & memory,
         and save it to Den."""
+
+        logger.debug("started periodic cluster checks")
+
         disable_observability = os.getenv("disable_observability", False)
         while True:
             should_send_status_and_logs_to_den: bool = (
@@ -520,6 +523,9 @@ class ClusterServlet:
 
     async def _aperiodic_gpu_check(self):
         """periodically collects cluster gpu usage"""
+
+        logger.debug("Started gpu usage collection")
+
         pynvml.nvmlInit()  # init nvidia ml info collection
 
         while True:
