@@ -31,7 +31,9 @@ from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import (
     conda_env_cmd,
+    create_conda_env_on_cluster,
     find_locally_installed_version,
+    install_conda,
     locate_working_dir,
     run_command_with_password_login,
     ThreadWithException,
@@ -620,12 +622,9 @@ class Cluster(Resource):
         for setup_step in self.image.setup_steps:
             for node in self.ips:
                 if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
-                    from runhouse.utils import create_conda_env
-
-                    create_conda_env(
+                    self.create_conda_env(
                         env_name=setup_step.kwargs.get("conda_env_name"),
                         conda_yaml=setup_step.kwargs.get("conda_yaml"),
-                        cluster=self,
                     )
 
                 if setup_step.step_type == ImageSetupStepType.PACKAGES:
@@ -1809,6 +1808,14 @@ class Cluster(Resource):
         )
 
         return return_codes
+
+    def create_conda_env(self, env_name: str, conda_yaml: Dict):
+        install_conda(cluster=self)
+        create_conda_env_on_cluster(
+            env_name=env_name,
+            conda_yaml=conda_yaml,
+            cluster=self,
+        )
 
     def sync_secrets(
         self,

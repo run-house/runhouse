@@ -86,7 +86,7 @@ def install_conda(cluster: "Cluster" = None, node: Optional[str] = None):
             raise RuntimeError("Could not install Conda.")
 
 
-def create_conda_env(
+def create_conda_env_on_cluster(
     env_name: str,
     conda_yaml: Dict,
     force: bool = False,
