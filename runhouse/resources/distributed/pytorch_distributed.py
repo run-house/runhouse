@@ -3,8 +3,6 @@ from typing import List, Optional
 
 from runhouse.resources.distributed.supervisor import Supervisor
 
-from runhouse.resources.envs.env import Env
-
 from runhouse.resources.hardware import Cluster, OnDemandCluster
 
 from runhouse.resources.module import Module
@@ -48,13 +46,7 @@ class PyTorchDistributed(Supervisor):
                 "RANK": str(rank),
                 "WORLD_SIZE": str(len(self._replicas)),
             }
-            if isinstance(replica.env, Env):
-                env_name = replica.env.name
-            elif isinstance(replica.env, str):
-                env_name = replica.env
-            else:
-                raise ValueError("env must be an Env or a string")
-            replica.system.set_process_env_vars(env_name, dist_config)
+            replica.system.set_process_env_vars(replica.process, dist_config)
             method = getattr(replica, item)
             return method(*args, **kwargs)
 
