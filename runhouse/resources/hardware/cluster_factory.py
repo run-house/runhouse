@@ -146,6 +146,7 @@ def cluster(
             default_env=default_env,
             image=image,
             dryrun=dryrun,
+            load_from_den=load_from_den,
             **kwargs,
         )
 
@@ -415,6 +416,7 @@ def ondemand_cluster(
             num_nodes=num_nodes,
             provider=provider,
             region=region,
+            image=image,
             image_id=image_id,
             memory=memory,
             disk_size=disk_size,

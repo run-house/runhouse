@@ -126,7 +126,7 @@ class Env(Resource):
         for secret in self.secrets:
             if isinstance(secret, str):
                 secret = Secret.from_name(secret)
-            new_secrets.append(secret.to(system=system, env=self))
+            new_secrets.append(secret.to(system=system, process=self.name))
         return new_secrets
 
     def _run_setup_cmds(

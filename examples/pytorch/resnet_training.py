@@ -247,25 +247,21 @@ if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 2
 
-    gpu_cluster = (
-        rh.cluster(
-            name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-            instance_type=f"A10G:{gpus_per_node}",
-            num_nodes=num_nodes,
-            provider="aws",
-            image=rh.Image("pytorch").install_reqs(
-                [
-                    "torch==2.5.1",
-                    "torchvision==0.20.1",
-                    "Pillow==11.0.0",
-                    "datasets",
-                    "boto3 awscli",
-                ],
-            ),
-        )
-        .up_if_not()
-        .save()
+    img = rh.Image(name="pytorch").install_packages(
+        [
+            "torch==2.5.1 torchvision==0.20.1",
+            "Pillow==11.0.0",
+            "datasets",
+            "boto3 awscli",
+        ],
     )
+    gpu_cluster = rh.cluster(
+        name=f"rh-{num_nodes}x{gpus_per_node}-gpu-k8s",
+        instance_type=f"A10G:{gpus_per_node}",
+        num_nodes=num_nodes,
+        provider="aws",
+        image=img,
+    ).up_if_not()
     gpu_cluster.sync_secrets(["aws"])
 
     epochs = 15
