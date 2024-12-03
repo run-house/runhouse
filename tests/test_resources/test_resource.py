@@ -115,8 +115,8 @@ class TestResource:
             original_name = saved_resource.rns_address
             alt_name = saved_resource.rns_address + "-alt"
 
-            # This saves a new RNS config with the same resource,
-            # but an alt name. It also updates the local config to point to the new RNS config.
+            # This saves a new Den config with the same resource,
+            # but an alt name. It also updates the local config to point to the new Den config.
             saved_resource.save(alt_name)
             alt_resource = saved_resource.__class__.from_name(alt_name)
             assert alt_resource.config() == saved_resource.config()

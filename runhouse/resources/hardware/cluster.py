@@ -252,7 +252,7 @@ class Cluster(Resource):
         super().save(name=name, overwrite=overwrite, folder=folder)
 
         # Running save will have updated the cluster's
-        # RNS address. We need to update the name
+        # Den address. We need to update the name
         # used in the config on the cluster so that
         # self.on_this_cluster() will still work as expected.
         if on_this_cluster:
