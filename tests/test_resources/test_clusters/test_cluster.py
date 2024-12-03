@@ -28,6 +28,8 @@ from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatu
 
 from runhouse.resources.images.image import ImageSetupStepType
 
+from runhouse.utils import _process_env_vars
+
 import tests.test_resources.test_resource
 from tests.conftest import init_args
 from tests.test_resources.test_envs.test_env import _get_env_var_value
@@ -822,17 +824,23 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         assert cluster.image.conda_env_name in cluster.run("conda info --envs")[0][1]
 
-    @pytest.mark.skip("TODO - Image does not yet support env vars")
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_default_process_env_var_run(self, cluster):
-        env_vars = cluster.default_env.env_vars
+        env_vars = {}
+        if cluster.image:
+            for setup_step in cluster.image.setup_steps:
+                if setup_step.step_type == ImageSetupStepType.SET_ENV_VARS:
+                    image_env_vars = _process_env_vars(
+                        setup_step.kwargs.get("env_vars")
+                    )
+                    env_vars.update(image_env_vars)
         if not env_vars:
-            pytest.skip("No env vars in default env")
+            pytest.skip("No env vars in cluster image")
 
         assert env_vars
         for var in env_vars.keys():
-            res = cluster.run([f"echo ${var}"], env=cluster.default_env)
+            res = cluster.run([f"echo ${var}"])
             assert res[0][0] == 0
             assert env_vars[var] in res[0][1]
 
@@ -953,19 +961,16 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         assert not cluster._folder_exists(path="~/new-folder")
 
-    @pytest.mark.skip(
-        "TODO - Image does not yet support env vars / disabling observability shortly"
-    )
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_observability_enabled_by_default_on_cluster(self, cluster):
         # Disable observability locally, which will be reflected on the cluster once the server is restarted
-        rh.configs.disable_observability()
-        cluster.restart_server()
+        if cluster.image:
+            rh.configs.disable_observability()
+            cluster.restart_server()
 
-        if cluster._default_env:
-            env_vars = cluster._default_env.env_vars
-            assert env_vars.get("disable_observability") == "True"
+            res = cluster.run(["echo $disable_observability"])
+            assert "True" in res[0][1]
 
     ####################################################################################################
     # Cluster list test
