@@ -135,7 +135,10 @@ def cluster(
             if not alt_options:
                 raise e
 
-    if "instance_type" in kwargs.keys():
+    # Check if any of the ondemand_cluster-specific arguments are in the kwargs
+    if {"instance_type", "memory", "disk_size", "num_cpus", "accelerators"} & set(
+        kwargs.keys()
+    ):
         return ondemand_cluster(
             name=name,
             server_port=server_port,
@@ -303,6 +306,8 @@ def ondemand_cluster(
     region: Optional[str] = None,
     memory: Union[int, str, None] = None,
     disk_size: Union[int, str, None] = None,
+    num_cpus: Union[int, str, None] = None,
+    accelerators: Union[int, str, None] = None,
     open_ports: Union[int, str, List[int], None] = None,
     sky_kwargs: Dict = None,
     server_port: int = None,
@@ -325,8 +330,8 @@ def ondemand_cluster(
 
     Args:
         name (str): Name for the cluster, to re-use later on.
-        instance_type (int, optional): Type of cloud instance to use for the cluster. This could
-            be a Runhouse built-in type, or your choice of instance type.
+        instance_type (int, optional): Type of cloud VM type to use for the cluster, e.g. "r5d.xlarge". Optional, as
+            may instead choose to specify resource requirements (e.g. memory, disk_size, num_cpus, accelerators).
         num_nodes (int, optional): Number of nodes to use for the cluster.
         provider (str, optional): Cloud provider to use for the cluster.
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
@@ -338,6 +343,8 @@ def ondemand_cluster(
         region (str, optional): The region to use for the cluster.
         memory (int or str, optional): Amount of memory to use for the cluster, e.g. "16" or "16+".
         disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. "100" or "100+".
+        num_cpus (int or str, optional): Number of CPUs to use for the cluster, e.g. "4" or "4+".
+        accelerators (int or str, optional): Number of accelerators to use for the cluster, e.g. "A101" or "L4:8".
         open_ports (int or str or List[int], optional): Ports to open in the cluster's security group. Note
             that you are responsible for ensuring that the applications listening on these ports are secure.
         sky_kwargs (dict, optional): Additional keyword arguments to pass to the SkyPilot `Resource` or
@@ -413,6 +420,12 @@ def ondemand_cluster(
             f"local ~/.rh/config.yaml."
         )
 
+    if instance_type and any([memory, disk_size, num_cpus, accelerators]):
+        raise ValueError(
+            "Resources are over-specified. Cannot specify both `instance_type` and any of `memory`, `disk_size`, "
+            "`num_cpus`, or `accelerators`."
+        )
+
     if name:
         alt_options = dict(
             instance_type=instance_type,
@@ -422,6 +435,8 @@ def ondemand_cluster(
             image_id=image_id,
             memory=memory,
             disk_size=disk_size,
+            num_cpus=num_cpus,
+            accelerators=accelerators,
             open_ports=open_ports,
             server_host=server_host,
             server_port=server_port,
@@ -481,6 +496,8 @@ def ondemand_cluster(
             region=region,
             memory=memory,
             disk_size=disk_size,
+            num_cpus=num_cpus,
+            accelerators=accelerators,
             open_ports=open_ports,
             sky_kwargs=sky_kwargs,
             server_port=server_port,
@@ -504,6 +521,8 @@ def ondemand_cluster(
         region=region,
         memory=memory,
         disk_size=disk_size,
+        num_cpus=num_cpus,
+        accelerators=accelerators,
         open_ports=open_ports,
         sky_kwargs=sky_kwargs,
         server_host=server_host,
