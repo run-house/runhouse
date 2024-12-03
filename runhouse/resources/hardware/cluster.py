@@ -643,6 +643,16 @@ class Cluster(Resource):
                         node=node,
                     )
 
+                elif setup_step.step_type == ImageSetupStepType.RSYNC:
+                    self.rsync(
+                        source=setup_step.kwargs.get("source"),
+                        dest=setup_step.kwargs.get("dest"),
+                        node=node,
+                        up=True,
+                        contents=setup_step.kwargs.get("contents"),
+                        filter_options=setup_step.kwargs.get("filter_options"),
+                    )
+
     def _sync_runhouse_to_cluster(
         self,
         _install_url: Optional[str] = None,
