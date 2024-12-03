@@ -2322,11 +2322,9 @@ class Cluster(Resource):
         name: str,
         env_vars: Optional[Dict] = None,
         compute: Optional[Dict] = None,
-        conda_env_name: Optional[str] = None,
         runtime_env: Optional[Dict] = None,
     ) -> str:
         runtime_env = runtime_env or {}
-        runtime_env["conda_env"] = conda_env_name or None
         create_process_params = CreateProcessParams(
             name=name, compute=compute, runtime_env=runtime_env, env_vars=env_vars
         )
@@ -2355,13 +2353,15 @@ class Cluster(Resource):
         name: str,
         env_vars: Optional[Dict] = None,
         compute: Optional[Dict] = None,
-        conda_env_name: Optional[str] = None,
+        runtime_env: Optional[Dict] = None,
     ) -> str:
         existing_processes = self.list_processes()
         if name in existing_processes:
             return name
 
-        self.create_process(name, env_vars, compute, conda_env_name)
+        self.create_process(
+            name=name, env_vars=env_vars, compute=compute, runtime_env=runtime_env
+        )
         return name
 
     def set_process_env_vars(self, name: str, env_vars: Dict):
