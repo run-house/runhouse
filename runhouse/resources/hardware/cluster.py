@@ -2327,23 +2327,26 @@ class Cluster(Resource):
     ) -> str:
         runtime_env = runtime_env or {}
         runtime_env["conda_env"] = conda_env_name or None
-        process_init_args = CreateProcessParams(
+        create_process_params = CreateProcessParams(
             name=name, compute=compute, runtime_env=runtime_env, env_vars=env_vars
         )
 
         # If it exists, but with the exact same args, then we're good, else raise an error
         existing_processes = self.list_processes()
-        if name in existing_processes and existing_processes[name] != process_init_args:
+        if (
+            name in existing_processes
+            and existing_processes[name] != create_process_params
+        ):
             raise ValueError(
                 f"Process {name} already exists and was started with different arguments."
             )
 
         if self.on_this_cluster():
             obj_store.get_servlet(
-                env_name=name, process_init_args=process_init_args, create=True
+                env_name=name, create_process_params=create_process_params, create=True
             )
         else:
-            self.client.create_process(params=process_init_args)
+            self.client.create_process(params=create_process_params)
 
         return name
 

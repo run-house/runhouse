@@ -29,7 +29,7 @@ def get_ray_servlet_and_obj_store(env_name):
 
     test_servlet = test_obj_store.get_servlet(
         env_name=env_name,
-        process_init_args=CreateProcessParams(name=env_name),
+        create_process_params=CreateProcessParams(name=env_name),
         create=True,
     )
 

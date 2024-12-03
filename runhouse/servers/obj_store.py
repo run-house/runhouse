@@ -172,7 +172,7 @@ class ObjStore:
         setup_ray: RaySetupOption = RaySetupOption.GET_OR_FAIL,
         ray_address: str = "auto",
         setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
-        init_args: Optional["CreateProcessParams"] = None,
+        create_process_params: Optional["CreateProcessParams"] = None,
     ):
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
@@ -217,7 +217,9 @@ class ObjStore:
         )
         self.cluster_servlet = get_cluster_servlet(
             create_if_not_exists=create_if_not_exists,
-            runtime_env=init_args.runtime_env if init_args else None,
+            runtime_env=create_process_params.runtime_env
+            if create_process_params
+            else None,
         )
         if self.cluster_servlet is None:
             # TODO: logger.<method> is not printing correctly here when doing `runhouse server start`.
@@ -244,7 +246,9 @@ class ObjStore:
                     f"There already exists an Servlet with name {servlet_name}."
                 )
             else:
-                await self.aadd_servlet_initialized_args(servlet_name, init_args)
+                await self.aadd_servlet_initialized_args(
+                    servlet_name, create_process_params
+                )
 
         self.servlet_name = servlet_name
         self.has_local_storage = has_local_storage
@@ -265,8 +269,8 @@ class ObjStore:
                 sys.path.insert(0, path)
 
         # Set env vars that were passed in initialization
-        if init_args and init_args.env_vars:
-            self.set_process_env_vars_local(init_args.env_vars)
+        if create_process_params and create_process_params.env_vars:
+            self.set_process_env_vars_local(create_process_params.env_vars)
 
     def initialize(
         self,
@@ -437,7 +441,7 @@ class ObjStore:
     def get_servlet(
         self,
         env_name: str,
-        process_init_args: Optional["CreateProcessParams"] = None,
+        create_process_params: Optional["CreateProcessParams"] = None,
         create: bool = False,
         raise_ex_if_not_found: bool = False,
         use_servlet_cache: bool = True,
@@ -446,8 +450,12 @@ class ObjStore:
         # Need to import these here to avoid circular imports
         from runhouse.servers.servlet import Servlet
 
-        if process_init_args is not None and (env_name != process_init_args.name):
-            raise ValueError("env_name and process_init_args.name must be the same.")
+        if create_process_params is not None and (
+            env_name != create_process_params.name
+        ):
+            raise ValueError(
+                "env_name and create_process_params.name must be the same."
+            )
 
         if use_servlet_cache and env_name in self.servlet_cache:
             return self.servlet_cache[env_name]
@@ -464,12 +472,12 @@ class ObjStore:
 
         # Otherwise, create it
         if create:
-            if not process_init_args:
+            if not create_process_params:
                 raise ValueError(
-                    "Must provide process_init_args if creating a servlet."
+                    "Must provide create_process_params if creating a servlet."
                 )
 
-            ray_resources = copy.copy(process_init_args.compute)
+            ray_resources = copy.copy(create_process_params.compute)
 
             if ray_resources is None:
                 # Put servlets on head node by default
@@ -506,7 +514,7 @@ class ObjStore:
                 .options(
                     name=env_name,
                     get_if_exists=True,
-                    runtime_env=process_init_args.runtime_env,
+                    runtime_env=create_process_params.runtime_env,
                     # Default to 0 CPUs if not specified, Ray will default it to 1
                     num_cpus=ray_resources.pop("CPU", 0),
                     num_gpus=ray_resources.pop("GPU", None),
@@ -516,7 +524,7 @@ class ObjStore:
                     namespace="runhouse",
                     max_concurrency=1000,
                 )
-                .remote(process_init_args=process_init_args)
+                .remote(create_process_params=create_process_params)
             )
 
             # Make sure servlet is actually initialized
@@ -829,7 +837,7 @@ class ObjStore:
             if create_env_if_not_exists:
                 self.get_servlet(
                     env_name=env,
-                    process_init_args=CreateProcessParams(name=env),
+                    create_process_params=CreateProcessParams(name=env),
                     create=True,
                 )
             else:
@@ -1744,7 +1752,7 @@ class ObjStore:
 
             _ = self.get_servlet(
                 env_name=env_name,
-                process_init_args=CreateProcessParams(
+                create_process_params=CreateProcessParams(
                     name=env_name,
                     runtime_env=runtime_env,
                     resources=resource_config.get("compute", None),
