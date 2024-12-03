@@ -59,10 +59,8 @@ def xgboost_dask(dataset_path, X_vars, y_vars):
 if __name__ == "__main__":
     # ## Create a Runhouse cluster with 3 nodes
     num_nodes = 3
-    env = rh.env(
-        name="dask-env",
-        load_from_den=False,
-        reqs=[
+    img = rh.Image("dask").install_packages(
+        [
             "dask-ml",
             "dask[distributed]",
             "dask[dataframe]",
@@ -71,18 +69,13 @@ if __name__ == "__main__":
             "xgboost",
         ],
     )
-    cluster = (
-        rh.cluster(
-            name=f"rh-{num_nodes}",
-            instance_type="r5d.xlarge",
-            num_nodes=num_nodes,
-            provider="aws",
-            default_env=env,
-            launcher_type="local",
-        )
-        .save()
-        .up_if_not()
-    )
+    cluster = rh.cluster(
+        name=f"rh-{num_nodes}",
+        instance_type="r5d.xlarge",
+        num_nodes=num_nodes,
+        provider="aws",
+        image=img,
+    ).up_if_not()
     cluster.sync_secrets(["aws"])
 
     # ## Example of using Dask on Ray to read data and minimally preprocess the data
