@@ -7,6 +7,7 @@ class ImageSetupStepType(Enum):
     CMD_RUN = "cmd_run"
     SETUP_CONDA_ENV = "setup_conda_env"
     RSYNC = "rsync"
+    SYNC_SECRETS = "sync_secrets"
 
 
 class ImageSetupStep:
@@ -63,3 +64,12 @@ class Image:
                 **kwargs,
             )
         )
+
+    def sync_secrets(self, providers: List[Union[str, "Secret"]]):
+        self.setup_steps.append(
+            ImageSetupStep(
+                step_type=ImageSetupStepType.SYNC_SECRETS,
+                providers=providers,
+            )
+        )
+        return self
