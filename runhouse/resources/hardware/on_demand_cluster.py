@@ -57,6 +57,8 @@ class OnDemandCluster(Cluster):
         image_id: str = None,
         memory: Union[int, str] = None,
         disk_size: Union[int, str] = None,
+        num_cpus: Union[int, str] = None,
+        accelerators: str = None,
         open_ports: Union[int, str, List[int]] = None,
         server_host: int = None,
         server_port: int = None,
@@ -113,6 +115,8 @@ class OnDemandCluster(Cluster):
         self.region = region
         self.memory = memory
         self.disk_size = disk_size
+        self._num_cpus = num_cpus
+        self._accelerators = accelerators
         self.sky_kwargs = sky_kwargs or {}
         self.launcher_type = cluster_launcher_type
 
@@ -231,6 +235,8 @@ class OnDemandCluster(Cluster):
             ],
         )
         config["autostop_mins"] = self._autostop_mins
+        config["num_cpus"] = self._num_cpus
+        config["accelerators"] = self._accelerators
         if self._namespace is not None:
             config["namespace"] = self._namespace
         if self._context is not None:
@@ -502,6 +508,9 @@ class OnDemandCluster(Cluster):
 
     def accelerators(self):
         """Returns the acclerator type, or None if is a CPU."""
+        if self._accelerators:
+            return self._accelerators
+
         if (
             self.instance_type
             and ":" in self.instance_type
@@ -513,6 +522,9 @@ class OnDemandCluster(Cluster):
 
     def num_cpus(self):
         """Return the number of CPUs for a CPU cluster."""
+        if self._num_cpus:
+            return self._num_cpus
+
         if (
             self.instance_type
             and ":" in self.instance_type

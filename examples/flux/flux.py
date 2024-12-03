@@ -57,36 +57,27 @@ class FluxPipeline:
 # the script code will run when Runhouse attempts to run code remotely.
 # :::
 if __name__ == "__main__":
-
-    cluster = rh.cluster(
-        name="rh-g5",
-        instance_type="g5.8xlarge",
-        provider="aws",
-    ).up_if_not()
-
-    # Next, we define the environment for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `huggingface` to the `secrets` parameter is optional and not needed here, but useful if we need to authenticate to download a model
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        name="flux_inference",
-        reqs=[
+    img = rh.Image("flux").install_packages(
+        [
             "diffusers",
             "torch",
             "transformers[sentencepiece]",
             "accelerate",
-        ],
+        ]
     )
+    cluster = rh.cluster(
+        name="rh-a10-8xlarge",
+        accelerators="A10G",
+        num_cpus="32",
+        provider="aws",
+        img=img,
+    ).up_if_not()
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
     # by calling `cluster.get(name="flux")`. This would return the remote model after an initial run.
     # If we want to update the module each time we run this script, we prefer to use `to`.
-    #
-    # Note that we also pass the `env` object to the `to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
-    RemoteFlux = rh.module(FluxPipeline).to(cluster, env=env, name="FluxPipeline")
+    RemoteFlux = rh.module(FluxPipeline).to(cluster)
     remote_flux = RemoteFlux(
         name="flux"
     )  # This has now been set up as a service on the remote cluster and can be used for inference.
