@@ -112,8 +112,8 @@ def cluster(
             domain=domain,
             den_auth=den_auth,
             default_env=default_env,
-            kwargs=kwargs if len(kwargs) > 0 else None,
         )
+        alt_options.update(kwargs)
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
         try:
@@ -125,6 +125,9 @@ def cluster(
             )
             if c:
                 c.set_connection_defaults()
+                # If the the user changed the image and wants to restart the server to apply the new
+                # changes, we need to update the image in the cluster object
+                c.image = image or c.image
                 if den_auth:
                     c.save()
                 return c
@@ -416,7 +419,6 @@ def ondemand_cluster(
             num_nodes=num_nodes,
             provider=provider,
             region=region,
-            image=image,
             image_id=image_id,
             memory=memory,
             disk_size=disk_size,
@@ -441,6 +443,9 @@ def ondemand_cluster(
             )
             if c:
                 c.set_connection_defaults()
+                # If the the user changed the image and wants to restart the server to apply the new
+                # changes, we need to update the image in the cluster object
+                c.image = image or c.image
                 if den_auth:
                     c.save()
                 return c
