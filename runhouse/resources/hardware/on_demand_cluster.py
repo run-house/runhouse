@@ -13,6 +13,7 @@ import rich.errors
 
 try:
     import sky
+    from sky import ClusterStatus as SkyClusterStatus
     from sky.backends import backend_utils
 except ImportError:
     pass
@@ -28,6 +29,7 @@ from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import (
     _cluster_set_autostop_command,
+    ClusterStatus,
     LauncherType,
     RunhouseDaemonStatus,
     ServerConnectionType,
@@ -137,6 +139,7 @@ class OnDemandCluster(Cluster):
         self._docker_user = None
         self._namespace = kwargs.get("namespace")
         self._context = kwargs.get("context")
+        self._cluster_status = kwargs.get("cluster_status")
 
         # Checks if state info is in local sky db, populates if so.
         if not dryrun and not self.ips and not self.creds_values:
@@ -243,7 +246,11 @@ class OnDemandCluster(Cluster):
         return config
 
     def endpoint(self, external: bool = False):
-        if not self.ips or self.on_this_cluster():
+        if (
+            not self.ips
+            or self.on_this_cluster()
+            or self._cluster_status == ClusterStatus.TERMINATED
+        ):
             return None
 
         try:
@@ -335,8 +342,18 @@ class OnDemandCluster(Cluster):
         Example:
             >>> rh.ondemand_cluster("rh-cpu").is_up()
         """
+        from runhouse.resources.hardware.utils import ClusterStatus
+
         if self.on_this_cluster():
             return True
+
+        # Check sky status without refresh if locally launched
+        if self.launcher == LauncherType.LOCAL:
+            self._fetch_sky_status_and_update_cluster_status()
+
+        if self._cluster_status == ClusterStatus.TERMINATED:
+            return False
+
         return self._ping(retry=True)
 
     def _sky_status(self, refresh: bool = True, retry: bool = True):
@@ -390,8 +407,32 @@ class OnDemandCluster(Cluster):
 
         time.sleep(5)
 
+    def _update_cluster_status_from_sky_status(self, sky_status: str):
+        if sky_status == SkyClusterStatus.UP:
+            self._cluster_status = ClusterStatus.RUNNING
+        if sky_status == SkyClusterStatus.STOPPED:
+            self._cluster_status = ClusterStatus.TERMINATED
+        if sky_status == SkyClusterStatus.INIT:
+            self._cluster_status = ClusterStatus.INITIALIZING
+
+    def _fetch_sky_status_and_update_cluster_status(self):
+        cluster_dict = self._sky_status(refresh=False)
+
+        if not cluster_dict:
+            self._cluster_status = ClusterStatus.TERMINATED
+            return
+
+        sky_status = cluster_dict["status"]
+        self._update_cluster_status_from_sky_status(sky_status)
+
     def _populate_connection_from_status_dict(self, cluster_dict: Dict[str, Any]):
-        if cluster_dict and cluster_dict["status"].name in ["UP", "INIT"]:
+        if not cluster_dict:
+            return
+
+        sky_status = cluster_dict["status"]
+        self._update_cluster_status_from_sky_status(sky_status)
+
+        if sky_status in [SkyClusterStatus.UP, SkyClusterStatus.INIT]:
             handle = cluster_dict["handle"]
             head_ip = handle.head_ip
             internal_ips, ips = map(list, zip(*handle.stable_internal_external_ips))
@@ -603,27 +644,30 @@ class OnDemandCluster(Cluster):
             logger.info("Tearing down cluster locally via Sky.")
             LocalLauncher.teardown(cluster=self, verbose=verbose)
 
-        try:
-            # Update Den with the terminated status
-            status_data = {
-                "daemon_status": RunhouseDaemonStatus.TERMINATED,
-                "resource_type": self.__class__.__base__.__name__.lower(),
-                "data": {},
-            }
+        if self.rns_address is not None:
+            try:
+                # Update Den with the terminated status
+                status_data = {
+                    "daemon_status": RunhouseDaemonStatus.TERMINATED,
+                    "resource_type": self.__class__.__base__.__name__.lower(),
+                    "data": {},
+                }
 
-            cluster_uri = rns_client.format_rns_address(self.rns_address)
-            status_resp = requests.post(
-                f"{rns_client.api_server_url}/resource/{cluster_uri}/cluster/status",
-                json=status_data,
-                headers=rns_client.request_headers(),
-            )
+                cluster_uri = rns_client.format_rns_address(self.rns_address)
+                status_resp = requests.post(
+                    f"{rns_client.api_server_url}/resource/{cluster_uri}/cluster/status",
+                    json=status_data,
+                    headers=rns_client.request_headers(),
+                )
 
-            # Note: 404 means that the cluster is not saved in Den
-            if status_resp.status_code not in [200, 404]:
-                logger.warning("Failed to update Den with terminated cluster status")
+                # Note: 404 means that the cluster is not saved in Den
+                if status_resp.status_code not in [200, 404]:
+                    logger.warning(
+                        "Failed to update Den with terminated cluster status"
+                    )
 
-        except Exception as e:
-            logger.warning(e)
+            except Exception as e:
+                logger.warning(e)
 
     def teardown_and_delete(self, verbose: bool = True):
         """Teardown cluster and delete it from configs.
