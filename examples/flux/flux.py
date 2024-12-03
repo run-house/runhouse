@@ -70,7 +70,7 @@ if __name__ == "__main__":
         accelerators="A10G",
         num_cpus="32",
         provider="aws",
-        img=img,
+        image=img,
     ).up_if_not()
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
