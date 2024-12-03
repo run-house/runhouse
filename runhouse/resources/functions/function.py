@@ -5,7 +5,6 @@ from typing import Any, Iterable, List, Optional, Tuple, Union
 from runhouse import globals
 from runhouse.logger import get_logger
 
-from runhouse.resources.envs import Env
 from runhouse.resources.hardware import Cluster
 from runhouse.resources.module import Module
 
@@ -22,7 +21,6 @@ class Function(Module):
         fn_pointers: Optional[Tuple] = None,
         name: Optional[str] = None,
         system: Optional[Cluster] = None,
-        env: Optional[Env] = None,
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -35,7 +33,7 @@ class Function(Module):
         """
         self.fn_pointers = fn_pointers
         self._loaded_fn = None
-        super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
+        super().__init__(name=name, dryrun=dryrun, system=system, **kwargs)
 
     # ----------------- Constructor helper methods -----------------
 
@@ -46,10 +44,6 @@ class Function(Module):
         if isinstance(config["system"], dict):
             config["system"] = Cluster.from_config(
                 config["system"], dryrun=dryrun, _resolve_children=_resolve_children
-            )
-        if isinstance(config["env"], dict):
-            config["env"] = Env.from_config(
-                config["env"], dryrun=dryrun, _resolve_children=_resolve_children
             )
 
         config.pop("resource_subtype", None)

@@ -15,7 +15,6 @@ from pydantic import create_model
 from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import obj_store, rns_client
 from runhouse.logger import get_logger
-from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
@@ -75,18 +74,12 @@ class Module(Resource):
         self._system = _get_cluster_from(
             system or _current_cluster(key="config"), dryrun=dryrun
         )
-        self._env = None
+        self.process = obj_store.get_process_name() or DEFAULT_PROCESS_NAME
         is_builtin = hasattr(sys.modules["runhouse"], self.__class__.__qualname__)
 
         # If there are no pointers and this isn't a builtin module, we assume this is a user-created subclass
         # of rh.Module, and we need to do the factory constructor logic here.
         if not pointers and not is_builtin:
-            if not self._env:
-
-                env_for_current_process = obj_store.get_process_env()
-                self._env = (
-                    env_for_current_process or Env()
-                )  # Env() or Env(name=DEFAULT_PROCESS_NAME)?
 
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
             # If we're creating pointers, we're also local to the class definition and package, so it should be
@@ -107,11 +100,7 @@ class Module(Resource):
             system = None
 
         config["system"] = system
-        config["env"] = (
-            self._resource_string_for_subconfig(self.env, condensed)
-            if self.env
-            else None
-        )
+        config["process"] = self.process
         if self._pointers:
             # For some reason sometimes this is coming back as a string, so we force it into a tuple
             config["pointers"] = tuple(self._pointers)
@@ -158,16 +147,7 @@ class Module(Resource):
                     or (isinstance(e, AttributeError) and class_name in str(e))
                 ):
                     system = config.get("system", None)
-                    env = config.get("env", None)
-                    env_name = (
-                        env
-                        if isinstance(env, str)
-                        else env["name"]
-                        if isinstance(env, Dict)
-                        else env.name
-                        if isinstance(env, Env) and env.name
-                        else DEFAULT_PROCESS_NAME
-                    )
+                    env_name = config.get("process", None)
 
                     # If we are on the same cluster, and in the env where the module lives, we should be able to
                     # load the module from the pointers. So, we should just raise the exception if this is the case.
@@ -194,7 +174,7 @@ class Module(Resource):
             if _resolve_children:
                 config = module_cls._check_for_child_configs(config)
             new_module.system = config.pop("system", None)
-            new_module.env = config.pop("env", None)
+            new_module.process = config.pop("process", None)
             new_module.name = config.pop("name", None)
             new_module.access_level = config.pop("access_level", ResourceAccess.WRITE)
             new_module.visibility = config.pop("visibility", ResourceVisibility.PRIVATE)
@@ -231,9 +211,6 @@ class Module(Resource):
         system = config.get("system")
         if isinstance(system, str) or isinstance(system, dict):
             config["system"] = _get_cluster_from(system)
-        env = config.get("env")
-        if isinstance(env, str) or isinstance(env, dict):
-            config["env"] = _get_env_from(env)
         return config
 
     @property
@@ -243,14 +220,6 @@ class Module(Resource):
     @system.setter
     def system(self, new_system: Union[str, Cluster]):
         self._system = _get_cluster_from(new_system)
-
-    @property
-    def env(self):
-        return self._env
-
-    @env.setter
-    def env(self, new_env: Optional[Union[str, Env]]):
-        self._env = _get_env_from(new_env)
 
     def _compute_signature(self, rich=False):
         return {
@@ -500,7 +469,7 @@ class Module(Resource):
         self.system = hw_backup
 
         new_module.system = system
-        new_module.env = process
+        new_module.process = process
         new_module.dryrun = True
 
         # Set remote import path
@@ -718,9 +687,9 @@ class Module(Resource):
             raise ValueError(
                 "If names is a list, it must be the same length as num_replicas."
             )
-        if not processes and (self.env and not self.env.name):
+        if not processes and not self.process:
             raise ValueError(
-                "Cannot replicate the default environment. Please send the module or function to a named env first."
+                "Cannot replicate the default environment. Please send the module or function to a process on the system first."
             )
 
         def create_replica(i):
@@ -729,10 +698,10 @@ class Module(Resource):
             if isinstance(processes, list):
                 replica_process_name = processes[i]
             else:
-                replica_process_name = f"{self.env.name}_replica_{i}"
+                replica_process_name = f"{self.process}_replica_{i}"
 
                 # The replica process should have the same requirements as the original process
-                new_process_init_args = self.system.list_processes()[self.env.name]
+                new_process_init_args = self.system.list_processes()[self.process]
 
                 # Change the arguments for the new process to reflect the replica
                 new_process_init_args["name"] = replica_process_name
@@ -749,7 +718,7 @@ class Module(Resource):
 
             new_module = copy.copy(self)
             new_module.local.name = name
-            new_module.local.env = None
+            new_module.local.process = None
             new_module.local.system = None
 
             new_module = new_module.to(self.system, process=replica_process_name)
@@ -813,7 +782,7 @@ class Module(Resource):
             name = name or f"distributed_{self.name}"
             pooled_module = DistributedPool(
                 **distribution_kwargs, name=name, replicas=replicas
-            ).to(self.system, process=self.env.name)
+            ).to(self.system, process=self.process)
             return pooled_module
         elif distribution == "ray":
             from runhouse.resources.distributed.ray_distributed import RayDistributed
@@ -821,7 +790,7 @@ class Module(Resource):
             name = name or f"ray_{self.name}"
             ray_module = RayDistributed(
                 **distribution_kwargs, name=name, module=self
-            ).to(system=self.system, process=self.env.name)
+            ).to(system=self.system, process=self.process)
             return ray_module
         elif distribution == "dask":
             from runhouse.resources.distributed.dask_distributed import DaskDistributed
@@ -833,7 +802,7 @@ class Module(Resource):
                 num_replicas=num_replicas,
                 replicas_per_node=replicas_per_node,
                 **distribution_kwargs,
-            ).to(system=self.system, process=self.env.name)
+            ).to(system=self.system, process=self.process)
             return dask_module
         elif distribution == "pytorch":
             from runhouse.resources.distributed.pytorch_distributed import (
@@ -848,7 +817,7 @@ class Module(Resource):
             name = name or f"pytorch_{self.local.name}"
             ptd_module = PyTorchDistributed(
                 **distribution_kwargs, name=name, replicas=replicas
-            ).to(system=self.system, process=self.env.name)
+            ).to(system=self.system, process=self.process)
             return ptd_module
 
     @property
@@ -1089,8 +1058,6 @@ class Module(Resource):
     def _save_sub_resources(self, folder: str = None):
         if isinstance(self.system, Resource) and self.system.name:
             self.system.save(folder=folder)
-        if isinstance(self.env, Resource):
-            self.env.save(folder=folder)
 
     def rename(self, name: str):
         """Rename the module.
@@ -1350,7 +1317,6 @@ def _module_subclass_factory(cls, cls_pointers):
         self,
         *args,
         system=None,
-        env=None,
         dryrun=False,
         pointers=cls_pointers,
         signature=None,
@@ -1365,7 +1331,6 @@ def _module_subclass_factory(cls, cls_pointers):
             signature=signature,
             name=name,
             system=system,
-            env=env,
             dryrun=dryrun,
         )
         # This allows a class which is already on the cluster to construct an instance of itself with a factory
@@ -1392,7 +1357,7 @@ def _module_subclass_factory(cls, cls_pointers):
         # Create a copy of the item on the cluster under the new name
         new_module.name = name or self.name
         new_module.dryrun = dryrun
-        env = _get_env_from(kwargs.get("env") or self.env)
+        process = kwargs.get("process") or self.process
         if not new_module.dryrun and new_module.system:
             # We use system.put_resource here because the signatures for HTTPClient.put_resource and
             # obj_store.put_resource are different, but we should fix that.
@@ -1404,7 +1369,7 @@ def _module_subclass_factory(cls, cls_pointers):
                 raise ValueError(
                     "You must have access to the underlying cluster for this unconstructed Module in order to put a resource on it."
                 )
-            new_module.system.put_resource(new_module, env=env)
+            new_module.system.put_resource(new_module, process=process)
             new_module.system.call(new_module.name, "_remote_init", *args, **kwargs)
         else:
             new_module._remote_init(*args, **kwargs)

@@ -277,7 +277,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         cluster.put("k1", "v1", env=env1.name)
         cluster.put("k2", "v2", env=env2.name)
-        cluster.put_resource(env3, env=env1.name)
+        cluster.put_resource(env3, process=env1.name)
 
         # test delete env2
         assert cluster.get(env2.name)

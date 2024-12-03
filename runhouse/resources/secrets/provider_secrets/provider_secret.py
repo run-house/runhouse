@@ -182,7 +182,10 @@ class ProviderSecret(Secret):
         elif values is False:
             new_secret._values = None
 
-        key = system.put_resource(new_secret, env=env)
+        process = (
+            env if isinstance(env, str) else env.name if isinstance(env, Env) else None
+        )
+        key = system.put_resource(new_secret, process=process)
         if path:
             new_secret.path = self._file_to(
                 key=key, system=system, path=path, values=self.values
