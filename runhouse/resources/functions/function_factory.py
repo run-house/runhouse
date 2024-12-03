@@ -24,7 +24,7 @@ def function(
     Args:
         fn (Optional[str or Callable]): The function to execute on the remote system when the function is called.
         name (Optional[str]): Name of the Function to create or retrieve.
-            This can be either from a local config or from the RNS. (Default: ``None``)
+            This can be either from a local config or from Den. (Default: ``None``)
         env (Optional[List[str] or Env or str], optional): List of requirements to install on the remote cluster,
             or path to the requirements.txt file, or Env object or string name of an Env object. (Default: ``None``)
         load_from_den (bool, optional): Whether to try loading the function from Den. (Default: ``True``)

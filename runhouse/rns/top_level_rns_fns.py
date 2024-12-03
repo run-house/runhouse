@@ -78,7 +78,7 @@ async def get_local_cluster_object():
 
 
 def save(resource, name: str = None, overwrite: bool = True, folder: str = None):
-    """Register the resource, saving it to local working_dir config and/or RNS config store. Uses the resource's
+    """Register the resource, saving it to local working_dir config and/or Den config store. Uses the resource's
     `self.config()` to generate the dict to save."""
 
     # TODO handle self.access == 'read' instead of this weird overwrite argument
@@ -132,7 +132,7 @@ def ipython():
 
 
 def delete(resource_or_name: str):
-    """Delete the resource from the RNS or local config store."""
+    """Delete the resource from the Den or local config store."""
     rns_client.delete_configs(resource=resource_or_name)
 
 

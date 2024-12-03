@@ -120,7 +120,7 @@ def _get_cluster_from(system, dryrun=False):
         try:
             system = Cluster.from_name(name=system, dryrun=dryrun)
         except ValueError:
-            # Name not found in RNS. Doing the lookup this way saves us a hop to RNS
+            # Name not found in Den. Doing the lookup this way saves us a hop to Den
             pass
 
     return system
@@ -482,7 +482,7 @@ def get_running_and_not_running_clusters(clusters: list):
     up_clusters, down_clusters = [], []
 
     for den_cluster in clusters:
-        # Display the name instead of the full RNS address
+        # Display the name instead of the full Den address
         cluster_name = den_cluster.get("name").split("/")[-1]
         cluster_type = den_cluster.get("data").get("resource_subtype")
         cluster_status = den_cluster.get("cluster_status")

@@ -109,7 +109,7 @@ class TestFunction:
     def test_create_function_from_rns(self, cluster, test_rns_folder):
         remote_func_name = get_remote_func_name(test_rns_folder)
         if cluster.on_this_cluster():
-            pytest.mark.skip("Function on local cluster cannot be loaded from RNS.")
+            pytest.mark.skip("Function on local cluster cannot be loaded from Den.")
 
         remote_sum = rh.function(summer).to(cluster).save(remote_func_name)
         del remote_sum
@@ -133,7 +133,7 @@ class TestFunction:
     def test_get_function_history(self, cluster, test_rns_folder):
         remote_func_name = get_remote_func_name(test_rns_folder)
 
-        # reload the function from RNS
+        # reload the function from Den
         remote_sum = rh.function(summer).to(cluster).save(remote_func_name)
 
         history = remote_sum.history()

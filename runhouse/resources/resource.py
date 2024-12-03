@@ -168,7 +168,7 @@ class Resource:
             return self
 
     def save(self, name: str = None, overwrite: bool = True, folder: str = None):
-        """Register the resource, saving it to local working_dir config and RNS config store. Uses the resource's
+        """Register the resource, saving it to the Den config store. Uses the resource's
         `self.config()` to generate the dict to save."""
 
         # add this resource this run's downstream artifact registry if it's being saved as part of a run
@@ -312,8 +312,8 @@ class Resource:
         return loaded
 
     def unname(self):
-        """Remove the name of the resource. This changes the resource name to anonymous and deletes any local
-        or RNS configs for the resource."""
+        """Remove the name of the resource. This changes the resource name to anonymous and deletes any Den configs
+        for the resource."""
         self.delete_configs()
         self._name = None
 
@@ -349,7 +349,7 @@ class Resource:
 
     # TODO delete sub-resources
     def delete_configs(self):
-        """Delete the resource's config from local working_dir and RNS config store."""
+        """Delete the resource's config from Den config store."""
         rns_client.delete_configs(resource=self)
 
     def save_attrs_to_config(self, config: Dict, attrs: List[str]):
@@ -397,7 +397,7 @@ class Resource:
                 resource. By default, the visibility is private. (Default: ``None``)
             notify_users (bool, optional): Whether to send an email notification to users who have been given access.
                 Note: This is relevant for resources which are not ``shareable``. (Default: ``True``)
-            headers (Dict, optional): Request headers to provide for the request to RNS. Contains the user's auth token.
+            headers (Dict, optional): Request headers to provide for the request to Den. Contains the user's auth token.
                 Example: ``{"Authorization": f"Bearer {token}"}``
 
         Returns:
@@ -479,7 +479,7 @@ class Resource:
         Args:
             users (Union[str, str], optional): List of user emails and / or runhouse account usernames
                 (or a single user). If no users are specified will revoke access for all users. (Default: ``None``)
-            headers (Optional[Dict]): Request headers to provide for the request to RNS. Contains the user's auth token.
+            headers (Optional[Dict]): Request headers to provide for the request to Den. Contains the user's auth token.
                 Example: ``{"Authorization": f"Bearer {token}"}``
         """
         if isinstance(users, str):

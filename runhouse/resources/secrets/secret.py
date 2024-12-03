@@ -264,7 +264,7 @@ class Secret(Resource):
             name (str, optional): Name to save the secret resource as.
             save_values (str, optional): Whether to save the values of the secret to Vault in addition
                 to saving the metadata to Den. (Default: ``True``)
-            headers (Dict, optional): Request headers to provide for the request to RNS. Contains the
+            headers (Dict, optional): Request headers to provide for the request to Den. Contains the
                 user's auth token. Example: ``{"Authorization": f"Bearer {token}"}`` (Default: ``None``)
             folder (str, optional): If specified, save the secret to that folder in Den (e.g. saving secrets
                 for a cluster associated with an organization). (Default: ``None``)
@@ -356,7 +356,7 @@ class Secret(Resource):
         resource_uri = rns_client.resource_uri(self.rns_address)
         _delete_vault_secrets(resource_uri, self.USER_ENDPOINT, headers=headers)
 
-        # Delete RNS data for resource
+        # Delete Den data for resource
         uri = f"{rns_client.api_server_url}/resource/{resource_uri}"
         resp = rns_client.session.delete(
             uri,
