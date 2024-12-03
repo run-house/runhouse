@@ -6,7 +6,6 @@ from typing import Any, Dict, Optional, Union
 
 from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import configs, rns_client
-from runhouse.resources.envs.env import Env
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import _get_cluster_from
 from runhouse.resources.secrets.secret import Secret
@@ -134,7 +133,7 @@ class ProviderSecret(Secret):
         self,
         system: Union[str, Cluster],
         path: str = None,
-        env: Union[str, Env] = None,
+        process: Optional[str] = None,
         values: bool = None,
         name: Optional[str] = None,
     ):
@@ -155,17 +154,16 @@ class ProviderSecret(Secret):
         Example:
             >>> secret.to(my_cluster, path=secret.path)
         """
-        from runhouse import Env
 
         system = _get_cluster_from(system)
         path = path or self.path
 
         if system.on_this_cluster():
-            if not env and not path == self.path:
+            if not process and not path == self.path:
                 if name and not self.name == name:
                     self.rename(name)
                 return self
-            self.write(path=path, env=env)
+            self.write(path=path, env=process)
             new_secret = copy.deepcopy(self)
             new_secret._values = None
             new_secret.path = path
@@ -177,34 +175,25 @@ class ProviderSecret(Secret):
 
         if values:
             new_secret._values = self.values
-        elif values is None and not (path or env or self.env_vars):
+        elif values is None and not (path or process or self.env_vars):
             new_secret._values = self.values
         elif values is False:
             new_secret._values = None
 
-        process = (
-            env if isinstance(env, str) else env.name if isinstance(env, Env) else None
-        )
+        process = process or DEFAULT_PROCESS_NAME
         key = system.put_resource(new_secret, process=process)
         if path:
             new_secret.path = self._file_to(
                 key=key, system=system, path=path, values=self.values
             )
 
-        if env or self.env_vars:
-            if not env or (env and isinstance(env, Env) and not env.name):
-                env = DEFAULT_PROCESS_NAME
-            env_key = env if isinstance(env, str) else env.name
-
-            if not system.get(env_key):
-                env = env if isinstance(env, Env) else Env(name=env_key)
-                env_key = system.put_resource(env)
+        if process or self.env_vars:
             env_vars = self.env_vars or self._DEFAULT_ENV_VARS
             if env_vars:
                 env_vars = {
                     env_vars[k]: self.values[k] for k in self.values if k in env_vars
                 }
-                system.set_process_env_vars(name=env_key, env_vars=env_vars)
+                system.set_process_env_vars(name=process, env_vars=env_vars)
         return new_secret
 
     def _file_to(

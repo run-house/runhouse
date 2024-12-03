@@ -148,7 +148,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         get_remote_val = rh.function(_get_env_var_value, name="get_env_vars").to(
             cluster
         )
-        secret.to(cluster, env=env)
+        secret.to(cluster, process=env.name)
 
         for (key, val) in env_vars.items():
             assert get_remote_val(val) == secret.values[key]
