@@ -9,7 +9,7 @@ import requests
 import runhouse as rh
 
 from runhouse.globals import rns_client
-from runhouse.resources.hardware.utils import RunhouseDaemonStatus
+from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatus
 
 import tests.test_resources.test_clusters.test_cluster
 from tests.constants import TESTING_AUTOSTOP_INTERVAL
@@ -246,10 +246,10 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
         original_ips = cluster.ips
 
-        cluster.compute_properties["ips"] = []
-        cluster.compute_properties["internal_ips"] = []
+        cluster._cluster_status = ClusterStatus.TERMINATED
         assert not cluster._ping(retry=False)
 
+        cluster._cluster_status = None
         if cluster.compute_properties.get("cloud") == "kubernetes":
             # kubernetes does not use ips in command runner
             cluster.compute_properties["ips"] = ["00.00.000.11"]
