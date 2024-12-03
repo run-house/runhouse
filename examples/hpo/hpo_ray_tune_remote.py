@@ -70,7 +70,9 @@ def find_minimum(num_concurrent_trials=2, num_samples=4, metric_name="score"):
 if __name__ == "__main__":
     cluster = rh.cluster(
         name="rh-cpu",
-        default_env=rh.env(reqs=["ray[tune]"]),
+        image=rh.Image("tune").install_packages(
+            ["pyarrow>=9.0.0", "ray[tune]>=2.38.0"]
+        ),
         instance_type="CPU:4+",
         provider="aws",
     ).up_if_not()
