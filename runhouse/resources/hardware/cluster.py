@@ -617,6 +617,11 @@ class Cluster(Resource):
         if not self.image:
             return [], env_vars  # secrets, env vars
 
+        if self.image.image_id and self.config().get("resource_subtype") == "Cluster":
+            logger.error(
+                "``image_id`` is only supported for OnDemandCluster, not static Clusters."
+            )
+
         logger.info(f"Syncing default image {self.image} to cluster.")
 
         secrets_to_sync = []

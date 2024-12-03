@@ -111,7 +111,7 @@ class OnDemandCluster(Cluster):
 
         self.open_ports = open_ports
         self.use_spot = use_spot if use_spot is not None else configs.get("use_spot")
-        self.image_id = image_id
+        self.image_id = (self.image.image_id if self.image else None) or image_id
         self.region = region
         self.memory = memory
         self.disk_size = disk_size
