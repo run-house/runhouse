@@ -111,7 +111,7 @@ class RNSClient:
 
     @property
     def autosave(self):
-        return self._configs.get("autosave", True)
+        return self._configs.get("autosave", False)
 
     @property
     def default_ssh_key(self):

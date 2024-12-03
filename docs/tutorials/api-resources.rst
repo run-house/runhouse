@@ -74,8 +74,8 @@ to signal that it lives in the current folder.
 
 .. note::
 
-    If you are logged in and would like to turn off automatically saving resources to Runhouse RNS, you can
-    set ``autosave`` to ``false`` in your local ``~/.rh/config.yaml`` file.
+    If you are logged in and would like to turn on automatically saving resources to Runhouse RNS, you can
+    set ``autosave`` to ``true`` in your local ``~/.rh/config.yaml`` file.
 
 .. code:: ipython3
 
