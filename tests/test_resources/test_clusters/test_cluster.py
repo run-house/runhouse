@@ -590,7 +590,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         cluster.put(key="status_key2", obj="status_value2")
         status_output_response = cluster.run(
-            [status_cli_command], node=cluster.head_ip, require_outputs=True
+            [status_cli_command], _ssh_mode="non_interactive"
         )[0]
         assert status_output_response[0] == 0
         status_output_string = status_output_response[1]
