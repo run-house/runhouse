@@ -72,13 +72,19 @@ class LightGBMModelTrainer:
                 "Test data not loaded yet. Please load the test data first."
             )
 
-        y_pred = self.model.predict(self.X_test.to_dask_array(lengths=True))
-        self.mse = mean_squared_error(self.y_test.to_dask_array(lengths=True), y_pred)
-        print(f"Mean Squared Error: {self.mse}")
+        y_pred = self.model.predict(self.X_test) 
+        y_test = self.y_test.to_dask_array().rechunk(y_pred.chunks) 
 
-        self.mae = mean_absolute_error(self.y_test.to_dask_array(lengths=True), y_pred)
+        print(f"y_test computed part: {y_test.compute().shape}")
+        print(f"y_pred computed part: {y_pred.compute().shape}")
+        
+        
+        self.mae = mean_absolute_error(y_test, y_pred)
         print(f"Mean Absolute Error: {self.mae}")
-
+        
+        self.mse = mean_squared_error(y_test, y_pred)
+        print(f"Mean Squared Error: {self.mse}")
+   
     def return_model_details(self):
         return {"features": self.features, "mse": self.mse, "mae": self.mae}
 
