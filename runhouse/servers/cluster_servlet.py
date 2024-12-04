@@ -388,7 +388,10 @@ class ClusterServlet:
 
         logger.debug("started periodic cluster checks")
 
-        disable_observability = os.getenv("disable_observability", False)
+        disable_observability = (
+            os.getenv("disable_observability", "false").strip().lower() == "true"
+        )
+
         while True:
             should_send_status_and_logs_to_den: bool = (
                 configs.token is not None and self._cluster_uri is not None
