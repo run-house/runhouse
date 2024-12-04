@@ -157,7 +157,7 @@ class HTTPServer:
             await obj_store.ainitialize(
                 DEFAULT_PROCESS_NAME,
                 setup_ray=RaySetupOption.TEST_PROCESS,
-                init_args=CreateProcessParams(
+                create_process_params=CreateProcessParams(
                     name=DEFAULT_PROCESS_NAME, runtime_env=runtime_env
                 ),
             )
@@ -165,7 +165,7 @@ class HTTPServer:
         # We initialize a default env servlet where some things may run.
         _ = obj_store.get_servlet(
             env_name=DEFAULT_PROCESS_NAME,
-            process_init_args=CreateProcessParams(
+            create_process_params=CreateProcessParams(
                 name=DEFAULT_PROCESS_NAME,
                 runtime_env=runtime_env,
             ),
@@ -376,7 +376,7 @@ class HTTPServer:
         try:
             _ = obj_store.get_servlet(
                 env_name=params.name,
-                process_init_args=params,
+                create_process_params=params,
                 create=True,
             )
             return Response(output_type=OutputType.SUCCESS)

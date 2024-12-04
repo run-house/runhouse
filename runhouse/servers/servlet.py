@@ -92,14 +92,16 @@ def error_handling_decorator(func):
 
 
 class Servlet:
-    async def __init__(self, process_init_args: CreateProcessParams, *args, **kwargs):
-        self.env_name = process_init_args.name
+    async def __init__(
+        self, create_process_params: CreateProcessParams, *args, **kwargs
+    ):
+        self.env_name = create_process_params.name
 
         await obj_store.ainitialize(
             self.env_name,
             has_local_storage=True,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
-            init_args=process_init_args,
+            create_process_params=create_process_params,
         )
 
         # Ray defaults to setting OMP_NUM_THREADS to 1, which unexpectedly limit parallelism in user programs.
