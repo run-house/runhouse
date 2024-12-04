@@ -6,7 +6,6 @@ from typing import Any, Optional
 import requests
 
 import runhouse as rh
-from runhouse.constants import DOCKER_LOGIN_ENV_VARS
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import SSEClient
@@ -335,7 +334,7 @@ class LocalLauncher(Launcher):
                 )
             )
             if cluster.image_id:
-                cls._set_docker_env_vars(task)
+                cls._set_docker_env_vars(cluster.image, task)
 
             sky.launch(
                 task,
@@ -383,14 +382,15 @@ class LocalLauncher(Launcher):
             cluster.save()
 
     @staticmethod
-    def _set_docker_env_vars(task):
+    def _set_docker_env_vars(image, task):
         """Helper method to set Docker login environment variables."""
-        import os
-
-        docker_env_vars = {}
-        for env_var in DOCKER_LOGIN_ENV_VARS:
-            if os.getenv(env_var):
-                docker_env_vars[env_var] = os.getenv(env_var)
+        if image and image.docker_secret:
+            docker_env_vars = image.docker_secret._map_env_vars()
+        else:
+            try:
+                docker_env_vars = rh.provider_secret("docker")._map_env_vars()
+            except ValueError:
+                docker_env_vars = {}
 
         if docker_env_vars:
             task.update_envs(docker_env_vars)
