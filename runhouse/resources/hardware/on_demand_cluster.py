@@ -54,7 +54,6 @@ class OnDemandCluster(Cluster):
         dryrun: bool = False,
         autostop_mins: int = None,
         use_spot: bool = False,
-        image_id: str = None,
         memory: Union[int, str] = None,
         disk_size: Union[int, str] = None,
         num_cpus: Union[int, str] = None,
@@ -111,7 +110,6 @@ class OnDemandCluster(Cluster):
 
         self.open_ports = open_ports
         self.use_spot = use_spot if use_spot is not None else configs.get("use_spot")
-        self.image_id = (self.image.image_id if self.image else None) or image_id
         self.region = region
         self.memory = memory
         self.disk_size = disk_size
@@ -193,6 +191,12 @@ class OnDemandCluster(Cluster):
                 self.run([set_cluster_autostop_cmd], node=self.head_ip)
 
     @property
+    def image_id(self) -> str:
+        if self.image and self.image.image_id:
+            return self.image.image_id
+        return None
+
+    @property
     def docker_user(self) -> str:
         if self._docker_user:
             return self._docker_user
@@ -225,7 +229,6 @@ class OnDemandCluster(Cluster):
                 "provider",
                 "open_ports",
                 "use_spot",
-                "image_id",
                 "region",
                 "memory",
                 "disk_size",

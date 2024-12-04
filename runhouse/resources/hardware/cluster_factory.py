@@ -302,7 +302,6 @@ def ondemand_cluster(
     autostop_mins: Optional[int] = None,
     use_spot: bool = False,
     image: Image = None,
-    image_id: Optional[str] = None,
     region: Optional[str] = None,
     memory: Union[int, str, None] = None,
     disk_size: Union[int, str, None] = None,
@@ -324,7 +323,7 @@ def ondemand_cluster(
     **kwargs,
 ) -> OnDemandCluster:
     """
-    Builds an instance of :class:`OnDemandCluster`. Note that image_id, region, memory, disk_size, and open_ports
+    Builds an instance of :class:`OnDemandCluster`. Note that region, memory, disk_size, and open_ports
     are all passed through to SkyPilot's `Resource constructor
     <https://skypilot.readthedocs.io/en/latest/reference/api.html#resources>`__.
 
@@ -337,9 +336,6 @@ def ondemand_cluster(
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
             or ``-1`` to keep cluster up indefinitely. (Default: ``60``).
         use_spot (bool, optional): Whether or not to use spot instance.
-        image_id (str, optional): Custom image ID for the cluster. If using a docker image, please use the following
-            string format: "docker:<registry>/<image>:<tag>". See `user guide <https://www.run.house/docs/docker>`__
-            for more information on Docker cluster setup.
         region (str, optional): The region to use for the cluster.
         memory (int or str, optional): Amount of memory to use for the cluster, e.g. "16" or "16+".
         disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. "100" or "100+".
@@ -392,7 +388,6 @@ def ondemand_cluster(
         >>>                  provider='gcp',
         >>>                  autostop_mins=-1,
         >>>                  use_spot=True,
-        >>>                  image_id='my_ami_string',
         >>>                  region='us-east-1',
         >>>                  ).save()
 
@@ -432,7 +427,6 @@ def ondemand_cluster(
             num_nodes=num_nodes,
             provider=provider,
             region=region,
-            image_id=image_id,
             memory=memory,
             disk_size=disk_size,
             num_cpus=num_cpus,
@@ -492,7 +486,6 @@ def ondemand_cluster(
             provider=provider,
             use_spot=use_spot,
             image=image,
-            image_id=image_id,
             region=region,
             memory=memory,
             disk_size=disk_size,
@@ -517,7 +510,6 @@ def ondemand_cluster(
         autostop_mins=autostop_mins,
         use_spot=use_spot,
         image=image,
-        image_id=image_id,
         region=region,
         memory=memory,
         disk_size=disk_size,
