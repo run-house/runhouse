@@ -2,6 +2,9 @@ from runhouse.resources.secrets.provider_secrets.anthropic_secret import Anthrop
 from runhouse.resources.secrets.provider_secrets.aws_secret import AWSSecret
 from runhouse.resources.secrets.provider_secrets.azure_secret import AzureSecret
 from runhouse.resources.secrets.provider_secrets.cohere_secret import CohereSecret
+from runhouse.resources.secrets.provider_secrets.docker_secret import (
+    DockerRegistrySecret,
+)
 from runhouse.resources.secrets.provider_secrets.gcp_secret import GCPSecret
 from runhouse.resources.secrets.provider_secrets.github_secret import GitHubSecret
 from runhouse.resources.secrets.provider_secrets.huggingface_secret import (
@@ -29,6 +32,7 @@ _str_to_provider_class = {
     "huggingface": HuggingFaceSecret,
     "kubernetes": KubeConfigSecret,
     "lambda": LambdaSecret,
+    "docker": DockerRegistrySecret,
     # SSH secrets
     "ssh": SSHSecret,
     "sky": SkySecret,

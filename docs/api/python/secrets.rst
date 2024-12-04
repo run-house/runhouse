@@ -94,6 +94,15 @@ LambdaSecret Class
    .. autoattribute:: _DEFAULT_CREDENTIALS_PATH
 
 
+DockerRegistrySecret Class
+--------------------------
+.. autoclass:: runhouse.resources.secrets.provider_secrets.docker_secret.DockerRegistrySecret
+    :show-inheritance:
+
+    .. autoattribute:: _PROVIDER
+    .. autoattribute:: _DEFAULT_ENV_VARS
+
+
 SSHSecret Class
 ---------------
 .. autoclass:: runhouse.resources.secrets.provider_secrets.ssh_secret.SSHSecret
