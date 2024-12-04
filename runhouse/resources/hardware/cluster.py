@@ -808,9 +808,11 @@ class Cluster(Resource):
             resource.name = DEFAULT_PROCESS_NAME
 
         # Logic to get env_name from different ways env can be provided
-        env_name = (
-            process or resource.process
+        env_name = process or (
+            resource.process
             if hasattr(resource, "process")
+            else resource.name or resource.env_name
+            if resource.RESOURCE_TYPE == "env"
             else DEFAULT_PROCESS_NAME
         )
 
