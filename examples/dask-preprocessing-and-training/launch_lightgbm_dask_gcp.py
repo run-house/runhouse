@@ -73,13 +73,19 @@ class LightGBMModelTrainer:
                 "Test data not loaded yet. Please load the test data first."
             )
 
-        y_pred = self.model.predict(self.X_test.to_dask_array(lengths=True))
-        self.mse = mean_squared_error(self.y_test.to_dask_array(lengths=True), y_pred)
-        print(f"Mean Squared Error: {self.mse}")
+        y_pred = self.model.predict(self.X_test) 
+        y_test = self.y_test.to_dask_array().rechunk(y_pred.chunks) 
 
-        self.mae = mean_absolute_error(self.y_test.to_dask_array(lengths=True), y_pred)
+        print(f"y_test computed part: {y_test.compute().shape}")
+        print(f"y_pred computed part: {y_pred.compute().shape}")
+        
+        
+        self.mae = mean_absolute_error(y_test, y_pred)
         print(f"Mean Absolute Error: {self.mae}")
-
+        
+        self.mse = mean_squared_error(y_test, y_pred)
+        print(f"Mean Squared Error: {self.mse}")
+        
     def return_model_details(self):
         return {"features": self.features, "mse": self.mse, "mae": self.mae}
 
@@ -154,37 +160,26 @@ if __name__ == "__main__":
     cluster_name = f"rh-{num_nodes}-dask-gcp"
 
     # The environment for the remote cluster
-    env = rh.env(
-        name="dask-env",
-        load_from_den=False,
-        reqs=[
+    img = Image("dask-env").install_packages([
+            "dask[distributed,dataframe]",
             "dask-ml",
-            "dask[distributed]",
-            "dask[dataframe]",
             "gcsfs",
             "lightgbm",
-        ],
-    )
+        ],).set_env_vars({'OMP_NUM_THREADS': '1', 'MKL_NUM_THREADS': '1', 'OPENBLAS_NUM_THREADS': '1'})
 
     cluster = rh.ondemand_cluster(
         name=cluster_name,
-        instance_type= 'CPU:2+',
-        memory = "12+",
+        instance_type='n2-highmem-4',
         num_nodes=num_nodes,
         provider="gcp",
         region = "us-east1",
-        default_env=env,
+        image = img, 
         launcher_type="den",
     ).up_if_not()
-    #cluster.teardown()
-    # ## Setup the remote training
-    # This is the service account key that we authenticate reading from the bucket with. There's a couple ways to do this. 
-    #my_service_account = rh.provider_secret(provider = "gcp", name = "runhouse-test-dataccess-serviceaccount", path = "/Users/paulyang/Downloads/runhouse-test-8c3eb368f020.json")
-    #my_service_account.save() 
-    #my_service_account.to(cluster,path = "~/.config/gcloud/application_default_credentials.json")
-
     
-    # ## Send the trainer class to the remote cluster and instantiate a remote object named 'my_trainer'
+    # cluster.teardown()
+    
+    # ## Setup the remote training
     # LightGBMModelTrainer is a completely normal class that contains our training methods, 
     # that a researcher would also be able to use locally as-is as well (on non-distributed Dask)
     from lightgbm_training import LightGBMModelTrainer
