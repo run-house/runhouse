@@ -19,6 +19,7 @@ def launch_dask_cluster(cluster):
 
     # Start workers and connect to the scheduler
     import time
+
     for ip in cluster.ips:
         time.sleep(3)
         cluster.run('pip install "dask[distributed]"', node=ip)

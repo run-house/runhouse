@@ -50,6 +50,7 @@ class ResNet152Model(nn.Module):
     def forward(self, x):
         return self.model(x)
 
+
 # ### Trainer Class
 # The Trainer class orchestrates the distributed training process, including:
 # - Initializing the distributed communication backend
@@ -88,9 +89,7 @@ class ResNet152Trainer:
         self.device_id = self.rank % torch.cuda.device_count()
         self.device = torch.device(f"cuda:{self.device_id}")
 
-    def init_model(
-        self, num_classes, weight_path, lr, weight_decay, step_size, gamma
-    ):
+    def init_model(self, num_classes, weight_path, lr, weight_decay, step_size, gamma):
         if weight_path:
             self.model = DDP(
                 ResNet152Model(
@@ -185,9 +184,7 @@ class ResNet152Trainer:
     ):
         self.init_comms()
         print("Remote comms initialized")
-        self.init_model(
-            num_classes, weights_path, lr, weight_decay, step_size, gamma
-        )
+        self.init_model(num_classes, weights_path, lr, weight_decay, step_size, gamma)
         print("Model initialized")
 
         # Load training and validation data
@@ -243,12 +240,13 @@ class ResNet152Trainer:
             _, predicted = torch.max(output, 1)
             return predicted.item()
 
+
 # ### Run distributed training with Runhouse
 # The following code snippet demonstrates how to create a Runhouse cluster and run the distributed training pipeline on the cluster.
-# - We define a 3 node cluster with GPUs where we will do the training. 
-# - Then we dispatch the trainer class to the remote cluster 
-# - We create an instance of the trainer class on remote, and call .distribute('pytorch') to properly setup the distributed training. It's that easy. 
-# - This remote trainer instance is accessible by name - if we construct the cluster by name, and run cluster.get('trainer') we will get the remote trainer instance. This means you can make multithreaded calls against the trainer class. 
+# - We define a 3 node cluster with GPUs where we will do the training.
+# - Then we dispatch the trainer class to the remote cluster
+# - We create an instance of the trainer class on remote, and call .distribute('pytorch') to properly setup the distributed training. It's that easy.
+# - This remote trainer instance is accessible by name - if we construct the cluster by name, and run cluster.get('trainer') we will get the remote trainer instance. This means you can make multithreaded calls against the trainer class.
 # - The main training loop trains the model for 15 epochs and the model checkpoints are saved to S3
 if __name__ == "__main__":
     train_data_path = (

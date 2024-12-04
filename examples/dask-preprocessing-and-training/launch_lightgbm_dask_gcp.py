@@ -1,6 +1,8 @@
 import runhouse as rh
+
 # ## Dask + LightGBM Training
 # This script contains the implementation of a class that trains a LightGBM model using Dask.
+
 
 class LightGBMModelTrainer:
     def __init__(self):
@@ -73,24 +75,24 @@ class LightGBMModelTrainer:
                 "Test data not loaded yet. Please load the test data first."
             )
 
-        y_pred = self.model.predict(self.X_test) 
-        y_test = self.y_test.to_dask_array().rechunk(y_pred.chunks) 
+        y_pred = self.model.predict(self.X_test)
+        y_test = self.y_test.to_dask_array().rechunk(y_pred.chunks)
 
         print(f"y_test computed part: {y_test.compute().shape}")
         print(f"y_pred computed part: {y_pred.compute().shape}")
-        
-        
+
         self.mae = mean_absolute_error(y_test, y_pred)
         print(f"Mean Absolute Error: {self.mae}")
-        
+
         self.mse = mean_squared_error(y_test, y_pred)
         print(f"Mean Squared Error: {self.mse}")
-        
+
     def return_model_details(self):
         return {"features": self.features, "mse": self.mse, "mae": self.mae}
 
     def save_model(self, path, upload_to_s3=False):
         import cloudpickle
+
         if path.startswith("s3://"):
             import s3fs
 
@@ -127,7 +129,7 @@ class LightGBMModelTrainer:
             import gcsfs
 
             fs = gcsfs.GCSFileSystem()
-            with fs.open(path, 'rb') as f:
+            with fs.open(path, "rb") as f:
                 self.model = cloudpickle.load(f)
         else:
             # Assume it's a local path
@@ -160,38 +162,49 @@ if __name__ == "__main__":
     cluster_name = f"rh-{num_nodes}-dask-gcp"
 
     # The environment for the remote cluster
-    img = Image("dask-env").install_packages([
-            "dask[distributed,dataframe]",
-            "dask-ml",
-            "gcsfs",
-            "lightgbm",
-        ],).set_env_vars({'OMP_NUM_THREADS': '1', 'MKL_NUM_THREADS': '1', 'OPENBLAS_NUM_THREADS': '1'})
+    img = (
+        Image("dask-env")
+        .install_packages(
+            [
+                "dask[distributed,dataframe]",
+                "dask-ml",
+                "gcsfs",
+                "lightgbm",
+            ],
+        )
+        .set_env_vars(
+            {
+                "OMP_NUM_THREADS": "1",
+                "MKL_NUM_THREADS": "1",
+                "OPENBLAS_NUM_THREADS": "1",
+            }
+        )
+    )
 
     cluster = rh.ondemand_cluster(
         name=cluster_name,
-        instance_type='n2-highmem-4',
+        instance_type="n2-highmem-4",
         num_nodes=num_nodes,
         provider="gcp",
-        region = "us-east1",
-        image = img, 
+        region="us-east1",
+        image=img,
         launcher_type="den",
     ).up_if_not()
-    
+
     # cluster.teardown()
-    
+
     # ## Setup the remote training
-    # LightGBMModelTrainer is a completely normal class that contains our training methods, 
+    # LightGBMModelTrainer is a completely normal class that contains our training methods,
     # that a researcher would also be able to use locally as-is as well (on non-distributed Dask)
     from lightgbm_training import LightGBMModelTrainer
+
     remote_dask_trainer = rh.module(LightGBMModelTrainer).to(cluster)
-    
+
     # Create is a locally callable, but remote instance of the trainer class
-    # You can interact with this trainer class in a different notebook / elsewhere using 
+    # You can interact with this trainer class in a different notebook / elsewhere using
     # cluster.get('trainer', remote = True) to get the remote object
     # We also use .distribute("dask") to start the Dask cluster and indicate this will be used with Dask
-    dask_trainer = remote_dask_trainer(
-        name="my_trainer"
-    ).distribute('dask') 
+    dask_trainer = remote_dask_trainer(name="my_trainer").distribute("dask")
 
     # ## Do the processing and training on the remote cluster
     # Access the Dask client, data, and preprocess the data
@@ -207,11 +220,11 @@ if __name__ == "__main__":
 
     # Train, test, and save the model
     dask_trainer.train_model()
-    print('Model trained')
+    print("Model trained")
     dask_trainer.test_model()
-    print('Model tested')
+    print("Model tested")
     dask_trainer.save_model("gs://rh-model-checkpoints/lightgbm_dask/model.pkl")
-    print('Model saved')
+    print("Model saved")
     # cluster.teardown() # Optionally, automatically teardown the cluster after training
-    print('Launching notebook')
-    cluster.notebook() # Optionally, open a Jupyter notebook on the cluster to interact with the trained model
+    print("Launching notebook")
+    cluster.notebook()  # Optionally, open a Jupyter notebook on the cluster to interact with the trained model

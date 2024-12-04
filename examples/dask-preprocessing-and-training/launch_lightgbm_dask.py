@@ -13,10 +13,10 @@ if __name__ == "__main__":
         provider="aws",
         launcher_type="local",
     ).up_if_not()
-    
+
     # ## Launch a Dask cluster on the Runhouse cluster
     # You can do this here if you want the Dask cluster to be ephemeral to this training only
-    # or in a separate process if you want it long lived. 
+    # or in a separate process if you want it long lived.
     launch_dask_cluster(cluster)
 
     # ## Setup the remote training
@@ -37,14 +37,13 @@ if __name__ == "__main__":
     # ## Send the trainer class to the remote cluster and instantiate a remote object named 'my_trainer'
     # LightGBMModelTrainer is a completely normal class encapsulating training, that a researcher would also be able to use locally as-is
     from lightgbm_training import LightGBMModelTrainer
+
     remote_dask_trainer = rh.module(LightGBMModelTrainer).to(cluster, env=env)
-    
+
     # Create is a locally callable, but remote instance of the trainer class
-    # You can interact with this trainer class in a different notebook / elsewhere using 
+    # You can interact with this trainer class in a different notebook / elsewhere using
     # cluster.get('trainer', remote = True) to get the remote object
-    dask_trainer = remote_dask_trainer(
-        name="my_trainer"
-    )  
+    dask_trainer = remote_dask_trainer(name="my_trainer")
 
     # ## Do the processing and training on the remote cluster
     # Access the Dask client, data, and preprocess the data
@@ -63,4 +62,4 @@ if __name__ == "__main__":
     dask_trainer.test_model()
     dask_trainer.save_model("model.pkl")
 
-    cluster.teardown() # Optionally, automatically teardown the cluster after training
+    cluster.teardown()  # Optionally, automatically teardown the cluster after training

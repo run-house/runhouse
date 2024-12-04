@@ -1,2 +1,2 @@
-def my_func(): 
+def my_func():
     return 1

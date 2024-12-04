@@ -23,7 +23,11 @@ def download_preproc_and_upload(
         dataset_name,
         token=True,
         trust_remote_code=True,
-        split=[f"train[:{train_sample}]", f"validation[:{val_sample}]", f"test[:{test_sample}]"],
+        split=[
+            f"train[:{train_sample}]",
+            f"validation[:{val_sample}]",
+            f"test[:{test_sample}]",
+        ],
         download_mode="reuse_cache_if_exists",
         cache_dir=f"{cache_dir}/huggingface_cache/",
     )
@@ -56,7 +60,7 @@ def download_preproc_and_upload(
         return batch
 
     print("Preprocessing Data")
-    
+
     for split_name in ds.keys():
         print(split_name)
         dataset = ds[split_name].map(preprocess_example, batched=True)
