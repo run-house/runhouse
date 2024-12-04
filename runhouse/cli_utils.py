@@ -260,7 +260,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
         env_process_info = servlet_processes[env_name]
 
         # sometimes the env itself is not a resource (key) inside the env's servlet.
-        if len(resources_in_env) == 0:
+        if len(resources_in_env) == 0 or env_name not in resources_in_env.keys():
             env_type = "runhouse.Env"
         else:
             env_type = condense_resource_type(

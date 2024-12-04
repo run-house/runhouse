@@ -395,12 +395,12 @@ def parse_filters(since: str, cluster_status: Union[str, ClusterStatus]):
 def get_clusters_from_den(cluster_filters: dict, force: bool):
     get_clusters_params = {"resource_type": "cluster", "folder": rns_client.username}
 
-    if (
-        "cluster_status" in cluster_filters
-        and cluster_filters["cluster_status"] == ClusterStatus.TERMINATED
+    if "cluster_status" in cluster_filters and any(
+        cluster_filters.get("cluster_status") == daemon_status
+        for daemon_status in RunhouseDaemonStatus
     ):
         # Include the relevant daemon status for the filter
-        cluster_filters["daemon_status"] = RunhouseDaemonStatus.TERMINATED
+        cluster_filters["daemon_status"] = cluster_filters.get("cluster_status")
 
     # If "all" filter is specified load all clusters (no filters are added to get_clusters_params)
     if cluster_filters and "all" not in cluster_filters.keys():
