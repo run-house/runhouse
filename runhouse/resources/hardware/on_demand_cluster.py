@@ -683,10 +683,10 @@ class OnDemandCluster(Cluster):
             >>> rh.ondemand_cluster("rh-cpu", node="3.89.174.234").ssh()
         """
         if self.provider == "kubernetes":
-            command = f"kubectl get pods | grep {self.name}"
+            namespace_flag = f"-n {self._namespace}" if self._namespace else ""
 
+            command = f"kubectl get pods {namespace_flag} | grep {self.name}"
             try:
-
                 output = subprocess.check_output(command, shell=True, text=True)
 
                 lines = output.strip().split("\n")
@@ -697,7 +697,7 @@ class OnDemandCluster(Cluster):
             except subprocess.CalledProcessError as e:
                 raise Exception(f"Error: {e}")
 
-            cmd = f"kubectl exec -it {pod_name} -- /bin/bash"
+            cmd = f"kubectl exec -it {pod_name} {namespace_flag} -- /bin/bash"
             subprocess.run(cmd, shell=True, check=True)
 
         else:
