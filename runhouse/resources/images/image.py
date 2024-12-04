@@ -22,8 +22,14 @@ class ImageSetupStep:
 
 
 class Image:
-    def __init__(self, name: str):
+    def __init__(self, name: str, image_id: str = None):
+        """
+        Args:
+            name (str): Name to assign the Runhouse image.
+            image_id (str): Machine image to use, if any. (Default: ``None``)
+        """
         self.name = name
+        self.image_id = image_id
         self.setup_steps = []
         self.conda_env_name = None
 
