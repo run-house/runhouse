@@ -1048,11 +1048,11 @@ class Cluster(Resource):
                 f"Starting Ray on worker {host} with head node at {internal_head_ip}:{ray_port}."
             )
             run_setup_command(
-                cmd=[
-                    f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
-                ],
+                cmd=f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
+                cluster=self,
                 env_vars=env_vars,
                 node=host,
+                stream_logs=True,
             )
 
     def _start_or_restart_helper(
