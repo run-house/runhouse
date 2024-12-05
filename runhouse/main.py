@@ -142,7 +142,7 @@ def cluster_ssh(cluster_name: str):
 
     Example:
 
-        ``$ runhouse cluster ssh /sashab/rh-basic-cpu``
+        ``$ runhouse cluster ssh rh-basic-cpu``
 
     """
     try:
@@ -351,7 +351,7 @@ def cluster_keep_warm(
 
     Example:
 
-        ``$ runhouse cluster keep-warm /sashab/rh-basic-cpu``
+        ``$ runhouse cluster keep-warm rh-basic-cpu``
 
     """
 
