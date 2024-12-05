@@ -54,13 +54,17 @@ def ondemand_aws_docker_cluster(request):
     """
     Note: Also used to test docker and default env with alternate Ray version.
     """
+    image = (
+        Image(name="default_image")
+        .from_docker("rayproject/ray:latest-py311-cpu")
+        .install_packages(["ray==2.30.0"])
+    )
     args = {
         "name": "aws-cpu",
         "instance_type": "CPU:2+",
         "provider": "aws",
-        "image_id": "docker:rayproject/ray:latest-py311-cpu",
         "region": "us-east-2",
-        "image": Image(name="default_image").install_packages(["ray==2.30.0"]),
+        "image": image,
         "sky_kwargs": {"launch": {"retry_until_up": True}},
     }
     cluster = setup_test_cluster(args, request, create_env=True)
@@ -137,7 +141,9 @@ def ondemand_k8s_docker_cluster(request):
         "provider": "kubernetes",
         "instance_type": "CPU:1",
         "memory": ".2",
-        "image_id": "docker:rayproject/ray:latest-py311-cpu",
+        "image": Image(name="default_image").from_docker(
+            "rayproject/ray:latest-py311-cpu"
+        ),
     }
     cluster = setup_test_cluster(args, request)
     return cluster
@@ -192,6 +198,7 @@ def multinode_k8s_cpu_cluster(request):
 def multinode_cpu_docker_conda_cluster(request):
     image = (
         Image(name="default_image")
+        .from_docker("rayproject/ray:latest-py311-cpu")
         .setup_conda_env(
             conda_env_name="base_env",
             conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
@@ -201,7 +208,6 @@ def multinode_cpu_docker_conda_cluster(request):
     args = {
         "name": "rh-cpu-multinode",
         "num_nodes": NUM_OF_NODES,
-        "image_id": "docker:rayproject/ray:latest-py311-cpu",
         "image": image,
         "provider": "aws",
         "instance_type": "CPU:2+",
