@@ -104,11 +104,16 @@ class Image:
         self.conda_env_name = conda_env_name
         return self
 
-    def rsync(self, **kwargs):
+    def rsync(
+        self, source: str, dest: str, contents: bool = False, filter_options: str = None
+    ):
         self.setup_steps.append(
             ImageSetupStep(
                 step_type=ImageSetupStepType.RSYNC,
-                **kwargs,
+                source=source,
+                dest=dest,
+                contents=contents,
+                filter_options=filter_options,
             )
         )
 
