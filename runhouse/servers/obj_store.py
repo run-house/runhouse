@@ -9,7 +9,7 @@ import uuid
 from enum import Enum
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import ray
 from pydantic import BaseModel
@@ -1630,6 +1630,16 @@ class ObjStore:
         return open_files
 
     async def alogs_local(self, run_name: Optional[str] = None):
+        def logging_complete():
+            active_run_names = [v.run_name for v in self.active_function_calls.values()]
+            return run_name not in active_run_names
+
+        async for lines in self._alogs_for_run_name_on_disk(logging_complete, run_name):
+            yield lines
+
+    async def _alogs_for_run_name_on_disk(
+        self, logging_complete_fn: Callable, run_name: Optional[str] = None
+    ):
         logger.debug(f"Streaming logs for key {run_name}")
         open_logfiles = []
 
@@ -1645,9 +1655,6 @@ class ObjStore:
 
         if not open_logfiles:
             logger.warning(f"No logfiles found for call {run_name}")
-            # raise ObjStoreError(
-            #     f"Logs for call {run_name} not found."
-            # )
 
         call_in_progress = True
 
@@ -1655,10 +1662,7 @@ class ObjStore:
             while call_in_progress:
                 # If the call is not in the active calls, it has finished (even if it finished before we
                 # started streaming logs)
-                active_run_names = [
-                    v.run_name for v in self.active_function_calls.values()
-                ]
-                if run_name not in active_run_names:
+                if logging_complete_fn():
                     call_in_progress = False
                 else:
                     await asyncio.sleep(LOGGING_WAIT_TIME)
@@ -1669,8 +1673,6 @@ class ObjStore:
                 for i, f in enumerate(open_logfiles):
                     file_lines = f.readlines()
                     if file_lines:
-                        # if len(logfiles) > 1:
-                        #     ret_lines.append(f"Process {i}:")
                         ret_lines += file_lines
                 if ret_lines:
                     logger.debug(f"Yielding logs for key {run_name}")
