@@ -177,18 +177,13 @@ class OnDemandCluster(Cluster):
         if self.on_this_cluster():
             obj_store.set_cluster_config_value("autostop_mins", mins)
         else:
-            # if self.run_python(["import skypilot"])[0] != 0:
-            #     raise ImportError(
-            #         "Skypilot must be installed on the cluster in order to set autostop."
-            #     )
             self.call_client_method("set_settings", {"autostop_mins": mins})
-            try:
-                import sky
 
-                sky.autostop(self.name, mins, down=True)
-            except ImportError:
-                set_cluster_autostop_cmd = _cluster_set_autostop_command(mins)
-                self.run([set_cluster_autostop_cmd], node=self.head_ip)
+            if self.launcher_type == "local":
+                LocalLauncher.keep_warm(self, mins)
+
+            elif self.launcher_type == "den":
+                DenLauncher.keep_warm(self, mins)
 
     @property
     def image_id(self) -> str:
