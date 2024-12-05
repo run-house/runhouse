@@ -227,6 +227,7 @@ class ObjStore:
             logger.warning(
                 "Warning, cluster servlet is not initialized. Object Store operations will not work."
             )
+            kill_actors(namespace="runhouse", gracefully=False)
 
         # There are 3 operating modes of the KV store:
         # servlet_name is set, has_local_storage is True: This is an Servlet with a local KV store.
