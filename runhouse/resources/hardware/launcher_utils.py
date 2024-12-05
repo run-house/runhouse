@@ -8,7 +8,7 @@ import requests
 import runhouse as rh
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
-from runhouse.resources.hardware.utils import SSEClient
+from runhouse.resources.hardware.utils import ClusterStatus, SSEClient
 from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content, read_resp_data
 from runhouse.utils import ClusterLogsFormatter, Spinner
 
@@ -271,8 +271,7 @@ class DenLauncher(Launcher):
                 cluster_name=cluster_name,
                 payload=payload,
             )
-            cluster.compute_properties["ips"] = []
-            cluster.compute_properties["internal_ips"] = []
+            cluster.cluster_status = ClusterStatus.TERMINATED
             return
 
         # Run blocking call, with no streaming
@@ -286,8 +285,7 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.TEARDOWN_URL}': Failed to "
                 f"teardown cluster: {load_resp_content(resp)}"
             )
-        cluster.compute_properties["ips"] = []
-        cluster.compute_properties["internal_ips"] = []
+        cluster.cluster_status = ClusterStatus.TERMINATED
 
 
 class LocalLauncher(Launcher):
@@ -373,8 +371,7 @@ class LocalLauncher(Launcher):
         import sky
 
         sky.down(cluster.name)
-        cluster.compute_properties["ips"] = []
-        cluster.compute_properties["internal_ips"] = []
+        cluster.cluster_status = ClusterStatus.TERMINATED
         cluster._http_client = None
 
         # Save to Den with updated null IPs

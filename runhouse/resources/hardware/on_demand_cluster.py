@@ -28,6 +28,7 @@ from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import (
     _cluster_set_autostop_command,
+    ClusterStatus,
     LauncherType,
     RunhouseDaemonStatus,
     ServerConnectionType,
@@ -50,6 +51,7 @@ class OnDemandCluster(Cluster):
         instance_type: str = None,
         num_nodes: int = None,
         provider: str = None,
+        cluster_status: ClusterStatus = None,
         default_env: "Env" = None,
         dryrun: bool = False,
         autostop_mins: int = None,
@@ -108,6 +110,7 @@ class OnDemandCluster(Cluster):
             else configs.get("default_autostop")
         )
 
+        self.cluster_status = cluster_status
         self.open_ports = open_ports
         self.use_spot = use_spot if use_spot is not None else configs.get("use_spot")
         self.region = region
@@ -340,8 +343,16 @@ class OnDemandCluster(Cluster):
         Example:
             >>> rh.ondemand_cluster("rh-cpu").is_up()
         """
+        from runhouse.resources.hardware.utils import ClusterStatus
+
         if self.on_this_cluster():
             return True
+
+        if self.cluster_status == ClusterStatus.TERMINATED:
+            return False
+
+        # TODO: Check status via DenLauncher or LocalLauncher?
+
         return self._ping(retry=True)
 
     def _sky_status(self, refresh: bool = True, retry: bool = True):
