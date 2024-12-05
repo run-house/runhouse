@@ -112,19 +112,20 @@ if __name__ == "__main__":
     # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
     #
     # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    img = rh.Image('llama-inference').install_packages([
+    img = rh.Image(name="llama3inference").install_packages([
             "torch",
             "transformers",
             "accelerate",
             "bitsandbytes",
-            "safetensors",
+            "safetensors>=0.3.1",
             "scipy",
         ])
     
     gpu = rh.cluster(
         name="rh-a10x", instance_type="A10G:1", memory="32+", provider="aws", image=img
     ).up_if_not()
-    gpu.restart_server()
+    # gpu.restart_server()
+    gpu.sync_secrets(providers=["huggingface"])  # Needed to download Llama 3 with HF
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster

@@ -100,9 +100,9 @@ if __name__ == "__main__":
     # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
     img = rh.Image(name="llama2inference").install_packages([
             "torch",
-            "transformers==4.31.0",
-            "accelerate==0.21.0",
-            "bitsandbytes==0.40.2",
+            "transformers",
+            "accelerate",
+            "bitsandbytes",
             "safetensors>=0.3.1",
             "scipy",
         ])
@@ -112,7 +112,7 @@ if __name__ == "__main__":
                              provider="aws", 
                              image = img, 
                              launcher_type='den').up_if_not()
-    #gpu_cluster.restart_server()
+    
     gpu_cluster.sync_secrets(providers=["huggingface"])  # Needed to download Llama 2 with HF
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
