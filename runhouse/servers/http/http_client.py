@@ -32,6 +32,7 @@ from runhouse.servers.http.http_utils import (
     GetObjectParams,
     handle_response,
     InstallPackageParams,
+    LogsParams,
     OutputType,
     PutObjectParams,
     PutResourceParams,
@@ -581,8 +582,11 @@ class HTTPClient:
 
         async with client.stream(
             "GET",
-            self._formatted_url(f"logs/{key}/{run_name}/{serialization}"),
+            self._formatted_url("logs"),
             headers=self._request_headers,
+            params=LogsParams(
+                run_name=run_name, key=key, serialization=serialization
+            ).model_dump(),
         ) as res:
             if res.status_code != 200:
                 error_resp = await res.aread()

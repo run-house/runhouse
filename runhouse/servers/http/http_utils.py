@@ -84,6 +84,12 @@ class GetObjectParams(BaseModel):
     remote: Optional[bool] = False
 
 
+class LogsParams(BaseModel):
+    run_name: str
+    key: Optional[str] = None
+    serialization: Optional[str] = None
+
+
 class RenameObjectParams(BaseModel):
     key: str
     new_key: str
