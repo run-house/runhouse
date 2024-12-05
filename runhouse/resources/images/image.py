@@ -35,7 +35,7 @@ class Image:
         self.conda_env_name = None
         self.docker_secret = None
 
-    def from_docker(self, image_id, docker_secret: "Secret" = None):
+    def from_docker(self, image_id, docker_secret: Union["Secret", str] = None):
         if self.image_id:
             raise ValueError(
                 "Setting both a machine image and docker image is not yet supported."
@@ -45,17 +45,24 @@ class Image:
         return self
 
     def config(self) -> Dict[str, Any]:
-        return {
-            "name": self.name,
-            "image_id": self.image_id,
-            "setup_steps": [
-                {
-                    "step_type": step.step_type.value,
-                    "kwargs": step.kwargs,
-                }
-                for step in self.setup_steps
-            ],
-        }
+        config = {"name": self.name}
+        if self.image_id:
+            config["image_id"] = self.image_id
+        if self.docker_secret:
+            config["docker_secret"] = (
+                self.docker_secret
+                if isinstance(self.docker_secret, str)
+                else self.docker_secret.config()
+            )
+        config["setup_steps"] = [
+            {
+                "step_type": step.step_type.value,
+                "kwargs": step.kwargs,
+            }
+            for step in self.setup_steps
+        ]
+
+        return config
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]):
@@ -67,6 +74,15 @@ class Image:
             )
             for step in config["setup_steps"]
         ]
+
+        docker_secret = config.get("docker_secret")
+        if docker_secret:
+            if isinstance(docker_secret, Dict):
+                from runhouse.resources.secrets.secret import Secret
+
+                docker_secret = Secret.from_config(docker_secret)
+            img.docker_secret = docker_secret
+
         return img
 
     ########################################################

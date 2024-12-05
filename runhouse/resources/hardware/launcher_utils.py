@@ -384,7 +384,12 @@ class LocalLauncher(Launcher):
     @staticmethod
     def _set_docker_env_vars(image, task):
         """Helper method to set Docker login environment variables."""
-        if image and image.docker_secret:
+        docker_secret = image.docker_secret if image else None
+        if docker_secret:
+            if isinstance(image.docker_secret, str):
+                from runhouse.resources.secrets.secret import Secret
+
+                docker_secret = Secret.from_name(image.docker_secret)
             docker_env_vars = image.docker_secret._map_env_vars()
         else:
             try:
