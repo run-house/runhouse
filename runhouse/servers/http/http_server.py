@@ -754,13 +754,13 @@ class HTTPServer:
 
     # `/logs` POST endpoint that takes in request and LogParams
     @staticmethod
-    @app.get("/logs/{key}/{run_name}/{serialization}")
+    @app.get("/logs")
     @validate_cluster_access
     async def get_logs(
         request: Request,
-        key: str,
         run_name: str,
-        serialization: str,
+        serialization: Optional[str] = None,
+        key: Optional[str] = None,
     ):
         return StreamingResponse(
             HTTPServer._get_logs_generator(key, run_name, serialization),

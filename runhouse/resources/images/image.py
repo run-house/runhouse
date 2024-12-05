@@ -30,8 +30,48 @@ class Image:
         """
         self.name = name
         self.image_id = image_id
+
         self.setup_steps = []
         self.conda_env_name = None
+        self.docker_secret = None
+
+    def from_docker(self, image_id, docker_secret: "Secret" = None):
+        if self.image_id:
+            raise ValueError(
+                "Setting both a machine image and docker image is not yet supported."
+            )
+        self.image_id = f"docker:{image_id}"
+        self.docker_secret = docker_secret
+        return self
+
+    def config(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "image_id": self.image_id,
+            "setup_steps": [
+                {
+                    "step_type": step.step_type.value,
+                    "kwargs": step.kwargs,
+                }
+                for step in self.setup_steps
+            ],
+        }
+
+    @classmethod
+    def from_config(cls, config: Dict[str, Any]):
+        img = Image(name=config["name"], image_id=config.get("image_id"))
+        img.setup_steps = [
+            ImageSetupStep(
+                step_type=ImageSetupStepType(step["step_type"]),
+                **step["kwargs"],
+            )
+            for step in config["setup_steps"]
+        ]
+        return img
+
+    ########################################################
+    # Steps to build the image
+    ########################################################
 
     def install_packages(self, reqs: List[str], conda_env_name: Optional[str] = None):
         self.setup_steps.append(

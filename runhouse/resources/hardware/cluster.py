@@ -25,7 +25,7 @@ from runhouse.resources.hardware.utils import (
     parse_filters,
 )
 
-from runhouse.resources.images import ImageSetupStepType
+from runhouse.resources.images import Image, ImageSetupStepType
 
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
@@ -149,6 +149,11 @@ class Cluster(Resource):
             self._creds = None
         else:
             self._setup_creds(creds)
+
+        if isinstance(image, dict):
+            # If reloading from config (ex: in Den)
+            image = Image.from_config(image)
+
         self.image = image
 
     @property
@@ -431,6 +436,9 @@ class Cluster(Resource):
         if self._use_custom_certs:
             config["ssl_certfile"] = self.cert_config.cert_path
             config["ssl_keyfile"] = self.cert_config.key_path
+
+        if self.image:
+            config["image"] = self.image.config()
 
         return config
 
@@ -2135,6 +2143,10 @@ class Cluster(Resource):
             creds = Secret.from_config(config=load_config(name=creds))
         elif isinstance(creds, dict):
             creds = Secret.from_config(creds)
+
+        if "image" in config and isinstance(config["image"], dict):
+            config["image"] = Image.from_config(config["image"])
+
         config["creds"] = creds
 
         return config

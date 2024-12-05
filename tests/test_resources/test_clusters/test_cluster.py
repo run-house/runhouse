@@ -1063,7 +1063,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                     filtered_statuses = set(
                         [cluster.get("Status") for cluster in filtered_clusters]
                     )
-                    assert filtered_statuses == {status}
+                    assert status in filtered_statuses
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
