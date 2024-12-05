@@ -54,7 +54,7 @@ class LightGBMModelTrainer:
 
     def train_model(self):
         import lightgbm as lgb
-
+        self.load_client()
         self.model = lgb.DaskLGBMRegressor(client=self.client)
         self.model.fit(
             self.X_train.to_dask_array(),
@@ -64,6 +64,7 @@ class LightGBMModelTrainer:
         print("Model trained successfully.", self.model)
 
     def test_model(self):
+        self.load_client()
         from dask_ml.metrics import mean_absolute_error, mean_squared_error
 
         if self.model is None:

@@ -1,8 +1,10 @@
+import runhouse as rh
+# from runhouse.resources.images.image import Image
+
 import subprocess
 
 import boto3
 import lightning as L
-import runhouse as rh
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -212,15 +214,7 @@ if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 3
 
-    gpu_cluster = (
-        rh.cluster(
-            name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-            instance_type=f"A10G:{gpus_per_node}",
-            num_nodes=num_nodes,
-            provider="aws",
-            launch_type="local",
-            default_env=rh.env(
-                reqs=[
+    img = rh.Image("pytorch-env").install_packages([
                     "torch==2.5.1",
                     "torchvision==0.20.1",
                     "Pillow==11.0.0",
@@ -229,10 +223,16 @@ if __name__ == "__main__":
                     "awscli",
                     "lightning",
                     "runhouse==0.0.36",
-                ],
-                env_vars={"CUDA_LAUNCH_BLOCKING": "1", "NCCL_DEBUG": "INFO"},
-            ),
-        )
+                ])
+    
+    gpu_cluster = (
+        rh.cluster(
+            name=f"rh-{num_nodes}x{gpus_per_node}GPU",
+            instance_type=f"A10G:{gpus_per_node}",
+            num_nodes=num_nodes,
+            provider="aws",
+            launch_type="local",
+            image=img,)
         .up_if_not()
         .save()
     )

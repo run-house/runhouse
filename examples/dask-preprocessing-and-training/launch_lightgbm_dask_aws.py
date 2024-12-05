@@ -1,5 +1,4 @@
 import runhouse as rh
-from runhouse.resources.images.image import Image
 
 if __name__ == "__main__":
     # ## Create a Runhouse cluster with multiple nodes
@@ -7,7 +6,7 @@ if __name__ == "__main__":
     cluster_name = f"py-new-{num_nodes}"
 
     img = (
-        Image("dask-env")
+        rh.Image("dask-env")
         .install_packages(
             [
                 "dask[distributed,dataframe]",

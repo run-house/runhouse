@@ -92,25 +92,28 @@ class HFChatModel(rh.Module):
 # the script code will run when Runhouse attempts to run code remotely.
 # :::
 if __name__ == "__main__":
-    gpu = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws").up_if_not()
 
-    # Next, we define the environment for our module. This includes the required dependencies that need
+    # We define the environment for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
     # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
     #
     # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        reqs=[
+    img = rh.Image(name="llama2inference").install_packages([
             "torch",
             "transformers==4.31.0",
             "accelerate==0.21.0",
             "bitsandbytes==0.40.2",
             "safetensors>=0.3.1",
             "scipy",
-        ],
-        secrets=["huggingface"],  # Needed to download Llama 2
-        name="llama2inference",
-    )
+        ])
+    
+    gpu_cluster = rh.cluster(name="rh-a10x", 
+                             instance_type="A10G:1", 
+                             provider="aws", 
+                             image = img, 
+                             launcher_type='den').up_if_not()
+    #gpu_cluster.restart_server()
+    gpu_cluster.sync_secrets(providers=["huggingface"])  # Needed to download Llama 2 with HF
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
@@ -124,7 +127,7 @@ if __name__ == "__main__":
         load_in_4bit=True,
         torch_dtype=torch.bfloat16,
         device_map="auto",
-    ).get_or_to(gpu, env=env, name="llama-13b-model")
+    ).get_or_to(gpu_cluster, name="llama-13b-model")
 
     # ## Calling our remote function
     #
