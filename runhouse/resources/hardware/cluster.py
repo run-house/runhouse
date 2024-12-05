@@ -149,6 +149,11 @@ class Cluster(Resource):
             self._creds = None
         else:
             self._setup_creds(creds)
+
+        if isinstance(image, dict):
+            # If reloading from config (ex: in Den)
+            image = Image.from_config(image)
+
         self.image = image
 
     @property
