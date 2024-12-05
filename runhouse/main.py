@@ -246,7 +246,7 @@ def cluster_list(
         help="Time duration to filter on. Minimum allowable filter is 1 minute. You may filter by seconds (s), "
         "minutes (m), hours (h) or days (s). Examples: 30s, 15m, 2h, 3d.",
     ),
-    cluster_status: Optional[ClusterStatus] = typer.Option(
+    status: Optional[ClusterStatus] = typer.Option(
         None,
         "--status",
         help="Cluster status to filter on.",
@@ -282,16 +282,14 @@ def cluster_list(
         )
         return
 
-    clusters = Cluster.list(
-        show_all=show_all, since=since, status=cluster_status, force=force
-    )
+    clusters = Cluster.list(show_all=show_all, since=since, status=status, force=force)
 
     den_clusters = clusters.get("den_clusters", None)
     running_clusters = (
         [
             den_cluster
             for den_cluster in den_clusters
-            if den_cluster.get("Status") == ClusterStatus.RUNNING
+            if den_cluster.get("Cluster Status") == ClusterStatus.RUNNING
         ]
         if den_clusters
         else None

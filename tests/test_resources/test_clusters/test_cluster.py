@@ -993,7 +993,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             default_clusters = Cluster.list().get("den_clusters", {})
             assert len(default_clusters) > 0
             assert [
-                den_cluster.get("Status") == ClusterStatus.RUNNING
+                den_cluster.get("Cluster Status") == ClusterStatus.RUNNING
                 for den_cluster in default_clusters
             ]
             assert any(
@@ -1028,7 +1028,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
             all_clusters = Cluster.list(show_all=True).get("den_clusters", {})
             present_statuses = set(
-                [den_cluster.get("Status") for den_cluster in all_clusters]
+                [den_cluster.get("Cluster Status") for den_cluster in all_clusters]
             )
             assert len(present_statuses) > 1
             assert ClusterStatus.RUNNING in present_statuses
@@ -1039,7 +1039,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                 for den_cluster in all_clusters
                 if den_cluster.get("Name") == cluster.name
             ][0]
-            assert test_cluster.get("Status") == ClusterStatus.RUNNING
+            assert test_cluster.get("Cluster Status") == ClusterStatus.RUNNING
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -1060,10 +1060,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                 # check that filtered requests contains only specific status
                 filtered_clusters = Cluster.list(status=status).get("den_clusters", {})
                 if filtered_clusters:
-                    filtered_statuses = set(
-                        [cluster.get("Status") for cluster in filtered_clusters]
+                    filtered_cluster_statuses = set(
+                        [cluster.get("Cluster Status") for cluster in filtered_clusters]
                     )
-                    assert filtered_statuses == {status}
+                    assert filtered_cluster_statuses == {status}
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -1144,7 +1144,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert re.search(regex, cmd_stdout)
 
             # testing that the table column names is printed correctly
-            col_names = ["┃ Name", "┃ Cluster Type", "┃ Status", "┃ Last Active (UTC)"]
+            col_names = [
+                "┃ Name",
+                "┃ Cluster Type",
+                "┃ Cluster Status",
+                "┃ Daemon Status",
+                "┃ Last Active (UTC)",
+            ]
             for name in col_names:
                 assert name in cmd_stdout
             assert (
@@ -1155,7 +1161,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_cluster_list_cmd_output_with_filters(self, capsys, cluster):
+    def test_cluster_list_cmd_output_with_filters(
+        self, capsys, docker_cluster_pk_ssh_no_auth
+    ):
+        cluster = docker_cluster_pk_ssh_no_auth
 
         import re
         import subprocess
@@ -1200,7 +1209,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                 col_names = [
                     "┃ Name",
                     "┃ Cluster Type",
-                    "┃ Status",
+                    "┃ Cluster Status",
+                    "┃ Daemon Status",
                     "┃ Last Active (UTC)",
                 ]
                 for name in col_names:
@@ -1214,13 +1224,31 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                 if status == ClusterStatus.RUNNING:
                     assert cluster.name in cmd_stdout
 
-                # Check other statuses not found in output
-                cmd_stdout = cmd_stdout.replace("Running:", "")
-                statuses = [s.lower() for s in list(ClusterStatus.__members__.keys())]
-                statuses.remove(status)
+                # clean-up the cmd output, and get only the records that describes the clusters info, for example:
+                # │ gcp-cpu                  │ OnDemandCluster │ Running        │ Running       │ 12/05/2024, 02:49:56 │
+                cmd_stdout_clusters_info = [
+                    cluster_info.split("│")
+                    for cluster_info in cmd_stdout.split("\n")
+                    if "│" in cluster_info
+                ]
 
-                for status in statuses:
-                    assert status.capitalize() not in cmd_stdout
+                # remove redundant spaces from each cluster record in cmd_stdout_clusters_info
+                cmd_stdout_clusters_info = [
+                    [
+                        cluster_info_val.strip()
+                        for cluster_info_val in cluster_info
+                        if cluster_info_val != ""
+                    ]
+                    for cluster_info in cmd_stdout_clusters_info
+                ]
+
+                for cluster_info in cmd_stdout_clusters_info:
+                    # we know that the clusters info is printed in the following order:
+                    #  ┃ Name ┃ Cluster Type ┃ Cluster Status ┃ Daemon Status ┃ Last Active (UTC) ┃
+                    # therefore, for each cluster record that is printed we are checking the value in the
+                    # 3ed index, which is the value of 'Cluster Status'. We want to check that this values match the
+                    # status we are filtering on.
+                    assert status.capitalize() == cluster_info[2]
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest

@@ -395,12 +395,12 @@ def parse_filters(since: str, cluster_status: Union[str, ClusterStatus]):
 def get_clusters_from_den(cluster_filters: dict, force: bool):
     get_clusters_params = {"resource_type": "cluster", "folder": rns_client.username}
 
-    if "cluster_status" in cluster_filters and any(
-        cluster_filters.get("cluster_status") == daemon_status
-        for daemon_status in RunhouseDaemonStatus
+    if (
+        "cluster_status" in cluster_filters
+        and cluster_filters["cluster_status"] == ClusterStatus.TERMINATED
     ):
         # Include the relevant daemon status for the filter
-        cluster_filters["daemon_status"] = cluster_filters.get("cluster_status")
+        cluster_filters["daemon_status"] = RunhouseDaemonStatus.TERMINATED
 
     # If "all" filter is specified load all clusters (no filters are added to get_clusters_params)
     if cluster_filters and "all" not in cluster_filters.keys():
@@ -487,6 +487,7 @@ def get_running_and_not_running_clusters(clusters: list):
         cluster_type = den_cluster.get("data").get("resource_subtype")
         cluster_status = den_cluster.get("cluster_status")
         cluster_status = cluster_status or ClusterStatus.UNKNOWN.value
+        daemon_status = den_cluster.get("daemon_status", RunhouseDaemonStatus.UNKNOWN)
 
         # The split is required to remove milliseconds and the offset (according to UTC) from the timestamp.
         # (cluster_status_last_checked is in the following format: YYYY-MM-DD HH:MM:SS.ssssss±HH:MM)
@@ -507,7 +508,8 @@ def get_running_and_not_running_clusters(clusters: list):
         cluster_info = {
             "Name": cluster_name,
             "Cluster Type": cluster_type,
-            "Status": cluster_status,
+            "Cluster Status": cluster_status,
+            "Daemon Status": daemon_status,
             "Last Active (UTC)": last_active_at,
         }
 
@@ -516,10 +518,10 @@ def get_running_and_not_running_clusters(clusters: list):
         else:
             down_clusters.append(cluster_info)
 
-    # Sort clusters by the 'Last Active (UTC)' and 'Status' column
+    # Sort clusters by the 'Last Active (UTC)' and 'Cluster Status' column
     down_clusters = sorted(
         down_clusters,
-        key=lambda x: (x["Last Active (UTC)"], x["Status"]),
+        key=lambda x: (x["Last Active (UTC)"], x["Cluster Status"]),
         reverse=True,
     )
 

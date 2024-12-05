@@ -94,7 +94,8 @@ def create_output_table(
     # Add columns to the table
     table.add_column("Name", justify="left", no_wrap=True)
     table.add_column("Cluster Type", justify="left", no_wrap=True)
-    table.add_column("Status", justify="left")
+    table.add_column("Cluster Status", justify="left")
+    table.add_column("Daemon Status", justify="left")
     table.add_column("Last Active (UTC)", justify="left")
 
     return table
@@ -105,7 +106,8 @@ def add_cluster_as_table_row(table: Table, rh_cluster: dict):
     table.add_row(
         rh_cluster.get("Name"),
         rh_cluster.get("Cluster Type"),
-        rh_cluster.get("Status"),
+        rh_cluster.get("Cluster Status"),
+        rh_cluster.get("Daemon Status"),
         rh_cluster.get("Last Active (UTC)"),
     )
 
@@ -123,8 +125,11 @@ def add_clusters_to_output_table(table: Table, clusters: List[Dict]):
                 0
             ]  # The split is required to remove the offset (according to UTC)
         rh_cluster["Last Active (UTC)"] = last_active_at_no_offset
-        rh_cluster["Status"] = ClusterStatusColors.get_status_color(
-            rh_cluster.get("Status")
+        rh_cluster["Cluster Status"] = ClusterStatusColors.get_status_color(
+            rh_cluster.get("Cluster Status")
+        )
+        rh_cluster["Daemon Status"] = ClusterStatusColors.get_status_color(
+            rh_cluster.get("Daemon Status")
         )
 
         table = add_cluster_as_table_row(table, rh_cluster)
