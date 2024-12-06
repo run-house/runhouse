@@ -203,9 +203,16 @@ class Servlet:
             **kwargs,
         )
 
+    async def arun_with_logs_local(
+        self, cmd: str, require_outputs: bool = True, run_name: Optional[str] = None
+    ):
+        return await obj_store.arun_with_logs_local(
+            cmd=cmd, require_outputs=require_outputs, run_name=run_name
+        )
+
     async def alogs_local(
         self,
-        run_name: Optional[str] = None,
+        run_name: str,
     ):
         async for ret_lines in obj_store.alogs_local(run_name=run_name):
             yield ret_lines
