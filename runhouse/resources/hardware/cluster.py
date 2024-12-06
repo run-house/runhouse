@@ -9,6 +9,8 @@ import subprocess
 import tempfile
 import threading
 import warnings
+
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -34,10 +36,12 @@ from runhouse.utils import (
     conda_env_cmd,
     create_conda_env_on_cluster,
     find_locally_installed_version,
+    generate_default_name,
     install_conda,
     locate_working_dir,
     run_command_with_password_login,
     run_setup_command,
+    thread_coroutine,
     ThreadWithException,
 )
 
@@ -1594,6 +1598,116 @@ class Cluster(Resource):
 
         # private key should only live on the cluster
         Path(self.cert_config.key_path).unlink()
+
+    def run_bash(
+        self,
+        commands: Union[str, List[str]],
+        node: Optional[str] = None,
+        process: Optional[str] = None,
+        stream_logs: bool = True,
+        require_outputs: bool = True,
+    ):
+
+        if isinstance(commands, str):
+            commands = [commands]
+
+        if node is not None and process is not None:
+            raise ValueError("Only one of node or process can be specified.")
+
+        if node is None:
+            if process is None:
+                logger.warning(
+                    "Running bash commands in parallel on all nodes, logs will not be streamed."
+                )
+
+            node_ip = None
+
+        elif isinstance(node, int):
+            if not (0 <= node < len(self.ips)):
+                raise ValueError(
+                    f"Node index {node} is out of range. Cluster has {len(self.ips)} nodes."
+                )
+
+            node_ip = self.internal_ips[node]
+
+        elif isinstance(node, str):
+            if node not in self.ips:
+                raise ValueError(f"Node IP {node} is not in the cluster's IP list.")
+
+            # Replace with the internal IP
+            node_ip = self.internal_ips[self.ips.index(node)]
+
+        else:
+            raise ValueError(
+                "Node must be an integer for the node's index or a string for the node's IP."
+            )
+
+        results = []
+        with ThreadPoolExecutor() as executor:
+            for command in commands:
+                # If we pass a run name, then we expect to stream logs
+                run_name = (
+                    generate_default_name(
+                        prefix="run_bash",
+                        precision="ms",  # Higher precision because we see collisions within the same second
+                        sep="@",
+                    )
+                    if stream_logs
+                    else None
+                )
+
+                if self.on_this_cluster():
+                    if stream_logs:
+
+                        async def print_logs():
+                            async for logs in obj_store.alogs_for_run_name(
+                                run_name=run_name,
+                                servlet_name=process,
+                                node_ip=node_ip,
+                            ):
+                                for log in logs:
+                                    print(log, end="")
+
+                        logs_future = executor.submit(thread_coroutine, print_logs())
+
+                    results.append(
+                        obj_store.run_bash_command_on_node_or_process(
+                            command=command,
+                            require_outputs=require_outputs,
+                            node_ip=node_ip,
+                            process=process,
+                            run_name=run_name,
+                        )
+                    )
+
+                else:
+                    if stream_logs:
+                        logs_future = executor.submit(
+                            thread_coroutine,
+                            self.client._alogs_request(
+                                run_name=run_name,
+                                node_ip=node_ip,
+                                process=process,
+                                create_async_client=True,
+                            ),
+                        )
+
+                    results.append(
+                        self.client.run_bash(
+                            command=command,
+                            node=node_ip,
+                            process=process,
+                            require_outputs=require_outputs,
+                            run_name=run_name,
+                        )
+                    )
+
+                if stream_logs:
+                    _ = logs_future.result()
+
+                results.append(results)
+
+        return results
 
     def run(
         self,
