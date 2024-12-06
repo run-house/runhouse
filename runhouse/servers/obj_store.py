@@ -1436,14 +1436,14 @@ class ObjStore:
         from runhouse.resources.resource import Resource
 
         if isinstance(res, Resource):
-            if run_name and "@" not in run_name:
+            if run_name and "--" not in run_name:
                 # This is a user-specified name, so we want to override the existing name with it
                 # and save the resource
                 res.name = run_name or res.name
                 await self.aput_local(res.name, res)
 
             if remote:
-                # If we've reached this block then we know "@" is in run_name and it's an auto-generated name,
+                # If we've reached this block then we know "--" is in run_name and it's an auto-generated name,
                 # so we don't want override the existing name with it (as we do above with user-specified name)
                 res.name = res.name or run_name
 
@@ -1496,7 +1496,7 @@ class ObjStore:
         run_name = run_name or generate_default_name(
             prefix=key if method_name == "__call__" else f"{key}_{method_name}",
             precision="ms",  # Higher precision because we see collisions within the same second
-            sep="@",
+            sep="--",
         )
 
         if servlet_name_containing_key == self.servlet_name and self.has_local_storage:
