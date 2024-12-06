@@ -1681,11 +1681,15 @@ class Cluster(Resource):
                     # TODO add log streaming
                     # Switch the external ip to an internal ip
                     node = self.internal_ips[self.ips.index(node)]
-                    return_codes = obj_store.run_bash_command_on_node(
-                        node_ip=node,
-                        commands=commands,
-                        require_outputs=require_outputs,
-                    )
+                    return_codes = []
+                    for command in commands:
+                        return_codes.append(
+                            obj_store.run_bash_command_on_node_or_process(
+                                command=command,
+                                require_outputs=require_outputs,
+                                node_ip=node,
+                            )
+                        )
                     return return_codes
 
                 return_codes = self._run_commands_with_runner(
