@@ -216,27 +216,27 @@ class SimpleTrainer:
 
 if __name__ == "__main__":
 
+    # We define the image for our module. This includes the required dependencies that need
+    # to be installed on the remote machine, as well as any secrets (not needed here) that need to be synced up from local to remote.
+    # This is aggressively cached so during local iterative development, you do not need to worry about the image being rebuilt.
+    img = rh.Image(name = 'torch-vision').install_packages(["torch", "torchvision", "Pillow"])
+    
     # Define a cluster type - here we launch an on-demand AWS cluster with 1 NVIDIA A10G GPU.
     # You can use any cloud you want, or existing compute
     cluster = rh.ondemand_cluster(
-        name="a10g-cluster", instance_type="A10G:1", provider="aws"
+        name="a10g-cluster", instance_type="A10G:1", provider="aws", image = img, launcher_type='den'
     ).up_if_not()
 
-    # Next, we define the environment for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets (not needed here) that need to be synced up from local to remote.
-    env = rh.env(name="test_env", reqs=["torch", "torchvision"])
-
+    
     # We define our module and run it on the remote cluster. We take our normal Python class SimpleTrainer, and wrap it in rh.module()
     # We also take our function DownloadData and send it to the remote cluster as well
     # Then, we use `.to()` to send it to the remote cluster we just defined.
     #
-    # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
     remote_torch_example = rh.module(SimpleTrainer).to(
-        cluster, env=env, name="torch-basic-training"
+        cluster, name="torch-basic-training"
     )
-    remote_download = rh.function(download_data).to(cluster, env=env)
-    remote_preprocess = rh.function(preprocess_data).to(cluster, env=env)
+    remote_download = rh.function(download_data).to(cluster)
+    remote_preprocess = rh.function(preprocess_data).to(cluster)
 
     # ## Calling our remote Trainer
     # We instantiate the remote class
@@ -255,7 +255,7 @@ if __name__ == "__main__":
     # We create the datasets remotely, and then send them to the remote model / remote .load_train() method. The "preprocessing" happens remotely.
     # They become instance variables of the remote Trainer.
     remote_download()
-    remote_preprocess()
+    remote_preprocess("./data")
 
     model.load_train("./data", batch_size)
     model.load_test("./data", batch_size)

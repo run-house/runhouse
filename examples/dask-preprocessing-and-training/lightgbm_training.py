@@ -26,6 +26,7 @@ class LightGBMModelTrainer:
         import dask.dataframe as dd
 
         self.dataset = dd.read_parquet(data_path)
+        self.dataset=self.dataset.head(10)
         print(self.dataset.columns)
 
     def train_test_split(self, target_var, features=None):
@@ -38,10 +39,10 @@ class LightGBMModelTrainer:
         y = self.dataset[target_var]
 
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            X, y, test_size=0.3
+            X, y, test_size=0.3, shuffle = False
         )
         self.X_eval, self.X_train, self.y_eval, self.y_train = train_test_split(
-            self.X_test, self.y_test, test_size=0.5
+            self.X_test, self.y_test, test_size=0.5, shuffle = False
         )
         self.features = features
 
@@ -76,9 +77,6 @@ class LightGBMModelTrainer:
 
         y_pred = self.model.predict(self.X_test)
         y_test = self.y_test.to_dask_array().rechunk(y_pred.chunks)
-
-        print(f"y_test computed part: {y_test.compute().shape}")
-        print(f"y_pred computed part: {y_pred.compute().shape}")
 
         self.mae = mean_absolute_error(y_test, y_pred)
         print(f"Mean Absolute Error: {self.mae}")

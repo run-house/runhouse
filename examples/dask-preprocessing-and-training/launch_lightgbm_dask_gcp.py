@@ -1,11 +1,10 @@
 import runhouse as rh
-from runhouse.resources.images.image import Image
 
 # ## Dask + LightGBM Training
 if __name__ == "__main__":
     # ## Create a Runhouse cluster with 2 nodes
     num_nodes = 3
-    cluster_name = f"rh-{num_nodes}-dask-gcp"
+    cluster_name = f"rh-{num_nodes}-dask-gcp-2"
 
     # The environment for the remote cluster
     img = rh.Image("dask-env").install_packages(
@@ -33,7 +32,7 @@ if __name__ == "__main__":
         image=img,
         launcher_type="den",
     ).up_if_not()
-
+    
     # cluster.restart_server(resync_rh=True)
 
     # ## Setup the remote training
@@ -48,7 +47,7 @@ if __name__ == "__main__":
     # cluster.get('trainer', remote = True) to get the remote object
     # We also use .distribute("dask") to start the Dask cluster and indicate this will be used with Dask
     dask_trainer = remote_dask_trainer(name="my_trainer").distribute("dask")
-
+    
     # ## Do the processing and training on the remote cluster
     # Access the Dask client, data, and preprocess the data
     data_path = "gs://rh-demo-external/output_parquet" # 2024 NYC Taxi Data
