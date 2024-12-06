@@ -18,6 +18,7 @@ from runhouse.rns.utils.api import (
     ResourceAccess,
     ResourceVisibility,
 )
+from runhouse.rns.utils.names import is_valid_resource_name
 
 logger = get_logger(__name__)
 
@@ -47,11 +48,17 @@ class Resource:
         """
         self._name, self._rns_folder = None, None
         if name is not None:
-            # TODO validate that name complies with a simple regex
             if name.startswith("/builtins/"):
                 name = name[len("/builtins/") :]
             if name[0] == "^" and name != "^":
                 name = name[1:]
+            # Validate that name complies with a simple regex
+            if not is_valid_resource_name(name):
+                raise ValueError(
+                    f"Invalid name: {name} "
+                    "Resource names are limited to alphanumerics, dashes, and underscores. Max 200 characters. "
+                    "Slashes may be used to specify folders and must be included as the first character."
+                )
             self._name, self._rns_folder = rns_client.split_rns_name_and_path(
                 rns_client.resolve_rns_path(name)
             )
