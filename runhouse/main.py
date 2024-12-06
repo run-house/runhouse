@@ -142,7 +142,7 @@ def cluster_ssh(cluster_name: str):
 
     Example:
 
-        ``$ runhouse cluster ssh /sashab/rh-basic-cpu``
+        ``$ runhouse cluster ssh rh-basic-cpu``
 
     """
     try:
@@ -351,7 +351,7 @@ def cluster_keep_warm(
 
     Example:
 
-        ``$ runhouse cluster keep-warm /sashab/rh-basic-cpu``
+        ``$ runhouse cluster keep-warm rh-basic-cpu``
 
     """
 
@@ -727,7 +727,7 @@ def _start_server(
 
 @server_app.command("start")
 def server_start(
-    cluster_name: Optional[str] = typer.Option(
+    cluster_name: Optional[str] = typer.Argument(
         None,
         help="Specify a *saved* remote cluster to start the Runhouse server on that cluster. "
         "If not provided, the locally running server will be started.",
@@ -835,7 +835,7 @@ def server_start(
 
 @server_app.command("restart")
 def server_restart(
-    cluster_name: str = typer.Option(
+    cluster_name: str = typer.Argument(
         None,
         help="Specify a *saved* remote cluster to restart the Runhouse server on that cluster. "
         "If not provided, the locally running server will be restarted.",
@@ -928,7 +928,7 @@ def server_restart(
 
 @server_app.command("stop")
 def server_stop(
-    cluster_name: Optional[str] = typer.Option(
+    cluster_name: Optional[str] = typer.Argument(
         None,
         help="Specify a *saved* remote cluster to stop the Runhouse server on that cluster. "
         "If not provided, the locally running server will be stopped.",
@@ -964,7 +964,7 @@ def server_stop(
 
 @server_app.command("status")
 def server_status(
-    cluster_name: str = typer.Option(
+    cluster_name: str = typer.Argument(
         None,
         help="Specify a *saved* remote cluster to check the status of the Runhouse server on that cluster. "
         "If not provided, the status of the locally running server will be checked.",

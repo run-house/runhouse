@@ -8,7 +8,7 @@ import requests
 import runhouse as rh
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
-from runhouse.resources.hardware.utils import SSEClient
+from runhouse.resources.hardware.utils import _cluster_set_autostop_command, SSEClient
 from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content, read_resp_data
 from runhouse.utils import ClusterLogsFormatter, Spinner
 
@@ -87,6 +87,11 @@ class Launcher:
     @classmethod
     def teardown(cls, cluster, verbose: bool = True):
         """Abstract method for tearing down a cluster."""
+        raise NotImplementedError
+
+    @classmethod
+    def keep_warm(cls, cluster, mins: int):
+        """Abstract method for keeping a cluster warm."""
         raise NotImplementedError
 
     @staticmethod
@@ -187,6 +192,7 @@ class DenLauncher(Launcher):
 
     LAUNCH_URL = f"{rns_client.api_server_url}/cluster/up"
     TEARDOWN_URL = f"{rns_client.api_server_url}/cluster/teardown"
+    AUTOSTOP_URL = f"{rns_client.api_server_url}/cluster/autostop"
 
     @classmethod
     def _update_from_den_response(cls, cluster, config: dict):
@@ -206,6 +212,27 @@ class DenLauncher(Launcher):
         creds = config.get("creds")
         if not cluster._creds and creds:
             cluster._setup_creds(creds)
+
+    @classmethod
+    def keep_warm(cls, cluster, mins: int):
+        """Keeping a Den launched cluster warm."""
+        payload = {
+            "cluster_name": cluster.rns_address or cluster.name,
+            "autostop_mins": mins,
+        }
+
+        # Blocking call with no streaming
+        resp = requests.post(
+            cls.AUTOSTOP_URL,
+            json=payload,
+            headers=rns_client.request_headers(),
+        )
+        if resp.status_code != 200:
+            raise Exception(
+                f"Received [{resp.status_code}] from Den POST '{cls.AUTOSTOP_URL}': Failed to "
+                f"update cluster autostop: {load_resp_content(resp)}"
+            )
+        logger.info("Successfully updated cluster autostop")
 
     @classmethod
     def up(cls, cluster, verbose: bool = True, force: bool = False):
@@ -381,10 +408,26 @@ class LocalLauncher(Launcher):
         if rns_client.autosave_resources():
             cluster.save()
 
+    @classmethod
+    def keep_warm(cls, cluster, mins: int):
+        """Keeping a locally launched cluster warm."""
+        try:
+            import sky
+
+            sky.autostop(cluster.name, mins, down=True)
+        except ImportError:
+            set_cluster_autostop_cmd = _cluster_set_autostop_command(mins)
+            cluster.run([set_cluster_autostop_cmd], node=cluster.head_ip)
+
     @staticmethod
     def _set_docker_env_vars(image, task):
         """Helper method to set Docker login environment variables."""
-        if image and image.docker_secret:
+        docker_secret = image.docker_secret if image else None
+        if docker_secret:
+            if isinstance(image.docker_secret, str):
+                from runhouse.resources.secrets.secret import Secret
+
+                docker_secret = Secret.from_name(image.docker_secret)
             docker_env_vars = image.docker_secret._map_env_vars()
         else:
             try:
