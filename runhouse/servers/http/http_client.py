@@ -451,8 +451,8 @@ class HTTPClient:
                 logs_future = executor.submit(
                     thread_coroutine,
                     self._alogs_request(
-                        key=key,
                         run_name=run_name,
+                        key=key,
                         serialization=serialization,
                         error_str=error_str,
                         create_async_client=True,
@@ -567,10 +567,11 @@ class HTTPClient:
 
     async def _alogs_request(
         self,
-        key: str,
         run_name: str,
-        serialization: str,
-        error_str: str,
+        key: Optional[str] = None,
+        process: Optional[str] = None,
+        serialization: Optional[str] = None,
+        error_str: Optional[str] = None,
         create_async_client=False,
     ) -> None:
         # When running this in another thread, we need to explicitly create an async client here. When running within
@@ -579,6 +580,9 @@ class HTTPClient:
             client = httpx.AsyncClient(auth=self.auth, verify=self.verify, timeout=None)
         else:
             client = self.async_session
+
+        if error_str is None:
+            error_str = f"Error calling logs function on server for {run_name}"
 
         async with client.stream(
             "GET",
@@ -655,8 +659,8 @@ class HTTPClient:
         )
         alogs_request = asyncio.create_task(
             self._alogs_request(
-                key=key,
                 run_name=run_name,
+                key=key,
                 serialization=serialization,
                 error_str=error_str,
             )
