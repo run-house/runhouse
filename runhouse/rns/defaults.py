@@ -296,7 +296,7 @@ class Defaults:
             raise Exception(f"Failed to delete config file from path {config_path}")
 
     @property
-    def observability_enabled(self):
+    def observability_enabled(self) -> bool:
         return not self.get("disable_observability", False)
 
     def disable_observability(self):
