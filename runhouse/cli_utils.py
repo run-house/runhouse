@@ -28,6 +28,7 @@ from runhouse.constants import (
 )
 
 from runhouse.logger import get_logger
+from runhouse.servers.obj_store import ObjStoreError
 
 logger = get_logger(__name__)
 
@@ -501,8 +502,13 @@ def get_cluster_or_local(cluster_name: str = None):
             raise typer.Exit(1)
         return current_cluster
 
-    cluster_or_local = rh.here
-    if cluster_or_local == "file" and not cluster_name:
+    try:
+        cluster_or_local = rh.here
+    except ObjStoreError:
+        console.print("Could not connect to Runhouse server. Is it up?")
+        raise typer.Exit(1)
+
+    if cluster_or_local == "file":
         # If running outside the cluster must specify a cluster name
         console.print(
             "Please specify a `cluster_name` or run [reset][bold italic]`runhouse server start`[/bold italic] to start "

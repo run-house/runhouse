@@ -571,15 +571,6 @@ class Cluster(Resource):
         """
         return self.on_this_cluster() or self._ping()
 
-    def _is_server_up(self) -> bool:
-        try:
-            self.client.check_server()
-            return True
-        except ValueError:
-            return False
-        except ConnectionError:
-            return False
-
     def up_if_not(self, verbose: bool = True):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
         This only applies to on-demand clusters, and has no effect on self-managed clusters.
