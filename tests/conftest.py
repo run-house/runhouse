@@ -260,7 +260,11 @@ from tests.fixtures.resource_fixtures import (
     unnamed_resource,  # noqa: F401
 )
 
-from tests.fixtures.static_cluster_fixtures import static_cpu_pwd_cluster  # noqa: F401
+from tests.fixtures.static_cluster_fixtures import (  # noqa: F401
+    static_cpu_pwd_cluster,
+    static_cpu_pwd_cluster_den_launcher,
+    static_gpu_pwd_cluster_den_launcher,
+)
 
 
 # ----------------- Folders -----------------
