@@ -211,7 +211,7 @@ def cluster_status(
 
     Example:
 
-        ``$ runhouse cluster status /sashab/rh-basic-cpu``
+        ``$ runhouse cluster status rh-basic-cpu``
     """
     current_cluster = get_cluster_or_local(cluster_name=cluster_name)
 
@@ -390,13 +390,14 @@ def cluster_up(
 
     Example:
 
-        ``$ runhouse cluster up /sashab/rh-basic-cpu``
+        ``$ runhouse cluster up rh-basic-cpu``
 
     """
     current_cluster = rh.cluster(name=cluster_name, dryrun=True)
 
     try:
         current_cluster.up_if_not()
+        console.print("Cluster is already up.")
     except ValueError:
         console.print("Cluster is not saved in Den.")
     except Exception as e:
@@ -430,7 +431,7 @@ def cluster_down(
 
     Example:
 
-        ``$ runhouse cluster down /sashab/rh-basic-cpu``
+        ``$ runhouse cluster down rh-basic-cpu``
     """
     if not force_deletion:
         if cluster_name:
@@ -514,9 +515,9 @@ def cluster_logs(
 
     Examples:
 
-        ``$ runhouse cluster logs /sashab/rh-basic-cpu``
+        ``$ runhouse cluster logs rh-basic-cpu``
 
-        ``$ runhouse cluster logs /sashab/rh-basic-cpu --since 60``
+        ``$ runhouse cluster logs rh-basic-cpu --since 60``
 
     """
     current_cluster = get_cluster_or_local(cluster_name=cluster_name)
