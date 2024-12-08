@@ -87,10 +87,14 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
     RELEASE = {
         "cluster": [
             "ondemand_aws_docker_cluster",
+            "den_launched_ondemand_aws_docker_cluster",
             "ondemand_gcp_cluster",
             "ondemand_aws_https_cluster_with_auth",
             "ondemand_k8s_cluster",
             "ondemand_k8s_docker_cluster",
+            # TODO [SB]: un-mark once launching k8 cluster via den is fully supported
+            # "den_launched_ondemand_aws_k8s_cluster",
+            # "den_launched_ondemand_gcp_k8s_cluster"
         ]
     }
     MAXIMAL = {
@@ -101,6 +105,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             "ondemand_k8s_docker_cluster",
             "ondemand_aws_https_cluster_with_auth",
             "v100_gpu_cluster",
+            "den_launcher_v100_gpu_cluster",
             "k80_gpu_cluster",
             "a10g_gpu_cluster",
             "static_cpu_pwd_cluster",
