@@ -135,7 +135,10 @@ setuptools.setup(
     install_requires=install_requires,
     extras_require=extras_require,
     entry_points={
-        "console_scripts": ["runhouse = runhouse.main:app"],
+        "console_scripts": [
+            "runhouse = runhouse.main:app",
+            "rh = runhouse.main:app",
+        ],
     },
     include_package_data=True,
     classifiers=[

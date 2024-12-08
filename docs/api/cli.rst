@@ -3,7 +3,7 @@ Command Line Interface
 Runhouse provides CLI commands for logging in/out, and for basic interaction
 with the cluster.
 
-The commands can be run like follows:
+The commands can be run like follows (using either `runhouse` or the `rh` alias):
 
 .. code-block:: console
 
