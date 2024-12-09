@@ -480,7 +480,6 @@ def cast_last_active_timestamp(clusters: List[Dict[str, Any]]):
 
 def get_running_and_not_running_clusters(clusters: list):
     up_clusters, down_clusters = [], []
-
     for den_cluster in clusters:
         # Display the name instead of the full Den address
         cluster_name = den_cluster.get("name").split("/")[-1]
@@ -508,6 +507,7 @@ def get_running_and_not_running_clusters(clusters: list):
             "Name": cluster_name,
             "Cluster Type": cluster_type,
             "Status": cluster_status,
+            "Autostop": den_cluster.get("data", {}).get("autostop_mins"),
             "Last Active (UTC)": last_active_at,
         }
 

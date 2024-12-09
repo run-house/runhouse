@@ -82,13 +82,13 @@ jobs:
           token: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
 
-      - name: pytest -v --level local -k "not servertest and not secrettest and not moduletest and not functiontest and not envtest and not clustertest"
+      - name: pytest -v --level local -k "not servertest and not secrettest and not moduletest and not functiontest and not clustertest"
         env:
           KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_PROD_TOKEN }}
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest -v --level local -k "not servertest and not secrettest and not moduletest and not functiontest and not envtest and not clustertest"
+        run: pytest -v --level local -k "not servertest and not secrettest and not moduletest and not functiontest and not clustertest"
         timeout-minutes: 60
 
   # secret-tests-logged-out-level-local:
@@ -179,31 +179,6 @@ jobs:
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest -v --level local -k "functiontest"
-        timeout-minutes: 60
-
-  env-tests-logged-in-level-local:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v3
-
-      - name: Setup Runhouse
-        uses: ./.github/workflows/setup_runhouse
-
-      - name: Setup ~/.rh/config.yaml
-        uses: ./.github/workflows/setup_rh_config
-        with:
-          username: ${{ secrets.DEN_TESTER_USERNAME }}
-          token: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
-          api_server_url: ${{ env.API_SERVER_URL }}
-
-      - name: pytest -v --level local -k "envtest"
-        env:
-          KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_PROD_TOKEN }}
-          KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
-          ORG_MEMBER_TOKEN: ${{ env.ORG_MEMBER_PROD_TOKEN }}
-          ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest -v --level local -k "envtest"
         timeout-minutes: 60
 
   cluster-tests-logged-in-level-local:

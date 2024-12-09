@@ -1,5 +1,0 @@
-channels:
-- defaults
-dependencies:
-- python=3.10.9
-name: conda_from_path

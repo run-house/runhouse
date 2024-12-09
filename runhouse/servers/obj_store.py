@@ -164,6 +164,7 @@ class ObjStore:
         self._kv_store: Dict[Any, Any] = None
         self.servlet_cache = {}
         self.active_function_calls = {}
+        self.active_bash_run_names = set()
 
     async def ainitialize(
         self,
@@ -290,9 +291,36 @@ class ObjStore:
             runtime_env,
         )
 
+    # Run bash locally, used by both NodeServlet and Servlet
+    async def arun_with_logs_local(
+        self, cmd: str, require_outputs: bool = True, run_name: Optional[str] = None
+    ):
+        log_ctx = None
+        try:
+            stream_logs = False
+            if run_name is not None:
+                self.active_bash_run_names.add(run_name)
+                log_ctx = LogToFolder(name=run_name)
+                log_ctx.__enter__()
+                stream_logs = True
+
+            res = await arun_in_thread(
+                run_with_logs,
+                cmd,
+                stream_logs=stream_logs,
+                require_outputs=require_outputs,
+            )
+            return res
+        finally:
+            if log_ctx is not None:
+                log_ctx.__exit__(None, None, None)
+                self.active_bash_run_names.remove(run_name)
+
     ###################################################
     # Node servlet functionality, mostly stored in cluster servlet for now
     ###################################################
+    def node_servlet_name_for_ip(self, ip: str):
+        return f"node_servlet_{ip}"
 
     async def ainitialize_node_servlets(self):
         """
@@ -305,7 +333,7 @@ class ObjStore:
         names = []
         for ip in self.get_internal_ips():
             resources = {f"node:{ip}": 0.001}
-            node_servlet_name = f"node_servlet_{ip}"
+            node_servlet_name = self.node_servlet_name_for_ip(ip)
             ray.remote(NodeServlet).options(
                 name=node_servlet_name,
                 get_if_exists=True,
@@ -326,23 +354,45 @@ class ObjStore:
             self.cluster_servlet, "aget_node_servlet_names"
         )
 
-    def run_bash_command_on_node(
-        self, node_ip: str, commands: List[str], require_outputs: bool = False
+    def run_bash_command_on_node_or_process(
+        self,
+        command: str,
+        require_outputs: bool = False,
+        run_name: Optional[str] = None,
+        node_ip: Optional[str] = None,
+        process: Optional[str] = None,
     ):
-        return sync_function(self.arun_bash_command_on_node)(
-            node_ip, commands, require_outputs
+        return sync_function(self.arun_bash_command_on_node_or_process)(
+            command, require_outputs, run_name, node_ip, process
         )
 
-    async def arun_bash_command_on_node(
-        self, node_ip: str, commands: List[str], require_outputs: bool = False
+    async def arun_bash_command_on_node_or_process(
+        self,
+        command: str,
+        require_outputs: bool = False,
+        run_name: Optional[str] = None,
+        node_ip: Optional[str] = None,
+        process: Optional[str] = None,
     ):
-        logger.info(f"Running bash commands on node {node_ip}: {commands}")
-        node_servlet_name = f"node_servlet_{node_ip}"
-        node_servlet_actor = ray.get_actor(node_servlet_name, namespace="runhouse")
-        for command in commands:
-            return await self.acall_actor_method(
-                node_servlet_actor, "arun_with_logs", command, require_outputs
-            )
+        if node_ip and process:
+            raise ValueError("Cannot specify both node_ip and process.")
+
+        if not node_ip and not process:
+            raise ValueError("Must specify either node_ip or process.")
+
+        if node_ip:
+            servlet_name = self.node_servlet_name_for_ip(node_ip)
+        elif process:
+            servlet_name = process
+
+        actor_to_run_command_on = ray.get_actor(servlet_name, namespace="runhouse")
+        return await self.acall_actor_method(
+            actor_to_run_command_on,
+            "arun_with_logs_local",
+            command,
+            require_outputs,
+            run_name,
+        )
 
     async def arun_bash_command_on_all_nodes(
         self, command: str, require_outputs: bool = False
@@ -354,7 +404,7 @@ class ObjStore:
         results = await asyncio.gather(
             *[
                 self.acall_actor_method(
-                    node_servlet, "arun_with_logs", command, require_outputs
+                    node_servlet, "arun_with_logs_local", command, require_outputs
                 )
                 for node_servlet in node_servlet_actors
             ]
@@ -1436,14 +1486,14 @@ class ObjStore:
         from runhouse.resources.resource import Resource
 
         if isinstance(res, Resource):
-            if run_name and "@" not in run_name:
+            if run_name and "--" not in run_name:
                 # This is a user-specified name, so we want to override the existing name with it
                 # and save the resource
                 res.name = run_name or res.name
                 await self.aput_local(res.name, res)
 
             if remote:
-                # If we've reached this block then we know "@" is in run_name and it's an auto-generated name,
+                # If we've reached this block then we know "--" is in run_name and it's an auto-generated name,
                 # so we don't want override the existing name with it (as we do above with user-specified name)
                 res.name = res.name or run_name
 
@@ -1496,7 +1546,7 @@ class ObjStore:
         run_name = run_name or generate_default_name(
             prefix=key if method_name == "__call__" else f"{key}_{method_name}",
             precision="ms",  # Higher precision because we see collisions within the same second
-            sep="@",
+            sep="--",
         )
 
         if servlet_name_containing_key == self.servlet_name and self.has_local_storage:
@@ -1588,15 +1638,23 @@ class ObjStore:
 
     async def alogs_for_run_name(
         self,
-        run_name: Optional[str] = None,
-        key: str = None,
-        servlet_name: str = None,
+        run_name: str,
+        servlet_name: Optional[str] = None,
+        key: Optional[str] = None,
+        node_ip: Optional[str] = None,
     ):
-        if not servlet_name:
+        if not servlet_name and not key and not node_ip:
+            raise ValueError("Must provide either servlet_name or key.")
+
+        if (servlet_name and node_ip) or (servlet_name and key) or (key and node_ip):
+            raise ValueError("Must provide only one of servlet_name, key, or node_ip.")
+
+        if node_ip:
+            servlet_name = self.node_servlet_name_for_ip(node_ip)
+        if key:
             servlet_name = await self.aget_servlet_name_for_key(key)
+
         servlet = self.get_servlet(servlet_name)
-        # If stream_logs is True, print the logs as they come in. Otherwise just concatenate them together
-        # and return them as a long string.
         async for log_ref in servlet.alogs_local.remote(run_name=run_name):
             logs = await log_ref
             yield logs
@@ -1629,18 +1687,22 @@ class ObjStore:
                     open_files.append(open(f, "r"))
         return open_files
 
-    async def alogs_local(self, run_name: Optional[str] = None):
-        def logging_complete():
+    async def alogs_local(self, run_name: str, bash_run: bool = False):
+        def function_call_complete():
             active_run_names = [v.run_name for v in self.active_function_calls.values()]
             return run_name not in active_run_names
 
+        def bash_run_complete():
+            return run_name not in self.active_bash_run_names
+
+        logging_complete = bash_run_complete if bash_run else function_call_complete
         async for lines in self._alogs_for_run_name_on_disk(logging_complete, run_name):
             yield lines
 
     async def _alogs_for_run_name_on_disk(
-        self, logging_complete_fn: Callable, run_name: Optional[str] = None
+        self, logging_complete_fn: Callable, run_name: str
     ):
-        logger.debug(f"Streaming logs for key {run_name}")
+        logger.info(f"Begin streaming logs for run_name: '{run_name}'")
         open_logfiles = []
 
         # Wait for a maximum of 5 seconds for the log files to be created
@@ -1658,6 +1720,7 @@ class ObjStore:
 
         call_in_progress = True
 
+        logger.info(f"Found logfiles for key '{run_name}', beginning streaming.")
         try:
             while call_in_progress:
                 # If the call is not in the active calls, it has finished (even if it finished before we

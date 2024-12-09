@@ -28,13 +28,13 @@ from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatu
 
 from runhouse.resources.images.image import ImageSetupStepType
 
-from runhouse.utils import _process_env_vars
+from runhouse.utils import _process_env_vars, generate_default_name
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
 from tests.fixtures.resource_fixtures import create_folder_path
-from tests.test_resources.test_envs.test_env import _get_env_var_value
 from tests.utils import (
+    _get_env_var_value,
     friend_account,
     friend_account_in_org,
     get_random_str,
@@ -576,7 +576,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_rh_status_pythonic_delete_env(self, cluster):
-        env = rh.env(reqs=["pytest"], name=f"env_{datetime.utcnow()}").to(cluster)
+        env_name = generate_default_name(prefix="env", precision="ms")
+        env = rh.env(reqs=["pytest"], name=env_name).to(cluster)
         summer_temp = rh.function(summer).to(system=cluster, process=env.name)
         call_summer_temp = summer_temp(1, 3)
         assert call_summer_temp == 4

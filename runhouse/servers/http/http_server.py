@@ -51,6 +51,7 @@ from runhouse.servers.http.http_utils import (
     get_token_from_request,
     handle_exception_response,
     InstallPackageParams,
+    LogsParams,
     OutputType,
     PutObjectParams,
     PutResourceParams,
@@ -340,10 +341,48 @@ class HTTPServer:
     @validate_cluster_access
     async def run_bash(request: Request, params: RunBashParams):
         try:
-            results = await obj_store.arun_bash_command_on_all_nodes(
-                params.command, params.require_outputs
+            run_cmd_result = None
+            if params.node and params.process:
+                raise ValueError("Cannot specify both node and process.")
+
+            elif not params.node and not params.process:
+                # TODO: Logging when running on multiple nodes
+                run_cmd_result = await obj_store.arun_bash_command_on_all_nodes(
+                    command=params.command, require_outputs=params.require_outputs
+                )
+
+            elif params.node:
+                if params.node not in obj_store.get_internal_ips():
+                    raise ValueError(
+                        f"Node {params.node} not a valid internal IP on the cluster."
+                    )
+
+                run_cmd_result = await obj_store.arun_bash_command_on_node_or_process(
+                    command=params.command,
+                    require_outputs=params.require_outputs,
+                    run_name=params.run_name,
+                    node_ip=params.node,
+                )
+
+            elif params.process:
+                if (
+                    params.process
+                    not in await obj_store.aget_all_initialized_servlet_args()
+                ):
+                    raise ValueError(
+                        f"Process {params.process} not found on the cluster."
+                    )
+
+                run_cmd_result = await obj_store.arun_bash_command_on_node_or_process(
+                    command=params.command,
+                    require_outputs=params.require_outputs,
+                    run_name=params.run_name,
+                    process=params.process,
+                )
+
+            return Response(
+                output_type=OutputType.RESULT_SERIALIZED, data=run_cmd_result
             )
-            return Response(output_type=OutputType.RESULT_SERIALIZED, data=results)
         except Exception as e:
             return handle_exception_response(
                 e, traceback.format_exc(), from_http_server=True
@@ -711,7 +750,7 @@ class HTTPServer:
                 run_name = generate_default_name(
                     prefix=key if method_name == "__call__" else f"{key}_{method_name}",
                     precision="ms",  # Higher precision because we see collisions within the same second
-                    sep="@",
+                    sep="--",
                 )
 
             # The types need to be explicitly specified as parameters first so that
@@ -754,24 +793,61 @@ class HTTPServer:
 
     # `/logs` POST endpoint that takes in request and LogParams
     @staticmethod
-    @app.get("/logs")
+    @app.post("/logs")
     @validate_cluster_access
     async def get_logs(
         request: Request,
-        run_name: str,
-        serialization: Optional[str] = None,
-        key: Optional[str] = None,
+        params: LogsParams = Body(default=None),
     ):
-        return StreamingResponse(
-            HTTPServer._get_logs_generator(key, run_name, serialization),
-            media_type="application/json",
-        )
+        try:
+            if (
+                sum(
+                    arg is not None
+                    for arg in [params.key, params.node_ip, params.process]
+                )
+                != 1
+            ):
+                raise ValueError(
+                    "Exactly one of key, node_ip, or process must be provided to get logs"
+                )
+            return StreamingResponse(
+                HTTPServer._get_logs_generator(
+                    run_name=params.run_name,
+                    key=params.key,
+                    node_ip=params.node_ip,
+                    process=params.process,
+                    serialization=params.serialization,
+                ),
+                media_type="application/json",
+            )
+        except Exception as e:
+            logger.exception(e)
+            exception_data = {
+                "error": serialize_data(e, params.serialization),
+                "traceback": traceback.format_exc(),
+            }
+            return Response(
+                output_type=OutputType.EXCEPTION,
+                data=exception_data,
+                serialization=params.serialization,
+            )
 
     @staticmethod
-    async def _get_logs_generator(key, run_name, serialization=None):
-        logger.debug(f"Streaming logs for key {run_name}")
+    async def _get_logs_generator(
+        run_name: str,
+        key: Optional[str] = None,
+        node_ip: Optional[str] = None,
+        process: Optional[str] = None,
+        serialization=None,
+    ):
+        logger.info(f"Streaming logs for run name: '{run_name}'")
         try:
-            async for log_lines in obj_store.alogs_for_run_name(run_name, key=key):
+            async for log_lines in obj_store.alogs_for_run_name(
+                run_name=run_name,
+                key=key,
+                node_ip=node_ip,
+                servlet_name=process,
+            ):
                 logger.debug(f"Yielding logs for key {run_name}")
                 yield json.dumps(
                     jsonable_encoder(

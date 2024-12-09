@@ -9,7 +9,6 @@ from typing import Optional
 import ray
 
 import requests
-
 import typer
 import yaml
 from rich.console import Console
@@ -52,6 +51,8 @@ from runhouse.resources.hardware import (
     kill_actors,
 )
 from runhouse.resources.hardware.utils import ClusterStatus
+
+from runhouse.servers.obj_store import ObjStoreError
 
 SKY_LIVE_CLUSTERS_MSG = (
     "Live on-demand clusters created via Sky may exist that are not saved in Den. "
@@ -217,7 +218,6 @@ def cluster_status(
 
     try:
         cluster_status = current_cluster.status(send_to_den=send_to_den)
-
     except ValueError:
         console.print("Failed to load status for cluster.")
         return
@@ -354,7 +354,6 @@ def cluster_keep_warm(
         ``$ runhouse cluster keep-warm rh-basic-cpu``
 
     """
-
     current_cluster = get_cluster_or_local(cluster_name=cluster_name)
 
     try:
@@ -978,16 +977,14 @@ def server_status(
     """Check the HTTP server status on the cluster."""
     logger.debug("Checking the server status.")
     current_cluster = get_cluster_or_local(cluster_name=cluster_name)
-    if current_cluster._is_server_up():
+    try:
         status = current_cluster.status()
         console.print(f"[reset]{BULLET_UNICODE} server pid: {status.get('server_pid')}")
         print_cluster_config(
             cluster_config=status.get("cluster_config"), status_type=StatusType.server
         )
-    else:
-        console.print(
-            "Server is down. To check the status of the cluster, run [italic bold]`runhouse cluster status`"
-        )
+    except (ObjStoreError, ConnectionError):
+        console.print("Could not connect to Runhouse server. Is it up?")
 
 
 @app.callback(invoke_without_command=True, help="Runhouse CLI")

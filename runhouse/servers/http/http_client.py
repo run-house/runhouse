@@ -432,7 +432,7 @@ class HTTPClient:
             run_name = generate_default_name(
                 prefix=key if method_name == "__call__" else f"{key}_{method_name}",
                 precision="ms",  # Higher precision because we see collisions within the same second
-                sep="@",
+                sep="--",
             )
 
         # Measure the time it takes to send the message
@@ -451,8 +451,8 @@ class HTTPClient:
                 logs_future = executor.submit(
                     thread_coroutine,
                     self._alogs_request(
-                        key=key,
                         run_name=run_name,
+                        key=key,
                         serialization=serialization,
                         error_str=error_str,
                         create_async_client=True,
@@ -567,25 +567,39 @@ class HTTPClient:
 
     async def _alogs_request(
         self,
-        key: str,
         run_name: str,
-        serialization: str,
-        error_str: str,
+        key: Optional[str] = None,
+        node_ip: Optional[str] = None,
+        process: Optional[str] = None,
+        serialization: Optional[str] = None,
+        error_str: Optional[str] = None,
         create_async_client=False,
     ) -> None:
         # When running this in another thread, we need to explicitly create an async client here. When running within
         # the main thread, we can use the client that was passed in.
+        if sum(arg is not None for arg in [key, node_ip, process]) != 1:
+            raise ValueError(
+                "Exactly one of key, node_ip, or process must be provided to get logs"
+            )
+
         if create_async_client:
             client = httpx.AsyncClient(auth=self.auth, verify=self.verify, timeout=None)
         else:
             client = self.async_session
 
+        if error_str is None:
+            error_str = f"Error calling logs function on server for {run_name}"
+
         async with client.stream(
-            "GET",
+            "POST",
             self._formatted_url("logs"),
             headers=self._request_headers,
-            params=LogsParams(
-                run_name=run_name, key=key, serialization=serialization
+            json=LogsParams(
+                run_name=run_name,
+                node_ip=node_ip,
+                process=process,
+                key=key,
+                serialization=serialization,
             ).model_dump(),
         ) as res:
             if res.status_code != 200:
@@ -628,7 +642,7 @@ class HTTPClient:
             run_name = generate_default_name(
                 prefix=key if method_name == "__call__" else f"{key}_{method_name}",
                 precision="ms",  # Higher precision because we see collisions within the same second
-                sep="@",
+                sep="--",
             )
 
         # Measure the time it takes to send the message
@@ -655,8 +669,8 @@ class HTTPClient:
         )
         alogs_request = asyncio.create_task(
             self._alogs_request(
-                key=key,
                 run_name=run_name,
+                key=key,
                 serialization=serialization,
                 error_str=error_str,
             )
@@ -840,12 +854,25 @@ class HTTPClient:
             ).model_dump(),
         )
 
-    def run_bash(self, command: str, require_outputs: bool = False):
+    def run_bash(
+        self,
+        command: str,
+        node: Optional[str] = None,
+        process: Optional[str] = None,
+        run_name: Optional[str] = None,
+        require_outputs: bool = False,
+    ):
+        if node is not None and process is not None:
+            raise ValueError("Cannot specify both node and process")
+
         return self.request_json(
             "/run_bash",
             req_type="post",
             json_dict=RunBashParams(
                 command=command,
                 require_outputs=require_outputs,
+                node=node,
+                process=process,
+                run_name=run_name,
             ).model_dump(),
         )
