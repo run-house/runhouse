@@ -241,20 +241,23 @@ class DenLauncher(Launcher):
         cluster._setup_creds(sky_secret)
         cluster.save()
 
+        cluster_config = cluster.config()
+
         payload = {
             "cluster_config": {
-                **cluster.config(),
+                **cluster_config,
                 "ssh_creds": sky_secret.rns_address,
             },
             "force": force,
             "verbose": verbose,
+            "observability": configs.observability_enabled,
         }
 
         if verbose:
             data = cls.run_verbose(
                 base_url=cls.LAUNCH_URL,
                 payload=payload,
-                cluster_name=payload["cluster_config"].get("name"),
+                cluster_name=cluster_config.get("name"),
             )
             cls._update_from_den_response(cluster=cluster, config=data)
             return
