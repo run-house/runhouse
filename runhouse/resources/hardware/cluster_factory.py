@@ -410,6 +410,13 @@ def ondemand_cluster(
             "`num_cpus`, or `accelerators`."
         )
 
+    if num_cpus:
+        try:
+            # Support passing in a string repr (ex: "4")
+            num_cpus = int(num_cpus)
+        except (ValueError, TypeError):
+            pass
+
     if name:
         alt_options = dict(
             instance_type=instance_type,
