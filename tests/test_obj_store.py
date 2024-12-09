@@ -113,11 +113,11 @@ class slow_numpy_array:
             yield f"Hello from the cluster! {self.arr}"
 
 
-@pytest.mark.parametrize("env", [None])
-def test_stateful_generator(cluster, env):
+@pytest.mark.parametrize("process", [None])
+def test_stateful_generator(cluster, process):
     # We need this here just to make sure the "tests" module is synced over
     rh.function(fn=do_printing_and_logging, system=cluster)
-    cluster.put("slow_numpy_array", slow_numpy_array(), env=env)
+    cluster.put("slow_numpy_array", slow_numpy_array(), process=process)
     for val in cluster.call("slow_numpy_array", "slow_get_array", stream_logs=True):
         assert val
         print(val)

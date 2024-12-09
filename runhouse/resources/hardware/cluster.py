@@ -69,7 +69,6 @@ from runhouse.constants import (
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
 
-from runhouse.resources.envs.utils import _get_env_from
 from runhouse.resources.hardware.utils import (
     _current_cluster,
     _run_ssh_command,
@@ -633,7 +632,7 @@ class Cluster(Resource):
             for node in self.ips:
                 if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
                     self.create_conda_env(
-                        env_name=setup_step.kwargs.get("conda_env_name"),
+                        conda_env_name=setup_step.kwargs.get("conda_env_name"),
                         conda_yaml=setup_step.kwargs.get("conda_yaml"),
                     )
                 elif setup_step.step_type == ImageSetupStepType.PACKAGES:
@@ -741,12 +740,14 @@ class Cluster(Resource):
 
         Args:
             reqs (List[Package or str]): List of packages to install on cluster and env.
-            env (Env or str): Environment to install package on. If left empty, defaults to base environment.
-                (Default: ``None``)
+            node (str, optional): Cluster node to install the package on. If specified, will use ssh to install the
+                package. (Default: ``None``)
+            conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
+                defaults to base environment. (Default: ``None``)
 
         Example:
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"])
-            >>> cluster.install_packages(reqs=["accelerate", "diffusers"], env="my_conda_env")
+            >>> cluster.install_packages(reqs=["accelerate", "diffusers"], conda_env_name="my_conda_env")
         """
         for req in reqs:
             if not node:
@@ -782,18 +783,18 @@ class Cluster(Resource):
             return default
         return res
 
-    def put(self, key: str, obj: Any, env: str = None):
+    def put(self, key: str, obj: Any, process: str = None):
         """Put the given object on the cluster's object store at the given key.
 
         Args:
             key (str): Key to assign the object in the object store.
             obj (Any): Object to put in the object store
-            env (str, optional): Env of the object store to put the object in. (Default: ``None``)
+            process (str, optional): Process of the object store to put the object in. (Default: ``None``)
         """
         if self.on_this_cluster():
-            return obj_store.put(key, obj, env=env)
+            return obj_store.put(key, obj, env=process)
         return self.call_client_method(
-            "put_object", key, obj, env=env or DEFAULT_PROCESS_NAME
+            "put_object", key, obj, env=process or DEFAULT_PROCESS_NAME
         )
 
     def put_resource(
@@ -809,24 +810,12 @@ class Cluster(Resource):
             resource (Resource): Key to assign the object in the object store.
             state (Dict, optional): Dict of resource attributes to override. (Default: ``False``)
             dryrun (bool, optional): Whether to put the resource in dryrun mode or not. (Default: ``False``)
-            env (str, optional): Env of the object store to put the object in. (Default: ``None``)
+            process (str, optional): Process of the object store to put the object in. (Default: ``None``)
         """
-        if resource.RESOURCE_TYPE == "env" and not resource.name:
-            # TODO - should this just throw an error?
-            resource.name = DEFAULT_PROCESS_NAME
-
         # Logic to get env_name from different ways env can be provided
         env_name = process or (
-            resource.process
-            if hasattr(resource, "process")
-            else resource.name or resource.env_name
-            if resource.RESOURCE_TYPE == "env"
-            else DEFAULT_PROCESS_NAME
+            resource.process if hasattr(resource, "process") else DEFAULT_PROCESS_NAME
         )
-
-        # Env name could somehow be a full length `username/base_env`, trim it down to just the env name
-        if env_name:
-            env_name = env_name.split("/")[-1]
 
         state = state or {}
         if self.on_this_cluster():
@@ -851,15 +840,15 @@ class Cluster(Resource):
             return obj_store.rename(old_key, new_key)
         return self.call_client_method("rename_object", old_key, new_key)
 
-    def keys(self, env: str = None):
+    def keys(self, process: str = None):
         """List all keys in the cluster's object store.
 
         Args:
-            env (str, optional): Env in which to list out the keys for.
+            process (str, optional): Process in which to list out the keys for.
         """
         if self.on_this_cluster():
             return obj_store.keys()
-        res = self.call_client_method("keys", env=env)
+        res = self.call_client_method("keys", env=process)
         return res
 
     def delete(self, keys: Union[None, str, List[str]]):
@@ -1222,7 +1211,6 @@ class Cluster(Resource):
             self._start_ray_workers(DEFAULT_RAY_PORT, env_vars=image_env_vars)
 
         self.put_resource(Env(name=DEFAULT_PROCESS_NAME))
-
         if image_secrets:
             self.sync_secrets(image_secrets)
 
@@ -1289,14 +1277,14 @@ class Cluster(Resource):
     def stop_server(
         self,
         stop_ray: bool = False,
-        env: Union[str, "Env"] = None,
+        process: str = None,
         cleanup_actors: bool = True,
     ):
         """Stop the RPC server.
 
         Args:
             stop_ray (bool, optional): Whether to stop Ray. (Default: `True`)
-            env (str or Env, optional): Specified environment to stop the server on. (Default: ``None``)
+            process (str, optional): Specified process to stop the server on. (Default: ``None``)
             cleanup_actors (bool, optional): Whether to kill all Ray actors. (Default: ``True``)
         """
         cmd = CLI_STOP_CMD
@@ -1306,7 +1294,9 @@ class Cluster(Resource):
             cmd = cmd + " --no-cleanup-actors"
 
         # run on node where server was started
-        status_codes = self.run([cmd], node=self.head_ip, require_outputs=False)
+        status_codes = self.run(
+            [cmd], process=process, node=self.head_ip, require_outputs=False
+        )
         assert status_codes[0] == 0
 
     @contextlib.contextmanager
@@ -1712,7 +1702,7 @@ class Cluster(Resource):
     def run(
         self,
         commands: Union[str, List[str]],
-        env: Union["Env", str] = None,
+        process: str = None,
         stream_logs: bool = True,
         require_outputs: bool = True,
         node: Optional[str] = None,
@@ -1722,8 +1712,8 @@ class Cluster(Resource):
 
         Args:
             commands (str or List[str]): Command or list of commands to run on the cluster.
-            env (Env or str, optional): Env on the cluster to run the command in. If not provided,
-                will be run in the default env. (Default: ``None``)
+            process (str, optional): Process on the cluster to run the command in. If not provided,
+                will be run in the default process. (Default: ``None``)
             stream_logs (bool, optional): Whether to stream log output as the command runs.
                 (Default: ``True``)
             require_outputs (bool, optional): If ``True``, returns a Tuple (returncode, stdout, stderr).
@@ -1733,37 +1723,24 @@ class Cluster(Resource):
 
         Example:
             >>> cpu.run(["pip install numpy"])
-            >>> cpu.run(["pip install numpy"], env="my_conda_env"])
-            >>> cpu.run(["python script.py"])
             >>> cpu.run(["python script.py"], node="3.89.174.234")
         """
-        from runhouse.resources.envs import Env
-
         if isinstance(commands, str):
             commands = [commands]
 
-        if not env:
+        if not process:
             if self.image and self.image.conda_env_name:
                 commands = [
                     conda_env_cmd(cmd, self.image.conda_env_name) for cmd in commands
                 ]
-            env = DEFAULT_PROCESS_NAME
-
-        env = _get_env_from(env)
+            process = DEFAULT_PROCESS_NAME
 
         # If node is not specified, then we just use normal logic, knowing that we are likely on the head node
         if not node:
-            env_name = (
-                env
-                if isinstance(env, str)
-                else env.name
-                if isinstance(env, Env)
-                else None
-            )
             return_codes = []
             for command in commands:
                 ret_code = self.call(
-                    env_name,
+                    process,
                     "_run_command",
                     command,
                     require_outputs=require_outputs,
@@ -1779,7 +1756,7 @@ class Cluster(Resource):
                 for node in self.ips:
                     res = self.run(
                         commands=commands,
-                        env=env,
+                        process=process,
                         stream_logs=stream_logs,
                         require_outputs=require_outputs,
                         node=node,
@@ -1789,8 +1766,6 @@ class Cluster(Resource):
                 return res_list
 
             else:
-                if env and not isinstance(env, str):
-                    commands = [env._full_command(cmd) for cmd in commands]
                 if self.on_this_cluster():
                     # TODO add log streaming
                     # Switch the external ip to an internal ip
@@ -1912,7 +1887,7 @@ class Cluster(Resource):
     def run_python(
         self,
         commands: List[str],
-        env: Union["Env", str] = None,
+        process: str = None,
         stream_logs: bool = True,
         node: str = None,
     ):
@@ -1920,7 +1895,7 @@ class Cluster(Resource):
 
         Args:
             commands (List[str]): List of commands to run.
-            env (Env or str, optional): Env to run the commands in. (Default: ``None``)
+            process (str, optional): Process to run the commands in. (Default: ``None``)
             stream_logs (bool, optional): Whether to stream logs. (Default: ``True``)
             node (str, optional): Node to run commands on. If not specified, runs on head node. (Default: ``None``)
 
@@ -1945,17 +1920,17 @@ class Cluster(Resource):
         # If invoking a run as part of the python commands also return the Run object
         return_codes = self.run(
             [formatted_command],
-            env=env,
+            process=process,
             stream_logs=stream_logs,
             node=node,
         )
 
         return return_codes
 
-    def create_conda_env(self, env_name: str, conda_yaml: Dict):
+    def create_conda_env(self, conda_env_name: str, conda_yaml: Dict):
         install_conda(cluster=self)
         create_conda_env_on_cluster(
-            env_name=env_name,
+            conda_env_name=conda_env_name,
             conda_yaml=conda_yaml,
             cluster=self,
         )
@@ -1963,23 +1938,19 @@ class Cluster(Resource):
     def sync_secrets(
         self,
         providers: Optional[List[str or "Secret"]] = None,
-        env: Union[str, "Env"] = None,
+        process: str = None,
     ):
         """Send secrets for the given providers.
 
         Args:
             providers(List[str] or None, optional): List of providers to send secrets for.
                 If `None`, all providers configured in the environment will by sent. (Default: ``None``)
-            env (str, Env, optional): Env to sync secrets into. (Default: ``None``)
+            process (str, optional): Process to sync secrets into, if setting env vars. (Default: ``None``)
 
         Example:
             >>> cpu.sync_secrets(secrets=["aws", "lambda"])
         """
-        from runhouse.resources.envs import Env
         from runhouse.resources.secrets import Secret
-
-        if isinstance(env, str):
-            env = Env.from_name(env)
 
         secrets = []
         if providers:
@@ -1994,13 +1965,6 @@ class Cluster(Resource):
             secrets = secrets.values()
 
         for secret in secrets:
-            process = (
-                env
-                if isinstance(env, str)
-                else env.name
-                if isinstance(env, Env)
-                else None
-            )
             secret.to(self, process=process)
 
     def ipython(self):
@@ -2129,19 +2093,17 @@ class Cluster(Resource):
 
     def remove_conda_env(
         self,
-        env: Union[str, "CondaEnv"],
+        conda_env_name: str,
     ):
         """Remove conda env from the cluster.
 
         Args:
-            env (str or Env): Name of conda env to remove from the cluster, or Env resource
-                representing the environment.
+            conda_env_name (str): Name of conda env to remove from the cluster.
 
         Example:
             >>> rh.ondemand_cluster("rh-cpu").remove_conda_env("my_conda_env")
         """
-        env_name = env if isinstance(env, str) else env.env_name
-        self.run([f"conda env remove -n {env_name}"])
+        self.run([f"conda env remove -n {conda_env_name}"])
 
     def download_cert(self):
         """Download certificate from the cluster (Note: user must have access to the cluster)"""
