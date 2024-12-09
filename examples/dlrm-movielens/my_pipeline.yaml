@@ -61,7 +61,7 @@ spec:
         # We show the code here for simpler illustration of the workflow, but Runhouse is agnostic to how the steps is run.
         import os, sys, runhouse as rh
 
-        # First we configure the environment to setup Runhouse and AWS credentials. We only need to configure the AWS credentials in the first step since the cluster is saved to Runhouse and we reuse the resource.
+        # First we configure the environment to setup Runhouse and AWS credentials.
         rh.login(token=os.getenv("RUNHOUSE_API_KEY"), interactive=False)
         aws_secret = rh.secret("aws")
         aws_secret._write_to_file('~/.aws/credentials',aws_secret.values)
@@ -69,26 +69,31 @@ spec:
         # Now we can bring up the cluster with Runhouse.
         num_nodes = 2
 
+        img = rh.Image('ray-data').install_packages(
+            [
+                "ray[data]",
+                "pandas",
+                "scikit-learn",
+                "torch",
+                "awscli",
+            ]
+        ).sync_secrets([
+            "aws"
+            ]
+        )
+
+        num_nodes = 2
+
         cluster = rh.cluster(
             name="rh-preprocessing",
-            instance_type="CPU:4+",
-            #memory = "32+",
+            cpu="CPU:4+",
+            memory = "15+",
             provider="aws",
             region="us-east-1",
-            num_nodes = num_nodes,
-            autostop_minutes = 45,
-            default_env=rh.env(
-                reqs=[
-                    "scikit-learn",
-                    "pandas",
-                    "ray[data]",
-                    "awscli",
-                    "torch"
-                ],
-            ),
+            num_nodes=num_nodes,
+            autostop_minutes=120,
+            image = img, 
         ).up_if_not()
-
-        cluster.sync_secrets(["aws"])
 
         # Set some variables (maybe we would not hard code this in a proper production)
         s3_raw = 's3://rh-demo-external/dlrm-training-example/raw_data'

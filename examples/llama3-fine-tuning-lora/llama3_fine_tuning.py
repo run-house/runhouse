@@ -240,21 +240,11 @@ class FineTuner:
 # improve readability.
 # :::
 if __name__ == "__main__":
-    cluster = rh.cluster(
-        name="rh-a10x",
-        instance_type="A10G:1",
-        memory="32+",
-        provider="aws",
-    ).up_if_not()
-
-    # Next, we define the environment for our module. This includes the required dependencies that need
+    
+    # First, we define the environment for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
     # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        name="ft_env",
-        reqs=[
+    img = rh.Image(name="llama3").install_packages([
             "torch",
             "tensorboard",
             "scipy",
@@ -263,9 +253,18 @@ if __name__ == "__main__":
             "transformers==4.31.0",
             "trl==0.4.7",
             "accelerate",
-        ],
-        secrets=["huggingface"],  # Needed to download Llama 3 from Hugging Face
-    )
+        ]).sync_secrets(["huggingface"])
+
+    # Then, we launch a cluster with a GPU; 
+    cluster = rh.cluster(
+        name="rh-a10x",
+        accelerators="A10G:1",
+        memory="32+",
+        provider="aws",
+    ).up_if_not()
+
+
+    
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster

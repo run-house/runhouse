@@ -64,18 +64,16 @@ def inference_dlrm(
 if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 2
+    img = rh.Image("ray-data").install_packages(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"])
 
     gpu_cluster = (
         rh.cluster(
             name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-            instance_type=f"A10G:{gpus_per_node}",
+            accelerators=f"A10G:{gpus_per_node}",
             num_nodes=num_nodes,
             provider="aws",
             autostop_minutes=45,
-            default_env=rh.env(
-                name="pytorch_env",
-                reqs=["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"],
-            ),
+            image = img, 
         )
         .up_if_not()
         .save()

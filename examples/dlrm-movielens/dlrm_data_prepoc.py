@@ -1,16 +1,14 @@
-import os
 from typing import Any, Dict
-
-import numpy as np
 
 import ray
 import ray.data
 import runhouse as rh
-import torch
 from ray.data.preprocessors import StandardScaler
 
-
-def preprocess_data(s3_read_path: str, s3_write_path: str):
+# ## Preprocessing data for DLRM
+# The following function is regular, undecorated Python that uses Ray Data for processing. 
+# It is sent to the remote cluster for execution.
+def preprocess_data(s3_read_path: str, s3_write_path: str, filename: str):
     """
     Preprocess MovieLens dataset using Ray Data for distributed processing.
 
@@ -24,7 +22,7 @@ def preprocess_data(s3_read_path: str, s3_write_path: str):
         return ray.data.read_csv(f"{s3_read_path}/{filename}")
 
     # Load datasets
-    ratings = load_dataset("ratings.csv")
+    ratings = load_dataset(filename)
 
     # Preprocess data for DLRM model
     print("Preprocessing data for DLRM")
@@ -58,37 +56,47 @@ def preprocess_data(s3_read_path: str, s3_write_path: str):
 
 
 if __name__ == "__main__":
+
+    # Define an image which will be installed on each node of the cluste.r 
+    # An image can include a base Docker image, package installations, setup commands, env vars, and secrets. 
+    img = rh.Image('ray-data').install_packages(
+        [
+            "ray[data]",
+            "pandas",
+            "scikit-learn",
+            "torch",
+            "awscli",
+        ]
+    ).sync_secrets([
+        "aws"
+        ]
+    )
+
     num_nodes = 2
 
     cluster = rh.cluster(
         name="rh-preprocessing",
-        instance_type="CPU:4+",
-        # memory = "32+",
+        cpu="CPU:4+",
+        memory = "15+",
         provider="aws",
         region="us-east-1",
         num_nodes=num_nodes,
-        autostop_minutes=45,
-        default_env=rh.env(
-            reqs=["scikit-learn", "pandas", "ray[data]", "awscli", "torch"],
-        ),
+        autostop_minutes=120,
+        image = img, 
     ).up_if_not()
-
-    # cluster.restart_server()
-    cluster.sync_secrets(["aws"])
-
-    s3_raw = "s3://rh-demo-external/dlrm-training-example/raw_data"
-    local_path = "~/dlrm"
-    s3_preprocessed = "s3://rh-demo-external/dlrm-training-example/preprocessed_data"
-
-    # remote_download = rh.function(download_data).to(cluster)
-    # remote_download(s3_path = s3_raw, local_path = local_path)
 
     remote_preprocess = (
         rh.function(preprocess_data)
         .to(cluster, name="preprocess_data")
         .distribute("ray")
+        .save()
     )
     print("sent function to cluster")
-    remote_preprocess(s3_read_path=s3_raw, s3_write_path=s3_preprocessed)
 
-    cluster.teardown()
+    s3_raw = "s3://rh-demo-external/dlrm-training-example/raw_data"
+    filename = "ratings.csv"
+    s3_preprocessed = "s3://rh-demo-external/dlrm-training-example/preprocessed_data"
+
+    remote_preprocess(s3_read_path=s3_raw, s3_write_path=s3_preprocessed, filename=filename)
+
+    # cluster.teardown() # to teardown the cluster after the job is done

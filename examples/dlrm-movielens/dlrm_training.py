@@ -1,9 +1,8 @@
-# ##
+# ## Distributed Training with DLRM and Ray
 # This script demonstrates how to set up a distributed training pipeline using PyTorch, DLRM, MovieLens, and AWS S3.
 # The training pipeline involves initializing a distributed model, loading data from S3, and saving model checkpoints back to S3.
+# The data was preprocessed in the prior step with Ray Data. 
 import logging
-
-import os
 
 import boto3
 import ray
@@ -214,7 +213,7 @@ def dlrm_train(config):
 
         save_checkpoint(f"dlrm_model.pth")
 
-
+# Function that is sent to the remote cluster to run the training
 def ray_trainer(
     num_nodes,
     gpus_per_node,
@@ -274,38 +273,29 @@ def ray_trainer(
 # - We define a 3 node cluster with GPUs where we will do the training.
 # - Then we dispatch the Ray trainer function to the remote cluster and call .distribute('ray') to properly setup Ray. It's that easy.
 if __name__ == "__main__":
-    train_data_path = (
-        "s3://rh-demo-external/dlrm-training-example/preprocessed_data/train/"
-    )
-    val_data_path = (
-        "s3://rh-demo-external/dlrm-training-example/preprocessed_data/eval/"
-    )
-
-    working_s3_bucket = "rh-demo-external"
-    working_s3_path = "dlrm-training-example/"
-
     # Create a cluster of 3 GPUs
     gpus_per_node = 1
     num_nodes = 3
 
+    img = rh.Image('ray-torch').install_packages(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]).sync_secrets(["aws"])
+
     gpu_cluster = (
         rh.cluster(
             name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-            instance_type=f"A10G:{gpus_per_node}",
+            accelerators=f"A10G:{gpus_per_node}",
             num_nodes=num_nodes,
             provider="aws",
-            default_env=rh.env(
-                name="pytorch_env",
-                reqs=["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"],
-            ),
+            image = img, 
         )
         .up_if_not()
-        .save()
     )
-    gpu_cluster.restart_server()
-    gpu_cluster.sync_secrets(["aws"])
 
     epochs = 15
+    train_data_path = "s3://rh-demo-external/dlrm-training-example/preprocessed_data/train/"
+    val_data_path = "s3://rh-demo-external/dlrm-training-example/preprocessed_data/eval/"
+    working_s3_bucket = "rh-demo-external"
+    working_s3_path = "dlrm-training-example/"
+
     remote_trainer = (
         rh.function(ray_trainer).to(gpu_cluster, name="ray_trainer").distribute("ray")
     )
