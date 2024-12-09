@@ -218,7 +218,6 @@ def cluster_status(
 
     try:
         cluster_status = current_cluster.status(send_to_den=send_to_den)
-
     except ValueError:
         console.print("Failed to load status for cluster.")
         return
@@ -355,7 +354,6 @@ def cluster_keep_warm(
         ``$ runhouse cluster keep-warm rh-basic-cpu``
 
     """
-
     current_cluster = get_cluster_or_local(cluster_name=cluster_name)
 
     try:
