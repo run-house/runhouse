@@ -74,7 +74,7 @@ save.
         name="rh-cluster",
         instance_type="CPU:2+",
         provider="aws",
-        launcher_type="den"
+        launcher="den"
     ).up_if_not()
 
 .. code:: ipython3

@@ -1310,7 +1310,8 @@ class Cluster(Resource):
         if not cleanup_actors:
             cmd = cmd + " --no-cleanup-actors"
 
-        status_codes = self.run([cmd], require_outputs=False)
+        # run on node where server was started
+        status_codes = self.run([cmd], node=self.head_ip, require_outputs=False)
         assert status_codes[0] == 0
 
     @contextlib.contextmanager

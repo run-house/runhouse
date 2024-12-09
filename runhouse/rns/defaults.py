@@ -35,7 +35,7 @@ class Defaults:
         "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
-        "launcher_type": "local",
+        "launcher": "local",
         "autosave": False,
     }
 
@@ -43,7 +43,7 @@ class Defaults:
         self._token = None
         self._username = None
         self._default_folder = None
-        self._launcher_type = None
+        self._launcher = None
         self._defaults_cache = defaultdict(dict)
         self._simulate_logged_out = False
         self._use_caller_token = False
@@ -117,20 +117,20 @@ class Defaults:
         self._default_folder = value
 
     @property
-    def launcher_type(self):
-        if self._launcher_type:
-            return self._launcher_type
+    def launcher(self):
+        if self._launcher:
+            return self._launcher
 
-        if "launcher_type" in self.defaults_cache:
-            self._launcher_type = self.defaults_cache["launcher_type"]
-            return self._launcher_type
+        if "launcher" in self.defaults_cache:
+            self._launcher = self.defaults_cache["launcher"]
+            return self._launcher
 
-        return self.BASE_DEFAULTS["launcher_type"]
+        return self.BASE_DEFAULTS["launcher"]
 
-    @launcher_type.setter
-    def launcher_type(self, value):
-        self._launcher_type = value
-        self.set("launcher_type", value)
+    @launcher.setter
+    def launcher(self, value):
+        self._launcher = value
+        self.set("launcher", value)
 
     @property
     def defaults_cache(self):
@@ -296,7 +296,7 @@ class Defaults:
             raise Exception(f"Failed to delete config file from path {config_path}")
 
     @property
-    def observability_enabled(self):
+    def observability_enabled(self) -> bool:
         return not self.get("disable_observability", False)
 
     def disable_observability(self):

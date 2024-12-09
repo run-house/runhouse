@@ -62,7 +62,7 @@ class OnDemandCluster(Cluster):
         server_host: int = None,
         server_port: int = None,
         server_connection_type: str = None,
-        launcher_type: str = None,
+        launcher: str = None,
         ssl_keyfile: str = None,
         ssl_certfile: str = None,
         domain: str = None,
@@ -77,8 +77,8 @@ class OnDemandCluster(Cluster):
         .. note::
             To build a cluster, please use the factory method :func:`cluster`.
         """
-        cluster_launcher_type = launcher_type or configs.launcher_type
-        skip_creds = cluster_launcher_type == LauncherType.DEN
+        cluster_launcher = launcher or configs.launcher
+        skip_creds = cluster_launcher == LauncherType.DEN
 
         super().__init__(
             name=name,
@@ -116,7 +116,7 @@ class OnDemandCluster(Cluster):
         self._num_cpus = num_cpus
         self._accelerators = accelerators
         self.sky_kwargs = sky_kwargs or {}
-        self.launcher_type = cluster_launcher_type
+        self.launcher = cluster_launcher
 
         self.compute_properties = {}
         # backwards compatibility
@@ -179,10 +179,10 @@ class OnDemandCluster(Cluster):
         else:
             self.call_client_method("set_settings", {"autostop_mins": mins})
 
-            if self.launcher_type == "local":
+            if self.launcher == "local":
                 LocalLauncher.keep_warm(self, mins)
 
-            elif self.launcher_type == "den":
+            elif self.launcher == "den":
                 DenLauncher.keep_warm(self, mins)
 
     @property
@@ -228,7 +228,7 @@ class OnDemandCluster(Cluster):
                 "memory",
                 "disk_size",
                 "sky_kwargs",
-                "launcher_type",
+                "launcher",
                 "compute_properties",
             ],
         )
@@ -487,7 +487,7 @@ class OnDemandCluster(Cluster):
             # the cluster was initially upped
             return
 
-        if self.launcher_type == "local":
+        if self.launcher == "local":
             cluster_dict = self._sky_status(refresh=not dryrun)
             self._populate_connection_from_status_dict(cluster_dict)
 
@@ -566,11 +566,11 @@ class OnDemandCluster(Cluster):
         if self.on_this_cluster():
             return self
 
-        if self.launcher_type == LauncherType.DEN:
+        if self.launcher == LauncherType.DEN:
             logger.info("Launching cluster with Den")
             DenLauncher.up(cluster=self, verbose=verbose, force=force)
 
-        elif self.launcher_type == LauncherType.LOCAL:
+        elif self.launcher == LauncherType.LOCAL:
             logger.info("Provisioning cluster")
             LocalLauncher.up(cluster=self, verbose=verbose)
 
@@ -596,7 +596,7 @@ class OnDemandCluster(Cluster):
         Example:
             >>> rh.ondemand_cluster("rh-cpu").teardown()
         """
-        if self.launcher_type == LauncherType.DEN:
+        if self.launcher == LauncherType.DEN:
             logger.info("Tearing down cluster with Den.")
             DenLauncher.teardown(cluster=self, verbose=verbose)
         else:

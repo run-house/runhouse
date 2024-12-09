@@ -99,8 +99,8 @@ class RNSClient:
         return self._configs.username
 
     @property
-    def launcher_type(self):
-        return self._configs.launcher_type
+    def launcher(self):
+        return self._configs.launcher
 
     @property
     def api_server_url(self):

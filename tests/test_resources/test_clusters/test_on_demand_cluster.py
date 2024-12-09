@@ -110,19 +110,19 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
     }
 
     @pytest.mark.level("minimal")
-    def test_launcher_type(self):
+    def test_launcher(self):
         from runhouse.globals import configs
 
         with pytest.raises(ValueError):
-            rh.ondemand_cluster(name="some-cluster", launcher_type="invalid")
+            rh.ondemand_cluster(name="some-cluster", launcher="invalid")
 
-        configs.set("launcher_type", "local")
+        configs.set("launcher", "local")
 
-        cluster = rh.ondemand_cluster(name="some-cluster", launcher_type="den")
+        cluster = rh.ondemand_cluster(name="some-cluster", launcher="den")
 
         # if specified in the factory override the local config value
-        assert cluster.launcher_type == "den"
-        assert configs.launcher_type == "local"
+        assert cluster.launcher == "den"
+        assert configs.launcher == "local"
 
     @pytest.mark.level("minimal")
     def test_restart_does_not_change_config_yaml(self, cluster):

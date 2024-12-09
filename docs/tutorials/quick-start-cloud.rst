@@ -92,7 +92,7 @@ properly.
         instance_type="CPU:2+",
         provider="aws",
         autostop_mins=60,
-        launcher_type="local",
+        launcher="local",
     )
     cluster.up_if_not()
 
@@ -105,7 +105,7 @@ docs <https://www.run.house/docs/api/python/cluster#runhouse.ondemand_cluster>`_
 You can also omit the provider argument to allocate from the cheapest
 available source for which you have credentials.
 
-Notice the launcher_type is `local`, which means that Runhouse will launch a cluster
+Notice the launcher is `local`, which means that Runhouse will launch a cluster
 with your local credentials. In a production setting, we expect folks to generally
 launch with Den, and authenticate with Runhouse rather than moving keys and secrets around,
 or giving everyone individual permissions to launch clusters.
