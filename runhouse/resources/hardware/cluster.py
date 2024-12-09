@@ -54,6 +54,7 @@ from runhouse.constants import (
     DEFAULT_DASK_PORT,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
+    DEFAULT_LOG_LEVEL,
     DEFAULT_PROCESS_NAME,
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
@@ -270,7 +271,12 @@ class Cluster(Resource):
         if on_this_cluster:
             obj_store.set_cluster_config_value("name", self.rns_address)
         elif self._http_client:
-            self.call_client_method("set_cluster_name", self.rns_address)
+            try:
+                self.call_client_method("set_cluster_name", self.rns_address)
+            except ConnectionError:
+                logger.error(
+                    "Failed to update cluster's name in the config on the cluster: unable to connect to cluster's HTTP client."
+                )
 
         return self
 
@@ -612,7 +618,8 @@ class Cluster(Resource):
         use the HTTP client.
         """
         env_vars = {}
-        log_level = os.getenv("RH_LOG_LEVEL")
+        # In case the local env var RH_LOG_LEVEL is None, we set the RH_LOG_LEVEL on the cluster to be the DEFAULT_LOG_LEVEL
+        log_level = os.getenv("RH_LOG_LEVEL") or DEFAULT_LOG_LEVEL
         if log_level:
             # add log level to the default env to ensure it gets set on the cluster when the server is restarted
             env_vars["RH_LOG_LEVEL"] = log_level
@@ -781,11 +788,15 @@ class Cluster(Resource):
                 remote=remote,
                 system=self,
             )
+            return res
         except KeyError as e:
             if default == KeyError:
                 raise e
             return default
-        return res
+        except ConnectionError:
+            logger.error(
+                f"Failed to call get {key}: unable to connect to cluster's HTTP client."
+            )
 
     def put(self, key: str, obj: Any, env: str = None):
         """Put the given object on the cluster's object store at the given key.
@@ -797,9 +808,14 @@ class Cluster(Resource):
         """
         if self.on_this_cluster():
             return obj_store.put(key, obj, env=env)
-        return self.call_client_method(
-            "put_object", key, obj, env=env or DEFAULT_PROCESS_NAME
-        )
+        try:
+            return self.call_client_method(
+                "put_object", key, obj, env=env or DEFAULT_PROCESS_NAME
+            )
+        except ConnectionError:
+            logger.error(
+                f"Failed to put {key}: {obj}: unable to connect to cluster's HTTP client"
+            )
 
     def put_resource(
         self,
@@ -837,13 +853,18 @@ class Cluster(Resource):
         if self.on_this_cluster():
             data = (resource.config(condensed=False), state, dryrun)
             return obj_store.put_resource(serialized_data=data, env_name=env_name)
-        return self.call_client_method(
-            "put_resource",
-            resource,
-            state=state or {},
-            env_name=env_name,
-            dryrun=dryrun,
-        )
+        try:
+            return self.call_client_method(
+                "put_resource",
+                resource,
+                state=state or {},
+                env_name=env_name,
+                dryrun=dryrun,
+            )
+        except ConnectionError:
+            logger.error(
+                f"Failed to put {resource.name}: unable to connect to cluster's HTTP client."
+            )
 
     def rename(self, old_key: str, new_key: str):
         """Rename a key in the cluster's object store.
@@ -854,7 +875,12 @@ class Cluster(Resource):
         """
         if self.on_this_cluster():
             return obj_store.rename(old_key, new_key)
-        return self.call_client_method("rename_object", old_key, new_key)
+        try:
+            return self.call_client_method("rename_object", old_key, new_key)
+        except ConnectionError:
+            logger.error(
+                "Failed to rename object: unable to connect to cluster's HTTP client."
+            )
 
     def keys(self, env: str = None):
         """List all keys in the cluster's object store.
@@ -864,8 +890,17 @@ class Cluster(Resource):
         """
         if self.on_this_cluster():
             return obj_store.keys()
-        res = self.call_client_method("keys", env=env)
-        return res
+        try:
+            res = self.call_client_method("keys", env=env)
+            return res
+        except ConnectionError:
+            if env:
+                env_or_cluster_keys = f"{env}'s (env)"
+            else:
+                env_or_cluster_keys = "cluster's"
+            logger.error(
+                f"Failed to get {env_or_cluster_keys} keys: unable to connect to cluster's HTTP client."
+            )
 
     def delete(self, keys: Union[None, str, List[str]]):
         """Delete the given items from the cluster's object store. To delete all items, use `cluster.clear()`
@@ -877,13 +912,23 @@ class Cluster(Resource):
             keys = [keys]
         if self.on_this_cluster():
             return obj_store.delete(keys)
-        return self.call_client_method("delete", keys)
+        try:
+            return self.call_client_method("delete", keys)
+        except ConnectionError:
+            logger.error(
+                "Failed to delete the given items: unable to connect to cluster's HTTP client."
+            )
 
     def clear(self):
         """Clear the cluster's object store."""
         if self.on_this_cluster():
             return obj_store.clear()
-        return self.call_client_method("delete")
+        try:
+            return self.call_client_method("delete")
+        except ConnectionError:
+            logger.error(
+                "Failed to clear the object store: unable to connect to cluster's HTTP client."
+            )
 
     def on_this_cluster(self):
         """Whether this function is being called on the same cluster."""
@@ -989,10 +1034,16 @@ class Cluster(Resource):
         if self.on_this_cluster():
             status, den_resp_status_code = obj_store.status(send_to_den=send_to_den)
         else:
-            status, den_resp_status_code = self.call_client_method(
-                "status",
-                send_to_den=send_to_den,
-            )
+            try:
+                status, den_resp_status_code = self.call_client_method(
+                    "status",
+                    send_to_den=send_to_den,
+                )
+            except ConnectionError:
+                logger.error(
+                    "Failed to get cluster's status: unable to connect to cluster's HTTP client."
+                )
+                return
 
         if send_to_den:
             if den_resp_status_code == 404:
@@ -1362,17 +1413,22 @@ class Cluster(Resource):
                 serialization=None,
             )
         method_to_call = "acall_module_method" if run_async else "call_module_method"
-        return self.call_client_method(
-            method_to_call,
-            module_name,
-            method_name,
-            stream_logs=stream_logs,
-            data={"args": args, "kwargs": kwargs},
-            run_name=run_name,
-            remote=remote,
-            save=save,
-            system=self,
-        )
+        try:
+            return self.call_client_method(
+                method_to_call,
+                module_name,
+                method_name,
+                stream_logs=stream_logs,
+                data={"args": args, "kwargs": kwargs},
+                run_name=run_name,
+                remote=remote,
+                save=save,
+                system=self,
+            )
+        except ConnectionError:
+            logger.error(
+                f"Failed to call {module_name}.{module_name}: unable to connect to cluster's HTTP client."
+            )
 
     def is_connected(self):
         """Whether the RPC tunnel is up.
@@ -2036,10 +2092,15 @@ class Cluster(Resource):
 
     def download_cert(self):
         """Download certificate from the cluster (Note: user must have access to the cluster)"""
-        self.call_client_method("get_certificate")
-        logger.info(
-            f"Latest TLS certificate for {self.name} saved to local path: {self.cert_config.cert_path}"
-        )
+        try:
+            self.call_client_method("get_certificate")
+            logger.info(
+                f"Latest TLS certificate for {self.name} saved to local path: {self.cert_config.cert_path}"
+            )
+        except ConnectionError:
+            logger.error(
+                "Failed to call get_certificate: unable to connect to cluster's HTTP client."
+            )
 
     def enable_den_auth(self, flush: bool = True):
         """Enable Den auth on the cluster.
@@ -2050,18 +2111,28 @@ class Cluster(Resource):
         if self.on_this_cluster():
             raise ValueError("Cannot toggle Den Auth live on the cluster.")
         else:
-            self.den_auth = True
-            self.call_client_method(
-                "set_settings", {"den_auth": True, "flush_auth_cache": flush}
-            )
+            try:
+                self.den_auth = True
+                self.call_client_method(
+                    "set_settings", {"den_auth": True, "flush_auth_cache": flush}
+                )
+            except ConnectionError:
+                logger.error(
+                    "Failed to enable den auth: unable to connect to cluster's HTTP client."
+                )
         return self
 
     def disable_den_auth(self):
         if self.on_this_cluster():
             raise ValueError("Cannot toggle Den Auth live on the cluster.")
         else:
-            self.den_auth = False
-            self.call_client_method("set_settings", {"den_auth": False})
+            try:
+                self.den_auth = False
+                self.call_client_method("set_settings", {"den_auth": False})
+            except ConnectionError:
+                logger.error(
+                    "Failed to disable den auth: unable to connect to cluster's HTTP client."
+                )
         return self
 
     def set_connection_defaults(self, **kwargs):
@@ -2166,7 +2237,12 @@ class Cluster(Resource):
         if self.on_this_cluster():
             obj_store.set_cluster_config_value("status_check_interval", -1)
         else:
-            self.call_client_method("set_settings", {"status_check_interval": -1})
+            try:
+                self.call_client_method("set_settings", {"status_check_interval": -1})
+            except ConnectionError:
+                logger.error(
+                    "Failed to disable periodic cluster status checks: unable to connect to cluster's HTTP client."
+                )
 
     def _enable_or_update_status_check(
         self, new_interval: int = DEFAULT_STATUS_CHECK_INTERVAL
@@ -2186,9 +2262,14 @@ class Cluster(Resource):
         if self.on_this_cluster():
             obj_store.set_cluster_config_value("status_check_interval", new_interval)
         else:
-            self.call_client_method(
-                "set_settings", {"status_check_interval": new_interval}
-            )
+            try:
+                self.call_client_method(
+                    "set_settings", {"status_check_interval": new_interval}
+                )
+            except ConnectionError:
+                logger.error(
+                    "Failed to update periodic cluster status checks: unable to connect to cluster's HTTP client."
+                )
 
     ##############################################
     # Folder Operations
