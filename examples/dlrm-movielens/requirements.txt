@@ -1,4 +1,0 @@
-ray[train,data]
-torch
-boto3
-numpy

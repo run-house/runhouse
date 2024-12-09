@@ -92,7 +92,7 @@ spec:
             region="us-east-1",
             num_nodes=num_nodes,
             autostop_minutes=120,
-            image = img, 
+            image = img,
         ).up_if_not()
 
         # Set some variables (maybe we would not hard code this in a proper production)
@@ -131,41 +131,29 @@ spec:
         sys.path.append(os.path.expanduser("~/code/"))
         from dlrm_training import ray_trainer
 
-        train_data_path = "s3://rh-demo-external/dlrm-training-example/preprocessed_data/train/"
-        val_data_path ="s3://rh-demo-external/dlrm-training-example/preprocessed_data/eval/"
-
-        working_s3_bucket = "rh-demo-external"
-        working_s3_path = "dlrm-training-example/"
-
         # Create a cluster of 3 GPUs
         gpus_per_node = 1
         num_nodes = 3
 
+        img = rh.Image('ray-torch').install_packages(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]).sync_secrets(["aws"])
+
         gpu_cluster = (
             rh.cluster(
                 name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-                instance_type=f"A10G:{gpus_per_node}",
+                accelerators=f"A10G:{gpus_per_node}",
                 num_nodes=num_nodes,
                 provider="aws",
-                autostop_minutes=120,
-                default_env=rh.env(
-                    name="pytorch_env",
-                    reqs=[
-                        "torch==2.5.1",
-                        "datasets",
-                        "boto3",
-                        "awscli",
-                        "ray[data,train]"
-                    ],
-                ),
+                image = img,
             )
             .up_if_not()
-            .save()
         )
-        gpu_cluster.restart_server()
-        gpu_cluster.sync_secrets(["aws"])
 
         epochs = 15
+        train_data_path = "s3://rh-demo-external/dlrm-training-example/preprocessed_data/train/"
+        val_data_path ="s3://rh-demo-external/dlrm-training-example/preprocessed_data/eval/"
+        working_s3_bucket = "rh-demo-external"
+        working_s3_path = "dlrm-training-example/"
+
         remote_trainer = rh.function(ray_trainer).to(gpu_cluster, name = "ray_trainer").distribute('ray')
 
         remote_trainer(
@@ -207,32 +195,24 @@ spec:
         gpus_per_node = 1
         num_nodes = 2
 
+        img = rh.Image("ray-data").install_packages(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]).sync_secrets(["aws"])
+
         gpu_cluster = (
             rh.cluster(
                 name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-                instance_type=f"A10G:{gpus_per_node}",
+                accelerators=f"A10G:{gpus_per_node}",
                 num_nodes=num_nodes,
                 provider="aws",
-                autostop_minutes = 45,
-                default_env=rh.env(
-                    name="pytorch_env",
-                    reqs=[
-                        "torch==2.5.1",
-                        "datasets",
-                        "boto3",
-                        "awscli",
-                        "ray[data,train]"
-                    ],
-                ),
+                autostop_minutes=45,
+                image = img,
             )
             .up_if_not()
             .save()
         )
 
-        gpu_cluster.sync_secrets(["aws"])
-
         from dlrm_inference import inference_dlrm
         remote_inference = rh.function(inference_dlrm).to(gpu_cluster, name = "inference_dlrm").distribute('ray')
+
         remote_inference(num_gpus = gpus_per_node,
                         num_nodes = num_nodes,
                         model_s3_bucket="rh-demo-external",

@@ -1,10 +1,8 @@
-import ray
-import ray.data
 import runhouse as rh
 import torch
 from dlrm_training import DLRM, read_preprocessed_dlrm
 
-# DLRM model for inference as required by Ray Data, that reads the model from S3
+# DLRM model class for inference as required by Ray Data, that reads the model from S3
 class DLRMInferenceModel:
     def __init__(
         self, unique_users, unique_movies, embeddings_dim, model_s3_bucket, model_s3_key
@@ -33,11 +31,11 @@ class DLRMInferenceModel:
         }
 
 
-# Function to be called remotely on GPU cluster to do the inference
+# Function that is sent to the Runhouse launched cluster to be called and do the inference
 def inference_dlrm(
     num_gpus, num_nodes, model_s3_bucket, model_s3_key, dataset_s3_path, write_s3_path
 ):
-    unique_users = 330975
+    unique_users = 330975  # cheating here by hard coding
     unique_movies = 86000
     embeddings_dim = 64
 
@@ -60,11 +58,17 @@ def inference_dlrm(
     predictions.write_parquet(write_s3_path)
 
 
-# Runhouse cluster setup and function call
+# Launch cluster and run inference
 if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 2
-    img = rh.Image("ray-data").install_packages(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"])
+    img = (
+        rh.Image("ray-data")
+        .install_packages(
+            ["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]
+        )
+        .sync_secrets(["aws"])
+    )
 
     gpu_cluster = (
         rh.cluster(
@@ -73,19 +77,18 @@ if __name__ == "__main__":
             num_nodes=num_nodes,
             provider="aws",
             autostop_minutes=45,
-            image = img, 
+            image=img,
         )
         .up_if_not()
         .save()
     )
-    # gpu_cluster.restart_server()
-    gpu_cluster.sync_secrets(["aws"])
 
     remote_inference = (
         rh.function(inference_dlrm)
         .to(gpu_cluster, name="inference_dlrm")
         .distribute("ray")
     )
+
     remote_inference(
         num_gpus=gpus_per_node,
         num_nodes=num_nodes,
