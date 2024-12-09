@@ -32,6 +32,7 @@ from runhouse.utils import _process_env_vars
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
+from tests.fixtures.resource_fixtures import create_folder_path
 from tests.test_resources.test_envs.test_env import _get_env_var_value
 from tests.utils import (
     friend_account,
@@ -1018,8 +1019,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             original_username=original_username,
         ):
             # create dummy terminated cluster - set the daemon status to terminated, which will also
-            # update the cluster status
-            terminated_cluster = rh.cluster(name="terminated-cluster", ips=None).save()
+            # update the cluster status. Making sure that its name is in the same format as all testing clusters
+            # (contains timestamp and uuid)
+            terminated_cluster = rh.cluster(
+                name=f"{create_folder_path()}_terminated-cluster",
+                server_connection_type="ssh",
+            ).save()
             set_daemon_and_cluster_status(
                 terminated_cluster,
                 daemon_status=RunhouseDaemonStatus.TERMINATED,
