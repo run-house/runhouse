@@ -36,8 +36,6 @@ logger = get_logger(__name__)
 ####################################################################################################
 # Cluster list utils
 ####################################################################################################
-
-
 class ClusterStatusColors(str, Enum):
     RUNNING = "[green]Running[/green]"
     INITIALIZING = "[yellow]Initializing[/yellow]"
@@ -50,6 +48,19 @@ class ClusterStatusColors(str, Enum):
             return getattr(cls, status.upper()).value
         except AttributeError:
             return cls.UNKNOWN.value
+
+
+class AutoStopColors:
+    @classmethod
+    def format_autostop(cls, autostop_value: int = None):
+        if autostop_value is None:
+            # Leave blank if autostop is not set or not relevant for the cluster type
+            return None
+
+        if autostop_value == -1:
+            return "[red]Suspended[/red]"
+        else:
+            return f"[yellow]{autostop_value}[/yellow]"
 
 
 def create_output_table(
@@ -97,6 +108,7 @@ def create_output_table(
     table.add_column("Cluster Type", justify="left", no_wrap=True)
     table.add_column("Status", justify="left")
     table.add_column("Last Active (UTC)", justify="left")
+    table.add_column("Autostop (Mins)", justify="left")
 
     return table
 
@@ -108,6 +120,7 @@ def add_cluster_as_table_row(table: Table, rh_cluster: dict):
         rh_cluster.get("Cluster Type"),
         rh_cluster.get("Status"),
         rh_cluster.get("Last Active (UTC)"),
+        rh_cluster.get("Autostop (Mins)"),
     )
 
     return table
@@ -127,7 +140,10 @@ def add_clusters_to_output_table(table: Table, clusters: List[Dict]):
         rh_cluster["Status"] = ClusterStatusColors.get_status_color(
             rh_cluster.get("Status")
         )
-
+        autostop_value = rh_cluster.get("Autostop")
+        rh_cluster["Autostop (Mins)"] = AutoStopColors.format_autostop(
+            int(autostop_value) if autostop_value else None
+        )
         table = add_cluster_as_table_row(table, rh_cluster)
 
 

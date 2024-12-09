@@ -2415,6 +2415,7 @@ class Cluster(Resource):
                     "Name": sky_cluster.get("name"),
                     "Cluster Type": "OnDemandCluster (Sky)",
                     "Status": sky_cluster.get("status").value,
+                    "Autostop": sky_cluster.get("autostop"),
                 }
                 for sky_cluster in sky_live_clusters
             ]
