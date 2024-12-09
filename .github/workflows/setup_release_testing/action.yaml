@@ -75,7 +75,7 @@ runs:
 
     - name: Install python packages & dependencies
       run: |
-        pip install runhouse[aws,gcp,kubernetes]
+        pip install git+https://github.com/run-house/runhouse.git@main#egg=runhouse[aws,gcp,kubernetes]
         pip install -r tests/requirements.txt
       shell: bash
 
