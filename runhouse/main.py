@@ -212,7 +212,7 @@ def cluster_status(
 
     Example:
 
-        ``$ runhouse cluster status /sashab/rh-basic-cpu``
+        ``$ runhouse cluster status rh-basic-cpu``
     """
     current_cluster = get_cluster_or_local(cluster_name=cluster_name)
 
@@ -389,17 +389,21 @@ def cluster_up(
     """Bring up the cluster if it is not up. No-op if cluster is already up.
     This only applies to on-demand clusters, and has no effect on self-managed clusters.
 
+    Note: To launch the cluster via Den, set `launcher: den` in your local `~/.rh/config.yaml`.
+
     Example:
 
-        ``$ runhouse cluster up /sashab/rh-basic-cpu``
+        ``$ runhouse cluster up rh-basic-cpu``
 
     """
-    current_cluster = rh.cluster(name=cluster_name, dryrun=True)
-
     try:
-        current_cluster.up_if_not()
+        current_cluster = rh.cluster(name=cluster_name, dryrun=True)
+        if current_cluster.is_up():
+            console.print("Cluster is already up.")
+            return
+        current_cluster.up()
     except ValueError:
-        console.print("Cluster is not saved in Den.")
+        console.print("Cluster not found in Den.")
     except Exception as e:
         console.print(f"Failed to bring up the cluster: {e}")
 
@@ -431,7 +435,7 @@ def cluster_down(
 
     Example:
 
-        ``$ runhouse cluster down /sashab/rh-basic-cpu``
+        ``$ runhouse cluster down rh-basic-cpu``
     """
     if not force_deletion:
         if cluster_name:
@@ -515,9 +519,9 @@ def cluster_logs(
 
     Examples:
 
-        ``$ runhouse cluster logs /sashab/rh-basic-cpu``
+        ``$ runhouse cluster logs rh-basic-cpu``
 
-        ``$ runhouse cluster logs /sashab/rh-basic-cpu --since 60``
+        ``$ runhouse cluster logs rh-basic-cpu --since 60``
 
     """
     current_cluster = get_cluster_or_local(cluster_name=cluster_name)
@@ -938,7 +942,6 @@ def server_stop(
     cleanup_actors: bool = typer.Option(True, help="Kill all Ray actors."),
 ):
     """Stop the HTTP server on the cluster."""
-
     logger.debug("Stopping the server")
 
     if cluster_name:
@@ -961,6 +964,8 @@ def server_stop(
     if stop_ray:
         logger.info("Stopping Ray.")
         subprocess.run(RAY_KILL_CMD, shell=True)
+
+    console.print("Server stopped.")
 
 
 @server_app.command("status")

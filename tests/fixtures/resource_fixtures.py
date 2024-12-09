@@ -37,9 +37,13 @@ def saved_resource_pool():
                 pass
 
 
+def create_folder_path():
+    return f"testing-{uuid.uuid4()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+
 @pytest.fixture(scope="session")
 def test_rns_folder():
-    folder_path = f"testing-{uuid.uuid4()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    folder_path = create_folder_path()
     yield folder_path
     rns_client.delete_configs(folder_path)
 
