@@ -429,7 +429,7 @@ class TestModule:
         # Test that resolve() has no effect
         # TODO deprecate resolve and test that stub module is deserialized properly on the cluster as the true object
         #  in the obj_store
-        # helper = rh.function(resolve_test_helper).to(cluster, env=rh.Env())
+        # helper = rh.function(resolve_test_helper).to(cluster)
         # resolved_obj = helper(remote_instance.resolve())
         # assert resolved_obj.__class__.__name__ == "SlowPandas"
         # assert resolved_obj.size == 20  # resolved_obj.remote.size causing an error

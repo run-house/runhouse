@@ -33,8 +33,8 @@ from runhouse.utils import _process_env_vars, generate_default_name
 import tests.test_resources.test_resource
 from tests.conftest import init_args
 from tests.fixtures.resource_fixtures import create_folder_path
-from tests.test_resources.test_envs.test_env import _get_env_var_value
 from tests.utils import (
+    _get_env_var_value,
     friend_account,
     friend_account_in_org,
     get_random_str,
