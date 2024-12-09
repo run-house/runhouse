@@ -42,16 +42,6 @@ spec:
       image: pypypypy/my-pipeline-image:latest
       command: [python]
       env:
-      # - name: AWS_ACCESS_KEY_ID
-      #   valueFrom:
-      #     secretKeyRef:
-      #       name: my-secret
-      #       key: AWS_ACCESS_KEY_ID
-      # - name: AWS_SECRET_ACCESS_KEY
-      #   valueFrom:
-      #     secretKeyRef:
-      #       name: my-secret
-      #       key: AWS_SECRET_ACCESS_KEY
       - name: RUNHOUSE_API_KEY
         valueFrom:
           secretKeyRef:
@@ -85,8 +75,8 @@ spec:
         num_nodes = 2
 
         cluster = rh.cluster(
-            name="rh-preprocessing",
-            cpu="CPU:4+",
+            name="rh-ray-preprocessing",
+            num_cpus="4",
             memory = "15+",
             provider="aws",
             region="us-east-1",

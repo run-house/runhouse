@@ -4,7 +4,7 @@ import runhouse as rh
 from ray.data.preprocessors import StandardScaler
 
 # ## Preprocessing data for DLRM
-# The following function is regular, undecorated Python that uses Ray Data for processing.
+# The following function until line 35 is regular, undecorated Python that uses Ray Data for processing.
 # It is sent to the remote cluster for execution.
 def preprocess_data(s3_read_path, s3_write_path, filename):
     # Load datasets using Ray Data
@@ -58,33 +58,35 @@ if __name__ == "__main__":
         .sync_secrets(["aws"])
     )
 
-    num_nodes = 2
-
+    # Create a Runhouse cluster with 2 nodes with 4 CPUs and 15+GB memory each
+    # Launch from AWS (EC2) on US East 1 region
     cluster = rh.cluster(
-        name="rh-preprocessing",
-        cpu="CPU:4+",
-        memory="15+",
+        name="rh-ray-preprocessing",
+        num_cpus="4",
+        memory="15+",  # Also `accelerators` `disk_size`
         provider="aws",  # kubernetes, etc.
         region="us-east-1",  # eu-west-1, etc.
-        num_nodes=num_nodes,
-        autostop_minutes=120,
+        num_nodes=2,  # Launch two nodes, each with the requirements above
+        autostop_mins=120,  # There's also default autostop
         image=img,
     ).up_if_not()
 
+    # Send the preprocess_data function to the remote cluster
     remote_preprocess = (
         rh.function(preprocess_data)
         .to(cluster, name="preprocess_data")
         .distribute(
             "ray"
         )  # Runhouse is not only for Ray; you can use 'dask', 'pytorch', etc. here
-        .save()
     )
 
+    # Call the remote function (which uses Ray Data on the Ray cluster we formed)
     s3_raw = "s3://rh-demo-external/dlrm-training-example/raw_data"
     filename = "ratings.csv"
     s3_preprocessed = "s3://rh-demo-external/dlrm-training-example/preprocessed_data"
+
     remote_preprocess(
         s3_read_path=s3_raw, s3_write_path=s3_preprocessed, filename=filename
     )
 
-    # cluster.teardown() # to teardown the cluster after the job is done
+    # cluster.teardown() # to teardown the cluster after the job is done, or you can wait for autostop
