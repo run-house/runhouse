@@ -711,7 +711,7 @@ class HTTPServer:
                 run_name = generate_default_name(
                     prefix=key if method_name == "__call__" else f"{key}_{method_name}",
                     precision="ms",  # Higher precision because we see collisions within the same second
-                    sep="@",
+                    sep="--",
                 )
 
             # The types need to be explicitly specified as parameters first so that

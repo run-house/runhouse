@@ -432,7 +432,7 @@ class HTTPClient:
             run_name = generate_default_name(
                 prefix=key if method_name == "__call__" else f"{key}_{method_name}",
                 precision="ms",  # Higher precision because we see collisions within the same second
-                sep="@",
+                sep="--",
             )
 
         # Measure the time it takes to send the message
@@ -628,7 +628,7 @@ class HTTPClient:
             run_name = generate_default_name(
                 prefix=key if method_name == "__call__" else f"{key}_{method_name}",
                 precision="ms",  # Higher precision because we see collisions within the same second
-                sep="@",
+                sep="--",
             )
 
         # Measure the time it takes to send the message
