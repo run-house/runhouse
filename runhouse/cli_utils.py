@@ -483,7 +483,12 @@ def get_cluster_or_local(cluster_name: str = None):
     from runhouse.main import console
 
     if cluster_name:
-        current_cluster = rh.cluster(name=cluster_name, dryrun=True)
+        try:
+            current_cluster = rh.cluster(name=cluster_name, dryrun=True)
+        except ValueError:
+            console.print("Cluster not found in Den.")
+            raise typer.Exit(1)
+
         if not current_cluster.is_up():
             console.print(
                 f"Cluster [reset]{cluster_name} is not up. If it's an on-demand cluster, you can run "
