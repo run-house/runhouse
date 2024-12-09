@@ -33,7 +33,10 @@ class InstallPackageParams(BaseModel):
 
 class RunBashParams(BaseModel):
     command: str
+    node: Optional[str] = None
+    process: Optional[str] = None
     require_outputs: bool = False
+    run_name: Optional[str] = None
 
 
 class ServerSettings(BaseModel):
@@ -86,6 +89,8 @@ class GetObjectParams(BaseModel):
 
 class LogsParams(BaseModel):
     run_name: str
+    node_ip: Optional[str] = None
+    process: Optional[str] = None
     key: Optional[str] = None
     serialization: Optional[str] = None
 
