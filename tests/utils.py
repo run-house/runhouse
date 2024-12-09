@@ -211,3 +211,9 @@ def set_output_env_vars():
     env["LINES"] = "40"  # Set a height value, though COLUMNS is the key one here
 
     return env
+
+
+def _get_env_var_value(env_var):
+    import os
+
+    return os.environ[env_var]
