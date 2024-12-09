@@ -89,12 +89,12 @@ def ondemand_aws_docker_cluster(request):
 
 
 @pytest.fixture(scope="session")
-def den_launched_ondemand_aws_docker_cluster(request):
+def den_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
     """
     Note: Also used to test docker and default env with alternate Ray version.
     """
     args = {
-        "name": "aws-cpu-den",
+        "name": f"{test_rns_folder}-aws-cpu-den",
         "instance_type": "CPU:2+",
         "provider": "aws",
         "image_id": "docker:rayproject/ray:latest-py311-cpu",
@@ -166,14 +166,14 @@ def ondemand_k8s_cluster(request):
 
 
 @pytest.fixture(scope="session")
-def den_launched_ondemand_aws_k8s_cluster(request):
+def den_launched_ondemand_aws_k8s_cluster(request, test_rns_folder):
     kube_config_path = Path.home() / ".kube" / "config"
 
     if not kube_config_path.exists():
         pytest.skip("no kubeconfig found")
 
     args = {
-        "name": "k8s-cpu-den",
+        "name": f"{test_rns_folder}-k8s-cpu-den",
         "provider": "kubernetes",
         "instance_type": "CPU:1",
         "memory": ".2",
@@ -185,14 +185,14 @@ def den_launched_ondemand_aws_k8s_cluster(request):
 
 
 @pytest.fixture(scope="session")
-def den_launched_ondemand_gcp_k8s_cluster(request):
+def den_launched_ondemand_gcp_k8s_cluster(request, test_rns_folder):
     kube_config_path = Path.home() / ".kube" / "config"
 
     if not kube_config_path.exists():
         pytest.skip("no kubeconfig found")
 
     args = {
-        "name": "k8s-cpu-den",
+        "name": f"{test_rns_folder}-k8s-cpu-den",
         "provider": "kubernetes",
         "instance_type": "CPU:1",
         "memory": ".2",
@@ -235,9 +235,9 @@ def v100_gpu_cluster(request):
 
 
 @pytest.fixture(scope="session")
-def den_launcher_v100_gpu_cluster(request):
+def den_launcher_v100_gpu_cluster(request, test_rns_folder):
     args = {
-        "name": "rh-v100-den",
+        "name": f"{test_rns_folder}-rh-v100-den",
         "instance_type": "V100:1",
         "provider": "aws",
         "launcher": LauncherType.DEN,
