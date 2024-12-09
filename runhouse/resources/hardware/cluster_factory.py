@@ -29,7 +29,6 @@ def cluster(
     ssl_certfile: str = None,
     domain: str = None,
     den_auth: bool = None,
-    default_env: Union["Env", str] = None,
     image: Image = None,
     load_from_den: bool = True,
     dryrun: bool = False,
@@ -64,9 +63,6 @@ def cluster(
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``None``).
-        default_env (Env or str, optional): Environment that the Runhouse server is started on in the cluster. Used to
-            specify an isolated environment (e.g. conda env) or any setup and requirements prior to starting the Runhouse
-            server. (Default: ``None``)
         image (Image, optional): Default image containing setup steps to run during cluster setup. See :class:`Image`.
             (Default: ``None``)
         load_from_den (bool): Whether to try loading the Cluster resource from Den. (Default: ``True``)
@@ -111,7 +107,6 @@ def cluster(
             ssl_certfile=ssl_certfile,
             domain=domain,
             den_auth=den_auth,
-            default_env=default_env,
         )
         alt_options.update(kwargs)
         # Filter out None/default values
@@ -149,7 +144,6 @@ def cluster(
             ssl_certfile=ssl_certfile,
             domain=domain,
             den_auth=den_auth,
-            default_env=default_env,
             image=image,
             dryrun=dryrun,
             load_from_den=load_from_den,
@@ -172,7 +166,6 @@ def cluster(
         ssl_certfile=ssl_certfile,
         domain=domain,
         den_auth=den_auth,
-        default_env=default_env,
         image=image,
         dryrun=dryrun,
         **kwargs,
@@ -317,7 +310,6 @@ def ondemand_cluster(
     ssl_certfile: str = None,
     domain: str = None,
     den_auth: bool = None,
-    default_env: Union["Env", str] = None,
     load_from_den: bool = True,
     dryrun: bool = False,
     **kwargs,
@@ -368,9 +360,6 @@ def ondemand_cluster(
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
             requests with a Runhouse token provided in the auth headers of the request with the format:
             ``{"Authorization": "Bearer <token>"}``. (Default: ``None``).
-        default_env (Env or str, optional): Environment that the Runhouse server is started on in the cluster. Used to
-            specify an isolated environment (e.g. conda env) or any setup and requirements prior to starting the Runhouse
-            server. (Default: ``None``)
         image (Image, optional): Default image containing setup steps to run during cluster setup. See :class:`Image`.
             (Default: ``None``)
         load_from_den (bool): Whether to try loading the Cluster resource from Den. (Default: ``True``)
@@ -439,7 +428,6 @@ def ondemand_cluster(
             ssl_certfile=ssl_certfile,
             domain=domain,
             den_auth=den_auth,
-            default_env=default_env,
         )
         # Filter out None/default values
         alt_options = {k: v for k, v in alt_options.items() if v is not None}
@@ -480,7 +468,6 @@ def ondemand_cluster(
             context=context,
             server_connection_type=server_connection_type,
             launcher=launcher,
-            default_env=default_env,
             autostop_mins=autostop_mins,
             num_nodes=num_nodes,
             provider=provider,
@@ -525,7 +512,6 @@ def ondemand_cluster(
         ssl_certfile=ssl_certfile,
         domain=domain,
         den_auth=den_auth,
-        default_env=default_env,
         name=name,
         dryrun=dryrun,
         **kwargs,
