@@ -1,6 +1,7 @@
+from typing import Optional
+
 from runhouse.globals import obj_store
 from runhouse.servers.obj_store import ClusterServletSetupOption
-from runhouse.utils import run_with_logs
 
 
 class NodeServlet:
@@ -12,5 +13,13 @@ class NodeServlet:
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
         )
 
-    async def arun_with_logs(self, cmd: str, require_outputs: bool = True):
-        return run_with_logs(cmd, stream_logs=True, require_outputs=require_outputs)
+    async def arun_with_logs_local(
+        self, cmd: str, require_outputs: bool = True, run_name: Optional[str] = None
+    ):
+        return await obj_store.arun_with_logs_local(
+            cmd=cmd, require_outputs=require_outputs, run_name=run_name
+        )
+
+    async def alogs_local(self, run_name: str):
+        async for ret_lines in obj_store.alogs_local(run_name=run_name, bash_run=True):
+            yield ret_lines
