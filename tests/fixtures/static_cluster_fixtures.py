@@ -7,6 +7,7 @@ import runhouse as rh
 from runhouse.resources.hardware.utils import LauncherType
 
 from tests.conftest import init_args
+from tests.fixtures.resource_fixtures import create_folder_path
 from tests.utils import test_env
 
 
@@ -21,8 +22,9 @@ def setup_static_cluster(
 ):
     instance_type = "CPU:4" if compute_type == computeType.cpu else "g5.xlarge"
     launcher = launcher if launcher else LauncherType.LOCAL
+    cluster_name = f"{create_folder_path()}-{launcher}-aws-{compute_type}-password"
     cluster = rh.cluster(
-        f"{launcher}-aws-{compute_type}-password",
+        name=cluster_name,
         instance_type=instance_type,
         provider="aws",
         launcher=launcher,
@@ -53,7 +55,7 @@ def setup_static_cluster(
         "ssh_private_key": "~/.ssh/sky-key",
         "password": "cluster-pass",
     }
-    args = dict(name="static-cpu-password", host=[cluster.head_ip], ssh_creds=ssh_creds)
+    args = dict(name=cluster_name, host=[cluster.head_ip], ssh_creds=ssh_creds)
     c = rh.cluster(**args).save()
     c.restart_server(resync_rh=True)
     init_args[id(c)] = args
