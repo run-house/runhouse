@@ -792,9 +792,9 @@ class Cluster(Resource):
             process (str, optional): Process of the object store to put the object in. (Default: ``None``)
         """
         if self.on_this_cluster():
-            return obj_store.put(key, obj, env=process)
+            return obj_store.put(key, obj, process=process)
         return self.call_client_method(
-            "put_object", key, obj, env=process or DEFAULT_PROCESS_NAME
+            "put_object", key, obj, process=process or DEFAULT_PROCESS_NAME
         )
 
     def put_resource(
@@ -820,12 +820,12 @@ class Cluster(Resource):
         state = state or {}
         if self.on_this_cluster():
             data = (resource.config(condensed=False), state, dryrun)
-            return obj_store.put_resource(serialized_data=data, env_name=env_name)
+            return obj_store.put_resource(serialized_data=data, process=env_name)
         return self.call_client_method(
             "put_resource",
             resource,
             state=state or {},
-            env_name=env_name,
+            process=env_name,
             dryrun=dryrun,
         )
 
@@ -848,7 +848,7 @@ class Cluster(Resource):
         """
         if self.on_this_cluster():
             return obj_store.keys()
-        res = self.call_client_method("keys", env=process)
+        res = self.call_client_method("keys", process=process)
         return res
 
     def delete(self, keys: Union[None, str, List[str]]):
@@ -2433,7 +2433,7 @@ class Cluster(Resource):
 
         if self.on_this_cluster():
             obj_store.get_servlet(
-                env_name=name, create_process_params=create_process_params, create=True
+                name=name, create_process_params=create_process_params, create=True
             )
         else:
             self.client.create_process(params=create_process_params)

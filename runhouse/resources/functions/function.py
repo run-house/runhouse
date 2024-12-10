@@ -83,7 +83,7 @@ class Function(Module):
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
-            >>> rh.function(fn=local_fn).to(system=gpu_cluster, env=my_conda_env)
+            >>> rh.function(fn=local_fn).to(system=gpu_cluster, process=my_conda_env)
             >>> rh.function(fn=local_fn).to(system='aws_lambda')  # will deploy the rh.function to AWS as a Lambda.
         """  # noqa: E501
 
