@@ -20,8 +20,9 @@ def setup_static_cluster(
     compute_type: computeType = computeType.cpu,
 ):
     instance_type = "CPU:4" if compute_type == computeType.cpu else "g5.xlarge"
+    launcher = launcher if launcher else LauncherType.LOCAL
     cluster = rh.cluster(
-        f"aws-{compute_type}-password",
+        f"{launcher}-aws-{compute_type}-password",
         instance_type=instance_type,
         provider="aws",
         launcher=launcher,

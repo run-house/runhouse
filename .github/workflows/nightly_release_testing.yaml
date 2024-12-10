@@ -66,6 +66,7 @@ jobs:
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
+          EKS_ARN: ${{ secrets.EKS_ARN }}
 
       - name: Run cluster and not on-demand tests
         env:
@@ -104,6 +105,7 @@ jobs:
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
+          EKS_ARN: ${{ secrets.EKS_ARN }}
 
       - name: Run on-demand aws tests
         env:
@@ -145,6 +147,7 @@ jobs:
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
+          EKS_ARN: ${{ secrets.EKS_ARN }}
 
       - name: Run on-demand aws tests
         env:
@@ -184,6 +187,7 @@ jobs:
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
+          EKS_ARN: ${{ secrets.EKS_ARN }}
 
       - name:  Run on-demand gcp tests
         env:
@@ -222,6 +226,7 @@ jobs:
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
+          EKS_ARN: ${{ secrets.EKS_ARN }}
 
       - name: Run kubernetes tests
         env:
@@ -268,6 +273,7 @@ jobs:
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
+          EKS_ARN: ${{ secrets.EKS_ARN }}
 
       - name: Wait to check cluster status
         run: sleep 600 # 10 minutes
