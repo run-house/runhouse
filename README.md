@@ -46,11 +46,11 @@ def sd_generate(prompt, **inference_kwargs):
     return model(prompt, **inference_kwargs).images
 
 if __name__ == "__main__":
-    gpu = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws").up_if_not()
-    sd_env = rh.env(reqs=["torch", "transformers", "diffusers"], name="sd_env")
+    img = rh.Image("sd_image").install_packages(["torch", "transformers", "diffusers"])
+    gpu = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws", image = img).up_if_not()
 
     # Deploy the function and environment (syncing over local code changes and installing dependencies)
-    remote_sd_generate = rh.function(sd_generate).to(gpu, env=sd_env)
+    remote_sd_generate = rh.function(sd_generate).to(gpu)
 
     # This call is actually an HTTP request to the app running on the remote server
     imgs = remote_sd_generate("A hot dog made out of matcha.")

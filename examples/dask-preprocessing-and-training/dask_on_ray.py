@@ -32,8 +32,19 @@ def read_taxi_df_dask(dataset_path, X_vars, y_vars):
 if __name__ == "__main__":
     # ## Create a Runhouse cluster with 3 nodes
     num_nodes = 3
-    cluster_name = f"py-{num_nodes}"
 
+    img = rh.Image("dask_env").install_packages(
+        [
+            "dask-ml",
+            "dask[distributed]",
+            "dask[dataframe]",
+            "boto3",
+            "s3fs",
+            "xgboost",
+        ]
+    )
+
+    cluster_name = f"py-{num_nodes}"
     cluster = rh.cluster(
         name=cluster_name,
         instance_type="r5d.xlarge",
@@ -41,17 +52,7 @@ if __name__ == "__main__":
         provider="aws",
     ).up_if_not()
 
-    env = rh.env(
-        reqs=[
-            "dask-ml",
-            "dask[distributed]",
-            "dask[dataframe]",
-            "boto3",
-            "s3fs",
-            "xgboost",
-        ],
-        secrets=["aws"],
-    )
+    cluster.sync_secrets(["aws"])
 
     # ## Example of using Dask on Ray to read data and minimally preprocess the data
     # Use one slice of the NYC taxi data as an example

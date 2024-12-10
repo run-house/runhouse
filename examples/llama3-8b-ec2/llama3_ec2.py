@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
     # First, we define the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
+    # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
     img = rh.Image(name="llama3inference").install_packages(
         [
             "torch",
@@ -124,7 +124,8 @@ if __name__ == "__main__":
     gpu = rh.cluster(
         name="rh-a10x", instance_type="A10G:1", memory="32+", provider="aws", image=img
     ).up_if_not()
-    # gpu.restart_server()
+
+    gpu.sync_secrets(["huggingface"])
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
