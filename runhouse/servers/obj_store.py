@@ -319,6 +319,10 @@ class ObjStore:
     # Node servlet functionality, mostly stored in cluster servlet for now
     ###################################################
     def node_servlet_name_for_ip(self, ip: str):
+        # When testing and forwarding to local, the client side internal IP may be set as localhost,
+        # and we need to convert it to the actual internal IP that the NodeServlet was initialized with.
+        if ip == "localhost":
+            ip = self.get_internal_ips()[0]
         return f"node_servlet_{ip}"
 
     async def ainitialize_node_servlets(self):

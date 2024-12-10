@@ -237,7 +237,7 @@ class Cluster(Resource):
 
         json_config = f"{json.dumps(config)}"
 
-        self.run(
+        self.run_bash_over_ssh(
             [
                 f"mkdir -p ~/.rh; touch {CLUSTER_CONFIG_PATH}; echo '{json_config}' > {CLUSTER_CONFIG_PATH}"
             ],
@@ -682,7 +682,11 @@ class Cluster(Resource):
         if not self.ips:
             raise ValueError(f"No IPs set for cluster <{self.name}>. Is it up?")
 
-        remote_ray_version_call = self.run(["ray --version"], node="all")
+        conda_env_name = self.image.conda_env_name if self.image else None
+
+        remote_ray_version_call = self.run_bash_over_ssh(
+            ["ray --version"], node="all", conda_env_name=conda_env_name
+        )
         ray_installed_remotely = remote_ray_version_call[0][0][0] == 0
         if not ray_installed_remotely:
             local_ray_version = find_locally_installed_version("ray")
@@ -690,7 +694,12 @@ class Cluster(Resource):
             # if Ray is installed locally, install the same version on the cluster
             if local_ray_version:
                 ray_install_cmd = f"python3 -m pip install ray=={local_ray_version}"
-                self.run([ray_install_cmd], node="all", stream_logs=True)
+                self.run_bash_over_ssh(
+                    [ray_install_cmd],
+                    node="all",
+                    stream_logs=True,
+                    conda_env_name=conda_env_name,
+                )
 
         # If local_rh_package_path is provided, install the package from the local path
         if local_rh_package_path:
@@ -719,10 +728,11 @@ class Cluster(Resource):
             rh_install_cmd = f"python3 -m pip install {_install_url}"
 
         for node in self.ips:
-            status_codes = self.run(
+            status_codes = self.run_bash_over_ssh(
                 [rh_install_cmd],
                 node=node,
                 stream_logs=True,
+                conda_env_name=conda_env_name,
             )
 
             if status_codes[0][0] != 0:
@@ -1088,7 +1098,7 @@ class Cluster(Resource):
 
         # If resync_rh is still not confirmed to happen, check if Runhouse is installed on the cluster
         if resync_rh is None:
-            return_codes = self.run(["runhouse --version"], node="all")
+            return_codes = self.run_bash_over_ssh(["runhouse --version"], node="all")
             if return_codes[0][0][0] != 0:
                 logger.debug("Runhouse is not installed on the cluster.")
                 resync_rh = True
@@ -1277,8 +1287,8 @@ class Cluster(Resource):
     def stop_server(
         self,
         stop_ray: bool = False,
-        process: str = None,
         cleanup_actors: bool = True,
+        conda_env_name: Optional[str] = None,
     ):
         """Stop the RPC server.
 
@@ -1294,8 +1304,11 @@ class Cluster(Resource):
             cmd = cmd + " --no-cleanup-actors"
 
         # run on node where server was started
-        status_codes = self.run(
-            [cmd], process=process, node=self.head_ip, require_outputs=False
+        status_codes = self.run_bash_over_ssh(
+            [cmd],
+            node=self.head_ip,
+            require_outputs=False,
+            conda_env_name=conda_env_name,
         )
         assert status_codes[0] == 0
 
@@ -1604,15 +1617,24 @@ class Cluster(Resource):
         if node is not None and process is not None:
             raise ValueError("Only one of node or process can be specified.")
 
-        if node is None:
-            if process is None:
-                logger.warning(
-                    "Running bash commands in parallel on all nodes, logs will not be streamed."
+        if node is None and process is None:
+            node = 0
+
+        if node == "all":
+            results = []
+            for ip in self.ips:
+                results.append(
+                    self.run_bash(
+                        commands=commands,
+                        node=ip,
+                        stream_logs=stream_logs,
+                        require_outputs=require_outputs,
+                    )
                 )
+            return results
 
-            node_ip = None
-
-        elif isinstance(node, int):
+        node_ip = None
+        if isinstance(node, int):
             if not (0 <= node < len(self.ips)):
                 raise ValueError(
                     f"Node index {node} is out of range. Cluster has {len(self.ips)} nodes."
@@ -1627,7 +1649,7 @@ class Cluster(Resource):
             # Replace with the internal IP
             node_ip = self.internal_ips[self.ips.index(node)]
 
-        else:
+        elif node is not None:
             raise ValueError(
                 "Node must be an integer for the node's index or a string for the node's IP."
             )
@@ -1698,6 +1720,51 @@ class Cluster(Resource):
                 results.append(results)
 
         return results
+
+    def run_bash_over_ssh(
+        self,
+        commands: Union[str, List[str]],
+        node: Optional[str] = None,
+        stream_logs: bool = True,
+        require_outputs: bool = True,
+        _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
+        conda_env_name: Optional[str] = None,
+    ):
+        if self.on_this_cluster():
+            raise ValueError("Run bash over SSH is not supported on the local cluster.")
+
+        if isinstance(commands, str):
+            commands = [commands]
+
+        if node is None:
+            node = self.head_ip
+
+        if node == "all":
+            res_list = []
+            for node in self.ips:
+                res = self.run_bash_over_ssh(
+                    commands=commands,
+                    stream_logs=stream_logs,
+                    require_outputs=require_outputs,
+                    node=node,
+                    _ssh_mode=_ssh_mode,
+                )
+                res_list.append(res)
+            return res_list
+
+        if conda_env_name:
+            commands = [conda_env_cmd(cmd, conda_env_name) for cmd in commands]
+
+        return_codes = self._run_commands_with_runner(
+            commands,
+            cmd_prefix="",
+            stream_logs=stream_logs,
+            node=node,
+            require_outputs=require_outputs,
+            _ssh_mode=_ssh_mode,
+        )
+
+        return return_codes
 
     def run(
         self,
@@ -1887,7 +1954,7 @@ class Cluster(Resource):
     def run_python(
         self,
         commands: List[str],
-        process: str = None,
+        conda_env_name: Optional[str] = None,
         stream_logs: bool = True,
         node: str = None,
     ):
@@ -1908,6 +1975,7 @@ class Cluster(Resource):
             Running Python commands with nested quotes can be finicky. If using nested quotes,
             try to wrap the outer quote with double quotes (") and the inner quotes with a single quote (').
         """
+
         cmd_prefix = "python3 -c"
         command_str = "; ".join(commands)
         command_str_repr = (
@@ -1918,11 +1986,11 @@ class Cluster(Resource):
         formatted_command = f'{cmd_prefix} "{command_str_repr}"'
 
         # If invoking a run as part of the python commands also return the Run object
-        return_codes = self.run(
+        return_codes = self.run_bash_over_ssh(
             [formatted_command],
-            process=process,
             stream_logs=stream_logs,
             node=node,
+            conda_env_name=conda_env_name,
         )
 
         return return_codes
@@ -2004,7 +2072,9 @@ class Cluster(Resource):
                 # TODO figure out why logs are not streaming here if we don't use ssh.
                 # When we do, it may be better to switch it back because then jupyter is killed
                 # automatically when the cluster is restarted (and the process is killed).
-                self.run(commands=[jupyter_cmd], stream_logs=True, node=self.head_ip)
+                self.run_bash_over_ssh(
+                    commands=[jupyter_cmd], stream_logs=True, node=self.head_ip
+                )
 
         finally:
             if sync_package_on_close:
@@ -2017,7 +2087,7 @@ class Cluster(Resource):
             if not persist:
                 tunnel.terminate()
                 kill_jupyter_cmd = f"jupyter notebook stop {port_fwd}"
-                self.run(commands=[kill_jupyter_cmd])
+                self.run_bash_over_ssh(commands=[kill_jupyter_cmd])
 
     def connect_dask(
         self,
@@ -2054,7 +2124,7 @@ class Cluster(Resource):
             )
         else:
             scheduler_options = ""
-        self.run(
+        self.run_bash_over_ssh(
             f"nohup dask scheduler --port {port} {scheduler_options} > dask_scheduler.out 2>&1 &",
             node=self.head_ip,
             stream_logs=True,
@@ -2077,7 +2147,7 @@ class Cluster(Resource):
                 if node == self.head_ip
                 else remote_scheduler_address
             )
-            self.run(
+            self.run_bash_over_ssh(
                 f"nohup dask worker {scheduler} {worker_options_str} > dask_worker.out 2>&1 &",
                 node=node,
             )
@@ -2087,9 +2157,9 @@ class Cluster(Resource):
         return client
 
     def kill_dask(self):
-        self.run("pkill -f 'dask scheduler'", node=self.head_ip)
+        self.run_bash_over_ssh("pkill -f 'dask scheduler'", node=self.head_ip)
         for node in self.ips:
-            self.run("pkill -f 'dask worker'", node=node)
+            self.run_bash_over_ssh("pkill -f 'dask worker'", node=node)
 
     def remove_conda_env(
         self,
@@ -2103,7 +2173,7 @@ class Cluster(Resource):
         Example:
             >>> rh.ondemand_cluster("rh-cpu").remove_conda_env("my_conda_env")
         """
-        self.run([f"conda env remove -n {conda_env_name}"])
+        self.run_bash_over_ssh([f"conda env remove -n {conda_env_name}"])
 
     def download_cert(self):
         """Download certificate from the cluster (Note: user must have access to the cluster)"""
