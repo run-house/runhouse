@@ -62,7 +62,7 @@ def test_install(cluster):
 def test_basic_run(cluster):
     # Create temp file where fn's will be stored
     test_cmd = "echo hi"
-    res = cluster.run(commands=[test_cmd])
+    res = cluster.run_bash(commands=[test_cmd])
     assert "hi" in res[0][1]
 
 
@@ -128,7 +128,7 @@ def test_byo_proxy(static_cpu_pwd_cluster, local_folder):
     )
     assert static_cpu_pwd_cluster.up_if_not()
 
-    status, stdout, _ = static_cpu_pwd_cluster.run(["echo hi"])[0]
+    status, stdout, _ = static_cpu_pwd_cluster.run_bash(["echo hi"])[0]
     assert status == 0
     assert stdout == "hi\n"
 

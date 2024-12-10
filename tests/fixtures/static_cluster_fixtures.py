@@ -15,7 +15,7 @@ def static_cpu_pwd_cluster():
         sky_cluster.up()
 
         # set up password on remote
-        sky_cluster.run(
+        sky_cluster.run_bash(
             [
                 [
                     'sudo sed -i "/^[^#]*PasswordAuthentication[[:space:]]no/c\PasswordAuthentication yes" '
@@ -23,13 +23,15 @@ def static_cpu_pwd_cluster():
                 ]
             ]
         )
-        sky_cluster.run(["sudo /etc/init.d/ssh force-reload"])
-        sky_cluster.run(["sudo /etc/init.d/ssh restart"])
-        sky_cluster.run(
+        sky_cluster.run_bash(["sudo /etc/init.d/ssh force-reload"])
+        sky_cluster.run_bash(["sudo /etc/init.d/ssh restart"])
+        sky_cluster.run_bash(
             ["(echo 'cluster-pass' && echo 'cluster-pass') | sudo passwd ubuntu"]
         )
-        sky_cluster.run(["pip uninstall skypilot runhouse -y", "pip install pytest"])
-        sky_cluster.run(["rm -rf runhouse/"])
+        sky_cluster.run_bash(
+            ["pip uninstall skypilot runhouse -y", "pip install pytest"]
+        )
+        sky_cluster.run_bash(["rm -rf runhouse/"])
 
     # instantiate byo cluster with password
     ssh_creds = {

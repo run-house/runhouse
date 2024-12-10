@@ -45,7 +45,7 @@ class TestMultiNodeCluster:
             contents=True,
         )
 
-        status_codes = cluster.run([f"ls -l {dest_path}"], node=worker_node)
+        status_codes = cluster.run_bash([f"ls -l {dest_path}"], node=worker_node)
         assert status_codes[0][0] == 0
 
         assert "runhouse" in status_codes[0][1]
@@ -54,7 +54,7 @@ class TestMultiNodeCluster:
     def test_ray_started_on_worker_node_after_cluster_restart(self, cluster):
         head_node = cluster.head_ip
 
-        status_codes = cluster.run(["ray status"], node=head_node)
+        status_codes = cluster.run_bash(["ray status"], node=head_node)
         assert status_codes[0][0] == 0
 
         status_output = status_codes[0][1]

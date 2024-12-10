@@ -293,7 +293,7 @@ class GCSFolder(Folder):
 
     def _to_cluster(self, dest_cluster, path=None):
         upload_command = self._upload_command(src=self.path, dest=path)
-        dest_cluster.run([upload_command])
+        dest_cluster.run_bash([upload_command])
         return GCSFolder(path=path, system=dest_cluster, dryrun=True)
 
     def _to_local(self, dest_path: str):
