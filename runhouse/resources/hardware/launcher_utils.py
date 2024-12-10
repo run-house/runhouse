@@ -423,7 +423,7 @@ class LocalLauncher(Launcher):
             sky.autostop(cluster.name, mins, down=True)
         except ImportError:
             set_cluster_autostop_cmd = _cluster_set_autostop_command(mins)
-            cluster.run([set_cluster_autostop_cmd], node=cluster.head_ip)
+            cluster.run_bash_over_ssh([set_cluster_autostop_cmd], node=cluster.head_ip)
 
     @staticmethod
     def _set_docker_env_vars(image, task):

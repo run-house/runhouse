@@ -47,6 +47,11 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         "cluster": ["ondemand_aws_docker_cluster"],
     }
 
+    MAXIMAL = {
+        "package": packages,
+        "cluster": ["ondemand_aws_docker_cluster"],
+    }
+
     @pytest.mark.level("unit")
     def test_package_factory_and_properties(self, package):
         assert isinstance(package, rh.Package)

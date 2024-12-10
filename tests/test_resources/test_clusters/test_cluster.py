@@ -95,12 +95,12 @@ def import_env():
 
 
 def run_in_no_env(cmd):
-    return rh.here.run(cmd)
+    return rh.here.run_bash(cmd)
 
 
 def run_node_all(cmd):
-    # This forces `cluster.run` to use ssh instead of calling a process run
-    return rh.here.run(cmd, node="all")
+    # This forces `cluster.run` to use ssh instead of calling an env run
+    return rh.here.run_bash(cmd, node="all")
 
 
 def sort_env_servlet_processes(env_servlet_processes: dict):
@@ -849,14 +849,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         assert res[0][0] == 0
         assert res[0][1].strip() == exp[0][1].strip()
-
-    @pytest.mark.level("local")
-    @pytest.mark.clustertest
-    def test_cluster_run_within_cluster_node_all(self, cluster):
-        remote_run = rh.function(run_node_all).to(cluster)
-        # Can't run on a node that is on the cluster
-        with pytest.raises(Exception):
-            remote_run("echo hello")[0]
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest

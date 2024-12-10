@@ -690,9 +690,11 @@ class OnDemandCluster(Cluster):
             >>> with rh.ondemand_cluster.pause_autostop():
             >>>     rh.ondemand_cluster.run(["python train.py"])
         """
-        self.run(_cluster_set_autostop_command(-1), node=self.head_ip)
+        self.run_bash_over_ssh(_cluster_set_autostop_command(-1), node=self.head_ip)
         yield
-        self.run(_cluster_set_autostop_command(self._autostop_mins), node=self.head_ip)
+        self.run_bash_over_ssh_(
+            _cluster_set_autostop_command(self._autostop_mins), node=self.head_ip
+        )
 
     # ----------------- SSH Methods ----------------- #
 
