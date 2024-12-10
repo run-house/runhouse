@@ -16,8 +16,6 @@ import requests
 from runhouse.globals import rns_client
 from runhouse.logger import get_logger
 
-from runhouse.resources.envs.utils import _get_env_from
-
 from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import (
     CallParams,
@@ -175,7 +173,7 @@ class HTTPClient:
         endpoint,
         req_type="post",
         data=None,
-        env=None,
+        process=None,
         stream_logs=True,
         save=False,
         key=None,
@@ -186,7 +184,7 @@ class HTTPClient:
         headers = headers or self._request_headers
         json_dict = {
             "data": data,
-            "env": env,
+            "process": process,
             "stream_logs": stream_logs,
             "save": save,
             "key": key,
@@ -705,21 +703,21 @@ class HTTPClient:
         logger.info(log_str)
         return function_result
 
-    def put_object(self, key: str, value: Any, env=None):
+    def put_object(self, key: str, value: Any, process=None):
         return self.request_json(
             "object",
             req_type="post",
             json_dict=PutObjectParams(
                 key=key,
                 serialized_data=serialize_data(value, "pickle"),
-                env_name=env,
+                process_name=process,
                 serialization="pickle",
             ).model_dump(),
             err_str=f"Error putting object {key}",
         )
 
     def put_resource(
-        self, resource, env_name: Optional[str] = None, state=None, dryrun=False
+        self, resource, process: Optional[str] = None, state=None, dryrun=False
     ):
         config = resource.config(condensed=False)
         return self.request_json(
@@ -728,7 +726,7 @@ class HTTPClient:
             # TODO wire up dryrun properly
             json_dict=PutResourceParams(
                 serialized_data=serialize_data([config, state, dryrun], "pickle"),
-                env_name=env_name,
+                process_name=process,
                 serialization="pickle",
             ).model_dump(),
             err_str=f"Error putting resource {resource.name or type(resource)}",
@@ -796,7 +794,7 @@ class HTTPClient:
         self.resource_address = name
         return resp
 
-    def delete(self, keys=None, env=None):
+    def delete(self, keys=None, process=None):
         return self.request_json(
             "delete_object",
             req_type="post",
@@ -804,14 +802,9 @@ class HTTPClient:
             err_str=f"Error deleting keys {keys}",
         )
 
-    def keys(self, env=None):
-        if env is not None and not isinstance(env, str):
-            env = _get_env_from(env)
-            env_name = env.name
-        else:
-            env_name = env
+    def keys(self, process=None):
         return self.request(
-            f"keys/?env_name={env_name}" if env_name else "keys", req_type="get"
+            f"keys/?process_name={process}" if process else "keys", req_type="get"
         )
 
     ################################################################################################
