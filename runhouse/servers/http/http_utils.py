@@ -71,14 +71,14 @@ class CallParams(BaseModel):
 class PutResourceParams(BaseModel):
     serialized_data: Any
     serialization: Optional[str] = None
-    env_name: Optional[str] = None
+    process_name: Optional[str] = None
 
 
 class PutObjectParams(BaseModel):
     key: str
     serialized_data: Any
     serialization: Optional[str] = None
-    env_name: Optional[str] = None
+    process_name: Optional[str] = None
 
 
 class GetObjectParams(BaseModel):
