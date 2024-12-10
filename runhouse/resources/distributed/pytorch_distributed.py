@@ -19,11 +19,14 @@ class PyTorchDistributed(Supervisor):
 
     def _find_available_port_on_head_node(self):
         find_available_port_cmd = "python -c \"import socket; s=socket.socket(); s.bind(('', 0)); print(s.getsockname()[1]); s.close()\""
-        status_code, stdout, _ = self._replicas[0].system.run(
+        
+        result = self._replicas[0].system.run(
             find_available_port_cmd,
             node=self._replicas[0].system.head_ip,
             require_outputs=True,
         )
+        status_code, stdout, _ = result[0]
+        
         if status_code != 0:
             raise RuntimeError(f"Failed to find available port on head rank: {stdout}")
         return stdout
