@@ -1226,3 +1226,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # create a process manually with the create_process functionality
         cluster.ensure_process_created(name="new_test_process_created_with_utility")
         assert "new_test_process_created_with_utility" in cluster.list_processes()
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_run_bash_in_process(self, cluster):
+        process = cluster.ensure_process_created(name="test_process")
+        res = cluster.run_bash("echo hello", process=process)
+        assert res[0][0] == 0
+        assert res[0][1].strip() == "hello"
