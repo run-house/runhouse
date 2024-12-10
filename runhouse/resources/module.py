@@ -36,10 +36,10 @@ MODULE_ATTRS = [
     "_endpoint",
     "_client",
     "_visibility",
-    "_env",
     "_name",
     "_rns_folder",
     "_system",
+    "process",
     "dryrun",
     "_resolve",
     "_signature",
@@ -147,12 +147,12 @@ class Module(Resource):
                     or (isinstance(e, AttributeError) and class_name in str(e))
                 ):
                     system = config.get("system", None)
-                    env_name = config.get("process", None)
+                    process = config.get("process", None)
 
-                    # If we are on the same cluster, and in the env where the module lives, we should be able to
-                    # load the module from the pointers. So, we should just raise the exception if this is the case.
+                    # If we are on the same cluster where the module lives, we should be able to load the module from
+                    # the pointers. So, we should just raise the exception if this is the case.
                     if system.on_this_cluster() and (
-                        env_name == obj_store.servlet_name
+                        process == obj_store.servlet_name
                         and obj_store.has_local_storage
                     ):
                         # Could not load Module locally from within the system where it lives
@@ -166,7 +166,7 @@ class Module(Resource):
                     raise e
 
             # Module created as subclass of rh.Module may not have rh.Module's
-            # constructor signature (e.g. system, env, etc.), so assign them manually
+            # constructor signature (e.g. system, process, etc.), so assign them manually
             # We don't call __init__ here because we don't know the signature of the subclass's __init__
             # If this resource was put on a cluster with put_resource, the servlet will be populating the rest
             # of the class-specific attributes.
@@ -348,7 +348,7 @@ class Module(Resource):
                 logger.debug(f"Appending {module_path} to sys.path")
 
         # This updates the sys.path with any new paths that have been added since the last time we imported
-        # e.g. if the user ran cluster.run(["pip install my_package"]) since this env was created.
+        # e.g. if the user ran cluster.run(["pip install my_package"]) since this module was created.
         importlib_reload(site)
 
         if module_name in obj_store.imported_modules and reload:
@@ -388,16 +388,14 @@ class Module(Resource):
         process: Optional[Union[str, Dict]] = None,
         name: Optional[str] = None,
     ):
-        """Put a copy of the module on the destination system and env, and return the new module.
+        """Put a copy of the module on the destination system and process, and return the new module.
 
         Args:
-            system (str or Cluster): The system to setup the module and env on.
+            system (str or Cluster): The system to setup the module and process on.
             process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly created with those args.
                 or the set of requirements necessary to run the module. (Default: ``None``)
             name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
                 (Default: ``None``)
-            force_install (bool, optional): Whether to re-install and perform the environment setup steps, even
-                if it may already exist on the cluster. (Defualt: ``False``)
 
         Example:
             >>> local_module = rh.module(my_class)
@@ -445,7 +443,7 @@ class Module(Resource):
         if self._pointers or getattr(self, "fn_pointers", None):
             pointers = self._pointers if self._pointers else self.fn_pointers
 
-            # Update the envs reqs with the local path to the module if it's not already there
+            # Update the system reqs with the local path to the module if it's not already there
             (
                 local_path_containing_module,
                 should_add,
@@ -523,8 +521,8 @@ class Module(Resource):
         If not, put the module on the cluster and return the remote module.
 
         Args:
-            system (str or Cluster): The system to setup the module and env on.
-            env (str, List[str], or Env, optional): The environment where the module lives on in the cluster,
+            system (str or Cluster): The system to setup the module.
+            process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly created with those args.
                 or the set of requirements necessary to run the module. (Default: ``None``)
             name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
                 (Default: ``None``)
@@ -663,7 +661,7 @@ class Module(Resource):
         processes: Optional[List["Process"]] = None,
         parallel: bool = False,
     ):
-        """Replicate the module on the cluster in a new env and return the new modules.
+        """Replicate the module on the cluster in new processes and return the new modules.
 
         Args:
             num_relicas (int, optional): Number of replicas of the module to create. (Default: 1)
@@ -689,7 +687,7 @@ class Module(Resource):
             )
         if not processes and not self.process:
             raise ValueError(
-                "Cannot replicate the default environment. Please send the module or function to a process on the system first."
+                "Cannot replicate without a process. Please send the module or function to a process on the system first."
             )
 
         def create_replica(i):
@@ -708,8 +706,7 @@ class Module(Resource):
                 if replicas_per_node is not None:
                     if new_create_process_params["compute"]:
                         raise ValueError(
-                            "Cannot specify replicas_per_node if other compute requirements for env "
-                            "placement are specified."
+                            "Cannot specify replicas_per_node if other compute requirements are specified."
                         )
                     new_create_process_params["compute"] = {
                         "node_idx": i // replicas_per_node
@@ -1185,7 +1182,7 @@ class Module(Resource):
                     local_path_containing_module = None
                     pass
 
-        # Only add this to the env's reqs if the module is not in one of the directories in reqs
+        # Only add this to the system's reqs if the module is not in one of the directories in reqs
         add = local_path_containing_module is None
 
         if not local_path_containing_module:
@@ -1414,8 +1411,6 @@ def module(
     Args:
         cls: The class to instantiate.
         name (Optional[str], optional): Name to give the module object, to be reused later on. (Default: ``None``)
-        env (Optional[str or Env], optional): Environment in which the module should live on the cluster, if system
-            is cluster. (Default: ``None``)
         load_from_den (bool, optional): Whether to try loading the module from Den. (Default: ``True``)
         dryrun (bool, optional): Whether to create the Module if it doesn't exist, or load a Module object as a dryrun.
             (Default: ``False``)
@@ -1429,11 +1424,11 @@ def module(
         >>>
         >>> # Sample rh.Module class
         >>> class Model(rh.Module):
-        >>>    def __init__(self, model_id, device="cpu", env=None):
+        >>>    def __init__(self, model_id, device="cpu"):
         >>>        # Note that the code here will be run in your local environment prior to being sent to
         >>>        # to a cluster. For loading large models/datasets that are only meant to be used remotely,
         >>>        # we recommend using lazy initialization (see tokenizer and model attributes below).
-        >>>        super().__init__(env=env)
+        >>>        super().__init__()
         >>>        self.model_id = model_id
         >>>        self.device = device
         >>>
@@ -1455,9 +1450,9 @@ def module(
         >>>        return self.model(x)
 
         >>> # Creating rh.Module instance
-        >>> model = Model(model_id="bert-base-uncased", device="cuda", env="my_env")
+        >>> model = Model(model_id="bert-base-uncased", device="cuda")
         >>> model = model.to(system="my_gpu")
-        >>> model.predict("Hello world!")   # Runs on system in env
+        >>> model.predict("Hello world!")   # Runs on system in process
         >>> tok = model.remote.tokenizer    # Returns remote tokenizer
         >>> id = model.local.model_id       # Returns local model_id, if any
         >>> model_id = model.model_id       # Returns local model_id (not remote)
@@ -1465,12 +1460,12 @@ def module(
         >>>
 
     Example - creating a Module from an existing class, via the rh.module() factory method:
-        >>> other_model = Model(model_id="bert-base-uncased", device="cuda").to("my_gpu", "my_env")
+        >>> other_model = Model(model_id="bert-base-uncased", device="cuda").to("my_gpu", "my_process")
         >>>
         >>> # Another method: Create a module instance from an existing non-Module class using rh.module()
-        >>> RemoteModel = rh.module(cls=BERTModel, env="my_env")
+        >>> RemoteModel = rh.module(cls=BERTModel).to("my_gpu", "my_process")
         >>> remote_model = RemoteModel(model_id="bert-base-uncased", device="cuda").to(system="my_gpu")
-        >>> remote_model.predict("Hello world!")  # Runs on system in env
+        >>> remote_model.predict("Hello world!")  # Runs on system in process
         >>>
         >>> # You can also call remote class methods
         >>> other_model = RemoteModel.get_model_size("bert-base-uncased")

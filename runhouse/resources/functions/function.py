@@ -74,8 +74,8 @@ class Function(Module):
 
         Args:
             system (str or Cluster): The system to setup the function and env on.
-            env (str, List[str], or Env, optional): The environment where the function lives on in the cluster,
-                or the set of requirements necessary to run the function. (Default: ``None``)
+            process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly created with those args.
+                or the set of requirements necessary to run the module. (Default: ``None``)
             name (Optional[str], optional): Name to give to the function resource, if you wish to rename it.
                 (Default: ``None``)
             force_install (bool, optional): Whether to re-install and perform the environment setup steps, even
@@ -83,17 +83,8 @@ class Function(Module):
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
-            >>> rh.function(fn=local_fn).to(system=gpu_cluster, env=my_conda_env)
-            >>> rh.function(fn=local_fn).to(system='aws_lambda')  # will deploy the rh.function to AWS as a Lambda.
+            >>> rh.function(fn=local_fn).to(system=gpu_cluster, process=my_conda_env)
         """  # noqa: E501
-
-        if isinstance(system, str) and system.lower() == "lambda_function":
-            from runhouse.resources.functions.aws_lambda_factory import aws_lambda_fn
-
-            return aws_lambda_fn(
-                fn=self._get_obj_from_pointers(*self.fn_pointers),
-            )
-
         return super().to(system=system, process=process, name=name)
 
     # ----------------- Function call methods -----------------

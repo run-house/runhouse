@@ -160,7 +160,6 @@ class ObjStore:
         self.cluster_servlet: Optional[ray.actor.ActorHandle] = None
         self.cluster_config: Optional[Dict[str, Any]] = None
         self.imported_modules = {}
-        self.installed_envs = {}  # TODO: consider deleting it?
         self._kv_store: Dict[Any, Any] = None
         self.servlet_cache = {}
         self.active_function_calls = {}
@@ -411,19 +410,19 @@ class ObjStore:
         )
         return results
 
-    def get_process_env(self) -> Optional["Env"]:
+    def get_process_servlet(self):
         """
-        If this is an env servlet object store, then we are within a Runhouse env.
-        Return the env so it can be used for Runhouse primitives.
+        If this is a servlet object store, then we are within a Runhouse process.
+        Return the process so it can be used for Runhouse primitives.
         """
         if self.servlet_name is not None and self.has_local_storage:
-            # Each env is stored within itself, I believe
+            # Each process is stored within itself, I believe
             return self.get(self.servlet_name)
 
     def get_process_name(self) -> str:
         """
-        If this is an env servlet object store, then we are within a Runhouse env.
-        Return the env name.
+        If this is a servlet in the object store, then we are inside a Runhouse process.
+        Return the process name.
         """
         return (
             self.servlet_name
@@ -469,7 +468,7 @@ class ObjStore:
             if isinstance(
                 e, ray.exceptions.OutOfMemoryError
             ) or "died unexpectedly before finishing this task" in str(e):
-                await self.adelete_env_contents(servlet_name)
+                await self.adelete_servlet_contents(servlet_name)
 
             raise e
 
@@ -490,7 +489,7 @@ class ObjStore:
 
     def get_servlet(
         self,
-        env_name: str,
+        name: str,
         create_process_params: Optional["CreateProcessParams"] = None,
         create: bool = False,
         raise_ex_if_not_found: bool = False,
@@ -500,21 +499,19 @@ class ObjStore:
         # Need to import these here to avoid circular imports
         from runhouse.servers.servlet import Servlet
 
-        if create_process_params is not None and (
-            env_name != create_process_params.name
-        ):
+        if create_process_params is not None and (name != create_process_params.name):
             raise ValueError(
-                "env_name and create_process_params.name must be the same."
+                "servlet name and create_process_params.name must be the same."
             )
 
-        if use_servlet_cache and env_name in self.servlet_cache:
-            return self.servlet_cache[env_name]
+        if use_servlet_cache and name in self.servlet_cache:
+            return self.servlet_cache[name]
 
         # It may not have been cached, but does exist
         try:
-            existing_actor = ray.get_actor(env_name, namespace="runhouse")
+            existing_actor = ray.get_actor(name, namespace="runhouse")
             if use_servlet_cache:
-                self.servlet_cache[env_name] = existing_actor
+                self.servlet_cache[name] = existing_actor
             return existing_actor
         except ValueError:
             # ValueError: Failed to look up actor with name ...
@@ -537,7 +534,7 @@ class ObjStore:
                 "CPU" in ray_resources or "GPU" in ray_resources
             ):
                 raise ValueError(
-                    "Cannot specify both node_idx and CPU/GPU ray_resources for an env."
+                    "Cannot specify both node_idx and CPU/GPU ray_resources for a process."
                 )
 
             # Replace node_idx with actual node IP in Ray resources request
@@ -559,10 +556,10 @@ class ObjStore:
                         f"Available resources: {available_resources}"
                     )
 
-            new_env_actor = (
+            new_actor = (
                 ray.remote(Servlet)
                 .options(
-                    name=env_name,
+                    name=name,
                     get_if_exists=True,
                     runtime_env=create_process_params.runtime_env,
                     # Default to 0 CPUs if not specified, Ray will default it to 1
@@ -578,16 +575,16 @@ class ObjStore:
             )
 
             # Make sure servlet is actually initialized
-            _ = self.call_actor_method(new_env_actor, "keys_local")
+            _ = self.call_actor_method(new_actor, "keys_local")
 
             if use_servlet_cache:
-                self.servlet_cache[env_name] = new_env_actor
-            return new_env_actor
+                self.servlet_cache[name] = new_actor
+            return new_actor
 
         else:
             if raise_ex_if_not_found:
                 raise ObjStoreError(
-                    f"Environment {env_name} does not exist. Please send it to the cluster first."
+                    f"Process {name} does not exist. Please send it to the cluster first."
                 )
             else:
                 return None
@@ -808,7 +805,7 @@ class ObjStore:
         )
 
     ##############################################
-    # Remove Env Servlet
+    # Remove Servlet
     ##############################################
     async def aclear_all_references_to_servlet_name(self, servlet_name: str):
         return await self.acall_actor_method(
@@ -870,55 +867,55 @@ class ObjStore:
         self,
         key: Any,
         value: Any,
-        env: Optional[str] = None,
+        process: Optional[str] = None,
         serialization: Optional[str] = None,
-        create_env_if_not_exists: bool = False,
+        create_servlet_if_not_exists: bool = False,
     ):
         from runhouse.servers.http.http_utils import CreateProcessParams
 
         # Before replacing something else, check if this op will even be valid.
-        if env is None and self.servlet_name is None:
+        if process is None and self.servlet_name is None:
             raise NoLocalObjStoreError()
 
         # If it was not specified, we want to put into our own servlet_name
-        env = env or self.servlet_name
+        process = process or self.servlet_name
 
-        if self.get_servlet(env) is None:
-            if create_env_if_not_exists:
+        if self.get_servlet(process) is None:
+            if create_servlet_if_not_exists:
                 self.get_servlet(
-                    env_name=env,
-                    create_process_params=CreateProcessParams(name=env),
+                    name=process,
+                    create_process_params=CreateProcessParams(name=process),
                     create=True,
                 )
             else:
                 raise ObjStoreError(
-                    f"Env {env} does not exist; cannot put key {key} there."
+                    f"Process {process} does not exist; cannot put key {key} there."
                 )
 
         # If it does exist somewhere, no more!
         if await self.aget(key, default=None) is not None:
-            logger.warning("Key already exists in some env, overwriting.")
+            logger.warning("Key already exists in some process, overwriting.")
             await self.apop(key)
 
-        if self.has_local_storage and env == self.servlet_name:
+        if self.has_local_storage and process == self.servlet_name:
             if serialization is not None:
                 raise ObjStoreError(
                     "We should never reach this branch if serialization is not None."
                 )
             await self.aput_local(key, value)
         else:
-            await self.aput_for_servlet_name(env, key, value, serialization)
+            await self.aput_for_servlet_name(process, key, value, serialization)
 
     def put(
         self,
         key: Any,
         value: Any,
-        env: Optional[str] = None,
+        process: Optional[str] = None,
         serialization: Optional[str] = None,
-        create_env_if_not_exists: bool = False,
+        create_servlet_if_not_exists: bool = False,
     ):
         return sync_function(self.aput)(
-            key, value, env, serialization, create_env_if_not_exists
+            key, value, process, serialization, create_servlet_if_not_exists
         )
 
     ##############################################
@@ -990,7 +987,7 @@ class ObjStore:
             return default
 
         if servlet_name_containing_key == self.servlet_name and self.has_local_storage:
-            # Short-circuit route if we're already in the right env
+            # Short-circuit route if we're already in the right process
             res = self.get_local(
                 key,
                 remote=remote,
@@ -1057,7 +1054,7 @@ class ObjStore:
         servlet_name = await self.aget_servlet_name_for_key(key)
         if servlet_name == self.servlet_name and self.has_local_storage:
             raise ObjStoreError(
-                "Key not found in kv store despite env servlet specifying that it is here."
+                "Key not found in kv store despite servlet specifying that it is here."
             )
 
         if servlet_name is None:
@@ -1097,12 +1094,12 @@ class ObjStore:
                 else:
                     raise key_err
 
-            # If the key was found in this env, we also need to pop it
-            # from the global env for key cache.
-            env_name = await self._apop_servlet_name_for_key(key, None)
-            if env_name and env_name != self.servlet_name:
+            # If the key was found in this process, we also need to pop it
+            # from the global process for key cache.
+            process = await self._apop_servlet_name_for_key(key, None)
+            if process and process != self.servlet_name:
                 raise ObjStoreError(
-                    "The key was popped from this env, but the global env for key cache says it's in another one."
+                    "The key was popped from this process, but the global process for key cache says it's in another one."
                 )
 
             return res
@@ -1120,21 +1117,21 @@ class ObjStore:
         except KeyError as e:
             key_err = e
 
-        # The key was not found in this env
-        # So, we check the global key to env cache to see if it's elsewhere
+        # The key was not found in this process
+        # So, we check the global key to process cache to see if it's elsewhere
         servlet_name = await self.aget_servlet_name_for_key(key)
         if servlet_name:
             if servlet_name == self.servlet_name and self.has_local_storage:
                 raise ObjStoreError(
-                    "The key was not found in this env, but the global env for key cache says it's here."
+                    "The key was not found in this process, but the global process for key cache says it's here."
                 )
             else:
-                # The key was found in another env, so we need to pop it from there
+                # The key was found in another process, so we need to pop it from there
                 return await self.apop_from_servlet_name(
                     servlet_name, key, serialization
                 )
         else:
-            # Was not found in any env
+            # Was not found in any process
             if args:
                 return args[0]
             else:
@@ -1152,18 +1149,18 @@ class ObjStore:
     async def adelete_local(self, key: Any):
         await self.apop_local(key)
 
-    async def adelete_env_contents(self, env_name: Any):
+    async def adelete_servlet_contents(self, servlet_name: Any):
 
-        # delete the env servlet actor and remove its references
-        if env_name in self.servlet_cache:
-            actor = self.servlet_cache[env_name]
+        # delete the servlet actor and remove its references
+        if servlet_name in self.servlet_cache:
+            actor = self.servlet_cache[servlet_name]
             ray.kill(actor)
-            del self.servlet_cache[env_name]
-        deleted_keys = await self.aclear_all_references_to_servlet_name(env_name)
+            del self.servlet_cache[servlet_name]
+        deleted_keys = await self.aclear_all_references_to_servlet_name(servlet_name)
         return deleted_keys
 
-    def delete_env_contents(self, env_name: Any):
-        return sync_function(self.adelete_env_contents)(env_name)
+    def delete_servlet_contents(self, servlet_name: Any):
+        return sync_function(self.adelete_servlet_contents)(servlet_name)
 
     async def adelete(self, key: Union[Any, List[Any]]):
         keys_to_delete = [key] if isinstance(key, str) else key
@@ -1171,7 +1168,7 @@ class ObjStore:
 
         for key_to_delete in keys_to_delete:
             if key_to_delete in await self.aget_all_initialized_servlet_args():
-                deleted_keys += await self.adelete_env_contents(key_to_delete)
+                deleted_keys += await self.adelete_servlet_contents(key_to_delete)
 
             if key_to_delete in deleted_keys:
                 continue
@@ -1183,10 +1180,10 @@ class ObjStore:
                 servlet_name = await self.aget_servlet_name_for_key(key_to_delete)
                 if servlet_name == self.servlet_name and self.has_local_storage:
                     raise ObjStoreError(
-                        "Key not found in kv store despite env servlet specifying that it is here."
+                        "Key not found in kv store despite servlet specifying that it is here."
                     )
                 if servlet_name is None:
-                    raise KeyError(f"Key {key} not found in any env.")
+                    raise KeyError(f"Key {key} not found in any process.")
 
                 await self.adelete_for_servlet_name(servlet_name, key_to_delete)
                 deleted_keys.append(key_to_delete)
@@ -1208,7 +1205,7 @@ class ObjStore:
             )
 
     async def aclear(self):
-        logger.warning("Clearing all keys from all envs in the object store!")
+        logger.warning("Clearing all keys from all servlets in the object store!")
         for servlet_name in await self.aget_all_initialized_servlet_args():
             if servlet_name == self.servlet_name and self.has_local_storage:
                 await self.aclear_local()
@@ -1244,7 +1241,7 @@ class ObjStore:
             new_key = obj.name  # new_key is now just the name
 
         # By passing default, we don't throw an error if the key is not found
-        await self.aput(new_key, obj, env=self.servlet_name)
+        await self.aput(new_key, obj, process=self.servlet_name)
 
     async def arename(self, old_key: Any, new_key: Any):
         # We also need to rename the resource itself
@@ -1380,7 +1377,7 @@ class ObjStore:
                 if key != self.servlet_name and not await self.ahas_resource_access(
                     ctx.token, resource_uri
                 ):
-                    # Do not validate access to the default Env
+                    # Do not validate access to the default process
                     raise PermissionError(
                         f"Unauthorized access to resource {key}.",
                     )
@@ -1401,7 +1398,7 @@ class ObjStore:
         try:
             if isinstance(obj, Module):
                 # Force this to be fully local for Modules so we don't have any circular stuff calling into other
-                # envs or systems.
+                # processes or systems.
                 method = getattr(obj.local, method_name)
                 module_signature = obj.signature(rich=True)
                 method_is_coroutine = (
@@ -1423,14 +1420,14 @@ class ObjStore:
             # it to the user. Then, when the user actually awaits, they call our magic `__await__` method, which
             # calls our synchronous dunder method, which is then caught here and *actually* awaited.
             logger.info(
-                f"{self.servlet_name} env: Calling special method via await {method_name} on module {key}"
+                f"{self.servlet_name} process: Calling special method via await {method_name} on module {key}"
             )
             res = await method(*args, **kwargs)
 
         elif hasattr(method, "__call__") or method_name == "__call__":
             # If method is callable, call it and return the result
             logger.info(
-                f"{self.servlet_name} env: Calling method {method_name} on module {key}"
+                f"{self.servlet_name} process: Calling method {method_name} on module {key}"
             )
 
             res = await arun_in_thread(method, *args, **kwargs)
@@ -1539,7 +1536,7 @@ class ObjStore:
         servlet_name_containing_key = await self.aget_servlet_name_for_key(key)
         if not servlet_name_containing_key:
             raise ObjStoreError(
-                f"Key {key} not found in any env, cannot call method {method_name} on it."
+                f"Key {key} not found in any process, cannot call method {method_name} on it."
             )
 
         # If there is no run_name, this call was made directly through the obj_store and we need to set one
@@ -1783,27 +1780,29 @@ class ObjStore:
         self,
         serialized_data: Any,
         serialization: Optional[str] = None,
-        env_name: Optional[str] = None,
+        process: Optional[str] = None,
     ) -> "Response":
         from runhouse.servers.http.http_utils import (
             CreateProcessParams,
             deserialize_data,
         )
 
-        if env_name is None and self.servlet_name is None:
-            raise ObjStoreError("No env name provided and no servlet name set.")
+        if process is None and self.servlet_name is None:
+            raise ObjStoreError("No process name provided and no servlet name set.")
 
-        env_name = env_name or self.servlet_name
-        if self.has_local_storage and env_name == self.servlet_name:
+        process = process or self.servlet_name
+        if self.has_local_storage and process == self.servlet_name:
             resource_config, state, dryrun = tuple(
                 deserialize_data(serialized_data, serialization)
             )
             return await self.aput_resource_local(resource_config, state, dryrun)
 
         # Normally, serialization and deserialization happens within the servlet
-        # However, if we're putting an env, we need to deserialize it here and
+        # However, if we're putting a process, we need to deserialize it here and
         # actually create the corresponding env servlet.
         resource_config, _, _ = tuple(deserialize_data(serialized_data, serialization))
+
+        # TODO - remove once we remove `cluster.put_resource(Env(DEFAULT_PROCESS_NAME))`
         if resource_config["resource_type"] == "env":
             # Note that the passed in `env_name` and the `env_name_to_create` here are
             # distinct. The `env_name` is the name of the env servlet where we want to store
@@ -1816,9 +1815,9 @@ class ObjStore:
             )
 
             _ = self.get_servlet(
-                env_name=env_name,
+                name=process,
                 create_process_params=CreateProcessParams(
-                    name=env_name,
+                    name=process,
                     runtime_env=runtime_env,
                     resources=resource_config.get("compute", None),
                 ),
@@ -1826,7 +1825,7 @@ class ObjStore:
             )
 
         return await self.acall_servlet_method(
-            env_name,
+            process,
             "aput_resource_local",
             data=serialized_data,
             serialization=serialization,
@@ -1836,10 +1835,10 @@ class ObjStore:
         self,
         serialized_data: Any,
         serialization: Optional[str] = None,
-        env_name: Optional[str] = None,
+        process: Optional[str] = None,
     ) -> "Response":
         return sync_function(self.aput_resource)(
-            serialized_data, serialization, env_name
+            serialized_data, serialization, process
         )
 
     async def aput_resource_local(
@@ -1868,6 +1867,7 @@ class ObjStore:
         if provider:
             resource_config["provider"] = provider
 
+        # TODO - remove once we remove `cluster.put_resource(Env(DEFAULT_PROCESS_NAME))`
         if "process" in resource_config and isinstance(resource_config["process"], Env):
             # We don't want to store the Env, we just want to store the process string
             resource_config["process"] = resource_config["process"].name

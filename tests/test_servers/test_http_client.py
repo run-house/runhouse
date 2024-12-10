@@ -332,9 +332,11 @@ class TestHTTPClient:
 
         mock_request.reset_mock()
 
-        test_env = "test_env"
-        self.client.keys(env=test_env)
-        mock_request.assert_called_with(f"keys/?env_name={test_env}", req_type="get")
+        test_process = "test_process"
+        self.client.keys(process=test_process)
+        mock_request.assert_called_with(
+            f"keys/?process_name={test_process}", req_type="get"
+        )
 
     @pytest.mark.level("unit")
     def test_delete(self, mocker):

@@ -267,7 +267,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert "numpy_env" in cluster.keys()
 
         k3 = get_random_str()
-        cluster.put(k3, "v3", env="numpy_env")
+        cluster.put(k3, "v3", process="numpy_env")
         assert k3 in cluster.keys()
         assert cluster.get(k3) == "v3"
 
@@ -278,8 +278,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         env2 = rh.env(reqs=["pytest"], name="env2").to(cluster)
         env3 = rh.env(reqs=["pytest"], name="env3")
 
-        cluster.put("k1", "v1", env=env1.name)
-        cluster.put("k2", "v2", env=env2.name)
+        cluster.put("k1", "v1", process=env1.name)
+        cluster.put("k2", "v2", process=env2.name)
         cluster.put_resource(env3, process=env1.name)
 
         # test delete env2
@@ -475,7 +475,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_rh_status_pythonic(self, cluster):
         worker_env = rh.env(reqs=["pytest", "pandas"], name="worker_env").to(cluster)
         sleep_remote = rh.function(sleep_fn).to(cluster, process=worker_env.name)
-        cluster.put(key="status_key1", obj="status_value1", env="worker_env")
+        cluster.put(key="status_key1", obj="status_value1", process="worker_env")
         # Run these in a separate thread so that the main thread can continue
         call_threads = [Thread(target=sleep_remote, args=[3]) for _ in range(3)]
         for call_thread in call_threads:
@@ -789,7 +789,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         k1 = get_random_str()
         cluster.put(k1, "v1")
 
-        assert k1 in cluster.keys(env=DEFAULT_PROCESS_NAME)
+        assert k1 in cluster.keys(process=DEFAULT_PROCESS_NAME)
         cluster.delete(k1)
 
     @pytest.mark.level("local")
@@ -797,7 +797,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_fn_to_default_process(self, cluster):
         remote_summer = rh.function(summer).to(cluster)
 
-        assert remote_summer.name in cluster.keys(env=DEFAULT_PROCESS_NAME)
+        assert remote_summer.name in cluster.keys(process=DEFAULT_PROCESS_NAME)
         assert remote_summer(3, 4) == 7
 
         # Test function with non-trivial imports
@@ -1232,9 +1232,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.clustertest
     def test_cluster_list_and_create_process(self, cluster):
         assert DEFAULT_PROCESS_NAME in cluster.list_processes()
-        rh.env(name="env_created_before_process_list", reqs=["pytest"]).to(cluster)
-        assert "env_created_before_process_list" in cluster.list_processes()
 
-        # Now create a process manually with the create_process functionality
+        # create a process manually with the create_process functionality
         cluster.ensure_process_created(name="new_test_process_created_with_utility")
         assert "new_test_process_created_with_utility" in cluster.list_processes()
