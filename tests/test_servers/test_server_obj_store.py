@@ -295,17 +295,17 @@ class TestObjStore:
         obj_store_2.put("k2", "v2")
         obj_store_2.put("k3", "v3")
 
-        env_to_delete = obj_store_2.servlet_name
-        obj_store_2_keys = obj_store_2.keys_for_servlet_name(env_to_delete)
+        servlet_to_delete = obj_store_2.servlet_name
+        obj_store_2_keys = obj_store_2.keys_for_servlet_name(servlet_to_delete)
 
-        assert env_to_delete in obj_store.get_all_initialized_servlet_args()
+        assert servlet_to_delete in obj_store.get_all_initialized_servlet_args()
         for key in obj_store_2_keys:
             assert obj_store.get(key)
 
-        obj_store.delete_env_contents(env_to_delete)
+        obj_store.delete_servlet_contents(servlet_to_delete)
 
         # check obj_store_2 servlet and nested keys are deleted but obj_store_1 unaffected
-        assert env_to_delete not in obj_store.get_all_initialized_servlet_args()
+        assert servlet_to_delete not in obj_store.get_all_initialized_servlet_args()
         for key in obj_store_2_keys:
             assert not obj_store.get(key)
         assert obj_store.servlet_name in obj_store.get_all_initialized_servlet_args()
@@ -313,7 +313,7 @@ class TestObjStore:
 
         # check that corresponding Ray actor is killed
         with pytest.raises(ObjStoreError):
-            obj_store.get_servlet(env_name=env_to_delete, raise_ex_if_not_found=True)
+            obj_store.get_servlet(name=servlet_to_delete, raise_ex_if_not_found=True)
 
 
 @pytest.mark.servertest

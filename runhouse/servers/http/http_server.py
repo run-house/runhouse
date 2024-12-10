@@ -165,7 +165,7 @@ class HTTPServer:
 
         # We initialize a default env servlet where some things may run.
         _ = obj_store.get_servlet(
-            env_name=DEFAULT_PROCESS_NAME,
+            name=DEFAULT_PROCESS_NAME,
             create_process_params=CreateProcessParams(
                 name=DEFAULT_PROCESS_NAME,
                 runtime_env=runtime_env,
@@ -414,7 +414,7 @@ class HTTPServer:
     async def create_process(request: Request, params: CreateProcessParams):
         try:
             _ = obj_store.get_servlet(
-                env_name=params.name,
+                name=params.name,
                 create_process_params=params,
                 create=True,
             )
@@ -556,11 +556,11 @@ class HTTPServer:
     @validate_cluster_access
     async def put_resource(request: Request, params: PutResourceParams):
         try:
-            env_name = params.env_name
+            process = params.process_name
             return await obj_store.aput_resource(
                 serialized_data=params.serialized_data,
                 serialization=params.serialization,
-                env_name=env_name,
+                process=process,
             )
         except Exception as e:
             return handle_exception_response(
@@ -575,9 +575,9 @@ class HTTPServer:
             await obj_store.aput(
                 key=params.key,
                 value=params.serialized_data,
-                env=params.env_name,
+                process=params.process_name,
                 serialization=params.serialization,
-                create_env_if_not_exists=True,
+                create_servlet_if_not_exists=True,
             )
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
@@ -654,12 +654,12 @@ class HTTPServer:
     @staticmethod
     @app.get("/keys")
     @validate_cluster_access
-    async def get_keys(request: Request, env_name: Optional[str] = None):
+    async def get_keys(request: Request, process_name: Optional[str] = None):
         try:
-            if not env_name:
+            if not process_name:
                 output = await obj_store.akeys()
             else:
-                output = await obj_store.akeys_for_servlet_name(env_name)
+                output = await obj_store.akeys_for_servlet_name(process_name)
 
             # Expicitly tell the client not to attempt to deserialize the output
             return Response(
@@ -1081,8 +1081,8 @@ async def main():
     # uses the object store to load the cluster config from Ray.
     # When setting up the server, we always want to create a new ClusterServlet.
     # We only want to forcibly start a Ray cluster if asked.
-    # We connect this to the "base" env, which we'll initialize later,
-    # so writes to the obj_store within the server get proxied to the "base" env.
+    # We connect this to the "base" process, which we'll initialize later,
+    # so writes to the obj_store within the server get proxied to the "base" process.
     await obj_store.ainitialize(
         DEFAULT_PROCESS_NAME,
         setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
