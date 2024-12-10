@@ -27,7 +27,7 @@ def test_mount_local_package_to_cluster(cluster):
 
     assert isinstance(package.install_target, rh.Folder)
     assert package.install_target.system == cluster
-    assert mount_path in cluster.run(["ls"])[0][1]
+    assert mount_path in cluster.run_bash(["ls"])[0][1]
 
 
 def test_package_file_system_to_cluster(cluster, s3_package):
@@ -38,7 +38,7 @@ def test_package_file_system_to_cluster(cluster, s3_package):
     s3_package.to(system=cluster, path=folder_name)
 
     # Confirm the package's folder is now on the cluster
-    assert "sample_file_0.txt" in cluster.run([f"ls {folder_name}"])[0][1]
+    assert "sample_file_0.txt" in cluster.run_bash([f"ls {folder_name}"])[0][1]
 
 
 def test_getting_cuda_version_on_clusters(request, ondemand_cluster):
