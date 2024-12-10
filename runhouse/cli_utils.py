@@ -239,7 +239,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
     default_process_name = DEFAULT_PROCESS_NAME
     if len(env_resource_mapping[default_process_name]) <= 1:
         # case where the default env doesn't hve any other resources, apart from the default env itself.
-        console.print(f"{BULLET_UNICODE} {default_process_name} (runhouse.Env)")
+        console.print(f"{BULLET_UNICODE} {default_process_name}")
         console.print(
             f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if provided. No "
             "resources were found."
@@ -269,22 +269,13 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
         env_name
         for env_name in env_resource_mapping
         if env_name not in first_envs_to_print + [default_process_name]
-        and env_resource_mapping[env_name]
     ]
 
     for env_name in envs_to_print:
         resources_in_env = env_resource_mapping[env_name]
         env_process_info = servlet_processes[env_name]
 
-        # sometimes the env itself is not a resource (key) inside the env's servlet.
-        if len(resources_in_env) == 0 or env_name not in resources_in_env.keys():
-            env_type = "runhouse.Env"
-        else:
-            env_type = condense_resource_type(
-                resources_in_env[env_name]["resource_type"]
-            )
-
-        env_name_txt = f"{BULLET_UNICODE} {env_name} ({env_type}) | pid: {env_process_info['pid']} | node: {env_process_info['node_name']}"
+        env_name_txt = f"{BULLET_UNICODE} {env_name} | pid: {env_process_info['pid']} | node: {env_process_info['node_name']}"
         console.print(env_name_txt)
 
         # Print CPU info
@@ -352,8 +343,15 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
                         resource_info.get("resource_type")
                     )
 
+                    if resource_type == "runhouse.Env":
+                        resource_type = None
+
                     active_function_calls = resource_info.get("active_function_calls")
-                    resource_info_str = f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {resource_name} ({resource_type})"
+                    resource_info_str = (
+                        f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {resource_name}"
+                    )
+                    if resource_type:
+                        resource_info_str = resource_info_str + f" ({resource_type})"
 
                     if resource_type == "runhouse.Function" and active_function_calls:
                         func_start_time_utc = active_function_calls[0].get(
