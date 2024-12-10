@@ -144,8 +144,8 @@ class ProviderSecret(Secret):
             path (str or Path, optional): Path on cluster to write down the secret values to.
                 If not provided and secret is not already associated with a path, the secret values
                 will not be written down on the cluster.
-            env (str or Env, optional): Env to send the secret to. This will save down the secrets
-                as env vars in the env.
+            process (str, optional): Process on the cluster to send the secret to, to set the secret env var
+                values inside the process.
             values (bool, optional): Whether to save down the values in the resource config. By default,
                 save down values if the secret is not being written down to a file or environment variable.
                 Otherwise, values are not written down. (Default: None)

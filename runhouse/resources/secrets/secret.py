@@ -378,7 +378,7 @@ class Secret(Resource):
         Args:
             system (str or Cluster): Cluster to send the secret to
             name (str, optional): Name to assign the resource on the cluster.
-            env (Env, optional): Env to send the secret to.
+            process (str, optional): Process on the cluster to send the secret to.
 
         Example:
             >>> secret.to(my_cluster, path=secret.path)
