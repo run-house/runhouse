@@ -280,6 +280,7 @@ if __name__ == "__main__":
         provider="aws",
         image=img,
     ).up_if_not()
+    gpu_cluster.restart_server()
     gpu_cluster.sync_secrets(["aws"])
 
     epochs = 15

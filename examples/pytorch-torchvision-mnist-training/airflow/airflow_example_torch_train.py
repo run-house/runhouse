@@ -62,7 +62,7 @@ def bring_up_cluster_callable(**kwargs):
     logger.info("Connecting to remote cluster")
     img = rh.Image("pytorch").install_packages(["torch", "torchvision"])
     cluster = rh.ondemand_cluster(
-        name="a10g-cluster", instance_type="A10G:1", provider="aws", image=img
+        name="a10g-cluster", instance_type="g5.xlarge", provider="aws", image=img
     ).up_if_not()
 
     print(cluster.is_up())

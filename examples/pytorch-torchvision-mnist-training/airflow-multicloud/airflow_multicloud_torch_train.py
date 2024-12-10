@@ -64,17 +64,17 @@ gpu_cluster_name = "gpu-cluster"
 
 
 def get_cluster(**kwargs):
-    img = (
-        rh.Image("pytorch")
-        .install_packages(["torch", "torchvision"])
-        .sync_secrets(["aws"])
-    )
-    return rh.cluster(
+    img = rh.Image("pytorch").install_packages(["torch", "torchvision"])
+    cluster = rh.cluster(
         name=kwargs.get("cluster_name", "rh-cluster"),
-        instance_type=kwargs.get("instance_type"),
+        instance_type=kwargs.get("instance_type", None),
+        accelerators=kwargs.get("accelerators", None),
         provider=kwargs.get("provider", "aws"),
         image=img,
     ).up_if_not()
+
+    cluster.sync_secrets(["aws"])
+    return cluster
 
 
 # ## Define the callable functions.
@@ -168,12 +168,12 @@ default_args = {
 }
 cpu_cluster_config = {
     "cluster_name": "cpu-cluster",
-    "instance_type": "CPU:4+",
+    "instance_type": "r6i.xlarge",
     "provider": "aws",
 }
 gpu_cluster_config = {
     "cluster_name": "gpu-cluster",
-    "instance_type": "L4:1",
+    "accelerators": "L4:1",
     "provider": "gcp",
 }
 
