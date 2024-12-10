@@ -5,6 +5,7 @@ import os
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Dict, Optional
 
 import pytest
 import requests
@@ -36,14 +37,25 @@ def get_ray_servlet_and_obj_store(env_name):
     return test_servlet, test_obj_store
 
 
-def get_ray_cluster_servlet(cluster_config=None):
+def get_ray_cluster_servlet(
+    cluster_config: Optional[Dict] = None, name: Optional[str] = None
+):
     """Helper method for getting base cluster servlet"""
-    cluster_servlet = get_cluster_servlet(create_if_not_exists=True)
 
-    if cluster_config:
-        ObjStore.call_actor_method(
-            cluster_servlet, "aset_cluster_config", cluster_config
-        )
+    import logging
+
+    import ray
+
+    # need to initialize ray so the cluster servlet will be initialized.
+    ray.init(
+        ignore_reinit_error=True,
+        logging_level=logging.ERROR,
+        namespace="runhouse",
+    )
+
+    cluster_servlet = get_cluster_servlet(
+        create_if_not_exists=True, cluster_config=cluster_config, name=name
+    )
 
     return cluster_servlet
 

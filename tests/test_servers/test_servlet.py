@@ -1,8 +1,13 @@
+import time
+
 import pytest
+import ray
 
 from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import deserialize_data, serialize_data
 from runhouse.servers.obj_store import ObjStore
+
+from tests.utils import get_ray_cluster_servlet
 
 
 @pytest.mark.servertest
@@ -75,3 +80,29 @@ class TestServlet:
         assert resp.output_type == "exception"
         error = deserialize_data(resp.data["error"], "pickle")
         assert isinstance(error, KeyError)
+
+    @pytest.mark.level("local")
+    def test_failed_cluster_servlet(self):
+
+        invalid_cluster_config = {
+            "api_server_url": "https://api.run.house.invalid",
+            "name": "mocked-cluster",
+        }
+        cluster_servlet = get_ray_cluster_servlet(
+            cluster_config=invalid_cluster_config, name="invalid_cluster_servlet"
+        )
+        try:
+            # waiting for a seconds so the async cluster status check thread will be executed and then fail and kill the clsuter servlet.
+            time.sleep(1)
+            cluster_servlet = ray.get_actor(
+                name="invalid_cluster_servlet", namespace="runhouse"
+            )
+            # if the cluster servlet is not deleted -> it is not none -> not cluster_servlet = False ->
+            # the test fails, because we expect that the cluster servlet will be deleted
+            assert not cluster_servlet
+
+        except ValueError as e:
+            assert (
+                str(e)
+                == "Failed to look up actor with name 'invalid_cluster_servlet'. This could because 1. You are trying to look up a named actor you didn't create. 2. The named actor died. 3. You did not use a namespace matching the namespace of the actor."
+            )
