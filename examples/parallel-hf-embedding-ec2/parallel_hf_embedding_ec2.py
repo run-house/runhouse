@@ -149,21 +149,24 @@ if __name__ == "__main__":
     #
     # Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
     start_time = time.time()
+    img = rh.Image("embeddings").install_packages(
+        [
+            "langchain",
+            "langchain-community",
+            "langchainhub",
+            "bs4",
+            "sentence_transformers",
+            "fake_useragent",
+        ]
+    )
+
     cluster = rh.cluster(
         f"rh-{num_replicas}xa10g",
         instance_type="A10G:1",
+        provider="aws",
         num_nodes=num_replicas,
         spot=True,
-        default_env=rh.env(
-            reqs=[
-                "langchain",
-                "langchain-community",
-                "langchainhub",
-                "bs4",
-                "sentence_transformers",
-                "fake_useragent",
-            ]
-        ),
+        image=img,
     ).up_if_not()
 
     # Generally, when using Runhouse, you would initialize an env with `rh.env`, and send your module to

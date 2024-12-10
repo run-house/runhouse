@@ -64,10 +64,16 @@ gpu_cluster_name = "gpu-cluster"
 
 
 def get_cluster(**kwargs):
+    img = (
+        rh.Image("pytorch")
+        .install_packages(["torch", "torchvision"])
+        .sync_secrets(["aws"])
+    )
     return rh.cluster(
         name=kwargs.get("cluster_name", "rh-cluster"),
         instance_type=kwargs.get("instance_type"),
         provider=kwargs.get("provider", "aws"),
+        image=img,
     ).up_if_not()
 
 
@@ -81,18 +87,14 @@ def bring_up_cluster_callable(**kwargs):
     cluster = get_cluster(**kwargs)
     print(cluster.is_up())
 
-    # cluster.save() ## Use if you have a Runhouse Den account to save and monitor the resource.
-
 
 # We will send the function to download data to the remote cluster and then invoke it to download the data to the remote machine. You can imagine that this is a data access or pre-processing step after which data is prepared.
 def access_data_callable(**kwargs):
     logger.info("Step 3: Preprocess the Data")
 
-    env = rh.env(name="test_env", reqs=["torch", "torchvision"])
-
     cluster = get_cluster(**kwargs)
 
-    remote_download = rh.function(download_data).to(cluster, env=env)
+    remote_download = rh.function(download_data).to(cluster)
     logger.info("Download function sent to remote")
     remote_download()
     logger.info("Data downloaded")
@@ -102,10 +104,8 @@ def access_data_callable(**kwargs):
 def preprocess_data_callable(**kwargs):
     cluster = get_cluster(**kwargs)
 
-    env = rh.env(name="test_env", secrets=["aws"], reqs=["torch", "torchvision"])
-
-    remote_preprocess_data = rh.function(preprocess_data).to(cluster, env=env)
-    remote_upload = rh.function(upload_folder_to_s3).to(cluster, env=env)
+    remote_preprocess_data = rh.function(preprocess_data).to(cluster)
+    remote_upload = rh.function(upload_folder_to_s3).to(cluster)
     logger.info("Data preprocessing and upload functions sent to cluster")
 
     remote_preprocess_data("./data")
@@ -118,8 +118,7 @@ def preprocess_data_callable(**kwargs):
 # Download the data from S3, onto a newly launched cluster.
 def download_s3_data_callable(**kwargs):
     cluster = get_cluster(**kwargs)
-    env = rh.env(name="test_env", secrets=["aws"], reqs=["torch", "torchvision"])
-    s3_download = rh.function(download_folder_from_s3).to(cluster, env=env)
+    s3_download = rh.function(download_folder_from_s3).to(cluster)
     s3_download("rh-demo-external", "torch-training-example", "./data")
 
 
@@ -128,10 +127,8 @@ def train_model_callable(**kwargs):
     logger.info("Step 4: Train Model")
     cluster = get_cluster(**kwargs)
 
-    env = rh.env(name="test_env", reqs=["torch", "torchvision"])
-
     remote_torch_example = rh.module(SimpleTrainer).to(
-        cluster, env=env, name="torch-basic-training"
+        cluster, name="torch-basic-training"
     )
 
     model = remote_torch_example()

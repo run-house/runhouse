@@ -60,8 +60,9 @@ logger = logging.getLogger(__name__)
 # We can bring up an on-demand cluster using Runhouse. You can access powerful usage patterns by defining compute in code. All subsequent steps connect to this cluster by name, but you can bring up other clusters for other steps.
 def bring_up_cluster_callable(**kwargs):
     logger.info("Connecting to remote cluster")
+    img = rh.Image("pytorch").install_packages(["torch", "torchvision"])
     cluster = rh.ondemand_cluster(
-        name="a10g-cluster", instance_type="A10G:1", provider="aws"
+        name="a10g-cluster", instance_type="A10G:1", provider="aws", image=img
     ).up_if_not()
 
     print(cluster.is_up())
@@ -71,11 +72,9 @@ def bring_up_cluster_callable(**kwargs):
 # We will send the function to download data to the remote cluster and then invoke it to download the data to the remote machine. You can imagine that this is a data access or pre-processing step after which data is prepared.
 def access_data_callable(**kwargs):
     logger.info("Step 2: Access data")
-    env = rh.env(name="test_env", reqs=["torch", "torchvision"])
-
     cluster = rh.cluster(name="a10g-cluster").up_if_not()
-    remote_download = rh.function(download_data).to(cluster, env=env)
-    remote_preprocess = rh.function(preprocess_data).to(cluster, env=env)
+    remote_download = rh.function(download_data).to(cluster)
+    remote_preprocess = rh.function(preprocess_data).to(cluster)
     logger.info("Download function sent to remote")
     remote_download()
     remote_preprocess()
@@ -87,10 +86,8 @@ def train_model_callable(**kwargs):
     logger.info("Step 3: Train Model")
     cluster = rh.cluster(name="a10g-cluster").up_if_not()
 
-    env = rh.env(name="test_env", reqs=["torch", "torchvision"])
-
     remote_torch_example = rh.module(SimpleTrainer).to(
-        cluster, env=env, name="torch-basic-training"
+        cluster, name="torch-basic-training"
     )
 
     model = remote_torch_example()

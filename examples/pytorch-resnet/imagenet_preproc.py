@@ -72,30 +72,36 @@ def download_preproc_and_upload(
 
 
 if __name__ == "__main__":
-
-    cluster = rh.cluster(
-        name="rh-preprocessing",
-        instance_type="i4i.2xlarge",
-        provider="aws",
-        region="us-east-1",
-        default_env=rh.env(
-            name="test_env",
-            reqs=[
+    # ## Launch the compute
+    # Define the image and the cluster that the work will be run on.
+    # The image is package installations and secrets here, but can also take a Docker image as a base.
+    # The cluster here is launched from elastic compute, but can also be launched from a Kubernetes cluster.
+    img = (
+        rh.Image("rh-preprocessing")
+        .install_packages(
+            [
                 "torch",
                 "torchvision",
                 "Pillow",
                 "datasets",
                 "boto3",
                 "s3fs>=2024.10.0",
-            ],
-        ),
+            ]
+        )
+        .sync_secrets(["aws", "huggingface"])
+    )
+
+    cluster = rh.cluster(
+        name="rh-preprocessing",
+        instance_type="i4i.2xlarge",
+        provider="aws",
+        region="us-east-1",
+        image=img,
     ).up_if_not()
-    cluster.sync_secrets(["aws", "huggingface"])
 
     # Mount the disk to download the data to
     s3_bucket = "rh-demo-external"
     cache_dir = "/mnt/nvme"
-
     cluster.run(
         [
             f"sudo mkdir {cache_dir}",
@@ -105,18 +111,17 @@ if __name__ == "__main__":
             f"mkdir -p {cache_dir}/huggingface_cache",
         ]
     )
-
-    # Download the data, sampling down to 15% for our example
+    # Send our download / preprocessing function to the cluster we just created
     remote_preproc = rh.fn(download_preproc_and_upload).to(cluster)
-
+    # Download the data, sampling down to 15% for our example
     remote_preproc(
         dataset_name="imagenet-1k",
         save_bucket_name=s3_bucket,
         cache_dir=cache_dir,
-        train_sample="20%",
-        validation_sample="50%",
-        test_sample="20%",
+        train_sample="15%",
+        validation_sample="25%",
+        test_sample="15%",
         save_s3_folder_prefix="resnet-training-example/preprocessed_imagenet",
     )
 
-    cluster.teardown()
+    cluster.teardown()  # Down the cluster once this task is complete

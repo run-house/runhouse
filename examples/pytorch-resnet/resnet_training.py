@@ -8,8 +8,6 @@
 
 import subprocess
 
-import boto3
-
 import runhouse as rh
 
 import torch
@@ -39,6 +37,8 @@ class ResNet152Model(nn.Module):
             self.load_weights_from_s3(s3_bucket, s3_key)
 
     def load_weights_from_s3(self, s3_bucket, s3_key, weights_path):
+        import boto3
+
         s3 = boto3.client("s3")
         # Download the weights to a local file
         s3.download_file(s3_bucket, s3_key, weights_path)
@@ -209,6 +209,8 @@ class ResNet152Trainer:
                 self.save_checkpoint(f"resnet152_epoch_{epoch+1}.pth")
 
     def save_checkpoint(self, name):
+        import boto3
+
         print("Saving model state")
         torch.save(self.model.state_dict(), name)
         print("Trying to put onto s3")

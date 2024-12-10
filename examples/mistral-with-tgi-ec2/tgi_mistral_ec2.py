@@ -145,21 +145,21 @@ class TGIInference(rh.Module):
 # :::
 if __name__ == "__main__":
     port = 8080
+    # First, we define the compute and the image. This includes the required dependencies that need
+    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
+    img = (
+        rh.Image(name="tgi_env")
+        .install_packages(["docker", "openai", "torch", "transformers"])
+        .sync_secrets(["huggingface"])
+    )
+
     cluster = rh.cluster(
         name="rh-g5-4xlarge",
         instance_type="g5.4xlarge",
         provider="aws",
+        image=img,
         open_ports=[port],
     ).up_if_not()
-
-    # Next, we define the environment for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        name="tgi_env",
-        reqs=["docker", "openai", "torch", "transformers"],
-    )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
@@ -168,7 +168,7 @@ if __name__ == "__main__":
     #
     # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
     # set up on the remote machine before the module is run.
-    remote_tgi_model = TGIInference().get_or_to(cluster, env=env, name="tgi-inference")
+    remote_tgi_model = TGIInference().get_or_to(cluster, name="tgi-inference")
 
     # ## Sharing an inference endpoint
     # We can publish this module for others to use:

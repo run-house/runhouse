@@ -73,6 +73,4 @@ if __name__ == "__main__":
     print("Model saved")
 
     # cluster.teardown() # Optionally, automatically teardown the cluster after training
-
-    print("Launching notebook")
     # cluster.notebook()  # Optionally, open a Jupyter notebook on the cluster to interact with the trained model

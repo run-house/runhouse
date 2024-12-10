@@ -108,7 +108,7 @@ class LlamaModel:
 # :::
 async def main():
 
-    # First, we define the environment for our module. This includes the required dependencies that need
+    # First, we define the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
     # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
     img = (
@@ -139,12 +139,7 @@ async def main():
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
     # by calling `cluster.get(name="llama3-8b-model")`. This would return the remote model after an initial run.
     # If we want to update the module each time we run this script, we prefer to use `to`.
-    #
-    # Note that we also pass the `env` object to the `to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
-    RemoteLlamaModel = rh.module(LlamaModel).to(
-        gpu_cluster, env=env, name="Llama3Model"
-    )
+    RemoteLlamaModel = rh.module(LlamaModel).to(gpu_cluster, name="Llama3Model")
     remote_llama_model = RemoteLlamaModel(name="llama3-8b-model")
 
     # ## Calling our remote function

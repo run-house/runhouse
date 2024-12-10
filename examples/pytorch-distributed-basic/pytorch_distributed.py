@@ -57,12 +57,15 @@ def train_loop(epochs):
 if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 2
+
     cluster = rh.cluster(
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
         instance_type=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,
     ).up_if_not()
+
     remote_train_loop = rh.function(train_loop).to(cluster)
+
     train_ddp = remote_train_loop.distribute(
         "pytorch", replicas=num_nodes * gpus_per_node, replicas_per_node=gpus_per_node
     )

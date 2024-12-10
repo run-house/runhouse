@@ -121,40 +121,36 @@ def decode_base64_image(image_string):
 # the script code will run when Runhouse attempts to run code remotely.
 # :::
 if __name__ == "__main__":
+    # First, we define the image for our execution. This includes the required dependencies that need
+    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
+    # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
+    img = (
+        rh.Image(name="sdxl_inference")
+        .install_packages(
+            [
+                "diffusers==0.21.4",
+                "huggingface_hub",
+                "torch",
+                "transformers==4.31.0",
+                "accelerate==0.21.0",
+            ]
+        )
+        .sync_secrets(["huggingface"])
+    )
 
     cluster = rh.cluster(
         name="rh-g5",
         instance_type="g5.8xlarge",
         provider="aws",
+        image=img,
     ).up_if_not()
-
-    # Next, we define the environment for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        name="sdxl_inference",
-        reqs=[
-            "diffusers==0.21.4",
-            "huggingface_hub",
-            "torch",
-            "transformers==4.31.0",
-            "accelerate==0.21.0",
-        ],
-        secrets=["huggingface"],  # Needed to download model
-        env_vars={"NEURON_RT_NUM_CORES": "2"},
-    )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
     # by calling `cluster.get(name="sdxl")`. This would return the remote model after an initial run.
     # If we want to update the module each time we run this script, we prefer to use `to`.
-    #
-    # Note that we also pass the `env` object to the `to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
     RemoteStableDiffusion = rh.module(StableDiffusionXLPipeline).to(
-        cluster, env=env, name="StableDiffusionXLPipeline"
+        cluster, name="StableDiffusionXLPipeline"
     )
     remote_sdxl = RemoteStableDiffusion(name="sdxl")
 

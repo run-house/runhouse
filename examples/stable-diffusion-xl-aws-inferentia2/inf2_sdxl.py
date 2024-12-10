@@ -141,6 +141,23 @@ def decode_base64_image(image_string):
 # the script code will run when Runhouse attempts to run code remotely.
 # :::
 if __name__ == "__main__":
+    # First, we define the image for execution. This includes the required dependencies that need
+    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
+    # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
+    # We also can set environment variables, such as `NEURON_RT_NUM_CORES` which is required for AWS Neuron.
+    img = (
+        rh.Image(name="sdxl_inference")
+        .install_packages(
+            [
+                "optimum-neuron==0.0.20",
+                "diffusers==0.27.2",
+            ]
+        )
+        .sync_secrets(["huggingface"])
+        .set_env_vars({"NEURON_RT_NUM_CORES": "2"})
+    )
+
+    # Then, we launch our cluster from elastic AWS compute.
     cluster = rh.cluster(
         name="rh-inf2",
         instance_type="inf2.8xlarge",
@@ -152,14 +169,11 @@ if __name__ == "__main__":
         den_auth=True,
     ).up_if_not()
 
-    # Set up dependencies
-
     # We can run commands directly on the cluster via `cluster.run()`. Here, we set up the environment for our
     # upcoming environment that installed some AWS-neuron specific libraries. The `torch_neuronx` library needs to be
-    # installed before the rest of the env is set up in order to avoid a
+    # installed before restarting the Runhouse cluster to prevent a
     # [common error](https://awsdocs-neuron.readthedocs-hosted.com/en/latest/frameworks/torch/torch-neuronx/
-    # training-troubleshooting.html#protobuf-error-typeerror-descriptors-cannot-not-be-created-directly),
-    # so we run this first.
+    # training-troubleshooting.html#protobuf-error-typeerror-descriptors-cannot-not-be-created-directly)
     cluster.run(
         [
             "python -m pip config set global.extra-index-url https://pip.repos.neuron.amazonaws.com",
@@ -167,30 +181,13 @@ if __name__ == "__main__":
         ],
     )
 
-    # Next, we define the environment for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
-    # We also can set environment variables, such as `NEURON_RT_NUM_CORES` which is required for AWS Neuron.
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        name="sdxl_inference",
-        reqs=[
-            "optimum-neuron==0.0.20",
-            "diffusers==0.27.2",
-        ],
-        secrets=["huggingface"],  # Needed to download model
-        env_vars={"NEURON_RT_NUM_CORES": "2"},
-    )
+    cluster.restart_server()
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
     # by the name `sdxl_neuron` if it was already put on the cluster. If we want to update the module each
     # time we run this script, we can use `to` instead of `get_or_to`.
-    #
-    # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
-    model = StableDiffusionXLPipeline().get_or_to(cluster, env=env, name="sdxl_neuron")
+    model = StableDiffusionXLPipeline().get_or_to(cluster, name="sdxl_neuron")
 
     # ## Calling our remote function
     #
