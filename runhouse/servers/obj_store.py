@@ -422,8 +422,8 @@ class ObjStore:
 
     def get_process_name(self) -> str:
         """
-        If this is an env servlet object store, then we are within a Runhouse env.
-        Return the env name.
+        If this is a servlet in the object store, then we are inside a Runhouse process.
+        Return the process name.
         """
         return (
             self.servlet_name

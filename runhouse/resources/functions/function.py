@@ -74,8 +74,8 @@ class Function(Module):
 
         Args:
             system (str or Cluster): The system to setup the function and env on.
-            env (str, List[str], or Env, optional): The environment where the function lives on in the cluster,
-                or the set of requirements necessary to run the function. (Default: ``None``)
+            process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly created with those args.
+                or the set of requirements necessary to run the module. (Default: ``None``)
             name (Optional[str], optional): Name to give to the function resource, if you wish to rename it.
                 (Default: ``None``)
             force_install (bool, optional): Whether to re-install and perform the environment setup steps, even

@@ -87,21 +87,21 @@ def install_conda(cluster: "Cluster" = None, node: Optional[str] = None):
 
 
 def create_conda_env_on_cluster(
-    env_name: str,
+    conda_env_name: str,
     conda_yaml: Dict,
     force: bool = False,
     cluster: "Cluster" = None,
     node: Optional[str] = None,
 ):
-    yaml_path = Path(ENVS_DIR) / f"{env_name}.yml"
+    yaml_path = Path(ENVS_DIR) / f"{conda_env_name}.yml"
 
     env_exists = (
-        f"\n{env_name} "
+        f"\n{conda_env_name} "
         in run_setup_command("conda info --envs", cluster=cluster, node=node)[1]
     )
     run_setup_command(f"mkdir -p {ENVS_DIR}", cluster=cluster, node=node)
     yaml_exists = (
-        (Path(ENVS_DIR).expanduser() / f"{env_name}.yml").exists()
+        (Path(ENVS_DIR).expanduser() / f"{conda_env_name}.yml").exists()
         if not cluster
         else run_setup_command(f"ls {yaml_path}", cluster=cluster, node=node)[0] == 0
     )
@@ -114,7 +114,7 @@ def create_conda_env_on_cluster(
                     "import yaml",
                     "from pathlib import Path",
                     f"path = Path('{ENVS_DIR}').expanduser()",
-                    f"yaml.dump({conda_yaml}, open(path / '{env_name}.yml', 'w'))",
+                    f"yaml.dump({conda_yaml}, open(path / '{conda_env_name}.yml', 'w'))",
                 ]
             )
             subprocess.run(f'python -c "{python_commands}"', shell=True)
@@ -130,11 +130,11 @@ def create_conda_env_on_cluster(
         )
 
         env_exists = (
-            f"\n{env_name} "
+            f"\n{conda_env_name} "
             in run_setup_command("conda info --envs", cluster=cluster, node=node)[1]
         )
         if not env_exists:
-            raise RuntimeError(f"conda env {env_name} not created properly.")
+            raise RuntimeError(f"conda env {conda_env_name} not created properly.")
 
 
 def _env_vars_from_file(env_file):
