@@ -24,8 +24,8 @@ class PyTorchDistributed(Supervisor):
             find_available_port_cmd,
             node=self._replicas[0].system.head_ip,
             require_outputs=True,
-        )
-        status_code, stdout, _ = result[0]
+        ) 
+        status_code, stdout, _ = result[0] 
         
         if status_code != 0:
             raise RuntimeError(f"Failed to find available port on head rank: {stdout}")
