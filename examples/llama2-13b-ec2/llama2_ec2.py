@@ -93,35 +93,37 @@ class HFChatModel(rh.Module):
 # :::
 if __name__ == "__main__":
 
-    # We define the environment for our module. This includes the required dependencies that need
+    # We define the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    img = rh.Image(name="llama2inference").install_packages([
-            "torch",
-            "transformers",
-            "accelerate",
-            "bitsandbytes",
-            "safetensors>=0.3.1",
-            "scipy",
-        ])
-    
-    gpu_cluster = rh.cluster(name="rh-a10x", 
-                             instance_type="A10G:1", 
-                             provider="aws", 
-                             image = img, 
-                             launcher_type='den').up_if_not()
-    
-    gpu_cluster.sync_secrets(providers=["huggingface"])  # Needed to download Llama 2 with HF
+    # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
+    img = (
+        rh.Image(name="llama2inference")
+        .install_packages(
+            [
+                "torch",
+                "transformers",
+                "accelerate",
+                "bitsandbytes",
+                "safetensors>=0.3.1",
+                "scipy",
+            ]
+        )
+        .sync_secrets(["huggingface"])
+    )
+
+    gpu_cluster = rh.cluster(
+        name="rh-a10x",
+        instance_type="A10G:1",
+        provider="aws",
+        image=img,
+        launcher_type="den",
+    ).up_if_not()
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
     # by the name `llama-13b-model` if it was already put on the cluster. If we want to update the module each
     # time we run this script, we can use `to` instead of `get_or_to`.
-    #
-    # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
+
     remote_hf_chat_model = HFChatModel(
         model_id="meta-llama/Llama-2-13b-chat-hf",
         load_in_4bit=True,

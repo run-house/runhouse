@@ -13,15 +13,16 @@ def train_fn(x, y):
 
 
 if __name__ == "__main__":
+    img = rh.Image("worker_image").install_packages(["bayesian-optimization"])
+
     cluster = rh.cluster(
         name="rh-4x16-cpu",
         instance_type="CPU:4+",
         num_nodes=2,
         provider="kubernetes",
-        default_env=rh.env(
-            reqs=["bayesian-optimization"],
-        ),
+        image=img,
     ).up_if_not()
+
     remote_train_fn = rh.function(train_fn).to(cluster)
     train_fn_pool = remote_train_fn.distribute(
         "pool", num_replicas=NUM_WORKERS, replicas_per_node=NUM_WORKERS // 2

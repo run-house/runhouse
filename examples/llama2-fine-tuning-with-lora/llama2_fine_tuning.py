@@ -220,36 +220,37 @@ class FineTuner(rh.Module):
 # the script code will run when Runhouse attempts to run code remotely.
 # :::
 if __name__ == "__main__":
-    cluster = rh.cluster(
-        name="rh-a10x", instance_type="A10G:1", provider="aws"
-    ).up_if_not()
-    # Next, we define the environment for our module. This includes the required dependencies that need
+
+    # First, we define the cluster that we want to run our module on. We specify the instance type and provider
+    # This includes the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
     # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        name="ft_env",
-        reqs=[
-            "torch",
-            "tensorboard",
-            "scipy",
-            "peft==0.4.0",
-            "bitsandbytes==0.40.2",
-            "transformers==4.31.0",
-            "trl==0.4.7",
-            "accelerate",
-        ],
+    img = (
+        rh.Image(name="llama2finetuning")
+        .install_packages(
+            [
+                "torch",
+                "tensorboard",
+                "transformers",
+                "bitsandbytes",
+                "peft" "trl",
+                "accelerate",
+                "scipy",
+            ]
+        )
+        .sync_secrets(["huggingface"])
     )
+
+    cluster = rh.cluster(
+        name="rh-a10x", instance_type="A10G:1", provider="aws", image=img
+    ).up_if_not()
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
-    # by the name `ft_env` if it was already put on the cluster. If we want to update the module each
+    # by the name `ft_model` if it was already put on the cluster. If we want to update the module each
     # time we run this script, we can use `to` instead of `get_or_to`.
-    #
-    # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
-    fine_tuner_remote = FineTuner().get_or_to(cluster, env=env, name="ft_model")
+
+    fine_tuner_remote = FineTuner().get_or_to(cluster, name="ft_model")
 
     # ## Fine-tuning the model on the cluster
     #

@@ -83,7 +83,7 @@ DEBUG = True  # In DEBUG mode we will always override Runhouse modules
 # cloud provider, be sure to install the appropriate version of Runhouse: e.g.
 # `runhouse[aws]` or `runhouse[gcp]`.
 CLUSTER_NAME = "rh-xa10g"  # Allows the cluster to be reused
-INSTANCE_TYPE = "A10G:1"  # A10G GPU to handle LLM iinference
+ACCELERATOR = "A10G:1"  # A10G GPU to handle LLM iinference
 CLOUD_PROVIDER = "aws"  # Alternatively "gcp", "azure", or "cheapest"
 
 # Template to be used in the LLM generation phase of the RAG app
@@ -115,22 +115,16 @@ async def lifespan(app):
 
 # ### Create Vector Embedding Service as a Runhouse Module
 # This method, run during initialization, will provision a remote machine (A10G on AWS in this case)
-# and deploy our `URLEmbedder` to that machine. The `env` is essentially the worker environment that
-# will run the module.
+# and deploy our `URLEmbedder` to that machine.
 #
 # The Python packages required by the embedding service (`langchain` etc.) are defined on the
-# Runhouse [`env`](https://www.run.house/docs/tutorials/api-envs) so that they can be properly installed
+# Runhouse image so that they can be properly installed
 # on the cluster. Also note that they are imported inside class methods. Those packages do not need
 # to be installed locally.
 def load_embedder():
     """Launch an A10G and send the embedding service to it."""
-    cluster = rh.cluster(
-        CLUSTER_NAME, instance_type=INSTANCE_TYPE, provider=CLOUD_PROVIDER
-    ).up_if_not()
-
-    env = rh.env(
-        name="embedder_env",
-        reqs=[
+    img = rh.Image("embedder_img").install_packages(
+        [
             "langchain",
             "langchain-community",
             "langchain_text_splitters",
@@ -139,15 +133,16 @@ def load_embedder():
             "sentence_transformers",
             "torch",
         ],
-        compute={"GPU": 1},
     )
+
+    cluster = rh.cluster(
+        name=CLUSTER_NAME, accelerators=ACCELERATOR, provider=CLOUD_PROVIDER, image=img
+    ).up_if_not()
 
     module_name = "url_embedder"
     remote_url_embedder = cluster.get(module_name, default=None, remote=True)
     if DEBUG or remote_url_embedder is None:
-        RemoteEmbedder = rh.module(URLEmbedder).to(
-            system=cluster, env=env, name="URLEmbedder"
-        )
+        RemoteEmbedder = rh.module(URLEmbedder).to(system=cluster, name="URLEmbedder")
         remote_url_embedder = RemoteEmbedder(
             model_name_or_path="BAAI/bge-large-en-v1.5", device="cuda", name=module_name
         )
@@ -175,24 +170,22 @@ def load_table():
 def load_llm():
     """Use the existing A10G cluster to run an LLM inference service"""
     # Specifying the same name will reuse our embedding service cluster
-    cluster = rh.cluster(
-        CLUSTER_NAME, instance_type=INSTANCE_TYPE, provider=CLOUD_PROVIDER
-    ).up_if_not()
-
-    env = rh.env(
-        reqs=["torch", "vllm==0.5.4"],
-        secrets=["huggingface"],  # Needed to download Llama 3 from HuggingFace
-        name="llama3_inference_env",
+    img = (
+        rh.Image("llama3_inference")
+        .install_packages(["torch", "vllm==0.5.4"])
+        .sync_secrets(["huggingface"])
     )
+
+    cluster = rh.cluster(
+        CLUSTER_NAME, accelerators=ACCELERATOR, provider=CLOUD_PROVIDER, image=img
+    ).up_if_not()
 
     module_name = "llama_model"
     # First check for an instance of the LlamaModel stored on the cluster
     remote_llm = cluster.get(module_name, default=None, remote=True)
     if DEBUG or remote_llm is None:
         # If not found (or debugging) sync up the model and create a fresh instance
-        RemoteLlama = rh.module(LlamaModel).to(
-            system=cluster, env=env, name="LlamaModel"
-        )
+        RemoteLlama = rh.module(LlamaModel).to(system=cluster, name="LlamaModel")
         remote_llm = RemoteLlama(name=module_name)
     return remote_llm
 
@@ -371,7 +364,7 @@ async def generate_response(text: str, limit: int = 4):
 # - **Cloud credentials**: Runhouse uses [SkyPilot](https://github.com/skypilot-org/skypilot) to provision remote
 #   machines on various cloud providers. You'll need to ensure that you have the appropriate permissions available
 #   on your production environment.
-# - **ENV Variables**: This example passes your Hugging Face token to a Runhouse `env` to grant permissions to use
+# - **ENV Variables**: This example passes your Hugging Face token via `sync_secrets` to grant permissions to use
 #   Llama 3. Make sure you handle this on your server as well.
 # - **Cluster lifecycle**: Running GPUs can be costly. `sky` commands make it easy to manage remote clusters locally
 #   but you may also want to monitor your cloud provider to avoid unused GPUs running up a bill.

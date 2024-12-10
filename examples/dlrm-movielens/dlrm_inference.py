@@ -63,7 +63,7 @@ if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 2
 
-    # Define the image again 
+    # Define the image again
     img = (
         rh.Image("ray-data")
         .install_packages(
@@ -72,8 +72,8 @@ if __name__ == "__main__":
         .sync_secrets(["aws"])
     )
 
-    # Launch the cluster, we can reuse the same cluster as in the training step, or launch a new one 
-    # with fewer nodes. 
+    # Launch the cluster, we can reuse the same cluster as in the training step, or launch a new one
+    # with fewer nodes.
     gpu_cluster = rh.cluster(
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
         accelerators=f"A10G:{gpus_per_node}",
@@ -82,14 +82,14 @@ if __name__ == "__main__":
         image=img,
     ).up_if_not()
 
-    # Send the function, and setup Ray on the cluster 
+    # Send the function, and setup Ray on the cluster
     remote_inference = (
         rh.function(inference_dlrm)
         .to(gpu_cluster, name="inference_dlrm")
         .distribute("ray")
     )
 
-    # Call the inference which writes the results out to a S3 bucket 
+    # Call the inference which writes the results out to a S3 bucket
     remote_inference(
         num_gpus=gpus_per_node,
         num_nodes=num_nodes,
