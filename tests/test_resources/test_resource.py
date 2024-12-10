@@ -273,7 +273,7 @@ class TestResource:
         resource_name = f"/{TEST_ORG}/summer_func"
         args = {"name": resource_name, "fn": summer}
 
-        # Sending function to the cluster will save the function and associated env under the organization
+        # Sending function to the cluster will save the function under the organization
         f = rh.function(**args).to(docker_cluster_pk_ssh_den_auth)
         init_args[id(f)] = args
 

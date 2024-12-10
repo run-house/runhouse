@@ -4,6 +4,7 @@ import pytest
 
 import runhouse as rh
 
+from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import rns_client
 
 import tests.test_resources.test_resource
@@ -136,7 +137,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         assert_delete_local(secret, contents=delete_contents)
 
     @pytest.mark.level("local")
-    def test_provider_secret_to_cluster_env(self, secret, cluster):
+    def test_provider_secret_to_cluster_process(self, secret, cluster):
         if not isinstance(secret, rh.ProviderSecret):
             return
 
@@ -144,11 +145,10 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         if not env_vars:
             return
 
-        env = rh.env()
         get_remote_val = rh.function(_get_env_var_value, name="get_env_vars").to(
             cluster
         )
-        secret.to(cluster, process=env.name)
+        secret.to(cluster, process=DEFAULT_PROCESS_NAME)
 
         for (key, val) in env_vars.items():
             assert get_remote_val(val) == secret.values[key]

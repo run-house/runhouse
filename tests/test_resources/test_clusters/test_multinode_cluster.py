@@ -65,37 +65,23 @@ class TestMultiNodeCluster:
     @pytest.mark.level("release")
     def test_send_envs_to_specific_worker_node(self, cluster):
 
-        env_0 = rh.env(
-            name="worker_env_0",
-            reqs=["langchain", "pytest"],
-        ).to(cluster, node_idx=0)
-
-        env_1 = rh.env(
-            name="worker_env_1",
-            reqs=["torch", "pytest"],
-        ).to(cluster, node_idx=1)
-
-        env_2 = rh.env(
-            name="worker_env_2",
-            reqs=["transformers", "pytest"],
-        ).to(cluster, node_idx=2)
+        proc_0 = cluster.ensure_process_created("worker_0", compute={"node_idx": 0})
+        proc_1 = cluster.ensure_process_created("worker_1", compute={"node_idx": 1})
+        proc_2 = cluster.ensure_process_created("worker_2", compute={"node_idx": 1})
 
         with pytest.raises(ValueError):
-            env_2.to(
-                cluster,
-                node_idx=len(cluster.ips),
+            cluster.ensure_process_created(
+                "worker_3", compute={"node_idx": len(cluster.ips)}
             )
 
-        env_2.to(cluster, node_idx=1)
-
         get_pid_0 = rh.function(get_pid_and_ray_node).to(
-            name="get_pid_0", system=cluster, process=env_0.name
+            name="get_pid_0", system=cluster, process=proc_0
         )
         get_pid_1 = rh.function(get_pid_and_ray_node).to(
-            name="get_pid_1", system=cluster, process=env_1.name
+            name="get_pid_1", system=cluster, process=proc_1
         )
         get_pid_2 = rh.function(get_pid_and_ray_node).to(
-            name="get_pid_2", system=cluster, process=env_2.name
+            name="get_pid_2", system=cluster, process=proc_2
         )
 
         with capture_stdout() as stdout_0:
@@ -118,36 +104,25 @@ class TestMultiNodeCluster:
 
     @pytest.mark.level("release")
     def test_specifying_resources(self, cluster):
-        env0 = rh.env(
-            name="worker_env_0",
-            compute={"CPU": 1.75},
-        ).to(cluster)
-
-        env1 = rh.env(
-            name="worker_env_1",
-            compute={"CPU": 0.5},
-        ).to(cluster)
-
-        env2 = rh.env(
-            name="worker_env_2",
-            compute={"memory": 4 * 1024 * 1024 * 1024},
-        ).to(cluster)
-
-        env3 = rh.env(
-            name="worker_env_3",
-            compute={"CPU": 0.1, "memory": 2 * 1024 * 1024 * 1024},
-        ).to(cluster)
+        proc0 = cluster.ensure_process_created("worker_proc_0", compute={"CPU": 1.75})
+        proc1 = cluster.ensure_process_created("worker_proc_1", compute={"CPU": 0.5})
+        proc2 = cluster.ensure_process_created(
+            "worker_proc_2", compute={"memory": 4 * 1024 * 1024 * 1024}
+        )
+        proc3 = cluster.ensure_process_created(
+            "worker_proc_3", compute={"CPU": 0.1, "memory": 2 * 1024 * 1024 * 1024}
+        )
 
         status = cluster.status()
 
-        env0_node = status["env_servlet_processes"][env0.name]["node_ip"]
-        env1_node = status["env_servlet_processes"][env1.name]["node_ip"]
-        env2_node = status["env_servlet_processes"][env2.name]["node_ip"]
-        env3_node = status["env_servlet_processes"][env3.name]["node_ip"]
-        assert env0_node in cluster.internal_ips
-        assert env1_node in cluster.internal_ips
-        assert env2_node in cluster.internal_ips
-        assert env3_node in cluster.internal_ips
+        proc0_node = status["env_servlet_processes"][proc0]["node_ip"]
+        proc1_node = status["env_servlet_processes"][proc1]["node_ip"]
+        proc2_node = status["env_servlet_processes"][proc2]["node_ip"]
+        proc3_node = status["env_servlet_processes"][proc3]["node_ip"]
+        assert proc0_node in cluster.internal_ips
+        assert proc1_node in cluster.internal_ips
+        assert proc2_node in cluster.internal_ips
+        assert proc3_node in cluster.internal_ips
 
-        assert env0_node != env1_node  # Too much CPU
-        assert env2_node != env3_node  # Too much memory
+        assert proc0_node != proc1_node  # Too much CPU
+        assert proc2_node != proc3_node  # Too much memory

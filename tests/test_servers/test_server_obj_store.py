@@ -10,13 +10,13 @@ def list_compare(list1, list2):
     return sorted(list1) == sorted(list2)
 
 
-ENV_NAME_OBJ_STORE = "test_obj_store"
+OBJ_STORE_NAME = "test_obj_store"
 
 
 @pytest.mark.servertest
-@pytest.mark.parametrize("obj_store", [ENV_NAME_OBJ_STORE], indirect=True)
+@pytest.mark.parametrize("obj_store", [OBJ_STORE_NAME], indirect=True)
 class TestObjStore:
-    """Start object store in a local base env servlet"""
+    """Start object store in a local base servlet"""
 
     @pytest.mark.level("unit")
     @pytest.mark.parametrize("key", ["k1", 123])
@@ -151,8 +151,8 @@ class TestObjStore:
         assert obj_store_2.get_servlet_name_for_key("k2") == obj_store_2.servlet_name
         assert obj_store_2.get_servlet_name_for_key("k3") == obj_store_2.servlet_name
 
-        # Technically, "k1" is only present on the base env servlet,
-        # and "k2" and "k3" are only present on the other env servlet
+        # Technically, "k1" is only present on the base servlet,
+        # and "k2" and "k3" are only present on the other servlet
         # These methods are static, we can run them from either store
         assert obj_store.keys_for_servlet_name(obj_store.servlet_name) == ["k1"]
         assert obj_store.get_from_servlet_name(obj_store.servlet_name, "k1") == "v1"
@@ -271,7 +271,7 @@ class TestObjStore:
         assert obj_store.get_from_servlet_name(obj_store.servlet_name, "k1") == "v1"
         assert obj_store.keys_for_servlet_name(obj_store_2.servlet_name) == []
 
-        # Testing of maintaining envs
+        # Testing of maintaining processes
         _, obj_store_3 = get_ray_servlet_and_obj_store("third")
         assert obj_store_3.keys() == ["k1"]
         obj_store_3.put("k2", "v2")
@@ -317,7 +317,7 @@ class TestObjStore:
 
 
 @pytest.mark.servertest
-@pytest.mark.parametrize("obj_store", [ENV_NAME_OBJ_STORE], indirect=True)
+@pytest.mark.parametrize("obj_store", [OBJ_STORE_NAME], indirect=True)
 class TestAuthCacheObjStore:
     """Start object store in a local auth cache servlet"""
 

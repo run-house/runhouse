@@ -19,9 +19,7 @@ TODO test with Den Auth and HTTPS enabled
 
 @pytest.mark.level("local")
 async def test_asgi_server(cluster):
-    fast_api_module = rh.asgi(app).to(
-        cluster, env=["pytest", "requests"], name="fast_api_module"
-    )
+    fast_api_module = rh.asgi(app).to(cluster, name="fast_api_module")
     assert isinstance(fast_api_module, rh.Asgi)
     assert fast_api_module.summer(1, 2) == 3
 

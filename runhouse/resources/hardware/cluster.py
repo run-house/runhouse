@@ -813,19 +813,19 @@ class Cluster(Resource):
             process (str, optional): Process of the object store to put the object in. (Default: ``None``)
         """
         # Logic to get env_name from different ways env can be provided
-        env_name = process or (
+        process = process or (
             resource.process if hasattr(resource, "process") else DEFAULT_PROCESS_NAME
         )
 
         state = state or {}
         if self.on_this_cluster():
             data = (resource.config(condensed=False), state, dryrun)
-            return obj_store.put_resource(serialized_data=data, process=env_name)
+            return obj_store.put_resource(serialized_data=data, process=process)
         return self.call_client_method(
             "put_resource",
             resource,
             state=state or {},
-            process=env_name,
+            process=process,
             dryrun=dryrun,
         )
 
