@@ -311,7 +311,7 @@ class TestModule:
         if cluster.on_this_cluster():
             remote_home = local_home
         else:
-            remote_home = cluster.run(["echo $HOME"])[0][1].strip()
+            remote_home = cluster.run_bash(["echo $HOME"])[0][1].strip()
 
         # Test classmethod on remote class
         assert RemoteClass.local_home() == local_home
@@ -399,7 +399,7 @@ class TestModule:
         if cluster.on_this_cluster():
             remote_home = local_home
         else:
-            remote_home = cluster.run(["echo $HOME"])[0][1].strip()
+            remote_home = cluster.run_bash(["echo $HOME"])[0][1].strip()
 
         # Test classmethod on remote instance
         assert remote_instance.local_home() == local_home
@@ -939,7 +939,7 @@ class TestModule:
         assert remote_editable_package_fn() == "Hello from the editable package!"
 
         cluster.delete("editable_package_function")
-        cluster.run("pip uninstall -y test_fake_package")
+        cluster.run_bash("pip uninstall -y test_fake_package")
 
     @pytest.mark.level("local")
     def test_import_editable_package_from_new_process(

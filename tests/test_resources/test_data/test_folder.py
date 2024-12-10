@@ -166,7 +166,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
     def test_cluster_folder_sync_upload(self, local_folder, cluster):
         cluster_dest = rh.Folder.DEFAULT_CACHE_FOLDER
         cluster.rsync(source=local_folder.path, dest=cluster_dest, up=True)
-        res = cluster.run([f"ls -l {cluster_dest}"])
+        res = cluster.run_bash([f"ls -l {cluster_dest}"])
 
         assert all(f"sample_file_{i}.txt" in res[0][1] for i in range(3))
 

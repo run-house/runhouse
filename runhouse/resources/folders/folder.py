@@ -352,7 +352,7 @@ class Folder(Resource):
                     # If user didn't specify a path, we can just return self
                     return self
                 else:
-                    dest_cluster.run(
+                    dest_cluster.run_bash(
                         [f"mkdir -p {dest_path}", f"cp -r {self.path}/* {dest_path}"],
                     )
             else:
@@ -377,14 +377,14 @@ class Folder(Resource):
             creds_file = cluster_creds.get("ssh_private_key")
             creds_cmd = f"-i '{creds_file}' " if creds_file else ""
 
-            dest_cluster.run([f"mkdir -p {dest_path}"])
+            dest_cluster.run_bash([f"mkdir -p {dest_path}"])
             command = (
                 f"rsync -Pavz --filter='dir-merge,- .gitignore' -e \"ssh {creds_cmd}"
                 f"-o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes "
                 f"-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes "
                 f'-o ControlMaster=auto -o ControlPersist=300s" {src_path}/ {dest_cluster.head_ip}:{dest_path}'
             )
-            status_codes = self.system.run([command])
+            status_codes = self.system.run_bash([command])
             if status_codes[0][0] != 0:
                 raise Exception(
                     f"Error syncing folder to destination cluster ({dest_cluster.name}). "
