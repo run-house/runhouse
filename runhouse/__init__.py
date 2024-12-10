@@ -1,8 +1,6 @@
 from runhouse.resources.asgi import Asgi, asgi
 from runhouse.resources.envs import conda_env, CondaEnv, env, Env
 from runhouse.resources.folders import Folder, folder, GCSFolder, S3Folder
-from runhouse.resources.functions.aws_lambda import LambdaFunction
-from runhouse.resources.functions.aws_lambda_factory import aws_lambda_fn
 from runhouse.resources.functions.function import Function
 from runhouse.resources.functions.function_factory import function
 

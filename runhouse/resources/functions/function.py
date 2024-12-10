@@ -84,16 +84,7 @@ class Function(Module):
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
             >>> rh.function(fn=local_fn).to(system=gpu_cluster, process=my_conda_env)
-            >>> rh.function(fn=local_fn).to(system='aws_lambda')  # will deploy the rh.function to AWS as a Lambda.
         """  # noqa: E501
-
-        if isinstance(system, str) and system.lower() == "lambda_function":
-            from runhouse.resources.functions.aws_lambda_factory import aws_lambda_fn
-
-            return aws_lambda_fn(
-                fn=self._get_obj_from_pointers(*self.fn_pointers),
-            )
-
         return super().to(system=system, process=process, name=name)
 
     # ----------------- Function call methods -----------------
