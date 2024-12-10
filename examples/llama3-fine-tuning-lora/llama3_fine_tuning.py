@@ -240,40 +240,41 @@ class FineTuner:
 # improve readability.
 # :::
 if __name__ == "__main__":
-    
-    # First, we define the environment for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
-    img = rh.Image(name="llama3").install_packages([
-            "torch",
-            "tensorboard",
-            "scipy",
-            "peft==0.4.0",
-            "bitsandbytes==0.40.2",
-            "transformers==4.31.0",
-            "trl==0.4.7",
-            "accelerate",
-        ]).sync_secrets(["huggingface"])
 
-    # Then, we launch a cluster with a GPU; 
+    # First, we define the image for our module. This includes the required dependencies that need
+    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
+    # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
+    img = (
+        rh.Image(name="llama3")
+        .install_packages(
+            [
+                "torch",
+                "tensorboard",
+                "scipy",
+                "peft==0.4.0",
+                "bitsandbytes==0.40.2",
+                "transformers==4.31.0",
+                "trl==0.4.7",
+                "accelerate",
+            ]
+        )
+        .sync_secrets(["huggingface"])
+    )
+
+    # Then, we launch a cluster with a GPU;
     cluster = rh.cluster(
         name="rh-a10x",
         accelerators="A10G:1",
         memory="32+",
+        image=img,
         provider="aws",
     ).up_if_not()
-
-
-    
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
     # by calling `cluster.get(name="llama3-medical-model")`. This would return the remote model after an initial run.
     # If we want to update the module each time we run this script, we prefer to use `to`.
-    #
-    # Note that we also pass the `env` object to the `to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
-    RemoteFineTuner = rh.module(FineTuner).to(cluster, env=env, name="FineTuner")
+    RemoteFineTuner = rh.module(FineTuner).to(cluster, name="FineTuner")
     fine_tuner_remote = RemoteFineTuner(name="llama3-medical-model")
 
     # ## Fine-tune the model on the cluster

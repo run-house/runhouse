@@ -219,15 +219,20 @@ if __name__ == "__main__":
     # We define the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets (not needed here) that need to be synced up from local to remote.
     # This is aggressively cached so during local iterative development, you do not need to worry about the image being rebuilt.
-    img = rh.Image(name = 'torch-vision').install_packages(["torch", "torchvision", "Pillow"])
-    
+    img = rh.Image(name="torch-vision").install_packages(
+        ["torch", "torchvision", "Pillow"]
+    )
+
     # Define a cluster type - here we launch an on-demand AWS cluster with 1 NVIDIA A10G GPU.
     # You can use any cloud you want, or existing compute
     cluster = rh.ondemand_cluster(
-        name="a10g-cluster", instance_type="A10G:1", provider="aws", image = img, launcher_type='den'
+        name="a10g-cluster",
+        instance_type="A10G:1",
+        provider="aws",
+        image=img,
+        launcher_type="den",
     ).up_if_not()
 
-    
     # We define our module and run it on the remote cluster. We take our normal Python class SimpleTrainer, and wrap it in rh.module()
     # We also take our function DownloadData and send it to the remote cluster as well
     # Then, we use `.to()` to send it to the remote cluster we just defined.

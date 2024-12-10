@@ -88,7 +88,7 @@ class TGIInference(rh.Module):
         start_time = time.time()
         timeout = 600
 
-        # Load the HF token which was synced onto the cluster as part of the env setup
+        # Load the HF token which was synced onto the cluster as part of the setup
         hf_secret = rh.secret(provider="huggingface")
         hf_token = hf_secret.values.get("token")
 
@@ -165,35 +165,32 @@ class TGIInference(rh.Module):
 # :::
 if __name__ == "__main__":
     port = 8080
+
+    # First, we define the image for our module. This includes the required dependencies that need
+    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
+    #
+    # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier. This is
+    # needed to download the model from the Hugging Face model hub. Runhouse will handle saving the token down
+    # on the cluster in the default Hugging Face token location (`~/.cache/huggingface/token`).
+    img = (
+        rh.Image(name="tgi_env")
+        .install_packages(["docker", "torch", "transformers"])
+        .sync_secrets(["huggingface"])
+    )
+
     cluster = rh.cluster(
         name="rh-g5-4xlarge",
         instance_type="g5.4xlarge",
         provider="aws",
+        image=img,
         open_ports=[port],
     ).up_if_not()
-
-    # Next, we define the environment for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    #
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier. This is
-    # needed to download the model from the Hugging Face model hub. Runhouse will handle saving the token down
-    # on the cluster in the default Hugging Face token location (`~/.cache/huggingface/token`).
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        name="tgi_env",
-        reqs=["docker", "torch", "transformers"],
-        secrets=["huggingface"],
-    )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
     # by the name `tgi_inference` if it was already put on the cluster. If we want to update the module each
     # time we run this script, we can use `to` instead of `get_or_to`.
-    #
-    # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
-    remote_tgi_model = TGIInference().get_or_to(cluster, env=env, name="tgi-inference")
+    remote_tgi_model = TGIInference().get_or_to(cluster, name="tgi-inference")
 
     # ## Sharing an inference endpoint
     # We can publish this module for others to use:

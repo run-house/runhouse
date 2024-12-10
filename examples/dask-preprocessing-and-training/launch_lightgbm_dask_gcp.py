@@ -2,12 +2,14 @@ import runhouse as rh
 
 # ## Dask + LightGBM Training
 if __name__ == "__main__":
-    # ## Create a Runhouse cluster with 2 nodes
+    # ## Create a Runhouse cluster with multiple nodes
     num_nodes = 3
     cluster_name = f"rh-{num_nodes}-dask-gcp-2"
 
     # The environment for the remote cluster
-    img = rh.Image("dask-env").install_packages(
+    img = (
+        rh.Image("dask-env")
+        .install_packages(
             [
                 "dask[distributed,dataframe]",
                 "dask-ml",
@@ -15,13 +17,15 @@ if __name__ == "__main__":
                 "lightgbm",
                 "bokeh",
             ],
-        ).set_env_vars(
+        )
+        .set_env_vars(
             {
                 "OMP_NUM_THREADS": "1",
                 "MKL_NUM_THREADS": "1",
                 "OPENBLAS_NUM_THREADS": "1",
             }
         )
+    )
 
     cluster = rh.ondemand_cluster(
         name=cluster_name,
@@ -32,7 +36,7 @@ if __name__ == "__main__":
         image=img,
         launcher_type="den",
     ).up_if_not()
-    
+
     # cluster.restart_server(resync_rh=True)
 
     # ## Setup the remote training
@@ -47,10 +51,10 @@ if __name__ == "__main__":
     # cluster.get('trainer', remote = True) to get the remote object
     # We also use .distribute("dask") to start the Dask cluster and indicate this will be used with Dask
     dask_trainer = remote_dask_trainer(name="my_trainer").distribute("dask")
-    
+
     # ## Do the processing and training on the remote cluster
     # Access the Dask client, data, and preprocess the data
-    data_path = "gs://rh-demo-external/output_parquet" # 2024 NYC Taxi Data
+    data_path = "gs://rh-demo-external/output_parquet"  # 2024 NYC Taxi Data
     X_vars = ["passenger_count", "trip_distance", "fare_amount"]
     y_var = "tip_amount"
     cluster.connect_dask()
@@ -69,6 +73,6 @@ if __name__ == "__main__":
     print("Model saved")
 
     # cluster.teardown() # Optionally, automatically teardown the cluster after training
-    
+
     print("Launching notebook")
     # cluster.notebook()  # Optionally, open a Jupyter notebook on the cluster to interact with the trained model

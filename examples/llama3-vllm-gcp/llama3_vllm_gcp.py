@@ -107,11 +107,24 @@ class LlamaModel:
 # contents are rendered as top-level code snippets, but they should be included in the `main` method for running.
 # :::
 async def main():
+
+    # First, we define the environment for our module. This includes the required dependencies that need
+    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
+    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
+    img = (
+        rh.Image(name="llama3inference")
+        .install_packages(
+            ["torch", "vllm==0.2.7"]  # >=0.3.0 causes pydantic version error
+        )
+        .sync_secrets(["huggingface"])
+    )
+
     gpu_cluster = rh.cluster(
         name="rh-l4x",
         instance_type="L4:1",
         memory="32+",
         provider="gcp",
+        image=img,
         autostop_mins=30,  # Number of minutes to keep the cluster up after inactivity
         # (Optional) Include the following to create exposed TLS endpoints:
         # open_ports=[443], # Expose HTTPS port to public
@@ -121,17 +134,6 @@ async def main():
 
     # We'll set an `autostop_mins` of 30 for this example. If you'd like your cluster to run indefinitely, set `autostop_mins=-1`.
     # You can use SkyPilot in the terminal to manage your active clusters with `sky status` and `sky down <cluster_id>`.
-    #
-    # Next, we define the environment for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        reqs=["torch", "vllm==0.2.7"],  # >=0.3.0 causes pydantic version error
-        secrets=["huggingface"],  # Needed to download Llama 3 from HuggingFace
-        name="llama3inference",
-    )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster

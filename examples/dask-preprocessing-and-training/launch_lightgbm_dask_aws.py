@@ -30,12 +30,13 @@ if __name__ == "__main__":
         num_nodes=num_nodes,
         provider="aws",
         launcher_type="local",
-        image = img, 
+        image=img,
     ).up_if_not()
 
     # ## Send the trainer class to the remote cluster and instantiate a remote object named 'my_trainer'
     # LightGBMModelTrainer is a completely normal class encapsulating training, that a researcher would also be able to use locally as-is
     from lightgbm_training import LightGBMModelTrainer
+
     remote_dask_trainer = rh.module(LightGBMModelTrainer).to(cluster)
 
     # Create is a locally callable, but remote instance of the trainer class

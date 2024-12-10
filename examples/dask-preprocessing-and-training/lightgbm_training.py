@@ -26,7 +26,7 @@ class LightGBMModelTrainer:
         import dask.dataframe as dd
 
         self.dataset = dd.read_parquet(data_path)
-        self.dataset=self.dataset.head(10)
+        self.dataset = self.dataset.head(10)
         print(self.dataset.columns)
 
     def train_test_split(self, target_var, features=None):
@@ -39,10 +39,10 @@ class LightGBMModelTrainer:
         y = self.dataset[target_var]
 
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            X, y, test_size=0.3, shuffle = False
+            X, y, test_size=0.3, shuffle=False
         )
         self.X_eval, self.X_train, self.y_eval, self.y_train = train_test_split(
-            self.X_test, self.y_test, test_size=0.5, shuffle = False
+            self.X_test, self.y_test, test_size=0.5, shuffle=False
         )
         self.features = features
 
@@ -55,6 +55,7 @@ class LightGBMModelTrainer:
 
     def train_model(self):
         import lightgbm as lgb
+
         self.load_client()
         self.model = lgb.DaskLGBMRegressor(client=self.client)
         self.model.fit(
