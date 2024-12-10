@@ -32,7 +32,7 @@ class ResourceStatusData(BaseModel):
     server_gpu_utilization: Optional[float]
     server_memory_usage: Dict[str, Any]
     server_gpu_usage: Optional[Dict[str, Any]]
-    env_servlet_processes: Dict[str, Dict[str, Any]]
+    servlet_processes: Dict[str, Dict[str, Any]]
     server_pid: int
     runhouse_version: str
 

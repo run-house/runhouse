@@ -608,7 +608,7 @@ class Cluster(Resource):
         env_vars = {}
         log_level = os.getenv("RH_LOG_LEVEL")
         if log_level:
-            # add log level to the default env to ensure it gets set on the cluster when the server is restarted
+            # add log level to the default image to ensure it gets set on the cluster when the server is restarted
             env_vars["RH_LOG_LEVEL"] = log_level
             logger.info(f"Using log level {log_level} on cluster's default env")
 
@@ -987,7 +987,7 @@ class Cluster(Resource):
             elif den_resp_status_code != 200:
                 logger.warning("Failed to send cluster status to Den")
 
-        if not configs.observability_enabled and status.get("env_servlet_processes"):
+        if not configs.observability_enabled and status.get("servlet_processes"):
             logger.warning(
                 "Cluster observability is disabled. Metrics are stale and will "
                 "no longer be collected. To re-enable observability, please "

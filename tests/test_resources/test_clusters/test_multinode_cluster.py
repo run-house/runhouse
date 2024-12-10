@@ -115,10 +115,10 @@ class TestMultiNodeCluster:
 
         status = cluster.status()
 
-        proc0_node = status["env_servlet_processes"][proc0]["node_ip"]
-        proc1_node = status["env_servlet_processes"][proc1]["node_ip"]
-        proc2_node = status["env_servlet_processes"][proc2]["node_ip"]
-        proc3_node = status["env_servlet_processes"][proc3]["node_ip"]
+        proc0_node = status["servlet_processes"][proc0]["node_ip"]
+        proc1_node = status["servlet_processes"][proc1]["node_ip"]
+        proc2_node = status["servlet_processes"][proc2]["node_ip"]
+        proc3_node = status["servlet_processes"][proc3]["node_ip"]
         assert proc0_node in cluster.internal_ips
         assert proc1_node in cluster.internal_ips
         assert proc2_node in cluster.internal_ips

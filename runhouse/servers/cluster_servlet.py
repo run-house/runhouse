@@ -256,7 +256,7 @@ class ClusterServlet:
     async def aput_servlet_name_for_key(self, key: Any, servlet_name: str):
         if not await self.ais_servlet_name_initialized(servlet_name):
             raise ValueError(
-                f"Env servlet name {servlet_name} not initialized, and you tried to mark a resource as in it."
+                f"Servlet name {servlet_name} not initialized, and you tried to mark a resource as in it."
             )
         self._key_to_servlet_name[key] = servlet_name
 
@@ -268,16 +268,16 @@ class ClusterServlet:
         self._key_to_servlet_name = {}
 
     ##############################################
-    # Remove Env Servlet
+    # Remove Servlet
     ##############################################
     async def aclear_all_references_to_servlet_name(self, servlet_name: str):
-        # using lock to prevent status thread access self._initialized_servlet_args before the env is deleted.
+        # using lock to prevent status thread access self._initialized_servlet_args before the process is deleted.
         with self.lock:
             del self._initialized_servlet_args[servlet_name]
             deleted_keys = [
                 key
-                for key, env in self._key_to_servlet_name.items()
-                if env == servlet_name
+                for key, process in self._key_to_servlet_name.items()
+                if process == servlet_name
             ]
             for key in deleted_keys:
                 self._key_to_servlet_name.pop(key)
@@ -292,7 +292,7 @@ class ClusterServlet:
         # making a copy so the status won't be modified with pop, since it will be returned after sending to den.
         # (status is passed as pointer).
         status_copy = copy.deepcopy(status)
-        servlet_processes = status_copy.pop("env_servlet_processes")
+        servlet_processes = status_copy.pop("servlet_processes")
 
         status_data = {
             "daemon_status": RunhouseDaemonStatus.RUNNING,
@@ -300,7 +300,7 @@ class ClusterServlet:
                 "resource_type", "cluster"
             ),
             "resource_info": status_copy,
-            "env_servlet_processes": servlet_processes,
+            "servlet_processes": servlet_processes,
         }
 
         client = httpx.AsyncClient()
@@ -486,14 +486,14 @@ class ClusterServlet:
         function_running = any(
             any(
                 len(
-                    resource["env_resource_mapping"][resource_name].get(
+                    resource["process_resource_mapping"][resource_name].get(
                         "active_function_calls", []
                     )
                 )
                 > 0
-                for resource_name in resource["env_resource_mapping"].keys()
+                for resource_name in resource["process_resource_mapping"].keys()
             )
-            for resource in status.get("env_servlet_processes", {}).values()
+            for resource in status.get("servlet_processes", {}).values()
         )
         if function_running:
             await self.autostop_helper.set_last_active_time_to_now()
@@ -520,7 +520,7 @@ class ClusterServlet:
             }
 
         # Need to catch the exception here because we're running this in a gather,
-        # and need to know which env servlet failed
+        # and need to know which servlet failed
         except Exception as e:
             return {"servlet_name": servlet_name, "Exception": e}
 
@@ -600,7 +600,7 @@ class ClusterServlet:
         # Popping out creds because we don't want to show them in the status
         config_cluster.pop("creds", None)
 
-        # Getting data from each env servlet about the objects it contains and the utilization data
+        # Getting data from each servlet about the objects it contains and the utilization data
         servlet_utilization_data = {}
         with self.lock:
             servlets_status = await asyncio.gather(
@@ -610,7 +610,7 @@ class ClusterServlet:
                 ],
             )
 
-        # Store the data for the appropriate env servlet name
+        # Store the data for the appropriate servlet name
         for env_status in servlets_status:
             servlet_name = env_status.get("servlet_name")
 
@@ -618,14 +618,14 @@ class ClusterServlet:
             if "Exception" in env_status.keys():
                 e = env_status.get("Exception")
                 logger.warning(
-                    f"Exception {str(e)} in status for env servlet {servlet_name}"
+                    f"Exception {str(e)} in status for servlet {servlet_name}"
                 )
                 servlet_utilization_data[servlet_name] = {}
 
             else:
-                # Store what was in the env and the utilization data
+                # Store what was in the process and the utilization data
                 env_memory_info = env_status.get("servlet_utilization_data")
-                env_memory_info["env_resource_mapping"] = env_status.get(
+                env_memory_info["process_resource_mapping"] = env_status.get(
                     "objects_in_servlet"
                 )
                 servlet_utilization_data[servlet_name] = env_memory_info
@@ -672,7 +672,7 @@ class ClusterServlet:
             "cluster_config": config_cluster,
             "runhouse_version": runhouse.__version__,
             "server_pid": self.pid,
-            "env_servlet_processes": servlet_utilization_data,
+            "servlet_processes": servlet_utilization_data,
             "server_cpu_utilization": cpu_utilization,
             "server_gpu_utilization": gpu_utilization,
             "server_memory_usage": memory_usage,

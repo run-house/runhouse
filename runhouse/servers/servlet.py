@@ -107,8 +107,7 @@ class Servlet:
         # Ray defaults to setting OMP_NUM_THREADS to 1, which unexpectedly limit parallelism in user programs.
         # We delete it by default, but if we find that the user explicitly set it to another value, we respect that.
         # This is really only a factor if the user set the value inside the VM or container, or inside the base_env
-        # which a cluster was initialized with. If they set it inside the env constructor and the env was sent to the
-        # cluster normally with .to, it will be set after this point.
+        # which a cluster was initialized with.
         # TODO this had no effect when we did it below where we set CUDA_VISIBLE_DEVICES, so we may need to move that
         #  here and mirror the same behavior (setting it based on the detected gpus in the whole cluster may not work
         #  for multinode, but popping it may also break things, it needs to be tested).
@@ -132,7 +131,7 @@ class Servlet:
         if is_gpu_cluster():
             logger.debug("Creating _periodic_gpu_check thread.")
             collect_gpu_thread = threading.Thread(
-                target=self._collect_env_gpu_usage, daemon=True
+                target=self._collect_process_gpu_usage, daemon=True
             )
             collect_gpu_thread.start()
 
@@ -250,7 +249,7 @@ class Servlet:
     async def aclear_local(self):
         return await obj_store.aclear_local()
 
-    def _get_env_cpu_usage(self, cluster_config: dict = None):
+    def _get_process_cpu_usage(self, cluster_config: dict = None):
 
         total_memory = psutil.virtual_memory().total
         node_ip = get_node_ip()
@@ -292,7 +291,7 @@ class Servlet:
             node_index,
         )
 
-    def _get_env_gpu_usage(self):
+    def _get_process_gpu_usage(self):
         # currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
 
         collected_gpus_info = copy.deepcopy(self.gpu_metrics)
@@ -304,8 +303,8 @@ class Servlet:
             collected_gpus_info=collected_gpus_info, servlet_type=ServletType.env
         )
 
-    def _collect_env_gpu_usage(self):
-        """periodically collects env gpu usage"""
+    def _collect_process_gpu_usage(self):
+        """periodically collects gpu usage"""
 
         pynvml.nvmlInit()  # init nvidia ml info collection
 
@@ -366,11 +365,13 @@ class Servlet:
             servlet_pid,
             node_ip,
             node_index,
-        ) = self._get_env_cpu_usage(cluster_config)
+        ) = self._get_process_cpu_usage(cluster_config)
 
         # Try loading GPU data (if relevant)
-        env_gpu_usage = (
-            self._get_env_gpu_usage() if cluster_config.get("has_cuda", False) else {}
+        process_gpu_usage = (
+            self._get_process_gpu_usage()
+            if cluster_config.get("has_cuda", False)
+            else {}
         )
 
         cluster_config = obj_store.cluster_config
@@ -391,11 +392,11 @@ class Servlet:
                 self.gpu_metrics = None
 
         servlet_utilization_data = {
-            "env_gpu_usage": env_gpu_usage,
+            "process_gpu_usage": process_gpu_usage,
             "node_ip": node_ip,
             "node_name": node_name,
             "node_index": node_index,
-            "env_cpu_usage": env_memory_usage,
+            "process_cpu_usage": env_memory_usage,
             "pid": servlet_pid,
         }
 
