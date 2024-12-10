@@ -1786,36 +1786,6 @@ class Cluster(Resource):
 
         return return_codes
 
-    def run(
-        self,
-        commands: Union[str, List[str]],
-        process: str = None,
-        stream_logs: bool = True,
-        require_outputs: bool = True,
-        node: Optional[str] = None,
-        _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
-    ) -> List:
-        # Backwards compatibility, maintaining the old behavior where `node` forced an ssh call, else http.
-        logger.warning(
-            "cluster.run is deprecated. Please use cluster.run_bash with your running clusters to run things remotely."
-        )
-
-        if node is not None:
-            return self.run_bash_over_ssh(
-                commands,
-                node=node,
-                stream_logs=stream_logs,
-                require_outputs=require_outputs,
-                _ssh_mode=_ssh_mode,
-            )
-        else:
-            return self.run_bash(
-                commands,
-                process=process,
-                stream_logs=stream_logs,
-                require_outputs=require_outputs,
-            )
-
     def _run_commands_with_runner(
         self,
         commands: list,
