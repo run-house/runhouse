@@ -41,9 +41,7 @@ jobs:
       - name: Teardown all clusters
         if: always()
         run: |
-          sky status
-          sky down --all -y
-          sky status
+          runhouse cluster down --all -y
 
   cluster-tests:
     runs-on: ubuntu-latest
@@ -74,15 +72,13 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "clustertest and not ondemand" --detached
+        run: pytest --level release tests -k "cluster and not ondemand and not TestMultiNodeCluster" --detached
         timeout-minutes: 60
 
       - name: Teardown all cluster-tests clusters
         if: always()
         run: |
-          sky status
-          sky down --all -y
-          sky status
+          runhouse cluster down --all -y
 
   ondemand-aws-tests:
     runs-on: ubuntu-latest
@@ -122,9 +118,7 @@ jobs:
       - name: Teardown all ondemand-aws-tests clusters
         if: always()
         run: |
-          sky status
-          sky down --all -y
-          sky status
+          runhouse cluster down --all -y
 
   ondemand-aws-multinode-tests:
     runs-on: ubuntu-latest
@@ -161,9 +155,7 @@ jobs:
       - name: Teardown all ondemand-aws-multinode clusters
         if: always()
         run: |
-          sky status
-          sky down --all -y
-          sky status
+          runhouse cluster down --all -y
 
 
   ondemand-gcp-tests:
@@ -201,9 +193,7 @@ jobs:
       - name: Teardown all ondemand-gcp-tests clusters
         if: always()
         run: |
-          sky status
-          sky down --all -y
-          sky status
+          runhouse cluster down --all -y
 
   kubernetes-tests:
     runs-on: ubuntu-latest
@@ -240,9 +230,7 @@ jobs:
       - name: Teardown all kubernetes-tests clusters
         if: always()
         run: |
-          sky status
-          sky down --all -y
-          sky status
+          runhouse cluster down --all -y
 
   check-cluster-status:
     if: always()
