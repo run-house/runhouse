@@ -51,16 +51,15 @@ the ``numpy`` package to return the sum of the two input arguments.
 
 We set up the function on the cluster by
 
--  wrapping it with ``rh.function(np_env)``
--  sending it ``.to(cluster)``
--  specifying dependencies with ``env=["numpy"]``
+- wrapping it with ``rh.function(np_env)``
+- sending it ``.to(cluster)``
 
 When this is called, the underlying code is synced over and dependencies
 are set up.
 
 .. code:: ipython3
 
-    remote_np_sum = rh.function(np_sum).to(cluster, env=["numpy"])
+    remote_np_sum = rh.function(np_sum).to(cluster)
 
 
 .. parsed-literal::
@@ -138,11 +137,11 @@ If you have a native Python class that you would like to run remotely,
 you can directly convert it into a Runhouse Module via the ``rh.module``
 factory function.
 
--  Pass in the Python class to ``rh.module()``
--  Call ``.to(cluster)`` to sync the class across to the cluster
--  Create a class instance and call their functions just as you would a
-   locally defined class. The function runs remotely, and returns the
-   result locally.
+- Pass in the Python class to ``rh.module()``
+- Call ``.to(cluster)`` to sync the class across to the cluster
+- Create a class instance and call their functions just as you would a
+  locally defined class. The function runs remotely, and returns the
+  result locally.
 
 .. code:: ipython3
 
@@ -179,8 +178,54 @@ factory function.
 
     from bert_module import BERT
 
-    my_gpu = rh.cluster(name="rh-a10g", instance_type="A10G:1").up_if_not()
-    RemoteBERT = rh.module(BERT).to(my_gpu, env=rh.env(reqs=["torch", "transformers"]))
+    img = rh.Image("my_image").install_packages(["torch", "transformers"])
+
+    my_gpu = rh.cluster(name="rh-a10g", instance_type="A10G:1", image = img).up_if_not()
+    RemoteBERT = rh.module(BERT).to(my_gpu)
+
+
+
+.. parsed-literal::
+    :class: code-output
+
+    Output()
+
+
+
+.. raw:: html
+
+    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"></pre>
+
+
+
+
+.. raw:: html
+
+    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace">
+    </pre>
+
+
+
+
+.. parsed-literal::
+    :class: code-output
+
+    Output()
+
+
+
+.. raw:: html
+
+    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"></pre>
+
+
+
+
+.. raw:: html
+
+    <pre style="white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace">
+    </pre>
+
 
 
 .. parsed-literal::
