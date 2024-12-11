@@ -41,7 +41,7 @@ def get_last_active_time_without_register(cluster):
     )
     sky_python_cmd = f"~/skypilot-runtime/bin/python -c {register_activity_cmd}"
 
-    retcode, out, err = cluster.run(sky_python_cmd)[0]
+    retcode, out, err = cluster.run_bash(sky_python_cmd)[0]
     if retcode != 0:
         raise Exception(f"Error when getting last active time: {err}")
     return float(out)
@@ -127,7 +127,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
     @pytest.mark.level("minimal")
     def test_restart_does_not_change_config_yaml(self, cluster):
         assert cluster.up_if_not()
-        config_yaml_res = cluster.run("cat ~/.rh/config.yaml")
+        config_yaml_res = cluster.run_bash("cat ~/.rh/config.yaml")
         assert config_yaml_res[0][0] == 0
         config_yaml_content = config_yaml_res[0][1]
 
@@ -139,7 +139,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
         with friend_account():
             cluster.restart_server()
-            config_yaml_res_after_restart = cluster.run("cat ~/.rh/config.yaml")
+            config_yaml_res_after_restart = cluster.run_bash("cat ~/.rh/config.yaml")
             assert config_yaml_res_after_restart[0][0] == 0
             config_yaml_content_after_restart = config_yaml_res[0][1]
             assert config_yaml_content_after_restart == config_yaml_content
@@ -255,7 +255,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
     @pytest.mark.level("release")
     def test_docker_container_reqs(self, ondemand_aws_docker_cluster):
-        ret_code = ondemand_aws_docker_cluster.run("pip freeze | grep torch")[0][0]
+        ret_code = ondemand_aws_docker_cluster.run_bash("pip freeze | grep torch")[0][0]
         assert ret_code == 0
 
     @pytest.mark.level("release")

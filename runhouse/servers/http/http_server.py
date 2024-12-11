@@ -352,7 +352,10 @@ class HTTPServer:
                 )
 
             elif params.node:
-                if params.node not in obj_store.get_internal_ips():
+                if (
+                    params.node not in obj_store.get_internal_ips()
+                    and params.node != "localhost"
+                ):
                     raise ValueError(
                         f"Node {params.node} not a valid internal IP on the cluster."
                     )

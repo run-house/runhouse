@@ -184,13 +184,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.clustertest
     def test_cluster_recreate(self, cluster):
         # Create underlying ssh connection if not already
-        cluster.run(["echo hello"])
+        cluster.run_bash(["echo hello"])
         num_open_tunnels = len(rh.globals.ssh_tunnel_cache)
 
         # Create a new cluster object for the same remote cluster
         cluster.save()
         new_cluster = rh.cluster(cluster.rns_address)
-        new_cluster.run(["echo hello"])
+        new_cluster.run_bash(["echo hello"])
         # Check that the same underlying ssh connection was used
         assert len(rh.globals.ssh_tunnel_cache) == num_open_tunnels
 
@@ -399,10 +399,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert shared_cluster.rns_address == cluster_name
             assert shared_cluster.creds_values.keys() == cluster_creds.keys()
             echo_msg = "hello from shared cluster"
-            run_res = shared_cluster.run([f"echo {echo_msg}"])
+            run_res = shared_cluster.run_bash([f"echo {echo_msg}"])
             assert echo_msg in run_res[0][1]
             # First element, return code
-            assert shared_cluster.run(["echo hello"])[0][0] == 0
+            assert shared_cluster.run_bash(["echo hello"])[0][0] == 0
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -452,7 +452,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             )
 
         # Docker clusters are logged out, ondemand clusters are logged in
-        output = cluster.run("sed -n 's/.*token: *//p' ~/.rh/config.yaml")
+        output = cluster.run_bash("sed -n 's/.*token: *//p' ~/.rh/config.yaml")
         # No config file
         if output[0][0] == 2:
             assert unassumed_token is None
@@ -586,7 +586,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         default_process_name = DEFAULT_PROCESS_NAME
 
         cluster.put(key="status_key2", obj="status_value2")
-        status_output_response = cluster.run(
+        status_output_response = cluster.run_bash_over_ssh(
             [status_cli_command], _ssh_mode="non_interactive"
         )[0]
         assert status_output_response[0] == 0
@@ -676,7 +676,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_rh_status_stopped(self, cluster):
         try:
             cluster_name = cluster.name
-            cluster.run(["runhouse server stop"])
+            cluster.run_bash(["runhouse server stop"])
             res = subprocess.check_output(["runhouse", "status", cluster_name]).decode(
                 "utf-8"
             )
@@ -690,7 +690,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             )
             assert error_txt in res
         finally:
-            cluster.run(["runhouse server restart"])
+            cluster.run_bash(["runhouse server restart"])
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -806,7 +806,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             if isinstance(req, str) and "_" in req:
                 # e.g. pytest_asyncio
                 req = req.replace("_", "-")
-                assert cluster.run(f"pip freeze | grep {req}")[0][0] == 0
+                assert cluster.run_bash(f"pip freeze | grep {req}")[0][0] == 0
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -814,7 +814,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         if not cluster.image or not cluster.image.conda_env_name:
             pytest.skip("Default process is not in a conda env")
 
-        assert cluster.image.conda_env_name in cluster.run("conda info --envs")[0][1]
+        assert (
+            cluster.image.conda_env_name in cluster.run_bash("conda info --envs")[0][1]
+        )
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -832,7 +834,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         assert env_vars
         for var in env_vars.keys():
-            res = cluster.run([f"echo ${var}"])
+            res = cluster.run_bash([f"echo ${var}"])
             assert res[0][0] == 0
             assert env_vars[var] in res[0][1]
 
@@ -845,7 +847,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_cluster_run_within_cluster(self, cluster):
         remote_run = rh.function(run_in_no_env).to(cluster)
         res = remote_run("echo hello")
-        exp = cluster.run("echo hello")
+        exp = cluster.run_bash("echo hello")
 
         assert res[0][0] == 0
         assert res[0][1].strip() == exp[0][1].strip()
@@ -953,7 +955,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             rh.configs.disable_observability()
             cluster.restart_server()
 
-            res = cluster.run(["echo $disable_observability"])
+            res = cluster.run_bash(["echo $disable_observability"])
             assert "True" in res[0][1]
 
     ####################################################################################################
