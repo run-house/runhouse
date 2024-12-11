@@ -30,7 +30,7 @@ and details of the server. For printing cluster's status outside the cluster, it
 
 .. code:: ipython3
 
-    !runhouse cluster status
+    !runhouse cluster status <cluster_name>
 
 *CPU cluster*
 
@@ -53,11 +53,13 @@ and details of the server. For printing cluster's status outside the cluster, it
         • autostop mins: autostop disabled
     CPU Utilization: 5.4%
     Serving 🍦 :
-    • _cluster_default_env (runhouse.Env)
-        This environment has only python packages installed, if provided. No resources were found.
-    • np_pd_env (runhouse.Env) | pid: 29621 | node: head (52.91.194.125)
+    • default_process | pid: 98745 | node: worker_0
+        CPU: 0.2% | Memory: 0.1 / 8 Gb (0.01%)
+        • default_process
+    • test_env | pid: 63254 | node: worker_0
+        This process has only python packages installed, if provided. No resources were found.
+    • np_pd_env | pid: 29621 | node: worker_0
         CPU: 0.3% | Memory: 0.1 / 8 Gb (0.01%)
-        • np_pd_env (runhouse.Env)
         • summer (runhouse.Function) Currently not running
         • mult (runhouse.Function) Running for 2.484918 seconds
 
@@ -83,17 +85,18 @@ and details of the server. For printing cluster's status outside the cluster, it
         • autostop mins: autostop disabled
     CPU Utilization: 12.8% | GPU Utilization: 7.07%
     Serving 🍦 :
-    • _cluster_default_env (runhouse.Env)
-        This environment has only python packages installed, if provided. No resources were found.
-    • np_pd_env (runhouse.Env) | pid: 29809 | node: head (3.92.223.118)
+    • default_process | pid: 12536 | node: worker_0
+        CPU: 0.2% | Memory: 0.1 / 16 Gb (0.01%)
+        • default_process
+    • test_env | pid: 18746 | node: worker_0
+        This process has only python packages installed, if provided. No resources were found.
+    • np_pd_env | pid: 29809 | node: head (3.92.223.118)
         CPU: 0.4% | Memory: 0.1 / 16 Gb (0.01%)
-        • np_pd_env (runhouse.Env)
         • summer (runhouse.Function) Currently not running
         • mult (runhouse.Function) Currently not running
-    • sd_env (runhouse.Env) | pid: 32054 | node: head (3.92.223.118)
+    • sd_env | pid: 32054 | node: worker_0
         CPU: 40.1% | Memory: 2.87 / 16 Gb (0.19%)
         GPU Memory: 3.38 / 23 Gb (14.7%)
-        • sd_env (runhouse.Env)
         • sd_generate (runhouse.Function) Running for 26.578614 seconds
 
 

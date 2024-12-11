@@ -241,7 +241,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
         # case where the default env doesn't hve any other resources, apart from the default env itself.
         console.print(f"{BULLET_UNICODE} {default_process_name}")
         console.print(
-            f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if provided. No "
+            f"{DOUBLE_SPACE_UNICODE}This process has only python packages installed, if provided. No "
             "resources were found."
         )
 
@@ -332,7 +332,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
         if len(resources_in_env) == 0:
             # No resources were found in the env, only the associated installed python reqs were installed.
             console.print(
-                f"{DOUBLE_SPACE_UNICODE}This environment has only python packages installed, if provided. "
+                f"{DOUBLE_SPACE_UNICODE}This process has only python packages installed, if provided. "
                 f"No resources were found."
             )
 
