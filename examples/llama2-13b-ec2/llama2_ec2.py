@@ -116,7 +116,6 @@ if __name__ == "__main__":
         instance_type="A10G:1",
         provider="aws",
         image=img,
-        launcher_type="den",
     ).up_if_not()
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call

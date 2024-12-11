@@ -26,12 +26,12 @@ if __name__ == "__main__":
 
     logger.info("Step 1: Bring up cluster")
     cpu_cluster_config = {
-        "cluster_name": "cpu-cluster-test",
+        "cluster_name": "cpu-cluster",
         "instance_type": "r6i.xlarge",
         "provider": "aws",
     }
     gpu_cluster_config = {
-        "cluster_name": "gpu-cluster-test",
+        "cluster_name": "gpu-cluster",
         "accelerators": "L4:1",
         "provider": "gcp",
     }

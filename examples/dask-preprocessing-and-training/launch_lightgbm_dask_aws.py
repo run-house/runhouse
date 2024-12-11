@@ -3,7 +3,7 @@ import runhouse as rh
 if __name__ == "__main__":
     # ## Create a Runhouse cluster with multiple nodes
     num_nodes = 2
-    cluster_name = f"py-new-{num_nodes}"
+    cluster_name = f"rh-new-{num_nodes}"
 
     img = (
         rh.Image("dask-img")
@@ -29,7 +29,6 @@ if __name__ == "__main__":
         instance_type="r5d.xlarge",
         num_nodes=num_nodes,
         provider="aws",
-        launcher_type="local",
         image=img,
     ).up_if_not()
 

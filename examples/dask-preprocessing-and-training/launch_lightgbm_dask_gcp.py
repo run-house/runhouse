@@ -34,7 +34,6 @@ if __name__ == "__main__":
         provider="gcp",
         region="us-east1",
         image=img,
-        launcher_type="den",
     ).up_if_not()
 
     # cluster.restart_server(resync_rh=True)

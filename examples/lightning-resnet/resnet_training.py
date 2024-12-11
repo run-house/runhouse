@@ -1,5 +1,3 @@
-# from runhouse.resources.images.image import Image
-
 import subprocess
 
 import boto3
