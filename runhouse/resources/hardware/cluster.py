@@ -2104,7 +2104,7 @@ class Cluster(Resource):
                 if node == self.head_ip
                 else remote_scheduler_address
             )
-            self.run(
+            self.run_bash_over_ssh(
                 f"nohup dask worker {scheduler} --host {self.internal_ips[idx]} {worker_options_str} > dask_worker.out 2>&1 &",
                 node=node,
             )
