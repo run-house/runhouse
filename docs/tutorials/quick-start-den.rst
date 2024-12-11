@@ -6,7 +6,7 @@ Den Quick Start
     <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-den.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
-With `Runhouse Den <https://www.run.house/dashboard%3E>`__, you can
+With `Runhouse Den <https://www.run.house/dashboard>`__, you can
 manage all of your compute and make it available through ephemeral
 clusters for both research and production workflows. Whether you have a
 ML platforms team or just yourself, Runhouse is the easiest way to
@@ -41,7 +41,7 @@ A few of the ways Runhouse Den has helped teams include:
 If you haven’t already, check-out
 `Quickstart <https://www.run.house/docs/tutorials/quick-start-cloud>`__
 or the `Runhouse usage
-guide <https://www.run.house/docs/main/en/how-to-use-runhouse%3E>`__ to
+guide <https://www.run.house/docs/main/en/how-to-use-runhouse>`__ to
 see how you can get started with the Runhouse client as well.
 
 Installing Runhouse
@@ -74,7 +74,7 @@ policies, please reach out at `hello@run.house <hello@run.house>`__.
 Launching and Saving Clusters
 -----------------------------
 
-Let’s start by constructing some runhouse resources that we’d like to
+Let’s start by constructing some Runhouse resources that we’d like to
 save.
 
 .. code:: ipython3
@@ -82,7 +82,7 @@ save.
     import runhouse as rh
     cluster = rh.ondemand_cluster(
         name="rh-cluster",
-        instance_type="CPU:2+",
+        cpus="4",
         provider="aws"
     ).up_if_not()
 
