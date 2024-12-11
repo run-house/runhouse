@@ -1,5 +1,4 @@
 from runhouse.resources.asgi import Asgi, asgi
-from runhouse.resources.envs import conda_env, CondaEnv, env, Env
 from runhouse.resources.folders import Folder, folder, GCSFolder, S3Folder
 from runhouse.resources.functions.function import Function
 from runhouse.resources.functions.function_factory import function
