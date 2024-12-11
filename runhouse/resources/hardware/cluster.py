@@ -2076,7 +2076,7 @@ class Cluster(Resource):
         )
 
         # Note: We need to do this on the head node too, because this creates all the worker processes
-        for node in self.ips:
+        for idx, node in enumerate(self.ips):
             logger.info(f"Starting Dask worker on {node}.")
             # Connect to localhost if on the head node, otherwise use the internal ip of head node
             scheduler = (
@@ -2084,8 +2084,8 @@ class Cluster(Resource):
                 if node == self.head_ip
                 else remote_scheduler_address
             )
-            self.run_bash_over_ssh(
-                f"nohup dask worker {scheduler} {worker_options_str} > dask_worker.out 2>&1 &",
+            self.run(
+                f"nohup dask worker {scheduler} --host {self.internal_ips[idx]} {worker_options_str} > dask_worker.out 2>&1 &",
                 node=node,
             )
 
