@@ -114,8 +114,8 @@ over HTTP to the remote object on the cluster.
             ..
 
       if __name__ == "__main__":
-         my_env = rh.env(reqs=["torch"], name="my-env") # Define the need for PyTorch
-         RemoteTrainer = rh.module(TorchTrainer).to(cluster, env=my_env) # Send to cluster
+         cluster.install_packages(["torch"])
+         RemoteTrainer = rh.module(TorchTrainer).to(cluster) # Send to cluster
          trainer = RemoteTrainer(name='remote-instance-of-trainer') # Instantiate remote object
 
 .. note::
@@ -154,7 +154,7 @@ Calling microservices is actually a familiar pattern in programming; however, no
 
 4. Saving and Loading
 ^^^^^^^^^^^^^^^^^^^^^
-Runhouse resources (clusters, functions, modules, environments) can be saved, shared, and reused based on a compact
+Runhouse resources (clusters, functions, modules) can be saved, shared, and reused based on a compact
 JSON metadata signature. This allows for easy sharing of clusters and services across users and environments. For instance,
 the team might want to use a single shared embeddings service to save costs and improve reproducibility.
 
@@ -210,16 +210,20 @@ reusing the object and cluster by name across steps.
 
       @task()
       def up_and_dispatch():
+            image = (
+                rh.Image("base_setup")
+                .from_docker("nvcr.io/nvidia/pytorch:23.10-py3")
+                .install_packages(["torch"])
+            )
             cluster = rh.ondemand_cluster(
                   name="rh-cluster",
                   instance_type="A10G:1",
                   provider="aws",
-                  image_id="docker:nvcr.io/nvidia/pytorch:23.10-py3",
+                  image=image,
             ).up_if_not()
 
             from my_code import TorchTrainer
-            my_env = rh.env(reqs=["torch"], name="my-env")
-            RemoteTrainer = rh.module(TorchTrainer).to(cluster, env=my_env)
+            RemoteTrainer = rh.module(TorchTrainer).to(cluster)
             trainer = RemoteTrainer(name='remote-instance-of-trainer')
 
       @task()
