@@ -172,7 +172,7 @@ if __name__ == "__main__":
     # Generally, when using Runhouse, you would initialize an image with `rh.Image`, and send your module to
     # a process. Each process runs in a *separate process* on the cluster. In this case, we want to have 4 copies of the
     # embedding model in separate processes, because we have 4 GPUs. We can do this by creating 4 separate processes
-    # and 4 separate modules, each sent to a separate processes. We do this in a loop here, with a list of dependencies
+    # and 4 separate modules, each sent to a separate process. We do this in a loop here, with a list of dependencies
     # that we need remotely to run the module.
     #
     # In this case, each `process` is also on a separate machine, but we could also provision an A10G:4 instance,
