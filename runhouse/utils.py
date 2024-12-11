@@ -88,7 +88,7 @@ def install_conda(cluster: "Cluster" = None, node: Optional[str] = None):
 
 def create_conda_env_on_cluster(
     conda_env_name: str,
-    conda_yaml: Dict,
+    conda_config: Dict,
     force: bool = False,
     cluster: "Cluster" = None,
     node: Optional[str] = None,
@@ -114,12 +114,12 @@ def create_conda_env_on_cluster(
                     "import yaml",
                     "from pathlib import Path",
                     f"path = Path('{ENVS_DIR}').expanduser()",
-                    f"yaml.dump({conda_yaml}, open(path / '{conda_env_name}.yml', 'w'))",
+                    f"yaml.dump({conda_config}, open(path / '{conda_env_name}.yml', 'w'))",
                 ]
             )
             subprocess.run(f'python -c "{python_commands}"', shell=True)
         else:
-            contents = yaml.dump(conda_yaml)
+            contents = yaml.dump(conda_config)
             run_setup_command(
                 f"echo $'{contents}' > {yaml_path}", cluster=cluster, node=node
             )

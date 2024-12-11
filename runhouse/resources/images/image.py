@@ -46,7 +46,7 @@ class Image:
             >>>     rh.Image(name="base_image")
             >>>     .setup_conda_env(
             >>>         conda_env_name="base_env",
-            >>>         conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
+            >>>         conda_config={"dependencies": ["python=3.11"], "name": "base_env"},
             >>>     )
             >>>     .install_packages(["numpy", "pandas"])
             >>>     .set_env_vars({"OMP_NUM_THREADS": 1})
@@ -160,18 +160,18 @@ class Image:
         )
         return self
 
-    def setup_conda_env(self, conda_env_name: str, conda_yaml: Union[str, Dict]):
+    def setup_conda_env(self, conda_env_name: str, conda_config: Union[str, Dict]):
         """Setup Conda env
 
         Args:
             conda_env_name (str): Name of conda env to create.
-            conda_yaml (str or Dict): Path or Dict referring to the conda yaml config to use to create the conda env.
+            conda_config (str or Dict): Path or Dict referring to the conda yaml config to use to create the conda env.
         """
         self.setup_steps.append(
             ImageSetupStep(
                 step_type=ImageSetupStepType.SETUP_CONDA_ENV,
                 conda_env_name=conda_env_name,
-                conda_yaml=conda_yaml,
+                conda_config=conda_config,
             )
         )
         self.conda_env_name = conda_env_name

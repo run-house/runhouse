@@ -97,7 +97,7 @@ def ondemand_gcp_cluster(request):
         Image(name="default_image")
         .setup_conda_env(
             conda_env_name="base_env",
-            conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
+            conda_config={"dependencies": ["python=3.11"], "name": "base_env"},
         )
         .install_packages(TEST_REQS + ["ray==2.30.0"], conda_env_name="base_env")
         .set_env_vars(env_vars=TEST_ENV_VARS)
@@ -201,7 +201,7 @@ def multinode_cpu_docker_conda_cluster(request):
         .from_docker("rayproject/ray:latest-py311-cpu")
         .setup_conda_env(
             conda_env_name="base_env",
-            conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
+            conda_config={"dependencies": ["python=3.11"], "name": "base_env"},
         )
         .install_packages(TEST_REQS + ["ray==2.30.0"], conda_env_name="base_env")
     )
