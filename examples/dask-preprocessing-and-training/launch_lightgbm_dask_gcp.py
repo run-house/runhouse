@@ -3,12 +3,12 @@ import runhouse as rh
 # ## Dask + LightGBM Training
 if __name__ == "__main__":
     # ## Create a Runhouse cluster with multiple nodes
-    num_nodes = 3
-    cluster_name = f"rh-{num_nodes}-dask-gcp-2"
+    num_nodes = 2
+    cluster_name = f"rh-{num_nodes}-dask-gcp"
 
     # The environment for the remote cluster
     img = (
-        rh.Image("dask-env")
+        rh.Image("dask-img")
         .install_packages(
             [
                 "dask[distributed,dataframe]",

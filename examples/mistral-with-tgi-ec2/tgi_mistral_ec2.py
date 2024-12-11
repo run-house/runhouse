@@ -147,10 +147,8 @@ if __name__ == "__main__":
     port = 8080
     # First, we define the compute and the image. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    img = (
-        rh.Image(name="tgi_env")
-        .install_packages(["docker", "openai", "torch", "transformers"])
-        .sync_secrets(["huggingface"])
+    img = rh.Image(name="tgi_image").install_packages(
+        ["docker", "openai", "torch", "transformers"]
     )
 
     cluster = rh.cluster(
@@ -160,6 +158,8 @@ if __name__ == "__main__":
         image=img,
         open_ports=[port],
     ).up_if_not()
+
+    cluster.sync_secrets(["huggingface"])
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module

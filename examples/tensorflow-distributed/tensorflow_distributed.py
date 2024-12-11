@@ -53,7 +53,9 @@ async def train():
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
         instance_type=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,
+        provider="aws",
     ).up_if_not()
+
     train_workers = []
     tf_config = {
         "cluster": {
@@ -71,7 +73,6 @@ async def train():
             )
 
             # While iterating, you can kill the worker processes to stop any pending or hanging calls
-            # cluster.delete(env.name)
             train_worker = rh.function(train_process).to(cluster, process=proc)
             train_workers.append(train_worker)
 

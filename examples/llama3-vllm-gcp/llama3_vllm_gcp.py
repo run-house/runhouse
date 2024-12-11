@@ -111,17 +111,13 @@ async def main():
     # First, we define the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
     # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
-    img = (
-        rh.Image(name="llama3inference")
-        .install_packages(
-            ["torch", "vllm==0.2.7"]  # >=0.3.0 causes pydantic version error
-        )
-        .sync_secrets(["huggingface"])
+    img = rh.Image(name="llama3inference").install_packages(
+        ["torch", "vllm==0.2.7"]  # >=0.3.0 causes pydantic version error
     )
 
     gpu_cluster = rh.cluster(
         name="rh-l4x",
-        instance_type="L4:1",
+        accelerators="L4:1",
         memory="32+",
         provider="gcp",
         image=img,
@@ -131,6 +127,8 @@ async def main():
         # server_connection_type="tls", # Specify how runhouse communicates with this cluster
         # den_auth=False, # No authentication required to hit this cluster (NOT recommended)
     ).up_if_not()
+
+    gpu_cluster.sync_secrets(["huggingface"])
 
     # We'll set an `autostop_mins` of 30 for this example. If you'd like your cluster to run indefinitely, set `autostop_mins=-1`.
     # You can use SkyPilot in the terminal to manage your active clusters with `sky status` and `sky down <cluster_id>`.

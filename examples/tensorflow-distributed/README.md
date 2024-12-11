@@ -2,7 +2,7 @@
 
 A basic example showing how to use Runhouse to Pythonically run a TensorFlow distributed training script on a
 cluster of GPUs. We use the `TF_CONFIG` environment variable to set up the distributed training environment, and
-create a separate worker (env) for each rank. We then call the replicas concurrently to trigger coordinated
+create a separate worker for each rank. We then call the replicas concurrently to trigger coordinated
 multi-node training. We're using two single-GPU instances (and therefore two ranks) with the
 MultiWorkerMirroredStrategy, but this same strategy could be used for other TensorFlow distributed strategies.
 

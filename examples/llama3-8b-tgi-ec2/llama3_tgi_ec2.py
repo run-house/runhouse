@@ -160,10 +160,8 @@ if __name__ == "__main__":
     # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier. This is
     # needed to download the model from the Hugging Face model hub. Runhouse will handle saving the token down
     # on the cluster in the default Hugging Face token location (`~/.cache/huggingface/token`).
-    img = (
-        rh.Image(name="tgi_env")
-        .install_packages(["docker", "torch", "transformers"])
-        .sync_secrets(["huggingface"])
+    img = rh.Image(name="tgi_image").install_packages(
+        ["docker", "torch", "transformers"]
     )
 
     cluster = rh.cluster(
@@ -175,6 +173,8 @@ if __name__ == "__main__":
         autostop_mins=30,  # Number of minutes to keep the cluster up after inactivity, -1 for indefinite
         open_ports=[port],  # Expose HTTP port to public
     ).up_if_not()
+
+    cluster.sync_secrets(["huggingface"])
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster

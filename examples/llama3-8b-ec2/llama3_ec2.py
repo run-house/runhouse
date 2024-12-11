@@ -122,7 +122,7 @@ if __name__ == "__main__":
     )
 
     gpu = rh.cluster(
-        name="rh-a10x", instance_type="A10G:1", memory="32+", provider="aws", image=img
+        name="rh-a10x", accelerators="A10G:1", memory="32+", provider="aws", image=img
     ).up_if_not()
 
     gpu.sync_secrets(["huggingface"])

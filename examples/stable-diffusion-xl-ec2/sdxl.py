@@ -64,22 +64,10 @@ class StableDiffusionXLPipeline:
     def _load_pipeline(self):
         import torch
         from diffusers import DiffusionPipeline
-        from huggingface_hub import snapshot_download
-
-        if not self._model_loaded_on_disk():
-            # save compiled model to local directory
-            # Downloads our compiled model from the HuggingFace Hub
-            # and makes sure we exclude the symlink files and "hidden" files, like .DS_Store, .gitignore, etc.
-            snapshot_download(
-                self.model_id,
-                local_dir=self.model_dir,
-                local_dir_use_symlinks=False,
-                allow_patterns=["[!.]*.*"],
-            )
 
         # load local converted model into pipeline
         self.pipeline = DiffusionPipeline.from_pretrained(
-            self.model_dir, device_ids=[0, 1], torch_dtype=torch.float16
+            self.model_id, torch_dtype=torch.float16
         )
         self.pipeline.to("cuda")
 
@@ -124,18 +112,13 @@ if __name__ == "__main__":
     # First, we define the image for our execution. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
     # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
-    img = (
-        rh.Image(name="sdxl_inference")
-        .install_packages(
-            [
-                "diffusers==0.21.4",
-                "huggingface_hub",
-                "torch",
-                "transformers==4.31.0",
-                "accelerate==0.21.0",
-            ]
-        )
-        .sync_secrets(["huggingface"])
+    img = rh.Image(name="sdxl_inference").install_packages(
+        [
+            "diffusers==0.31.0",
+            "torch",
+            "transformers==4.31.0",
+            "accelerate==0.21.0",
+        ]
     )
 
     cluster = rh.cluster(
@@ -144,6 +127,7 @@ if __name__ == "__main__":
         provider="aws",
         image=img,
     ).up_if_not()
+    cluster.sync_secrets(["huggingface"])
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster

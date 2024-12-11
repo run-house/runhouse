@@ -169,18 +169,30 @@ if __name__ == "__main__":
         image=img,
     ).up_if_not()
 
+    # Generally, when using Runhouse, you would initialize an image with `rh.Image`, and send your module to
+    # processes. Each process runs in a *separate process* on the cluster. In this case, we want to have 4 copies of the
+    # embedding model in separate processes, because we have 4 GPUs. We can do this by creating 4 separate processes
+    # and 4 separate modules, each sent to a separate processes. We do this in a loop here, with a list of dependencies
+    # that we need remotely to run the module.
+    #
+    # In this case, each `processes` is also on a separate machine, but we could also provision an A10G:4 instance,
+    # and send all 4 processes to the same machine. Each process runs within a separate process on the machine, so they
+    # won't interfere with each other.
+    #
     # Note that we send the `URLEmbedder` class to the cluster, and then can construct our modules using the
     # returned "remote class" instead of the normal local class. These instances are then actually constructed
     # on the cluster, and any methods called on these instances would run on the cluster.
-    RemoteURLEmbedder = rh.module(URLEmbedder).to(cluster)
 
+    process = cluster.ensure_process_created("langchain_embed_env")
+
+    RemoteURLEmbedder = rh.module(URLEmbedder).to(cluster, process=process)
     remote_url_embedder = RemoteURLEmbedder(
         model_name_or_path="BAAI/bge-large-en-v1.5",
         device="cuda",
         name="doc_embedder",
     )
     embedder_pool = remote_url_embedder.distribute(
-        "pool", replicas=num_replicas, replicas_per_node=1, max_concurrency=32
+        "pool", num_replicas=num_replicas, replicas_per_node=1, max_concurrency=32
     )
 
     # ## Calling the Runhouse modules in parallel

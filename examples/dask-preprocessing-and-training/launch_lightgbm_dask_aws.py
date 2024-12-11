@@ -6,7 +6,7 @@ if __name__ == "__main__":
     cluster_name = f"py-new-{num_nodes}"
 
     img = (
-        rh.Image("dask-env")
+        rh.Image("dask-img")
         .install_packages(
             [
                 "dask[distributed,dataframe]",

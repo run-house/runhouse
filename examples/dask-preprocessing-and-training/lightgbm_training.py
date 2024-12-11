@@ -24,7 +24,6 @@ class LightGBMModelTrainer:
         import dask.dataframe as dd
 
         self.dataset = dd.read_parquet(data_path)
-        self.dataset = self.dataset.head(10)
         print(self.dataset.columns)
 
     def train_test_split(self, target_var, features=None):
