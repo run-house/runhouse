@@ -81,34 +81,28 @@ To use a cluster that’s already running:
 If you do not have a cluster up, but have cloud credentials (e.g. AWS,
 Google Cloud, Azure) for launching clusters or a kubeconfig for an
 existing Kubernetes cluster, you can set up and launch an on-demand
-cluster with ``rh.ondemand_cluster``. This uses SkyPilot under the hood,
-so run ``sky check`` in a CLI first to make sure credentials are set up
-properly.
+cluster with ``rh.ondemand_cluster``. You can either use Runhouse’s
+launcher service by signing up for an account, or using local SkyPilot
+under the hood (run ``sky check`` in a CLI first to make sure
+credentials are set up properly).
 
 .. code:: ipython3
 
     cluster = rh.ondemand_cluster(
         name="rh-cluster",
-        instance_type="CPU:2+",
-        provider="aws",
-        autostop_mins=60,
-        launcher="local",
+        cpus="4",
+        provider="aws" # gcp, kubernetes, etc.
     )
     cluster.up_if_not()
 
 There are a number of options to specify the resources more finely, such
-as GPUs (``instance_type="A10G:4"``), cloud provider names
-(``instance_type="m5.xlarge"``), ``num_nodes=n`` for multiple
-instances, ``memory``, ``disk_size``, ``region``, ``image_id``,
-``open_ports``, ``spot``, and more. See the `on_demand_cluster
+as GPUs (``accelerators="A10G:4"``), cloud provider names
+(``instance_type="m5.xlarge"``), ``num_nodes=n`` for multiple instances,
+``memory``, ``disk_size``, ``region``, ``image_id``, ``open_ports``,
+``spot``, and more. See the `on_demand_cluster
 docs <https://www.run.house/docs/api/python/cluster#runhouse.ondemand_cluster>`__.
 You can also omit the provider argument to allocate from the cheapest
 available source for which you have credentials.
-
-Notice the launcher is `local`, which means that Runhouse will launch a cluster
-with your local credentials. In a production setting, we expect folks to generally
-launch with Den, and authenticate with Runhouse rather than moving keys and secrets around,
-or giving everyone individual permissions to launch clusters.
 
 Deploy Code to the Cluster
 --------------------------
@@ -134,8 +128,6 @@ class have persisted state, enabling powerful usage patterns.
     INFO | 2024-05-16 03:20:53.081995 | Forwarding port 32301 to port 32300 on localhost.
     INFO | 2024-05-16 03:20:54.215570 | Server rh-cluster is up.
     INFO | 2024-05-16 03:20:54.224806 | Copying package from file:///Users/donny/code/notebooks to: rh-cluster
-    INFO | 2024-05-16 03:20:55.395007 | Calling _cluster_default_env.install
-    INFO | 2024-05-16 03:20:55.948421 | Time to call _cluster_default_env.install: 0.55 seconds
     INFO | 2024-05-16 03:20:55.960756 | Sending module get_platform of type <class 'runhouse.resources.functions.function.Function'> to rh-cluster
 
 

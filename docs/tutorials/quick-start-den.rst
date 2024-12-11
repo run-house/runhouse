@@ -6,12 +6,12 @@ Den Quick Start
     <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-den.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
-With `Runhouse Den <https://www.run.house/dashboard>`__, you can manage
-all of your compute and make it available through ephemeral clusters for
-both research and production workflows. Whether you have a ML platforms
-team or just yourself, Runhouse is the easiest way to ensure your
-compute is efficiently utilized and oversubscribed without slowing down
-development velocity.
+With `Runhouse Den <https://www.run.house/dashboard>`__, you can
+manage all of your compute and make it available through ephemeral
+clusters for both research and production workflows. Whether you have a
+ML platforms team or just yourself, Runhouse is the easiest way to
+ensure your compute is efficiently utilized and oversubscribed without
+slowing down development velocity.
 
 - Centrally manage multiple cloud accounts and Kubernetes clusters in
   the same place.
@@ -41,8 +41,18 @@ A few of the ways Runhouse Den has helped teams include:
 If you haven’t already, check-out
 `Quickstart <https://www.run.house/docs/tutorials/quick-start-cloud>`__
 or the `Runhouse usage
-guide <https://www.run.house/docs/main/en/how-to-use-runhouse>`__ to see
-how you can get started with the Runhouse client as well.
+guide <https://www.run.house/docs/main/en/how-to-use-runhouse>`__ to
+see how you can get started with the Runhouse client as well.
+
+Installing Runhouse
+-------------------
+
+To use Runhouse to launch on-demand clusters, run the following
+installation command.
+
+.. code:: ipython3
+
+    !pip install "runhouse"
 
 Account Creation & Login
 ------------------------
@@ -72,9 +82,8 @@ save.
     import runhouse as rh
     cluster = rh.ondemand_cluster(
         name="rh-cluster",
-        instance_type="CPU:2+",
-        provider="aws",
-        launcher="den"
+        cpus="4",
+        provider="aws"
     ).up_if_not()
 
 .. code:: ipython3
@@ -94,8 +103,6 @@ save.
     INFO | 2024-05-16 03:51:58.494347 | Forwarding port 32301 to port 32300 on localhost.
     INFO | 2024-05-16 03:51:59.587613 | Server rh-cluster is up.
     INFO | 2024-05-16 03:51:59.595752 | Copying package from file:///Users/donny/code/notebooks to: rh-cluster
-    INFO | 2024-05-16 03:52:00.716693 | Calling _cluster_default_env.install
-    INFO | 2024-05-16 03:52:01.235732 | Time to call _cluster_default_env.install: 0.52 seconds
     INFO | 2024-05-16 03:52:01.252665 | Sending module get_platform of type <class 'runhouse.resources.functions.function.Function'> to rh-cluster
 
 
