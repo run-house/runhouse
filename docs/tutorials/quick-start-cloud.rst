@@ -115,10 +115,8 @@ Deploy Code to the Cluster
 
 Simply wrap the function in ``rh.function`` and send it to the cluster
 with ``.to``. This deploys the function to the cluster as a service by
-syncing over the code, setting up any specified Runhouse environment
-(see `Envs <https://www.run.house/docs/tutorials/api-envs>`__ or
-dependencies, environment variables, secrets, conda environments),
-importing the synced code, and serving it in the Runhouse API server.
+syncing over the code, importing the synced code, and serving it in the
+Runhouse API server.
 
 Classes, or ``Modules`` are also supported. Remote instances of a remote
 class have persisted state, enabling powerful usage patterns.
