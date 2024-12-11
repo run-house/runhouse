@@ -75,14 +75,13 @@ are set up.
     :class: code-output
 
     ----------
-    [36mrh-cluster[0m
+    [36mrh-cluster[0m
     ----------
-    [36mInstalling Package: numpy with method pip.
-    [0m[36mRunning: pip install numpy
-    [0m[36mInstalling Package: notebooks with method reqs.
-    [0m[36mreqs path: notebooks/requirements.txt
-    [0m[36mnotebooks/requirements.txt not found, skipping
-    [0m
+    [36mInstalling Package: numpy with method pip.
+    [0m[36mRunning: pip install numpy
+    [0m[36mInstalling Package: notebooks with method reqs.
+    [0m[36mreqs path: notebooks/requirements.txt
+    [0m[36mnotebooks/requirements.txt not found, skipping
 
 .. parsed-literal::
     :class: code-output
@@ -196,13 +195,12 @@ factory function.
     :class: code-output
 
     -------
-    [36mrh-a10g[0m
+    [36mrh-a10g
     -------
-    [36mInstalling Package: torch with method pip.
-    [0m[36mInstalling Package: transformers with method pip.
-    [0m[36mInstalling Package: ~/notebooks with method reqs.
-    [0m[36m/home/ubuntu/notebooks/requirements.txt not found, skipping
-    [0m
+    [36mInstalling Package: torch with method pip.
+    [0m[36mInstalling Package: transformers with method pip.
+    [0m[36mInstalling Package: ~/notebooks with method reqs.
+    [0m[36m/home/ubuntu/notebooks/requirements.txt not found, skipping
 
 .. parsed-literal::
     :class: code-output
@@ -309,10 +307,9 @@ being run on the cluster.
 .. parsed-literal::
     :class: code-output
 
-    [36mInstalling Package: notebooks with method reqs.
-    [0m[36mreqs path: notebooks/requirements.txt
-    [0m[36mnotebooks/requirements.txt not found, skipping
-    [0m
+    [36mInstalling Package: notebooks with method reqs.
+    [0m[36mreqs path: notebooks/requirements.txt
+    [0m[36mnotebooks/requirements.txt not found, skipping
 
 .. parsed-literal::
     :class: code-output

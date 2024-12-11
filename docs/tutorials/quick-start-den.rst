@@ -103,8 +103,6 @@ save.
     INFO | 2024-05-16 03:51:58.494347 | Forwarding port 32301 to port 32300 on localhost.
     INFO | 2024-05-16 03:51:59.587613 | Server rh-cluster is up.
     INFO | 2024-05-16 03:51:59.595752 | Copying package from file:///Users/donny/code/notebooks to: rh-cluster
-    INFO | 2024-05-16 03:52:00.716693 | Calling _cluster_default_env.install
-    INFO | 2024-05-16 03:52:01.235732 | Time to call _cluster_default_env.install: 0.52 seconds
     INFO | 2024-05-16 03:52:01.252665 | Sending module get_platform of type <class 'runhouse.resources.functions.function.Function'> to rh-cluster
 
 

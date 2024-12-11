@@ -128,8 +128,6 @@ class have persisted state, enabling powerful usage patterns.
     INFO | 2024-05-16 03:20:53.081995 | Forwarding port 32301 to port 32300 on localhost.
     INFO | 2024-05-16 03:20:54.215570 | Server rh-cluster is up.
     INFO | 2024-05-16 03:20:54.224806 | Copying package from file:///Users/donny/code/notebooks to: rh-cluster
-    INFO | 2024-05-16 03:20:55.395007 | Calling _cluster_default_env.install
-    INFO | 2024-05-16 03:20:55.948421 | Time to call _cluster_default_env.install: 0.55 seconds
     INFO | 2024-05-16 03:20:55.960756 | Sending module get_platform of type <class 'runhouse.resources.functions.function.Function'> to rh-cluster
 
 
