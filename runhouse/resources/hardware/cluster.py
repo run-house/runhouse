@@ -1072,7 +1072,6 @@ class Cluster(Resource):
         restart_ray: bool = True,
         restart_proxy: bool = False,
     ):
-        from runhouse.resources.envs import Env
 
         image_secrets, image_env_vars = self._sync_image_to_cluster()
 
@@ -1220,7 +1219,6 @@ class Cluster(Resource):
         if restart_ray and len(self.ips) > 1:
             self._start_ray_workers(DEFAULT_RAY_PORT, env_vars=image_env_vars)
 
-        self.put_resource(Env(name=DEFAULT_PROCESS_NAME))
         if image_secrets:
             self.sync_secrets(image_secrets)
 
