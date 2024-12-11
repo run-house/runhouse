@@ -175,7 +175,7 @@ if __name__ == "__main__":
     # and 4 separate modules, each sent to a separate processes. We do this in a loop here, with a list of dependencies
     # that we need remotely to run the module.
     #
-    # In this case, each `processes` is also on a separate machine, but we could also provision an A10G:4 instance,
+    # In this case, each `process` is also on a separate machine, but we could also provision an A10G:4 instance,
     # and send all 4 processes to the same machine. Each process runs within a separate process on the machine, so they
     # won't interfere with each other.
     #
