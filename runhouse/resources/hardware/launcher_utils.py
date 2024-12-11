@@ -8,7 +8,11 @@ import requests
 import runhouse as rh
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
-from runhouse.resources.hardware.utils import _cluster_set_autostop_command, SSEClient
+from runhouse.resources.hardware.utils import (
+    _cluster_set_autostop_command,
+    ClusterStatus,
+    SSEClient,
+)
 from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content, read_resp_data
 from runhouse.utils import ClusterLogsFormatter, Spinner
 
@@ -259,6 +263,7 @@ class DenLauncher(Launcher):
                 payload=payload,
                 cluster_name=cluster_config.get("name"),
             )
+            cluster._cluster_status = ClusterStatus.RUNNING
             cls._update_from_den_response(cluster=cluster, config=data)
             return
 
@@ -275,6 +280,7 @@ class DenLauncher(Launcher):
             )
         data = read_resp_data(resp)
         logger.info("Successfully launched cluster")
+        cluster._cluster_status = ClusterStatus.RUNNING
         cls._update_from_den_response(cluster=cluster, config=data)
 
     @classmethod
@@ -301,8 +307,7 @@ class DenLauncher(Launcher):
                 cluster_name=cluster_name,
                 payload=payload,
             )
-            cluster.compute_properties["ips"] = []
-            cluster.compute_properties["internal_ips"] = []
+            cluster._cluster_status = ClusterStatus.TERMINATED
             return
 
         # Run blocking call, with no streaming
@@ -316,8 +321,7 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.TEARDOWN_URL}': Failed to "
                 f"teardown cluster: {load_resp_content(resp)}"
             )
-        cluster.compute_properties["ips"] = []
-        cluster.compute_properties["internal_ips"] = []
+        cluster._cluster_status = ClusterStatus.TERMINATED
 
 
 class LocalLauncher(Launcher):
@@ -403,8 +407,7 @@ class LocalLauncher(Launcher):
         import sky
 
         sky.down(cluster.name)
-        cluster.compute_properties["ips"] = []
-        cluster.compute_properties["internal_ips"] = []
+        cluster._cluster_status = ClusterStatus.TERMINATED
         cluster._http_client = None
 
         # Save to Den with updated null IPs
