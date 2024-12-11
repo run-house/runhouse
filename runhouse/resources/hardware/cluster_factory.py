@@ -123,6 +123,12 @@ def cluster(
                 # If the the user changed the image and wants to restart the server to apply the new
                 # changes, we need to update the image in the cluster object
                 c.image = image or c.image
+                if kwargs.get("autostop_mins") and c.autostop_mins != kwargs.get(
+                    "autostop_mins"
+                ):
+                    c.autostop_mins = kwargs.get("autostop_mins")
+                if launcher:
+                    c.launcher = launcher
                 if den_auth:
                     c.save()
                 return c
@@ -443,6 +449,9 @@ def ondemand_cluster(
                 # If the the user changed the image and wants to restart the server to apply the new
                 # changes, we need to update the image in the cluster object
                 c.image = image or c.image
+                if autostop_mins and autostop_mins != c.autostop_mins:
+                    c.autostop_mins = autostop_mins
+                c.launcher = launcher or c.launcher
                 if den_auth:
                     c.save()
                 return c
