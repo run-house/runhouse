@@ -11,7 +11,7 @@ from runhouse.resources.hardware import (
     ondemand_cluster,
     OnDemandCluster,
 )
-from runhouse.resources.images.image import Image
+from runhouse.resources.images import Image
 
 # WARNING: Any built-in module that is imported here must be capitalized followed by all lowercase, or we will
 # will not find the module class when attempting to reconstruct it from a config.

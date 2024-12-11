@@ -36,6 +36,11 @@ and rich debugging and accessibility interfaces built-in.
 .. toctree::
    :maxdepth: 1
 
+   python/image
+
+.. toctree::
+   :maxdepth: 1
+
    python/package
 
 .. toctree::

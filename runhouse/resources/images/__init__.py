@@ -1,1 +1,1 @@
-from .image import Image, ImageSetupStepType
+from .image import Image, ImageSetupStep, ImageSetupStepType
