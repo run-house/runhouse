@@ -404,10 +404,10 @@ def ondemand_cluster(
             f"local ~/.rh/config.yaml."
         )
 
-    if instance_type and any([memory, disk_size, num_cpus, accelerators]):
+    if instance_type and any([memory, disk_size, num_cpus]):
         raise ValueError(
             "Resources are over-specified. Cannot specify both `instance_type` and any of `memory`, `disk_size`, "
-            "`num_cpus`, or `accelerators`."
+            "or `num_cpus`."
         )
 
     if name:
