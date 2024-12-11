@@ -3,7 +3,7 @@ import pytest
 import runhouse as rh
 
 from tests.conftest import init_args
-from tests.utils import test_env
+from tests.utils import setup_test_base
 
 
 @pytest.fixture(scope="session")
@@ -44,6 +44,6 @@ def static_cpu_pwd_cluster():
     c.restart_server(resync_rh=True)
     init_args[id(c)] = args
 
-    test_env().to(c)
+    setup_test_base(c)
 
     return c

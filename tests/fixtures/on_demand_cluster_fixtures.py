@@ -8,8 +8,8 @@ from runhouse.constants import DEFAULT_HTTPS_PORT
 from runhouse.resources.images.image import Image
 from tests.conftest import init_args
 
-from tests.constants import TEST_ENV_VARS
-from tests.utils import test_env
+from tests.constants import TEST_ENV_VARS, TEST_REQS
+from tests.utils import setup_test_base
 
 NUM_OF_NODES = 2
 
@@ -19,7 +19,7 @@ def restart_server(request):
     return request.config.getoption("--restart-server")
 
 
-def setup_test_cluster(args, request, create_env=False):
+def setup_test_cluster(args, request, setup_base=False):
     cluster = rh.ondemand_cluster(**args)
     init_args[id(cluster)] = args
     cluster.up_if_not()
@@ -28,8 +28,8 @@ def setup_test_cluster(args, request, create_env=False):
 
     cluster.save()
 
-    if create_env or not cluster.image:
-        test_env().to(cluster)
+    if setup_base or not cluster.image:
+        setup_test_base(cluster)
     return cluster
 
 
@@ -52,7 +52,7 @@ def ondemand_cluster(request):
 @pytest.fixture(scope="session")
 def ondemand_aws_docker_cluster(request):
     """
-    Note: Also used to test docker and default env with alternate Ray version.
+    Note: Also used to test docker and default process with alternate Ray version.
     """
     image = (
         Image(name="default_image")
@@ -67,7 +67,7 @@ def ondemand_aws_docker_cluster(request):
         "image": image,
         "sky_kwargs": {"launch": {"retry_until_up": True}},
     }
-    cluster = setup_test_cluster(args, request, create_env=True)
+    cluster = setup_test_cluster(args, request, setup_base=True)
     return cluster
 
 
@@ -99,7 +99,7 @@ def ondemand_gcp_cluster(request):
             conda_env_name="base_env",
             conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
         )
-        .install_packages(test_env().reqs + ["ray==2.30.0"], conda_env_name="base_env")
+        .install_packages(TEST_REQS + ["ray==2.30.0"], conda_env_name="base_env")
         .set_env_vars(env_vars=TEST_ENV_VARS)
     )
     args = {
@@ -203,7 +203,7 @@ def multinode_cpu_docker_conda_cluster(request):
             conda_env_name="base_env",
             conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
         )
-        .install_packages(test_env().reqs + ["ray==2.30.0"], conda_env_name="base_env")
+        .install_packages(TEST_REQS + ["ray==2.30.0"], conda_env_name="base_env")
     )
     args = {
         "name": "rh-cpu-multinode",

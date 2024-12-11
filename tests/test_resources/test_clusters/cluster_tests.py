@@ -132,9 +132,7 @@ def test_byo_proxy(static_cpu_pwd_cluster, local_folder):
     assert status == 0
     assert stdout == "hi\n"
 
-    summer_func = rh.function(summer, env=rh.env(working_dir="local:./")).to(
-        static_cpu_pwd_cluster
-    )
+    summer_func = rh.function(summer).to(static_cpu_pwd_cluster)
     assert summer_func(1, 2) == 3
 
     static_cpu_pwd_cluster.put("test_obj", list(range(10)))

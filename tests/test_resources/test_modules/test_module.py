@@ -117,7 +117,7 @@ class SlowPandas(rh.Module):
 
 
 class ModuleConstructingOtherModule:
-    def construct_and_get_env(self):
+    def construct_and_get_process(self):
         remote_calc = rh.module(Calculator)()
         return remote_calc.process
 
@@ -918,12 +918,9 @@ class TestModule:
 
     @pytest.mark.level("local")
     def test_construct_module_on_cluster(self, cluster):
-        env = rh.env(
-            name="test_env",
-            reqs=["pandas", "numpy"],
-        ).to(cluster)
+        process = cluster.ensure_process_created("test_env")
         remote_constructor_module = rh.module(ConstructorModule)().to(
-            cluster, process=env.name
+            cluster, process=process
         )
         remote_constructor_module.construct_module_on_cluster()
 
@@ -945,7 +942,7 @@ class TestModule:
         cluster.run("pip uninstall -y test_fake_package")
 
     @pytest.mark.level("local")
-    def test_import_editable_package_from_new_env(
+    def test_import_editable_package_from_new_process(
         self, cluster, installed_editable_package_copy
     ):
         importlib_reload(site)
@@ -959,9 +956,9 @@ class TestModule:
         )
 
         # Now send this to the remote cluster and test that it can still be imported and used
-        env = rh.env(name="fresh_env", reqs=["numpy"]).to(cluster)
+        process = cluster.ensure_process_created("fresh_process")
         remote_editable_package_module = rh.module(TestModuleFromPackage).to(
-            cluster, process=env.name
+            cluster, process=process
         )
         assert (
             remote_editable_package_module.hello_world()
@@ -969,15 +966,12 @@ class TestModule:
         )
 
     @pytest.mark.level("local")
-    def test_module_constructed_on_cluster_is_in_same_env(self, cluster):
-        env = rh.env(
-            name="special_env",
-            reqs=["pandas", "numpy"],
-        ).to(cluster)
+    def test_module_constructed_on_cluster_is_in_same_process(self, cluster):
+        process = cluster.ensure_process_created("special_process")
         remote_module = rh.module(ModuleConstructingOtherModule).to(
-            system=cluster, process=env.name
+            system=cluster, process=process
         )
-        assert remote_module.construct_and_get_env() == env.name
+        assert remote_module.construct_and_get_process() == process
 
     @pytest.mark.level("local")
     def test_logs_stream_in_nested_call(self, cluster):
@@ -985,13 +979,14 @@ class TestModule:
         RemoteClass = rh.module(SlowNumpyArray).to(cluster)
         remote_instance = RemoteClass(size=size, name="remote_instance1")
 
-        # TODO test in same env (works as of 4-Nov-24)
+        # TODO test in same process (works as of 4-Nov-24)
         # remote_helper_call = rh.function(nested_call_logs_stream_helper).to(cluster)
 
-        # Send to different env
-        helper_env = rh.env(name="helper_env", reqs=["pandas", "numpy"]).to(cluster)
+        # Send to different process
+
+        helper_process = cluster.ensure_process_created("helper_process")
         remote_helper_call = rh.function(nested_call_logs_stream_helper).to(
-            cluster, process=helper_env.name
+            cluster, process=helper_process
         )
 
         # TODO test with slow_iter call because not working with generator as of 4-Nov-24

@@ -28,7 +28,7 @@ from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatu
 
 from runhouse.resources.images.image import ImageSetupStepType
 
-from runhouse.utils import _process_env_vars, generate_default_name
+from runhouse.utils import _process_env_vars
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
@@ -99,22 +99,22 @@ def run_in_no_env(cmd):
 
 
 def run_node_all(cmd):
-    # This forces `cluster.run` to use ssh instead of calling an env run
+    # This forces `cluster.run` to use ssh instead of calling a process run
     return rh.here.run(cmd, node="all")
 
 
-def sort_servlet_processes(servlet_processes: dict):
+def sort_env_servlet_processes(env_servlet_processes: dict):
     """helping function for the test_send_status_to_db test, sort the servlet_processed dict (including its sub
     dicts) by their keys."""
-    keys = list(servlet_processes.keys())
+    keys = list(env_servlet_processes.keys())
     keys.sort()
-    sorted_servlet_processes = {}
+    sorted_env_servlet_processes = {}
     for k in keys:
-        sub_keys = list(servlet_processes[k].keys())
+        sub_keys = list(env_servlet_processes[k].keys())
         sub_keys.sort()
-        nested_dict = {i: servlet_processes[k][i] for i in sub_keys}
-        sorted_servlet_processes[k] = nested_dict
-    return sorted_servlet_processes
+        nested_dict = {i: env_servlet_processes[k][i] for i in sub_keys}
+        sorted_env_servlet_processes[k] = nested_dict
+    return sorted_env_servlet_processes
 
 
 class TestCluster(tests.test_resources.test_resource.TestResource):
@@ -263,39 +263,32 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert cluster.get(k2) == "v2"
 
         # Make new env
-        rh.env(reqs=["numpy"], name="numpy_env").to(cluster)
-        assert "numpy_env" in cluster.keys()
+        cluster.ensure_process_created("numpy_env")
 
         k3 = get_random_str()
         cluster.put(k3, "v3", process="numpy_env")
         assert k3 in cluster.keys()
         assert cluster.get(k3) == "v3"
 
+    @pytest.mark.skip("pending cluster.kill functionality")
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_cluster_delete_env(self, cluster):
-        env1 = rh.env(reqs=["pytest"], name="env1").to(cluster)
-        env2 = rh.env(reqs=["pytest"], name="env2").to(cluster)
-        env3 = rh.env(reqs=["pytest"], name="env3")
+    def test_cluster_delete_process(self, cluster):
+        proc1 = cluster.ensure_process_created("p1")
+        proc2 = cluster.ensure_process_created("p2")
 
-        cluster.put("k1", "v1", process=env1.name)
-        cluster.put("k2", "v2", process=env2.name)
-        cluster.put_resource(env3, process=env1.name)
+        cluster.put("k1", "v1", process=proc1)
+        cluster.put("k2", "v2", process=proc2)
 
         # test delete env2
-        assert cluster.get(env2.name)
+        assert cluster.get(proc2)
         assert cluster.get("k2")
 
-        cluster.delete(env2.name)
-        assert not cluster.get(env2.name)
+        cluster.delete(proc2)
+        assert not cluster.get(proc2)
         assert not cluster.get("k2")
 
-        # test delete env3, which doesn't affect env1
-        assert cluster.get(env3.name)
-
-        cluster.delete(env3.name)
-        assert not cluster.get(env3.name)
-        assert cluster.get(env1.name)
+        assert cluster.get(proc1)
         assert cluster.get("k1")
 
     @pytest.mark.level("local")
@@ -473,9 +466,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_rh_status_pythonic(self, cluster):
-        worker_env = rh.env(reqs=["pytest", "pandas"], name="worker_env").to(cluster)
-        sleep_remote = rh.function(sleep_fn).to(cluster, process=worker_env.name)
-        cluster.put(key="status_key1", obj="status_value1", process="worker_env")
+        process = cluster.ensure_process_created("worker")
+        sleep_remote = rh.function(sleep_fn).to(cluster, process=process)
+        cluster.put(key="status_key1", obj="status_value1", process=process)
         # Run these in a separate thread so that the main thread can continue
         call_threads = [Thread(target=sleep_remote, args=[3]) for _ in range(3)]
         for call_thread in call_threads:
@@ -510,21 +503,21 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         else:
             assert res.get("compute_properties").get("ips") == cluster.ips
 
-        assert "worker_env" in cluster_data.get("env_servlet_processes").keys()
+        assert process in cluster_data.get("env_servlet_processes").keys()
         assert "status_key1" in cluster_data.get("env_servlet_processes").get(
-            "worker_env"
+            process
         ).get("env_resource_mapping")
         assert {
             "resource_type": "str",
             "active_function_calls": [],
-        } == cluster_data.get("env_servlet_processes").get("worker_env").get(
+        } == cluster_data.get("env_servlet_processes").get(process).get(
             "env_resource_mapping"
         ).get(
             "status_key1"
         )
         sleep_calls = (
             cluster_data.get("env_servlet_processes")
-            .get("worker_env")
+            .get(process)
             .get("env_resource_mapping")
             .get("sleep_fn")
             .get("active_function_calls")
@@ -543,7 +536,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # Check that the sleep calls are no longer active
         assert (
             updated_status.get("env_servlet_processes")
-            .get("worker_env")
+            .get(process)
             .get("env_resource_mapping")
             .get("sleep_fn")
             .get("active_function_calls")
@@ -560,33 +553,33 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "node_name",
             "pid",
         ]
-        envs_names = list(cluster_data.get("env_servlet_processes").keys())
-        envs_names.sort()
+        process_names = list(cluster_data.get("env_servlet_processes").keys())
+        process_names.sort()
         assert "env_servlet_processes" in cluster_data.keys()
         servlets_info = cluster_data.get("env_servlet_processes")
-        env_actors_keys = list(servlets_info.keys())
-        env_actors_keys.sort()
-        assert envs_names == env_actors_keys
-        for env_name in envs_names:
-            servlet_info = servlets_info.get(env_name)
+        actors_keys = list(servlets_info.keys())
+        actors_keys.sort()
+        assert process_names == actors_keys
+        for process_name in process_names:
+            servlet_info = servlets_info.get(process_name)
             servlet_info_keys = list(servlet_info.keys())
             servlet_info_keys.sort()
             assert servlet_info_keys == expected_servlet_keys
 
+    @pytest.mark.skip("pending cluster.kill functionality")
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_rh_status_pythonic_delete_env(self, cluster):
-        env_name = generate_default_name(prefix="env", precision="ms")
-        env = rh.env(reqs=["pytest"], name=env_name).to(cluster)
-        summer_temp = rh.function(summer).to(system=cluster, process=env.name)
+    def test_rh_status_pythonic_delete_process(self, cluster):
+        process = cluster.ensure_process_created("process_name")
+        summer_temp = rh.function(summer).to(system=cluster, process=process)
         call_summer_temp = summer_temp(1, 3)
         assert call_summer_temp == 4
 
-        # make sure status is calculated properly before temp_env deletion.
+        # make sure status is calculated properly before process deletion.
         self.test_rh_status_pythonic(cluster=cluster)
 
-        cluster.delete(env.env_name)
-        # make sure status is calculated properly after temp_env deletion.
+        cluster.delete(process)
+        # make sure status is calculated properly after process deletion.
         self.test_rh_status_pythonic(cluster=cluster)
 
     def status_cli_test_logic(self, cluster, status_cli_command: str):
@@ -704,12 +697,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_send_status_to_db(self, cluster):
 
         status = cluster.status()
-        servlet_processes = status.pop("env_servlet_processes")
+        env_servlet_processes = status.pop("env_servlet_processes")
         status_data = {
             "daemon_status": RunhouseDaemonStatus.RUNNING,
             "resource_type": status.get("cluster_config").get("resource_type"),
             "resource_info": status,
-            "env_servlet_processes": servlet_processes,
+            "env_servlet_processes": env_servlet_processes,
         }
         cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
         headers = rh.globals.rns_client.request_headers()
@@ -732,18 +725,18 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert get_status_data["daemon_status"] == RunhouseDaemonStatus.RUNNING
 
         assert get_status_data["resource_info"] == status
-        for k in servlet_processes:
-            if servlet_processes[k]["env_gpu_usage"] == {}:
-                servlet_processes[k]["env_gpu_usage"] = {
+        for k in env_servlet_processes:
+            if env_servlet_processes[k]["env_gpu_usage"] == {}:
+                env_servlet_processes[k]["env_gpu_usage"] = {
                     "used_memory": None,
                     "utilization_percent": None,
                     "total_memory": None,
                 }
-        servlet_processes = sort_servlet_processes(servlet_processes)
-        get_status_data["env_servlet_processes"] = sort_servlet_processes(
+        env_servlet_processes = sort_env_servlet_processes(env_servlet_processes)
+        get_status_data["env_servlet_processes"] = sort_env_servlet_processes(
             get_status_data["env_servlet_processes"]
         )
-        assert get_status_data["env_servlet_processes"] == servlet_processes
+        assert get_status_data["env_servlet_processes"] == env_servlet_processes
 
         status_data["daemon_status"] = RunhouseDaemonStatus.TERMINATED
         post_status_data_resp = requests.post(
@@ -771,7 +764,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert post_status_data_resp.status_code in [200, 422]
 
     ####################################################################################################
-    # Default env tests
+    # Default process tests
     ####################################################################################################
 
     @pytest.mark.level("local")
@@ -1177,7 +1170,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         ):
             cluster.save()  # tls exposed local cluster is not saved by default
 
-            env = set_output_env_vars()
+            subprocess_env = set_output_env_vars()
 
             for status in [ClusterStatus.RUNNING, ClusterStatus.TERMINATED]:
                 process = subprocess.Popen(
@@ -1185,7 +1178,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    env=env,
+                    env=subprocess_env,
                 )
                 process.wait()
                 stdout = process.communicate()[0]

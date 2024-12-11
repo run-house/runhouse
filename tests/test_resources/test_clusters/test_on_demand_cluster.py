@@ -146,47 +146,41 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
     @pytest.mark.level("minimal")
     def test_set_autostop(self, cluster):
-        rh.env(
-            working_dir="local:./", reqs=["pytest", "pandas"], name="autostop_env"
-        ).to(cluster)
+        process = cluster.ensure_process_created("autostop_env")
 
-        get_autostop = rh.fn(get_auotstop_from_on_cluster).to(
-            cluster, process="autostop_env"
-        )
+        get_autostop = rh.fn(get_auotstop_from_on_cluster).to(cluster, process=process)
         # First check that the autostop is set to whatever the cluster set it to
         assert get_autostop() == cluster.autostop_mins
         original_autostop = cluster.autostop_mins
 
         set_autostop = rh.fn(set_autostop_from_on_cluster_via_ah).to(
-            cluster, process="autostop_env"
+            cluster, process=process
         )
         set_autostop(5)
         assert get_autostop() == 5
 
         set_autostop_via_cluster_keep_warm = rh.fn(
             set_autostop_from_on_cluster_via_cluster_keep_warm
-        ).to(cluster, process="autostop_env")
+        ).to(cluster, process=process)
         set_autostop_via_cluster_keep_warm()
         assert get_autostop() == -1
 
         set_autostop_via_cluster_obj = rh.fn(
             set_autostop_from_on_cluster_via_cluster_obj
-        ).to(cluster, process="autostop_env")
+        ).to(cluster, process=process)
         # reset the autostop to the original value
         set_autostop_via_cluster_obj(original_autostop)
         assert get_autostop() == original_autostop
 
     @pytest.mark.level("minimal")
     def test_autostop_register_activity(self, cluster):
-        rh.env(
-            working_dir="local:./", reqs=["pytest", "pandas"], name="autostop_env"
-        ).to(cluster)
+        process = cluster.ensure_process_created("autostop_env")
 
         register_activity = rh.fn(register_activity_from_on_cluster).to(
-            cluster, process="autostop_env"
+            cluster, process=process
         )
         get_last_active = rh.fn(get_last_active_time_from_on_cluster).to(
-            cluster, process="autostop_env"
+            cluster, process=process
         )
 
         register_activity()

@@ -18,7 +18,7 @@ from runhouse.resources.images import Image
 from tests.conftest import init_args
 
 from tests.constants import TEST_ENV_VARS
-from tests.utils import friend_account, test_env
+from tests.utils import friend_account, setup_test_base
 
 SSH_USER = "rh-docker-user"
 BASE_LOCAL_SSH_PORT = 32320
@@ -278,7 +278,7 @@ def set_up_local_cluster(
     rh_cluster.restart_server(resync_rh=True)
 
     if not rh_cluster.image:
-        test_env(logged_in=logged_in).to(rh_cluster)
+        setup_test_base(rh_cluster, logged_in=logged_in)
 
     def cleanup():
         docker_client.containers.get(container_name).stop()
@@ -353,7 +353,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - Caddy set up on startup to forward Runhouse HTTP server to port 443
-    - Default env with Ray 2.30.0
+    - Default image with Ray 2.30.0
     """
     # From pytest config
     detached = request.config.getoption("--detached")
@@ -457,7 +457,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
     - Public key authentication
     - Den auth disabled (to mimic VPC)
     - Caddy set up on startup to forward Runhouse HTTP Server to port 80
-    - Default conda_env with Python 3.11 and Ray 2.30.0
+    - Default conda image with Python 3.11 and Ray 2.30.0
     """
     # From pytest config
     detached = request.config.getoption("--detached")
