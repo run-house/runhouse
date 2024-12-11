@@ -9,6 +9,7 @@ def download_preproc_and_upload(
     save_bucket_name,
     train_sample="100%",
     test_sample="100%",
+    val_sample="100%",
     cache_dir="~/rh_download",
     save_s3_folder_prefix="",
 ):
@@ -22,7 +23,11 @@ def download_preproc_and_upload(
         dataset_name,
         token=True,
         trust_remote_code=True,
-        split=[f"train[:{train_sample}]", f"test[:{test_sample}]"],
+        split=[
+            f"train[:{train_sample}]",
+            f"validation[:{val_sample}]",
+            f"test[:{test_sample}]",
+        ],
         download_mode="reuse_cache_if_exists",
         cache_dir=f"{cache_dir}/huggingface_cache/",
     )
@@ -31,7 +36,8 @@ def download_preproc_and_upload(
     ds = DatasetDict(
         {
             "train": dataset[0],
-            "test": dataset[1],
+            "validation": dataset[1],
+            "test": dataset[2],
         }
     )
 
@@ -54,6 +60,7 @@ def download_preproc_and_upload(
         return batch
 
     print("Preprocessing Data")
+
     for split_name in ds.keys():
         print(split_name)
         dataset = ds[split_name].map(preprocess_example, batched=True)
@@ -64,41 +71,37 @@ def download_preproc_and_upload(
     print("Uploaded Preprocessed Data")
 
 
-# A helper function that can be used to save a disk dataset to S3 -- may be useful if
-# you want to save the dataset to S3 after manually preprocessing on the remote instance
-def disk_dataset_to_s3(cache_dir, split_name, save_bucket_name, save_s3_folder_prefix):
-    from datasets import load_from_disk
-
-    dataset = load_from_disk(f"{cache_dir}/{split_name}/")
-    s3_path = f"s3://{save_bucket_name}/{save_s3_folder_prefix}/{split_name}"
-    dataset.save_to_disk(s3_path)
-
-
 if __name__ == "__main__":
-
-    cluster = rh.cluster(
-        name="rh-preprocessing",
-        instance_type="i4i.2xlarge",
-        provider="aws",
-        region="us-east-1",
-        default_env=rh.env(
-            name="test_env",
-            reqs=[
+    # ## Launch the compute
+    # Define the image and the cluster that the work will be run on.
+    # The image is package installations and secrets here, but can also take a Docker image as a base.
+    # The cluster here is launched from elastic compute, but can also be launched from a Kubernetes cluster.
+    img = (
+        rh.Image("rh-preprocessing")
+        .install_packages(
+            [
                 "torch",
                 "torchvision",
                 "Pillow",
                 "datasets",
                 "boto3",
                 "s3fs>=2024.10.0",
-            ],
-        ),
+            ]
+        )
+        .sync_secrets(["aws", "huggingface"])
+    )
+
+    cluster = rh.cluster(
+        name="rh-preprocessing",
+        instance_type="i4i.2xlarge",
+        provider="aws",
+        region="us-east-1",
+        image=img,
     ).up_if_not()
-    cluster.sync_secrets(["aws", "huggingface"])
 
     # Mount the disk to download the data to
     s3_bucket = "rh-demo-external"
     cache_dir = "/mnt/nvme"
-
     cluster.run(
         [
             f"sudo mkdir {cache_dir}",
@@ -108,17 +111,17 @@ if __name__ == "__main__":
             f"mkdir -p {cache_dir}/huggingface_cache",
         ]
     )
-
-    # Download the data, sampling down to 15% for our example
+    # Send our download / preprocessing function to the cluster we just created
     remote_preproc = rh.fn(download_preproc_and_upload).to(cluster)
-
+    # Download the data, sampling down to 15% for our example
     remote_preproc(
         dataset_name="imagenet-1k",
         save_bucket_name=s3_bucket,
         cache_dir=cache_dir,
-        train_sample="20%",
-        test_sample="20%",
-        save_s3_folder_prefix="resnet-training-example/preprocessed_imagenet/tiny",
+        train_sample="15%",
+        validation_sample="25%",
+        test_sample="15%",
+        save_s3_folder_prefix="resnet-training-example/preprocessed_imagenet",
     )
 
-    cluster.teardown()
+    cluster.teardown()  # Down the cluster once this task is complete

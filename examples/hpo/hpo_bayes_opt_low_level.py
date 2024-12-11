@@ -15,13 +15,17 @@ def train_fn(step, width, height):
 async def find_best_params():
     from bayes_opt import BayesianOptimization, UtilityFunction
 
+    img = rh.Image("worker_image").install_packages(["bayesian-optimization"])
+
     cluster = rh.cluster(
-        name="rh-4x16-cpu", instance_type="CPU:16", num_nodes=4, provider="aws"
+        name="rh-4x16-cpu",
+        instance_type="CPU:16",
+        num_nodes=4,
+        provider="aws",
+        image=img,
     ).up_if_not()
-    train_env = rh.env(name="worker_env", compute={"CPU": 8})
-    worker_fns = (
-        rh.function(train_fn).to(cluster, env=train_env).replicate(replicas=NUM_WORKERS)
-    )
+
+    worker_fns = rh.function(train_fn).to(cluster).replicate(replicas=NUM_WORKERS)
 
     optimizer = BayesianOptimization(
         f=None,

@@ -131,18 +131,22 @@ class MistralInstruct(rh.Module):
 # the script code will run when Runhouse attempts to run code remotely.
 # :::
 if __name__ == "__main__":
+    img = rh.Image(
+        name="mistral_instruct", image_id="ami-0e0f965ee5cfbf89b"
+    ).sync_secrets(["huggingface"])
+
     cluster = rh.cluster(
         name="rh-inf2-8xlarge",
         instance_type="inf2.8xlarge",
-        image_id="ami-0e0f965ee5cfbf89b",
         region="us-east-1",
         disk_size=512,
         provider="aws",
+        image=img,
     ).up_if_not()
 
     # We can run commands directly on the cluster via `cluster.run()`. Here, we set up the environment for our
     # upcoming environment (more on that below) that installed some AWS-neuron specific libraries.
-    # We install the `transformers-neuronx` library before the env is set up in order to avoid
+    # We install the `transformers-neuronx` library before restarting Runhouse in order to avoid
     # [common errors](https://awsdocs-neuron.readthedocs-hosted.com/en/latest/frameworks/torch/torch-neuronx/training-troubleshooting.html):
     cluster.run(
         [
@@ -150,14 +154,12 @@ if __name__ == "__main__":
             "python -m pip install neuronx-cc==2.* torch-neuronx==1.13.1.1.13.1 transformers-neuronx==0.9.474",
         ],
     )
+    cluster.restart_server()
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
     # by the name `mistral-instruct` if it was already put on the cluster. If we want to update the module each
     # time we run this script, we can use `to` instead of `get_or_to`.
-    #
-    # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
     remote_instruct_model = MistralInstruct().get_or_to(
         cluster, name="mistral-instruct"
     )

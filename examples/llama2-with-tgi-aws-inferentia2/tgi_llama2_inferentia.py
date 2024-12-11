@@ -95,7 +95,7 @@ class TGIInference(rh.Module):
         start_time = time.time()
         timeout = 600
 
-        # Load the HF token which was synced onto the cluster as part of the env setup
+        # Load the HF token which was synced onto the cluster as part of the Image setup
         hf_secret = rh.secret(provider="huggingface")
         hf_token = hf_secret.values.get("token")
 
@@ -180,19 +180,33 @@ class TGIInference(rh.Module):
 # :::
 if __name__ == "__main__":
     port = 8080
+
+    # We define the image for our module. This includes the required dependencies that need
+    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
+    #
+    # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier. This is
+    # needed to download the model from the Hugging Face model hub. Runhouse will handle saving the token down
+    # on the cluster in the default Hugging Face token location (`~/.cache/huggingface/token`).
+    img = (
+        rh.Image(name="tgi", image_id="ami-0e0f965ee5cfbf89b")
+        .install_packages(["docker"])
+        .sync_secrets(["huggingface"])
+    )
+
+    # Launch an 8xlarge AWS Inferentia2 instance
     cluster = rh.cluster(
         name="rh-inf2-8xlarge",
         instance_type="inf2.8xlarge",
-        image_id="ami-0e0f965ee5cfbf89b",
         region="us-east-1",
         disk_size=512,
         provider="aws",
+        image=img,
         open_ports=[port],
     ).up_if_not()
 
     # We can run commands directly on the cluster via `cluster.run()`. Here, we set up the environment for our
     # upcoming environment (more on that below) that installed some AWS-neuron specific libraries.
-    # We install the `transformers-neuronx` library before the env is set up in order to avoid
+    # We install the `transformers-neuronx` library before restarting the Runhouse cluster (not affecting the underlying infra) to avoid
     # [common errors](https://awsdocs-neuron.readthedocs-hosted.com/en/latest/frameworks/torch/torch-neuronx/training-troubleshooting.html):
     cluster.run(
         [
@@ -201,28 +215,13 @@ if __name__ == "__main__":
         ],
     )
 
-    # Next, we define the environment for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    #
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier. This is
-    # needed to download the model from the Hugging Face model hub. Runhouse will handle saving the token down
-    # on the cluster in the default Hugging Face token location (`~/.cache/huggingface/token`).
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        name="tgi_env",
-        reqs=["docker"],
-        secrets=["huggingface"],
-    )
+    cluster.restart_server()
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
     # by the name `tgi_inference` if it was already put on the cluster. If we want to update the module each
     # time we run this script, we can use `to` instead of `get_or_to`.
-    #
-    # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
-    remote_tgi_model = TGIInference().get_or_to(cluster, env=env, name="tgi-inference")
+    remote_tgi_model = TGIInference().get_or_to(cluster, name="tgi-inference")
 
     # ## Sharing an inference endpoint
     # We can publish this module for others to use:

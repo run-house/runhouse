@@ -27,17 +27,16 @@ if __name__ == "__main__":
     logger.info("Step 1: Bring up cluster")
     cpu_cluster_config = {
         "cluster_name": "cpu-cluster",
-        "instance_type": "CPU:4+",
+        "instance_type": "r6i.xlarge",
         "provider": "aws",
     }
     gpu_cluster_config = {
         "cluster_name": "gpu-cluster",
-        "instance_type": "L4:1",
+        "accelerators": "L4:1",
         "provider": "gcp",
     }
 
-    bring_up_cluster_callable(**cpu_cluster_config)
-
+    cpu = bring_up_cluster_callable(**cpu_cluster_config)
     logger.info("Step 2: Access data")
     access_data_callable(**cpu_cluster_config)
 

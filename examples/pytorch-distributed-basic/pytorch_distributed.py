@@ -2,7 +2,7 @@
 # A basic example showing how to use Runhouse to Pythonically run a PyTorch distributed training script on a
 # cluster of GPUs. Often distributed training is launched from multiple parallel CLI commands
 # (`python -m torch.distributed.launch ...`), each spawning separate training processes (ranks).
-# Here, we're creating each process as a separate worker (`env`) on the cluster, sending our training function
+# Here, we're creating each process as a separate worker on the cluster, sending our training function
 # into each worker, and calling the replicas concurrently to trigger coordinated multi-node training
 # (`torch.distributed.init_process_group` causes each to wait for all to connect, and sets up the distributed
 # communication). We're using two single-GPU instances (and therefore two ranks) for simplicity, but we've included
@@ -57,13 +57,18 @@ def train_loop(epochs):
 if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 2
+
     cluster = rh.cluster(
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-        instance_type=f"A10G:{gpus_per_node}",
+        accelerators=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,
     ).up_if_not()
+
     remote_train_loop = rh.function(train_loop).to(cluster)
+
     train_ddp = remote_train_loop.distribute(
-        "pytorch", replicas=num_nodes * gpus_per_node, replicas_per_node=gpus_per_node
+        "pytorch",
+        num_replicas=num_nodes * gpus_per_node,
+        replicas_per_node=gpus_per_node,
     )
     train_ddp(epochs=10)

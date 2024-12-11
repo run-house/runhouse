@@ -57,13 +57,17 @@ class FluxPipeline:
 # the script code will run when Runhouse attempts to run code remotely.
 # :::
 if __name__ == "__main__":
-    img = rh.Image("flux").install_packages(
-        [
-            "diffusers",
-            "torch",
-            "transformers[sentencepiece]",
-            "accelerate",
-        ]
+    img = (
+        rh.Image("flux")
+        .install_packages(
+            [
+                "diffusers",
+                "torch",
+                "transformers[sentencepiece]",
+                "accelerate",
+            ]
+        )
+        .sync_secrets(["huggingface"])
     )
     cluster = rh.cluster(
         name="rh-a10-8xlarge",

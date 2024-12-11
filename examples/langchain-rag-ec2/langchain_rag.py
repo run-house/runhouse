@@ -114,6 +114,24 @@ class LangchainRAG:
 # the script code will run when Runhouse attempts to run code remotely.
 # :::
 if __name__ == "__main__":
+    # First, we define the image for our module. This includes the required dependencies that need
+    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
+    # Passing `openai` to the `secrets` parameter will load the OpenAI API key we set up earlier.
+    img = (
+        rh.Image("langchain_rag")
+        .install_packages(
+            [
+                "langchain",
+                "langchain-community",
+                "langchainhub",
+                "langchain-openai",
+                "chromadb",
+                "bs4",
+            ]
+        )
+        .sync_secrets(["openai"])
+    )
+
     # Note: Runhouse also supports custom domains secured automatically with HTTPS so you can use your own domain name
     # when sharing an endpoint. Check out our docs on [using custom domains](https://www.run.house/docs/main/en/api/python/cluster#using-a-custom-domain)
     # for more information.
@@ -123,33 +141,13 @@ if __name__ == "__main__":
         provider="aws",
         server_connection_type="tls",
         open_ports=[443],
+        image=img,
     ).up_if_not()
-
-    # Next, we define the environment for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `openai` to the `secrets` parameter will load the OpenAI API key we set up earlier.
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        name="langchain_rag_env",
-        reqs=[
-            "langchain",
-            "langchain-community",
-            "langchainhub",
-            "langchain-openai",
-            "chromadb",
-            "bs4",
-        ],
-        secrets=["openai"],
-    )
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
     # by the name `basic_rag_app` if it was already put on the cluster. If we want to update the module each
     # time we run this script, we can use `to` instead of `get_or_to`.
-    #
-    # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
     urls = (
         "https://www.nyc.gov/site/hpd/services-and-information/tenants-rights-and-responsibilities.page",
         "https://www.nyc.gov/content/tenantprotection/pages/covid19-home-quarantine",
@@ -157,7 +155,7 @@ if __name__ == "__main__":
     )
 
     RemoteLangchainRAG = rh.module(LangchainRAG, name="basic_rag_app").get_or_to(
-        cluster, env=env
+        cluster
     )
 
     rag_app = RemoteLangchainRAG(urls)
