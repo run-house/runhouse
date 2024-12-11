@@ -9,7 +9,11 @@ import requests
 import runhouse as rh
 
 from runhouse.globals import rns_client
-from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatus
+from runhouse.resources.hardware.utils import (
+    ClusterStatus,
+    LauncherType,
+    RunhouseDaemonStatus,
+)
 
 import tests.test_resources.test_clusters.test_cluster
 from tests.constants import TESTING_AUTOSTOP_INTERVAL
@@ -192,8 +196,6 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         time.sleep(TESTING_AUTOSTOP_INTERVAL)
         last_active_time = get_last_active_time_without_register(cluster)
 
-        cluster.call("autostop_env", "config")
-
         # check that last time updates within the next 10 sec
         end_time = time.time() + TESTING_AUTOSTOP_INTERVAL
         while time.time() < end_time:
@@ -240,10 +242,16 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
         original_ips = cluster.ips
 
-        cluster._cluster_status = ClusterStatus.TERMINATED
+        if cluster.launcher == LauncherType.DEN:
+            cluster._cluster_status = ClusterStatus.TERMINATED
+            assert not cluster.is_up()
+            cluster._cluster_status = None
+
+        # test ping w/o retry fails with empty ips
+        cluster.compute_properties["ips"] = []
+        cluster.compute_properties["internal_ips"] = []
         assert not cluster._ping(retry=False)
 
-        cluster._cluster_status = None
         if cluster.compute_properties.get("cloud") == "kubernetes":
             # kubernetes does not use ips in command runner
             cluster.compute_properties["ips"] = ["00.00.000.11"]
