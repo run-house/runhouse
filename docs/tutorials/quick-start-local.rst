@@ -57,7 +57,7 @@ and details of the server. For printing cluster's status outside the cluster, it
         CPU: 0.2% | Memory: 0.1 / 8 Gb (0.01%)
         • default_process
     • test_env | pid: 63254 | node: worker_0
-        This process has only python packages installed, if provided. No resources were found.
+        No objects are stored in this process.
     • np_pd_env | pid: 29621 | node: worker_0
         CPU: 0.3% | Memory: 0.1 / 8 Gb (0.01%)
         • summer (runhouse.Function) Currently not running
@@ -89,7 +89,7 @@ and details of the server. For printing cluster's status outside the cluster, it
         CPU: 0.2% | Memory: 0.1 / 16 Gb (0.01%)
         • default_process
     • test_env | pid: 18746 | node: worker_0
-        This process has only python packages installed, if provided. No resources were found.
+        No objects are stored in this process.
     • np_pd_env | pid: 29809 | node: head (3.92.223.118)
         CPU: 0.4% | Memory: 0.1 / 16 Gb (0.01%)
         • summer (runhouse.Function) Currently not running

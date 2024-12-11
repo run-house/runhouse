@@ -332,8 +332,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
         if len(resources_in_env) == 0:
             # No resources were found in the env, only the associated installed python reqs were installed.
             console.print(
-                f"{DOUBLE_SPACE_UNICODE}This process has only python packages installed, if provided. "
-                f"No resources were found."
+                f"{DOUBLE_SPACE_UNICODE}No objects are stored in this process."
             )
 
         else:
