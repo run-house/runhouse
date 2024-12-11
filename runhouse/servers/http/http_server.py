@@ -163,7 +163,7 @@ class HTTPServer:
                 ),
             )
 
-        # We initialize a default env servlet where some things may run.
+        # We initialize a default servlet where some things may run.
         _ = obj_store.get_servlet(
             name=DEFAULT_PROCESS_NAME,
             create_process_params=CreateProcessParams(

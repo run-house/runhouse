@@ -17,7 +17,7 @@ def function(
     dryrun: bool = False,
     serialize_notebook_fn: bool = False,
 ):
-    """runhouse.function(fn: str | Callable | None = None, name: str | None = None, system: str | Cluster | None = None, env: str | List[str] | Env | None = None, dryrun: bool = False, load_secrets: bool = False, serialize_notebook_fn: bool = False)
+    """runhouse.function(fn: str | Callable | None = None, name: str | None = None, system: str | Cluster | None = None, dryrun: bool = False, serialize_notebook_fn: bool = False)
 
     Builds an instance of :class:`Function`.
 

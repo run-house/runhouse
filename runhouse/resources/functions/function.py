@@ -69,11 +69,11 @@ class Function(Module):
         name: Optional[str] = None,
     ):
         """
-        Send the function to the specified env on the cluster. This will sync over relevant code and packages
+        Send the function to the specified process on the cluster. This will sync over relevant code and packages
         onto the cluster, and set up the environment if it does not yet exist on the cluster.
 
         Args:
-            system (str or Cluster): The system to setup the function and env on.
+            system (str or Cluster): The system to setup the function and process on.
             process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly created with those args.
                 or the set of requirements necessary to run the module. (Default: ``None``)
             name (Optional[str], optional): Name to give to the function resource, if you wish to rename it.

@@ -226,18 +226,19 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
     envs_in_cluster_headline = "Serving 🍦 :"
     console.print(envs_in_cluster_headline)
 
-    env_resource_mapping = {
-        env: servlet_processes[env]["env_resource_mapping"] for env in servlet_processes
+    process_resource_mapping = {
+        env: servlet_processes[env]["process_resource_mapping"]
+        for env in servlet_processes
     }
 
-    if len(env_resource_mapping) == 0:
+    if len(process_resource_mapping) == 0:
         console.print("This cluster has no environment nor resources.")
 
     first_envs_to_print = []
 
     # First: if the default env does not have resources, print it.
     default_process_name = DEFAULT_PROCESS_NAME
-    if len(env_resource_mapping[default_process_name]) <= 1:
+    if len(process_resource_mapping[default_process_name]) <= 1:
         # case where the default env doesn't hve any other resources, apart from the default env itself.
         console.print(f"{BULLET_UNICODE} {default_process_name}")
         console.print(
@@ -253,11 +254,11 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
     # (the only resource they have is a runhouse.env, which is the env itself).
     first_envs_to_print = first_envs_to_print + [
         env_name
-        for env_name in env_resource_mapping
+        for env_name in process_resource_mapping
         if (
-            len(env_resource_mapping[env_name]) <= 1
+            len(process_resource_mapping[env_name]) <= 1
             and env_name != default_process_name
-            and env_resource_mapping[env_name]
+            and process_resource_mapping[env_name]
         )
     ]
 
@@ -267,19 +268,19 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
     # * Else, we will print the resources (rh.function, th.module) associated with the env.
     envs_to_print = first_envs_to_print + [
         env_name
-        for env_name in env_resource_mapping
+        for env_name in process_resource_mapping
         if env_name not in first_envs_to_print + [default_process_name]
     ]
 
     for env_name in envs_to_print:
-        resources_in_env = env_resource_mapping[env_name]
+        resources_in_env = process_resource_mapping[env_name]
         env_process_info = servlet_processes[env_name]
 
         env_name_txt = f"{BULLET_UNICODE} {env_name} | pid: {env_process_info['pid']} | node: {env_process_info['node_name']}"
         console.print(env_name_txt)
 
         # Print CPU info
-        env_cpu_info = env_process_info.get("env_cpu_usage")
+        env_cpu_info = env_process_info.get("process_cpu_usage")
         if env_cpu_info:
 
             # convert bytes to GB
@@ -306,7 +307,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
         console.print(cpu_usage_summary)
 
         # Print GPU info
-        env_gpu_info = env_process_info.get("env_gpu_usage")
+        env_gpu_info = env_process_info.get("process_gpu_usage")
 
         # sometimes the cluster has no GPU, therefore the env_gpu_info is an empty dictionary.
         if env_gpu_info:
@@ -436,7 +437,7 @@ def print_status(status_data: dict, current_cluster) -> None:
     from runhouse.main import console
 
     cluster_config = status_data.get("cluster_config")
-    servlet_processes = status_data.get("env_servlet_processes")
+    servlet_processes = status_data.get("servlet_processes")
 
     cluster_name = cluster_config.get("name", None)
     if cluster_name:
