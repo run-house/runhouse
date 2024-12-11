@@ -177,6 +177,9 @@ class OnDemandCluster(Cluster):
     @autostop_mins.setter
     def autostop_mins(self, mins):
         self._autostop_mins = mins
+        if not self.is_up():
+            return
+
         if self.on_this_cluster():
             obj_store.set_cluster_config_value("autostop_mins", mins)
         else:
