@@ -476,7 +476,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
         Image(name="default_image")
         .setup_conda_env(
             conda_env_name="base_env",
-            conda_yaml={"dependencies": ["python=3.11"], "name": "base_env"},
+            conda_config={"dependencies": ["python=3.11"], "name": "base_env"},
         )
         .install_packages(
             [

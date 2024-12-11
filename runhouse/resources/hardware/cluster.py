@@ -633,7 +633,7 @@ class Cluster(Resource):
                 if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
                     self.create_conda_env(
                         conda_env_name=setup_step.kwargs.get("conda_env_name"),
-                        conda_yaml=setup_step.kwargs.get("conda_yaml"),
+                        conda_config=setup_step.kwargs.get("conda_config"),
                     )
                 elif setup_step.step_type == ImageSetupStepType.PACKAGES:
                     self.install_packages(
@@ -1952,11 +1952,11 @@ class Cluster(Resource):
 
         return return_codes
 
-    def create_conda_env(self, conda_env_name: str, conda_yaml: Dict):
+    def create_conda_env(self, conda_env_name: str, conda_config: Dict):
         install_conda(cluster=self)
         create_conda_env_on_cluster(
             conda_env_name=conda_env_name,
-            conda_yaml=conda_yaml,
+            conda_config=conda_config,
             cluster=self,
         )
 
