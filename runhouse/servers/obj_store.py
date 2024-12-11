@@ -1786,10 +1786,7 @@ class ObjStore:
         serialization: Optional[str] = None,
         process: Optional[str] = None,
     ) -> "Response":
-        from runhouse.servers.http.http_utils import (
-            CreateProcessParams,
-            deserialize_data,
-        )
+        from runhouse.servers.http.http_utils import deserialize_data
 
         if process is None and self.servlet_name is None:
             raise ObjStoreError("No process name provided and no servlet name set.")
@@ -1805,28 +1802,6 @@ class ObjStore:
         # However, if we're putting a process, we need to deserialize it here and
         # actually create the corresponding env servlet.
         resource_config, _, _ = tuple(deserialize_data(serialized_data, serialization))
-
-        # TODO - remove once we remove `cluster.put_resource(Env(DEFAULT_PROCESS_NAME))`
-        if resource_config["resource_type"] == "env":
-            # Note that the passed in `env_name` and the `env_name_to_create` here are
-            # distinct. The `env_name` is the name of the env servlet where we want to store
-            # the resource itself. The `env_name_to_create` is the name of the env servlet
-            # that we need to create because we are putting an env resource somewhere on the cluster.
-            runtime_env = (
-                {"conda_env": resource_config["env_name"]}
-                if resource_config["resource_subtype"] == "CondaEnv"
-                else {}
-            )
-
-            _ = self.get_servlet(
-                name=process,
-                create_process_params=CreateProcessParams(
-                    name=process,
-                    runtime_env=runtime_env,
-                    resources=resource_config.get("compute", None),
-                ),
-                create=True,
-            )
 
         return await self.acall_servlet_method(
             process,
@@ -1851,7 +1826,6 @@ class ObjStore:
         state: Dict[Any, Any],
         dryrun: bool,
     ) -> str:
-        from runhouse.resources.envs import Env
         from runhouse.resources.module import Module
         from runhouse.resources.resource import Resource
 
@@ -1870,11 +1844,6 @@ class ObjStore:
         resource_config["resource_subtype"] = subtype
         if provider:
             resource_config["provider"] = provider
-
-        # TODO - remove once we remove `cluster.put_resource(Env(DEFAULT_PROCESS_NAME))`
-        if "process" in resource_config and isinstance(resource_config["process"], Env):
-            # We don't want to store the Env, we just want to store the process string
-            resource_config["process"] = resource_config["process"].name
 
         logger.debug(f"Message received from client to construct resource: {name}")
 
