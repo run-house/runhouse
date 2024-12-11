@@ -5,23 +5,13 @@ if __name__ == "__main__":
     num_nodes = 2
     cluster_name = f"rh-new-{num_nodes}"
 
-    img = (
-        rh.Image("dask-img")
-        .install_packages(
-            [
-                "dask[distributed,dataframe]",
-                "dask-ml",
-                "gcsfs",
-                "lightgbm",
-            ],
-        )
-        .set_env_vars(
-            {
-                "OMP_NUM_THREADS": "1",
-                "MKL_NUM_THREADS": "1",
-                "OPENBLAS_NUM_THREADS": "1",
-            }
-        )
+    img = rh.Image("dask-img").install_packages(
+        [
+            "dask[distributed,dataframe]",
+            "dask-ml",
+            "gcsfs",
+            "lightgbm",
+        ],
     )
 
     cluster = rh.cluster(
@@ -42,6 +32,9 @@ if __name__ == "__main__":
     # You can interact with this trainer class in a different notebook / elsewhere using
     # cluster.get('trainer', remote = True) to get the remote object
     dask_trainer = remote_dask_trainer(name="my_trainer").distribute("dask")
+
+    # Tunnel the Dask dashboard to the local machine
+    cluster.ssh_tunnel(8787, 8787)
 
     # ## Do the processing and training on the remote cluster
     # Access the Dask client, data, and preprocess the data

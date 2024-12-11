@@ -3,28 +3,18 @@ import runhouse as rh
 # ## Dask + LightGBM Training
 if __name__ == "__main__":
     # ## Create a Runhouse cluster with multiple nodes
-    num_nodes = 2
+    num_nodes = 3
     cluster_name = f"rh-{num_nodes}-dask-gcp"
 
     # The environment for the remote cluster
-    img = (
-        rh.Image("dask-img")
-        .install_packages(
-            [
-                "dask[distributed,dataframe]",
-                "dask-ml",
-                "gcsfs",
-                "lightgbm",
-                "bokeh",
-            ],
-        )
-        .set_env_vars(
-            {
-                "OMP_NUM_THREADS": "1",
-                "MKL_NUM_THREADS": "1",
-                "OPENBLAS_NUM_THREADS": "1",
-            }
-        )
+    img = rh.Image("dask-img").install_packages(
+        [
+            "dask[distributed,dataframe]",
+            "dask-ml",
+            "gcsfs",
+            "lightgbm",
+            "bokeh",
+        ],
     )
 
     cluster = rh.ondemand_cluster(
@@ -35,8 +25,6 @@ if __name__ == "__main__":
         region="us-east1",
         image=img,
     ).up_if_not()
-
-    # cluster.restart_server(resync_rh=True)
 
     # ## Setup the remote training
     # LightGBMModelTrainer is a completely normal class that contains our training methods,
@@ -50,6 +38,9 @@ if __name__ == "__main__":
     # cluster.get('trainer', remote = True) to get the remote object
     # We also use .distribute("dask") to start the Dask cluster and indicate this will be used with Dask
     dask_trainer = remote_dask_trainer(name="my_trainer").distribute("dask")
+
+    # Tunnel the Dask dashboard to the local machine
+    cluster.ssh_tunnel(8787, 8787)
 
     # ## Do the processing and training on the remote cluster
     # Access the Dask client, data, and preprocess the data
