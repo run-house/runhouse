@@ -11,27 +11,32 @@ manage all of your compute and make it available through ephemeral
 clusters for both research and production workflows. Whether you have a
 ML platforms team or just yourself, Runhouse is the easiest way to
 ensure your compute is efficiently utilized and oversubscribed without
-slowing down development velocity. - Centrally manage multiple cloud
-accounts and Kubernetes clusters in the same place. - Both developers
-and the platforms team can monitor resource usage in detail and access
-persisted logs in the web UI. - Save and reload services and resources
-(clusters, functions, classes, etc) - for instance, share an embeddings
-endpoint to be used by multiple teams with perfect reproducibility. -
-Set limits and quotas for teams and individuals, and queue requests for
-compute.
+slowing down development velocity.
 
-A few of the ways Runhouse Den has helped teams include: - Moving
-research teams from locally or ad hoc hosted notebooks, towards
-standardized, reproducible compute and training workflows that are ready
-to be executed in production. - Improving Platform team observability
-over day-to-day activities as the ML team grew, and getting much better
-disambiguation between waste (clusters up too long, clusters
-underutilizing their resources) and genuinely valuable workflows that
-just happen to be long-lived. - Reducing research-to-production time by
-80% since resources launched and saved to Den can be scheduled nearly
-as-is by orchestrators. - Improving key / credentials management -
-Adopting a second cloud due to better quotas and cloud credits (while
-being mostly opaque to the end user)
+- Centrally manage multiple cloud accounts and Kubernetes clusters in
+  the same place.
+- Both developers and the platforms team can monitor resource usage in
+  detail and access persisted logs in the web UI.
+- Save and reload services and resources (clusters, functions, classes,
+  etc) - for instance, share an embeddings endpoint to be used by
+  multiple teams with perfect reproducibility.
+- Set limits and quotas for teams and individuals, and queue requests
+  for compute.
+
+A few of the ways Runhouse Den has helped teams include:
+
+- Moving research teams from locally or ad hoc hosted notebooks, towards
+  standardized, reproducible compute and training workflows that are
+  ready to be executed in production.
+- Improving Platform team observability over day-to-day activities as
+  the ML team grew, and getting much better disambiguation between waste
+  (clusters up too long, clusters underutilizing their resources) and
+  genuinely valuable workflows that just happen to be long-lived.
+- Reducing research-to-production time by 80% since resources launched
+  and saved to Den can be scheduled nearly as-is by orchestrators.
+- Improving key / credentials management
+- Adopting a second cloud due to better quotas and cloud credits (while
+  being mostly opaque to the end user)
 
 If you haven’t already, check-out
 `Quickstart <https://www.run.house/docs/tutorials/quick-start-cloud>`__
