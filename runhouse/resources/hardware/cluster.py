@@ -1603,11 +1603,22 @@ class Cluster(Resource):
     def run_bash(
         self,
         commands: Union[str, List[str]],
-        node: Optional[str] = None,
+        node: Union[int, str, None] = None,
         process: Optional[str] = None,
         stream_logs: bool = True,
         require_outputs: bool = True,
     ):
+        """Run bash commands on the cluster through the Runhouse server.
+
+        Args:
+            commands (str or List[str]): Commands to run on the cluster.
+            node (int, str or None): Node to run the command on. Node can an int referring to the node index,
+                string referring to the ips, or "all" to run on all nodes. If not specified, run the command
+                on the head node. (Default: ``None``)
+            process (str or None): Process to run the command on. (Default: ``None``)
+            stream_logs (bool): Whether to stream logs. (Default: ``True``)
+            require_outputs (bool): Whether to return outputs in addition to status code. (Default: ``True``)
+        """
 
         if isinstance(commands, str):
             commands = [commands]
@@ -1722,12 +1733,23 @@ class Cluster(Resource):
     def run_bash_over_ssh(
         self,
         commands: Union[str, List[str]],
-        node: Optional[str] = None,
+        node: Union[int, str, None] = None,
         stream_logs: bool = True,
         require_outputs: bool = True,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
         conda_env_name: Optional[str] = None,
     ):
+        """Run bash commands on the cluster over SSH.
+
+        Args:
+            commands (str or List[str]): Commands to run on the cluster.
+            node (int, str or None): Node to run the command on. Node can an int referring to the node index,
+                string referring to the ips, or "all" to run on all nodes. If not specified, run the command
+                on the head node. (Default: ``None``)
+            stream_logs (bool): Whether to stream logs. (Default: ``True``)
+            require_outputs (bool): Whether to return outputs in addition to status code. (Default: ``True``)
+            conda_env_name (str or None): Name of conda env to run the command in, if applicable. (Defaut: ``None``)
+        """
         if self.on_this_cluster():
             raise ValueError("Run bash over SSH is not supported on the local cluster.")
 
