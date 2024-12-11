@@ -151,11 +151,11 @@ def test_pinning_and_arg_replacement(cluster):
     assert pin_fn("put_pin") == "Found in obj store!"
 
 
-def test_put_resource(cluster, test_env):
-    test_env.name = "~/test_env"
-    cluster.put_resource(test_env)
-    assert cluster.call("test_env", "config", stream_logs=True) == test_env.config()
-    assert cluster.get("test_env").config() == test_env.config()
+def test_put_resource(cluster):
+    resource = rh.function(fn=do_printing_and_logging, system=cluster)
+    cluster.put_resource(resource)
+    assert cluster.call(resource.name, "config", stream_logs=True) == resource.config()
+    assert cluster.get(resource.name).config() == resource.config()
 
 
 def serialization_helper_1():

@@ -12,13 +12,14 @@ import requests
 import runhouse as rh
 import yaml
 
+from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import rns_client
 
 from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatus
 from runhouse.servers.http.http_utils import CreateProcessParams
 from runhouse.servers.obj_store import get_cluster_servlet, ObjStore, RaySetupOption
 
-from tests.constants import TESTING_AUTOSTOP_INTERVAL, TESTING_LOG_LEVEL
+from tests.constants import TEST_ENV_VARS, TEST_REQS
 
 
 def get_ray_servlet_and_obj_store(env_name):
@@ -156,23 +157,16 @@ def org_friend_account(new_username: str, token: str, original_username: str):
         rns_client.load_account_from_file()
 
 
-def test_env(logged_in=False):
-    return rh.env(
-        reqs=["pytest", "httpx", "pytest_asyncio", "pandas", "numpy<=1.26.4"],
-        working_dir=None,
-        env_vars={
-            "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
-            "RH_AUTOSTOP_INTERVAL": str(
-                os.getenv("RH_AUTOSTOP_INTERVAL") or TESTING_AUTOSTOP_INTERVAL
-            ),
-        },
-        setup_cmds=[
-            f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
-            f"echo '{yaml.safe_dump(rh.configs.defaults_cache)}' > ~/.rh/config.yaml"
-        ]
-        if logged_in
-        else False,
-    )
+def setup_test_base(cluster, logged_in=False):
+    setup_cmds = [
+        f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
+        f"echo '{yaml.safe_dump(rh.configs.defaults_cache)}' > ~/.rh/config.yaml"
+    ]
+
+    cluster.install_packages(TEST_REQS)
+    cluster.set_process_env_vars(DEFAULT_PROCESS_NAME, TEST_ENV_VARS)
+    if logged_in:
+        cluster.run(setup_cmds)
 
 
 def remove_config_keys(config, keys_to_skip):

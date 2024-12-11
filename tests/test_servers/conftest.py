@@ -133,7 +133,7 @@ def obj_store(request):
     servlet_name = request.param
     _, test_obj_store = get_ray_servlet_and_obj_store(servlet_name)
 
-    # Clears everything, not just what's in this env servlet
+    # Clears everything, not just what's in this servlet
     test_obj_store.clear()
 
     yield test_obj_store

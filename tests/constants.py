@@ -12,3 +12,5 @@ TEST_ENV_VARS = {
         os.getenv("RH_AUTOSTOP_INTERVAL") or TESTING_AUTOSTOP_INTERVAL
     ),
 }
+
+TEST_REQS = ["pytest", "httpx", "pytest_asyncio", "pandas", "numpy<=1.26.4"]
