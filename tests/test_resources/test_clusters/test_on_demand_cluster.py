@@ -246,11 +246,12 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             cluster._cluster_status = ClusterStatus.TERMINATED
             assert not cluster.is_up()
             cluster._cluster_status = None
-
-        # test ping w/o retry fails with empty ips
-        cluster.compute_properties["ips"] = []
-        cluster.compute_properties["internal_ips"] = []
-        assert not cluster._ping(retry=False)
+        else:
+            # test ping w/o retry fails with empty ips
+            # can only override ips for local, will be updated in retry later in the test
+            cluster.compute_properties["ips"] = []
+            cluster.compute_properties["internal_ips"] = []
+            assert not cluster._ping(retry=False)
 
         if cluster.compute_properties.get("cloud") == "kubernetes":
             # kubernetes does not use ips in command runner
