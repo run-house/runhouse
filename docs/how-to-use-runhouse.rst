@@ -9,7 +9,7 @@ Before reviewing this detailed guide, we recommend you start with the `Quick Sta
 
 * Install Runhouse with ``pip install runhouse``
 
-* Optionally install with a specific cloud like ``pip install "runhouse[aws]"`` or with SkyPilot for elastic compute ``pip install "runhouse[sky]``
+* Optionally install with a specific cloud like ``pip install "runhouse[aws]"`` or with SkyPilot for elastic compute ``pip install "runhouse[sky]"``
 
 * Optionally create an account on the `Runhouse website <https://www.run.house/dashboard>`_ or with ``runhouse login --sync-secrets`` to enable saving, reloading, and centralized authentication / secrets management.
 
@@ -254,13 +254,7 @@ incremental changes that are merged to the team codebase are automatically refle
 
 There are other benefits to using Runhouse in production as you scale up usage. A few are included here:
 
-* **Shared services**: You may want to deploy shared services like an embeddings endpoint, and have all pipelines call it by name as a live service *or* import the code
-from the underlying team repository and stand it up separately in each pipeline. Either way, if you every update or improve this shared service,
-all pipelines will receive the downstream updates without any changes to the pipeline code.
-* **Compute abstraction**: As you add new resources to your pool, get credits from new clouds, or get new quota, if all users are using Runhouse to allocate
-ephemeral compute, there is no need to update any code or configuration files at the user level. The new resources are added by the platform team, and then automatically
-adopted by the full team.
-* **Infrastructure Migrations**: With Runhouse, your application code is entirely undecorated Python and the dispatch happens to arbitrary compute. If you ever choose
-to abandon your existing orchestrator, cloud provider, or any other tool, you simply have to move a small amount of dispatch code and infrastructure code configuration.
-* **Adopting Distributed Frameworks**: Runhouse is a perfect complement to distributed frameworks, with some built-in abstractions that let you scale to multiple clusters
-or start using Ray clusters easily.
+* **Shared services**: You may want to deploy shared services like an embeddings endpoint, and have all pipelines call it by name as a live service *or* import the code from the underlying team repository and stand it up separately in each pipeline. Either way, if you every update or improve this shared service, all pipelines will receive the downstream updates without any changes to the pipeline code.
+* **Compute abstraction**: As you add new resources to your pool, get credits from new clouds, or get new quota, if all users are using Runhouse to allocate ephemeral compute, there is no need to update any code or configuration files at the user level. The new resources are added by the platform team, and then automatically adopted by the full team.
+* **Infrastructure Migrations**: With Runhouse, your application code is entirely undecorated Python and the dispatch happens to arbitrary compute. If you ever choose to abandon your existing orchestrator, cloud provider, or any other tool, you simply have to move a small amount of dispatch code and infrastructure code configuration.
+* **Adopting Distributed Frameworks**: Runhouse is a perfect complement to distributed frameworks, with some built-in abstractions that let you scale to multiple clusters or start using Ray clusters easily.
