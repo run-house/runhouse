@@ -166,7 +166,7 @@ def setup_test_base(cluster, logged_in=False):
     cluster.install_packages(TEST_REQS)
     cluster.set_process_env_vars(DEFAULT_PROCESS_NAME, TEST_ENV_VARS)
     if logged_in:
-        cluster.run(setup_cmds)
+        cluster.run_bash(setup_cmds)
 
 
 def remove_config_keys(config, keys_to_skip):
