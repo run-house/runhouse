@@ -27,7 +27,7 @@ class LightGBMModelTrainer:
         print(self.dataset.columns)
 
     def train_test_split(self, target_var, features=None):
-        from dask_ml.model_selection import train_test_split
+        from dask_ml.model_selection import train_test_split 
 
         if features is None:
             features = self.dataset.columns.difference([target_var])
