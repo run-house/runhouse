@@ -1786,6 +1786,23 @@ class Cluster(Resource):
 
         return return_codes
 
+    def kill_process(
+        self,
+        process: str,
+    ):
+        """Kill a process on the cluster.
+
+        Args:
+            process (str): Process to kill.
+
+        Example:
+            >>> rh.cluster("rh-cpu").kill("ray")
+        """
+        if self.on_this_cluster():
+            obj_store.delete_servlet_contents(process)
+        else:
+            self.client.kill_process(process)
+
     def run(
         self,
         commands: Union[str, List[str]],
