@@ -89,8 +89,8 @@ save.
 .. code:: ipython3
 
     def get_platform(a = 0):
-            import platform
-            return platform.platform()
+        import platform
+        return platform.platform()
 
     remote_get_platform = rh.function(get_platform).to(cluster)
 
