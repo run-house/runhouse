@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple, Union
 from runhouse.globals import obj_store, rns_client
 from runhouse.logger import get_logger
 
+from runhouse.resources.hardware.utils import _compare_config_with_alt_options
 from runhouse.rns.top_level_rns_fns import (
     resolve_rns_path,
     save,
@@ -199,52 +200,6 @@ class Resource:
         return config
 
     @classmethod
-    def _compare_config_with_alt_options(cls, config, alt_options):
-        """Overload by child resources to compare their config with the alt_options. If the user specifies alternate
-        options, compare the config with the options. It's generally up to the child class to decide how to handle the
-        options, but default behavior is provided. The default behavior simply checks if any of the alt_options are
-        present in the config (with awareness of resources), and if their values differ, return None.
-
-        If the child class returns None, it's deciding to override the config
-        with the options. If the child class returns a config, it's deciding to use the config and ignore the options
-        (or somehow incorporate them, rarely). Note that if alt_options are provided and the config is not found,
-        no error is raised, while if alt_options are not provided and the config is not found, an error is raised.
-        """
-
-        def alt_option_to_str(val):
-            if isinstance(val, Resource):
-                if not val.rns_address and val.name and config.get("name"):
-                    # If rns_address is missing, try current resource folder
-                    _, folder = rns_client.split_rns_name_and_path(
-                        rns_client.resolve_rns_path(config.get("name"))
-                    )
-                    return f"{folder}/{val.name}"
-                return val.rns_address
-            elif isinstance(val, dict):
-                # This can either be a sub-resource which hasn't been converted to a resource yet, or an
-                # actual user-provided dict
-                if "rns_address" in val:
-                    return val["rns_address"]
-                if "name" in val:
-                    # convert a user-provided name to an rns_address
-                    return rns_client.resolve_rns_path(val["name"])
-                else:
-                    return val
-            elif isinstance(val, list):
-                val = [str(item) if isinstance(item, int) else item for item in val]
-            elif isinstance(val, int) or isinstance(val, float):
-                val = str(val)
-            return val
-
-        for key, value in alt_options.items():
-            if key in config:
-                if alt_option_to_str(value) != alt_option_to_str(config[key]):
-                    return None
-            else:
-                return None
-        return config
-
-    @classmethod
     def from_name(
         cls,
         name: str,
@@ -269,7 +224,9 @@ class Resource:
         config = rns_client.load_config(name=name, load_from_den=load_from_den)
 
         if _alt_options:
-            config = cls._compare_config_with_alt_options(config, _alt_options)
+            config = _compare_config_with_alt_options(
+                config, _alt_options, return_config=True
+            )
             if not config:
                 return None
         if not config:

@@ -6,7 +6,6 @@ from runhouse.resources.functions.function_factory import function
 from runhouse.resources.hardware import (
     cluster,
     Cluster,
-    kubernetes_cluster,
     ondemand_cluster,
     OnDemandCluster,
 )

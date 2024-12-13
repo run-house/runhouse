@@ -445,6 +445,10 @@ class Cluster(Resource):
 
         return config
 
+    def _update_values(self, new_values: Dict[str, Any]):
+        for key, val in new_values:
+            setattr(self, key, val)
+
     def endpoint(self, external: bool = False):
         """Endpoint for the cluster's Daemon server.
 
@@ -1072,7 +1076,6 @@ class Cluster(Resource):
         restart_ray: bool = True,
         restart_proxy: bool = False,
     ):
-
         image_secrets, image_env_vars = self._sync_image_to_cluster()
 
         # If resync_rh is not explicitly False, check if Runhouse is installed editable

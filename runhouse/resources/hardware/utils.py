@@ -20,7 +20,7 @@ from runhouse.constants import (
     SKY_VENV,
     TIME_UNITS,
 )
-from runhouse.globals import rns_client
+from runhouse.globals import configs, rns_client
 
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.sky.command_runner import (
@@ -79,6 +79,57 @@ def load_cluster_config_from_file() -> Dict:
         return cluster_config
     else:
         return {}
+
+
+def _compare_config_with_alt_options(config, alt_options, return_config=False):
+    """Overload by child resources to compare their config with the alt_options. If the user specifies alternate
+    options, compare the config with the options. It's generally up to the child class to decide how to handle the
+    options, but default behavior is provided. The default behavior simply checks if any of the alt_options are
+    present in the config (with awareness of resources), and if their values differ, return None.
+
+    If the child class returns None, it's deciding to override the config
+    with the options. If the child class returns a config, it's deciding to use the config and ignore the options
+    (or somehow incorporate them, rarely). Note that if alt_options are provided and the config is not found,
+    no error is raised, while if alt_options are not provided and the config is not found, an error is raised.
+    """
+    from runhouse.resources.images.image import Image
+    from runhouse.resources.resource import Resource
+
+    def alt_option_to_repr(val):
+        if isinstance(val, dict):
+            # This can either be a sub-resource which hasn't been converted to a resource yet, or an
+            # actual user-provided dict
+            if "rns_address" in val:
+                return val["rns_address"]
+            if "name" in val:
+                # convert a user-provided name to an rns_address
+                return rns_client.resolve_rns_path(val["name"])
+            else:
+                return val
+        elif isinstance(val, list):
+            val = [str(item) if isinstance(item, int) else item for item in val]
+        elif isinstance(val, int) or isinstance(val, float):
+            val = str(val)
+        elif isinstance(val, Image):
+            val = val.config()
+        elif isinstance(val, Resource) and (
+            val.config().get("name") or val.config().get("rns_address")
+        ):
+            return alt_option_to_repr(val.config())
+        return val
+
+    mismatches = {}
+    for key, value in alt_options.items():
+        if key in config:
+            if alt_option_to_repr(value) != alt_option_to_repr(config[key]):
+                if return_config:
+                    return None
+                mismatches[key] = value
+        elif return_config:
+            return None
+        else:
+            mismatches[key] = value
+    return mismatches
 
 
 def _current_cluster(key="config"):
@@ -711,3 +762,90 @@ class Event(object):
         if self.retry:
             s += ", retry in {0}ms".format(self.retry)
         return s
+
+
+###################################
+# KUBERNETES SETUP
+###################################
+def setup_kubernetes(
+    namespace: Optional[str] = None,
+    kube_config_path: Optional[str] = None,
+    context: Optional[str] = None,
+    **kwargs,
+):
+    if kwargs.get("provider") and not kwargs.get("provider") == "kubernetes":
+        raise ValueError(
+            f"Received non kubernetes provider {kwargs.get('provider')} with kubernetes specific "
+            "cluster arguments."
+        )
+
+    if (
+        kwargs.get("server_connection_type")
+        and kwargs.get("server_connection_type") != ServerConnectionType.SSH
+    ):
+        raise ValueError(
+            "Runhouse K8s Cluster server connection type must be set to `ssh`. "
+            f"You passed {kwargs.get('server_connection_type')}."
+        )
+
+    if context and namespace:
+        logger.warning(
+            "You passed both a context and a namespace. Ensure your namespace matches the one in your context.",
+        )
+
+    launcher = kwargs.get("launcher") or configs.launcher
+    if launcher == "local":
+        if context:
+            # check if user passed a user-defined context
+            try:
+                cmd = f"kubectl config use-context {context}"  # set user-defined context as current context
+                subprocess.run(cmd, shell=True, check=True)
+                logger.info(f"Kubernetes context has been set to: {context}")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Error setting context {context}: {e}")
+
+        if namespace:
+            # Set the context only if launching locally
+            # check if user passed a user-defined namespace
+            cmd = f"kubectl config set-context --current --namespace={namespace}"
+            try:
+                process = subprocess.run(
+                    cmd,
+                    shell=True,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                logger.debug(process.stdout)
+                logger.info(f"Kubernetes namespace set to {namespace}")
+
+            except subprocess.CalledProcessError as e:
+                logger.info(f"Error: {e}")
+
+        if kube_config_path:  # check if user passed a user-defined kube_config_path
+            kube_config_dir = os.path.expanduser("~/.kube")
+            kube_config_path_rl = os.path.join(kube_config_dir, "config")
+
+            if not os.path.exists(
+                kube_config_dir
+            ):  # check if ~/.kube directory exists on local machine
+                try:
+                    os.makedirs(
+                        kube_config_dir
+                    )  # create ~/.kube directory if it doesn't exist
+                    logger.info(f"Created directory: {kube_config_dir}")
+                except OSError as e:
+                    logger.info(f"Error creating directory: {e}")
+
+            if os.path.exists(kube_config_path_rl):
+                raise Exception(
+                    "A kubeconfig file already exists in ~/.kube directory. Aborting."
+                )
+
+            try:
+                cmd = f"cp {kube_config_path} {kube_config_path_rl}"  # copy user-defined kube_config to ~/.kube/config
+                subprocess.run(cmd, shell=True, check=True)
+                logger.info(f"Copied kubeconfig to: {kube_config_path}")
+            except subprocess.CalledProcessError as e:
+                logger.info(f"Error copying kubeconfig: {e}")
