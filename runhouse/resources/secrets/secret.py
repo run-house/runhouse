@@ -120,7 +120,6 @@ class Secret(Resource):
         provider: str = None,
         load_from_den: bool = True,
         dryrun: bool = False,
-        _alt_options: Dict = None,
         _resolve_children: bool = True,
     ):
         try:

@@ -12,7 +12,7 @@ from runhouse.resources.hardware.constants import (
 )
 from runhouse.resources.hardware.on_demand_cluster import OnDemandCluster
 from runhouse.resources.hardware.utils import (
-    _compare_config_with_alt_options,
+    _config_and_args_mismatches,
     LauncherType,
     ServerConnectionType,
     setup_kubernetes,
@@ -160,9 +160,7 @@ def cluster(
     if cluster_type == "unsaved":
         new_cluster = Cluster(**cluster_args)
     elif cluster_type == "static":
-        mismatches = _compare_config_with_alt_options(
-            new_cluster.config(), cluster_args
-        )
+        mismatches = _config_and_args_mismatches(new_cluster.config(), cluster_args)
         server_mismatches = mismatches.keys() & RH_SERVER_ARGS
         if "ips" in mismatches:
             new_cluster = Cluster(**cluster_args)
@@ -315,9 +313,7 @@ def ondemand_cluster(
             )
         new_cluster = OnDemandCluster(**cluster_args)
     elif cluster_type == "ondemand":
-        mismatches = _compare_config_with_alt_options(
-            new_cluster.config(), cluster_args
-        )
+        mismatches = _config_and_args_mismatches(new_cluster.config(), cluster_args)
         compute_mismatches = {
             k: v
             for k, v in mismatches.items()

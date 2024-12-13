@@ -81,7 +81,7 @@ def load_cluster_config_from_file() -> Dict:
         return {}
 
 
-def _compare_config_with_alt_options(config, alt_options, return_config=False):
+def _config_and_args_mismatches(config, alt_options):
     """Overload by child resources to compare their config with the alt_options. If the user specifies alternate
     options, compare the config with the options. It's generally up to the child class to decide how to handle the
     options, but default behavior is provided. The default behavior simply checks if any of the alt_options are
@@ -122,11 +122,7 @@ def _compare_config_with_alt_options(config, alt_options, return_config=False):
     for key, value in alt_options.items():
         if key in config:
             if alt_option_to_repr(value) != alt_option_to_repr(config[key]):
-                if return_config:
-                    return None
                 mismatches[key] = value
-        elif return_config:
-            return None
         else:
             mismatches[key] = value
     return mismatches
