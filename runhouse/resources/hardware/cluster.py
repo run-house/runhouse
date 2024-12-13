@@ -2081,7 +2081,7 @@ class Cluster(Resource):
             )
         else:
             scheduler_options = ""
-        self.run_bash_over_ssh(
+        self.run_bash(
             f"nohup dask scheduler --port {port} {scheduler_options} > dask_scheduler.out 2>&1 &",
             node=self.head_ip,
             stream_logs=True,
@@ -2104,7 +2104,7 @@ class Cluster(Resource):
                 if node == self.head_ip
                 else remote_scheduler_address
             )
-            self.run_bash_over_ssh(
+            self.run_bash(
                 f"nohup dask worker {scheduler} --host {self.internal_ips[idx]} {worker_options_str} > dask_worker.out 2>&1 &",
                 node=node,
             )
@@ -2114,9 +2114,9 @@ class Cluster(Resource):
         return client
 
     def kill_dask(self):
-        self.run_bash_over_ssh("pkill -f 'dask scheduler'", node=self.head_ip)
+        self.run_bash("pkill -f 'dask scheduler'", node=self.head_ip)
         for node in self.ips:
-            self.run_bash_over_ssh("pkill -f 'dask worker'", node=node)
+            self.run_bash("pkill -f 'dask worker'", node=node)
 
     def remove_conda_env(
         self,
