@@ -137,8 +137,10 @@ class OnDemandCluster(Cluster):
             **kwargs.get("launched_properties", {}),
         }
         self._docker_user = None
-        self._namespace = kwargs.get("namespace")
-        self._context = kwargs.get("context")
+        self._namespace = kwargs.get("namespace") or self.compute_properties.get(
+            "namespace"
+        )
+        self._context = kwargs.get("context") or self.compute_properties.get("context")
         self._cluster_status = kwargs.get("cluster_status")
 
         # Checks if state info is in local sky db, populates if so.
