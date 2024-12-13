@@ -137,10 +137,12 @@ class OnDemandCluster(Cluster):
             **kwargs.get("launched_properties", {}),
         }
         self._docker_user = None
-        self._namespace = kwargs.get("namespace") or self.compute_properties.get(
-            "namespace"
+        self._kube_namespace = kwargs.get(
+            "kube_namespace"
+        ) or self.compute_properties.get("kube_namespace")
+        self._kube_context = kwargs.get("kube_context") or self.compute_properties.get(
+            "kube_context"
         )
-        self._context = kwargs.get("context") or self.compute_properties.get("context")
         self._cluster_status = kwargs.get("cluster_status")
 
         # Checks if state info is in local sky db, populates if so.
@@ -243,10 +245,10 @@ class OnDemandCluster(Cluster):
         config["autostop_mins"] = self._autostop_mins
         config["num_cpus"] = self._num_cpus
         config["accelerators"] = self._accelerators
-        if self._namespace is not None:
-            config["namespace"] = self._namespace
-        if self._context is not None:
-            config["context"] = self._context
+        if self._kube_namespace is not None:
+            config["kube_namespace"] = self._kube_namespace
+        if self._kube_context is not None:
+            config["kube_context"] = self._kube_context
 
         return config
 
@@ -484,10 +486,10 @@ class OnDemandCluster(Cluster):
             if cloud == "kubernetes":
                 if handle.cached_cluster_info:
                     self.compute_properties[
-                        "namespace"
+                        "kube_namespace"
                     ] = handle.cached_cluster_info.provider_config.get("namespace")
                     self.compute_properties[
-                        "context"
+                        "kube_context"
                     ] = handle.cached_cluster_info.provider_config.get("context")
 
                     instance_infos = list(handle.cached_cluster_info.instances.values())
@@ -501,7 +503,7 @@ class OnDemandCluster(Cluster):
                     ]
 
                 if not self.compute_properties.get(
-                    "namespace"
+                    "kube_namespace"
                 ) or not self.compute_properties.get("pod_names"):
                     import kubernetes
 
@@ -516,15 +518,15 @@ class OnDemandCluster(Cluster):
                         pod_names_and_ips[ip][0] for ip in self.ips
                     ]
                     # Get the namespace for the first pod
-                    self.compute_properties["namespace"] = pod_names_and_ips[
+                    self.compute_properties["kube_namespace"] = pod_names_and_ips[
                         self.head_ip
                     ][1]
 
-                if not self.compute_properties.get("context"):
+                if not self.compute_properties.get("kube_context"):
                     import kubernetes
 
                     _, current_context = kubernetes.config.list_kube_config_contexts()
-                    self.compute_properties["context"] = current_context["name"]
+                    self.compute_properties["kube_context"] = current_context["name"]
 
     def _update_from_sky_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
@@ -732,7 +734,9 @@ class OnDemandCluster(Cluster):
             >>> rh.ondemand_cluster("rh-cpu", node="3.89.174.234").ssh()
         """
         if self.provider == "kubernetes":
-            namespace_flag = f"-n {self._namespace}" if self._namespace else ""
+            namespace_flag = (
+                f"-n {self._kube_namespace}" if self._kube_namespace else ""
+            )
 
             command = f"kubectl get pods {namespace_flag} | grep {self.name}"
             try:

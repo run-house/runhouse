@@ -543,7 +543,7 @@ class Cluster(Resource):
         node = node or self.head_ip
 
         if self.compute_properties.get("cloud") == "kubernetes":
-            namespace = self.compute_properties.get("namespace", None)
+            namespace = self.compute_properties.get("kube_namespace", None)
             node_idx = self.ips.index(node)
             pod_name = self.compute_properties.get("pod_names", None)[node_idx]
 
