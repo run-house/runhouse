@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple, Union
 from runhouse.globals import obj_store, rns_client
 from runhouse.logger import get_logger
 
+from runhouse.resources.hardware.utils import _compare_config_with_alt_options
 from runhouse.rns.top_level_rns_fns import (
     resolve_rns_path,
     save,
