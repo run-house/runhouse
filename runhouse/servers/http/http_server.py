@@ -51,6 +51,7 @@ from runhouse.servers.http.http_utils import (
     get_token_from_request,
     handle_exception_response,
     InstallPackageParams,
+    KillProcessParams,
     LogsParams,
     OutputType,
     PutObjectParams,
@@ -422,6 +423,17 @@ class HTTPServer:
                 create=True,
             )
             return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/kill_process")
+    @validate_cluster_access
+    async def kill_process(request: Request, params: KillProcessParams):
+        try:
+            await obj_store.adelete_servlet_contents(params.process_name)
         except Exception as e:
             return handle_exception_response(
                 e, traceback.format_exc(), from_http_server=True

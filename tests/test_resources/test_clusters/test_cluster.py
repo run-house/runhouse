@@ -1228,3 +1228,14 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         res = cluster.run_bash("echo hello", process=process)
         assert res[0][0] == 0
         assert res[0][1].strip() == "hello"
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_kill_process(self, cluster):
+        process = cluster.ensure_process_created(name="new_test_process")
+        assert process in cluster.list_processes()
+        cluster.put(key="new_key", obj="val", process=process)
+        assert cluster.get("new_key") == "val"
+        cluster.kill_process(process)
+        assert cluster.get("new_key") is None
+        assert process not in cluster.list_processes()

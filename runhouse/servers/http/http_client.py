@@ -30,6 +30,7 @@ from runhouse.servers.http.http_utils import (
     GetObjectParams,
     handle_response,
     InstallPackageParams,
+    KillProcessParams,
     LogsParams,
     OutputType,
     PutObjectParams,
@@ -835,6 +836,13 @@ class HTTPClient:
             json_dict=SetProcessEnvVarsParams(
                 process_name=process_name, env_vars=env_vars
             ).model_dump(),
+        )
+
+    def kill_process(self, process_name: str):
+        return self.request_json(
+            "/kill_process",
+            req_type="post",
+            json_dict=KillProcessParams(process_name=process_name).model_dump(),
         )
 
     def install_package(self, package: "Package", conda_env_name: Optional[str] = None):

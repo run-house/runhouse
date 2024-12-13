@@ -87,6 +87,10 @@ class GetObjectParams(BaseModel):
     remote: Optional[bool] = False
 
 
+class KillProcessParams(BaseModel):
+    process_name: str
+
+
 class LogsParams(BaseModel):
     run_name: str
     node_ip: Optional[str] = None
