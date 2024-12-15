@@ -107,16 +107,19 @@ class Launcher:
 
     @classmethod
     def sky_secret(cls):
-        secrets_name = "ssh-sky-key"
+        from runhouse.constants import SSH_SKY_SECRET_NAME
+
         try:
-            sky_secret = rh.secret(secrets_name)
+            sky_secret = rh.secret(SSH_SKY_SECRET_NAME)
         except ValueError:
             # Create a new default key pair required for the Den launcher and save it to Den
             from runhouse import provider_secret
 
             default_ssh_path, _ = generate_ssh_keys()
             logger.info(f"Saved new SSH key to path: {default_ssh_path} ")
-            sky_secret = provider_secret(provider="sky", path=default_ssh_path)
+            sky_secret = provider_secret(
+                provider="sky", path=default_ssh_path, name=SSH_SKY_SECRET_NAME
+            )
             sky_secret.save()
 
         secret_values = sky_secret.values

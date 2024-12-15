@@ -19,7 +19,10 @@ def restart_server(request):
     return request.config.getoption("--restart-server")
 
 
-def setup_test_cluster(args, request, setup_base=False):
+def setup_test_cluster(args, request, test_rns_folder, setup_base=False):
+    rh.constants.SSH_SKY_SECRET_NAME = (
+        f"{test_rns_folder}-{rh.constants.SSH_SKY_SECRET_NAME}"
+    )
     cluster = rh.ondemand_cluster(**args)
     init_args[id(cluster)] = args
     cluster.up_if_not()
