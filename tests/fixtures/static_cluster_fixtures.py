@@ -7,7 +7,10 @@ from tests.utils import setup_test_base
 
 
 @pytest.fixture(scope="session")
-def static_cpu_pwd_cluster():
+def static_cpu_pwd_cluster(test_rns_folder):
+    rh.constants.SSH_SKY_SECRET_NAME = (
+        f"{test_rns_folder}-{rh.constants.SSH_SKY_SECRET_NAME}"
+    )
     sky_cluster = rh.cluster(
         "aws-cpu-password", instance_type="CPU:4", provider="aws"
     ).save()

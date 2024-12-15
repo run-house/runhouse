@@ -112,3 +112,5 @@ ITALIC_BOLD = "\x1B[3m\x1B[1m"
 RESET_FORMAT = "\x1B[0m"
 
 SKY_VENV = "~/skypilot-runtime"
+
+SSH_SKY_SECRET_NAME = "ssh-sky-key"
