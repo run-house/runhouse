@@ -586,9 +586,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         default_process_name = DEFAULT_PROCESS_NAME
 
         cluster.put(key="status_key2", obj="status_value2")
-        status_output_response = cluster.run_bash_over_ssh(
-            [status_cli_command], _ssh_mode="non_interactive"
-        )[0]
+        status_output_response = cluster.run_bash([status_cli_command])[0]
         assert status_output_response[0] == 0
         status_output_string = status_output_response[1]
         # The string that's returned is utf-8 with the literal escape characters mixed in.
