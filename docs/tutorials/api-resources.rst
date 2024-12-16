@@ -43,9 +43,12 @@ Some configs to consider setting:
    ``cluster.keep_warm(autostop=60)`` to control this for an existing
    cluster.
 
--  ``rh.configs.set('default_provider', 'cheapest')``: Default cloud
-   provider to use for your on-demand cluster, or ``cheapest`` selects
-   the cheapest provider for the desired hardware.
+-  ``rh.configs.set('default_provider', 'aws')``: Default cloud
+   provider to use for your on-demand cluster.
+
+-  ``rh.configs.set('launcher', 'den')``: Default to using Runhouse for launching the cluster. This makes it easier to
+   track the cluster's status, memory consumption and viewing logs. It is also useful for launching cluster as part of
+   a distributed workflow or pipeline.
 
 To save updated configs to Runhouse, to be accessed from elsewhere:
 

@@ -32,6 +32,12 @@ all launch environments using only the Runhouse token. Platform teams gain centr
 how often they are launched, and the resources or tasks executed on them. Access management becomes much simpler, especially in multi-cloud or multi-cluster environments.
 To get started with Den enabled, simply run ``runhouse login --sync-secrets`` in the CLI.
 
+
+.. note::
+
+    If you do not have access to the cloud from a local machine (ex: from within an orchestration pipeline), you
+    can use the Runhouse control plane to launch your compute. See :ref:`Den Launcher` for more information.
+
 Start Your Project
 -------------------
 Once you have established access to compute, you can start developing a new ML project. The following steps will provide the details of how to use Runhouse, starting
