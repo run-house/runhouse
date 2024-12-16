@@ -10,7 +10,6 @@ import ray
 
 import requests
 import typer
-import yaml
 from rich.console import Console
 
 import runhouse as rh
@@ -155,46 +154,21 @@ def cluster_ssh(cluster_name: str):
         c.ssh()
 
     except ValueError:
-        import sky
+        try:
+            import sky
 
-        from runhouse import OnDemandCluster
-        from runhouse.constants import DEFAULT_SSH_PORT
-        from runhouse.resources.hardware.utils import _run_ssh_command
-
-        state = sky.status(cluster_names=[cluster_name], refresh=False)
+            state = sky.status(cluster_names=[cluster_name], refresh=False)
+        except:
+            state = []
 
         if len(state) == 0:
             console.print(
                 f"Could not load cluster called {cluster_name}. Cluster must either be saved to Den, "
-                "or be an ondemand cluster that is currently up."
+                "or be a local ondemand cluster that is currently up."
             )
-
             raise typer.Exit(1)
 
-        resource_handle = state[0].get("handle", {})
-
-        sky_ssh_config = Path(f"~/.sky/generated/{cluster_name}.yml").expanduser()
-
-        if sky_ssh_config.exists():
-            with open(sky_ssh_config, "r", encoding="utf-8") as f:
-                ssh_config = yaml.safe_load(f)
-            ssh_proxy_command = ssh_config["auth"].get("ssh_proxy_command", None)
-            if ssh_proxy_command:
-                ssh_proxy_command = ssh_proxy_command.replace(
-                    "skypilot:ssh_user", resource_handle.ssh_user
-                )
-
-        else:
-            ssh_proxy_command = None
-
-        _run_ssh_command(
-            address=resource_handle.head_ip,
-            ssh_user=resource_handle.ssh_user or "ubuntu",
-            ssh_port=resource_handle.stable_ssh_ports[0] or DEFAULT_SSH_PORT,
-            ssh_private_key=OnDemandCluster.DEFAULT_KEYFILE,
-            docker_user=resource_handle.docker_user,
-            ssh_proxy_command=ssh_proxy_command,
-        )
+        subprocess.run(f"ssh {cluster_name}", shell=True)
 
 
 @cluster_app.command("status")
