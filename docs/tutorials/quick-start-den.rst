@@ -71,6 +71,22 @@ are always securely stored in `Vault <https://www.vaultproject.io/>`__.
 If you have any questions about Runhouse’s information security
 policies, please reach out at `hello@run.house <hello@run.house>`__.
 
+
+Den Launcher
+------------
+Instead of launching clusters directly from your local environment, the Den launcher allows you to launch clusters in your own cloud via the Runhouse control plane.
+We recommend this approach for a couple of reasons:
+
+- **Resource Management**: Clusters launched through Runhouse are automatically persisted in the Den UI, making it easier to track and manage your entire collection of resources.
+- **Resource Sharing**: Share clusters with your team members, enabling collaborative features like SSH access to shared clusters.
+- **Resource Monitoring**: Monitor cluster activity and logs, and configure autostop settings to terminate clusters after periods of inactivity.
+- **Distributed Workflows / Production Pipelines**: Launch clusters as part of distributed workflows or pipelines without needing to configure cloud credentials in your environment.
+
+To enable the Den launcher, you can set :code:`launcher=den` in the :ref:`cluster factory <Cluster Factory Methods>`,
+or update your local :ref:`runhouse config <Setting Config Options>` with :code:`launcher: den` to apply the setting
+globally across all subsequent clusters created.
+
+
 Launching and Saving Clusters
 -----------------------------
 
@@ -170,5 +186,5 @@ Dive Deeper
 
 Check on more in-depth tutorials on:
 
-- Resource Management https://www.run.house/docs/tutorials/api-resources
-- Secrets Management https://www.run.house/docs/tutorials/api-secrets
+- :ref:`Resource Management <Resource Management>`
+- :ref:`Secrets Management <Secrets>`
