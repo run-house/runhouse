@@ -388,12 +388,15 @@ class Module(Resource):
         process: Optional[Union[str, Dict]] = None,
         name: Optional[str] = None,
     ):
-        """Put a copy of the module on the destination system and process, and return the new module.
+        """Send the module to a specified process on a cluster. This will sync over relevant code for the module
+        to run on the cluster, and return a remote_module object that will wrap remote calls to the module
+        living on the cluster.
 
         Args:
-            system (str or Cluster): The system to setup the module and process on.
+            system (str or Cluster): The cluster to setup the module and process on.
             process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly created with those args.
-                or the set of requirements necessary to run the module. (Default: ``None``)
+                or the set of requirements necessary to run the module. If no process is specified,
+                the module will be sent to the default_process created when the cluster is created (Default: ``None``)
             name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
                 (Default: ``None``)
 
