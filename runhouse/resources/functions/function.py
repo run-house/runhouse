@@ -69,17 +69,17 @@ class Function(Module):
         name: Optional[str] = None,
     ):
         """
-        Send the function to the specified env on the cluster. This will sync over relevant code and packages
-        onto the cluster, and set up the environment if it does not yet exist on the cluster.
+        Send the function to a specified process on a cluster. This will sync over relevant code for the function
+        to run on the cluster, and return a remote_function object that will wrap remote calls to the function
+        living on the cluster.
 
         Args:
-            system (str or Cluster): The system to setup the function and env on.
+            system (str or Cluster): The cluster to setup the module and process on.
             process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly created with those args.
-                or the set of requirements necessary to run the module. (Default: ``None``)
-            name (Optional[str], optional): Name to give to the function resource, if you wish to rename it.
+                or the set of requirements necessary to run the module. If no process is specified,
+                the module will be sent to the default_process created when the cluster is created (Default: ``None``)
+            name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
                 (Default: ``None``)
-            force_install (bool, optional): Whether to re-install and perform the environment setup steps, even
-                if it may already exist on the cluster. (Defualt: ``False``)
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)

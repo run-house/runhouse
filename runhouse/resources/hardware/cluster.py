@@ -1609,16 +1609,17 @@ class Cluster(Resource):
         stream_logs: bool = True,
         require_outputs: bool = True,
     ):
-        """Run bash commands on the cluster through the Runhouse server.
+        """Run bash commands on the cluster through the Runhouse server. These are run via subprocess.run in
+        the relevant Python process or node on the cluster. If neither process or node are specified, run on the
+        head node.
 
         Args:
             commands (str or List[str]): Commands to run on the cluster.
             node (int, str or None): Node to run the command on. Node can an int referring to the node index,
-                string referring to the ips, or "all" to run on all nodes. If not specified, run the command
-                on the head node. (Default: ``None``)
+                string referring to the ips, or "all" to run on all nodes. (Default: ``None``)
             process (str or None): Process to run the command on. (Default: ``None``)
             stream_logs (bool): Whether to stream logs. (Default: ``True``)
-            require_outputs (bool): Whether to return outputs in addition to status code. (Default: ``True``)
+            require_outputs (bool): Whether to return stdout/stderr in addition to status code. (Default: ``True``)
         """
 
         if isinstance(commands, str):
@@ -1740,7 +1741,8 @@ class Cluster(Resource):
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
         conda_env_name: Optional[str] = None,
     ):
-        """Run bash commands on the cluster over SSH.
+        """Run bash commands on the cluster over SSH. Will not work directly on the cluster, works strictly over
+        ssh.
 
         Args:
             commands (str or List[str]): Commands to run on the cluster.
@@ -1748,7 +1750,7 @@ class Cluster(Resource):
                 string referring to the ips, or "all" to run on all nodes. If not specified, run the command
                 on the head node. (Default: ``None``)
             stream_logs (bool): Whether to stream logs. (Default: ``True``)
-            require_outputs (bool): Whether to return outputs in addition to status code. (Default: ``True``)
+            require_outputs (bool): Whether to return stdout/stderr in addition to status code. (Default: ``True``)
             conda_env_name (str or None): Name of conda env to run the command in, if applicable. (Defaut: ``None``)
         """
         if self.on_this_cluster():
@@ -1797,7 +1799,8 @@ class Cluster(Resource):
             process (str): Process to kill.
 
         Example:
-            >>> rh.cluster("rh-cpu").kill("ray")
+            >>> cluster.create_process("my_process")
+            >>> cluster.kill("my_process")
         """
         if self.on_this_cluster():
             obj_store.delete_servlet_contents(process)

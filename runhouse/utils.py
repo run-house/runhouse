@@ -198,7 +198,8 @@ def run_with_logs(cmd: str, **kwargs):
         kwargs: Keyword arguments to pass to subprocess.Popen.
 
     Returns:
-        The returncode of the command.
+        The returncode of the command. If require_outputs is True, instead returns a tuple of
+        [returncode, stdout, stderr].
     """
     require_outputs = kwargs.pop("require_outputs", False)
     stream_logs = kwargs.pop("stream_logs", True)
