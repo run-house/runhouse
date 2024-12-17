@@ -417,6 +417,8 @@ class LocalLauncher(Launcher):
         if rns_client.autosave_resources():
             cluster.save()
 
+        logger.info("Successfully terminated cluster")
+
     @classmethod
     def keep_warm(cls, cluster, mins: int):
         """Keeping a locally launched cluster warm."""
