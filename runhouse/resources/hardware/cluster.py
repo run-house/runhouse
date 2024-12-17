@@ -444,7 +444,7 @@ class Cluster(Resource):
         return config
 
     def _update_values(self, new_values: Dict[str, Any]):
-        for key, val in new_values:
+        for key, val in new_values.items():
             setattr(self, key, val)
 
     def endpoint(self, external: bool = False):
