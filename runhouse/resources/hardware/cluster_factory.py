@@ -195,9 +195,9 @@ def ondemand_cluster(
     open_ports: Union[int, str, List[int], None] = None,
     sky_kwargs: Dict = None,
     # kubernetes related arguments
-    namespace: Optional[str] = None,
+    kube_namespace: Optional[str] = None,
     kube_config_path: Optional[str] = None,
-    context: Optional[str] = None,
+    kube_context: Optional[str] = None,
     # runhouse server arguments
     server_port: int = None,
     server_host: str = None,
@@ -247,9 +247,9 @@ def ondemand_cluster(
             `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/reference/api.html#resources>`__) and `launch`
             API (See `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/reference/api.html#sky-launch>`__),
             respectively. Duplicating arguments passed to the `ondemand_cluster` factory method will raise an error.
-        namespace (str, optional): Namespace for kubernetes cluster, if applicable.
+        kube_namespace (str, optional): Namespace for kubernetes cluster, if applicable.
         kube_config_path (str, optional): Path to the kube_config, for a kubernetes cluster.
-        context (str, optional): Context for kubernetes cluster, if applicable.
+        kube_context (str, optional): Context for kubernetes cluster, if applicable.
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
         server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument

@@ -764,9 +764,9 @@ class Event(object):
 # KUBERNETES SETUP
 ###################################
 def setup_kubernetes(
-    namespace: Optional[str] = None,
+    kube_namespace: Optional[str] = None,
     kube_config_path: Optional[str] = None,
-    context: Optional[str] = None,
+    kube_context: Optional[str] = None,
     **kwargs,
 ):
     if kwargs.get("provider") and not kwargs.get("provider") == "kubernetes":
@@ -784,26 +784,26 @@ def setup_kubernetes(
             f"You passed {kwargs.get('server_connection_type')}."
         )
 
-    if context and namespace:
+    if kube_context and kube_namespace:
         logger.warning(
             "You passed both a context and a namespace. Ensure your namespace matches the one in your context.",
         )
 
     launcher = kwargs.get("launcher") or configs.launcher
     if launcher == "local":
-        if context:
+        if kube_context:
             # check if user passed a user-defined context
             try:
-                cmd = f"kubectl config use-context {context}"  # set user-defined context as current context
+                cmd = f"kubectl config use-context {kube_context}"  # set user-defined context as current context
                 subprocess.run(cmd, shell=True, check=True)
-                logger.info(f"Kubernetes context has been set to: {context}")
+                logger.info(f"Kubernetes context has been set to: {kube_context}")
             except subprocess.CalledProcessError as e:
-                logger.error(f"Error setting context {context}: {e}")
+                logger.error(f"Error setting context {kube_context}: {e}")
 
-        if namespace:
+        if kube_namespace:
             # Set the context only if launching locally
             # check if user passed a user-defined namespace
-            cmd = f"kubectl config set-context --current --namespace={namespace}"
+            cmd = f"kubectl config set-context --current --namespace={kube_namespace}"
             try:
                 process = subprocess.run(
                     cmd,
@@ -814,7 +814,7 @@ def setup_kubernetes(
                     text=True,
                 )
                 logger.debug(process.stdout)
-                logger.info(f"Kubernetes namespace set to {namespace}")
+                logger.info(f"Kubernetes namespace set to {kube_namespace}")
 
             except subprocess.CalledProcessError as e:
                 logger.info(f"Error: {e}")
