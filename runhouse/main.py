@@ -433,7 +433,7 @@ def cluster_down(
             console.print("No running clusters saved in Den")
             raise typer.Exit(0)
 
-        terminated_clusters: int = 0
+        num_terminated_clusters: int = 0
         for running_cluster in running_den_clusters:
             try:
                 current_cluster = rh.cluster(
@@ -442,14 +442,19 @@ def cluster_down(
                 )
                 if isinstance(current_cluster, rh.OnDemandCluster):
                     current_cluster.teardown_and_delete() if remove_configs else current_cluster.teardown()
-                    terminated_clusters += 1
+                    num_terminated_clusters += 1
                 else:
                     console.print(
                         f"[reset][bold italic]{current_cluster.rns_address} [reset]is not an on-demand cluster and must be terminated manually."
                     )
             except ValueError:
                 continue
-        console.print(f"Successfully terminated [reset]{terminated_clusters} clusters.")
+
+        if num_terminated_clusters > 0:
+            console.print(
+                f"Successfully terminated [reset]{num_terminated_clusters} clusters."
+            )
+
         raise typer.Exit(0)
 
     current_cluster = get_cluster_or_local(cluster_name=cluster_name)
