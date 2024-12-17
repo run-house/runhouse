@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Tuple, Union
 from runhouse.globals import obj_store, rns_client
 from runhouse.logger import get_logger
 
-from runhouse.resources.hardware.utils import _compare_config_with_alt_options
 from runhouse.rns.top_level_rns_fns import (
     resolve_rns_path,
     save,
@@ -205,7 +204,6 @@ class Resource:
         name: str,
         load_from_den: bool = True,
         dryrun: bool = False,
-        _alt_options: Dict = None,
         _resolve_children: bool = True,
     ):
         """Load existing Resource via its name.
@@ -222,13 +220,6 @@ class Resource:
             return obj_store.get(name)
 
         config = rns_client.load_config(name=name, load_from_den=load_from_den)
-
-        if _alt_options:
-            config = _compare_config_with_alt_options(
-                config, _alt_options, return_config=True
-            )
-            if not config:
-                return None
         if not config:
             raise ValueError(f"Resource {name} not found.")
 
