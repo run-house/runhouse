@@ -44,7 +44,6 @@ from tests.utils import (
     set_output_env_vars,
 )
 
-
 """ TODO:
 1) In subclasses, test factory methods create same type as parent
 2) In subclasses, use monkeypatching to make sure `up()` is called for various methods if the server is not up
@@ -131,9 +130,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     }
     MINIMAL = {"cluster": ["static_cpu_pwd_cluster"]}
     RELEASE = {
-        "cluster": [
-            "static_cpu_pwd_cluster",
-        ]
+        "cluster": ["static_cpu_pwd_cluster", "static_cpu_pwd_cluster_den_launcher"]
     }
     MAXIMAL = {
         "cluster": [
@@ -142,6 +139,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pwd_ssh_no_auth",
             "static_cpu_pwd_cluster",
             "multinode_cpu_docker_conda_cluster",
+            "static_gpu_pwd_cluster_den_launcher",
         ]
     }
 
