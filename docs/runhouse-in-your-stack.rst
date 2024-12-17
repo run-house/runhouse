@@ -85,7 +85,7 @@ But if you are considering executing recurring training, for instance, Runhouse 
 debuggability, statefulness across epochs, and the ability to efficiently use compute.
 
 Slurm-Style Compute Interfaces (e.g. Slurm, SkyPilot, Mosaic, SageMaker Training)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 In this category of Slurm-style solutions, compute is allocated on the fly and scripts are used as entry points.
 For heavyweight jobs that are run manually, such as a research lab training a large language
 model over hundreds of GPUs, this style of execution works quite well. However, for recurring enterprise ML use cases, there are several distinct disadvantages
