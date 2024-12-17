@@ -8,6 +8,11 @@ from runhouse.resources.module import Module
 
 class RayDistributed(Supervisor):
     def __init__(self, name, module: Module = None, ray_init_options=None, **kwargs):
+        if not hasattr(module, "fn_pointers"):
+            raise ValueError(
+                "RayDistributed requires a Runhouse Function object to distribute."
+            )
+
         super().__init__(name=name, **kwargs)
         self._module = module
         self._ray_init_options = ray_init_options or {}
