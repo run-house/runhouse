@@ -14,7 +14,7 @@ Before reviewing this detailed guide, we recommend you start with the `Quick Sta
 * Optionally create an account on the `Runhouse website <https://www.run.house/dashboard>`_ or with ``runhouse login --sync-secrets`` to enable saving, reloading, and centralized authentication / secrets management.
 
 Access to a Pool of Compute
------------------------
+---------------------------
 In order to use Runhouse, you must be able to access compute resources, which can take any form (e.g. VMs, elastic compute, Kubernetes). You should
 think about all the compute resources you have as a single pool, from which Runhouse allows you to launch ephemeral clusters to execute your code.
 
@@ -76,7 +76,7 @@ You can run CLI commands on the cluster using ``cluster.run()`` to layer on setu
 You can find full documentation about the Runhouse cluster API `in the Cluster docs <https://www.run.house/docs/tutorials/api-clusters>`_.
 
 1a. Starting the Runhouse Server Daemon
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 If not already running, the client will start the Runhouse API server daemon
 on the compute and form a secure network connection (either over SSH or HTTP/S).
 
@@ -198,7 +198,7 @@ or let the autostop handle the down.
     cluster.teardown()
 
 Moving to Production
-----------------
+--------------------
 A key advantage of using Runhouse is that the code developed locally has already been executing production-like on remote compute the entire time. This means
 research-to-production is an abstract checkpoint in development rather than an actual task to rewrite pipelines for production over different hardware/data.
 
@@ -249,7 +249,7 @@ from local, even when you launch with the container.
   :width: 750
 
 My Pipeline is in Production, What's Next?
-----------------------
+------------------------------------------
 Once in production, your ML pipelines will eventually experience some failures you need to debug. With Runhouse engineers can easily reproduce production runs on local,
 make changes to the underlying code, and simply push a change to the codebase. There is no debugging through the orchestrator, and no need to rebuild and resubmit.
 However, we find that deploying with Runhouse has fewer errors to begin with, as the code has already been developed in a production-like environment.
