@@ -2183,7 +2183,7 @@ class Cluster(Resource):
             self.call_client_method("set_settings", {"den_auth": False})
         return self
 
-    def set_connection_defaults(self, **kwargs):
+    def set_connection_defaults(self):
         if self.server_host and (
             "localhost" in self.server_host or ":" in self.server_host
         ):
@@ -2195,7 +2195,6 @@ class Cluster(Resource):
             if ":" in self.server_host:
                 # e.g. "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
                 self.server_host, self.client_port = self.server_host.split(":")
-                kwargs["client_port"] = self.client_port
 
         self.server_connection_type = self.server_connection_type or (
             ServerConnectionType.TLS

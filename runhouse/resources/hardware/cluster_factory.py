@@ -172,7 +172,7 @@ def cluster(
                 )
             new_cluster = Cluster(**cluster_args)
 
-    new_cluster.set_connection_defaults(**cluster_args)
+    new_cluster.set_connection_defaults()
 
     if den_auth:
         new_cluster.save()
