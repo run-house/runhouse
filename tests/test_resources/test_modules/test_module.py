@@ -282,8 +282,10 @@ class TestModule:
             "docker_cluster_pwd_ssh_no_auth",
             "static_cpu_pwd_cluster",
             "multinode_cpu_docker_conda_cluster",
-            "static_gpu_pwd_cluster_den_launcher",  # tests modules on a den-launched cpu cluster
             "static_cpu_pwd_cluster_den_launcher",  # tests modules on a den-launched cpu cluster
+        ],
+        "gpu": [
+            "static_gpu_pwd_cluster_den_launcher",  # tests modules on a den-launched gpu cluster
         ],
     }
 

@@ -107,14 +107,16 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             "ondemand_k8s_cluster",
             "ondemand_k8s_docker_cluster",
             "ondemand_aws_https_cluster_with_auth",
+            "static_cpu_pwd_cluster",
+            "multinode_cpu_docker_conda_cluster",
+        ],
+        "gpu": [
             "v100_gpu_cluster",
             "den_launcher_v100_gpu_cluster",
             "k80_gpu_cluster",
             "a10g_gpu_cluster",
-            "static_cpu_pwd_cluster",
-            "multinode_cpu_docker_conda_cluster",
             "multinode_gpu_cluster",
-        ]
+        ],
     }
 
     @pytest.mark.level("minimal")

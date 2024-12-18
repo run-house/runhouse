@@ -127,9 +127,18 @@ def pytest_addoption(parser):
         help="URL of Runhouse Den",
     )
 
+    parser.addoption(
+        "--cluster-type",
+        action="store",
+        default="cpu",  # Default to "cpu" clusters
+        choices=["cpu", "gpu", "all"],
+        help="Cluster type (cpu or gpu) to run the tests on.",
+    )
+
 
 def pytest_generate_tests(metafunc):
     level = metafunc.config.getoption("level")
+    cluster_type = metafunc.config.getoption("--cluster-type", default="cpu").lower()
 
     level_fixtures = getattr(
         metafunc.cls or metafunc.module, level.upper(), default_fixtures[level]
@@ -145,6 +154,17 @@ def pytest_generate_tests(metafunc):
 
     for fixture_name, fixture_list in level_fixtures.items():
         if fixture_name in metafunc.fixturenames:
+            # Select `gpu_cluster` or fallback to `cluster` based on cluster_type
+            if cluster_type == "all":  # run tests on both gpu and cpu clusters at once
+                fixture_list = level_fixtures.get("gpu", []) + level_fixtures.get(
+                    "cluster", []
+                )
+            elif cluster_type == "gpu" and fixture_name == "cluster":
+                fixture_list = level_fixtures.get("gpu_cluster", [])
+            elif cluster_type == "cpu" and fixture_name == "gpu":
+                continue  # Skip gpu_cluster if cpu is specified
+
+            # Parametrize the fixture
             metafunc.parametrize(fixture_name, fixture_list, indirect=True)
 
 
@@ -369,6 +389,8 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "ondemand_aws_https_cluster_with_auth",
         "multinode_cpu_docker_conda_cluster",
         "static_cpu_pwd_cluster",
+    ],
+    "gpu": [
         "static_gpu_pwd_cluster_den_launcher",  # for testing cluster status on single-node gpu.
         "multinode_gpu_cluster",  # for testing cluster status on multinode gpu.
     ],

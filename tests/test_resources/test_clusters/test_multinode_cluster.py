@@ -24,8 +24,8 @@ class TestMultiNodeCluster:
         "cluster": [
             "multinode_k8s_cpu_cluster",
             "multinode_cpu_docker_conda_cluster",
-            "multinode_gpu_cluster",
-        ]
+        ],
+        "gpu": ["multinode_gpu_cluster"],
     }
 
     @pytest.mark.level("release")
