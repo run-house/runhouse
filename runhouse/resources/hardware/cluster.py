@@ -120,12 +120,6 @@ class Cluster(Resource):
         .. note::
             To build a cluster, please use the factory method :func:`cluster`.
         """
-        if default_env:
-            raise ValueError(
-                "`default_env` argument has been deprecated. Please refer to the Image class for an updated "
-                "approach to set up a default env."
-            )
-
         super().__init__(name=name, dryrun=dryrun)
 
         self._rpc_tunnel = None
@@ -751,7 +745,7 @@ class Cluster(Resource):
         """Install the given packages on the cluster.
 
         Args:
-            reqs (List[Package or str]): List of packages to install on cluster and env.
+            reqs (List[Package or str]): List of packages to install on cluster.
             node (str, optional): Cluster node to install the package on. If specified, will use ssh to install the
                 package. (Default: ``None``)
             conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
