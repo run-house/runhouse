@@ -113,6 +113,8 @@ Table of Contents
 
    tutorials/api-clusters
    tutorials/api-modules
+   tutorials/api-process
+   tutorials/api-images
    tutorials/api-folders
    tutorials/api-secrets
    tutorials/api-resources
