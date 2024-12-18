@@ -67,6 +67,7 @@ class Function(Module):
         system: Union[str, Cluster],
         process: Optional[Union[str, "Process"]] = None,
         name: Optional[str] = None,
+        sync_local: bool = True,
     ):
         """
         Send the function to a specified process on a cluster. This will sync over relevant code for the function
@@ -74,18 +75,23 @@ class Function(Module):
         living on the cluster.
 
         Args:
-            system (str or Cluster): The cluster to setup the module and process on.
-            process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly created with those args.
-                or the set of requirements necessary to run the module. If no process is specified,
-                the module will be sent to the default_process created when the cluster is created (Default: ``None``)
-            name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
+            system (str or Cluster): The cluster to setup the function and process on.
+            process (str or Dict, optional): The process to run the function on. If it's a Dict, it will be explicitly
+                created with those args. or the set of requirements necessary to run the function. If no process is
+                specified, the function will be sent to the default_process created when the cluster is created
                 (Default: ``None``)
+            name (Optional[str], optional): Name to give to the function resource, if you wish to rename it.
+                (Default: ``None``)
+            sync_local (bool, optional): Whether to sync up and use the local function on the cluster. If ``False``,
+                don't sync up and use the equivalent function found on the cluster. (Default: ``True``)
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
             >>> rh.function(fn=local_fn).to(system=gpu_cluster, process=my_conda_env)
         """  # noqa: E501
-        return super().to(system=system, process=process, name=name)
+        return super().to(
+            system=system, process=process, name=name, sync_local=sync_local
+        )
 
     # ----------------- Function call methods -----------------
 

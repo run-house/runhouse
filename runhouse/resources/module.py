@@ -387,6 +387,7 @@ class Module(Resource):
         system: Union[str, Cluster],
         process: Optional[Union[str, Dict]] = None,
         name: Optional[str] = None,
+        sync_local: bool = True,
     ):
         """Send the module to a specified process on a cluster. This will sync over relevant code for the module
         to run on the cluster, and return a remote_module object that will wrap remote calls to the module
@@ -394,11 +395,14 @@ class Module(Resource):
 
         Args:
             system (str or Cluster): The cluster to setup the module and process on.
-            process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly created with those args.
-                or the set of requirements necessary to run the module. If no process is specified,
-                the module will be sent to the default_process created when the cluster is created (Default: ``None``)
+            process (str or Dict, optional): The process to run the module on. If it's a Dict, it will be explicitly
+                created with those args. or the set of requirements necessary to run the module. If no process is
+                specified, the module will be sent to the default_process created when the cluster is created
+                (Default: ``None``)
             name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
                 (Default: ``None``)
+            sync_local (bool, optional): Whether to sync up and use the local module on the cluster. If ``False``,
+                don't sync up and use the equivalent module found on the cluster. (Default: ``True``)
 
         Example:
             >>> local_module = rh.module(my_class)
@@ -443,7 +447,7 @@ class Module(Resource):
         # We need to change the pointers to the remote import path if we're sending this module to a remote cluster,
         # and we need to add the local path to the module to the requirements if it's not already there.
         remote_import_path = None
-        if self._pointers or getattr(self, "fn_pointers", None):
+        if sync_local and (self._pointers or getattr(self, "fn_pointers", None)):
             pointers = self._pointers if self._pointers else self.fn_pointers
 
             # Update the system reqs with the local path to the module if it's not already there
