@@ -66,15 +66,26 @@ def setup_static_cluster(
 
 
 @pytest.fixture(scope="session")
-def static_cpu_pwd_cluster():
-    return setup_static_cluster()
+def static_cpu_pwd_cluster(request):
+    cluster = setup_static_cluster()
+    yield cluster
+    if not request.config.getoption("--detached"):
+        rh.cluster(name=cluster.name).teardown()
 
 
 @pytest.fixture(scope="session")
-def static_cpu_pwd_cluster_den_launcher():
-    return setup_static_cluster(launcher=LauncherType.DEN)
+def static_cpu_pwd_cluster_den_launcher(request):
+    cluster = setup_static_cluster(launcher=LauncherType.DEN)
+    yield cluster
+    if not request.config.getoption("--detached"):
+        rh.cluster(name=cluster.name).teardown()
 
 
 @pytest.fixture(scope="session")
-def static_gpu_pwd_cluster_den_launcher():
-    return setup_static_cluster(launcher=LauncherType.DEN, compute_type=computeType.gpu)
+def static_gpu_pwd_cluster_den_launcher(request):
+    cluster = setup_static_cluster(
+        launcher=LauncherType.DEN, compute_type=computeType.gpu
+    )
+    yield cluster
+    if not request.config.getoption("--detached"):
+        rh.cluster(name=cluster.name).teardown()

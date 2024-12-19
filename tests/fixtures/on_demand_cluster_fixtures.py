@@ -89,7 +89,9 @@ def ondemand_aws_docker_cluster(request):
         "sky_kwargs": {"launch": {"retry_until_up": True}},
     }
     cluster = setup_test_cluster(args, request, setup_base=True)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -113,7 +115,9 @@ def den_launched_ondemand_aws_docker_cluster(request):
         "launcher": LauncherType.DEN,
     }
     cluster = setup_test_cluster(args, request)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -129,8 +133,10 @@ def ondemand_aws_https_cluster_with_auth(request, test_rns_folder):
         # "server_port": DEFAULT_HTTPS_PORT,
         "open_ports": [DEFAULT_HTTPS_PORT],
     }
-    cluster = setup_test_cluster(args, request)
-    return cluster
+    cluster = setup_test_cluster(args, request, test_rns_folder)
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -154,7 +160,9 @@ def ondemand_gcp_cluster(request):
         "image": image,
     }
     cluster = setup_test_cluster(args, request)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -171,7 +179,9 @@ def ondemand_k8s_cluster(request):
         "instance_type": "CPU:1",
     }
     cluster = setup_test_cluster(args, request)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -189,7 +199,9 @@ def den_launched_ondemand_aws_k8s_cluster(request):
         "context": os.getenv("EKS_ARN"),
     }
     cluster = setup_test_cluster(args, request)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -207,7 +219,9 @@ def den_launched_ondemand_gcp_k8s_cluster(request):
         "context": "gke_testing",
     }
     cluster = setup_test_cluster(args, request)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -226,7 +240,9 @@ def ondemand_k8s_docker_cluster(request):
         ),
     }
     cluster = setup_test_cluster(args, request)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -237,7 +253,9 @@ def v100_gpu_cluster(request):
         "provider": "aws",
     }
     cluster = setup_test_cluster(args, request, create_env=True)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -249,7 +267,9 @@ def den_launcher_v100_gpu_cluster(request):
         "launcher": LauncherType.DEN,
     }
     cluster = setup_test_cluster(args, request, create_env=True)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -260,7 +280,9 @@ def k80_gpu_cluster(request):
         "provider": "aws",
     }
     cluster = setup_test_cluster(args, request)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -271,7 +293,9 @@ def a10g_gpu_cluster(request):
         "provider": "aws",
     }
     cluster = setup_test_cluster(args, request)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -283,7 +307,9 @@ def multinode_k8s_cpu_cluster(request):
         "instance_type": "CPU:2+",
     }
     cluster = setup_test_cluster(args, request)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -305,7 +331,9 @@ def multinode_cpu_docker_conda_cluster(request):
         "instance_type": "CPU:2+",
     }
     cluster = setup_test_cluster(args, request)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
 
 
 @pytest.fixture(scope="session")
@@ -316,4 +344,6 @@ def multinode_gpu_cluster(request):
         "instance_type": "g5.xlarge",
     }
     cluster = setup_test_cluster(args, request)
-    return cluster
+    yield cluster
+    if not request.config.getoption("--detached"):
+        cluster.teardown()
