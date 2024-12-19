@@ -5,7 +5,6 @@ from typing import Callable, Optional, Union
 from runhouse.logger import get_logger
 
 from runhouse.resources.functions.function import Function
-from runhouse.resources.packages import git_package
 
 logger = get_logger(__name__)
 
@@ -17,7 +16,7 @@ def function(
     dryrun: bool = False,
     serialize_notebook_fn: bool = False,
 ):
-    """runhouse.function(fn: str | Callable | None = None, name: str | None = None, system: str | Cluster | None = None, env: str | List[str] | Env | None = None, dryrun: bool = False, load_secrets: bool = False, serialize_notebook_fn: bool = False)
+    """runhouse.function(fn: str | Callable | None = None, name: str | None = None, system: str | Cluster | None = None, dryrun: bool = False, load_secrets: bool = False, serialize_notebook_fn: bool = False)
 
     Builds an instance of :class:`Function`.
 
@@ -75,9 +74,7 @@ def function(
         match = re.match(pattern, fn)
 
         if match:
-            username = match.group("username")
             repo_name = match.group("repo_name")
-            branch_name = match.group("branch_name")
             path = match.group("path")
             func_name = match.group("func_name")
         else:
@@ -89,11 +86,7 @@ def function(
         relative_path = str(repo_name / Path(path).parent)
         fn_pointers = (relative_path, module_name, func_name)
         # TODO [DG] check if the user already added this in their reqs
-        repo_package = git_package(
-            git_url=f"https://github.com/{username}/{repo_name}.git",
-            revision=branch_name,
-        )
-        env.reqs = [repo_package] + env.reqs
+        # For now, user needs to manually install the corresponding GH repo
 
     new_function = Function(fn_pointers=fn_pointers, name=name, dryrun=dryrun)
 

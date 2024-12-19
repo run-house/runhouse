@@ -765,7 +765,7 @@ def server_start(
         help="URL of Runhouse Den",
     ),
     conda_env: str = typer.Option(
-        None, help="Name of conda env corresponding to default env if it is a CondaEnv."
+        None, help="Name of conda env where Runhouse server is started, if applicable."
     ),
     from_python: bool = typer.Option(
         False,
@@ -873,7 +873,7 @@ def server_restart(
         help="URL of Runhouse Den",
     ),
     conda_env: str = typer.Option(
-        None, help="Name of conda env corresponding to default env if it is a CondaEnv."
+        None, help="Name of conda env where Runhouse server is started, if applicable."
     ),
     from_python: bool = typer.Option(
         False,
