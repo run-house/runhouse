@@ -130,6 +130,7 @@ def pytest_addoption(parser):
 
 def pytest_generate_tests(metafunc):
     level = metafunc.config.getoption("level")
+
     level_fixtures = getattr(
         metafunc.cls or metafunc.module, level.upper(), default_fixtures[level]
     )
@@ -368,6 +369,7 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "ondemand_aws_https_cluster_with_auth",
         "multinode_cpu_docker_conda_cluster",
         "static_cpu_pwd_cluster",
+        "static_gpu_pwd_cluster_den_launcher",  # for testing cluster status on single-node gpu.
         "multinode_gpu_cluster",  # for testing cluster status on multinode gpu.
-    ]
+    ],
 }
