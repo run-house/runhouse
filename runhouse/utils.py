@@ -25,6 +25,7 @@ from time import sleep
 from typing import Callable, Dict, Optional, Type, Union
 
 import pexpect
+import ray
 import yaml
 
 from runhouse.constants import CONDA_INSTALL_CMDS, ENVS_DIR, RH_LOGFILE_PATH
@@ -890,3 +891,32 @@ def get_gpu_usage(collected_gpus_info: dict, servlet_type: ServletType):
         gpu_usage["utilization_percent"] = gpu_utilization_percent
 
     return gpu_usage
+
+
+####################################################################################################
+# ray utils
+####################################################################################################
+def init_remote_cluster_servlet_actor(
+    current_ip: str,
+    runtime_env: Optional[Dict] = None,
+    servlet_name: str = "cluster_servlet",
+    cluster_config: Optional[dict] = None,
+):
+
+    from runhouse.servers.cluster_servlet import ClusterServlet
+
+    remote_actor = (
+        ray.remote(ClusterServlet)
+        .options(
+            name=servlet_name,
+            get_if_exists=True,
+            lifetime="detached",
+            namespace="runhouse",
+            max_concurrency=1000,
+            resources={f"node:{current_ip}": 0.001},
+            num_cpus=0,
+            runtime_env=runtime_env,
+        )
+        .remote(cluster_config=cluster_config, name=servlet_name)
+    )
+    return remote_actor
