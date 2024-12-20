@@ -28,10 +28,13 @@ cluster setup:
 
     import runhouse as rh
 
-    image = rh.Image(name="sample_image").from_docker("python:3.12.8-bookworm")
-        .install_packages(["numpy" ,"pandas"])
+    image = (
+        rh.Image(name="sample_image")
+        .from_docker("python:3.12.8-bookworm")
+        .install_packages(["numpy", "pandas"])
         .sync_secrets(["huggingface"])
-        .set_env_vars({"RH_LOG_LEVEL":"debug"})
+        .set_env_vars({"RH_LOG_LEVEL": "debug"})
+    )
 
     cluster = rh.cluster(name="ml_ready_cluster", image=image, instance_type="CPU:2+", provider="aws").up_if_not()
 
