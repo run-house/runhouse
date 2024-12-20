@@ -110,7 +110,7 @@ async def main():
 
     # First, we define the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
+    # Passing `"huggingface"` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
     img = rh.Image(name="llama3inference").install_packages(
         ["torch", "vllm==0.2.7"]  # >=0.3.0 causes pydantic version error
     )
@@ -122,10 +122,6 @@ async def main():
         provider="gcp",
         image=img,
         autostop_mins=30,  # Number of minutes to keep the cluster up after inactivity
-        # (Optional) Include the following to create exposed TLS endpoints:
-        # open_ports=[443], # Expose HTTPS port to public
-        # server_connection_type="tls", # Specify how runhouse communicates with this cluster
-        # den_auth=False, # No authentication required to hit this cluster (NOT recommended)
     ).up_if_not()
 
     gpu_cluster.sync_secrets(["huggingface"])
