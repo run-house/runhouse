@@ -40,6 +40,18 @@ pytest -s -v --level "local" -k "docker_cluster_pk_ssh_no_auth" tests
 Make sure the fixture(s) of interest are included in the level you're running at, or they won't natch with any tests.
 You can also exclude fixtures with "-m" and a tilde, e.g. "-m ~docker_cluster_public_key".
 
+### Specifying cluster type
+
+By default, if the tests run on cluster fixtures, CPU clusters will be used. Currently, maximal-leveled tests can use GPU tests as well.
+To specify the cluster type, use a command like this:
+
+```bash
+pytest --cluster-type gpu --level maximal -k "moduletest"
+```
+
+The `--cluster-type` parameter accepts the following values: `cpu` (default), `gpu` and `all` (if you want the tests to use both CPU and GPU clusters in the same run).
+
+
 ## Sample Workflow
 
 Say you're adding a new type of infra behind an existing Resource abstraction in Runhouse, perhaps an AWSLambdaFn
