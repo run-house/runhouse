@@ -38,7 +38,8 @@ def saved_resource_pool():
 
 
 def create_folder_path():
-    return f"testing-{uuid.uuid4()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    hash = uuid.uuid4().hex[:8]
+    return f"test-{hash}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
 
 @pytest.fixture(scope="session")
