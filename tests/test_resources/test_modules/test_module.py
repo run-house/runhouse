@@ -267,13 +267,11 @@ class TestModule:
     MINIMAL = {
         "cluster": [
             "static_cpu_pwd_cluster",
-            "static_cpu_pwd_cluster_den_launcher",
         ]
     }
     RELEASE = {
         "cluster": [
             "static_cpu_pwd_cluster_den_launcher",  # tests modules on a den-launched cpu cluster
-            "static_gpu_pwd_cluster_den_launcher",  # tests modules on a den-launched gpu cluster
             "static_cpu_pwd_cluster",  # tests modules on a local (sky) -launched cpu cluster
         ]
     }
@@ -284,7 +282,9 @@ class TestModule:
             "docker_cluster_pwd_ssh_no_auth",
             "static_cpu_pwd_cluster",
             "multinode_cpu_docker_conda_cluster",
-        ]
+            "static_gpu_pwd_cluster_den_launcher",  # tests modules on a den-launched cpu cluster
+            "static_cpu_pwd_cluster_den_launcher",  # tests modules on a den-launched cpu cluster
+        ],
     }
 
     # --------- integration tests ---------
@@ -827,10 +827,7 @@ class TestModule:
         test_fn(mod_name=remote_df.rns_address, cpu_count=cpu_count, size=size)
 
     @pytest.mark.level("local")
-    def test_construct_shared_module(
-        self,
-        cluster,
-    ):
+    def test_construct_shared_module(self, cluster):
         if TEST_ORG in cluster.rns_address:
             pytest.skip(
                 "Skipping test if the cluster is in the test org, as we can't share outside of the org."

@@ -71,7 +71,7 @@ def ondemand_cluster(request):
 
 
 @pytest.fixture(scope="session")
-def ondemand_aws_docker_cluster(request):
+def ondemand_aws_docker_cluster(request, test_rns_folder):
     """
     Note: Also used to test docker and default process with alternate Ray version.
     """
@@ -81,21 +81,24 @@ def ondemand_aws_docker_cluster(request):
         .install_packages(["ray==2.30.0"])
     )
     args = {
-        "name": "aws-cpu",
+        "name": f"{test_rns_folder}-aws-cpu",
         "instance_type": "CPU:2+",
         "provider": "aws",
         "region": "us-east-2",
         "image": image,
         "sky_kwargs": {"launch": {"retry_until_up": True}},
     }
-    cluster = setup_test_cluster(args, request, setup_base=True)
+
+    cluster = setup_test_cluster(
+        args, request, setup_base=True, test_rns_folder=test_rns_folder
+    )
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
 
 
 @pytest.fixture(scope="session")
-def den_launched_ondemand_aws_docker_cluster(request):
+def den_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
     """
     Note: Also used to test docker and default env with alternate Ray version.
     """
@@ -106,7 +109,7 @@ def den_launched_ondemand_aws_docker_cluster(request):
     )
 
     args = {
-        "name": "aws-cpu-den",
+        "name": f"{test_rns_folder}-aws-cpu-den",
         "instance_type": "CPU:2+",
         "provider": "aws",
         "region": "us-east-2",
@@ -114,7 +117,8 @@ def den_launched_ondemand_aws_docker_cluster(request):
         "sky_kwargs": {"launch": {"retry_until_up": True}},
         "launcher": LauncherType.DEN,
     }
-    cluster = setup_test_cluster(args, request)
+
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
@@ -133,6 +137,7 @@ def ondemand_aws_https_cluster_with_auth(request, test_rns_folder):
         # "server_port": DEFAULT_HTTPS_PORT,
         "open_ports": [DEFAULT_HTTPS_PORT],
     }
+
     cluster = setup_test_cluster(args, request, test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
@@ -140,7 +145,7 @@ def ondemand_aws_https_cluster_with_auth(request, test_rns_folder):
 
 
 @pytest.fixture(scope="session")
-def ondemand_gcp_cluster(request):
+def ondemand_gcp_cluster(request, test_rns_folder):
     """
     Note: Also used to test conda default env.
     """
@@ -159,14 +164,15 @@ def ondemand_gcp_cluster(request):
         "provider": "gcp",
         "image": image,
     }
-    cluster = setup_test_cluster(args, request)
+
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
 
 
 @pytest.fixture(scope="session")
-def ondemand_k8s_cluster(request):
+def ondemand_k8s_cluster(request, test_rns_folder):
     kube_config_path = Path.home() / ".kube" / "config"
 
     if not kube_config_path.exists():
@@ -178,54 +184,55 @@ def ondemand_k8s_cluster(request):
         "provider": "kubernetes",
         "instance_type": "CPU:1",
     }
-    cluster = setup_test_cluster(args, request)
+
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
 
 
 @pytest.fixture(scope="session")
-def den_launched_ondemand_aws_k8s_cluster(request):
+def den_launched_ondemand_aws_k8s_cluster(request, test_rns_folder):
     kube_config_path = Path.home() / ".kube" / "config"
 
     if not kube_config_path.exists():
         pytest.skip("no kubeconfig found")
 
     args = {
-        "name": "k8s-cpu-den",
+        "name": f"{test_rns_folder}-k8s-cpu-den",
         "provider": "kubernetes",
         "instance_type": "CPU:1",
         "launcher": LauncherType.DEN,
         "context": os.getenv("EKS_ARN"),
     }
-    cluster = setup_test_cluster(args, request)
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
 
 
 @pytest.fixture(scope="session")
-def den_launched_ondemand_gcp_k8s_cluster(request):
+def den_launched_ondemand_gcp_k8s_cluster(request, test_rns_folder):
     kube_config_path = Path.home() / ".kube" / "config"
 
     if not kube_config_path.exists():
         pytest.skip("no kubeconfig found")
 
     args = {
-        "name": "k8s-cpu-den",
+        "name": f"{test_rns_folder}-k8s-cpu-den",
         "provider": "kubernetes",
         "instance_type": "CPU:1",
         "launcher": LauncherType.DEN,
         "context": "gke_testing",
     }
-    cluster = setup_test_cluster(args, request)
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
 
 
 @pytest.fixture(scope="session")
-def ondemand_k8s_docker_cluster(request):
+def ondemand_k8s_docker_cluster(request, test_rns_folder):
     kube_config_path = Path.home() / ".kube" / "config"
 
     if not kube_config_path.exists():
@@ -239,81 +246,81 @@ def ondemand_k8s_docker_cluster(request):
             "rayproject/ray:latest-py311-cpu"
         ),
     }
-    cluster = setup_test_cluster(args, request)
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
 
 
 @pytest.fixture(scope="session")
-def v100_gpu_cluster(request):
+def v100_gpu_cluster(request, test_rns_folder):
     args = {
         "name": "rh-v100",
         "instance_type": "V100:1",
         "provider": "aws",
     }
-    cluster = setup_test_cluster(args, request, create_env=True)
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
 
 
 @pytest.fixture(scope="session")
-def den_launcher_v100_gpu_cluster(request):
+def den_launcher_v100_gpu_cluster(request, test_rns_folder):
     args = {
         "name": "rh-v100-den",
         "instance_type": "V100:1",
         "provider": "aws",
         "launcher": LauncherType.DEN,
     }
-    cluster = setup_test_cluster(args, request, create_env=True)
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
 
 
 @pytest.fixture(scope="session")
-def k80_gpu_cluster(request):
+def k80_gpu_cluster(request, test_rns_folder):
     args = {
         "name": "rh-k80",
         "instance_type": "K80:1",
         "provider": "aws",
     }
-    cluster = setup_test_cluster(args, request)
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
 
 
 @pytest.fixture(scope="session")
-def a10g_gpu_cluster(request):
+def a10g_gpu_cluster(request, test_rns_folder):
     args = {
         "name": "rh-a10x",
         "instance_type": "g5.2xlarge",
         "provider": "aws",
     }
-    cluster = setup_test_cluster(args, request)
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
 
 
 @pytest.fixture(scope="session")
-def multinode_k8s_cpu_cluster(request):
+def multinode_k8s_cpu_cluster(request, test_rns_folder):
     args = {
         "name": "rh-cpu-multinode",
         "num_instances": NUM_OF_NODES,
         "provider": "kubernetes",
         "instance_type": "CPU:2+",
     }
-    cluster = setup_test_cluster(args, request)
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
 
 
 @pytest.fixture(scope="session")
-def multinode_cpu_docker_conda_cluster(request):
+def multinode_cpu_docker_conda_cluster(request, test_rns_folder):
     image = (
         Image(name="default_image")
         .from_docker("rayproject/ray:latest-py311-cpu")
@@ -330,20 +337,20 @@ def multinode_cpu_docker_conda_cluster(request):
         "provider": "aws",
         "instance_type": "CPU:2+",
     }
-    cluster = setup_test_cluster(args, request)
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
 
 
 @pytest.fixture(scope="session")
-def multinode_gpu_cluster(request):
+def multinode_gpu_cluster(request, test_rns_folder):
     args = {
         "name": "rh-gpu-multinode",
         "num_nodes": NUM_OF_NODES,
         "instance_type": "g5.xlarge",
     }
-    cluster = setup_test_cluster(args, request)
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
