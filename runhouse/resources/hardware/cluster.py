@@ -638,7 +638,7 @@ class Cluster(Resource):
                         node=node,
                     )
                 elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
-                    command = setup_step.kwargs.get("cmd")
+                    command = setup_step.kwargs.get("command")
                     conda_env_name = setup_step.kwargs.get("conda_env_name")
                     if conda_env_name:
                         command = conda_env_cmd(command, conda_env_name)
