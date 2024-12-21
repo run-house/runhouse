@@ -1,7 +1,6 @@
 import asyncio
 import copy
 import datetime
-import json
 import os
 import threading
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
@@ -84,6 +83,7 @@ class ClusterServlet:
         self._api_server_url = self.cluster_config.get(
             "api_server_url", rns_client.api_server_url
         )
+        self.client = httpx.AsyncClient()
         self.pid = get_pid()
         self.process = psutil.Process(pid=self.pid)
         self.gpu_metrics = None  # will be updated only if this is a gpu cluster.
@@ -303,11 +303,9 @@ class ClusterServlet:
             "env_servlet_processes": servlet_processes,
         }
 
-        client = httpx.AsyncClient()
-
-        return await client.post(
+        return await self.client.post(
             f"{self._api_server_url}/resource/{self._cluster_uri}/cluster/status",
-            data=json.dumps(status_data),
+            json=status_data,
             headers=rns_client.request_headers(),
         )
 
@@ -731,9 +729,9 @@ class ClusterServlet:
             "end_line": new_end_log_line,
         }
 
-        post_logs_resp = requests.post(
+        post_logs_resp = await self.client.post(
             f"{self._api_server_url}/resource/{self._cluster_uri}/logs",
-            data=json.dumps(logs_data),
+            json=logs_data,
             headers=rns_client.request_headers(),
         )
 
