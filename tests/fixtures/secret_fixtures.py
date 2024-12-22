@@ -32,7 +32,7 @@ providers = provider_secret_values.keys()
 
 
 def _provider_secret(provider, test_rns_folder):
-    name = f"{test_rns_folder}_test_{provider}"
+    name = f"{test_rns_folder}_{provider}"
     values = provider_secret_values[provider]
 
     args = {"name": name, "provider": provider, "values": values}
