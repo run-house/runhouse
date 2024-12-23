@@ -35,12 +35,12 @@ def subprocess_ray_fn_call_helper(pointers, args, kwargs, conn, ray_opts={}):
     orig_fn = Module._get_obj_from_pointers(
         module_path, module_name, class_name, reload=False
     )
-    res = orig_fn(*args, **kwargs)
+    try:
+        res = orig_fn(*args, **kwargs)
+        return res
+    finally:
+        ray.shutdown()
 
-    ray.shutdown()
-
-    # Send an EOFError over the pipe because for some reason .close is hanging
-    conn.send((EOFError, None))
-    conn.close()
-
-    return res
+        # Send an EOFError over the pipe because for some reason .close is hanging
+        conn.send((EOFError, None))
+        conn.close()
