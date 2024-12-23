@@ -229,6 +229,9 @@ class Cluster(Resource):
 
         # popping creds, because we don't want to save secret creds on the cluster.
         config.pop("creds")
+        if config.get("image") and config.get("image").get("image_id"):
+            config["image"].pop("image_id")
+            config["image"].pop("docker_secret", None)
 
         json_config = f"{json.dumps(config)}"
 
