@@ -29,6 +29,7 @@ class RequestContext(BaseModel):
 class InstallPackageParams(BaseModel):
     package_config: Dict[str, Any]
     conda_env_name: Optional[str] = None
+    force_sync_local: bool = False
 
 
 class RunBashParams(BaseModel):
