@@ -14,11 +14,7 @@ from runhouse.logger import get_logger
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_server import app, HTTPServer
 
-from tests.utils import (
-    friend_account,
-    get_ray_cluster_servlet,
-    get_ray_servlet_and_obj_store,
-)
+from tests.utils import friend_account, get_ray_servlet_and_obj_store
 
 logger = get_logger(__name__)
 
@@ -118,12 +114,6 @@ def local_client_with_den_auth(logged_in_account):
 def test_servlet():
     servlet, _ = get_ray_servlet_and_obj_store("test_servlet")
     yield servlet
-
-
-@pytest.fixture(scope="session")
-def test_cluster_servlet(request):
-    cluster_servlet = get_ray_cluster_servlet()
-    yield cluster_servlet
 
 
 @pytest.fixture(scope="function")

@@ -58,6 +58,7 @@ from runhouse.constants import (
     DEFAULT_DASK_PORT,
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
+    DEFAULT_LOG_LEVEL,
     DEFAULT_PROCESS_NAME,
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
@@ -602,7 +603,8 @@ class Cluster(Resource):
         use the HTTP client.
         """
         env_vars = {}
-        log_level = os.getenv("RH_LOG_LEVEL")
+        # In case the local env var RH_LOG_LEVEL is None, we set the RH_LOG_LEVEL on the cluster to be the DEFAULT_LOG_LEVEL
+        log_level = os.getenv("RH_LOG_LEVEL") or DEFAULT_LOG_LEVEL
         if log_level:
             # add log level to the default env to ensure it gets set on the cluster when the server is restarted
             env_vars["RH_LOG_LEVEL"] = log_level

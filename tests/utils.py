@@ -5,8 +5,10 @@ import os
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Dict, Optional
 
 import pytest
+import ray
 import requests
 
 import runhouse as rh
@@ -17,7 +19,7 @@ from runhouse.globals import rns_client
 
 from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatus
 from runhouse.servers.http.http_utils import CreateProcessParams
-from runhouse.servers.obj_store import get_cluster_servlet, ObjStore, RaySetupOption
+from runhouse.servers.obj_store import ObjStore, RaySetupOption
 
 from tests.constants import TEST_ENV_VARS, TEST_REQS
 
@@ -35,18 +37,6 @@ def get_ray_servlet_and_obj_store(env_name):
     )
 
     return test_servlet, test_obj_store
-
-
-def get_ray_cluster_servlet(cluster_config=None):
-    """Helper method for getting base cluster servlet"""
-    cluster_servlet = get_cluster_servlet(create_if_not_exists=True)
-
-    if cluster_config:
-        ObjStore.call_actor_method(
-            cluster_servlet, "aset_cluster_config", cluster_config
-        )
-
-    return cluster_servlet
 
 
 def get_pid_and_ray_node(a=0):
@@ -211,3 +201,31 @@ def _get_env_var_value(env_var):
     import os
 
     return os.environ[env_var]
+
+
+####################################################################################################
+# ray utils
+####################################################################################################
+def init_remote_cluster_servlet_actor(
+    current_ip: str,
+    runtime_env: Optional[Dict] = None,
+    cluster_config: Optional[Dict] = None,
+    servlet_name: Optional[str] = "cluster_servlet",
+):
+    from runhouse.servers.cluster_servlet import ClusterServlet
+
+    remote_actor = (
+        ray.remote(ClusterServlet)
+        .options(
+            name=servlet_name,
+            get_if_exists=True,
+            lifetime="detached",
+            namespace="runhouse",
+            max_concurrency=1000,
+            resources={f"node:{current_ip}": 0.001},
+            num_cpus=0,
+            runtime_env=runtime_env,
+        )
+        .remote(cluster_config=cluster_config, name=servlet_name)
+    )
+    return remote_actor
