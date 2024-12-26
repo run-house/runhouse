@@ -60,6 +60,30 @@ if __name__ == "__main__":
     print(remote_sd_generate.endpoint())
 ```
 
+Or, if you prefer a declarative style, you can use the `@rh.deploy` decorator:
+
+```python
+import runhouse as rh
+from diffusers import StableDiffusionPipeline
+
+@rh.deploy(gpus="A10G:1",
+           provider="aws",
+           image=rh.images.Ubuntu.install_packages(["torch", "transformers", "diffusers"]))
+def sd_generate(prompt, **inference_kwargs):
+    model = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-base").to("cuda")
+    return model(prompt, **inference_kwargs).images
+
+if __name__ == "__main__":
+    imgs = sd_generate("A hot dog made out of matcha.")
+    imgs[0].show()
+```
+
+```commandline
+$ runhouse deploy my_app.py
+$ python my_app.py
+$ runhouse teardown my_app.py
+```
+
 With the above simple structure you can build, call, and share:
 * 🛠️ **AI primitives**: Preprocessing, training, fine-tuning, evaluation, inference
 * 🚀 **Higher-order services**: Multi-step inference, e2e workflows, evaluation gauntlets, HPO
