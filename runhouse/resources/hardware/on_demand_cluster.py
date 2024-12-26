@@ -613,6 +613,15 @@ class OnDemandCluster(Cluster):
             logger.info("Launching cluster with Den")
             DenLauncher.up(cluster=self, verbose=verbose, force=force)
 
+            # TODO: [SB/JL/MK]: probably the best solution here is to do it inside the launcher. However, when we send
+            # the /settings http request from the launcher to the cluster, we are getting a time-out, probably becasue
+            # the cluster does not recognize the launcher port...
+
+            # Update the launcher type in the cluster configuration stored in the cluster servlet.
+            self.client.set_settings(new_settings={"launcher": LauncherType.DEN})
+            # Update the ssh_properties in the cluster configuration stored in the cluster servlet.
+            self.client.set_settings({"ssh_properties": self.ssh_properties})
+
         elif self.launcher == LauncherType.LOCAL:
             logger.info("Provisioning cluster")
             LocalLauncher.up(cluster=self, verbose=verbose)
