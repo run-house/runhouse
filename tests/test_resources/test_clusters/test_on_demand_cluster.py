@@ -45,7 +45,7 @@ def get_last_active_time_without_register(cluster):
     )
     sky_python_cmd = f"~/skypilot-runtime/bin/python -c {register_activity_cmd}"
 
-    retcode, out, err = cluster.run_bash(sky_python_cmd)[0]
+    retcode, out, err = cluster.run_bash(sky_python_cmd)
     if retcode != 0:
         raise Exception(f"Error when getting last active time: {err}")
     return float(out)
@@ -136,8 +136,8 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
     def test_restart_does_not_change_config_yaml(self, cluster):
         assert cluster.up_if_not()
         config_yaml_res = cluster.run_bash("cat ~/.rh/config.yaml")
-        assert config_yaml_res[0][0] == 0
-        config_yaml_content = config_yaml_res[0][1]
+        assert config_yaml_res[0] == 0
+        config_yaml_content = config_yaml_res[1]
 
         cluster.share(
             users=["info@run.house"],
@@ -148,8 +148,8 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         with friend_account():
             cluster.restart_server()
             config_yaml_res_after_restart = cluster.run_bash("cat ~/.rh/config.yaml")
-            assert config_yaml_res_after_restart[0][0] == 0
-            config_yaml_content_after_restart = config_yaml_res[0][1]
+            assert config_yaml_res_after_restart[0] == 0
+            config_yaml_content_after_restart = config_yaml_res[1]
             assert config_yaml_content_after_restart == config_yaml_content
 
     @pytest.mark.level("minimal")
@@ -200,8 +200,12 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         time.sleep(TESTING_AUTOSTOP_INTERVAL)
         last_active_time = get_last_active_time_without_register(cluster)
 
-        # check that last time updates within the next 10 sec
+        # check that last time updates within the next 15 sec
         end_time = time.time() + TESTING_AUTOSTOP_INTERVAL
+
+        # Triggering autostop activity
+        cluster.put(key="test_key", obj="test_value")
+
         while time.time() < end_time:
             if get_last_active_time_without_register(cluster) > last_active_time:
                 assert True

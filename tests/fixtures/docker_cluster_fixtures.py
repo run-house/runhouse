@@ -17,7 +17,7 @@ from runhouse.globals import rns_client
 from runhouse.resources.images import Image
 from tests.conftest import init_args
 
-from tests.constants import TEST_ENV_VARS
+from tests.constants import TEST_ENV_VARS, TEST_REQS
 from tests.utils import friend_account, setup_test_base
 
 SSH_USER = "rh-docker-user"
@@ -368,17 +368,8 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
     local_ssh_port = BASE_LOCAL_SSH_PORT + 2
     default_image = (
         Image(name="default_image")
-        .install_packages(
-            [
-                "ray==2.30.0",
-                "pytest",
-                "httpx",
-                "pytest_asyncio",
-                "pandas",
-                "numpy<=1.26.4",
-            ]
-        )
         .set_env_vars(env_vars=TEST_ENV_VARS)
+        .install_packages(reqs=TEST_REQS + ["ray==2.30.0"])
     )
 
     local_cluster, cleanup = set_up_local_cluster(
@@ -478,17 +469,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
             conda_env_name="base_env",
             conda_config={"dependencies": ["python=3.11"], "name": "base_env"},
         )
-        .install_packages(
-            [
-                "ray==2.30.0",
-                "pytest",
-                "httpx",
-                "pytest_asyncio",
-                "pandas",
-                "numpy<=1.26.4",
-            ],
-            conda_env_name="base_env",
-        )
+        .install_packages(TEST_REQS)
     )
 
     local_cluster, cleanup = set_up_local_cluster(
