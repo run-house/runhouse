@@ -46,6 +46,13 @@ def trainable(config):
         train.report(score=score)
 
 
+@rh.deploy(
+    image=rh.Image("tune").install_packages(["pyarrow>=9.0.0", "ray[tune]>=2.38.0"]),
+    num_nodes=1,
+    cpus="4+",
+    provider="aws",
+)
+@rh.distribute("ray")
 def find_minimum(num_concurrent_trials=2, num_samples=4, metric_name="score"):
     search_space = {
         "width": tune.uniform(0, 20),
@@ -68,13 +75,4 @@ def find_minimum(num_concurrent_trials=2, num_samples=4, metric_name="score"):
 
 
 if __name__ == "__main__":
-    cluster = rh.cluster(
-        name="rh-cpu",
-        image=rh.Image("tune").install_packages(
-            ["pyarrow>=9.0.0", "ray[tune]>=2.38.0"]
-        ),
-        instance_type="CPU:4+",
-        provider="aws",
-    ).up_if_not()
-    remote_find_minimum = rh.function(find_minimum).to(cluster).distribute("ray")
-    best_result = remote_find_minimum()
+    best_result = find_minimum()
