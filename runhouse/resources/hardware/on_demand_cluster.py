@@ -695,7 +695,7 @@ class OnDemandCluster(Cluster):
 
         Example:
             >>> with rh.ondemand_cluster.pause_autostop():
-            >>>     rh.ondemand_cluster.run(["python train.py"])
+            >>>     rh.ondemand_cluster.run_bash(["python train.py"])
         """
         self.run_bash_over_ssh(_cluster_set_autostop_command(-1), node=self.head_ip)
         yield

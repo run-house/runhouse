@@ -348,7 +348,7 @@ class Module(Resource):
                 logger.debug(f"Appending {module_path} to sys.path")
 
         # This updates the sys.path with any new paths that have been added since the last time we imported
-        # e.g. if the user ran cluster.run(["pip install my_package"]) since this module was created.
+        # e.g. if the user ran cluster.run_bash(["pip install my_package"]) since this module was created.
         importlib_reload(site)
 
         if module_name in obj_store.imported_modules and reload:
