@@ -239,6 +239,7 @@ class Package(Resource):
         cluster: "Cluster" = None,
         node: Optional[str] = None,
         conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
     ):
         """Install package.
 
@@ -249,15 +250,18 @@ class Package(Resource):
                 provided without a ``node``, package will be installed on the head node. (Default: ``None``)
             conda_env_name (Optional[str]): Name of the conda environment to install the package on, if using SSH and
                 installing in a specific conda env that is not activated by default.
+            force_sync_local (bool, optional): If the package exists both locally and remotely, whether to override
+                the remote version with the local version. By default, the local version will be installed only if
+                the package does not already exist on the cluster. (Default: ``False``)
         """
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
 
         if self.install_method == "pip":
 
             # If this is a generic pip package, with no version pinned, we want to check if there is a version
-            # already installed. If there is, then we ignore preferred version and leave the existing version.
-            # The user can always force a version install by doing `numpy==2.0.0` for example. Else, we install
-            # the preferred version, that matches their local.
+            # already installed. If there is, and ``force_sync_local`` is not set to ``True``, then we ignore
+            # preferred version and leave the existing version.  The user can also force a version install by
+            # doing `numpy==2.0.0`. Else, we install the preferred version, that matches their local.
             if (
                 is_python_package_string(self.install_target)
                 and self.preferred_version is not None
@@ -268,7 +272,7 @@ class Package(Resource):
                     cluster=cluster,
                     node=node,
                 )[0]
-                if retcode != 0:
+                if retcode != 0 or force_sync_local:
                     self.install_target = (
                         f"{self.install_target}=={self.preferred_version}"
                     )

@@ -845,13 +845,19 @@ class HTTPClient:
             json_dict=KillProcessParams(process_name=process_name).model_dump(),
         )
 
-    def install_package(self, package: "Package", conda_env_name: Optional[str] = None):
+    def install_package(
+        self,
+        package: "Package",
+        conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
+    ):
         return self.request_json(
             "/install_package",
             req_type="post",
             json_dict=InstallPackageParams(
                 package_config=package.config(),
                 conda_env_name=conda_env_name,
+                force_sync_local=force_sync_local,
             ).model_dump(),
         )
 

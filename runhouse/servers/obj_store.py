@@ -1921,7 +1921,10 @@ class ObjStore:
     # Interact across nodes
     ##############################################
     async def ainstall_package_in_all_nodes_and_processes(
-        self, package: "Package", conda_env_name: Optional[str] = None
+        self,
+        package: "Package",
+        conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
     ):
         from runhouse.resources.packages import InstallTarget, Package
         from runhouse.resources.packages.package import INSTALL_METHODS
@@ -1953,7 +1956,7 @@ class ObjStore:
                 retcode = run_with_logs(
                     f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{package.install_target}') else exit(1)\"",
                 )
-                if retcode != 0:
+                if retcode != 0 or force_sync_local:
                     package.install_target = (
                         f"{package.install_target}=={package.preferred_version}"
                     )

@@ -747,6 +747,7 @@ class Cluster(Resource):
         reqs: List[Union["Package", str]],
         node: Optional[str] = None,
         conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
     ):
         """Install the given packages on the cluster.
 
@@ -756,17 +757,27 @@ class Cluster(Resource):
                 package. (Default: ``None``)
             conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
                 defaults to base environment. (Default: ``None``)
+            force_sync_local (bool, optional): If the package exists both locally and remotely, whether to override
+                the remote version with the local version. By default, the local version will be installed only if
+                the package does not already exist on the cluster. (Default: ``False``)
 
         Example:
             >>> cluster.install_packages(reqs=["accelerate", "diffusers"])
-            >>> cluster.install_packages(reqs=["accelerate", "diffusers"], conda_env_name="my_conda_env")
+            >>> cluster.install_packages(reqs=["accelerate", "diffusers"], conda_env_name="my_conda_env", force_sync_local=True)
         """
         for req in reqs:
             if not node:
-                self.install_package(req, conda_env_name=conda_env_name)
+                self.install_package(
+                    req,
+                    conda_env_name=conda_env_name,
+                    force_sync_local=force_sync_local,
+                )
             else:
                 self.install_package_over_ssh(
-                    req, node=node, conda_env_name=conda_env_name
+                    req,
+                    node=node,
+                    conda_env_name=conda_env_name,
+                    force_sync_local=force_sync_local,
                 )
 
     def get(self, key: str, default: Any = None, remote=False):
@@ -2512,7 +2523,10 @@ class Cluster(Resource):
             )
 
     def install_package(
-        self, package: Union["Package", str], conda_env_name: Optional[str] = None
+        self,
+        package: Union["Package", str],
+        conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
     ):
         from runhouse.resources.packages.package import Package
 
@@ -2521,14 +2535,18 @@ class Cluster(Resource):
 
         if self.on_this_cluster():
             obj_store.ainstall_package_in_all_nodes_and_processes(
-                package, conda_env_name
+                package, conda_env_name, force_sync_local
             )
         else:
             package = package.to(self)
-            self.client.install_package(package, conda_env_name)
+            self.client.install_package(package, conda_env_name, force_sync_local)
 
     def install_package_over_ssh(
-        self, package: Union["Package", str], node: str, conda_env_name: str
+        self,
+        package: Union["Package", str],
+        node: str,
+        conda_env_name: str,
+        force_sync_local: bool = False,
     ):
         from runhouse.resources.packages.package import Package
 
@@ -2537,4 +2555,9 @@ class Cluster(Resource):
             if package.install_method in ["reqs", "local"]:
                 package = package.to(self)
 
-        package._install(cluster=self, node=node, conda_env_name=conda_env_name)
+        package._install(
+            cluster=self,
+            node=node,
+            conda_env_name=conda_env_name,
+            force_sync_local=force_sync_local,
+        )
