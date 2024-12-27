@@ -273,9 +273,9 @@ def logout(
     credentials file. Token is also deleted from the config.
 
     Args:
-        delete_loaded_secrets (bool, optional): If True, deletes the provider credentials file. Defaults to None.
-        delete_rh_config_file (bool, optional): If True, deletes the rh config file. Defaults to None.
-        interactive (bool, optional): If True, runs the logout process in interactive mode. Defaults to None.
+        delete_loaded_secrets (bool, optional): If ``True``, deletes the provider credentials file. (Default: ``None``)
+        delete_rh_config_file (bool, optional): If ``True``, deletes the rh config file. (Default: ``None``)
+        interactive (bool, optional): If ``True``, runs the logout process in interactive mode. (Default: ``None``)
 
     Returns:
         None

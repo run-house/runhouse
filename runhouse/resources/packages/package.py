@@ -597,7 +597,6 @@ def package(
         Package: The resulting package.
 
     Example:
-        >>> import runhouse as rh
         >>> reloaded_package = rh.package(name="my-package")
         >>> local_package = rh.package(path="local/folder/path", install_method="local")
     """

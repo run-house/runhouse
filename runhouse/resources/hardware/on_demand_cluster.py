@@ -273,7 +273,7 @@ class OnDemandCluster(Cluster):
             yaml_path = "~/.sky/generated/" + Path(yaml_path).name
         return yaml_path
 
-    def set_connection_defaults(self):
+    def _set_connection_defaults(self):
         if not self.server_connection_type:
             if self.ssl_keyfile or self.ssl_certfile:
                 self.server_connection_type = ServerConnectionType.TLS
@@ -583,8 +583,9 @@ class OnDemandCluster(Cluster):
     async def a_up(self, capture_output: Union[bool, str] = True):
         """Up the cluster async in another process, so it can be parallelized and logs can be captured sanely.
 
-        capture_output: If True, supress the output of the cluster creation process. If False, print the output
-        normally. If a string, write the output to the file at that path.
+        Args:
+            capture_output (bool): If ``True``, supress the output of the cluster creation process. If ``False``,
+            print the output normally. If a string, write the output to the file at that path.
         """
 
         with ProcessPoolExecutor() as executor:

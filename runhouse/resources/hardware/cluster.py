@@ -156,14 +156,17 @@ class Cluster(Resource):
 
     @property
     def ips(self):
+        """Cluster IPs"""
         return self._ips
 
     @property
     def internal_ips(self):
+        """Internal cluster IPs"""
         return self.ips
 
     @property
     def head_ip(self):
+        """Head IP"""
         return self.ips[0] if self.ips else None
 
     @property
@@ -221,7 +224,7 @@ class Cluster(Resource):
     def docker_user(self) -> Optional[str]:
         return None
 
-    def save_config_to_cluster(
+    def _save_config_to_cluster(
         self,
         node: str = None,
     ):
@@ -1147,7 +1150,7 @@ class Cluster(Resource):
                 cluster_cert_path = f"{base_caddy_dir}/{self.cert_config.CERT_NAME}"
 
         # Update the cluster config on the cluster
-        self.save_config_to_cluster()
+        self._save_config_to_cluster()
 
         # Save a limited version of the local ~/.rh config to the cluster with the user's
         # if such does not exist on the cluster
@@ -1236,7 +1239,7 @@ class Cluster(Resource):
 
         Args:
             resync_rh (bool): Whether to Resync runhouse. If ``False`` will not resync Runhouse onto the cluster.
-                If ``None``, will sync if Runhouse is not installed on the cluster or if locally it is installed
+                If not specified, will sync if Runhouse is not installed on the cluster or if locally it is installed
                 as editable. (Default: ``None``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
             restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
@@ -1265,7 +1268,7 @@ class Cluster(Resource):
 
         Args:
             resync_rh (bool): Whether to Resync runhouse. If ``False`` will not resync Runhouse onto the cluster.
-                If ``None``, will sync if Runhouse is not installed on the cluster or if locally it is installed
+                If not specified, will sync if Runhouse is not installed on the cluster or if locally it is installed
                 as editable. (Default: ``None``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
             restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
@@ -1405,7 +1408,7 @@ class Cluster(Resource):
         contents: bool = False,
         filter_options: str = None,
         stream_logs: bool = False,
-        ignore_existing: Optional[bool] = False,
+        ignore_existing: bool = False,
     ):
         """
         Sync the contents of the source directory into the destination.
@@ -1415,17 +1418,16 @@ class Cluster(Resource):
             dest (str): The target path.
             up (bool): The direction of the sync. If ``True``, will rsync from local to cluster. If ``False``
               will rsync from cluster to local.
-            node (Optional[str], optional): Specific cluster node to rsync to. If not specified will use the
+            node (str, optional): Specific cluster node to rsync to. If not specified will use the
                 address of the cluster's head node.
-            contents (Optional[bool], optional): Whether the contents of the source directory or the directory
-                itself should be copied to destination.
-                If ``True`` the contents of the source directory are copied to the destination, and the source
-                directory itself is not created at the destination.
+            contents (bool, optional): Whether the contents of the source directory or the directory
+                itself should be copied to destination. If ``True`` the contents of the source directory are
+                copied to the destination, and the source directory itself is not created at the destination.
                 If ``False`` the source directory along with its contents are copied ot the destination, creating
                 an additional directory layer at the destination. (Default: ``False``).
-            filter_options (Optional[str], optional): The filter options for rsync.
-            stream_logs (Optional[bool], optional): Whether to stream logs to the stdout/stderr. (Default: ``False``).
-            ignore_existing (Optional[bool], optional): Whether the rsync should skip updating files that already exist
+            filter_options (str, optional): The filter options for rsync.
+            stream_logs (bool, optional): Whether to stream logs to the stdout/stderr. (Default: ``False``).
+            ignore_existing (bool, optional): Whether the rsync should skip updating files that already exist
                 on the destination. (Default: ``False``).
 
         .. note::
@@ -1974,6 +1976,13 @@ class Cluster(Resource):
         return return_codes
 
     def create_conda_env(self, conda_env_name: str, conda_config: Dict):
+        """Create a new Conda Env on the cluster.
+
+        Args:
+            conda_env_name (str): Name of the conda env to create.
+            conda_config (Dict): Dict representing conda config yaml, used to construct the conda environment.
+                Name in conda config must match ``conda_env_name``.
+        """
         install_conda(cluster=self)
         create_conda_env_on_cluster(
             conda_env_name=conda_env_name,
@@ -2074,6 +2083,14 @@ class Cluster(Resource):
         worker_options: Dict = None,
         client_timeout: str = "3s",
     ):
+        """Connect to Dask client.
+
+        Args:
+            port (int, optional): Port to connect Dask. (Default: ``8786``)
+            scheduler_options (Dict, optional): Dict of scheduler options. (Default: ``None``)
+            worker_options (Dict, optional): Dict of worker options. (Default: ``None``)
+            client_timeout (str, optional): Timeout, in string representation. (Default: ``3s``)
+        """
         local_scheduler_address = f"tcp://localhost:{port}"
         remote_scheduler_address = f"tcp://{self.internal_ips[0]}:{port}"
 
@@ -2135,6 +2152,7 @@ class Cluster(Resource):
         return client
 
     def kill_dask(self):
+        """Kill Dask client connection."""
         self.run_bash("pkill -f 'dask scheduler'", node=self.head_ip)
         for node in self.ips:
             self.run_bash("pkill -f 'dask worker'", node=node)
@@ -2183,7 +2201,7 @@ class Cluster(Resource):
             self.call_client_method("set_settings", {"den_auth": False})
         return self
 
-    def set_connection_defaults(self):
+    def _set_connection_defaults(self):
         if self.server_host and (
             "localhost" in self.server_host or ":" in self.server_host
         ):

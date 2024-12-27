@@ -25,7 +25,7 @@ class ImageSetupStep:
 
         Args:
             step_type (ImageSetupStepType): Type of setup step used to provide the Image.
-            kwargs (Dict[str, Any]): Please refer to the corresponding functions in `Image` to determine
+            kwargs (Dict[str, Any]): Please refer to the corresponding functions in ``Image`` to determine
                 the correct keyword arguments to provide.
         """
         self.step_type = step_type
@@ -64,7 +64,7 @@ class Image:
         """Set up and use an existing Docker image.
 
         Args:
-            image_id (str): Docker image in the following format "<registry>/<image>:<tag>"
+            image_id (str): Docker image in the following format ``"<registry>/<image>:<tag>"``
             docker_secret (Secret or str, optional): Runhouse secret corresponding to information
                 necessary to pull the image from a private registry, such as Docker Hub or cloud provider.
                 See ``DockerRegistrySecret`` for more information.
@@ -129,8 +129,6 @@ class Image:
 
         Args:
             reqs (List[Package or str]): List of packages to install on cluster and env.
-            node (str, optional): Cluster node to install the package on. If specified, will use ssh to install the
-                package. (Default: ``None``)
             conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
                 defaults to base environment. (Default: ``None``)
         """
@@ -149,7 +147,7 @@ class Image:
 
         Args:
             command (str): Commands to run on the cluster.
-            conda_env_name (str or None): Name of conda env to run the command in, if applicable. (Defaut: ``None``)
+            conda_env_name (str, optional): Name of conda env to run the command in, if applicable. (Defaut: ``None``)
         """
         self.setup_steps.append(
             ImageSetupStep(
@@ -185,13 +183,13 @@ class Image:
         Args:
             source (str): The source path.
             dest (str): The target path.
-            contents (Optional[bool], optional): Whether the contents of the source directory or the directory
+            contents (bool, optional): Whether the contents of the source directory or the directory
                 itself should be copied to destination.
                 If ``True`` the contents of the source directory are copied to the destination, and the source
                 directory itself is not created at the destination.
                 If ``False`` the source directory along with its contents are copied ot the destination, creating
                 an additional directory layer at the destination. (Default: ``False``).
-            filter_options (Optional[str], optional): The filter options for rsync.
+            filter_options (str, optional): The filter options for rsync.
         """
         self.setup_steps.append(
             ImageSetupStep(
@@ -222,7 +220,7 @@ class Image:
 
         Args:
             env_vars (str or Dict): Dict of environment variables and values to set, or string pointing
-                to local .env file consisting of env vars to set.
+                to local ``.env`` file consisting of env vars to set.
         """
         self.setup_steps.append(
             ImageSetupStep(
