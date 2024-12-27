@@ -135,7 +135,6 @@ Table of Contents
    debugging-logging
    docker-setup
    docker-workflows
-   troubleshooting
    security-and-authentication
 
 
