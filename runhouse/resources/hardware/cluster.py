@@ -96,7 +96,6 @@ class Cluster(Resource):
         name: Optional[str] = None,
         ips: List[str] = None,
         creds: "Secret" = None,
-        default_env: "Env" = None,
         server_host: str = None,
         server_port: int = None,
         ssh_port: int = None,
@@ -165,10 +164,6 @@ class Cluster(Resource):
     @property
     def head_ip(self):
         return self.ips[0] if self.ips else None
-
-    @property
-    def address(self):
-        return self.head_ip
 
     @property
     def client(self):
