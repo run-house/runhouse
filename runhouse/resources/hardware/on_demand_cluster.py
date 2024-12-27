@@ -52,7 +52,6 @@ class OnDemandCluster(Cluster):
         instance_type: str = None,
         num_nodes: int = None,
         provider: str = None,
-        default_env: "Env" = None,
         dryrun: bool = False,
         autostop_mins: int = None,
         use_spot: bool = False,
@@ -84,7 +83,6 @@ class OnDemandCluster(Cluster):
 
         super().__init__(
             name=name,
-            default_env=default_env,
             server_host=server_host,
             server_port=server_port,
             server_connection_type=server_connection_type,

@@ -75,7 +75,7 @@ class TestResource:
         assert resource.RESOURCE_TYPE is not None
 
     @pytest.mark.level("unit")
-    def test_config_for_rns(self, resource):
+    def test_config(self, resource):
         args = init_args.get(id(resource))
         config = resource.config()
         assert isinstance(config, dict)
@@ -151,7 +151,7 @@ class TestResource:
         assert "timestamp" in history[0]
         assert "owner" in history[0]
         assert "data" in history[0]
-        # Not all config_for_rns values are saved inside data field
+        # Not all config values are saved inside data field
         config = json.loads(
             json.dumps(saved_resource.config())
         )  # To deal with tuples and non-json types

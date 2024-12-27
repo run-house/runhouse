@@ -69,11 +69,6 @@ class Resource:
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
 
-    @property
-    def config_for_rns(self):
-        # Added for BC for version 0.0.20
-        return self.config(condensed=False)
-
     def config(self, condensed=True):
         config = {
             "name": self.rns_address or self.name,
