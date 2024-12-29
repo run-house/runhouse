@@ -308,8 +308,8 @@ def a10g_gpu_cluster(request, test_rns_folder):
 @pytest.fixture(scope="session")
 def multinode_k8s_cpu_cluster(request, test_rns_folder):
     args = {
-        "name": "rh-cpu-multinode",
-        "num_instances": NUM_OF_NODES,
+        "name": f"{test_rns_folder}-rh-cpu-multinode",
+        "num_nodes": NUM_OF_NODES,
         "provider": "kubernetes",
         "instance_type": "CPU:2+",
     }
