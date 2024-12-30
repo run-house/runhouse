@@ -331,7 +331,7 @@ def ondemand_cluster(
         server_mismatches = {k: v for k, v in mismatches.items() if k in RH_SERVER_ARGS}
         new_autostop_mins = compute_mismatches.pop("autostop_mins", None)
 
-        if new_cluster.is_up():
+        if mismatches and new_cluster.is_up():
             # cluster is up - throw error if launch compute mismatches, but allow server / autostop min updates
             if compute_mismatches:
                 raise ValueError(
