@@ -144,11 +144,11 @@ if __name__ == "__main__":
         image=img,
     ).up_if_not()
 
-    # We can run commands directly on the cluster via `cluster.run()`. Here, we set up the environment for our
+    # We can run commands directly on the cluster via `cluster.run_bash()`. Here, we set up the environment for our
     # upcoming environment (more on that below) that installed some AWS-neuron specific libraries.
     # We install the `transformers-neuronx` library before restarting Runhouse in order to avoid
     # [common errors](https://awsdocs-neuron.readthedocs-hosted.com/en/latest/frameworks/torch/torch-neuronx/training-troubleshooting.html):
-    cluster.run(
+    cluster.run_bash(
         [
             "python -m pip config set global.extra-index-url https://pip.repos.neuron.amazonaws.com",
             "python -m pip install neuronx-cc==2.* torch-neuronx==1.13.1.1.13.1 transformers-neuronx==0.9.474",

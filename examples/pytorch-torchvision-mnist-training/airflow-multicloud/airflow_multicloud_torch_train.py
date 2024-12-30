@@ -136,7 +136,7 @@ def train_model_callable(**kwargs):
     batch_size = 64
     epochs = 5
     learning_rate = 0.01
-    cluster.run(["ls"])
+    cluster.run_bash(["ls"])
     model.load_train("./data", batch_size)
     model.load_test("./data", batch_size)
 
