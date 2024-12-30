@@ -112,9 +112,8 @@ Table of Contents
    :caption: API Basics
 
    tutorials/api-clusters
+   tutorials/api-clusters-advanced
    tutorials/api-modules
-   tutorials/api-process
-   tutorials/api-images
    tutorials/api-folders
    tutorials/api-secrets
    tutorials/api-resources

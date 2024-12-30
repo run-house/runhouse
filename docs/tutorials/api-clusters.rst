@@ -247,9 +247,19 @@ the machine.
 Useful Cluster Functions
 ------------------------
 
+There are many actions that can be performed on the cluster directly
+through it’s APIs, for instance: \* running commands - ``run_bash``
+(over HTTP server), ``run_bash_over_ssh`` (over SSH), ``run_python`` \*
+installing pacakges - ``install_packages`` \* set env vars -
+``set_process_env_vars`` \* syncing up or down local files - ``rsync``
+
+We show a few examples below, and for a more comprehensive list of these
+functions and example usage, please refer to the `Cluster Python
+API <https://www.run.house/docs/api/python/cluster>`__.
+
 .. code:: ipython3
 
-    tls_cluster.run(['pip install numpy && pip freeze | grep numpy'])
+    tls_cluster.run_bash(['pip install numpy && pip freeze | grep numpy'])
 
 
 .. parsed-literal::
@@ -293,3 +303,11 @@ Useful Cluster Functions
     :class: code-output
 
     [(0, '1.26.4\n', '')]
+
+
+Dig Deeper
+----------
+
+For a more advanced usage tutorial of clusters, you can look at
+`Clusters -
+Advanced <https://www.run.house/docs/tutorials/api-clusters-adv>`__.

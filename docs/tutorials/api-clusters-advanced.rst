@@ -1,10 +1,73 @@
-Processes
-=========
+Clusters - Advanced
+===================
 
 .. raw:: html
 
-    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/api-process.ipynb">
+    <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/api-clusters-adv.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
+
+This tutorial assumes that you are already familiar with the cluster
+basics mentioned in `Cluster API
+tutorial <https://www.run.house/docs/tutorials/api-clusters>`__, which
+covers Runhouse cluster creation, running a basic function, and some
+ulitity commands for running on the cluster.
+
+This tutorial covers some more advanced features, like setting up
+Cluster state with a Runhouse Image, using processes on the cluster, and
+other ways to interact with the cluster.
+
+Base Image
+----------
+
+As you saw in the Cluster API tutorial, Runhouse clusters expose various
+functions that allow you to set up state, dependencies, and whatnot on
+all nodes of your cluster, including ``install_packages``, ``rsync``,
+``set_env_vars``, and ``run_bash``.
+
+A Runhouse “Image” is an abstraction that allows you to run these setup
+steps *before* we install runhouse and bring up the Runhouse daemon and
+initial set up on your cluster’s nodes. You can also specify a machine
+or Docker image_id to the Runhouse image.
+
+.. code:: ipython3
+
+    import runhouse as rh
+
+    image = (
+        rh.Image(name="sample_image")
+        .from_docker("python:3.12.8-bookworm")
+        .install_packages(["numpy", "pandas"])
+        .sync_secrets(["huggingface"])
+        .set_env_vars({"RH_LOG_LEVEL": "debug"})
+    )
+
+    cluster = rh.cluster(name="ml_ready_cluster", image=image, instance_type="CPU:2+", provider="aws").up_if_not()
+
+
+.. parsed-literal::
+    :class: code-output
+
+    I 12-17 12:04:55 provisioner.py:560] [32mSuccessfully provisioned cluster: ml_ready_cluster[0m
+    I 12-17 12:04:57 cloud_vm_ray_backend.py:3402] Run commands not specified or empty.
+    Clusters
+    [2mAWS: Fetching availability zones mapping...[0mNAME              LAUNCHED        RESOURCES                                                                  STATUS  AUTOSTOP  COMMAND
+    ml_ready_cluster  a few secs ago  1x AWS(m6i.large, image_id={'us-east-1': 'docker:python:3.12.8-bookwor...  UP      (down)    /Users/rohinbhasin/minico...
+
+    [?25h
+
+The example above will launch a cluster with the base docker image
+``python:3.12.8-bookworm``, install the given packages, sync over your
+local huggingface token, and set the Runhouse log level env var, prior
+to starting the Runhouse Daemon. To continue installing packages,
+running commands, etc after the Runhouse server is already started, you
+can directly use the cluster commands.
+
+The growing list of setup steps available for runhouse images is
+available in the `API
+Reference <https://www.run.house/docs/main/en/api/python/image>`__.
+
+Processes
+---------
 
 On your Runhouse cluster, whether you have one node or multiple nodes,
 you may want to run things in different processes on the cluster.
@@ -213,3 +276,20 @@ running functions in a process.
       'compute': {'GPU': 1},
       'runtime_env': {},
       'env_vars': {'LOG_LEVEL': 'DEBUG'}}}
+
+
+
+Interacting with the Cluster
+----------------------------
+
+Beyond interacting with the cluster through Python APIs, Runhouse also
+provides other ways of working with the cluster, including easy ways to
+SSH directly onto the cluster, or creating a notebook tunnel, which will
+let you locally develop on a notebook that runs on the cluster.
+
+To SSH, you can either use the Python API ``cluster.ssh()``, or the CLI
+command ``runhouse cluster ssh <cluster_name>``
+
+To create a notebook, run ``cluster.notebook()``, optionally providing
+the notebook port. This will tunnel into and launch a notebook from the
+cluster, and provide a link to use for local development.
