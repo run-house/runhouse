@@ -48,7 +48,7 @@ if __name__ == "__main__":
     cluster = rh.cluster(
         name=cluster_name,
         instance_type="r5d.xlarge",
-        num_instances=num_nodes,
+        num_nodes=num_nodes,
         provider="aws",
     ).up_if_not()
 
