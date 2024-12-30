@@ -163,10 +163,10 @@ class Function(Module):
         return key
 
     def get(self, run_key):
-        """Get the result of a Function call that was submitted as async using `run`.
+        """Get the result of a Function call that was submitted as async using ``run``.
 
         Args:
-            run_key: A single or list of runhouse run_key strings returned by calling ``.call.remote()`` on the
+            run_key: A single or list of runhouse ``run_key`` strings returned by calling ``.call.remote()`` on the
                 Function. The ObjectRefs must be from the cluster that this Function is running on.
 
         Example:

@@ -34,14 +34,12 @@ def function(
         Function: The resulting Function object.
 
     Example:
-        >>> import runhouse as rh
-
         >>> cluster = rh.ondemand_cluster(name="my_cluster")
         >>> def sum(a, b):
         >>>    return a + b
-
+        >>>
         >>> summer = rh.function(fn=sum, name="my_func").to(cluster, env=['requirements.txt']).save()
-
+        >>>
         >>> # using the function
         >>> res = summer(5, 8)  # returns 13
 

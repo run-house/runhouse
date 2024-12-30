@@ -109,8 +109,7 @@ class Resource:
 
     @property
     def rns_address(self):
-        """Traverse up the filesystem until reaching one of the directories in rns_base_folders,
-        then compute the relative path to that."""
+        """Full address of resource saved in Den. Has the format {username}/{resource_name}"""
         if (
             self.name is None or self._rns_folder is None
         ):  # Anonymous folders have no rns address
@@ -120,6 +119,7 @@ class Resource:
 
     @property
     def name(self):
+        """Resource name."""
         return self._name
 
     @name.setter
@@ -134,6 +134,7 @@ class Resource:
 
     @property
     def visibility(self):
+        """Resource visibility."""
         return self._visibility
 
     @visibility.setter
@@ -171,7 +172,7 @@ class Resource:
 
     def save(self, name: str = None, overwrite: bool = True, folder: str = None):
         """Register the resource, saving it to the Den config store. Uses the resource's
-        `self.config()` to generate the dict to save."""
+        ``self.config()`` to generate the dict to save."""
 
         # add this resource this run's downstream artifact registry if it's being saved as part of a run
         rns_client.add_downstream_resource(name or self.name)
@@ -328,7 +329,7 @@ class Resource:
         access_level: Union[ResourceAccess, str] = ResourceAccess.READ,
         visibility: Optional[Union[ResourceVisibility, str]] = None,
         notify_users: bool = True,
-        headers: Optional[Dict] = None,
+        headers: Dict = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
         """Grant access to the resource for a list of users (or a single user). By default, the user will
         receive an email notification of access (if they have a Runhouse account) or instructions on creating
@@ -430,7 +431,8 @@ class Resource:
             users (Union[str, str], optional): List of user emails and / or runhouse account usernames
                 (or a single user). If no users are specified will revoke access for all users. (Default: ``None``)
             headers (Optional[Dict]): Request headers to provide for the request to Den. Contains the user's auth token.
-                Example: ``{"Authorization": f"Bearer {token}"}``
+                Example: ``{"Authorization": f"Bearer {token}"}`` Will default to authorization headers of the local
+                config. (Default: ``None``)
         """
         if isinstance(users, str):
             users = [users]

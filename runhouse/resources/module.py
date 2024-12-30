@@ -215,6 +215,7 @@ class Module(Resource):
 
     @property
     def system(self):
+        """Cluster that the Module lives on."""
         return self._system
 
     @system.setter
@@ -529,8 +530,8 @@ class Module(Resource):
 
         Args:
             system (str or Cluster): The system to setup the module.
-            process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly created with those args.
-                or the set of requirements necessary to run the module. (Default: ``None``)
+            process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly
+                created with those args. or the set of requirements necessary to run the module. (Default: ``None``)
             name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
                 (Default: ``None``)
 
@@ -740,19 +741,20 @@ class Module(Resource):
         self,
         distribution: str,
         name: Optional[str] = None,
-        num_replicas: Optional[int] = 1,
+        num_replicas: int = 1,
         replicas_per_node: Optional[int] = None,
-        replication_kwargs: Optional[dict] = {},
+        replication_kwargs: Dict = {},
         **distribution_kwargs,
     ):
         """Distribute the module on the cluster and return the distributed module.
 
         Args:
             distribution (str): The distribution method to use, e.g. "pool", "ray", "pytorch", or "tensorflow".
-            name (str, optional): The name to give to the distributed module, if applicable. Overwrites current module name by default. (Default: ``None``)
+            name (str, optional): The name to give to the distributed module, if applicable. Overwrites current module
+                name by default. (Default: ``None``)
             num_replicas (int, optional): The number of replicas to create. (Default: 1)
             replicas_per_node (int, optional): The number of replicas to create per node. (Default: ``None``)
-            replication_kwargs: The keyword arguments to pass to the replicate method.
+            replication_kwargs (Dict): The keyword arguments to pass to the replicate method. (Default: {})
             distribution_kwargs: The keyword arguments to pass to the distribution method.
         """
         if not self.system or not self.name:

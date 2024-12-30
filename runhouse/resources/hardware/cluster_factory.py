@@ -52,15 +52,15 @@ def cluster(
         name (str): Name for the cluster.
         host (str or List[str], optional): Hostname (e.g. domain or name in .ssh/config), IP address, or list of IP
             addresses for the cluster (the first of which is the head node). (Default: ``None``).
-        ssh_creds (dict or str, optional): SSH credentials, passed as dictionary or the name of an `SSHSecret` object.
+        ssh_creds (Dict or str, optional): SSH credentials, passed as dictionary or the name of an ``SSHSecret`` object.
             Example: ``ssh_creds={'ssh_user': '...', 'ssh_private_key':'<path_to_key>'}`` (Default: ``None``).
         ssh_port (int, optional): Port to use for ssh. If not provided, will default to ``22``.
         client_port (int, optional): Port to use for the client. If not provided, will default to the server port.
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` or ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
         server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
-            `runhouse server start` run on the cluster). Defaults to "0.0.0.0" unless connecting to the server with an SSH
-            connection, in which case ``localhost`` is used. (Default: ``None``).
+            `runhouse server start` run on the cluster). Defaults to ``"0.0.0.0"`` unless connecting to the server
+            with an SSH connection, in which case ``localhost`` is used. (Default: ``None``).
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
             API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
             with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
@@ -172,7 +172,7 @@ def cluster(
                 )
             new_cluster = Cluster(**cluster_args)
 
-    new_cluster.set_connection_defaults()
+    new_cluster._set_connection_defaults()
 
     if den_auth:
         new_cluster.save()
@@ -233,37 +233,47 @@ def ondemand_cluster(
         provider (str, optional): Cloud provider to use for the cluster.
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
             or ``-1`` to keep cluster up indefinitely. (Default: ``60``).
-        use_spot (bool, optional): Whether or not to use spot instance.
-        region (str, optional): The region to use for the cluster.
+        use_spot (bool, optional): Whether or not to use spot instance. (Default: ``False``)
+        region (str, optional): The region to use for the cluster. (Default: ``None``)
         memory (int or str, optional): Amount of memory to use for the cluster, e.g. `16` or "16+".
+            (Default: ``None``)
         disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. `100` or "100+".
-        num_cpus (int or str, optional): Number of CPUs to use for the cluster, e.g. `4` or "4+".
+            (Default: ``None``)
+        num_cpus (int or str, optional): Number of CPUs to use for the cluster, e.g. `4` or "4+". (Default: ``None``)
         accelerators (int or str, optional): Number of accelerators to use for the cluster, e.g. "A101" or "L4:8".
+            (Default: ``None``)
         open_ports (int or str or List[int], optional): Ports to open in the cluster's security group. Note
             that you are responsible for ensuring that the applications listening on these ports are secure.
+            (Default: ``None``)
         sky_kwargs (dict, optional): Additional keyword arguments to pass to the SkyPilot `Resource` or `launch`
             APIs. Should be a dict of the form `{"resources": {<resources_kwargs>}, "launch": {<launch_kwargs>}}`,
             where resources_kwargs and launch_kwargs will be passed to the SkyPilot Resources API (See
             `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/reference/api.html#resources>`__) and `launch`
             API (See `SkyPilot docs <https://skypilot.readthedocs.io/en/latest/reference/api.html#sky-launch>`__),
             respectively. Duplicating arguments passed to the `ondemand_cluster` factory method will raise an error.
-        kube_namespace (str, optional): Namespace for kubernetes cluster, if applicable.
-        kube_config_path (str, optional): Path to the kube_config, for a kubernetes cluster.
-        kube_context (str, optional): Context for kubernetes cluster, if applicable.
+            (Default: ``None``)
+        kube_namespace (str, optional): Namespace for kubernetes cluster, if applicable. (Default: ``None``)
+        kube_config_path (str, optional): Path to the kube_config, for a kubernetes cluster. (Default: ``None``)
+        kube_context (str, optional): Context for kubernetes cluster, if applicable. (Default: ``None``)
         server_port (bool, optional): Port to use for the server. If not provided will use 80 for a
             ``server_connection_type`` of ``none``, 443 for ``tls`` and ``32300`` for all other SSH connection types.
+            (Default: ``None``)
         server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
             `runhouse server start` run on the cluster). Defaults to "0.0.0.0" unless connecting to the server with an SSH
-            connection, in which case ``localhost`` is used.
+            connection, in which case ``localhost`` is used. (Default: ``None``)
         server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
             API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
             with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
-            without an SSH tunnel.
+            without an SSH tunnel. (Default: ``None``)
         launcher (LauncherType or str, optional): Method for launching the cluster. If set to `local`, will launch
-            locally via Sky. If set to `den`, launching will be handled by Runhouse. (Default: ``local``).
-        ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
-        ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
-        domain(str, optional): Domain name for the cluster. Relevant if enabling HTTPs on the cluster.
+            locally via Sky. If set to `den`, launching will be handled by Runhouse. If not provided, will be set
+            to your configured default launcher, which defaults to ``local``. (Default: ``None``)
+        ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS. (Default:
+            ``None``)
+        ssl_certfile (str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
+            (Default: ``None``)
+        domain (str, optional): Domain name for the cluster. Relevant if enabling HTTPs on the cluster.
+            (Default: ``None``)
         image (Image, optional): Default image containing setup steps to run during cluster setup. See :class:`Image`.
             (Default: ``None``)
         den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
@@ -277,7 +287,6 @@ def ondemand_cluster(
         OnDemandCluster: The resulting cluster.
 
     Example:
-        >>> import runhouse as rh
         >>> # On-Demand SkyPilot Cluster (OnDemandCluster)
         >>> gpu = rh.ondemand_cluster(name='rh-4-a100s',
         >>>                  instance_type='A100:4',
@@ -349,7 +358,7 @@ def ondemand_cluster(
             if new_autostop_mins:
                 new_cluster._autostop_mins = new_autostop_mins
 
-    new_cluster.set_connection_defaults()
+    new_cluster._set_connection_defaults()
     if den_auth:
         new_cluster.save()
     return new_cluster

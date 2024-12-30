@@ -108,6 +108,7 @@ class Folder(Resource):
 
     @property
     def path(self):
+        """Folder path."""
         if self._path is not None:
             if self.system == Folder.DEFAULT_FS:
                 return str(Path(self._path).expanduser())
@@ -121,6 +122,7 @@ class Folder(Resource):
 
     @property
     def system(self):
+        """Filesystem or cluster that the folder is on."""
         return self._system
 
     @system.setter
@@ -138,6 +140,7 @@ class Folder(Resource):
 
     @property
     def local_path(self):
+        """Local path of the folder, if it exists locally. Else, ``None``."""
         if self.is_local():
             return str(Path(self.path).expanduser())
         else:
@@ -206,7 +209,7 @@ class Folder(Resource):
 
     def to(
         self,
-        system: Union[str, "Cluster"],
+        system: Union[str, Cluster],
         path: Optional[Union[str, Path]] = None,
     ):
         """Copy the folder to a new filesystem or cluster.
@@ -541,9 +544,9 @@ class Folder(Resource):
         """List the contents of the folder.
 
         Args:
-            full_paths (Optional[bool]): Whether to list the full paths of the folder contents.
+            full_paths (bool, optional): Whether to list the full paths of the folder contents.
                 Defaults to ``True``.
-            sort (Optional[bool]): Whether to sort the folder contents by time modified.
+            sort (bool, optional): Whether to sort the folder contents by time modified.
                 Defaults to ``False``.
         """
         if self._use_http_endpoint:

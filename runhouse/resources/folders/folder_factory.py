@@ -31,7 +31,6 @@ def folder(
         Folder: The resulting folder.
 
     Example:
-        >>> import runhouse as rh
         >>> rh.folder(name='training_imgs', path='remote_directory/images', system='s3').save()
 
         >>> # Load folder from above
