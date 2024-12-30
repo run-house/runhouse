@@ -141,7 +141,6 @@ def cluster_ssh(cluster_name: str):
     """SSH into a remote cluster.
 
     Example:
-
         ``$ runhouse cluster ssh rh-basic-cpu``
 
     """
@@ -185,7 +184,6 @@ def cluster_status(
     """Load the status of the cluster.
 
     Example:
-
         ``$ runhouse cluster status rh-basic-cpu``
     """
     current_cluster = get_cluster_or_local(cluster_name=cluster_name)
@@ -235,8 +233,7 @@ def cluster_list(
     """
     Load Runhouse clusters
 
-    Examples:
-
+    Example:
         ``$ runhouse cluster list``
 
         ``$ runhouse cluster list --all``
@@ -244,7 +241,6 @@ def cluster_list(
         ``$ runhouse cluster list --status running``
 
         ``$ runhouse cluster list --since 15m``
-
     """
 
     # logged out case
@@ -324,7 +320,6 @@ def cluster_keep_warm(
     """Keep the cluster warm for given number of minutes after inactivity.
 
     Example:
-
         ``$ runhouse cluster keep-warm rh-basic-cpu``
 
     """
@@ -364,7 +359,6 @@ def cluster_up(
     Note: To launch the cluster via Den, set `launcher: den` in your local `~/.rh/config.yaml`.
 
     Example:
-
         ``$ runhouse cluster up rh-basic-cpu``
 
     """
@@ -406,7 +400,6 @@ def cluster_down(
     This only applies to on-demand clusters, and has no effect on self-managed clusters.
 
     Example:
-
         ``$ runhouse cluster down rh-basic-cpu``
     """
     if not force_deletion:
@@ -494,8 +487,7 @@ def cluster_logs(
 ):
     """Load the logs of the Runhouse server running on a cluster.
 
-    Examples:
-
+    Example:
         ``$ runhouse cluster logs rh-basic-cpu``
 
         ``$ runhouse cluster logs rh-basic-cpu --since 60``
@@ -772,7 +764,14 @@ def server_start(
         help="Whether HTTP server started from inside a Python call rather than CLI.",
     ),
 ):
-    """Start the HTTP server on the cluster."""
+    """
+    Start the HTTP server on the cluster.
+
+    Example:
+        ``$ runhouse server start``
+
+        ``$ runhouse server start rh-cpu``
+    """
 
     # If server is already up, ask the user to restart the server instead.
     if not cluster_name:
@@ -880,7 +879,13 @@ def server_restart(
         help="Whether HTTP server started from inside a Python call rather than CLI.",
     ),
 ):
-    """Restart the HTTP server on the cluster."""
+    """Restart the HTTP server on the cluster.
+
+    Example:
+        ``$ runhouse server restart``
+
+        ``$ runhouse server restart rh-cpu``
+    """
     if cluster_name:
         c = get_cluster_or_local(cluster_name=cluster_name)
         c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
@@ -918,7 +923,13 @@ def server_stop(
     stop_ray: bool = typer.Option(False, help="Stop the Ray runtime."),
     cleanup_actors: bool = typer.Option(True, help="Kill all Ray actors."),
 ):
-    """Stop the HTTP server on the cluster."""
+    """Stop the HTTP server on the cluster.
+
+    Example:
+        ``$ runhouse server stop``
+
+        ``$ runhouse server stop rh-cpu``
+    """
     logger.debug("Stopping the server")
 
     if cluster_name:
@@ -953,7 +964,13 @@ def server_status(
         "If not provided, the status of the locally running server will be checked.",
     ),
 ):
-    """Check the HTTP server status on the cluster."""
+    """Check the HTTP server status on the cluster.
+
+    Example:
+        ``$ runhouse server status``
+
+        ``$ runhouse server status rh-cpu``
+    """
     logger.debug("Checking the server status.")
     current_cluster = get_cluster_or_local(cluster_name=cluster_name)
     try:
