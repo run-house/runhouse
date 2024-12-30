@@ -523,6 +523,9 @@ class OnDemandCluster(Cluster):
                     _, current_context = kubernetes.config.list_kube_config_contexts()
                     self.compute_properties["kube_context"] = current_context["name"]
 
+                self._kube_namespace = self.compute_properties.get("kube_namespace")
+                self._kube_context = self.compute_properties.get("kube_context")
+
     def _update_from_sky_status(self, dryrun: bool = False):
         # Try to get the cluster status from SkyDB
         if self.is_shared:
