@@ -186,7 +186,7 @@ def ondemand_k8s_cluster(request, test_rns_folder):
 
     # Note: Cannot specify both `instance_type` and any of `memory`, `disk_size`, `num_cpus`, or `accelerators`
     args = {
-        "name": "k8s-cpu",
+        "name": f"{test_rns_folder}-k8s-cpu",
         "provider": "kubernetes",
         "instance_type": "CPU:1",
     }
