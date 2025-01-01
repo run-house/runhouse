@@ -44,7 +44,23 @@ import torch
 # run code in your class on a remote machine.
 #
 # Learn more in the [Runhouse docs on functions and modules](/docs/tutorials/api-modules).
-class HFChatModel(rh.Module):
+# We define the image for our module. This includes the required dependencies that need
+# to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
+# Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
+img = rh.images.PyTorch.install_packages(
+    [
+        "torch",
+        "transformers",
+        "accelerate",
+        "bitsandbytes",
+        "safetensors>=0.3.1",
+        "scipy",
+    ]
+).sync_secrets(["huggingface"])
+
+
+@rh.deploy(gpus="A10G:1", provider="aws", image=img)
+class HFChatModel:
     def __init__(self, model_id="meta-llama/Llama-2-13b-chat-hf", **model_kwargs):
         super().__init__()
         self.model_id, self.model_kwargs = model_id, model_kwargs
@@ -93,42 +109,18 @@ class HFChatModel(rh.Module):
 # :::
 if __name__ == "__main__":
 
-    # We define the image for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
-    img = (
-        rh.Image(name="llama2inference")
-        .install_packages(
-            [
-                "torch",
-                "transformers",
-                "accelerate",
-                "bitsandbytes",
-                "safetensors>=0.3.1",
-                "scipy",
-            ]
-        )
-        .sync_secrets(["huggingface"])
-    )
-
-    gpu_cluster = rh.cluster(
-        name="rh-a10x",
-        instance_type="A10G:1",
-        provider="aws",
-        image=img,
-    ).up_if_not()
-
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
     # by the name `llama-13b-model` if it was already put on the cluster. If we want to update the module each
     # time we run this script, we can use `to` instead of `get_or_to`.
 
-    remote_hf_chat_model = HFChatModel(
+    remote_hf_chat_model = HFChatModel.get_or_create(
+        name="llama-13b-model",
         model_id="meta-llama/Llama-2-13b-chat-hf",
         load_in_4bit=True,
         torch_dtype=torch.bfloat16,
         device_map="auto",
-    ).get_or_to(gpu_cluster, name="llama-13b-model")
+    )
 
     # ## Calling our remote function
     #
