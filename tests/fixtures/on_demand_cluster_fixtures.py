@@ -35,6 +35,12 @@ def setup_test_cluster(args, request, test_rns_folder, setup_base=False):
 
     if setup_base or not cluster.image:
         setup_test_base(cluster)
+
+    # Some tests are sending functions to the cluster that are imported from .test_cluster. When calling those functions
+    # on the  cluster, we get "No module named 'pytest'" error if we don't install pytest, since .test_cluster imports
+    # pytest globally.
+    cluster.install_packages(["pytest"])
+
     return cluster
 
 

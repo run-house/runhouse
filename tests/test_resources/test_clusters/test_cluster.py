@@ -594,7 +594,20 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
         status_output_string = status_output_string.replace("\n", "")
         assert "Runhouse server is running" in status_output_string
-        assert f"Runhouse v{rh.__version__}" in status_output_string
+
+        # TODO [SB+RB+CC]: the way we are setting BYO clusters for clusters now (static_cpu_pwd_cluster),
+        #  the internal ips list equals the external ips, since we are spinning up an ec2 under the hood ->
+        #  we can't run the run_bash. (we are getting "invalid internal ip" error)
+
+        # we are extracting the rh_version from the cluster because den-launched test clusters are created with
+        # latest release, but the local ones are created with the latest main / current rh branch.
+        return_codes = cluster.run_python(
+            ["import runhouse", "print(runhouse.__version__)"]
+        )
+        assert return_codes[0][0] == 0
+        rh_version = return_codes[0][1].replace("\n", "")
+
+        assert f"Runhouse v{rh_version}" in status_output_string
         assert f"server port: {cluster.server_port}" in status_output_string
         assert (
             f"server connection type: {cluster.server_connection_type}"

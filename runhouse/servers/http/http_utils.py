@@ -14,6 +14,7 @@ from ray import cloudpickle as pickle
 from ray.exceptions import RayTaskError
 
 from runhouse.logger import get_logger
+from runhouse.resources.hardware.utils import LauncherType
 
 from runhouse.servers.obj_store import RunhouseStopIteration
 from runhouse.utils import ClusterLogsFormatter
@@ -46,6 +47,8 @@ class ServerSettings(BaseModel):
     flush_auth_cache: Optional[bool] = None
     autostop_mins: Optional[int] = None
     status_check_interval: Optional[int] = None
+    launcher: Optional[Union[str, LauncherType]] = None
+    ssh_properties: Optional[Dict[str, Any]] = None
 
 
 class CreateProcessParams(BaseModel):

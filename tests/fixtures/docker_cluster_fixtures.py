@@ -280,6 +280,11 @@ def set_up_local_cluster(
     if not rh_cluster.image:
         setup_test_base(rh_cluster, logged_in=logged_in)
 
+    # Some tests are sending functions to the cluster that are imported from .test_cluster. When calling those functions
+    # on the  cluster, we get "No module named 'pytest'" error if we don't install pytest, since .test_cluster imports
+    # pytest globally.
+    rh_cluster.install_packages(["pytest"])
+
     def cleanup():
         docker_client.containers.get(container_name).stop()
         docker_client.containers.prune()
@@ -370,7 +375,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
         Image(name="default_image")
         .install_packages(
             [
-                "ray==2.30.0",
+                "ray",
                 "pytest",
                 "httpx",
                 "pytest_asyncio",

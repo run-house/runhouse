@@ -319,6 +319,11 @@ class HTTPServer:
             obj_store.set_cluster_config_value(
                 "status_check_interval", message.status_check_interval
             )
+        if message.launcher:
+            obj_store.set_cluster_config_value("launcher", message.launcher)
+
+        if message.ssh_properties:
+            obj_store.set_cluster_config_value("ssh_properties", message.ssh_properties)
 
         return Response(output_type=OutputType.SUCCESS)
 
