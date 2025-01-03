@@ -30,6 +30,7 @@ import yaml
 from runhouse.constants import CONDA_INSTALL_CMDS, ENVS_DIR, RH_LOGFILE_PATH
 
 from runhouse.logger import get_logger, init_logger
+from runhouse.resources.images import ImageSetupStepType
 
 logger = get_logger(__name__)
 
@@ -155,6 +156,41 @@ def _process_env_vars(env_vars):
         _env_vars_from_file(env_vars) if isinstance(env_vars, str) else env_vars
     )
     return processed_vars
+
+
+def _do_setup_step_for_node(cluster, setup_step, node):
+    if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
+        cluster.create_conda_env(
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            conda_config=setup_step.kwargs.get("conda_config"),
+        )
+    elif setup_step.step_type == ImageSetupStepType.PACKAGES:
+        cluster.install_packages(
+            setup_step.kwargs.get("reqs"),
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
+        command = setup_step.kwargs.get("command")
+        conda_env_name = setup_step.kwargs.get("conda_env_name")
+        if conda_env_name:
+            command = conda_env_cmd(command, conda_env_name)
+        run_setup_command(
+            cmd=command,
+            cluster=cluster,
+            env_vars=env_vars,
+            stream_logs=True,
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.RSYNC:
+        cluster.rsync(
+            source=setup_step.kwargs.get("source"),
+            dest=setup_step.kwargs.get("dest"),
+            node=node,
+            up=True,
+            contents=setup_step.kwargs.get("contents"),
+            filter_options=setup_step.kwargs.get("filter_options"),
+        )
 
 
 ####################################################################################################
