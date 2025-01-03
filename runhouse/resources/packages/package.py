@@ -158,7 +158,12 @@ class Package(Resource):
     ):
         install_args = f" {self.install_args}" if self.install_args else ""
         if isinstance(self.install_target, InstallTarget):
-            install_cmd = self.install_target.full_local_path_str() + install_args
+            if cluster:
+                install_cmd = (
+                    self.install_target.path_to_sync_to_on_cluster + install_args
+                )
+            else:
+                install_cmd = self.install_target.full_local_path_str() + install_args
         else:
             install_target = f'"{self.install_target}"'
             install_cmd = install_target + install_args
@@ -506,24 +511,24 @@ class Package(Resource):
         install_method, target_and_args = Package.split_req_install_method(specifier)
 
         # Handles a case like "torch --index-url https://download.pytorch.org/whl/cu113"
-        rel_target, args = (
+        target, args = (
             target_and_args.split(" ", 1)
             if " " in target_and_args
             else (target_and_args, "")
         )
 
-        # We need to do this because relative paths are relative to the current working directory!
-        abs_target = (
-            Path(rel_target).expanduser()
-            if Path(rel_target).expanduser().is_absolute()
-            else Path(locate_working_dir()) / rel_target
-        )
-        if abs_target.exists():
-            target = InstallTarget(
-                local_path=str(abs_target), _path_to_sync_to_on_cluster=None
+        # If the target is a path, we need to check if it exists and if its relative or absolute
+        if "/" in target:
+            # We need to do this because relative paths are relative to the current working directory!
+            abs_target = (
+                Path(target).expanduser()
+                if Path(target).expanduser().is_absolute()
+                else Path(locate_working_dir()) / target
             )
-        else:
-            target = rel_target
+            if abs_target.exists():
+                target = InstallTarget(
+                    local_path=str(abs_target), _path_to_sync_to_on_cluster=None
+                )
 
         # If install method is not provided, we need to infer it
         if not install_method:

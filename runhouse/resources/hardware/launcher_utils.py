@@ -389,7 +389,7 @@ class LocalLauncher(Launcher):
                     f"public IP address ({cluster.head_ip}) to ensure successful requests."
                 )
             logger.info("Starting Runhouse server on cluster")
-            cluster.restart_server()
+            cluster.restart_server(resync_rh=True)
 
             if rns_client.autosave_resources():
                 logger.debug("Saving cluster to Den")
