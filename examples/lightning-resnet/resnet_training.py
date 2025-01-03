@@ -212,34 +212,32 @@ if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 3
 
-    img = rh.Image("pytorch-image").install_packages(
-        [
-            "torch==2.5.1",
-            "torchvision==0.20.1",
-            "Pillow==11.0.0",
-            "datasets",
-            "boto3",
-            "awscli",
-            "lightning",
-            "runhouse==0.0.36",
-        ]
-    )
-
-    gpu_cluster = (
-        rh.cluster(
-            name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-            instance_type=f"A10G:{gpus_per_node}",
-            num_nodes=num_nodes,
-            provider="aws",
-            launch_type="local",
-            image=img,
+    img = (
+        rh.Image("pytorch-image")
+        .install_packages(
+            [
+                "torch==2.5.1",
+                "torchvision==0.20.1",
+                "Pillow==11.0.0",
+                "datasets",
+                "boto3",
+                "awscli",
+                "lightning",
+            ]
         )
-        .up_if_not()
-        .save()
-    )
+        .sync_secrets(["aws"])
+    )  # sends our AWS secret to the remote cluster
 
-    # gpu_cluster.restart_server() # to restart the Runhouse server, does not tear down the actual underlying compute
-    gpu_cluster.sync_secrets(["aws"])  # sends our AWS secret to the remote cluster
+    gpu_cluster = rh.cluster(
+        name=f"rh-{num_nodes}x{gpus_per_node}GPU",
+        accelerators=f"A10G:{gpus_per_node}",
+        num_nodes=num_nodes,
+        provider="aws",
+        launcher="local",
+        image=img,
+        load_from_den=False,
+    ).up_if_not()
+    gpu_cluster.restart_server()
 
     # Send the Trainer class to the remote GPU cluster
     trainer = rh.module(ResNetTrainer).to(gpu_cluster)
@@ -256,6 +254,7 @@ if __name__ == "__main__":
         working_s3_path=working_s3_path,
     ).distribute(
         "pytorch",
+        port="55877",
         replicas_per_node=gpus_per_node,
         num_replicas=gpus_per_node * num_nodes,
     )  # note we call .distribute()

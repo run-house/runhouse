@@ -1,7 +1,7 @@
 import contextlib
 import copy
-import importlib
 import json
+import multiprocessing
 import os
 import re
 import shutil
@@ -32,6 +32,7 @@ from runhouse.resources.images import Image, ImageSetupStepType
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import (
+    _do_setup_step_for_node,
     _process_env_vars,
     conda_env_cmd,
     create_conda_env_on_cluster,
@@ -598,7 +599,7 @@ class Cluster(Resource):
         )
         return self
 
-    def _sync_image_to_cluster(self):
+    def _sync_image_to_cluster(self, parallel: bool = True):
         """
         Image stuff that needs to happen over SSH because the daemon won't be up yet, so we can't
         use the HTTP client.
@@ -627,47 +628,26 @@ class Cluster(Resource):
 
         secrets_to_sync = []
 
-        for setup_step in self.image.setup_steps:
-            for node in self.ips:
-                if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
-                    self.create_conda_env(
-                        conda_env_name=setup_step.kwargs.get("conda_env_name"),
-                        conda_config=setup_step.kwargs.get("conda_config"),
+        for step in self.image.setup_steps:
+            if step.step_type == ImageSetupStepType.SYNC_SECRETS:
+                secrets_to_sync += step.kwargs.get("providers")
+                continue
+            elif step.step_type == ImageSetupStepType.SET_ENV_VARS:
+                image_env_vars = _process_env_vars(step.kwargs.get("env_vars"))
+                env_vars.update(image_env_vars)
+                continue
+
+            if parallel:
+                # Launch in a new process so we can capture the logs
+                with multiprocessing.Pool(processes=len(self.ips)) as pool:
+                    pool.starmap(
+                        _do_setup_step_for_node, [(self, step, ip) for ip in self.ips]
                     )
-                elif setup_step.step_type == ImageSetupStepType.PACKAGES:
-                    self.install_packages(
-                        setup_step.kwargs.get("reqs"),
-                        conda_env_name=setup_step.kwargs.get("conda_env_name"),
-                        node=node,
-                    )
-                elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
-                    command = setup_step.kwargs.get("command")
-                    conda_env_name = setup_step.kwargs.get("conda_env_name")
-                    if conda_env_name:
-                        command = conda_env_cmd(command, conda_env_name)
-                    run_setup_command(
-                        cmd=command,
-                        cluster=self,
-                        env_vars=env_vars,
-                        stream_logs=True,
-                        node=node,
-                    )
-                elif setup_step.step_type == ImageSetupStepType.SYNC_SECRETS:
-                    secrets_to_sync += setup_step.kwargs.get("providers")
-                elif setup_step.step_type == ImageSetupStepType.RSYNC:
-                    self.rsync(
-                        source=setup_step.kwargs.get("source"),
-                        dest=setup_step.kwargs.get("dest"),
-                        node=node,
-                        up=True,
-                        contents=setup_step.kwargs.get("contents"),
-                        filter_options=setup_step.kwargs.get("filter_options"),
-                    )
-                elif setup_step.step_type == ImageSetupStepType.SET_ENV_VARS:
-                    image_env_vars = _process_env_vars(
-                        setup_step.kwargs.get("env_vars")
-                    )
-                    env_vars.update(image_env_vars)
+                    # Fix any garbled terminal output
+                    os.system("stty sane")
+            else:
+                for ip in self.ips:
+                    _do_setup_step_for_node(self, step, ip)
 
         return secrets_to_sync, env_vars
 
@@ -1082,47 +1062,22 @@ class Cluster(Resource):
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
+        parallel: bool = True,
     ):
         if not self.is_up():
             raise ConnectionError(
                 f"Could not reach {self.name} {self.head_ip}. Is cluster up?"
             )
 
-        image_secrets, image_env_vars = self._sync_image_to_cluster()
+        if resync_rh:
+            self.image.install_packages(["ray", "pip:runhouse"])
+            logger.debug("Finished syncing Runhouse to cluster.")
 
-        # If resync_rh is not explicitly False, check if Runhouse is installed editable
-        local_rh_package_path = None
-        if resync_rh is not False:
-            local_rh_package_path = Path(
-                importlib.util.find_spec("runhouse").origin
-            ).parent
-
-            installed_editable_locally = (
-                not _rh_install_url
-                and local_rh_package_path.parent.name == "runhouse"
-                and (local_rh_package_path.parent / "setup.py").exists()
-            )
-
-            if installed_editable_locally:
-                logger.debug("Runhouse is installed locally in editable mode.")
-                resync_rh = True
-            else:
-                # We only want this to be set if it was installed editable locally
-                local_rh_package_path = None
-
-        # If resync_rh is still not confirmed to happen, check if Runhouse is installed on the cluster
-        if resync_rh is None:
-            return_codes = self.run_bash_over_ssh(["runhouse --version"], node="all")
-            if return_codes[0][0][0] != 0:
-                logger.debug("Runhouse is not installed on the cluster.")
-                resync_rh = True
+        image_secrets, image_env_vars = self._sync_image_to_cluster(parallel=parallel)
 
         if resync_rh:
-            self._sync_runhouse_to_cluster(
-                _install_url=_rh_install_url,
-                local_rh_package_path=local_rh_package_path,
-            )
-            logger.debug("Finished syncing Runhouse to cluster.")
+            # remove the runhouse install so it doesn't get reinstalled on restart
+            self.image.setup_steps.pop(-1)
 
         https_flag = self._use_https
         caddy_flag = self._use_caddy
@@ -1245,6 +1200,7 @@ class Cluster(Resource):
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
+        parallel: bool = True,
     ):
         """Restart the RPC server.
 
@@ -1266,6 +1222,7 @@ class Cluster(Resource):
             resync_rh=resync_rh,
             restart_ray=restart_ray,
             restart_proxy=restart_proxy,
+            parallel=parallel,
         )
 
     def start_server(
@@ -2570,7 +2527,11 @@ class Cluster(Resource):
 
         if isinstance(package, str):
             package = Package.from_string(package)
-            if package.install_method in ["reqs", "local"]:
+            from runhouse.resources.packages import InstallTarget
+
+            if package.install_method in ["reqs", "local"] or isinstance(
+                package.install_target, InstallTarget
+            ):
                 package = package.to(self)
 
         package._install(
