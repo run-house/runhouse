@@ -23,6 +23,10 @@ Key Benefits
 
 Runhouse solves a few major problems for machine learning and AI teams:
 
+#. **A Paved Path for Development at Scale**: Adopting powerful, GPU-accelerated hardware or distributed clusters (Spark, Ray) can be
+   disruptive. All development, debugging, automation, and deployment to occur on their runtime; for instance, users of Ray, Spark,
+   or PyTorch Distributed must work on the head node for development. Hosted notebook services often serve as stop-gaps for this issue.
+   Runhouse allows Python to orchestrate these systems remotely, bringing the development workflow back to standard Python.
 #. **Iterability**: Developing with Runhouse feels like working locally, even if the code is executing on powerful, multi-node remote hardware.
    In research, avoid writing non-standard code in hosted notebooks; in production, don't iterate by building and resubmitting pipelines.
    The team writes standard Python code locally, and it takes less than 2 seconds per iteration to redeploy the code to remote compute.
@@ -33,12 +37,9 @@ Runhouse solves a few major problems for machine learning and AI teams:
 #. **Cost**: Organizations adopting Runhouse utilize their available compute more efficiently, leading to typical cost savings of 50%.
    With Runhouse, ephemeral clusters are allocated only when needed and can be launched across multiple regions or clouds based on quota or cost considerations.
    It's easy to right-size instances based on workload, incorporate spot instances, and even share compute or services on compute across tasks.
-#. **Development at Scale**: Adopting powerful, GPU-accelerated hardware or distributed clusters (Spark, Ray) can be
-   disruptive. All development, debugging, automation, and deployment to occur on their runtime; for instance, users of Ray, Spark,
-   or PyTorch Distributed must work on the head node for development. Hosted notebook services often serve as stop-gaps for this issue.
-   Runhouse allows Python to orchestrate these systems remotely, bringing the development workflow back to standard Python.
 #. **Infrastructure Management**: Runhouse captures infrastructure as code, providing a clear contract between the application
-   and infrastructure, saving ML teams from having to learn the intricacies of networking, security, and DevOps.
+   and infrastructure, saving ML teams from having to learn the intricacies of networking, security, and DevOps. Meanwhile, platforms
+   teams can manage and monitor resources centrally, set limits and quotas, and permission access to heterogeneous compute resources.
 
 ML Workflow with and without Runhouse
 -------------------------------------
@@ -102,7 +103,6 @@ Table of Contents
    :caption: Getting Started
 
    tutorials/quick-start-cloud
-   tutorials/quick-start-den
    how-to-use-runhouse
    runhouse-in-your-stack
 

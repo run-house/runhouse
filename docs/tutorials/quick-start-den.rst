@@ -1,48 +1,33 @@
-Den Quick Start
-===============
+Setting Up Runhouse
+===================
 
 .. raw:: html
 
     <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-den.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
-With `Runhouse Den <https://www.run.house/dashboard>`__, you can
-manage all of your compute and make it available through ephemeral
-clusters for both research and production workflows. Whether you have a
-ML platforms team or just yourself, Runhouse is the easiest way to
-ensure your compute is efficiently utilized and oversubscribed without
-slowing down development velocity.
+With `Runhouse <https://www.run.house/dashboard%3E>`__, you can manage
+all of your compute and make it available through ephemeral clusters for
+both research and production workflows.
 
-- Centrally manage multiple cloud accounts and Kubernetes clusters in
-  the same place.
-- Both developers and the platforms team can monitor resource usage in
-  detail and access persisted logs in the web UI.
+- Launch compute from any source and manage all your cloud accounts and
+  Kubernetes clusters as one pool.
+- Iterably develop and reproducibly execute ML workloads at any scale.
+- Monitor resource usage in detail and access persisted logs in the web
+  UI.
 - Save and reload services and resources (clusters, functions, classes,
-  etc) - for instance, share an embeddings endpoint to be used by
-  multiple teams with perfect reproducibility.
+  etc).
 - Set limits and quotas for teams and individuals, and queue requests
   for compute.
 
-A few of the ways Runhouse Den has helped teams include:
+It will take just ~15 minutes to setup Runhouse and launch your first
+cluster.
 
-- Moving research teams from locally or ad hoc hosted notebooks, towards
-  standardized, reproducible compute and training workflows that are
-  ready to be executed in production.
-- Improving Platform team observability over day-to-day activities as
-  the ML team grew, and getting much better disambiguation between waste
-  (clusters up too long, clusters underutilizing their resources) and
-  genuinely valuable workflows that just happen to be long-lived.
-- Reducing research-to-production time by 80% since resources launched
-  and saved to Den can be scheduled nearly as-is by orchestrators.
-- Improving key / credentials management
-- Adopting a second cloud due to better quotas and cloud credits (while
-  being mostly opaque to the end user)
-
-If you haven’t already, check-out
-`Quickstart <https://www.run.house/docs/tutorials/quick-start-cloud>`__
-or the `Runhouse usage
-guide <https://www.run.house/docs/main/en/how-to-use-runhouse>`__ to
-see how you can get started with the Runhouse client as well.
+If you do not currently have access to a cloud account, but still want
+to try the Runhouse APIs, review how to start a Runhouse server on your
+`local
+machine <https://www.run.house/docs/tutorials/quick-start-local>`__ for
+a quick experiment instead.
 
 Installing Runhouse
 -------------------
@@ -60,131 +45,85 @@ Account Creation & Login
 You can create an account on the `run.house <https://www.run.house>`__
 website or by calling the login command in Python or CLI.
 
-To login, call ``runhouse login --sync-secrets`` in CLI. This will ask
-you a series of questions on whether to sync local secrets to Runhouse -
-e.g. your AWS / GCP / Azure secrets; once synced, you can launch compute
-via Runhouse anywhere you are authenticated with Runhouse.
-
-For more information on Secrets management, refer to the `Secrets
-Tutorial <https://www.run.house/docs/tutorials/api-secrets>`__. Secrets
-are always securely stored in `Vault <https://www.vaultproject.io/>`__.
-If you have any questions about Runhouse’s information security
-policies, please reach out at `hello@run.house <hello@run.house>`__.
-
-
-Den Launcher
-------------
-Instead of launching clusters directly from your local environment, the Den launcher allows you to launch clusters in your own cloud via the Runhouse control plane.
-We recommend this approach for a couple of reasons:
-
-- **Resource Management**: Clusters launched through Runhouse are automatically persisted in the Den UI, making it easier to track and manage your entire collection of resources.
-- **Resource Sharing**: Share clusters with your team members, enabling collaborative features like SSH access to shared clusters.
-- **Resource Monitoring**: Monitor cluster activity and logs, and configure autostop settings to terminate clusters after periods of inactivity.
-- **Distributed Workflows / Production Pipelines**: Launch clusters as part of distributed workflows or pipelines without needing to configure cloud credentials in your environment.
-
-To enable the Den launcher, you can set :code:`launcher=den` in the :ref:`cluster factory <Cluster Factory Methods>`,
-or update your local :ref:`runhouse config <Setting Config Options>` with :code:`launcher: den` to apply the setting
-globally across all subsequent clusters created.
-
-
-Launching and Saving Clusters
------------------------------
-
-Let’s start by constructing some Runhouse resources that we’d like to
-save.
+To login, call ``runhouse login`` in CLI or in Python.
 
 .. code:: ipython3
 
     import runhouse as rh
+
+    rh.login(token='your token here - from https://www.run.house/account')
+
+Setting Up the Runhouse Launcher
+--------------------------------
+
+In order to launch the clusters, you will to provide one or more sources
+of compute. This is typically one or more of: \* **Elastic Compute from
+Cloud Provider**: Save a Service Account to Runhouse. For more
+information about the required service account permissions, review our
+documentation for `service
+accounts <https://www.run.house/docs/tutorials/service-account-requirements>`__.
+\* **Kubernetes Cluster**: Save your Kubeconfig to Runhouse \* **On
+Premise VM**: Provide SSH Key or Username/Password
+
+Saved Service Accounts and Kubeconfigs are always treated as secrets and
+stored securely. For more information on Secrets management, refer to
+the `Secrets
+Tutorial <https://www.run.house/docs/tutorials/api-secrets>`__. For
+Runhouse cloud users, Secrets are securely stored in
+`Vault <https://www.vaultproject.io/>`__. Runhouse Enterprise users may
+have other secrets configurations.
+
+Runhouse can also support additional configurations to work with your
+organization’s cloud settings, such as setting up Runhouse within your
+VPC.
+
+.. code:: ipython3
+
+    gcp_secret = rh.provider_secret("gcp", name="gcp", path="Path to your service account key, e.g. /Users/username/Downloads/runhouse-service-account.json")
+    gcp_secret.save()
+
+Local Launching
+---------------
+
+It is also possible to leverage SkyPilot to launch clusters from your
+local machine and use Runhouse as a library only. In the local setting,
+we use Skypilot under the hood to launch elastic compute.
+
+.. code:: ipython3
+
+    !pip install "runhouse[sky, gcp]" # Replace `aws` with your cloud provider, e.g. gcp, azure
+
+Review Skypilot documentation to understand how to setup your local
+credentials, and you can run ``sky check`` in CLI after installing
+Runhouse to confirm you have access to the cloud. If you are
+authenticated locally with your cloud CLI, and your account has the
+right permissions to launch clusters, Skypilot’s check should reflect
+that.
+
+Launching Clusters
+------------------
+
+You are now ready to launch clusters with Runhouse. Simply specify the
+resources you want to launcb, and in this example, we will bring up a
+simple 2 CPU 1 node cluster.
+
+.. code:: ipython3
+
     cluster = rh.ondemand_cluster(
         name="rh-cluster",
-        cpus="4",
-        provider="aws"
+        num_cpus="2",
+        provider="gcp",
+        launcher="den" # Set to `local` if you are launching from your local machine
     ).up_if_not()
 
-.. code:: ipython3
-
-    def get_platform(a = 0):
-        import platform
-        return platform.platform()
-
-    remote_get_platform = rh.function(get_platform).to(cluster)
-
-
-.. parsed-literal::
-    :class: code-output
-
-    INFO | 2024-05-16 03:51:58.483032 | Because this function is defined in a notebook, writing it out to /Users/donny/code/notebooks/docs/get_platform_fn.py to make it importable. Please make sure the function does not rely on any local variables, including imports (which should be moved inside the function body). This restriction does not apply to functions defined in normal Python files.
-    INFO | 2024-05-16 03:51:58.493093 | Port 32300 is already in use. Trying next port.
-    INFO | 2024-05-16 03:51:58.494347 | Forwarding port 32301 to port 32300 on localhost.
-    INFO | 2024-05-16 03:51:59.587613 | Server rh-cluster is up.
-    INFO | 2024-05-16 03:51:59.595752 | Copying package from file:///Users/donny/code/notebooks to: rh-cluster
-    INFO | 2024-05-16 03:52:01.252665 | Sending module get_platform of type <class 'runhouse.resources.functions.function.Function'> to rh-cluster
-
-
-You can save the resources we created above to your Den account with the
-``save`` method:
+Autostop should already be enabled by default on your Runhouse-launched
+clusters (which you can control in configurations or for your
+organization). If we want to tear this cluster down:
 
 .. code:: ipython3
 
-    cluster.save()
-    remote_get_platform.save()
+    cluster.teardown()
 
-Reloading
----------
-
-Once saved, resources can be reloaded from any environment in which you
-are logged into. For instance, if you are running this in a Colab
-notebook, you can jump into your terminal, call ``runhouse login``, and
-then reconstruct and run the function on the cluster with the following
-Python script:
-
-.. code:: ipython3
-
-   import runhouse as rh
-
-   if __name__ == "__main__":
-       reloaded_fn = rh.function(name="get_platform")
-       print(reloaded_fn())
-
-The ``name`` used to reload the function is the method name by default.
-You can customize a function name using the following syntax:
-
-.. code:: ipython3
-
-   remote_get_platform = rh.function(fn=get_platform, name="my_function").to(cluster)
-
-Sharing
--------
-
-You can also share your resource with collaborators, and choose which
-level of access to give. Once shared, they will be able to see the
-resource in their dashboard as well, and be able to load and use the
-shared resource. They’ll need to load the resource using its full name,
-which includes your username (``/your_username/get_platform``).
-
-.. code:: ipython3
-
-    remote_get_platform.share(
-        users=["teammate1@email.com"],
-        access_level="write",
-    )
-
-Web UI
-------
-
-After saving your resources, you can log in and see them on your `Den
-dashboard <https://www.run.house/dashboard>`__, labeled as
-``/<username>/rh-cluster`` and ``/<username>/get_platform``.
-
-Clicking into the resource provides information about your resource. You
-can view the resource metadata, previous versions, and activity, or add
-a description to the resource.
-
-Dive Deeper
------------
-
-Check on more in-depth tutorials on:
-
-- :ref:`Resource Management <Resource Management>`
-- :ref:`Secrets Management <Secrets>`
+Now you’re ready to start working with the Runhouse APIs. Jump over to
+the `API Quick Start
+guide <https://www.run.house/docs/tutorials/quick-start-den>`__.

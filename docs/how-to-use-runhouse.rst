@@ -44,11 +44,14 @@ launched, and the resources or tasks executed on them. Access management becomes
 multi-cloud or multi-cluster environments. To get started with Den enabled, simply run
 ``runhouse login --sync-secrets`` in the CLI.
 
+For implementation details, you will want to review the [setup guide](https://www.run.house/docs/tutorials/quick-start-den) if you haven't already.
 
-.. note::
+* Install Runhouse with ``pip install runhouse``
 
-    If you do not have access to the cloud from a local machine (ex: from within an orchestration pipeline), you
-    can use the Runhouse control plane to launch your compute. See :ref:`Den Launcher` for more information.
+* Create an account on the `Runhouse website <https://www.run.house/dashboard>`_ to enable centralized launching, saving, reloading, and centralized authentication / secrets management.
+
+* Optionally, to use Runhouse as a library only, you can install Runhouse to use SkyPilot locally with ``pip install "runhouse[sky, aws]"``
+
 
 Start Your Project
 -------------------
