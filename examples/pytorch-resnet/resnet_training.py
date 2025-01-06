@@ -270,7 +270,8 @@ if __name__ == "__main__":
             "torch==2.5.1 torchvision==0.20.1",
             "Pillow==11.0.0",
             "datasets",
-            "boto3 awscli",
+            "boto3",
+            "awscli",
         ],
     )
     gpu_cluster = rh.cluster(
