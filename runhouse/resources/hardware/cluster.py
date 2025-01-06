@@ -1635,7 +1635,8 @@ class Cluster(Resource):
             require_outputs (bool): Whether to return stdout/stderr in addition to status code. (Default: ``True``)
         """
 
-        if isinstance(commands, str):
+        command_is_str = isinstance(commands, str)
+        if command_is_str:
             commands = [commands]
 
         if node is not None and process is not None:
@@ -1741,7 +1742,8 @@ class Cluster(Resource):
                 if stream_logs:
                     _ = logs_future.result()
 
-                results.append(results)
+        if len(results) == 1 and command_is_str:
+            return results[0]
 
         return results
 
