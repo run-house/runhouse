@@ -9,12 +9,13 @@ NUM_JOBS = 30
 
 
 @rh.deploy(
-    cpus="4+",
+    num_cpus="4+",
     num_nodes=2,
     provider="kubernetes",
-    image=rh.images.Ubuntu.install_packages(["bayesian-optimization"]),
+    image=rh.Image(name="hpo").install_packages(["bayesian-optimization"]),
+    # image=rh.images.Ubuntu.install_packages(["bayesian-optimization"]),
 )
-@rh.distribute(num_replicas=NUM_WORKERS)
+@rh.distribute("pool", num_replicas=NUM_WORKERS)
 def train_fn(x, y):
     return -(x**2) - (y - 1) ** 2 + 1
 

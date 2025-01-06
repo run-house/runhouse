@@ -488,6 +488,9 @@ class Cluster(Resource):
             # Previously (before calling within the same cluster worked) returned None
             return obj_store
         if not self._http_client:
+            # We seem to need this check to make sure the connection info is populated from skydb
+            if not self.is_up():
+                raise ConnectionError(f"Cluster {self.name} is not up.")
             self.client.check_server()
         return self.client
 

@@ -12,6 +12,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 from apispec import APISpec
 from pydantic import create_model
 
+from runhouse.cli_utils import PartialModule
 from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import obj_store, rns_client
 from runhouse.logger import get_logger
@@ -364,7 +365,11 @@ class Module(Resource):
                 module_name
             )
 
-        return getattr(obj_store.imported_modules[module_name], obj_name)
+        member = getattr(obj_store.imported_modules[module_name], obj_name)
+        # Unwrap any decoration around the original function/cls
+        if isinstance(member, PartialModule):
+            member = member.fn_or_cls
+        return member
 
     def __getstate__(self):
         # Exclude anything already being sent in the config and private module attributes
@@ -524,6 +529,7 @@ class Module(Resource):
         system: Union[str, Cluster],
         process: Optional[Union[str, Dict]] = None,
         name: Optional[str] = None,
+        sync_local: bool = True,
     ):
         """Check if the module already exists on the cluster, and if so return the module object.
         If not, put the module on the cluster and return the remote module.
@@ -534,6 +540,8 @@ class Module(Resource):
                 created with those args. or the set of requirements necessary to run the module. (Default: ``None``)
             name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
                 (Default: ``None``)
+            sync_local (bool, optional): Whether to sync up and use the local module on the cluster. If ``False``,
+                don't sync up and use the equivalent module found on the cluster. (Default: ``True``)
 
         Example:
             >>> remote_df = Model().get_or_to(my_cluster, name="remote_model")
@@ -551,7 +559,7 @@ class Module(Resource):
         if remote:
             return remote
         self.name = name
-        return self.to(system, process=process)
+        return self.to(system, process=process, sync_local=sync_local)
 
     def __getattribute__(self, item):
         """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
