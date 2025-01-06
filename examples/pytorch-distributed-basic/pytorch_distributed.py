@@ -63,6 +63,7 @@ if __name__ == "__main__":
         accelerators=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,
     ).up_if_not()
+    cluster.install_packages(["torch"])
 
     remote_train_loop = rh.function(train_loop).to(cluster)
 
