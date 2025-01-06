@@ -102,8 +102,9 @@ Table of Contents
    :maxdepth: 1
    :caption: Getting Started
 
-   tutorials/quick-start-cloud
    how-to-use-runhouse
+   tutorials/quick-start-den
+   tutorials/quick-start-cloud
    runhouse-in-your-stack
 
 

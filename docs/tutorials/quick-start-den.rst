@@ -37,7 +37,7 @@ installation command.
 
 .. code:: ipython3
 
-    !pip install "runhouse"
+    !pip install "runhouse[gcp]"
 
 Account Creation & Login
 ------------------------
@@ -57,41 +57,46 @@ Setting Up the Runhouse Launcher
 --------------------------------
 
 In order to launch the clusters, you will to provide one or more sources
-of compute. This is typically one or more of: \* **Elastic Compute from
+of compute. This is typically one or more of: - **Elastic Compute from
 Cloud Provider**: Save a Service Account to Runhouse. For more
 information about the required service account permissions, review our
 documentation for `service
 accounts <https://www.run.house/docs/tutorials/service-account-requirements>`__.
-\* **Kubernetes Cluster**: Save your Kubeconfig to Runhouse \* **On
+- **Kubernetes Cluster**: Save your Kubeconfig to Runhouse - **On
 Premise VM**: Provide SSH Key or Username/Password
+
+For the first option, to set up Runhouse with your service account,
+simply run the following Python:
+
+.. code:: ipython3
+
+    gcp_secret = rh.provider_secret(name="gcp", path="Local path to your service account key, e.g. /Users/username/Downloads/runhouse-service-account.json")
+    gcp_secret.save()
 
 Saved Service Accounts and Kubeconfigs are always treated as secrets and
 stored securely. For more information on Secrets management, refer to
 the `Secrets
 Tutorial <https://www.run.house/docs/tutorials/api-secrets>`__. For
 Runhouse cloud users, Secrets are securely stored in
-`Vault <https://www.vaultproject.io/>`__. Runhouse Enterprise users may
-have other secrets configurations.
+`Vault <https://www.vaultproject.io/>`__.
 
-Runhouse can also support additional configurations to work with your
-organization’s cloud settings, such as setting up Runhouse within your
-VPC.
-
-.. code:: ipython3
-
-    gcp_secret = rh.provider_secret("gcp", name="gcp", path="Path to your service account key, e.g. /Users/username/Downloads/runhouse-service-account.json")
-    gcp_secret.save()
+Runhouse Enterprise users may have other secrets configurations, and
+Runhouse supports additional configurations to work with your
+organization’s cloud settings out-of-the-box, such as setting up
+Runhouse to launch within a specific VPC.
 
 Local Launching
 ---------------
 
 It is also possible to leverage SkyPilot to launch clusters from your
 local machine and use Runhouse as a library only. In the local setting,
-we use Skypilot under the hood to launch elastic compute.
+we use Skypilot under the hood to launch elastic compute. Assuming you
+are already logged in locally via CLI to your cloud provider of choice,
+this should work out-of-the-box with no further configuration.
 
 .. code:: ipython3
 
-    !pip install "runhouse[sky, gcp]" # Replace `aws` with your cloud provider, e.g. gcp, azure
+    !pip install "runhouse[sky, gcp]" # Replace `gcp` with your cloud provider, e.g. aws, azure
 
 Review Skypilot documentation to understand how to setup your local
 credentials, and you can run ``sky check`` in CLI after installing

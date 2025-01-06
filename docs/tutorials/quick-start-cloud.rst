@@ -6,12 +6,9 @@ API Quick Start
     <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-cloud.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
-We assume you have already setup Runhouse according to the `cloud setup
-guide <https://www.run.house/docs/tutorials/quick-start-den>`__. This
-tutorial demonstrates how to use Runhouse to:
+This tutorial demonstrates how to use Runhouse to:
 
-- Connect to an existing remote IP, fresh cloud VM, or fresh Kubernetes
-  pod in Python as a Runhouse cluster
+- Launch a Runhouse cluster from elastic compute
 - Send a locally defined function onto the remote compute and call it as
   a service
 
@@ -22,27 +19,14 @@ your code in production simply by scheduling the code to launch compute
 and dispatch to it, but without any need to change the underlying
 program code.
 
-Installing Runhouse
--------------------
-
-The Runhouse base package can be installed with:
-
-.. code:: ipython3
-
-    !pip install runhouse
-
-If using Runhouse to launch on-demand clusters from your local machine
-only, run the following command for additional installs as well (replace
-AWS with your cloud provider of choice).
-
-.. code:: ipython3
-
-    !pip install "runhouse[sky, aws]"
+We assume you have already installed and set up Runhouse according to
+the `setup
+guide <https://www.run.house/docs/tutorials/quick-start-den>`__.
 
 .. code:: ipython3
 
     import runhouse as rh
-    rh.login('your token') # From https://www.run.house/account
+    rh.login('your token') # From https://www.run.house/account if not logged in via CLI command `runhouse login` already
 
 Local Python Function
 ---------------------
@@ -65,9 +49,10 @@ code, data, or requests to execute. We define a Runhouse cluster using
 the ``rh.cluster`` factory function.
 
 This requires having access to an existing VM (via SSH), a cloud
-provider account to launch elastic compute, or a Kubernetes cluster
-(~/.kube/config). As noted above, if you have not already enabled
-launching with Runhouse, you should review `Setting Up
+provider account to launch elastic compute, or a Kubernetes cluster.
+Here, we will launch an on-demand cluster using elastic compute. As
+noted above, if you have not already enabled launching with Runhouse,
+you should review `Setting Up
 Runhouse <https://www.run.house/docs/tutorials/quick-start-den>`__.
 
 .. code:: ipython3
@@ -76,9 +61,16 @@ Runhouse <https://www.run.house/docs/tutorials/quick-start-den>`__.
         name="rh-cluster",
         num_cpus="4",
         provider="aws", # gcp, kubernetes, etc.
-        launcher="den" # Switch to `local` if you are using Runhouse to launch from your local machine
+        launcher="den" # Switch to `local` if you are using Runhouse to launch from your local machine via Skypilot
     )
     cluster.up_if_not()
+
+There are a number of options to specify the resources more finely, such
+as GPUs (``accelerators="A10G:4"``), cloud provider names
+(``instance_type="m5.xlarge"``), ``num_nodes=n`` for multiple instances,
+``memory``, ``disk_size``, ``region``, ``use_spot``, and more. See the
+`on_demand_cluster
+docs <https://www.run.house/docs/api/python/cluster#runhouse.ondemand_cluster>`__.
 
 To use a cluster that’s already running:
 
@@ -89,15 +81,6 @@ To use a cluster that’s already running:
         host="example-cluster",  # hostname or ip address,
         ssh_creds={"ssh_user": "ubuntu", "ssh_private_key": "~/.ssh/id_rsa"},  # credentials for ssh-ing into the cluster
     )
-
-There are a number of options to specify the resources more finely, such
-as GPUs (``accelerators="A10G:4"``), cloud provider names
-(``instance_type="m5.xlarge"``), ``num_nodes=n`` for multiple instances,
-``memory``, ``disk_size``, ``region``, ``image_id``, ``open_ports``,
-``spot``, and more. See the `on_demand_cluster
-docs <https://www.run.house/docs/api/python/cluster#runhouse.ondemand_cluster>`__.
-You can also omit the provider argument to allocate from the cheapest
-available source for which you have credentials.
 
 Deploy Code to the Cluster
 --------------------------
