@@ -452,10 +452,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # Docker clusters are logged out, ondemand clusters are logged in
         output = cluster.run_bash("sed -n 's/.*token: *//p' ~/.rh/config.yaml")
         # No config file
-        if output[0][0] == 2:
+        if output[0] == 2:
             assert unassumed_token is None
-        elif output[0][0] == 0:
-            assert unassumed_token == output[0][1].strip()
+        elif output[0] == 0:
+            assert unassumed_token == output[1].strip()
 
     ####################################################################################################
     # Status tests
@@ -802,7 +802,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             if isinstance(req, str) and "_" in req:
                 # e.g. pytest_asyncio
                 req = req.replace("_", "-")
-                assert cluster.run_bash(f"pip freeze | grep {req}")[0][0] == 0
+                assert cluster.run_bash(f"pip freeze | grep {req}")[0] == 0
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -810,9 +810,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         if not cluster.image or not cluster.image.conda_env_name:
             pytest.skip("Default process is not in a conda env")
 
-        assert (
-            cluster.image.conda_env_name in cluster.run_bash("conda info --envs")[0][1]
-        )
+        assert cluster.image.conda_env_name in cluster.run_bash("conda info --envs")[1]
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -845,8 +843,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         res = remote_run("echo hello")
         exp = cluster.run_bash("echo hello")
 
-        assert res[0][0] == 0
-        assert res[0][1].strip() == exp[0][1].strip()
+        assert res[0] == 0
+        assert res[1].strip() == exp[1].strip()
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -1222,8 +1220,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_cluster_run_bash_in_process(self, cluster):
         process = cluster.ensure_process_created(name="test_process")
         res = cluster.run_bash("echo hello", process=process)
-        assert res[0][0] == 0
-        assert res[0][1].strip() == "hello"
+        assert res[0] == 0
+        assert res[1].strip() == "hello"
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
