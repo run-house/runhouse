@@ -6,22 +6,9 @@ Setting Up Runhouse
     <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-den.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
-With `Runhouse <https://www.run.house/dashboard%3E>`__, you can manage
-all of your compute and make it available through ephemeral clusters for
-both research and production workflows.
-
-- Launch compute from any source and manage all your cloud accounts and
-  Kubernetes clusters as one pool.
-- Iterably develop and reproducibly execute ML workloads at any scale.
-- Monitor resource usage in detail and access persisted logs in the web
-  UI.
-- Save and reload services and resources (clusters, functions, classes,
-  etc).
-- Set limits and quotas for teams and individuals, and queue requests
-  for compute.
-
-It will take just ~15 minutes to setup Runhouse and launch your first
-cluster.
+It will take just ~15 minutes to setup Runhouse and be ready to launch
+your first cluster. You will need a service account or user account
+authorized to launch compute on your cloud provider.
 
 If you do not currently have access to a cloud account, but still want
 to try the Runhouse APIs, review how to start a Runhouse server on your
@@ -37,15 +24,23 @@ installation command.
 
 .. code:: ipython3
 
-    !pip install "runhouse[gcp]"
+    !pip install "runhouse"
+
+If you want to try using Runhouse by launching from your local machine
+with local credentials, you can add SkyPilot and the cloud provider of
+your choice as additional installs.
+
+.. code:: ipython3
+
+    !pip install "runhouse[gcp, sky]"
 
 Account Creation & Login
 ------------------------
 
-You can create an account on the `run.house <https://www.run.house>`__
+You can create an account on the `Runhouse <https://www.run.house>`__
 website or by calling the login command in Python or CLI.
 
-To login, call ``runhouse login`` in CLI or in Python.
+To login, call ``runhouse login`` in CLI or run the following in Python.
 
 .. code:: ipython3
 
@@ -53,17 +48,18 @@ To login, call ``runhouse login`` in CLI or in Python.
 
     rh.login(token='your token here - from https://www.run.house/account')
 
-Setting Up the Runhouse Launcher
---------------------------------
+Enabling Compute Launch
+-----------------------
 
 In order to launch the clusters, you will to provide one or more sources
-of compute. This is typically one or more of: - **Elastic Compute from
-Cloud Provider**: Save a Service Account to Runhouse. For more
-information about the required service account permissions, review our
-documentation for `service
-accounts <https://www.run.house/docs/tutorials/service-account-requirements>`__.
-- **Kubernetes Cluster**: Save your Kubeconfig to Runhouse - **On
-Premise VM**: Provide SSH Key or Username/Password
+of compute. This is typically one or more of:
+
+- **Elastic Compute from Cloud Provider**: Save a Service Account to
+  Runhouse. For more information about the required service account
+  permissions, review our documentation for `service
+  accounts <https://www.run.house/docs/tutorials/service-account-requirements>`__.
+- **Kubernetes Cluster**: Save your Kubeconfig to Runhouse
+- **On Premise VM**: Provide SSH Key or Username/Password
 
 For the first option, to set up Runhouse with your service account,
 simply run the following Python:
@@ -94,16 +90,12 @@ we use Skypilot under the hood to launch elastic compute. Assuming you
 are already logged in locally via CLI to your cloud provider of choice,
 this should work out-of-the-box with no further configuration.
 
-.. code:: ipython3
-
-    !pip install "runhouse[sky, gcp]" # Replace `gcp` with your cloud provider, e.g. aws, azure
-
 Review Skypilot documentation to understand how to setup your local
-credentials, and you can run ``sky check`` in CLI after installing
-Runhouse to confirm you have access to the cloud. If you are
-authenticated locally with your cloud CLI, and your account has the
-right permissions to launch clusters, Skypilot’s check should reflect
-that.
+credentials, and you can run CLI command ``sky check`` after installing
+Runhouse with Skypilot enabled to confirm you have access to the cloud.
+If you are authenticated locally with your cloud CLI, and your account
+has the right permissions to launch clusters, Skypilot’s check should
+reflect that.
 
 Launching Clusters
 ------------------
