@@ -594,7 +594,7 @@ class OnDemandCluster(Cluster):
             await self.a_up(capture_output=capture_output)
         return self
 
-    def up(self, verbose: bool = True, force: bool = False):
+    def up(self, verbose: bool = True, force: bool = False, start_server: bool = True):
         """Up the cluster.
 
         Args:
@@ -616,6 +616,10 @@ class OnDemandCluster(Cluster):
         elif self.launcher == LauncherType.LOCAL:
             logger.info("Provisioning cluster")
             LocalLauncher.up(cluster=self, verbose=verbose)
+
+        if start_server:
+            logger.info("Starting Runhouse server on cluster")
+            self.restart_server()
 
         return self
 

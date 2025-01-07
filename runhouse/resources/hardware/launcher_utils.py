@@ -388,8 +388,6 @@ class LocalLauncher(Launcher):
                     "Please add an A record to your DNS provider to point this domain to the cluster's "
                     f"public IP address ({cluster.head_ip}) to ensure successful requests."
                 )
-            logger.info("Starting Runhouse server on cluster")
-            cluster.restart_server()
 
             if rns_client.autosave_resources():
                 logger.debug("Saving cluster to Den")
