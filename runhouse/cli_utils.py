@@ -753,6 +753,10 @@ def distribute(*args, **kwargs):
 
         # This is a partial so the order of decorator chaining can be reversed for best aesthetics
         # the deploy method will actually call .distribute on the function or class after it's been deployed
-        return PartialModule(fn_or_cls=func_or_cls, distribute_args=(args, kwargs))
+        partial_module = PartialModule(
+            fn_or_cls=func_or_cls, distribute_args=(args, kwargs)
+        )
+        update_wrapper(partial_module, func_or_cls)
+        return partial_module
 
     return decorator

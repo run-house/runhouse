@@ -12,7 +12,6 @@ from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 from apispec import APISpec
 from pydantic import create_model
 
-from runhouse.cli_utils import PartialModule
 from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import obj_store, rns_client
 from runhouse.logger import get_logger
@@ -367,8 +366,8 @@ class Module(Resource):
 
         member = getattr(obj_store.imported_modules[module_name], obj_name)
         # Unwrap any decoration around the original function/cls
-        if isinstance(member, PartialModule):
-            member = member.fn_or_cls
+        if hasattr(member, "__wrapped__"):
+            member = member.__wrapped__
         return member
 
     def __getstate__(self):

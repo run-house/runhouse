@@ -215,7 +215,11 @@ def deploy(
     for partial_module in to_deploy:
         try:
             if partial_module.system.name not in restarted_systems and restart:
-                partial_module.system.restart_server()
+                if not partial_module.system.is_up():
+                    partial_module.system.up()
+                else:
+                    # We don't need to restart if bringing up the cluster for the first time
+                    partial_module.system.restart_server()
                 restarted_systems.append(partial_module.system)
 
             partial_module.sync_local = sync_local
