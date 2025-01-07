@@ -111,9 +111,8 @@ not have your code block on this network call (for example if the
 function takes a long time to execute), so that you can avoid blocking
 your local Python code. You can choose to run this function
 asynchronously, locally, and this allows you to get back a coroutine
-from Runhouse, that you can then use to check if Note that this means
-your local code will have to use async primitives, even though it is
-calling what you defined as a sync function. Let’s check out an example
+from Runhouse. Note that this means your local code will have to use async primitives,
+even though it is calling what you defined as a sync function. Let’s check out an example
 of this:
 
 .. code:: ipython3

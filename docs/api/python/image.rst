@@ -1,5 +1,7 @@
 Image
 =====
+A Runhouse image allows you to easily encapsulate various setup steps to take across each node on the cluster before
+it is launched. See the :ref:`Images` section for a more in-depth explanation.
 
 Image Class
 ~~~~~~~~~~~
