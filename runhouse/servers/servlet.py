@@ -370,7 +370,7 @@ class Servlet:
 
         # Try loading GPU data (if relevant)
         env_gpu_usage = (
-            self._get_env_gpu_usage() if cluster_config.get("has_cuda", False) else {}
+            self._get_env_gpu_usage() if cluster_config.get("is_gpu", False) else {}
         )
 
         cluster_config = obj_store.cluster_config

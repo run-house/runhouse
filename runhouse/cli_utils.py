@@ -204,9 +204,9 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
                 key == "ips"
                 and cluster_config.get("resource_subtype") == "OnDemandCluster"
             ):
-                val = cluster_config["compute_properties"].get("ips")
+                val = cluster_config.get("compute_properties", {}).get("ips", [])
             else:
-                val = cluster_config[key]
+                val = cluster_config.get(key, None)
 
             console.print(
                 f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
@@ -403,8 +403,8 @@ def print_cloud_properties(cluster_config: dict):
     region = cloud_properties.get("region")
     cost_per_hour = cloud_properties.get("cost_per_hour")
 
-    has_cuda = cluster_config.get("has_cuda", False)
-    cost_emoji = "💰" if has_cuda else "💸"
+    is_gpu = cluster_config.get("is_gpu", False)
+    cost_emoji = "💰" if is_gpu else "💸"
 
     num_of_cpus = cloud_properties.get("num_cpus") or len(cluster_config.get("ips"))
     num_of_gpus = 0
@@ -446,7 +446,7 @@ def print_status(status_data: dict, current_cluster) -> None:
         )
         console.print(cluster_name_hyperlink)
 
-    has_cuda: bool = cluster_config.get("has_cuda")
+    is_gpu = cluster_config.get("is_gpu", False)
 
     # print headline
     daemon_headline_txt = (
@@ -465,14 +465,14 @@ def print_status(status_data: dict, current_cluster) -> None:
     cluster_gpu_utilization: float = status_data.get("server_gpu_utilization")
 
     # Note: GPU utilization can be none if the cluster was not using its GPU when cluster.status() was invoked
-    if cluster_gpu_utilization is None and has_cuda:
+    if cluster_gpu_utilization is None and is_gpu:
         cluster_gpu_utilization: float = 0.0
 
     cluster_cpu_utilization: float = status_data.get("server_cpu_utilization")
 
     server_util_info = (
         f"CPU Utilization: {round(cluster_cpu_utilization, 2)}% | GPU Utilization: {round(cluster_gpu_utilization, 2)}%"
-        if has_cuda
+        if is_gpu
         else f"CPU Utilization: {round(cluster_cpu_utilization, 2)}%"
     )
     console.print(server_util_info)

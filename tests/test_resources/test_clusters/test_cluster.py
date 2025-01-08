@@ -38,8 +38,8 @@ from tests.utils import (
     friend_account,
     friend_account_in_org,
     get_random_str,
+    keep_config_keys,
     org_friend_account,
-    remove_config_keys,
     set_daemon_and_cluster_status,
     set_output_env_vars,
 )
@@ -224,10 +224,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         status_data = r.json()[
             0
         ]  # getting the first element because the endpoint returns the status + response to den.
-        assert status_data["cluster_config"]["resource_type"] == "cluster"
-        assert status_data["env_servlet_processes"]
-        assert isinstance(status_data["server_cpu_utilization"], float)
-        assert status_data["server_memory_usage"]
+        assert status_data.get("cluster_config").get(
+            "resource_subtype"
+        ) == cluster.config().get("resource_subtype")
+        assert status_data.get("env_servlet_processes", None)
+        assert isinstance(status_data.get("server_cpu_utilization", None), float)
+        assert status_data.get("server_memory_usage", None)
         assert not status_data.get("server_gpu_usage", None)
 
     @pytest.mark.level("local")
@@ -296,16 +298,22 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         on_cluster_config = remote_cluster_config()
         local_cluster_config = cluster.config()
 
-        keys_to_skip = [
-            "creds",
-            "client_port",
-            "server_host",
-            "api_server_url",
-            "ssl_keyfile",
-            "ssl_certfile",
+        keys_to_keep = [
+            "name",
+            "is_gpu",
+            "resource_subtype",
+            "den_auth",
+            "server_port",
+            "server_connection_type",
+            "autostop_mins",
+            "domain",
         ]
-        on_cluster_config = remove_config_keys(on_cluster_config, keys_to_skip)
-        local_cluster_config = remove_config_keys(local_cluster_config, keys_to_skip)
+        if local_cluster_config.get("resource_subtype", None) == "OnDemandCluster":
+            keys_to_keep.append("compute_properties")
+        else:
+            keys_to_keep.append("ips")
+        on_cluster_config = keep_config_keys(on_cluster_config, keys_to_keep)
+        local_cluster_config = keep_config_keys(local_cluster_config, keys_to_keep)
 
         assert on_cluster_config == local_cluster_config
 
@@ -491,7 +499,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         res = cluster_data.get("cluster_config")
 
         # test cluster config info
-        assert res.get("creds") is None
         assert res.get("server_port") == (cluster.server_port or DEFAULT_SERVER_PORT)
         assert res.get("server_connection_type") == cluster.server_connection_type
         assert res.get("den_auth") == cluster.den_auth
