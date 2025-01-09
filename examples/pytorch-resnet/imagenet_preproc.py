@@ -102,7 +102,7 @@ if __name__ == "__main__":
     # Mount the disk to download the data to
     s3_bucket = "rh-demo-external"
     cache_dir = "/mnt/nvme"
-    cluster.run(
+    cluster.run_bash(
         [
             f"sudo mkdir {cache_dir}",
             "sudo mkfs.ext4 /dev/nvme1n1",
