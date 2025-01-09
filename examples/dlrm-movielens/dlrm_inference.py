@@ -76,7 +76,7 @@ if __name__ == "__main__":
     # with fewer nodes.
     gpu_cluster = rh.cluster(
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-        accelerators=f"A10G:{gpus_per_node}",
+        gpus=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,
         provider="aws",
         image=img,

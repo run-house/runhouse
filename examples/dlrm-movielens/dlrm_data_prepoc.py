@@ -63,7 +63,7 @@ if __name__ == "__main__":
     cluster = rh.cluster(
         name="rh-ray-preprocessing",
         num_cpus="4",
-        memory="15+",  # Also `accelerators` `disk_size`
+        memory="15+",  # Also `gpus` `disk_size`
         provider="aws",  # kubernetes, etc.
         region="us-east-1",  # eu-west-1, etc.
         num_nodes=2,  # Launch two nodes, each with the requirements above

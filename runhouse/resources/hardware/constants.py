@@ -13,6 +13,7 @@ ONDEMAND_COMPUTE_ARGS = {
     "disk_size",
     "num_cpus",
     "accelerators",
+    "gpus",
     "sky_kwargs",
     "launcher",
     "autostop_mins",

@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     cluster = rh.cluster(
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-        accelerators=f"A10G:{gpus_per_node}",
+        gpus=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,
     ).up_if_not()
     cluster.install_packages(["torch"])

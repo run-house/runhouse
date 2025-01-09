@@ -58,7 +58,7 @@ class OnDemandCluster(Cluster):
         memory: Union[int, str] = None,
         disk_size: Union[int, str] = None,
         num_cpus: Union[int, str] = None,
-        accelerators: str = None,
+        gpus: str = None,
         open_ports: Union[int, str, List[int]] = None,
         server_host: int = None,
         server_port: int = None,
@@ -110,7 +110,7 @@ class OnDemandCluster(Cluster):
         self.memory = memory
         self.disk_size = disk_size
         self._num_cpus = num_cpus
-        self._accelerators = accelerators
+        self._gpus = gpus
         self.sky_kwargs = sky_kwargs or {}
         self.launcher = cluster_launcher
 
@@ -238,7 +238,7 @@ class OnDemandCluster(Cluster):
         )
         config["autostop_mins"] = self._autostop_mins
         config["num_cpus"] = self._num_cpus
-        config["accelerators"] = self._accelerators
+        config["gpus"] = self._gpus
         if self._kube_namespace is not None:
             config["kube_namespace"] = self._kube_namespace
         if self._kube_context is not None:
@@ -457,7 +457,6 @@ class OnDemandCluster(Cluster):
             disk_size = launched_resource.disk_size
             num_cpus = launched_resource.cpus
             memory = launched_resource.memory
-            accelerators = launched_resource.accelerators
 
             self.compute_properties = {
                 "ips": ips,
@@ -468,11 +467,10 @@ class OnDemandCluster(Cluster):
                 "cost_per_hour": str(cost_per_hr),
                 "disk_size": disk_size,
                 "memory": memory,
-                "accelerators": accelerators,
                 "num_cpus": num_cpus,
             }
             if launched_resource.accelerators:
-                self.compute_properties["accelerators"] = launched_resource.accelerators
+                self.compute_properties["gpus"] = launched_resource.accelerators
             if handle.ssh_user:
                 self.compute_properties["ssh_user"] = handle.ssh_user
             if handle.docker_user:
@@ -546,10 +544,10 @@ class OnDemandCluster(Cluster):
 
         return None
 
-    def accelerators(self):
-        """Returns the acclerator type, or None if is a CPU."""
-        if self._accelerators:
-            return self._accelerators
+    def gpus(self):
+        """Returns the gpu type, or None if is a CPU."""
+        if self._gpus:
+            return self._gpus
 
         if (
             self.instance_type
@@ -559,6 +557,10 @@ class OnDemandCluster(Cluster):
             return self.instance_type
 
         return None
+
+    def accelerators(self):
+        # TODO - deprecate this in the next release
+        return self.gpus()
 
     def num_cpus(self):
         """Return the number of CPUs for a CPU cluster."""

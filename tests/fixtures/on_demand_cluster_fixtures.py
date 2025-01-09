@@ -178,7 +178,7 @@ def ondemand_k8s_cluster(request, test_rns_folder):
     if not kube_config_path.exists():
         pytest.skip("no kubeconfig found")
 
-    # Note: Cannot specify both `instance_type` and any of `memory`, `disk_size`, `num_cpus`, or `accelerators`
+    # Note: Cannot specify both `instance_type` and any of `memory`, `disk_size`, `num_cpus`, or `gpus`
     args = {
         "name": "k8s-cpu",
         "provider": "kubernetes",

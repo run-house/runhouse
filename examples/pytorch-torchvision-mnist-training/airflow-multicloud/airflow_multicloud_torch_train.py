@@ -68,7 +68,7 @@ def get_cluster(**kwargs):
     cluster = rh.cluster(
         name=kwargs.get("cluster_name", "rh-cluster"),
         instance_type=kwargs.get("instance_type", None),
-        accelerators=kwargs.get("accelerators", None),
+        gpus=kwargs.get("gpus", None),
         provider=kwargs.get("provider", "aws"),
         image=img,
     ).up_if_not()
@@ -173,7 +173,7 @@ cpu_cluster_config = {
 }
 gpu_cluster_config = {
     "cluster_name": "gpu-cluster",
-    "accelerators": "L4:1",
+    "gpus": "L4:1",
     "provider": "gcp",
 }
 

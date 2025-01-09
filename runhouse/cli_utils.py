@@ -408,10 +408,10 @@ def print_cloud_properties(cluster_config: dict):
 
     num_of_cpus = cloud_properties.get("num_cpus") or len(cluster_config.get("ips"))
     num_of_gpus = 0
-    cluster_accelerators = cloud_properties.get("accelerators", None)
+    cluster_gpus = cloud_properties.get("gpus", None)
     gpu_types = set()
-    if cluster_accelerators:
-        for k, v in cluster_accelerators.items():
+    if cluster_gpus:
+        for k, v in cluster_gpus.items():
             num_of_gpus = num_of_gpus + int(v)
             gpu_types.add(k)
 
