@@ -1,4 +1,4 @@
-API Quick Start
+Minimal Example
 ===============
 
 .. raw:: html
@@ -9,15 +9,16 @@ API Quick Start
 This tutorial demonstrates how to use Runhouse to:
 
 - Launch a Runhouse cluster from elastic compute
-- Send a locally defined function onto the remote compute and call it as
-  a service
+- Send a locally defined function onto the remote compute and call it on
+  the remote cluster.
 
-Runhouse lets you serverlessly dispatch and execute regular Python. This
-enables rapid, local-like development and iteration from your local IDE
-while executing on powerful remote compute. Then, identically execute
-your code in production simply by scheduling the code to launch compute
-and dispatch to it, but without any need to change the underlying
-program code.
+Runhouse lets you dispatch and execute regular Python on remote compute
+“serverlessly” whether the program is a simple function or a distributed
+multi-node training. You have rapid, local-like development and
+iteration from your local IDE while having the flexibility to execute on
+powerful remote compute. Then, identically execute your code in
+production simply by scheduling the code to launch compute and dispatch
+to it, but without any need to change the underlying program code.
 
 We assume you have already installed and set up Runhouse according to
 the `setup

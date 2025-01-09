@@ -1,5 +1,5 @@
-Setting Up Runhouse
-===================
+Installation and Compute Setup
+==============================
 
 .. raw:: html
 
