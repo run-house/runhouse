@@ -1,6 +1,8 @@
 # # Distributed Dask Data Processing & LightGBM Training
 # In this example, we show how you can use Runhouse to launch a multi-node Dask cluster and use it to preprocess data and then train a LightGBM model.
-# The dataset we use is
+# The dataset we use is a 1 year sample of the NYC Taxi Dataset, which we do some illustrative pre-processing over to show the power of Dask
+# to perform distributed operations. Then, LightGBM is used to do a distributed training over the data, using the Dask cluster.
+
 import cloudpickle
 import dask.array as da
 
@@ -12,7 +14,10 @@ from dask.distributed import Client
 from dask_ml.metrics import mean_absolute_error, mean_squared_error
 from dask_ml.model_selection import train_test_split
 
-
+# ## Define the LightGBM Model Trainer Class
+# We use this class to encapsulate the training and define the methods for data pre-processing, training, and evaluation.
+# We will send this trainer to the cluster we bring up from on-demand compute below, and create a remote instance of this class.
+# This is regular undecorated Python, with regular Dask and LightGBM operations to train the model.
 class LightGBMModelTrainer:
     def __init__(self):
         self.model = None
@@ -118,7 +123,10 @@ class LightGBMModelTrainer:
         return float(result.compute()[0])
 
 
-# ## Dask + LightGBM Training
+# ## Launch Compute and Run the Training
+# We will now launch a Runhouse cluster with multiple nodes and use it to train a LightGBM model. We will first provide
+# the required pckage installs to a 3 node spot instance cluster on GCP.
+
 # :::note{.info title="Note"}
 # Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
 # the script code will run when Runhouse attempts to run code remotely.
@@ -141,39 +149,34 @@ if __name__ == "__main__":
 
     cluster = rh.ondemand_cluster(
         name=cluster_name,
-        instance_type="n2-highmem-4",
-        num_nodes=num_nodes,
+        instance_type="n2-highmem-8",  # We can specify instance name or required resources
+        num_nodes=num_nodes,  # Runhouse will automatically wire up multiple nodes into a Dask cluster
         provider="gcp",
         region="us-east1",
+        use_spot=True,  # We can use Spot instances for significant cost savings
         image=img,
     ).up_if_not()
 
     # ## Setup the remote training
-    # LightGBMModelTrainer is a completely normal class that contains our training methods,
-    # that a researcher would also be able to use locally as-is as well (on non-distributed Dask)
-    from lightgbm_training import LightGBMModelTrainer
-
+    # Now we can dispatch the model trainer class to remote, and create a remote instance of the trainer class
+    # This remote instance is fully locally interactible, and we can call methods on it as if it were local.
+    # Importantly, we use .distribute("dask") to start the Dask cluster and indicate this will be used with Dask
     remote_dask_trainer = rh.module(LightGBMModelTrainer).to(cluster)
+    dask_trainer = remote_dask_trainer(name="my_trainer").distribute(
+        "dask"
+    )  # You can also start the Dask cluster with cluster.connect_dask()
 
-    # Create is a locally callable, but remote instance of the trainer class
-    # You can interact with this trainer class in a different notebook / elsewhere using
-    # cluster.get('trainer', remote = True) to get the remote object
-    # We also use .distribute("dask") to start the Dask cluster and indicate this will be used with Dask
-    dask_trainer = remote_dask_trainer(name="my_trainer").distribute("dask")
-
-    # ## Do the processing and training on the remote cluster
-    # Access the Dask client, data, and preprocess the data
+    # Now we call the remote model trainer class methods to do the training.
     data_path = "gs://rh-demo-external/taxi_parquet"  # NYC Taxi Data
     X_vars = ["passenger_count", "trip_distance", "fare_amount"]
     y_var = "tip_amount"
-    cluster.connect_dask()
+
     dask_trainer.load_client()
     dask_trainer.load_data(data_path)
     new_date_columns = dask_trainer.preprocess(date_column="tpep_pickup_datetime")
     X_vars = X_vars + new_date_columns
     dask_trainer.train_test_split(target_var=y_var, features=X_vars)
 
-    # Train, test, and save the model
     dask_trainer.train_model()
     print("Model trained")
     dask_trainer.test_model()
