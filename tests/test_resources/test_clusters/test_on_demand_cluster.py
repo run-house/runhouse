@@ -294,7 +294,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
         cluster_config = cluster.config()
         cluster_uri = rns_client.format_rns_address(cluster.rns_address)
-        api_server_url = cluster_config.get("api_server_url", rns_client.api_server_url)
+        api_server_url = rns_client.api_server_url
         cluster.teardown()
         get_status_data_resp = requests.get(
             f"{api_server_url}/resource/{cluster_uri}/cluster/status",

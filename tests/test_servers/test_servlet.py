@@ -92,17 +92,20 @@ class TestServlet:
             namespace="runhouse",
         )
 
-        invalid_cluster_config = {
-            "api_server_url": "https://api.run.house.invalid",
-            "name": "mocked-cluster",
-        }
-
         current_ip = ray.get_runtime_context().worker.node_ip_address
+
+        cluster_config = {"name": "mocked_cluster"}
 
         init_remote_cluster_servlet_actor(
             current_ip=current_ip,
-            cluster_config=invalid_cluster_config,
             servlet_name="invalid_cluster_servlet",
+            cluster_config=cluster_config,
+            runtime_env={
+                "env_vars": {
+                    "API_SERVER_URL": "https://api.run.house.invalid",
+                    "RH_LOG_LEVEL": "DEBUG",
+                }
+            },
         )
 
         # wait for the async cluster status check thread to fail and kill the cluster servlet.

@@ -10,10 +10,9 @@ logger = get_logger(__name__)
 
 class AuthCache:
     # Maps a user's token to all the resources they have access to
-    def __init__(self, cluster_config: dict):
+    def __init__(self):
         self.CACHE = {}
         self.USERNAMES = {}
-        self.cluster_config = cluster_config
 
     def get_username(self, token: str) -> Optional[str]:
         """Get username associated with a particular token"""
@@ -42,7 +41,7 @@ class AuthCache:
         else:
             resource_uri_to_send = resource_uri.replace("/", ":")
 
-        uri = f"{self.cluster_config.get('api_server_url', rns_client.api_server_url)}/resource/{resource_uri_to_send}"
+        uri = f"{rns_client.api_server_url}/resource/{resource_uri_to_send}"
         resp = rns_client.session.get(
             uri,
             headers={"Authorization": f"Bearer {token}"},

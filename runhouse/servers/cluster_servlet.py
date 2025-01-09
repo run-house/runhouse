@@ -56,52 +56,45 @@ class ClusterServlet:
     async def __init__(
         self, cluster_config: Optional[Dict[str, Any]] = None, *args, **kwargs
     ):
-        # will need this to make sure that we are deleting the correct cluster servlet when we call kill_actors
-        self.name = kwargs.get("name", "cluster_servlet")
         # We do this here instead of at the start of the HTTP Server startup
         # because someone can be running `HTTPServer()` standalone in a test
         # and still want an initialized cluster config in the servlet.
         if not cluster_config:
             cluster_config = load_cluster_config_from_file()
-
-        self.cluster_config: Optional[Dict[str, Any]] = (
-            cluster_config if cluster_config else {}
-        )
-        self.cluster_config["has_cuda"] = is_gpu_cluster()
+        self._cluster_config: Optional[Dict[str, Any]] = cluster_config
 
         self._initialized_servlet_args: Dict[str, CreateProcessParams] = {}
         self._key_to_servlet_name: Dict[Any, str] = {}
-        self._auth_cache: AuthCache = AuthCache(self.cluster_config)
-        self.autostop_helper = None
+        self._auth_cache: AuthCache = AuthCache()
         self._paths_to_prepend_in_new_processes = []
         self._node_servlet_names: List[str] = []
-
-        if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
-            self.autostop_helper = AutostopHelper()
-
-        self._cluster_name = self.cluster_config.get("name", None)
+        self._cluster_name = self._cluster_config.get("name", None)
         self._cluster_uri = (
             rns_client.format_rns_address(self._cluster_name)
             if self._cluster_name
             else None
         )
 
-        self._api_server_url = self.cluster_config.get(
-            "api_server_url", rns_client.api_server_url
-        )
-        self.pid = get_pid()
-        self.process = psutil.Process(pid=self.pid)
-        self.gpu_metrics = None  # will be updated only if this is a gpu cluster.
-
-        # will be used when self.gpu_metrics will be updated by different threads.
-        self.lock = threading.Lock()
-
         # will be used in the periodic loop which sends cluster logs to den. Since we are saving logs to the server.log
         # file asynchronously, there might be a use case where we want to send logs to den but the server.log has not
         # been created yet, since it is a freshly initialized cluster servlet. In this case, we will return an empty string.
         self._is_log_file_ready = False
 
-        if self.cluster_config.get("has_cuda"):
+        # will need this to make sure that we are deleting the correct cluster servlet when we call kill_actors
+        self.name = kwargs.get("name", "cluster_servlet")
+
+        self.autostop_helper = None
+        if self._cluster_config.get("resource_subtype", None) == "OnDemandCluster":
+            self.autostop_helper = AutostopHelper()
+
+        self.pid = get_pid()
+        self.process = psutil.Process(pid=self.pid)
+        self.gpu_metrics = None  # will be updated only if this is a gpu cluster.
+        # will be used when self.gpu_metrics will be updated by different threads.
+        self.lock = threading.Lock()
+
+        # creating periodic check loops
+        if self._cluster_config.get("is_gpu"):
             logger.debug("Creating _periodic_gpu_check thread.")
             collect_gpu_thread = threading.Thread(
                 target=self._periodic_gpu_check, daemon=True
@@ -142,13 +135,13 @@ class ClusterServlet:
     # Cluster config state storage methods
     ##############################################
     async def aget_cluster_config(self) -> Dict[str, Any]:
-        return self.cluster_config
+        return self._cluster_config
 
     async def aset_cluster_config(self, cluster_config: Dict[str, Any]):
-        if "has_cuda" not in cluster_config.keys():
-            cluster_config["has_cuda"] = is_gpu_cluster()
+        if "is_gpu" not in cluster_config.keys():
+            cluster_config["is_gpu"] = is_gpu_cluster()
 
-        self.cluster_config = cluster_config
+        self._cluster_config = cluster_config
 
         # Propagate the changes to all other process's obj_stores
         await asyncio.gather(
@@ -163,12 +156,12 @@ class ClusterServlet:
             ]
         )
 
-        return self.cluster_config
+        return self._cluster_config
 
     async def aset_cluster_config_value(self, key: str, value: Any):
         if self.autostop_helper and key == "autostop_mins":
             await self.autostop_helper.set_autostop(value)
-        self.cluster_config[key] = value
+        self._cluster_config[key] = value
 
         # Propagate the changes to all other process's obj_stores
         await asyncio.gather(
@@ -184,7 +177,7 @@ class ClusterServlet:
             ]
         )
 
-        return self.cluster_config
+        return self._cluster_config
 
     ##############################################
     # Auth cache internal functions
@@ -316,7 +309,7 @@ class ClusterServlet:
         client = httpx.AsyncClient()
 
         return await client.post(
-            f"{self._api_server_url}/resource/{self._cluster_uri}/cluster/status",
+            f"{rns_client.api_server_url}/resource/{self._cluster_uri}/cluster/status",
             data=json.dumps(status_data),
             headers=rns_client.request_headers(),
         )
@@ -405,7 +398,6 @@ class ClusterServlet:
         and save it to Den."""
 
         logger.debug("started periodic cluster checks")
-
         disable_observability = (
             os.getenv("disable_observability", "false").strip().lower() == "true"
         )
@@ -623,7 +615,7 @@ class ClusterServlet:
         return cluster_gpu_usage
 
     async def astatus(self, send_to_den: bool = False) -> Tuple[Dict, Optional[int]]:
-        config_cluster = copy.deepcopy(self.cluster_config)
+        config_cluster = copy.deepcopy(self._cluster_config)
 
         # Popping out creds because we don't want to show them in the status
         config_cluster.pop("creds", None)
@@ -681,7 +673,7 @@ class ClusterServlet:
         # get general gpu usage
         server_gpu_usage = (
             self._get_node_gpu_usage(self.pid)
-            if self.cluster_config.get("has_cuda", False)
+            if self._cluster_config.get("is_gpu")
             else None
         )
         gpu_utilization = (
@@ -774,7 +766,7 @@ class ClusterServlet:
         }
 
         post_logs_resp = requests.post(
-            f"{self._api_server_url}/resource/{self._cluster_uri}/logs",
+            f"{rns_client.api_server_url}/resource/{self._cluster_uri}/logs",
             data=json.dumps(logs_data),
             headers=rns_client.request_headers(),
         )

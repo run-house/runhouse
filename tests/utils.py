@@ -159,10 +159,9 @@ def setup_test_base(cluster, logged_in=False):
         cluster.run_bash(setup_cmds)
 
 
-def remove_config_keys(config, keys_to_skip):
-    for key in keys_to_skip:
-        config.pop(key, None)
-    return config
+def keep_config_keys(config, keys_to_keep):
+    condensed_config = {key: config.get(key) for key in keys_to_keep}
+    return condensed_config
 
 
 def set_daemon_and_cluster_status(
