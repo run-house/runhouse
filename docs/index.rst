@@ -5,6 +5,7 @@ Table of Contents
    :caption: Runhouse Overview
 
    overview
+   runhouse-in-your-stack
 
 
 .. toctree::
@@ -13,12 +14,7 @@ Table of Contents
 
    tutorials/quick-start-den
    tutorials/quick-start-cloud
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Getting Started
    how-to-use-runhouse
-   runhouse-in-your-stack
 
 .. toctree::
    :maxdepth: 1
