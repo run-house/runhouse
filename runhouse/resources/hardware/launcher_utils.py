@@ -268,6 +268,9 @@ class DenLauncher(Launcher):
             )
             cluster._cluster_status = ClusterStatus.RUNNING
             cls._update_from_den_response(cluster=cluster, config=data)
+            logger.info(
+                f"To view this cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(cluster.rns_address)}"
+            )
             return
 
         # Blocking call with no streaming
@@ -283,6 +286,9 @@ class DenLauncher(Launcher):
             )
         data = read_resp_data(resp)
         logger.info("Successfully launched cluster")
+        logger.info(
+            f"To view this cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(cluster.rns_address)}"
+        )
         cluster._cluster_status = ClusterStatus.RUNNING
         cls._update_from_den_response(cluster=cluster, config=data)
 
