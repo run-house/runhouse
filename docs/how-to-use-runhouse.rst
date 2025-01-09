@@ -45,7 +45,7 @@ As a quick review of the `installation guide <https://www.run.house/docs/tutoria
 
       import runhouse as rh
 
-      gcp_secret = rh.provider_secret(provider = "gcp", name="gcp", path="Local path to your service account key, e.g. /Users/username/Downloads/runhouse-service-account.json")
+      gcp_secret = rh.provider_secret(provider="gcp", path="~/.gcp/runhouse-service-account.json")
       gcp_secret.save()
 
 * Alternatively, you can also get started very quickly and rely on your local machine's cloud credentials to launch elastic compute from local-only.
