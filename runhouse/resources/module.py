@@ -719,7 +719,7 @@ class Module(Resource):
                     new_create_process_params["compute"] = {
                         "node_idx": i // replicas_per_node
                     }
-                self.system.create_process(**new_create_process_params)
+                self.system.ensure_process_created(**new_create_process_params)
 
             new_module = copy.copy(self)
             new_module.local.name = name
