@@ -1,5 +1,5 @@
-How to Use Runhouse
-===================
+Workflow Walkthrough
+=====================
 This page offers a higher level end-to-end guide on using Runhouse to develop and deploy your ML projects. If you have any
 questions about what is described here, please reach out to `hello@run.house <mailto:hello@run.house>`_ or ping us on
 `Discord <https://discord.gg/RnhB6589Hs>`_, and we'd be happy to walk you through the details.
