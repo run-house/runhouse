@@ -233,7 +233,7 @@ class TestFunction:
         assert int(res) == 10
 
     @pytest.mark.skip("Runs indefinitely.")
-    # originally used ondemand_aws_docker_cluster, therefore marked as minimal
+    # originally used local_launched_ondemand_aws_docker_cluster, therefore marked as minimal
     @pytest.mark.level("minimal")
     def test_notebook(self, cluster):
         cluster.install_packages(["numpy"])
@@ -282,15 +282,20 @@ class TestFunction:
 
     @pytest.mark.level("release")
     def test_load_function_in_new_cluster(
-        self, ondemand_aws_docker_cluster, static_cpu_pwd_cluster, test_rns_folder
+        self,
+        local_launched_ondemand_aws_docker_cluster,
+        static_cpu_pwd_cluster,
+        test_rns_folder,
     ):
         remote_func_name = get_remote_func_name(test_rns_folder)
 
-        ondemand_aws_docker_cluster.save(
-            f"@/{ondemand_aws_docker_cluster.name}"
+        local_launched_ondemand_aws_docker_cluster.save(
+            f"@/{local_launched_ondemand_aws_docker_cluster.name}"
         )  # Needs to be saved to rns, right now has a local name by default
         remote_sum = (
-            rh.function(summer).to(ondemand_aws_docker_cluster).save(remote_func_name)
+            rh.function(summer)
+            .to(local_launched_ondemand_aws_docker_cluster)
+            .save(remote_func_name)
         )
 
         static_cpu_pwd_cluster.sync_secrets(["sky"])
@@ -307,9 +312,9 @@ class TestFunction:
 
     @pytest.mark.level("release")
     def test_nested_diff_clusters(
-        self, ondemand_aws_docker_cluster, static_cpu_pwd_cluster
+        self, local_launched_ondemand_aws_docker_cluster, static_cpu_pwd_cluster
     ):
-        summer_cpu = rh.function(summer).to(ondemand_aws_docker_cluster)
+        summer_cpu = rh.function(summer).to(local_launched_ondemand_aws_docker_cluster)
         call_function_diff_cpu = rh.function(call_function).to(static_cpu_pwd_cluster)
 
         kwargs = {"a": 1, "b": 5}

@@ -39,17 +39,17 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
 
     MINIMAL = {
         "package": packages,
-        "cluster": ["ondemand_aws_docker_cluster"],
+        "cluster": ["local_launched_ondemand_aws_docker_cluster"],
     }
 
     RELEASE = {
         "package": packages,
-        "cluster": ["ondemand_aws_docker_cluster"],
+        "cluster": ["local_launched_ondemand_aws_docker_cluster"],
     }
 
     MAXIMAL = {
         "package": packages,
-        "cluster": ["ondemand_aws_docker_cluster"],
+        "cluster": ["local_launched_ondemand_aws_docker_cluster"],
     }
 
     @pytest.mark.level("unit")
