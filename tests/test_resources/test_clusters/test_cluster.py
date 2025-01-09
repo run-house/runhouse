@@ -181,14 +181,22 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_recreate(self, cluster):
-        # Create underlying ssh connection if not already
-        cluster.run_bash(["echo hello"])
+        # # Create underlying ssh connection if not already
+        if cluster.ips == cluster.internal_ips != ["localhost"]:
+            cluster.run_bash_over_ssh(["echo hello"])
+        else:
+            cluster.run_bash(["echo hello"])
+
         num_open_tunnels = len(rh.globals.ssh_tunnel_cache)
 
         # Create a new cluster object for the same remote cluster
         cluster.save()
         new_cluster = rh.cluster(cluster.rns_address)
-        new_cluster.run_bash(["echo hello"])
+        if new_cluster.ips == new_cluster.internal_ips != ["localhost"]:
+            new_cluster.run_bash_over_ssh(["echo hello"])
+        else:
+            new_cluster.run_bash(["echo hello"])
+
         # Check that the same underlying ssh connection was used
         assert len(rh.globals.ssh_tunnel_cache) == num_open_tunnels
 
@@ -405,10 +413,18 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert shared_cluster.rns_address == cluster_name
             assert shared_cluster.creds_values.keys() == cluster_creds.keys()
             echo_msg = "hello from shared cluster"
-            run_res = shared_cluster.run_bash([f"echo {echo_msg}"])
+
+            if shared_cluster.ips == shared_cluster.internal_ips != ["localhost"]:
+                run_res = shared_cluster.run_bash_over_ssh([f"echo {echo_msg}"])
+            else:
+                run_res = shared_cluster.run_bash([f"echo {echo_msg}"])
+
             assert echo_msg in run_res[0][1]
             # First element, return code
-            assert shared_cluster.run_bash(["echo hello"])[0][0] == 0
+            if shared_cluster.ips == shared_cluster.internal_ips != ["localhost"]:
+                assert shared_cluster.run_bash_over_ssh(["echo hello"])[0][0] == 0
+            else:
+                assert shared_cluster.run_bash(["echo hello"])[0][0] == 0
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -458,7 +474,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             )
 
         # Docker clusters are logged out, ondemand clusters are logged in
-        output = cluster.run_bash("sed -n 's/.*token: *//p' ~/.rh/config.yaml")
+        if cluster.ips == cluster.internal_ips != ["localhost"]:
+            output = cluster.run_bash_over_ssh(
+                "sed -n 's/.*token: *//p' ~/.rh/config.yaml"
+            )
+        else:
+            output = cluster.run_bash("sed -n 's/.*token: *//p' ~/.rh/config.yaml")
         # No config file
         if output[0] == 2:
             assert unassumed_token is None
@@ -591,7 +612,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         default_process_name = DEFAULT_PROCESS_NAME
 
         cluster.put(key="status_key2", obj="status_value2")
-        status_output_response = cluster.run_bash([status_cli_command])[0]
+
+        if cluster.ips == cluster.internal_ips != ["localhost"]:
+            status_output_response = cluster.run_bash_over_ssh([status_cli_command])[0]
+        else:
+            status_output_response = cluster.run_bash([status_cli_command])[0]
         assert status_output_response[0] == 0
         status_output_string = status_output_response[1]
         # The string that's returned is utf-8 with the literal escape characters mixed in.
@@ -848,7 +873,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_cluster_run_within_cluster(self, cluster):
         remote_run = rh.function(run_in_no_env).to(cluster)
         res = remote_run("echo hello")
-        exp = cluster.run_bash("echo hello")
+
+        if cluster.ips == cluster.internal_ips != ["localhost"]:
+            exp = cluster.run_bash_over_ssh(["echo hello"])
+        else:
+            exp = cluster.run_bash(["echo hello"])
 
         # multinode case; check that the call passes on all nodes
         if len(cluster.ips) > 1:
