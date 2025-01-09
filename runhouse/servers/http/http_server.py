@@ -1218,7 +1218,11 @@ async def main():
             f"cluster_config.json: {cluster_config.get('ips', [None])[0]}. Prioritizing CLI provided certs_address."
         )
 
-    certs_addresses = parse_args.certs_address or cluster_config.get("ips", None)
+    certs_addresses = (
+        parse_args.certs_address
+        or cluster_config.get("ips", None)
+        or cluster_config.get("compute_properties", {}).get("ips", None)
+    )
 
     # We don't want to unset multiple addresses if they were set in the cluster config
     if certs_addresses is not None:

@@ -13,4 +13,10 @@ TEST_ENV_VARS = {
     ),
 }
 
-TEST_REQS = ["pytest", "httpx", "pytest_asyncio", "pandas", "numpy<=1.26.4"]
+TEST_REQS = [
+    "pytest",
+    "httpx",
+    "pytest_asyncio",
+    "pandas",
+    "numpy<=1.26.4",
+]

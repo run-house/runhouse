@@ -35,6 +35,7 @@ def setup_test_cluster(args, request, test_rns_folder, setup_base=False):
 
     if setup_base or not cluster.image:
         setup_test_base(cluster)
+
     return cluster
 
 
@@ -78,7 +79,8 @@ def local_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
     image = (
         Image(name="default_image")
         .from_docker("rayproject/ray:latest-py311-cpu")
-        .install_packages(["ray==2.30.0"])
+        .install_packages(TEST_REQS + ["ray==2.30.0"])
+        .set_env_vars(TEST_ENV_VARS)
     )
     args = {
         "name": f"{test_rns_folder}-aws-cpu",
@@ -105,7 +107,8 @@ def den_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
     image = (
         Image(name="default_image")
         .from_docker("rayproject/ray:latest-py311-cpu")
-        .install_packages(["ray==2.30.0"])
+        .install_packages(TEST_REQS + ["ray==2.30.0"])
+        .set_env_vars(TEST_ENV_VARS)
     )
 
     args = {
@@ -242,9 +245,9 @@ def ondemand_k8s_docker_cluster(request, test_rns_folder):
         "name": "k8s-docker-cpu",
         "provider": "kubernetes",
         "instance_type": "CPU:1",
-        "image": Image(name="default_image").from_docker(
-            "rayproject/ray:latest-py311-cpu"
-        ),
+        "image": Image(name="default_image")
+        .from_docker("rayproject/ray:latest-py311-cpu")
+        .install_packages(TEST_REQS),
     }
     cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster

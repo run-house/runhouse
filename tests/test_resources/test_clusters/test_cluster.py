@@ -850,8 +850,16 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         res = remote_run("echo hello")
         exp = cluster.run_bash("echo hello")
 
-        assert res[0] == 0
-        assert res[1].strip() == exp[1].strip()
+        # multinode case; check that the call passes on all nodes
+        if len(cluster.ips) > 1:
+            assert len(res) == len(exp)
+            for node_id in range(len(res)):
+                assert res[node_id][0] == 0
+                assert res[node_id][1].strip() == exp[node_id][1].strip()
+        else:
+            # single-node case
+            assert res[0] == 0
+            assert res[1].strip() == exp[1].strip()
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
