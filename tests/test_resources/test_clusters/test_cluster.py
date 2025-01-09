@@ -888,7 +888,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         else:
             # single-node case
             assert res[0] == 0
-            assert res[1].strip() == exp[1].strip()
+            assert res[1].strip() == exp[0][1].strip()
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
