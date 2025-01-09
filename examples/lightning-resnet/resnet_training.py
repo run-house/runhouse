@@ -244,15 +244,14 @@ if __name__ == "__main__":
         ]
     )
 
-    gpu_cluster = (
-        rh.cluster(
-            name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-            gpus=f"A10G:{gpus_per_node}",
-            num_nodes=num_nodes,
-            provider="aws",
-            image=img,
-        )
-        .sync_secrets(["aws"])
+    gpu_cluster = rh.cluster(
+        name=f"rh-{num_nodes}x{gpus_per_node}GPU",
+        gpus=f"A10G:{gpus_per_node}",
+        num_nodes=num_nodes,
+        provider="aws",
+        image=img,
+    ).sync_secrets(
+        ["aws"]
     )  # sends our AWS secret to the remote cluster
 
     gpu_cluster = rh.cluster(
@@ -260,11 +259,8 @@ if __name__ == "__main__":
         accelerators=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,
         provider="aws",
-        launcher="local",
         image=img,
-        load_from_den=False,
     ).up_if_not()
-    gpu_cluster.restart_server()
 
     # Now that the cluster is up, we will send our trainer to the remote cluster, instantiate a remote instance of it, and run the training.
     # Note that we call .distribute("pytorch") to set up the PyTorch distributed backend. We run the training for 15 epochs with a batch size of 32,
@@ -281,7 +277,6 @@ if __name__ == "__main__":
         working_s3_path=working_s3_path,
     ).distribute(
         "pytorch",
-        port="55877",
         replicas_per_node=gpus_per_node,
         num_replicas=gpus_per_node * num_nodes,
     )

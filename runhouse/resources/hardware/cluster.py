@@ -32,7 +32,6 @@ from runhouse.resources.images import Image, ImageSetupStepType
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import (
-    _do_setup_step_for_node,
     _process_env_vars,
     conda_env_cmd,
     create_conda_env_on_cluster,
@@ -1131,9 +1130,9 @@ class Cluster(Resource):
             ).parent
 
             installed_editable_locally = (
-                    not _rh_install_url
-                    and local_rh_package_path.parent.name == "runhouse"
-                    and (local_rh_package_path.parent / "setup.py").exists()
+                not _rh_install_url
+                and local_rh_package_path.parent.name == "runhouse"
+                and (local_rh_package_path.parent / "setup.py").exists()
             )
 
             if installed_editable_locally:
