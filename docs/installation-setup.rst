@@ -32,6 +32,16 @@ the cloud provider of your choice as additional installs:
 
     !pip install "runhouse[gcp, sky]"
 
+The Runhouse server daemon requires additional dependencies not included in the base package.
+These are automatically installed on Runhouse clusters, but not by default if you are starting a local server.
+These dependencies can be installed with:
+
+.. code::
+
+    !pip install "runhouse[server]"
+
+See the :ref:`local quick start guide <Local Quick Start>` for more information.
+
 Account Creation & Login
 ------------------------
 

@@ -1,9 +1,6 @@
 import subprocess
 from typing import Optional
 
-import ray
-from ray.experimental.state.api import list_actors
-
 from runhouse.logger import get_logger
 
 logger = get_logger(__name__)
@@ -22,6 +19,9 @@ def list_actor_states(
     namespace: Optional[str] = "runhouse",
     state: Optional[str] = "ALIVE",
 ):
+    import ray
+    from ray.experimental.state.api import list_actors
+
     def filter_by(actor: "ActorState"):
         if actor_name and actor["name"] != actor_name:
             return False
@@ -46,6 +46,8 @@ def kill_actors(
     namespace: Optional[str] = None,
     gracefully: bool = True,
 ):
+    import ray
+
     cluster_servlet_actor = None
     for actor in list_actor_states(actor_name, actor_class_name, namespace):
         actor_handle_to_kill = ray.get_actor(actor["name"])

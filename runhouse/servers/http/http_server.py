@@ -8,13 +8,16 @@ from functools import wraps
 from pathlib import Path
 from typing import Dict, Optional
 
-import ray
-import requests
-import yaml
-from fastapi import Body, FastAPI, HTTPException, Request
-from fastapi.encoders import jsonable_encoder
-from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
-from fastapi.responses import StreamingResponse
+try:
+    import ray
+    import requests
+    import yaml
+    from fastapi import Body, FastAPI, HTTPException, Request
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+    from fastapi.responses import StreamingResponse
+except ImportError:
+    pass
 
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,

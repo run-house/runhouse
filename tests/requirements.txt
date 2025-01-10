@@ -5,6 +5,8 @@ pytest_asyncio
 datasets
 dask
 tqdm
+fastapi
+ray[default]>=2.9.0
 
 # packages for local and unit tests
 boto3

@@ -724,7 +724,7 @@ class Cluster(Resource):
                 contents=True,
                 filter_options="- docs/",
             )
-            rh_install_cmd = f"python3 -m pip install {dest_path}"
+            rh_install_cmd = f"python3 -m pip install {dest_path}[server]"
 
         else:
             # Package is installed in site-packages
@@ -734,7 +734,7 @@ class Cluster(Resource):
             if not _install_url:
                 import runhouse
 
-                _install_url = f"runhouse=={runhouse.__version__}"
+                _install_url = f"runhouse[server]=={runhouse.__version__}"
             rh_install_cmd = f"python3 -m pip install {_install_url}"
 
         for node in self.ips:

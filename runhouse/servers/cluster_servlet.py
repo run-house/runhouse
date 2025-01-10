@@ -8,8 +8,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import httpx
 
-import psutil
-import pynvml
 import requests
 
 import runhouse
@@ -56,6 +54,8 @@ class ClusterServlet:
     async def __init__(
         self, cluster_config: Optional[Dict[str, Any]] = None, *args, **kwargs
     ):
+        import psutil
+
         # We do this here instead of at the start of the HTTP Server startup
         # because someone can be running `HTTPServer()` standalone in a test
         # and still want an initialized cluster config in the servlet.
@@ -536,6 +536,7 @@ class ClusterServlet:
 
     async def _aperiodic_gpu_check(self):
         """periodically collects cluster gpu usage"""
+        import pynvml
 
         logger.debug("Started gpu usage collection")
 
@@ -615,6 +616,8 @@ class ClusterServlet:
         return cluster_gpu_usage
 
     async def astatus(self, send_to_den: bool = False) -> Tuple[Dict, Optional[int]]:
+        import psutil
+
         config_cluster = copy.deepcopy(self._cluster_config)
 
         # Popping out creds because we don't want to show them in the status

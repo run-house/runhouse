@@ -64,20 +64,17 @@ def parse_readme(readme: str) -> str:
 install_requires = [
     "annotated-types>=0.6.0",
     "python-dotenv",
-    "fastapi",
     "pexpect",
     "pyOpenSSL>=23.3.0",
-    "ray[default] >= 2.9.0",
     "async_timeout",  # Needed for ray<=2.9
     "rich",
     "setuptools < 70.0.0",  # Bug in setuptools 70.0.0: https://github.com/AUTOMATIC1111/stable-diffusion-webui/issues/15863 noqa
     "typer",
-    "uvicorn",
     "wheel",
     "apispec",
+    "pyyaml",
     "httpx",
     "pydantic >= 2.5.0",  # required for ray >= 2.9.0 (https://github.com/ray-project/ray/releases?page=2)
-    "pynvml",
     "cryptography",
 ]
 
@@ -86,6 +83,7 @@ install_requires = [
 extras_require = {
     "sky": ["skypilot==0.7.0"],
     "data": ["pandas"],
+    "server": ["ray[default] >= 2.9.0", "uvicorn", "fastapi", "pynvml", "psutil"],
     "aws": [
         "skypilot[aws]==0.7.0",
         # https://github.com/aio-libs/aiobotocore/issues/983
