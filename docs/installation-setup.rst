@@ -82,8 +82,26 @@ Runhouse Enterprise users may have other secrets configurations, and Runhouse su
 configurations to work with your organization’s cloud settings out-of-the-box, such as setting up
 Runhouse to launch within a specific VPC.
 
-Local Launching
----------------
+Launching Clusters
+------------------
+
+Den Launcher
+~~~~~~~~~~~~
+The Den launcher allows you to launch clusters in your own cloud via the Runhouse control plane.
+We recommend this approach for a couple of reasons:
+
+* **Resource Management**: Clusters launched through Runhouse are automatically persisted in the
+  Den UI, making it easier to track and manage your entire collection of resources.
+
+* **Distributed Workflows / Production Pipelines**: Launch clusters as part of distributed workflows
+  or pipelines without needing to configure cloud credentials in your environment.
+
+To enable the Den launcher, you can set :code:`launcher="den"` in the:ref:`cluster factory
+<Cluster Factory Methods>`, or update your local :ref:`runhouse config <Setting Config Options>` with
+:code:`launcher: den` to apply the setting globally across all subsequent clusters created.
+
+Local Launcher
+~~~~~~~~~~~~~~
 
 It is also possible to leverage SkyPilot to launch clusters elastic compute from your local
 machine and use Runhouse as a library only. If you are already logged in locally via CLI to your
@@ -94,8 +112,8 @@ To launch locally without an account, review `Skypilot's cloud setup documentati
 to understand how to set up and check your local credentials. Run the CLI command ``sky check``
 after installing Runhouse with Skypilot enabled to confirm you have sufficient access to the cloud.
 
-Launching Clusters
-------------------
+Launching API
+~~~~~~~~~~~~~
 
 You are now ready to launch clusters with Runhouse. Simply specify the resources you want to
 launch. In this example, we will bring up a 2 CPU 1 node cluster.
