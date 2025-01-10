@@ -345,29 +345,38 @@ class HTTPServer:
     async def run_bash(request: Request, params: RunBashParams):
         try:
             run_cmd_result = None
-            if params.node and params.process:
+            if params.node_ip_or_idx is not None and params.process is not None:
                 raise ValueError("Cannot specify both node and process.")
 
-            elif not params.node and not params.process:
+            elif params.node_ip_or_idx is None and params.process is None:
                 # TODO: Logging when running on multiple nodes
                 run_cmd_result = await obj_store.arun_bash_command_on_all_nodes(
                     command=params.command, require_outputs=params.require_outputs
                 )
 
-            elif params.node:
+            elif params.node_ip_or_idx is not None:
+                internal_ips = obj_store.get_internal_ips()
+
+                if isinstance(params.node_ip_or_idx, int):
+                    if params.node_ip_or_idx >= len(internal_ips):
+                        raise ValueError(
+                            f"Node index {params.node_ip_or_idx} out of range for cluster with {len(internal_ips)} nodes."
+                        )
+                    params.node_ip_or_idx = internal_ips[params.node_ip_or_idx]
+
                 if (
-                    params.node not in obj_store.get_internal_ips()
-                    and params.node != "localhost"
+                    params.node_ip_or_idx not in internal_ips
+                    and params.node_ip_or_idx != "localhost"
                 ):
                     raise ValueError(
-                        f"Node {params.node} not a valid internal IP on the cluster."
+                        f"Node {params.node_ip_or_idx} not a valid internal IP on the cluster."
                     )
 
                 run_cmd_result = await obj_store.arun_bash_command_on_node_or_process(
                     command=params.command,
                     require_outputs=params.require_outputs,
                     run_name=params.run_name,
-                    node_ip=params.node,
+                    node_ip=params.node_ip_or_idx,
                 )
 
             elif params.process:
@@ -820,18 +829,27 @@ class HTTPServer:
             if (
                 sum(
                     arg is not None
-                    for arg in [params.key, params.node_ip, params.process]
+                    for arg in [params.key, params.node_ip_or_idx, params.process]
                 )
                 != 1
             ):
                 raise ValueError(
                     "Exactly one of key, node_ip, or process must be provided to get logs"
                 )
+
+            if isinstance(params.node_ip_or_idx, int):
+                internal_ips = obj_store.get_internal_ips()
+                if params.node_ip_or_idx >= len(internal_ips):
+                    raise ValueError(
+                        f"Node index {params.node_ip_or_idx} out of range for cluster with {len(internal_ips)} nodes."
+                    )
+                params.node_ip_or_idx = internal_ips[params.node_ip_or_idx]
+
             return StreamingResponse(
                 HTTPServer._get_logs_generator(
                     run_name=params.run_name,
                     key=params.key,
-                    node_ip=params.node_ip,
+                    node_ip=params.node_ip_or_idx,
                     process=params.process,
                     serialization=params.serialization,
                 ),
