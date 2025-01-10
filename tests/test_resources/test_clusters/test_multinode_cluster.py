@@ -130,17 +130,17 @@ class TestMultiNodeCluster:
     @pytest.mark.level("release")
     def test_run_bash_on_node(self, cluster):
         # Specify via index
-        results = cluster.run_bash("echo 'Hello World!'", node=0)
-        assert results[0][0] == 0
-        assert results[0][1] == "Hello World!\n"
+        result = cluster.run_bash("echo 'Hello World!'", node=0)
+        assert result[0] == 0
+        assert result[1] == "Hello World!\n"
 
         # Specify via IP
-        results = cluster.run_bash("echo 'Hello World!'", node=cluster.ips[1])
-        assert results[0][0] == 0
-        assert results[0][1] == "Hello World!\n"
+        result = cluster.run_bash("echo 'Hello World!'", node=cluster.ips[1])
+        assert result[0] == 0
+        assert result[1] == "Hello World!\n"
 
         # Run in process
         process = cluster.ensure_process_created("worker_env_0")
-        results = cluster.run_bash("echo 'Hello World!'", process=process)
-        assert results[0][0] == 0
-        assert results[0][1] == "Hello World!\n"
+        result = cluster.run_bash("echo 'Hello World!'", process=process)
+        assert result[0] == 0
+        assert result[1] == "Hello World!\n"
