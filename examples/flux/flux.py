@@ -71,7 +71,7 @@ if __name__ == "__main__":
     )
     cluster = rh.cluster(
         name="rh-a10-8xlarge",
-        accelerators="A10G",
+        gpus="A10G",
         num_cpus="32",
         provider="aws",
         image=img,

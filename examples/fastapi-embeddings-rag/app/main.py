@@ -83,7 +83,7 @@ DEBUG = True  # In DEBUG mode we will always override Runhouse modules
 # cloud provider, be sure to install the appropriate version of Runhouse: e.g.
 # `runhouse[aws]` or `runhouse[gcp]`.
 CLUSTER_NAME = "rh-xa10g"  # Allows the cluster to be reused
-ACCELERATOR = "A10G:1"  # A10G GPU to handle LLM iinference
+GPUS = "A10G:1"  # A10G GPU to handle LLM iinference
 CLOUD_PROVIDER = "aws"  # Alternatively "gcp", "azure", or "cheapest"
 
 # Template to be used in the LLM generation phase of the RAG app
@@ -136,7 +136,7 @@ def load_embedder():
     )
 
     cluster = rh.cluster(
-        name=CLUSTER_NAME, accelerators=ACCELERATOR, provider=CLOUD_PROVIDER, image=img
+        name=CLUSTER_NAME, gpus=GPUS, provider=CLOUD_PROVIDER, image=img
     ).up_if_not()
 
     module_name = "url_embedder"
@@ -177,7 +177,7 @@ def load_llm():
     )
 
     cluster = rh.cluster(
-        CLUSTER_NAME, accelerators=ACCELERATOR, provider=CLOUD_PROVIDER, image=img
+        CLUSTER_NAME, gpus=ACCELERATOR, provider=CLOUD_PROVIDER, image=img
     ).up_if_not()
 
     module_name = "llama_model"

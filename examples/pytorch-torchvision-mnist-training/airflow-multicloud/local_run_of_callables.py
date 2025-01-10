@@ -32,7 +32,7 @@ if __name__ == "__main__":
     }
     gpu_cluster_config = {
         "cluster_name": "gpu-cluster",
-        "accelerators": "L4:1",
+        "gpus": "L4:1",
         "provider": "gcp",
     }
 

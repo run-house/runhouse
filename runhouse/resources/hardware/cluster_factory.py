@@ -192,6 +192,7 @@ def ondemand_cluster(
     disk_size: Union[int, str, None] = None,
     num_cpus: Union[int, str, None] = None,
     accelerators: Union[int, str, None] = None,
+    gpus: Union[int, str, None] = None,
     open_ports: Union[int, str, List[int], None] = None,
     sky_kwargs: Dict = None,
     # kubernetes related arguments
@@ -220,7 +221,7 @@ def ondemand_cluster(
       These args are passed through to SkyPilot's `Resource constructor
       <https://skypilot.readthedocs.io/en/latest/reference/api.html#resources>`__: ``instance_type``,
       ``num_nodes``, ``provider``, ``use_spot``, ``region``, ``memory``, ``disk_size``, ``num_cpus``,
-      ``accelerators``, ``open_ports``, ``autostop_mins``, ``sky_kwargs``.
+      ``gpus`` (``accelerators``), ``open_ports``, ``autostop_mins``, ``sky_kwargs``.
     * If runhouse related arguments are mismatched with loaded Cluster, override those Cluster properties
 
 
@@ -228,7 +229,7 @@ def ondemand_cluster(
         name (str): Name for the cluster, to re-use later on.
         instance_type (int, optional): Type of cloud VM type to use for the cluster, e.g. "r5d.xlarge".
             Optional, as may instead choose to specify resource requirements (e.g. memory, disk_size,
-            num_cpus, accelerators).
+            num_cpus, gpus).
         num_nodes (int, optional): Number of nodes to use for the cluster.
         provider (str, optional): Cloud provider to use for the cluster.
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
@@ -240,7 +241,7 @@ def ondemand_cluster(
         disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. `100` or "100+".
             (Default: ``None``)
         num_cpus (int or str, optional): Number of CPUs to use for the cluster, e.g. `4` or "4+". (Default: ``None``)
-        accelerators (int or str, optional): Number of accelerators to use for the cluster, e.g. "A101" or "L4:8".
+        gpus (int or str, optional): Type and number of GPU to use for the cluster e.g. "A101" or "L4:8".
             (Default: ``None``)
         open_ports (int or str or List[int], optional): Ports to open in the cluster's security group. Note
             that you are responsible for ensuring that the applications listening on these ports are secure.
@@ -301,6 +302,11 @@ def ondemand_cluster(
     """
     cluster_args = locals().copy()
     cluster_args = {k: v for k, v in cluster_args.items() if v is not None}
+    if "accelerators" in cluster_args:
+        logger.warning(
+            "``accelerators`` argument has been deprecated. Please use ``gpus`` argument instead."
+        )
+        cluster_args["gpus"] = cluster_args.pop("accelerators")
 
     try:
         new_cluster = Cluster.from_name(

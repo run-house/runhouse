@@ -117,7 +117,7 @@ async def main():
 
     gpu_cluster = rh.cluster(
         name="rh-l4x",
-        accelerators="L4:1",
+        gpus="L4:1",
         memory="32+",
         provider="gcp",
         image=img,
