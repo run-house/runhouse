@@ -568,7 +568,7 @@ class HTTPClient:
         self,
         run_name: str,
         key: Optional[str] = None,
-        node_ip: Optional[str] = None,
+        node_ip_or_idx: Optional[Union[str, int]] = None,
         process: Optional[str] = None,
         serialization: Optional[str] = None,
         error_str: Optional[str] = None,
@@ -576,9 +576,9 @@ class HTTPClient:
     ) -> None:
         # When running this in another thread, we need to explicitly create an async client here. When running within
         # the main thread, we can use the client that was passed in.
-        if sum(arg is not None for arg in [key, node_ip, process]) != 1:
+        if sum(arg is not None for arg in [key, node_ip_or_idx, process]) != 1:
             raise ValueError(
-                "Exactly one of key, node_ip, or process must be provided to get logs"
+                "Exactly one of key, node_ip_or_idx, or process must be provided to get logs"
             )
 
         if create_async_client:
@@ -595,7 +595,7 @@ class HTTPClient:
             headers=self._request_headers,
             json=LogsParams(
                 run_name=run_name,
-                node_ip=node_ip,
+                node_ip_or_idx=node_ip_or_idx,
                 process=process,
                 key=key,
                 serialization=serialization,
@@ -864,12 +864,12 @@ class HTTPClient:
     def run_bash(
         self,
         command: str,
-        node: Optional[str] = None,
+        node_ip_or_idx: Optional[Union[str, int]] = None,
         process: Optional[str] = None,
         run_name: Optional[str] = None,
         require_outputs: bool = False,
     ):
-        if node is not None and process is not None:
+        if node_ip_or_idx is not None and process is not None:
             raise ValueError("Cannot specify both node and process")
 
         return self.request_json(
@@ -878,7 +878,7 @@ class HTTPClient:
             json_dict=RunBashParams(
                 command=command,
                 require_outputs=require_outputs,
-                node=node,
+                node_ip_or_idx=node_ip_or_idx,
                 process=process,
                 run_name=run_name,
             ).model_dump(),
