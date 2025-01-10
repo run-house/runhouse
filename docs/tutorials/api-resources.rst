@@ -43,9 +43,12 @@ Some configs to consider setting:
    ``cluster.keep_warm(autostop=60)`` to control this for an existing
    cluster.
 
--  ``rh.configs.set('default_provider', 'cheapest')``: Default cloud
-   provider to use for your on-demand cluster, or ``cheapest`` selects
-   the cheapest provider for the desired hardware.
+-  ``rh.configs.set('default_provider', 'aws')``: Default cloud
+   provider to use for your on-demand cluster.
+
+-  ``rh.configs.set('launcher', 'den')``: Default to using Runhouse for launching the cluster. This makes it easier to
+   track the cluster's status, memory consumption and viewing logs. It is also useful for launching cluster as part of
+   a distributed workflow or pipeline.
 
 To save updated configs to Runhouse, to be accessed from elsewhere:
 
@@ -74,8 +77,8 @@ to signal that it lives in the current folder.
 
 .. note::
 
-    If you are logged in and would like to turn off automatically saving resources to Runhouse RNS, you can
-    set ``autosave`` to ``false`` in your local ``~/.rh/config.yaml`` file.
+    If you are logged in and would like to turn on automatically saving resources to Runhouse RNS, you can
+    set ``autosave`` to ``true`` in your local ``~/.rh/config.yaml`` file.
 
 .. code:: ipython3
 
@@ -111,7 +114,7 @@ to signal that it lives in the current folder.
         "resource_type": "cluster",
         "resource_subtype": "OnDemandCluster",
         "instance_type": "V100:1",
-        "num_instances": null,
+        "num_nodes": null,
         "provider": "aws",
         "autostop_mins": 30,
         "use_spot": false,
@@ -277,7 +280,7 @@ to notify them.
     INFO | 2024-08-18 06:51:39.797150 | Saving config for aws-cpu-ssh-secret to Den
     INFO | 2024-08-18 06:51:39.972763 | Saving secrets for aws-cpu-ssh-secret to Vault
     INFO | 2024-08-18 06:51:40.190996 | Saving config to RNS: {'name': '/jlewitt1/aws-cpu_default_env', 'resource_type': 'env', 'resource_subtype': 'Env', 'visibility': 'private', 'env_vars': {}, 'env_name': 'aws-cpu_default_env', 'compute': {}, 'reqs': ['ray==2.30.0'], 'working_dir': None}
-    INFO | 2024-08-18 06:51:40.368442 | Saving config to RNS: {'name': '/jlewitt1/aws-cpu', 'resource_type': 'cluster', 'resource_subtype': 'OnDemandCluster', 'visibility': 'private', 'ips': ['3.14.144.103'], 'server_port': 32300, 'server_connection_type': 'ssh', 'den_auth': False, 'ssh_port': 22, 'client_port': 32300, 'creds': '/jlewitt1/aws-cpu-ssh-secret', 'api_server_url': 'https://api.run.house', 'default_env': '/jlewitt1/aws-cpu_default_env', 'instance_type': 'CPU:2+', 'provider': 'aws', 'open_ports': [], 'use_spot': False, 'image_id': 'docker:nvcr.io/nvidia/pytorch:23.10-py3', 'region': 'us-east-2', 'stable_internal_external_ips': [('172.31.5.134', '3.14.144.103')], 'sky_kwargs': {'launch': {'retry_until_up': True}}, 'launched_properties': {'cloud': 'aws', 'instance_type': 'm6i.large', 'region': 'us-east-2', 'cost_per_hour': 0.096, 'docker_user': 'root'}, 'autostop_mins': -1}
+    INFO | 2024-08-18 06:51:40.368442 | Saving config to RNS: {'name': '/jlewitt1/aws-cpu', 'resource_type': 'cluster', 'resource_subtype': 'OnDemandCluster', 'visibility': 'private', 'ips': ['3.14.144.103'], 'server_port': 32300, 'server_connection_type': 'ssh', 'den_auth': False, 'ssh_port': 22, 'client_port': 32300, 'creds': '/jlewitt1/aws-cpu-ssh-secret', 'api_server_url': 'https://api.run.house', 'default_env': '/jlewitt1/aws-cpu_default_env', 'instance_type': 'CPU:2+', 'provider': 'aws', 'open_ports': [], 'use_spot': False, 'image_id': 'docker:nvcr.io/nvidia/pytorch:23.10-py3', 'region': 'us-east-2', 'stable_internal_external_ips': [('172.31.5.134', '3.14.144.103')], 'sky_kwargs': {'launch': {'retry_until_up': True}}, 'compute_properties': {'cloud': 'aws', 'instance_type': 'm6i.large', 'region': 'us-east-2', 'cost_per_hour': 0.096, 'docker_user': 'root'}, 'autostop_mins': -1}
     INFO | 2024-08-18 06:51:40.548233 | Sharing cluster credentials, which enables the recipient to SSH into the cluster.
     INFO | 2024-08-18 06:51:40.551277 | Saving config for aws-cpu-ssh-secret to Den
     INFO | 2024-08-18 06:51:40.728345 | Saving secrets for aws-cpu-ssh-secret to Vault
@@ -285,7 +288,7 @@ to notify them.
     INFO | 2024-08-18 06:51:42.006030 | Saving config for aws-cpu-ssh-secret to Den
     INFO | 2024-08-18 06:51:42.504070 | Saving secrets for aws-cpu-ssh-secret to Vault
     INFO | 2024-08-18 06:51:42.728653 | Saving config to RNS: {'name': '/jlewitt1/aws-cpu_default_env', 'resource_type': 'env', 'resource_subtype': 'Env', 'visibility': 'private', 'env_vars': {}, 'env_name': 'aws-cpu_default_env', 'compute': {}, 'reqs': ['ray==2.30.0'], 'working_dir': None}
-    INFO | 2024-08-18 06:51:42.906615 | Saving config to RNS: {'name': '/jlewitt1/aws-cpu', 'resource_type': 'cluster', 'resource_subtype': 'OnDemandCluster', 'visibility': 'private', 'ips': ['3.14.144.103'], 'server_port': 32300, 'server_connection_type': 'ssh', 'den_auth': False, 'ssh_port': 22, 'client_port': 32300, 'creds': '/jlewitt1/aws-cpu-ssh-secret', 'api_server_url': 'https://api.run.house', 'default_env': '/jlewitt1/aws-cpu_default_env', 'instance_type': 'CPU:2+', 'provider': 'aws', 'open_ports': [], 'use_spot': False, 'image_id': 'docker:nvcr.io/nvidia/pytorch:23.10-py3', 'region': 'us-east-2', 'stable_internal_external_ips': [('172.31.5.134', '3.14.144.103')], 'sky_kwargs': {'launch': {'retry_until_up': True}}, 'launched_properties': {'cloud': 'aws', 'instance_type': 'm6i.large', 'region': 'us-east-2', 'cost_per_hour': 0.096, 'docker_user': 'root'}, 'autostop_mins': -1}
+    INFO | 2024-08-18 06:51:42.906615 | Saving config to RNS: {'name': '/jlewitt1/aws-cpu', 'resource_type': 'cluster', 'resource_subtype': 'OnDemandCluster', 'visibility': 'private', 'ips': ['3.14.144.103'], 'server_port': 32300, 'server_connection_type': 'ssh', 'den_auth': False, 'ssh_port': 22, 'client_port': 32300, 'creds': '/jlewitt1/aws-cpu-ssh-secret', 'api_server_url': 'https://api.run.house', 'default_env': '/jlewitt1/aws-cpu_default_env', 'instance_type': 'CPU:2+', 'provider': 'aws', 'open_ports': [], 'use_spot': False, 'image_id': 'docker:nvcr.io/nvidia/pytorch:23.10-py3', 'region': 'us-east-2', 'stable_internal_external_ips': [('172.31.5.134', '3.14.144.103')], 'sky_kwargs': {'launch': {'retry_until_up': True}}, 'compute_properties': {'cloud': 'aws', 'instance_type': 'm6i.large', 'region': 'us-east-2', 'cost_per_hour': 0.096, 'docker_user': 'root'}, 'autostop_mins': -1}
 
 
 

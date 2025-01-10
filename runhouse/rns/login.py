@@ -103,6 +103,25 @@ def login(
             else typer.confirm("Upload your local .rh config to Runhouse?")
         )
 
+        # Default ssh secret
+        if not rns_client.default_ssh_key:
+            default_ssh_path = typer.prompt(
+                "Input the private key path for your default SSH key to use for launching clusters (e.g. ~/.ssh/id_rsa), or press `Enter` to skip",
+                default="",
+            )
+
+            if default_ssh_path:
+                from runhouse import provider_secret
+
+                secret = provider_secret(provider="ssh", path=default_ssh_path)
+                if secret.values:
+                    secret.save()
+                    configs.set("default_ssh_key", secret.name)
+                else:
+                    console.print(
+                        f"Could not detect SSH key at {default_ssh_path}. Skipping"
+                    )
+
         if sync_secrets:
             from runhouse import Secret
 
@@ -129,6 +148,16 @@ def login(
 
     if download_config:
         configs.download_and_save_defaults()
+
+    autostop_mins = configs.defaults_cache.get("default_autostop")
+    if autostop_mins is None:
+        new_autostop_mins = typer.prompt(
+            "Set the default number of minutes of inactivity after which to auto-terminate on-demand clusters. "
+            "Press `Enter` to set to 60 minutes, or `-1` to disable autostop entirely.",
+            default=60,
+        )
+        configs.set("default_autostop", int(new_autostop_mins))
+
     if upload_config:
         configs.load_defaults_from_file()
         configs.upload_defaults(defaults=configs.defaults_cache)
@@ -214,7 +243,8 @@ def _login_upload_secrets(interactive: bool, headers: Optional[Dict] = None):
     names = list(local_secrets.keys())
 
     for name in names:
-        resource_uri = rns_client.resource_uri(name)
+        rns_address = name if "/" in name else f"{rns_client.current_folder}/{name}"
+        resource_uri = rns_client.resource_uri(rns_address)
         resp = requests.get(
             f"{rns_client.api_server_url}/resource/{resource_uri}",
             headers=headers or rns_client.request_headers(),
@@ -243,9 +273,9 @@ def logout(
     credentials file. Token is also deleted from the config.
 
     Args:
-        delete_loaded_secrets (bool, optional): If True, deletes the provider credentials file. Defaults to None.
-        delete_rh_config_file (bool, optional): If True, deletes the rh config file. Defaults to None.
-        interactive (bool, optional): If True, runs the logout process in interactive mode. Defaults to None.
+        delete_loaded_secrets (bool, optional): If ``True``, deletes the provider credentials file. (Default: ``None``)
+        delete_rh_config_file (bool, optional): If ``True``, deletes the rh config file. (Default: ``None``)
+        interactive (bool, optional): If ``True``, runs the logout process in interactive mode. (Default: ``None``)
 
     Returns:
         None

@@ -96,7 +96,11 @@ class RNSClient:
 
     @property
     def username(self):
-        return self._configs.get("username", None)
+        return self._configs.username
+
+    @property
+    def launcher(self):
+        return self._configs.launcher
 
     @property
     def api_server_url(self):
@@ -107,7 +111,11 @@ class RNSClient:
 
     @property
     def autosave(self):
-        return self._configs.get("autosave", True)
+        return self._configs.get("autosave", False)
+
+    @property
+    def default_ssh_key(self):
+        return self._configs.get("default_ssh_key", None)
 
     def _index_base_folders(self, lst):
         self.rns_base_folders = {}
@@ -120,7 +128,7 @@ class RNSClient:
 
     @staticmethod
     def resource_uri(name):
-        """URI used when querying the RNS server"""
+        """URI used when querying the Den server"""
         from runhouse.rns.top_level_rns_fns import resolve_rns_path
 
         rns_address = resolve_rns_path(name)
@@ -409,7 +417,7 @@ class RNSClient:
                 )
 
             resource_uri = self.resource_uri(name)
-            logger.debug(f"Attempting to load config for {rns_address} from RNS.")
+            logger.debug(f"Attempting to load config for {rns_address} from Den.")
             uri = f"{self.api_server_url}/resource/{resource_uri}"
             resp = self.session.get(
                 uri,
@@ -417,7 +425,7 @@ class RNSClient:
             )
             if resp.status_code != 200:
                 logger.debug(
-                    f"Received [{resp.status_code}] from Den GET '{uri}': No config found in RNS: {load_resp_content(resp)}"
+                    f"Received [{resp.status_code}] from Den GET '{uri}': No config found in Den: {load_resp_content(resp)}"
                 )
                 # No config found, so return empty config
                 return {}
@@ -452,7 +460,7 @@ class RNSClient:
         return config
 
     def get_rns_address_for_local_path(self, local_path):
-        """Get RNS address for local path"""
+        """Get Den address for local path"""
         try:
             rel_path = str(Path(local_path).relative_to(self.rh_directory))
             return "~/" + rel_path
@@ -460,7 +468,7 @@ class RNSClient:
             return None
 
     def save_config(self, resource, overwrite: bool = True):
-        """Register the resource, saving it to local config folder and/or RNS config store. Uses the resource's
+        """Register the resource, saving it to local config folder and/or Den config store. Uses the resource's
         `self.config()` to generate the dict to save."""
         rns_address = resource.rns_address
         config = resource.config()
@@ -491,11 +499,7 @@ class RNSClient:
 
     def _save_config_in_rns(self, config, resource_name):
         """Update or create resource config in database"""
-        # TODO [CC]: can maybe asterik out sensitive info instead of this approach
-        if not config.get("ssh_creds"):
-            logger.info(f"Saving config to RNS: {config}")
-        else:
-            logger.info(f"Saving config for {resource_name} to RNS")
+        logger.info(f"Saving config for {resource_name} to Den")
 
         resource_uri = self.resource_uri(resource_name)
         put_uri = f"{self.api_server_url}/resource/{resource_uri}"
@@ -551,7 +555,7 @@ class RNSClient:
 
         if rns_address.startswith("/"):
             resource_uri = self.resource_uri(rns_address)
-            uri = f"{self.api_server_url}/resource/{resource_uri}"
+            uri = f"{self.api_server_url}/resource/{resource_uri}?delete_creds=false"
             resp = self.session.delete(uri, headers=self.request_headers())
             if resp.status_code != 200:
                 logger.error(

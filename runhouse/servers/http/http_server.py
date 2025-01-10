@@ -6,7 +6,7 @@ import traceback
 import uuid
 from functools import wraps
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 import ray
 import requests
@@ -19,20 +19,20 @@ from fastapi.responses import StreamingResponse
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
+    DEFAULT_PROCESS_NAME,
     DEFAULT_SERVER_HOST,
     DEFAULT_SERVER_PORT,
-    EMPTY_DEFAULT_ENV_NAME,
-    LOGGING_WAIT_TIME,
-    RH_LOGFILE_PATH,
 )
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
+from runhouse.resources.packages import Package
 from runhouse.rns.utils.api import resolve_absolute_path, ResourceAccess
 from runhouse.servers.caddy.config import CaddyConfig
 from runhouse.servers.http.auth import averify_cluster_access
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_utils import (
     CallParams,
+    CreateProcessParams,
     DeleteObjectParams,
     deserialize_data,
     folder_exists,
@@ -50,14 +50,19 @@ from runhouse.servers.http.http_utils import (
     FolderRmParams,
     get_token_from_request,
     handle_exception_response,
+    InstallPackageParams,
+    KillProcessParams,
+    LogsParams,
     OutputType,
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
     resolve_folder_path,
     Response,
+    RunBashParams,
     serialize_data,
     ServerSettings,
+    SetProcessEnvVarsParams,
 )
 from runhouse.servers.obj_store import (
     ClusterServletSetupOption,
@@ -70,6 +75,9 @@ app = FastAPI(docs_url=None, redoc_url=None)
 
 logger = get_logger(__name__)
 
+# TODO: Better way to store this than a global here?
+running_futures: Dict[str, asyncio.Task] = {}
+
 
 def validate_cluster_access(func):
     """If using Den auth, validate the user's cluster subtoken and access to the cluster before continuing."""
@@ -80,7 +88,7 @@ def validate_cluster_access(func):
         den_auth_enabled: bool = await HTTPServer.get_den_auth()
         is_coro = inspect.iscoroutinefunction(func)
 
-        func_call: bool = func.__name__ in ["post_call", "get_call"]
+        func_call: bool = func.__name__ in ["post_call", "get_call", "get_logs"]
 
         # restrict access for folder specific APIs
         access_level_required = (
@@ -133,15 +141,15 @@ class HTTPServer:
     @classmethod
     async def ainitialize(
         cls,
-        default_env_name=None,
-        conda_env=None,
+        conda_env_name: str = None,
         from_test: bool = False,
         *args,
         **kwargs,
     ):
-        runtime_env = {"conda": conda_env} if conda_env else None
+        runtime_env = {"conda": conda_env_name} if conda_env_name else None
 
-        default_env_name = default_env_name or EMPTY_DEFAULT_ENV_NAME
+        if not configs.observability_enabled:
+            logger.info("disabling cluster observability")
 
         # Ray and ClusterServlet should already be
         # initialized by the start script (see below)
@@ -149,50 +157,83 @@ class HTTPServer:
         # We still want to make sure the cluster servlet is initialized
         if from_test:
             await obj_store.ainitialize(
-                default_env_name,
+                DEFAULT_PROCESS_NAME,
                 setup_ray=RaySetupOption.TEST_PROCESS,
-                runtime_env=runtime_env,
+                create_process_params=CreateProcessParams(
+                    name=DEFAULT_PROCESS_NAME, runtime_env=runtime_env
+                ),
             )
-
-        # TODO disabling due to latency, figure out what to do with this
-        # try:
-        #     # Collect metadata for the cluster immediately on init
-        #     self._collect_cluster_stats()
-        # except Exception as e:
-        #     logger.error(f"Failed to collect cluster stats: {str(e)}")
 
         # We initialize a default env servlet where some things may run.
-        _ = obj_store.get_env_servlet(
-            env_name=default_env_name,
+        _ = obj_store.get_servlet(
+            name=DEFAULT_PROCESS_NAME,
+            create_process_params=CreateProcessParams(
+                name=DEFAULT_PROCESS_NAME,
+                runtime_env=runtime_env,
+            ),
             create=True,
-            runtime_env=runtime_env,
         )
-
-        if default_env_name == EMPTY_DEFAULT_ENV_NAME:
-            from runhouse.resources.envs import Env
-
-            default_env = Env(name=default_env_name)
-            data = (default_env.config(condensed=False), {}, False)
-            obj_store.put_resource(
-                serialized_data=data, serialization=None, env_name=default_env_name
-            )
 
     @classmethod
     def initialize(
         cls,
-        default_env_name=None,
-        conda_env=None,
+        conda_env_name: str = None,
         from_test: bool = False,
         *args,
         **kwargs,
     ):
         return sync_function(cls.ainitialize)(
-            default_env_name,
-            conda_env,
+            conda_env_name,
             from_test,
             *args,
             **kwargs,
         )
+
+    ################################################################################################
+    # Methods to expose Swagger UI and OpenAPI docs for given modules on the server
+    ################################################################################################
+
+    @staticmethod
+    @app.get("/{key}/openapi.json")
+    @validate_cluster_access
+    async def get_openapi_spec(request: Request, key: str):
+        try:
+            module_openapi_spec = await obj_store.acall(
+                key, method_name="openapi_spec", serialization=None
+            )
+        except (AttributeError, ObjStoreError):
+            # The object put on the server is not an `rh.Module`, so it doesn't have an openapi_spec method
+            # OR
+            # The object is not found in the object store at all
+            module_openapi_spec = None
+
+        if not module_openapi_spec:
+            raise HTTPException(status_code=404, detail=f"Module {key} not found.")
+
+        return module_openapi_spec
+
+    @staticmethod
+    @app.get("/{key}/redoc")
+    @validate_cluster_access
+    async def get_redoc(request: Request, key: str):
+        return get_redoc_html(
+            openapi_url=f"/{key}/openapi.json", title="Developer Documentation"
+        )
+
+    @staticmethod
+    @app.get("/{key}/docs")
+    @validate_cluster_access
+    async def get_swagger_ui_html(request: Request, key: str):
+        return get_swagger_ui_html(
+            openapi_url=f"/{key}/openapi.json",
+            title=f"{key} - Swagger UI",
+            oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
+            init_oauth=app.swagger_ui_init_oauth,
+        )
+
+    ################################################################################################
+    # Methods to deal with server authentication logic
+    ################################################################################################
 
     @classmethod
     async def get_den_auth(cls):
@@ -255,32 +296,9 @@ class HTTPServer:
                 serialization=serialization,
             )
 
-    @staticmethod
-    @app.get("/check")
-    def check_server():
-
-        # Default for this endpoint is "pickle" serialization
-        serialization = "pickle"
-
-        try:
-            if not ray.is_initialized():
-                raise Exception("Ray is not initialized, restart the server.")
-            logger.info("Server is up.")
-
-            import runhouse
-
-            return {"rh_version": runhouse.__version__}
-        except Exception as e:
-            logger.exception(e)
-            exception_data = {
-                "error": serialize_data(e, serialization),
-                "traceback": traceback.format_exc(),
-            }
-            return Response(
-                output_type=OutputType.EXCEPTION,
-                data=exception_data,
-                serialization=serialization,
-            )
+    ################################################################################################
+    # Generic utility methods for global modifications of the server
+    ################################################################################################
 
     @staticmethod
     @app.post("/settings")
@@ -305,269 +323,100 @@ class HTTPServer:
         return Response(output_type=OutputType.SUCCESS)
 
     @staticmethod
-    async def _call(
-        key: str,
-        method_name: Optional[str] = None,
-        params: CallParams = Body(default=None),
-    ):
-        # Allow an empty body
-        params = params or CallParams()
-
+    @app.post("/install_package")
+    @validate_cluster_access
+    async def install_package(request: Request, params: InstallPackageParams):
         try:
-            if not params.run_name:
-                raise ValueError("run_name is required for all calls.")
-            # Call async so we can loop to collect logs until the result is ready
-
-            fut = asyncio.create_task(
-                obj_store.acall(
-                    key=key,
-                    method_name=method_name,
-                    data=params.data,
-                    stream_logs=params.stream_logs,
-                    serialization=params.serialization,
-                    run_name=params.run_name,
-                    remote=params.remote,
-                )
+            package_obj = Package.from_config(params.package_config)
+            await obj_store.ainstall_package_in_all_nodes_and_processes(
+                package_obj,
+                conda_env_name=params.conda_env_name,
+                force_sync_local=params.force_sync_local,
             )
-            # If stream_logs is False, we'll wait for the result and return it
-            if not params.stream_logs:
-                return await fut
-
-            return StreamingResponse(
-                HTTPServer._get_results_and_logs_generator(
-                    fut=fut,
-                    run_name=params.run_name,
-                    serialization=params.serialization,
-                ),
-                media_type="application/json",
-            )
+            return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             return handle_exception_response(
-                e,
-                traceback.format_exc(),
-                serialization=params.serialization,
-                from_http_server=True,
+                e, traceback.format_exc(), from_http_server=True
             )
 
-    # Open API docs routes
     @staticmethod
-    @app.get("/{key}/openapi.json")
+    @app.post("/run_bash")
     @validate_cluster_access
-    async def get_openapi_spec(request: Request, key: str):
+    async def run_bash(request: Request, params: RunBashParams):
         try:
-            module_openapi_spec = await obj_store.acall(
-                key, method_name="openapi_spec", serialization=None
-            )
-        except (AttributeError, ObjStoreError):
-            # The object put on the server is not an `rh.Module`, so it doesn't have an openapi_spec method
-            # OR
-            # The object is not found in the object store at all
-            module_openapi_spec = None
+            run_cmd_result = None
+            if params.node_ip_or_idx is not None and params.process is not None:
+                raise ValueError("Cannot specify both node and process.")
 
-        if not module_openapi_spec:
-            raise HTTPException(status_code=404, detail=f"Module {key} not found.")
-
-        return module_openapi_spec
-
-    @staticmethod
-    @app.get("/{key}/redoc")
-    @validate_cluster_access
-    async def get_redoc(request: Request, key: str):
-        return get_redoc_html(
-            openapi_url=f"/{key}/openapi.json", title="Developer Documentation"
-        )
-
-    @staticmethod
-    @app.get("/{key}/docs")
-    @validate_cluster_access
-    async def get_swagger_ui_html(request: Request, key: str):
-        return get_swagger_ui_html(
-            openapi_url=f"/{key}/openapi.json",
-            title=f"{key} - Swagger UI",
-            oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
-            init_oauth=app.swagger_ui_init_oauth,
-        )
-
-    # TODO match "/{key}/{method_name}/{path:more_path}" for asgi / proxy requests
-    @staticmethod
-    @app.post("/{key}/{method_name}")
-    @validate_cluster_access
-    async def post_call(
-        request: Request,
-        key: str,
-        method_name: str = None,
-        params: CallParams = Body(default=None),
-    ):
-        return await HTTPServer._call(key, method_name, params)
-
-    @staticmethod
-    @app.get("/{key}/{method_name}")
-    @validate_cluster_access
-    async def get_call(
-        request: Request,
-        key: str,
-        method_name: Optional[str] = None,
-        serialization: Optional[str] = None,
-        run_name: Optional[str] = None,
-        stream_logs: Optional[bool] = False,
-        save: Optional[bool] = False,
-        remote: Optional[bool] = False,
-    ):
-        # Default argument to json doesn't allow a user to pass in a serialization string if they want
-        # But, if they didn't pass anything, we want it to be `json` by default.
-        serialization = serialization or "json"
-        try:
-            if run_name is None and stream_logs:
-                raise ValueError(
-                    "run_name is required for all calls when stream_logs is True."
+            elif params.node_ip_or_idx is None and params.process is None:
+                # TODO: Logging when running on multiple nodes
+                run_cmd_result = await obj_store.arun_bash_command_on_all_nodes(
+                    command=params.command, require_outputs=params.require_outputs
                 )
 
-            if run_name is None:
-                run_name = generate_default_name(
-                    prefix=key if method_name == "__call__" else f"{key}_{method_name}",
-                    precision="ms",  # Higher precision because we see collisions within the same second
-                    sep="@",
-                )
+            elif params.node_ip_or_idx is not None:
+                internal_ips = obj_store.get_internal_ips()
 
-            # The types need to be explicitly specified as parameters first so that
-            # we can cast Query params to the right type.
-            params = CallParams(
-                serialization=serialization,
-                run_name=run_name,
-                stream_logs=stream_logs,
-                save=save,
-                remote=remote,
-            )
-
-            query_params_remaining = dict(request.query_params)
-            call_params_dict = params.model_dump()
-            for k, v in dict(request.query_params).items():
-                # If one of the query_params matches an arg in CallParams, set it
-                # And also remove it from the query_params dict, so the rest
-                # of the args will be passed as kwargs
-                if k in call_params_dict:
-                    del query_params_remaining[k]
-
-            data = {
-                "args": [],
-                "kwargs": query_params_remaining,
-            }
-            params.data = serialize_data(data, serialization)
-
-            return await HTTPServer._call(key, method_name, params)
-        except Exception as e:
-            logger.exception(e)
-            exception_data = {
-                "error": serialize_data(e, serialization),
-                "traceback": traceback.format_exc(),
-            }
-            return Response(
-                output_type=OutputType.EXCEPTION,
-                data=exception_data,
-                serialization=serialization,
-            )
-
-    @staticmethod
-    def _get_logfiles(log_key, log_type=None):
-        if not log_key:
-            return None
-        key_logs_path = Path(RH_LOGFILE_PATH) / log_key
-        if key_logs_path.exists():
-            # Logs are like: `.rh/logs/key/key.[out|err]`
-            glob_pattern = (
-                "*.out"
-                if log_type == "stdout"
-                else "*.err"
-                if log_type == "stderr"
-                else "*.[oe][ur][tr]"
-            )
-            return [str(f.absolute()) for f in key_logs_path.glob(glob_pattern)]
-        else:
-            return None
-
-    @staticmethod
-    def open_new_logfiles(key, open_files):
-        logfiles = HTTPServer._get_logfiles(key)
-        if logfiles:
-            for f in logfiles:
-                if f not in [o.name for o in open_files]:
-                    logger.info(f"Streaming logs from {f}")
-                    open_files.append(open(f, "r"))
-        return open_files
-
-    @staticmethod
-    async def _get_results_and_logs_generator(fut, run_name, serialization=None):
-        logger.debug(f"Streaming logs for key {run_name}")
-        open_logfiles = []
-        waiting_for_results = True
-
-        try:
-            while waiting_for_results:
-                if fut.done():
-                    waiting_for_results = False
-                    ret_val = fut.result()
-                    yield json.dumps(jsonable_encoder(ret_val)) + "\n"
-                else:
-                    await asyncio.sleep(LOGGING_WAIT_TIME)
-                # Grab all the lines written to all the log files since the last time we checked, including
-                # any new log files that have been created
-                open_logfiles = HTTPServer.open_new_logfiles(run_name, open_logfiles)
-                ret_lines = []
-                for i, f in enumerate(open_logfiles):
-                    file_lines = f.readlines()
-                    if file_lines:
-                        # TODO [DG] handle .out vs .err, and multiple workers
-                        # if len(logfiles) > 1:
-                        #     ret_lines.append(f"Process {i}:")
-                        ret_lines += file_lines
-                if ret_lines:
-                    logger.debug(f"Yielding logs for key {run_name}")
-                    yield json.dumps(
-                        jsonable_encoder(
-                            Response(
-                                data=ret_lines,
-                                output_type=OutputType.STDOUT,
-                            )
+                if isinstance(params.node_ip_or_idx, int):
+                    if params.node_ip_or_idx >= len(internal_ips):
+                        raise ValueError(
+                            f"Node index {params.node_ip_or_idx} out of range for cluster with {len(internal_ips)} nodes."
                         )
-                    ) + "\n"
+                    params.node_ip_or_idx = internal_ips[params.node_ip_or_idx]
 
-        except Exception as e:
-            logger.exception(e)
-            # NOTE: We do not convert the exception to an HTTPException here, because once we're inside this
-            # generator starlette has already returned the StreamingResponse and there is no way to halt the stream
-            # to return a 403 instead. Users shouldn't notice much of a difference, because if working through the
-            # client the exception will be serialized and returned to appear as a native python exception, and if
-            # working through an HTTP call stream_logs is False by default, so a normal HTTPException will be raised
-            # above before entering this generator.
-            exception_data = {
-                "error": serialize_data(e, serialization),
-                "traceback": traceback.format_exc(),
-            }
-            yield json.dumps(
-                jsonable_encoder(
-                    Response(
-                        output_type=OutputType.EXCEPTION,
-                        data=exception_data,
-                        serialization=serialization,
+                if (
+                    params.node_ip_or_idx not in internal_ips
+                    and params.node_ip_or_idx != "localhost"
+                ):
+                    raise ValueError(
+                        f"Node {params.node_ip_or_idx} not a valid internal IP on the cluster."
                     )
+
+                run_cmd_result = await obj_store.arun_bash_command_on_node_or_process(
+                    command=params.command,
+                    require_outputs=params.require_outputs,
+                    run_name=params.run_name,
+                    node_ip=params.node_ip_or_idx,
                 )
+
+            elif params.process:
+                if (
+                    params.process
+                    not in await obj_store.aget_all_initialized_servlet_args()
+                ):
+                    raise ValueError(
+                        f"Process {params.process} not found on the cluster."
+                    )
+
+                run_cmd_result = await obj_store.arun_bash_command_on_node_or_process(
+                    command=params.command,
+                    require_outputs=params.require_outputs,
+                    run_name=params.run_name,
+                    process=params.process,
+                )
+
+            return Response(
+                output_type=OutputType.RESULT_SERIALIZED, data=run_cmd_result
             )
-        finally:
-            if not open_logfiles:
-                logger.warning(f"No logfiles found for call {run_name}")
-            for f in open_logfiles:
-                f.close()
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    ################################################################################################
+    # Logic to interact with individual processes running on the cluster
+    ################################################################################################
 
     @staticmethod
-    @app.post("/resource")
+    @app.get("/processes")
     @validate_cluster_access
-    async def put_resource(request: Request, params: PutResourceParams):
+    async def get_processes(request: Request):
         try:
-            env_name = params.env_name
-            return await obj_store.aput_resource(
-                serialized_data=params.serialized_data,
-                serialization=params.serialization,
-                env_name=env_name,
+            processes = await obj_store.alist_processes()
+            return Response(
+                output_type=OutputType.RESULT_SERIALIZED,
+                data=serialize_data(processes, "json"),
+                serialization="json",
             )
         except Exception as e:
             return handle_exception_response(
@@ -575,63 +424,47 @@ class HTTPServer:
             )
 
     @staticmethod
-    @app.post("/object")
+    @app.post("/create_process")
     @validate_cluster_access
-    async def put_object(request: Request, params: PutObjectParams):
+    async def create_process(request: Request, params: CreateProcessParams):
         try:
-            await obj_store.aput(
-                key=params.key,
-                value=params.serialized_data,
-                env=params.env_name,
-                serialization=params.serialization,
-                create_env_if_not_exists=True,
-            )
-            return Response(output_type=OutputType.SUCCESS)
-        except Exception as e:
-            return handle_exception_response(
-                e,
-                traceback.format_exc(),
-                serialization=params.serialization,
-                from_http_server=True,
-            )
-
-    @staticmethod
-    @app.get("/object")
-    @validate_cluster_access
-    async def get_object(
-        request: Request,
-        key: str,
-        serialization: Optional[str] = "json",
-        remote: bool = False,
-    ):
-        try:
-            return await obj_store.aget(
-                key=key,
-                serialization=serialization,
-                remote=remote,
-            )
-        except Exception as e:
-            return handle_exception_response(
-                e,
-                traceback.format_exc(),
-                serialization=serialization,
-                from_http_server=True,
-            )
-
-    @staticmethod
-    @app.post("/rename")
-    @validate_cluster_access
-    async def rename_object(request: Request, params: RenameObjectParams):
-        try:
-            await obj_store.arename(
-                old_key=params.key,
-                new_key=params.new_key,
+            _ = obj_store.get_servlet(
+                name=params.name,
+                create_process_params=params,
+                create=True,
             )
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             return handle_exception_response(
                 e, traceback.format_exc(), from_http_server=True
             )
+
+    @staticmethod
+    @app.post("/kill_process")
+    @validate_cluster_access
+    async def kill_process(request: Request, params: KillProcessParams):
+        try:
+            await obj_store.adelete_servlet_contents(params.process_name)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/process_env_vars")
+    @validate_cluster_access
+    async def set_process_env_vars(request: Request, params: SetProcessEnvVarsParams):
+        try:
+            await obj_store.aset_process_env_vars(params.process_name, params.env_vars)
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    ################################################################################################
+    # Logic to interact with the filesystem
+    ################################################################################################
 
     @staticmethod
     @app.post("/folder/method/ls")
@@ -740,6 +573,85 @@ class HTTPServer:
                 e, traceback.format_exc(), from_http_server=True
             )
 
+    ################################################################################################
+    # Critical object store methods for interacting with Python objects living on the cluster
+    ################################################################################################
+
+    @staticmethod
+    @app.post("/resource")
+    @validate_cluster_access
+    async def put_resource(request: Request, params: PutResourceParams):
+        try:
+            process = params.process_name
+            return await obj_store.aput_resource(
+                serialized_data=params.serialized_data,
+                serialization=params.serialization,
+                process=process,
+            )
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
+    @staticmethod
+    @app.post("/object")
+    @validate_cluster_access
+    async def put_object(request: Request, params: PutObjectParams):
+        try:
+            await obj_store.aput(
+                key=params.key,
+                value=params.serialized_data,
+                process=params.process_name,
+                serialization=params.serialization,
+                create_servlet_if_not_exists=True,
+            )
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e,
+                traceback.format_exc(),
+                serialization=params.serialization,
+                from_http_server=True,
+            )
+
+    @staticmethod
+    @app.get("/object")
+    @validate_cluster_access
+    async def get_object(
+        request: Request,
+        key: str,
+        serialization: Optional[str] = "json",
+        remote: bool = False,
+    ):
+        try:
+            return await obj_store.aget(
+                key=key,
+                serialization=serialization,
+                remote=remote,
+            )
+        except Exception as e:
+            return handle_exception_response(
+                e,
+                traceback.format_exc(),
+                serialization=serialization,
+                from_http_server=True,
+            )
+
+    @staticmethod
+    @app.post("/rename")
+    @validate_cluster_access
+    async def rename_object(request: Request, params: RenameObjectParams):
+        try:
+            await obj_store.arename(
+                old_key=params.key,
+                new_key=params.new_key,
+            )
+            return Response(output_type=OutputType.SUCCESS)
+        except Exception as e:
+            return handle_exception_response(
+                e, traceback.format_exc(), from_http_server=True
+            )
+
     @staticmethod
     @app.post("/delete_object")
     @validate_cluster_access
@@ -768,12 +680,12 @@ class HTTPServer:
     @staticmethod
     @app.get("/keys")
     @validate_cluster_access
-    async def get_keys(request: Request, env_name: Optional[str] = None):
+    async def get_keys(request: Request, process_name: Optional[str] = None):
         try:
-            if not env_name:
+            if not process_name:
                 output = await obj_store.akeys()
             else:
-                output = await obj_store.akeys_for_env_servlet_name(env_name)
+                output = await obj_store.akeys_for_servlet_name(process_name)
 
             # Expicitly tell the client not to attempt to deserialize the output
             return Response(
@@ -787,6 +699,253 @@ class HTTPServer:
             )
 
     @staticmethod
+    async def _call(
+        key: str,
+        method_name: Optional[str] = None,
+        params: CallParams = Body(default=None),
+    ):
+        # Allow an empty body
+        params = params or CallParams()
+
+        try:
+            if not params.run_name:
+                raise ValueError("run_name is required for all calls.")
+            # Call async so we can loop to collect logs until the result is ready
+
+            fut = asyncio.create_task(
+                obj_store.acall(
+                    key=key,
+                    method_name=method_name,
+                    data=params.data,
+                    stream_logs=params.stream_logs,
+                    serialization=params.serialization,
+                    run_name=params.run_name,
+                    remote=params.remote,
+                )
+            )
+            if params.stream_logs:
+                # We'll store this future in a dictionary and just call result on it. The dictionary
+                # is so the logs functionality can check if it's done and stream logs. The logs function
+                # will be responsible for removing the future from memory so we don't store them indefinitely.
+                running_futures[params.run_name] = fut
+
+            return await fut
+        except Exception as e:
+            return handle_exception_response(
+                e,
+                traceback.format_exc(),
+                serialization=params.serialization,
+                from_http_server=True,
+            )
+
+    # TODO match "/{key}/{method_name}/{path:more_path}" for asgi / proxy requests
+    @staticmethod
+    @app.post("/{key}/{method_name}")
+    @validate_cluster_access
+    async def post_call(
+        request: Request,
+        key: str,
+        method_name: str = None,
+        params: CallParams = Body(default=None),
+    ):
+        return await HTTPServer._call(key, method_name, params)
+
+    @staticmethod
+    @app.get("/{key}/{method_name}")
+    @validate_cluster_access
+    async def get_call(
+        request: Request,
+        key: str,
+        method_name: Optional[str] = None,
+        serialization: Optional[str] = None,
+        run_name: Optional[str] = None,
+        stream_logs: Optional[bool] = False,
+        save: Optional[bool] = False,
+        remote: Optional[bool] = False,
+    ):
+        # Default argument to json doesn't allow a user to pass in a serialization string if they want
+        # But, if they didn't pass anything, we want it to be `json` by default.
+        serialization = serialization or "json"
+        try:
+            if run_name is None and stream_logs:
+                raise ValueError(
+                    "run_name is required for all calls when stream_logs is True."
+                )
+
+            if run_name is None:
+                run_name = generate_default_name(
+                    prefix=key if method_name == "__call__" else f"{key}_{method_name}",
+                    precision="ms",  # Higher precision because we see collisions within the same second
+                    sep="--",
+                )
+
+            # The types need to be explicitly specified as parameters first so that
+            # we can cast Query params to the right type.
+            params = CallParams(
+                serialization=serialization,
+                run_name=run_name,
+                stream_logs=stream_logs,
+                save=save,
+                remote=remote,
+            )
+
+            query_params_remaining = dict(request.query_params)
+            call_params_dict = params.model_dump()
+            for k, v in dict(request.query_params).items():
+                # If one of the query_params matches an arg in CallParams, set it
+                # And also remove it from the query_params dict, so the rest
+                # of the args will be passed as kwargs
+                if k in call_params_dict:
+                    del query_params_remaining[k]
+
+            data = {
+                "args": [],
+                "kwargs": query_params_remaining,
+            }
+            params.data = serialize_data(data, serialization)
+
+            return await HTTPServer._call(key, method_name, params)
+        except Exception as e:
+            logger.exception(e)
+            exception_data = {
+                "error": serialize_data(e, serialization),
+                "traceback": traceback.format_exc(),
+            }
+            return Response(
+                output_type=OutputType.EXCEPTION,
+                data=exception_data,
+                serialization=serialization,
+            )
+
+    # `/logs` POST endpoint that takes in request and LogParams
+    @staticmethod
+    @app.post("/logs")
+    @validate_cluster_access
+    async def get_logs(
+        request: Request,
+        params: LogsParams = Body(default=None),
+    ):
+        try:
+            if (
+                sum(
+                    arg is not None
+                    for arg in [params.key, params.node_ip_or_idx, params.process]
+                )
+                != 1
+            ):
+                raise ValueError(
+                    "Exactly one of key, node_ip, or process must be provided to get logs"
+                )
+
+            if isinstance(params.node_ip_or_idx, int):
+                internal_ips = obj_store.get_internal_ips()
+                if params.node_ip_or_idx >= len(internal_ips):
+                    raise ValueError(
+                        f"Node index {params.node_ip_or_idx} out of range for cluster with {len(internal_ips)} nodes."
+                    )
+                params.node_ip_or_idx = internal_ips[params.node_ip_or_idx]
+
+            return StreamingResponse(
+                HTTPServer._get_logs_generator(
+                    run_name=params.run_name,
+                    key=params.key,
+                    node_ip=params.node_ip_or_idx,
+                    process=params.process,
+                    serialization=params.serialization,
+                ),
+                media_type="application/json",
+            )
+        except Exception as e:
+            logger.exception(e)
+            exception_data = {
+                "error": serialize_data(e, params.serialization),
+                "traceback": traceback.format_exc(),
+            }
+            return Response(
+                output_type=OutputType.EXCEPTION,
+                data=exception_data,
+                serialization=params.serialization,
+            )
+
+    @staticmethod
+    async def _get_logs_generator(
+        run_name: str,
+        key: Optional[str] = None,
+        node_ip: Optional[str] = None,
+        process: Optional[str] = None,
+        serialization=None,
+    ):
+        logger.info(f"Streaming logs for run name: '{run_name}'")
+        try:
+            async for log_lines in obj_store.alogs_for_run_name(
+                run_name=run_name,
+                key=key,
+                node_ip=node_ip,
+                servlet_name=process,
+            ):
+                logger.debug(f"Yielding logs for key {run_name}")
+                yield json.dumps(
+                    jsonable_encoder(
+                        Response(
+                            data=log_lines,
+                            output_type=OutputType.STDOUT,
+                        )
+                    )
+                ) + "\n"
+        except Exception as e:
+            logger.exception(e)
+            # NOTE: We do not convert the exception to an HTTPException here, because once we're inside this
+            # generator starlette has already returned the StreamingResponse and there is no way to halt the stream
+            # to return a 403 instead. Users shouldn't notice much of a difference, because if working through the
+            # client the exception will be serialized and returned to appear as a native python exception, and if
+            # working through an HTTP call stream_logs is False by default, so a normal HTTPException will be raised
+            # above before entering this generator.
+            exception_data = {
+                "error": serialize_data(e, serialization),
+                "traceback": traceback.format_exc(),
+            }
+            yield json.dumps(
+                jsonable_encoder(
+                    Response(
+                        output_type=OutputType.EXCEPTION,
+                        data=exception_data,
+                        serialization=serialization,
+                    )
+                )
+            )
+
+    ################################################################################################
+    # Cluster status and metadata methods
+    ################################################################################################
+
+    @staticmethod
+    @app.get("/check")
+    def check_server():
+
+        # Default for this endpoint is "pickle" serialization
+        serialization = "pickle"
+
+        try:
+            if not ray.is_initialized():
+                raise Exception("Ray is not initialized, restart the server.")
+            logger.info("Server is up.")
+
+            import runhouse
+
+            return {"rh_version": runhouse.__version__}
+        except Exception as e:
+            logger.exception(e)
+            exception_data = {
+                "error": serialize_data(e, serialization),
+                "traceback": traceback.format_exc(),
+            }
+            return Response(
+                output_type=OutputType.EXCEPTION,
+                data=exception_data,
+                serialization=serialization,
+            )
+
+    @staticmethod
     @app.get("/status")
     @validate_cluster_access
     def get_status(request: Request, send_to_den: bool = False):
@@ -796,8 +955,6 @@ class HTTPServer:
     @staticmethod
     def _collect_cluster_stats():
         """Collect cluster metadata and send to Grafana Loki"""
-        if not configs.data_collection_enabled():
-            return
 
         cluster_data = HTTPServer._cluster_status_report()
         sky_data = HTTPServer._cluster_sky_report()
@@ -936,12 +1093,6 @@ async def main():
         help="Address to use for generating self-signed certs and enabling HTTPS. (e.g. public IP address)",
     )
     parser.add_argument(
-        "--default-env-name",
-        type=str,
-        default=None,
-        help="Name of env where the HTTP server is started.",
-    )
-    parser.add_argument(
         "--api-server-url",
         type=str,
         default=rns_client.api_server_url,
@@ -956,28 +1107,19 @@ async def main():
 
     parse_args = parser.parse_args()
 
-    conda_name = parse_args.conda_env
+    conda_env_name = parse_args.conda_env
     restart_proxy = parse_args.restart_proxy
     api_server_url = parse_args.api_server_url
-    default_env_name = parse_args.default_env_name
-
-    if not hasattr(parse_args, "from_python") and not default_env_name:
-        # detect default env if called from runhouse cli (start/restart) and cluster_config exists
-        from runhouse.resources.hardware.utils import load_cluster_config_from_file
-
-        cluster_config = load_cluster_config_from_file()
-        if cluster_config.get("default_env"):
-            default_env_name = cluster_config.get("default_env")["name"]
 
     # The object store and the cluster servlet within it need to be
     # initialized in order to call `obj_store.get_cluster_config()`, which
     # uses the object store to load the cluster config from Ray.
     # When setting up the server, we always want to create a new ClusterServlet.
     # We only want to forcibly start a Ray cluster if asked.
-    # We connect this to the "base" env, which we'll initialize later,
-    # so writes to the obj_store within the server get proxied to the "base" env.
+    # We connect this to the "base" process, which we'll initialize later,
+    # so writes to the obj_store within the server get proxied to the "base" process.
     await obj_store.ainitialize(
-        default_env_name,
+        DEFAULT_PROCESS_NAME,
         setup_cluster_servlet=ClusterServletSetupOption.FORCE_CREATE,
     )
 
@@ -988,6 +1130,9 @@ async def main():
         )
     else:
         logger.info("Loaded cluster config from Ray.")
+
+    logger.info("Initalizing all individual node servlets.")
+    await obj_store.ainitialize_node_servlets()
 
     ########################################
     # Handling args that could be specified in the
@@ -1091,7 +1236,11 @@ async def main():
             f"cluster_config.json: {cluster_config.get('ips', [None])[0]}. Prioritizing CLI provided certs_address."
         )
 
-    certs_addresses = parse_args.certs_address or cluster_config.get("ips", None)
+    certs_addresses = (
+        parse_args.certs_address
+        or cluster_config.get("ips", None)
+        or cluster_config.get("compute_properties", {}).get("ips", None)
+    )
 
     # We don't want to unset multiple addresses if they were set in the cluster config
     if certs_addresses is not None:
@@ -1130,7 +1279,7 @@ async def main():
     )
 
     # If there was no `cluster_config.json`, then server was created
-    # simply with `runhouse start`.
+    # simply with `runhouse server start`.
     # A real `cluster_config` that was loaded
     # from json would have this set for sure
     if not cluster_config.get("resource_subtype"):
@@ -1139,14 +1288,14 @@ async def main():
         cluster_config["resource_subtype"] = "Cluster"
 
         # server_connection_type is not set up if this is done through
-        # a local `runhouse start`
+        # a local `runhouse server start`
         cluster_config["server_connection_type"] = "tls" if use_https else "none"
 
     await obj_store.aset_cluster_config(cluster_config)
 
     await HTTPServer.ainitialize(
-        default_env_name=default_env_name,
-        conda_env=conda_name,
+        default_process_name=DEFAULT_PROCESS_NAME,
+        conda_env=conda_env_name,
     )
 
     if den_auth:
@@ -1209,11 +1358,11 @@ async def main():
     )
 
     cluster = None
-    if not hasattr(parse_args, "from_python") and default_env_name:
+    if not hasattr(parse_args, "from_python"):
         from runhouse.resources.hardware import Cluster
 
         cluster = Cluster.from_config(cluster_config)
-        cluster._sync_default_env_to_cluster()
+        cluster._sync_image_to_cluster()  # TODO - image needs to be part of the cluster config
 
     # Only launch uvicorn with certs if HTTPS is enabled and not using Caddy
     uvicorn_cert = parsed_ssl_certfile if not use_caddy and use_https else None
@@ -1230,14 +1379,7 @@ async def main():
     server = uvicorn.Server(config)
     await server.serve()
 
-    if cluster:
-        cluster.put_resource(cluster.default_env)
-
-        from runhouse.resources.envs.utils import _process_env_vars
-
-        env_vars = _process_env_vars(cluster.default_env.env_vars)
-        if env_vars:
-            cluster.call(cluster.default_env.name, "_set_env_vars", env_vars)
+    # TODO - image env vars (+ secrets?)
 
 
 if __name__ == "__main__":

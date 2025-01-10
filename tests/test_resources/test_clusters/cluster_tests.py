@@ -26,14 +26,14 @@ def sd_generate_image(prompt):
     return model(prompt).images[0]
 
 
-def test_cluster_config(ondemand_aws_docker_cluster):
-    config = ondemand_aws_docker_cluster.config()
+def test_cluster_config(local_launched_ondemand_aws_docker_cluster):
+    config = local_launched_ondemand_aws_docker_cluster.config()
     cluster2 = OnDemandCluster.from_config(config)
-    assert cluster2.address == ondemand_aws_docker_cluster.address
+    assert cluster2.head_ip == local_launched_ondemand_aws_docker_cluster.head_ip
 
 
-def test_cluster_sharing(ondemand_aws_docker_cluster):
-    ondemand_aws_docker_cluster.share(
+def test_cluster_sharing(local_launched_ondemand_aws_docker_cluster):
+    local_launched_ondemand_aws_docker_cluster.share(
         users=["donny@run.house", "josh@run.house"],
         access_level="write",
         notify_users=False,
@@ -41,8 +41,8 @@ def test_cluster_sharing(ondemand_aws_docker_cluster):
     assert True
 
 
-def test_read_shared_cluster(ondemand_aws_docker_cluster):
-    res = ondemand_aws_docker_cluster.run_python(
+def test_read_shared_cluster(local_launched_ondemand_aws_docker_cluster):
+    res = local_launched_ondemand_aws_docker_cluster.run_python(
         ["import numpy", "print(numpy.__version__)"]
     )
     assert res[0][1]
@@ -62,7 +62,7 @@ def test_install(cluster):
 def test_basic_run(cluster):
     # Create temp file where fn's will be stored
     test_cmd = "echo hi"
-    res = cluster.run(commands=[test_cmd])
+    res = cluster.run_bash(commands=[test_cmd])
     assert "hi" in res[0][1]
 
 
@@ -80,8 +80,10 @@ def test_on_same_cluster(cluster):
     assert func_hw(hw_copy)
 
 
-def test_on_diff_cluster(ondemand_aws_docker_cluster, static_cpu_pwd_cluster):
-    func_hw = rh.function(is_on_cluster).to(ondemand_aws_docker_cluster)
+def test_on_diff_cluster(
+    local_launched_ondemand_aws_docker_cluster, static_cpu_pwd_cluster
+):
+    func_hw = rh.function(is_on_cluster).to(local_launched_ondemand_aws_docker_cluster)
     assert not func_hw(static_cpu_pwd_cluster)
 
 
@@ -117,7 +119,7 @@ def test_byo_cluster_with_https(static_cpu_pwd_cluster):
 def test_byo_proxy(static_cpu_pwd_cluster, local_folder):
     from tests.test_resources.test_modules.test_functions.conftest import summer
 
-    rh.globals.open_cluster_tunnels.pop(static_cpu_pwd_cluster.address)
+    rh.globals.open_cluster_tunnels.pop(static_cpu_pwd_cluster.head_ip)
     static_cpu_pwd_cluster.client = None
     # static_cpu_pwd_cluster._rpc_tunnel.close()
     static_cpu_pwd_cluster._rpc_tunnel = None
@@ -128,13 +130,11 @@ def test_byo_proxy(static_cpu_pwd_cluster, local_folder):
     )
     assert static_cpu_pwd_cluster.up_if_not()
 
-    status, stdout, _ = static_cpu_pwd_cluster.run(["echo hi"])[0]
+    status, stdout, _ = static_cpu_pwd_cluster.run_bash(["echo hi"])[0]
     assert status == 0
     assert stdout == "hi\n"
 
-    summer_func = rh.function(summer, env=rh.env(working_dir="local:./")).to(
-        static_cpu_pwd_cluster
-    )
+    summer_func = rh.function(summer).to(static_cpu_pwd_cluster)
     assert summer_func(1, 2) == 3
 
     static_cpu_pwd_cluster.put("test_obj", list(range(10)))
@@ -187,7 +187,7 @@ def test_start_server_with_custom_certs(
     TLSCertConfig(
         key_path=ssl_keyfile,
         cert_path=ssl_certfile,
-    ).generate_certs(address=ondemand_aws_https_cluster_with_auth.address)
+    ).generate_certs(address=ondemand_aws_https_cluster_with_auth.head_ip)
 
     # # Restart the server using the custom certs
     ondemand_aws_https_cluster_with_auth.ssl_certfile = ssl_certfile

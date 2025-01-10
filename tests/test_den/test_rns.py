@@ -29,6 +29,22 @@ def test_find_working_dir(tmp_path):
     assert d in str(Path(tmp_path, "subdir/subdir"))
 
 
+@pytest.mark.level("unit")
+def test_is_valid_resource_name():
+    resource = rh.Resource(name="valid-resource-name")
+    assert resource
+    resource = rh.Resource(name="/valid-folder-123/valid_resource_name")
+    assert resource
+    with pytest.raises(ValueError):
+        _ = rh.Resource(name="folder-name-w$th-invalid-ch@racters!")
+    with pytest.raises(ValueError):
+        _ = rh.Resource(name="folder-name-trailing-slash/")
+    with pytest.raises(ValueError):
+        _ = rh.Resource(name="folder-name//double-slash")
+    with pytest.raises(ValueError):
+        _ = rh.Resource(name="a1")
+
+
 def test_set_folder(tmp_path):
     rh.set_folder("~/tests")
     rh.folder(name="bert_ft").save()
@@ -79,7 +95,7 @@ def test_ls():
     rh.set_folder("@")
 
 
-def test_from_name(ondemand_aws_docker_cluster):
+def test_from_name(local_launched_ondemand_aws_docker_cluster):
     f = rh.folder(name="~/tests/bert_ft")
     assert f.path
-    assert ondemand_aws_docker_cluster.instance_type == "CPU:2+"
+    assert local_launched_ondemand_aws_docker_cluster.instance_type == "CPU:2+"

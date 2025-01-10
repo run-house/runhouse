@@ -108,6 +108,7 @@ class Folder(Resource):
 
     @property
     def path(self):
+        """Folder path."""
         if self._path is not None:
             if self.system == Folder.DEFAULT_FS:
                 return str(Path(self._path).expanduser())
@@ -121,6 +122,7 @@ class Folder(Resource):
 
     @property
     def system(self):
+        """Filesystem or cluster that the folder is on."""
         return self._system
 
     @system.setter
@@ -138,6 +140,7 @@ class Folder(Resource):
 
     @property
     def local_path(self):
+        """Local path of the folder, if it exists locally. Else, ``None``."""
         if self.is_local():
             return str(Path(self.path).expanduser())
         else:
@@ -170,7 +173,7 @@ class Folder(Resource):
         if path is None:
             raise ValueError("A destination path must be specified.")
 
-        src_path = Path()
+        src_path = Path(self.path)
         dest_path = Path(path)
 
         if self._use_http_endpoint:
@@ -206,7 +209,7 @@ class Folder(Resource):
 
     def to(
         self,
-        system: Union[str, "Cluster"],
+        system: Union[str, Cluster],
         path: Optional[Union[str, Path]] = None,
     ):
         """Copy the folder to a new filesystem or cluster.
@@ -260,7 +263,7 @@ class Folder(Resource):
         # to_local, to_cluster and to_data_store are also overridden by subclasses to dispatch
         # to more performant cloud-specific APIs
         system = _get_cluster_from(system)
-        if system == self.DEFAULT_FS:
+        if system == "file":
             return self._to_local(dest_path=path)
         elif system in ["s3", "gs"]:
             return self._to_data_store(system=system, data_store_path=path)
@@ -328,7 +331,7 @@ class Folder(Resource):
 
     def _to_cluster(self, dest_cluster, path=None):
         """Copy the folder from a file or cluster source onto a destination cluster."""
-        if not dest_cluster.address:
+        if not dest_cluster.ips:
             raise ValueError("Cluster must be started before copying data to it.")
 
         dest_path = path or f"~/{Path(self.path).name}"
@@ -352,7 +355,7 @@ class Folder(Resource):
                     # If user didn't specify a path, we can just return self
                     return self
                 else:
-                    dest_cluster.run(
+                    dest_cluster.run_bash(
                         [f"mkdir -p {dest_path}", f"cp -r {self.path}/* {dest_path}"],
                     )
             else:
@@ -377,14 +380,14 @@ class Folder(Resource):
             creds_file = cluster_creds.get("ssh_private_key")
             creds_cmd = f"-i '{creds_file}' " if creds_file else ""
 
-            dest_cluster.run([f"mkdir -p {dest_path}"])
+            dest_cluster.run_bash([f"mkdir -p {dest_path}"])
             command = (
                 f"rsync -Pavz --filter='dir-merge,- .gitignore' -e \"ssh {creds_cmd}"
                 f"-o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ExitOnForwardFailure=yes "
                 f"-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=30s -o ForwardAgent=yes "
-                f'-o ControlMaster=auto -o ControlPersist=300s" {src_path}/ {dest_cluster.address}:{dest_path}'
+                f'-o ControlMaster=auto -o ControlPersist=300s" {src_path}/ {dest_cluster.head_ip}:{dest_path}'
             )
-            status_codes = self.system.run([command])
+            status_codes = self.system.run_bash([command])
             if status_codes[0][0] != 0:
                 raise Exception(
                     f"Error syncing folder to destination cluster ({dest_cluster.name}). "
@@ -400,7 +403,7 @@ class Folder(Resource):
 
         This function rsyncs down the data and return a folder with system=='file'.
         """
-        if not cluster.address:
+        if not cluster.ips:
             raise ValueError("Cluster must be started before copying data from it.")
         Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
         cluster.rsync(
@@ -541,9 +544,9 @@ class Folder(Resource):
         """List the contents of the folder.
 
         Args:
-            full_paths (Optional[bool]): Whether to list the full paths of the folder contents.
+            full_paths (bool, optional): Whether to list the full paths of the folder contents.
                 Defaults to ``True``.
-            sort (Optional[bool]): Whether to sort the folder contents by time modified.
+            sort (bool, optional): Whether to sort the folder contents by time modified.
                 Defaults to ``False``.
         """
         if self._use_http_endpoint:

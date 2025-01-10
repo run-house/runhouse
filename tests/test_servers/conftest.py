@@ -14,11 +14,7 @@ from runhouse.logger import get_logger
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.servers.http.http_server import app, HTTPServer
 
-from tests.utils import (
-    friend_account,
-    get_ray_cluster_servlet,
-    get_ray_env_servlet_and_obj_store,
-)
+from tests.utils import friend_account, get_ray_servlet_and_obj_store
 
 logger = get_logger(__name__)
 
@@ -83,7 +79,9 @@ def local_cluster():
         name="faux_local_cluster",
         server_connection_type="none",
         host="localhost",
-        ssh_creds=provider_secret_values["ssh"],
+        ssh_creds=rh.provider_secret(
+            provider="ssh", values=provider_secret_values["ssh"]
+        ),
     ).save()
 
 
@@ -113,25 +111,19 @@ def local_client_with_den_auth(logged_in_account):
 
 
 @pytest.fixture(scope="session")
-def test_env_servlet():
-    env_servlet, _ = get_ray_env_servlet_and_obj_store("test_env_servlet")
-    yield env_servlet
-
-
-@pytest.fixture(scope="session")
-def test_cluster_servlet(request):
-    cluster_servlet = get_ray_cluster_servlet()
-    yield cluster_servlet
+def test_servlet():
+    servlet, _ = get_ray_servlet_and_obj_store("test_servlet")
+    yield servlet
 
 
 @pytest.fixture(scope="function")
 def obj_store(request):
 
     # Use the parameter to set the name of the servlet actor to use
-    env_servlet_name = request.param
-    _, test_obj_store = get_ray_env_servlet_and_obj_store(env_servlet_name)
+    servlet_name = request.param
+    _, test_obj_store = get_ray_servlet_and_obj_store(servlet_name)
 
-    # Clears everything, not just what's in this env servlet
+    # Clears everything, not just what's in this servlet
     test_obj_store.clear()
 
     yield test_obj_store

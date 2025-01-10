@@ -16,7 +16,13 @@ class GCSFolder(Folder):
     DEFAULT_FS = "gcp"
 
     def __init__(self, dryrun: bool, **kwargs):
-        from google.cloud import storage
+        try:
+            from google.cloud import storage
+        except ImportError:
+            raise ImportError(
+                "`google-cloud-storage` is required for GCS folders. "
+                "You can install it with `pip install google-cloud-storage`."
+            )
 
         super().__init__(dryrun=dryrun, **kwargs)
         self.client = storage.Client()
@@ -55,7 +61,7 @@ class GCSFolder(Folder):
             blob.download_to_filename(str(dest_file_path))
 
     def _cluster_to_local(self, cluster, dest_path):
-        if not cluster.address:
+        if not cluster.ips:
             raise ValueError("Cluster must be started before copying data from it.")
         Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
 
@@ -287,7 +293,7 @@ class GCSFolder(Folder):
 
     def _to_cluster(self, dest_cluster, path=None):
         upload_command = self._upload_command(src=self.path, dest=path)
-        dest_cluster.run([upload_command])
+        dest_cluster.run_bash([upload_command])
         return GCSFolder(path=path, system=dest_cluster, dryrun=True)
 
     def _to_local(self, dest_path: str):

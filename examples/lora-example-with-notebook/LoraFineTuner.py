@@ -237,36 +237,33 @@ class FineTuner:
             print("did not upload fine tuned model - check s3 configs")
 
 
-### This is the code that runs locally
+# ### This is the code that is run to launch the cluster, do the dispatch, and execute there
 if __name__ == "__main__":
 
-    ## Launch a cluster
-    # You will need to `pip install "runhouse[aws]"` first
-    # You can run `sky check` to confirm AWS credentials are setup
-    cluster = rh.cluster(
-        name="a10g-rh",
-        instance_type="A10G:1",
-        memory="32+",
-        provider="aws",
-    ).up_if_not()
-
+    # ## Launch a cluster
     # You will need a HF_TOKEN as an env variable
     # Reqs will be installed by Runhouse on remote
     # We can also show you how to launch with a Docker container / conda env
-    env = rh.env(
-        name="ft_env",
-        reqs=[
-            "torch",
-            "tensorboard",
-            "scipy",
-            "peft==0.4.0",
-            "bitsandbytes==0.40.2",
-            "transformers==4.31.0",
-            "trl==0.4.7",
-            "accelerate",
-        ],
-        secrets=["huggingface"],  # Needed to download Llama 3 from Hugging Face
+    img = (
+        rh.Image(name="ft_image")
+        .install_packages(
+            [
+                "torch",
+                "tensorboard",
+                "scipy",
+                "peft==0.4.0",
+                "bitsandbytes==0.40.2",
+                "transformers==4.31.0",
+                "trl==0.4.7",
+                "accelerate",
+            ]
+        )
+        .sync_secrets(["huggingface"])
     )
+
+    cluster = rh.cluster(
+        name="a10g-rh", instance_type="A10G:1", memory="32+", provider="aws", image=img
+    ).up_if_not()
 
     ## Here, we will access a remote instance of our fine tuner class
     fine_tuner_remote_name = "rh_finetuner"
@@ -277,9 +274,7 @@ if __name__ == "__main__":
     # If we have not, then we will send the local class to remote, and create an instance of it named "rh_finetuner"
     # If you disconnect locally after calling tune, you can simply reconnect to the remote object using this block from another local session
     if fine_tuner_remote is None:
-        fine_tuner = rh.module(FineTuner).to(
-            cluster, env=env, name="llama3-medical-model"
-        )
+        fine_tuner = rh.module(FineTuner).to(cluster, name="llama3-medical-model")
         fine_tuner_remote = fine_tuner(name=fine_tuner_remote_name)
 
     ## Once we have accessed the remote class, we can call against it as if it were a local object

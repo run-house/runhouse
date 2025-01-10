@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from runhouse.globals import configs, rns_client
@@ -11,6 +12,19 @@ DEFAULT_CLUSTER_FS_FOLDER = (
 DEFAULT_BLOB_STORAGE_FOLDER = (
     configs.get("default_blob_storage_folder", "runhouse") + "/"
 )
+
+
+def is_valid_resource_name(name, strict_slashes=False):
+    if strict_slashes is True:
+        # Require a leading slash if any are present in string
+        return re.match(
+            r"^(?!.*\/{2,})(?![^\/\.\@~]+\/)[.@~]?[a-zA-Z0-9\-\_\/@]{2,200}[a-zA-Z0-9\-\_]+$",
+            name,
+        )
+    return re.match(
+        r"^(?!.*\/{2,})[.@~]?[a-zA-Z0-9\-\_\/@]{2,200}[a-zA-Z0-9\-\_]+$",
+        name,
+    )
 
 
 def _generate_default_path(cls, name, system):

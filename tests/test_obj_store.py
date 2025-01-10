@@ -23,10 +23,10 @@ LOCAL = {
         "docker_cluster_pk_ssh_no_auth",
     ]
 }
-MINIMAL = {"cluster": ["ondemand_aws_docker_cluster"]}
+MINIMAL = {"cluster": ["local_launched_ondemand_aws_docker_cluster"]}
 RELEASE = {
     "cluster": [
-        "ondemand_aws_docker_cluster",
+        "local_launched_ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_k8s_docker_cluster",
@@ -38,7 +38,7 @@ MAXIMAL = {
     "cluster": [
         "docker_cluster_pwd_ssh_no_auth",
         "docker_cluster_pk_ssh_no_auth",
-        "ondemand_aws_docker_cluster",
+        "local_launched_ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_k8s_docker_cluster",
@@ -113,11 +113,11 @@ class slow_numpy_array:
             yield f"Hello from the cluster! {self.arr}"
 
 
-@pytest.mark.parametrize("env", [None])
-def test_stateful_generator(cluster, env):
+@pytest.mark.parametrize("process", [None])
+def test_stateful_generator(cluster, process):
     # We need this here just to make sure the "tests" module is synced over
     rh.function(fn=do_printing_and_logging, system=cluster)
-    cluster.put("slow_numpy_array", slow_numpy_array(), env=env)
+    cluster.put("slow_numpy_array", slow_numpy_array(), process=process)
     for val in cluster.call("slow_numpy_array", "slow_get_array", stream_logs=True):
         assert val
         print(val)
@@ -151,11 +151,11 @@ def test_pinning_and_arg_replacement(cluster):
     assert pin_fn("put_pin") == "Found in obj store!"
 
 
-def test_put_resource(cluster, test_env):
-    test_env.name = "~/test_env"
-    cluster.put_resource(test_env)
-    assert cluster.call("test_env", "config", stream_logs=True) == test_env.config()
-    assert cluster.get("test_env").config() == test_env.config()
+def test_put_resource(cluster):
+    resource = rh.function(fn=do_printing_and_logging, system=cluster)
+    cluster.put_resource(resource)
+    assert cluster.call(resource.name, "config", stream_logs=True) == resource.config()
+    assert cluster.get(resource.name).config() == resource.config()
 
 
 def serialization_helper_1():

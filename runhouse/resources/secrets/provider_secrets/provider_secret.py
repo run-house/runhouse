@@ -4,8 +4,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import configs, rns_client
-from runhouse.resources.envs.env import Env
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import _get_cluster_from
 from runhouse.resources.secrets.secret import Secret
@@ -64,13 +64,15 @@ class ProviderSecret(Secret):
             return self._from_env(self.env_vars)
         return {}
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True, values: bool = True):
         config = super().config(condensed)
         config.update({"provider": self.provider})
         if self.path:
             config.update({"path": self.path})
         if self.env_vars:
             config.update({"env_vars": self.env_vars})
+        if not values:
+            config.pop("values", None)
         return config
 
     @staticmethod
@@ -85,7 +87,7 @@ class ProviderSecret(Secret):
         headers: Optional[Dict] = None,
         folder: str = None,
     ):
-        name = name or self.name or self.rns_address or self.provider
+        name = name or self.rns_address or self.name or self.provider
         return super().save(
             name=name, save_values=save_values, headers=headers, folder=folder
         )
@@ -109,6 +111,7 @@ class ProviderSecret(Secret):
         file: bool = False,
         env: bool = False,
         overwrite: bool = False,
+        write_config: bool = True,
     ):
         if not self.values:
             raise ValueError("Could not determine values to write down.")
@@ -119,7 +122,9 @@ class ProviderSecret(Secret):
 
         if file or path:
             path = path or self.path or self._DEFAULT_CREDENTIALS_PATH
-            return self._write_to_file(path, values=self.values, overwrite=overwrite)
+            return self._write_to_file(
+                path, values=self.values, overwrite=overwrite, write_config=write_config
+            )
         elif env or env_vars:
             env_vars = env_vars or self.env_vars or self._DEFAULT_ENV_VARS
             return self._write_to_env(env_vars, values=self.values, overwrite=overwrite)
@@ -128,7 +133,7 @@ class ProviderSecret(Secret):
         self,
         system: Union[str, Cluster],
         path: str = None,
-        env: Union[str, Env] = None,
+        process: Optional[str] = None,
         values: bool = None,
         name: Optional[str] = None,
     ):
@@ -139,8 +144,8 @@ class ProviderSecret(Secret):
             path (str or Path, optional): Path on cluster to write down the secret values to.
                 If not provided and secret is not already associated with a path, the secret values
                 will not be written down on the cluster.
-            env (str or Env, optional): Env to send the secret to. This will save down the secrets
-                as env vars in the env.
+            process (str, optional): Process on the cluster to send the secret to, to set the secret env var
+                values inside the process.
             values (bool, optional): Whether to save down the values in the resource config. By default,
                 save down values if the secret is not being written down to a file or environment variable.
                 Otherwise, values are not written down. (Default: None)
@@ -149,20 +154,16 @@ class ProviderSecret(Secret):
         Example:
             >>> secret.to(my_cluster, path=secret.path)
         """
-        from runhouse import Env
 
         system = _get_cluster_from(system)
         path = path or self.path
 
-        if not env or (env and isinstance(env, Env) and not env.name):
-            env = system.default_env
-
         if system.on_this_cluster():
-            if not env and not path == self.path:
+            if not process and not path == self.path:
                 if name and not self.name == name:
                     self.rename(name)
                 return self
-            self.write(path=path, env=env)
+            self.write(path=path, env=process)
             new_secret = copy.deepcopy(self)
             new_secret._values = None
             new_secret.path = path
@@ -174,27 +175,31 @@ class ProviderSecret(Secret):
 
         if values:
             new_secret._values = self.values
-        elif values is None and not (path or env or self.env_vars):
+        elif values is None and not (path or process or self.env_vars):
             new_secret._values = self.values
         elif values is False:
             new_secret._values = None
 
-        key = system.put_resource(new_secret, env=env)
+        process = process or DEFAULT_PROCESS_NAME
+        key = system.put_resource(new_secret, process=process)
         if path:
             new_secret.path = self._file_to(
                 key=key, system=system, path=path, values=self.values
             )
 
-        if env or self.env_vars:
-            env_key = env if isinstance(env, str) else env.name
-            if not system.get(env_key):
-                env = env if isinstance(env, Env) else Env(name=env_key)
-                env_key = system.put_resource(env)
+        if process or self.env_vars:
             env_vars = self.env_vars or self._DEFAULT_ENV_VARS
             if env_vars:
-                env_vars = {env_vars[k]: self.values[k] for k in self.values}
-                system.call(env_key, "_set_env_vars", env_vars)
+                env_vars = self._map_env_vars(env_vars)
+                system.set_process_env_vars(name=process, env_vars=env_vars)
         return new_secret
+
+    def _map_env_vars(self, env_vars: Dict = None):
+        env_vars = env_vars or self.env_vars or self._DEFAULT_ENV_VARS
+        mapped_env_vars = {
+            env_vars[k]: self.values[k] for k in self.values if k in env_vars
+        }
+        return mapped_env_vars
 
     def _file_to(
         self,
@@ -206,7 +211,9 @@ class ProviderSecret(Secret):
         system.call(key, "_write_to_file", path=path, values=values)
         return path
 
-    def _write_to_file(self, path: str, values: Any, overwrite: bool = False):
+    def _write_to_file(
+        self, path: str, values: Any, overwrite: bool = False, write_config: bool = True
+    ):
         new_secret = copy.deepcopy(self)
         if not _check_file_for_mismatches(
             path, self._from_path(path), values, overwrite
@@ -214,7 +221,9 @@ class ProviderSecret(Secret):
             full_path = create_local_dir(path)
             with open(full_path, "w") as f:
                 json.dump(values, f, indent=4)
-            self._add_to_rh_config(path)
+
+            if write_config:
+                self._add_to_rh_config(path)
 
         new_secret._values = None
         new_secret.path = path
@@ -253,7 +262,7 @@ class ProviderSecret(Secret):
     def _from_path(self, path: str = None):
         path = path or self.path
         if not path:
-            return ""
+            return {}
 
         path = os.path.expanduser(path)
         if os.path.exists(path):

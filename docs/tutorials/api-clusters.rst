@@ -174,7 +174,7 @@ and access objects and functions via ``curl``.
 
 .. code:: ipython3
 
-    tls_cluster.address
+    tls_cluster.head_ip
 
 
 

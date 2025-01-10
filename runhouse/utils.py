@@ -1,42 +1,160 @@
 import asyncio
 import contextvars
 import functools
-import logging
-import tempfile
-from io import SEEK_SET, StringIO
 
-try:
-    import importlib.metadata as metadata
-except ImportError as e:
-    # User is probably on Python<3.8
-    try:
-        import importlib_metadata as metadata
-    except ImportError:
-        # User needs to install importlib_metadata
-        raise ImportError(
-            f"importlib_metadata is not installed in Python<3.8. Please install it with "
-            f"'pip install importlib_metadata'. {e}"
-        )
+import importlib.metadata as metadata
+
 import inspect
 import json
+import logging
 import os
 import re
+import shlex
 import subprocess
 import sys
+import tempfile
 import threading
-
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from enum import Enum
+from io import SEEK_SET, StringIO
+
+from itertools import cycle
 from pathlib import Path
-from typing import Callable, Optional, Type, Union
+from time import sleep
+from typing import Callable, Dict, Optional, Type, Union
 
 import pexpect
+import yaml
 
-from runhouse.constants import RH_LOGFILE_PATH
+from runhouse.constants import CONDA_INSTALL_CMDS, ENVS_DIR, RH_LOGFILE_PATH
+
 from runhouse.logger import get_logger, init_logger
 
 logger = get_logger(__name__)
+
+
+####################################################################################################
+# Simple env setup utilities
+####################################################################################################
+def set_env_vars_in_current_process(env_vars: dict):
+    for k, v in env_vars.items():
+        if v is not None:
+            os.environ[k] = v
+
+
+def conda_env_cmd(cmd, conda_env_name):
+    return f"conda run -n {conda_env_name} ${{SHELL:-/bin/bash}} -c {shlex.quote(cmd)}"
+
+
+def run_setup_command(
+    cmd: str,
+    cluster: "Cluster" = None,
+    env_vars: Dict = None,
+    stream_logs: bool = True,
+    node: Optional[str] = None,
+):
+    """
+    Helper function to run a command during possibly the cluster default env setup. If a cluster is provided,
+    run command on the cluster using SSH. If the cluster is not provided, run locally, as if already on the
+    cluster (rpc call).
+
+    Args:
+        cmd (str): Command to run on the
+        cluster (Optional[Cluster]): (default: None)
+        stream_logs (bool): (default: True)
+
+    Returns:
+       (status code, stdout)
+    """
+    if not cluster:
+        return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
+    elif cluster.on_this_cluster():
+        return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
+
+    return cluster._run_commands_with_runner(
+        [cmd], stream_logs=stream_logs, env_vars=env_vars, node=node
+    )[0]
+
+
+def install_conda(cluster: "Cluster" = None, node: Optional[str] = None):
+    if run_setup_command("conda --version", cluster=cluster, node=node)[0] != 0:
+        logging.info("Conda is not installed. Installing...")
+        for cmd in CONDA_INSTALL_CMDS:
+            run_setup_command(cmd, cluster=cluster, node=node, stream_logs=True)
+        if run_setup_command("conda --version", cluster=cluster, node=node)[0] != 0:
+            raise RuntimeError("Could not install Conda.")
+
+
+def create_conda_env_on_cluster(
+    conda_env_name: str,
+    conda_config: Dict,
+    force: bool = False,
+    cluster: "Cluster" = None,
+    node: Optional[str] = None,
+):
+    yaml_path = Path(ENVS_DIR) / f"{conda_env_name}.yml"
+
+    env_exists = (
+        f"\n{conda_env_name} "
+        in run_setup_command("conda info --envs", cluster=cluster, node=node)[1]
+    )
+    run_setup_command(f"mkdir -p {ENVS_DIR}", cluster=cluster, node=node)
+    yaml_exists = (
+        (Path(ENVS_DIR).expanduser() / f"{conda_env_name}.yml").exists()
+        if not cluster
+        else run_setup_command(f"ls {yaml_path}", cluster=cluster, node=node)[0] == 0
+    )
+
+    if force or not (yaml_exists and env_exists):
+        # dump config into yaml file on cluster
+        if not cluster:
+            python_commands = "; ".join(
+                [
+                    "import yaml",
+                    "from pathlib import Path",
+                    f"path = Path('{ENVS_DIR}').expanduser()",
+                    f"yaml.dump({conda_config}, open(path / '{conda_env_name}.yml', 'w'))",
+                ]
+            )
+            subprocess.run(f'python -c "{python_commands}"', shell=True)
+        else:
+            contents = yaml.dump(conda_config)
+            run_setup_command(
+                f"echo $'{contents}' > {yaml_path}", cluster=cluster, node=node
+            )
+
+        # create conda env from yaml file
+        run_setup_command(
+            f"conda env create -f {yaml_path}", cluster=cluster, node=node
+        )
+
+        env_exists = (
+            f"\n{conda_env_name} "
+            in run_setup_command("conda info --envs", cluster=cluster, node=node)[1]
+        )
+        if not env_exists:
+            raise RuntimeError(f"conda env {conda_env_name} not created properly.")
+
+
+def _env_vars_from_file(env_file):
+    try:
+        from dotenv import dotenv_values, find_dotenv
+    except ImportError:
+        raise ImportError(
+            "`dotenv` package is needed. You can install it with `pip install python-dotenv`."
+        )
+
+    dotenv_path = find_dotenv(str(env_file), usecwd=True)
+    env_vars = dotenv_values(dotenv_path)
+    return dict(env_vars)
+
+
+def _process_env_vars(env_vars):
+    processed_vars = (
+        _env_vars_from_file(env_vars) if isinstance(env_vars, str) else env_vars
+    )
+    return processed_vars
 
 
 ####################################################################################################
@@ -80,7 +198,8 @@ def run_with_logs(cmd: str, **kwargs):
         kwargs: Keyword arguments to pass to subprocess.Popen.
 
     Returns:
-        The returncode of the command.
+        The returncode of the command. If require_outputs is True, instead returns a tuple of
+        [returncode, stdout, stderr].
     """
     require_outputs = kwargs.pop("require_outputs", False)
     stream_logs = kwargs.pop("stream_logs", True)
@@ -542,7 +661,6 @@ class SuppressStd(object):
         return self
 
     def __exit__(self, exc_class, value, traceback):
-
         # Make sure to flush stdout
         print(flush=True)
 
@@ -620,7 +738,7 @@ class ClusterLogsFormatter:
         self.system = system
         self._display_title = False
 
-    def format(self, output_type):
+    def format_server_log(self, output_type):
         from runhouse import Resource
         from runhouse.servers.http.http_utils import OutputType
 
@@ -650,11 +768,79 @@ class ClusterLogsFormatter:
 
         return system_color, reset_color
 
+    def format_launcher_log(self):
+        system_color = ColoredFormatter.get_color("cyan")
+        reset_color = ColoredFormatter.get_color("reset")
+
+        if not self._display_title:
+            # Display the system name before subsequent logs only once
+            dotted_line = "-" * len(self.system)
+            print(dotted_line)
+            print(f"{system_color}{self.system}{reset_color}")
+            print(dotted_line)
+
+            # Only display the system name once
+            self._display_title = True
+
+        return system_color, reset_color
+
 
 def create_local_dir(path: Union[str, Path]):
     full_path = os.path.expanduser(path) if isinstance(path, str) else path.expanduser()
     Path(full_path).parent.mkdir(parents=True, exist_ok=True)
     return full_path
+
+
+class Spinner:
+    def __init__(self, logger, desc: str, end=None, timeout=0.1):
+        """
+        A loader-like context manager with logging support.
+
+        Args:
+            desc (str, optional): The loader's description.
+            end (str, optional): Final print. Defaults to "Done!".
+            timeout (float, optional): Sleep time between prints. Defaults to 0.1.
+            logger (logging.Logger, optional): Logger for start and end messages.
+        """
+        self.desc = desc
+        self.end = end
+        self.timeout = timeout
+        self.logger = logger
+
+        self._thread = threading.Thread(target=self._animate, daemon=True)
+        self.steps = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "⡿"]
+        self.done = False
+
+    def start(self):
+        """Starts the loader thread."""
+        self._thread.start()
+        return self
+
+    def _animate(self):
+        """Animates the loader by cycling through steps."""
+        for c in cycle(self.steps):
+            if self.done:
+                break
+            print(f"\r{self.desc} {c}", flush=True, end="")
+            sleep(self.timeout)
+
+    def __enter__(self):
+        """Starts the loader when entering the context."""
+        self.logger.info(self.desc)
+        self.start()
+
+    def stop(self):
+        """Stops the loader and clears the line."""
+        self.done = True
+        print("\r", end="", flush=True)  # Clear the line
+        if self.end:
+            self.logger.info(self.end)
+
+    def __exit__(self, exc_type, exc_value, tb):
+        """Stops the loader on exit, logs the final message."""
+        self.stop()
+        if exc_type is not None:
+            self.logger.error(f"Error occurred: {exc_value}")
 
 
 ####################################################################################################
@@ -666,7 +852,6 @@ class ServletType(str, Enum):
 
 
 def get_gpu_usage(collected_gpus_info: dict, servlet_type: ServletType):
-
     gpus_indices = list(collected_gpus_info.keys())
 
     # how we retrieve total_gpu_memory:

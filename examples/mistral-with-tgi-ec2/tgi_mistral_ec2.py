@@ -145,21 +145,21 @@ class TGIInference(rh.Module):
 # :::
 if __name__ == "__main__":
     port = 8080
+    # First, we define the compute and the image. This includes the required dependencies that need
+    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
+    img = rh.Image(name="tgi_image").install_packages(
+        ["docker", "openai", "torch", "transformers"]
+    )
+
     cluster = rh.cluster(
         name="rh-g5-4xlarge",
         instance_type="g5.4xlarge",
         provider="aws",
+        image=img,
         open_ports=[port],
     ).up_if_not()
 
-    # Next, we define the environment for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        name="tgi_env",
-        reqs=["docker", "openai", "torch", "transformers"],
-    )
+    cluster.sync_secrets(["huggingface"])
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `get_or_to` to run it on the remote cluster. Using `get_or_to` allows us to load the exiting Module
@@ -168,7 +168,7 @@ if __name__ == "__main__":
     #
     # Note that we also pass the `env` object to the `get_or_to` method, which will ensure that the environment is
     # set up on the remote machine before the module is run.
-    remote_tgi_model = TGIInference().get_or_to(cluster, env=env, name="tgi-inference")
+    remote_tgi_model = TGIInference().get_or_to(cluster, name="tgi-inference")
 
     # ## Sharing an inference endpoint
     # We can publish this module for others to use:
@@ -207,7 +207,7 @@ if __name__ == "__main__":
     # on the Messages API, and using the OpenAI python client
 
     # Initialize the OpenAI client, with the URL set to the cluster's address:
-    base_url = f"http://{cluster.address}:{port}/v1"
+    base_url = f"http://{cluster.head_ip}:{port}/v1"
     client = OpenAI(base_url=base_url, api_key="-")
 
     # Call the model with the prompt messages:
@@ -224,7 +224,7 @@ if __name__ == "__main__":
 
     # Alternatively, we can also call the model via HTTP:
     print(
-        f"curl http://{cluster.address}:{port}/v1/chat/completions -X POST -d '"
+        f"curl http://{cluster.head_ip}:{port}/v1/chat/completions -X POST -d '"
         '{"model": "tgi", "stream": false, "messages": [{"role": "system", "content": "You are a helpful assistant."},'
         '{"role": "user", "content": "What is deep learning?"}]}'
         "' -H 'Content-Type: application/json'"

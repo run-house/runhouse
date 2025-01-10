@@ -106,36 +106,32 @@ class HFChatModel:
 # the script code will run when Runhouse attempts to run code remotely.
 # :::
 if __name__ == "__main__":
-    gpu = rh.cluster(
-        name="rh-a10x", instance_type="A10G:1", memory="32+", provider="aws"
-    ).up_if_not()
 
-    # Next, we define the environment for our module. This includes the required dependencies that need
+    # First, we define the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        reqs=[
+    # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
+    img = rh.Image(name="llama3inference").install_packages(
+        [
             "torch",
             "transformers",
             "accelerate",
             "bitsandbytes",
-            "safetensors",
+            "safetensors>=0.3.1",
             "scipy",
-        ],
-        secrets=["huggingface"],  # Needed to download Llama 3 from HuggingFace
-        name="llama3inference",
+        ]
     )
+
+    gpu = rh.cluster(
+        name="rh-a10x", gpus="A10G:1", memory="32+", provider="aws", image=img
+    ).up_if_not()
+
+    gpu.sync_secrets(["huggingface"])
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
     # by calling `cluster.get(name="llama3-8b-model")`. This would return the remote model after an initial run.
     # If we want to update the module each time we run this script, we prefer to use `to`.
-    #
-    # Note that we also pass the `env` object to the `to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
-    RemoteChatModel = rh.module(HFChatModel).to(gpu, env=env, name="HFChatModel")
+    RemoteChatModel = rh.module(HFChatModel).to(gpu, name="HFChatModel")
     remote_hf_chat_model = RemoteChatModel(
         torch_dtype=torch.bfloat16, name="llama3-8b-model"
     )

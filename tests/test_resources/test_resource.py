@@ -2,10 +2,11 @@ import json
 
 import pytest
 import runhouse as rh
-from runhouse.constants import TEST_ORG
 
 from tests.conftest import init_args
-from tests.utils import friend_account, friend_account_in_org, remove_config_keys
+
+from tests.constants import TEST_ORG
+from tests.utils import friend_account, friend_account_in_org
 
 
 def load_shared_resource_config(resource_class_name, address):
@@ -74,7 +75,7 @@ class TestResource:
         assert resource.RESOURCE_TYPE is not None
 
     @pytest.mark.level("unit")
-    def test_config_for_rns(self, resource):
+    def test_config(self, resource):
         args = init_args.get(id(resource))
         config = resource.config()
         assert isinstance(config, dict)
@@ -104,17 +105,9 @@ class TestResource:
         # Test loading from name
         loaded_resource = saved_resource.__class__.from_name(saved_resource.rns_address)
 
-        if isinstance(saved_resource, rh.OnDemandCluster):
-            loaded_resource_config = remove_config_keys(
-                loaded_resource.config(), ["stable_internal_external_ips"]
-            )
-            saved_resource_config = remove_config_keys(
-                saved_resource.config(), ["stable_internal_external_ips"]
-            )
-            assert loaded_resource_config == saved_resource_config
-            # Changing the name doesn't work for OnDemandCluster, because the name won't match the local sky db
-            return
         assert loaded_resource.config() == saved_resource.config()
+        if isinstance(saved_resource, rh.OnDemandCluster):
+            return
 
         # Do everything inside a try/finally so we don't leave resources behind if the test fails
         try:
@@ -122,8 +115,8 @@ class TestResource:
             original_name = saved_resource.rns_address
             alt_name = saved_resource.rns_address + "-alt"
 
-            # This saves a new RNS config with the same resource,
-            # but an alt name. It also updates the local config to point to the new RNS config.
+            # This saves a new Den config with the same resource,
+            # but an alt name. It also updates the local config to point to the new Den config.
             saved_resource.save(alt_name)
             alt_resource = saved_resource.__class__.from_name(alt_name)
             assert alt_resource.config() == saved_resource.config()
@@ -158,7 +151,7 @@ class TestResource:
         assert "timestamp" in history[0]
         assert "owner" in history[0]
         assert "data" in history[0]
-        # Not all config_for_rns values are saved inside data field
+        # Not all config values are saved inside data field
         config = json.loads(
             json.dumps(saved_resource.config())
         )  # To deal with tuples and non-json types
@@ -280,8 +273,8 @@ class TestResource:
         resource_name = f"/{TEST_ORG}/summer_func"
         args = {"name": resource_name, "fn": summer}
 
-        # Sending function to the cluster will save the function and associated env under the organization
-        f = rh.function(**args).to(docker_cluster_pk_ssh_den_auth, env=["pytest"])
+        # Sending function to the cluster will save the function under the organization
+        f = rh.function(**args).to(docker_cluster_pk_ssh_den_auth)
         init_args[id(f)] = args
 
         # Should be saved to Den under the org

@@ -12,15 +12,10 @@ from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 from apispec import APISpec
 from pydantic import create_model
 
+from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import obj_store, rns_client
 from runhouse.logger import get_logger
-from runhouse.resources.envs import _get_env_from, Env
-from runhouse.resources.hardware import (
-    _current_cluster,
-    _default_env_if_on_cluster,
-    _get_cluster_from,
-    Cluster,
-)
+from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
@@ -41,14 +36,16 @@ MODULE_ATTRS = [
     "_endpoint",
     "_client",
     "_visibility",
-    "_env",
     "_name",
     "_rns_folder",
     "_system",
+    "process",
     "dryrun",
     "_resolve",
     "_signature",
     "_dumb_signature_cache",
+    "_openapi_spec",
+    "access_level",
 ]
 
 logger = get_logger(__name__)
@@ -64,7 +61,6 @@ class Module(Resource):
         endpoint: Optional[str] = None,
         name: Optional[str] = None,
         system: Union[Cluster, str] = None,
-        env: Optional[Env] = None,
         dryrun: bool = False,
         **kwargs,
     ):
@@ -78,36 +74,17 @@ class Module(Resource):
         self._system = _get_cluster_from(
             system or _current_cluster(key="config"), dryrun=dryrun
         )
-        self._env = env
+        self.process = obj_store.get_process_name() or DEFAULT_PROCESS_NAME
         is_builtin = hasattr(sys.modules["runhouse"], self.__class__.__qualname__)
 
         # If there are no pointers and this isn't a builtin module, we assume this is a user-created subclass
         # of rh.Module, and we need to do the factory constructor logic here.
         if not pointers and not is_builtin:
-            if not self._env:
-
-                env_for_current_process = obj_store.get_process_env()
-                self._env = env_for_current_process or (
-                    self._system.default_env if self._system else Env()
-                )
 
             # When creating a module as a subclass of rh.Module, we need to collect pointers here
             # If we're creating pointers, we're also local to the class definition and package, so it should be
             # set as the workdir (we can do this in a fancier way later)
             pointers = Module._extract_pointers(self.__class__)
-
-            if isinstance(self._env, Env):
-                # Sometimes env may still be a string, in which case it won't be modified
-                (
-                    local_path_containing_module,
-                    should_add,
-                ) = Module._get_local_path_containing_module(
-                    pointers[0], self._env.reqs
-                )
-                if should_add:
-                    self._env.reqs = [
-                        str(local_path_containing_module)
-                    ] + self._env.reqs
         self._pointers = pointers
         self._endpoint = endpoint
         self._signature = signature
@@ -116,11 +93,6 @@ class Module(Resource):
         self._openapi_spec = None
 
     def config(self, condensed: bool = True):
-        if not self.system:
-            raise ValueError(
-                "Cannot save an in-memory local module to RNS. Please send the module to a local "
-                "path or system first."
-            )
         config = super().config(condensed)
         if self.system:
             system = self._resource_string_for_subconfig(self.system, condensed)
@@ -128,11 +100,7 @@ class Module(Resource):
             system = None
 
         config["system"] = system
-        config["env"] = (
-            self._resource_string_for_subconfig(self.env, condensed)
-            if self.env
-            else None
-        )
+        config["process"] = self.process
         if self._pointers:
             # For some reason sometimes this is coming back as a string, so we force it into a tuple
             config["pointers"] = tuple(self._pointers)
@@ -179,23 +147,12 @@ class Module(Resource):
                     or (isinstance(e, AttributeError) and class_name in str(e))
                 ):
                     system = config.get("system", None)
-                    env = config.get("env", None)
-                    env_name = (
-                        env
-                        if isinstance(env, str)
-                        else env["name"]
-                        if isinstance(env, Dict)
-                        else env.name
-                        if isinstance(env, Env) and env.name
-                        else system.default_env.name
-                        if system.default_env
-                        else None
-                    )
+                    process = config.get("process", None)
 
-                    # If we are on the same cluster, and in the env where the module lives, we should be able to
-                    # load the module from the pointers. So, we should just raise the exception if this is the case.
+                    # If we are on the same cluster where the module lives, we should be able to load the module from
+                    # the pointers. So, we should just raise the exception if this is the case.
                     if system.on_this_cluster() and (
-                        env_name == obj_store.servlet_name
+                        process == obj_store.servlet_name
                         and obj_store.has_local_storage
                     ):
                         # Could not load Module locally from within the system where it lives
@@ -209,7 +166,7 @@ class Module(Resource):
                     raise e
 
             # Module created as subclass of rh.Module may not have rh.Module's
-            # constructor signature (e.g. system, env, etc.), so assign them manually
+            # constructor signature (e.g. system, process, etc.), so assign them manually
             # We don't call __init__ here because we don't know the signature of the subclass's __init__
             # If this resource was put on a cluster with put_resource, the servlet will be populating the rest
             # of the class-specific attributes.
@@ -217,7 +174,7 @@ class Module(Resource):
             if _resolve_children:
                 config = module_cls._check_for_child_configs(config)
             new_module.system = config.pop("system", None)
-            new_module.env = config.pop("env", None)
+            new_module.process = config.pop("process", None)
             new_module.name = config.pop("name", None)
             new_module.access_level = config.pop("access_level", ResourceAccess.WRITE)
             new_module.visibility = config.pop("visibility", ResourceVisibility.PRIVATE)
@@ -226,6 +183,9 @@ class Module(Resource):
             new_module._signature = config.pop("signature", None)
             new_module.dryrun = config.pop("dryrun", False)
             new_module._openapi_spec = config.pop("openapi_spec", None)
+            # TODO not sure if we should keep this anymore given deserialization improvements
+            new_module._resolve = config.pop("resolve", False)
+            new_module._dumb_signature_cache = None
             return new_module
 
         if config.get("resource_subtype", None) == "module":
@@ -251,26 +211,16 @@ class Module(Resource):
         system = config.get("system")
         if isinstance(system, str) or isinstance(system, dict):
             config["system"] = _get_cluster_from(system)
-        env = config.get("env")
-        if isinstance(env, str) or isinstance(env, dict):
-            config["env"] = _get_env_from(env)
         return config
 
     @property
     def system(self):
+        """Cluster that the Module lives on."""
         return self._system
 
     @system.setter
     def system(self, new_system: Union[str, Cluster]):
         self._system = _get_cluster_from(new_system)
-
-    @property
-    def env(self):
-        return self._env
-
-    @env.setter
-    def env(self, new_env: Optional[Union[str, Env]]):
-        self._env = _get_env_from(new_env)
 
     def _compute_signature(self, rich=False):
         return {
@@ -399,7 +349,7 @@ class Module(Resource):
                 logger.debug(f"Appending {module_path} to sys.path")
 
         # This updates the sys.path with any new paths that have been added since the last time we imported
-        # e.g. if the user ran cluster.run(["pip install my_package"]) since this env was created.
+        # e.g. if the user ran cluster.run_bash(["pip install my_package"]) since this module was created.
         importlib_reload(site)
 
         if module_name in obj_store.imported_modules and reload:
@@ -416,7 +366,7 @@ class Module(Resource):
 
         return getattr(obj_store.imported_modules[module_name], obj_name)
 
-    def _extract_state(self):
+    def __getstate__(self):
         # Exclude anything already being sent in the config and private module attributes
         state = {}
         # We only send over state for instances, not classes
@@ -436,26 +386,30 @@ class Module(Resource):
     def to(
         self,
         system: Union[str, Cluster],
-        env: Optional[Union[str, List[str], Env]] = None,
+        process: Optional[Union[str, Dict]] = None,
         name: Optional[str] = None,
-        force_install: bool = False,
+        sync_local: bool = True,
     ):
-        """Put a copy of the module on the destination system and env, and return the new module.
+        """Send the module to a specified process on a cluster. This will sync over relevant code for the module
+        to run on the cluster, and return a remote_module object that will wrap remote calls to the module
+        living on the cluster.
 
         Args:
-            system (str or Cluster): The system to setup the module and env on.
-            env (str, List[str], or Env, optional): The environment where the module lives on in the cluster,
-                or the set of requirements necessary to run the module. (Default: ``None``)
+            system (str or Cluster): The cluster to setup the module and process on.
+            process (str or Dict, optional): The process to run the module on. If it's a Dict, it will be explicitly
+                created with those args. or the set of requirements necessary to run the module. If no process is
+                specified, the module will be sent to the default_process created when the cluster is created
+                (Default: ``None``)
             name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
                 (Default: ``None``)
-            force_install (bool, optional): Whether to re-install and perform the environment setup steps, even
-                if it may already exist on the cluster. (Defualt: ``False``)
+            sync_local (bool, optional): Whether to sync up and use the local module on the cluster. If ``False``,
+                don't sync up and use the equivalent module found on the cluster. (Default: ``True``)
 
         Example:
             >>> local_module = rh.module(my_class)
             >>> cluster_module = local_module.to("my_cluster")
         """
-        if system == self.system and env == self.env:
+        if system == self.system:
             if name and not self.name == name:
                 # TODO return duplicate object under new name, don't rename
                 self.rename(name)
@@ -468,46 +422,50 @@ class Module(Resource):
 
         if system == "file":
             raise ValueError(
-                "Need an initialized local server in order to put a module onto `rh.here`. Please run `runhouse restart` first on your local machine."
+                "Need an initialized local server in order to put a module onto `rh.here`. Please run `runhouse server restart` first on your local machine."
             )
 
         system = (
             _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
         )
 
-        env = self.env if not env else env
-        env = _get_env_from(env, load=False)
+        if not system:
+            raise ValueError("No system specified to send module to.")
+
+        if not process:
+            process = DEFAULT_PROCESS_NAME
+
+        if isinstance(process, Dict):
+            process = system.ensure_process_created(**process)
+        else:
+            system.ensure_process_created(name=process)
+
+        if not isinstance(process, str):
+            raise ValueError(
+                "Process arg must be a string name of the process or a dict of create_process kwargs."
+            )
 
         # We need to change the pointers to the remote import path if we're sending this module to a remote cluster,
         # and we need to add the local path to the module to the requirements if it's not already there.
         remote_import_path = None
-        if (
-            env
-            and isinstance(env, Env)
-            and (self._pointers or getattr(self, "fn_pointers", None))
-        ):
+        if sync_local and (self._pointers or getattr(self, "fn_pointers", None)):
             pointers = self._pointers if self._pointers else self.fn_pointers
 
-            # Update the envs reqs with the local path to the module if it's not already there
+            # Update the system reqs with the local path to the module if it's not already there
             (
                 local_path_containing_module,
                 should_add,
-            ) = Module._get_local_path_containing_module(pointers[0], env.reqs)
+            ) = Module._get_local_path_containing_module(pointers[0], system.reqs)
             if should_add:
-                env.reqs = [str(local_path_containing_module)] + env.reqs
+                system.reqs = [str(local_path_containing_module)] + system.reqs
+
+            system.install_package(str(local_path_containing_module))
 
             # Figure out what the import path would be on the remote system
             remote_import_path = str(
                 local_path_containing_module.name
                 / Path(pointers[0]).relative_to(local_path_containing_module)
             )
-
-        if system:
-            if isinstance(env, Env):
-                env = env.to(system, force_install=force_install)
-
-            if isinstance(env, Env) and not env.name:
-                env = system.default_env
 
         # We need to backup the system here so the __getstate__ method of the cluster
         # doesn't wipe the client of this function's cluster when deepcopy copies it.
@@ -517,11 +475,7 @@ class Module(Resource):
         self.system = hw_backup
 
         new_module.system = system
-        new_module.env = (
-            system.default_env
-            if system and isinstance(env, Env) and not env.name
-            else env
-        )
+        new_module.process = process
         new_module.dryrun = True
 
         # Set remote import path
@@ -568,16 +522,16 @@ class Module(Resource):
     def get_or_to(
         self,
         system: Union[str, Cluster],
-        env: Optional[Union[str, List[str], Env]] = None,
+        process: Optional[Union[str, Dict]] = None,
         name: Optional[str] = None,
     ):
         """Check if the module already exists on the cluster, and if so return the module object.
         If not, put the module on the cluster and return the remote module.
 
         Args:
-            system (str or Cluster): The system to setup the module and env on.
-            env (str, List[str], or Env, optional): The environment where the module lives on in the cluster,
-                or the set of requirements necessary to run the module. (Default: ``None``)
+            system (str or Cluster): The system to setup the module.
+            process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly
+                created with those args. or the set of requirements necessary to run the module. (Default: ``None``)
             name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
                 (Default: ``None``)
 
@@ -597,7 +551,7 @@ class Module(Resource):
         if remote:
             return remote
         self.name = name
-        return self.to(system, env)
+        return self.to(system, process=process)
 
     def __getattribute__(self, item):
         """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
@@ -688,6 +642,14 @@ class Module(Resource):
 
         return RemoteMethodWrapper()
 
+    # Overload the reduce method so all subclasses of Module can be pickled as
+    # a Module object, and not as a subclass of Module (which could cause deserialization
+    # errors when pickle attempts to look up those classes remotely). Now the "envelope"
+    # for how these objects are pickled is always the Module config, which means we can
+    # always deserialize them as Module objects (as long as we can find the pointers remotely).
+    def __reduce__(self):
+        return Resource.from_config, (self.config(),), self.__getstate__()
+
     def refresh(self):
         """Update the resource in the object store."""
         if not self.system or not self.name:
@@ -702,16 +664,17 @@ class Module(Resource):
     def replicate(
         self,
         num_replicas: int = 1,
+        replicas_per_node: Optional[int] = None,
         names: List[str] = None,
-        envs: List["Env"] = None,
+        processes: Optional[List["Process"]] = None,
         parallel: bool = False,
     ):
-        """Replicate the module on the cluster in a new env and return the new modules.
+        """Replicate the module on the cluster in new processes and return the new modules.
 
         Args:
             num_relicas (int, optional): Number of replicas of the module to create. (Default: 1)
             names (List[str], optional): List for the names for the replicas, if specified. (Default: ``None``)
-            envs (List[Env], optional): List of the envs for the replicas, if specified. (Default: ``None``)
+            processes (List[Process], optional): List of the processes for the replicas, if specified. (Default: ``None``)
             parallel (bool, optional): Whether to create the replicas in parallel. (Default: ``False``)
         """
         if not self.system or not self.name:
@@ -722,36 +685,48 @@ class Module(Resource):
             raise ValueError(
                 "Cannot replicate a module that is not on a cluster. Please send the module to a cluster first."
             )
-        if envs and not len(envs) == num_replicas:
+        if processes and not len(processes) == num_replicas:
             raise ValueError(
-                "If envs is a list, it must be the same length as num_replicas."
+                "If processes is a list, it must be the same length as num_replicas."
             )
         if names and not len(names) == num_replicas:
             raise ValueError(
                 "If names is a list, it must be the same length as num_replicas."
             )
-        if not envs and (self.env and not self.env.name):
+        if not processes and not self.process:
             raise ValueError(
-                "Cannot replicate the default environment. Please send the module or function to a named env first."
+                "Cannot replicate without a process. Please send the module or function to a process on the system first."
             )
 
         def create_replica(i):
             name = names[i] if isinstance(names, list) else f"{self.name}_replica_{i}"
 
-            if isinstance(envs, list):
-                env = _get_env_from(envs[i])
+            if isinstance(processes, list):
+                replica_process_name = processes[i]
             else:
-                # We do a shallow copy here because we want to reuse the Package objects in the env
-                # If we reconstruct from scratch, the cluster may not have been saved (but has a name), and won't
-                # be populated properly inside the package's folder's system.
-                env = copy.copy(self.env)
-                env.name = f"{self.env.name}_replica_{i}"
+                replica_process_name = f"{self.process}_replica_{i}"
+
+                # The replica process should have the same requirements as the original process
+                new_create_process_params = self.system.list_processes()[self.process]
+
+                # Change the arguments for the new process to reflect the replica
+                new_create_process_params["name"] = replica_process_name
+                if replicas_per_node is not None:
+                    if new_create_process_params["compute"]:
+                        raise ValueError(
+                            "Cannot specify replicas_per_node if other compute requirements are specified."
+                        )
+                    new_create_process_params["compute"] = {
+                        "node_idx": i // replicas_per_node
+                    }
+                self.system.ensure_process_created(**new_create_process_params)
 
             new_module = copy.copy(self)
-            new_module.name = name
-            new_module.env = None
-            new_module.system = None
-            new_module = new_module.to(self.system, env=env)
+            new_module.local.name = name
+            new_module.local.process = None
+            new_module.local.system = None
+
+            new_module = new_module.to(self.system, process=replica_process_name)
             return new_module
 
         if parallel:
@@ -761,6 +736,95 @@ class Module(Resource):
                 return list(p.imap(create_replica, range(num_replicas)))
 
         return [create_replica(i) for i in range(num_replicas)]
+
+    def distribute(
+        self,
+        distribution: str,
+        name: Optional[str] = None,
+        num_replicas: int = 1,
+        replicas_per_node: Optional[int] = None,
+        replication_kwargs: Dict = {},
+        **distribution_kwargs,
+    ):
+        """Distribute the module on the cluster and return the distributed module.
+
+        Args:
+            distribution (str): The distribution method to use, e.g. "pool", "ray", "pytorch", or "tensorflow".
+            name (str, optional): The name to give to the distributed module, if applicable. Overwrites current module
+                name by default. (Default: ``None``)
+            num_replicas (int, optional): The number of replicas to create. (Default: 1)
+            replicas_per_node (int, optional): The number of replicas to create per node. (Default: ``None``)
+            replication_kwargs (Dict): The keyword arguments to pass to the replicate method. (Default: {})
+            distribution_kwargs: The keyword arguments to pass to the distribution method.
+        """
+        if not self.system or not self.name:
+            raise ValueError(
+                "Cannot distribute a module that is not on a cluster. Please send the module to a cluster first."
+            )
+
+        if not self.system.on_this_cluster():
+            # Distribute the module on the cluster and return the distributed module as a
+            # stub.
+            return self.system.call(
+                self.name,
+                "distribute",
+                distribution,
+                name,
+                num_replicas,
+                replicas_per_node,
+                replication_kwargs,
+                remote=True,
+                **distribution_kwargs,
+            )
+
+        if distribution == "pool":
+            from runhouse.resources.distributed.distributed_pool import DistributedPool
+
+            replicas = self.replicate(
+                num_replicas=num_replicas,
+                replicas_per_node=replicas_per_node,
+                **replication_kwargs,
+            )
+            name = name or f"distributed_{self.name}"
+            pooled_module = DistributedPool(
+                **distribution_kwargs, name=name, replicas=replicas
+            ).to(self.system, process=self.process)
+            return pooled_module
+        elif distribution == "ray":
+            from runhouse.resources.distributed.ray_distributed import RayDistributed
+
+            name = name or f"ray_{self.name}"
+            ray_module = RayDistributed(
+                **distribution_kwargs, name=name, module=self
+            ).to(system=self.system, process=self.process)
+            return ray_module
+        elif distribution == "dask":
+            from runhouse.resources.distributed.dask_distributed import DaskDistributed
+
+            name = name or f"dask_{self.name}"
+            dask_module = DaskDistributed(
+                name=name,
+                module=self,
+                num_replicas=num_replicas,
+                replicas_per_node=replicas_per_node,
+                **distribution_kwargs,
+            ).to(system=self.system, process=self.process)
+            return dask_module
+        elif distribution == "pytorch":
+            from runhouse.resources.distributed.pytorch_distributed import (
+                PyTorchDistributed,
+            )
+
+            replicas = self.replicate(
+                num_replicas=num_replicas,
+                replicas_per_node=replicas_per_node,
+                **replication_kwargs,
+            )
+            name = name or f"pytorch_{self.local.name}"
+            ptd_module = PyTorchDistributed(
+                **distribution_kwargs, name=name, replicas=replicas
+            ).to(system=self.system, process=self.process)
+            return ptd_module
 
     @property
     def remote(self):
@@ -1000,8 +1064,6 @@ class Module(Resource):
     def _save_sub_resources(self, folder: str = None):
         if isinstance(self.system, Resource) and self.system.name:
             self.system.save(folder=folder)
-        if isinstance(self.env, Resource):
-            self.env.save(folder=folder)
 
     def rename(self, name: str):
         """Rename the module.
@@ -1129,7 +1191,7 @@ class Module(Resource):
                     local_path_containing_module = None
                     pass
 
-        # Only add this to the env's reqs if the module is not in one of the directories in reqs
+        # Only add this to the system's reqs if the module is not in one of the directories in reqs
         add = local_path_containing_module is None
 
         if not local_path_containing_module:
@@ -1261,7 +1323,6 @@ def _module_subclass_factory(cls, cls_pointers):
         self,
         *args,
         system=None,
-        env=None,
         dryrun=False,
         pointers=cls_pointers,
         signature=None,
@@ -1276,7 +1337,6 @@ def _module_subclass_factory(cls, cls_pointers):
             signature=signature,
             name=name,
             system=system,
-            env=env,
             dryrun=dryrun,
         )
         # This allows a class which is already on the cluster to construct an instance of itself with a factory
@@ -1297,11 +1357,13 @@ def _module_subclass_factory(cls, cls_pointers):
         name=None,
         **kwargs,
     ):
+        system_backup = self.system
         new_module = copy.copy(self)
+        new_module.system = system_backup
         # Create a copy of the item on the cluster under the new name
         new_module.name = name or self.name
         new_module.dryrun = dryrun
-        env = _get_env_from(kwargs.get("env") or self.env)
+        process = kwargs.get("process") or self.process
         if not new_module.dryrun and new_module.system:
             # We use system.put_resource here because the signatures for HTTPClient.put_resource and
             # obj_store.put_resource are different, but we should fix that.
@@ -1313,7 +1375,7 @@ def _module_subclass_factory(cls, cls_pointers):
                 raise ValueError(
                     "You must have access to the underlying cluster for this unconstructed Module in order to put a resource on it."
                 )
-            new_module.system.put_resource(new_module, env=env)
+            new_module.system.put_resource(new_module, process=process)
             new_module.system.call(new_module.name, "_remote_init", *args, **kwargs)
         else:
             new_module._remote_init(*args, **kwargs)
@@ -1332,7 +1394,6 @@ def _module_subclass_factory(cls, cls_pointers):
 def module(
     cls: [Type] = None,
     name: Optional[str] = None,
-    env: Optional[Union[str, Env]] = None,
     load_from_den: bool = True,
     dryrun: bool = False,
 ):
@@ -1359,8 +1420,6 @@ def module(
     Args:
         cls: The class to instantiate.
         name (Optional[str], optional): Name to give the module object, to be reused later on. (Default: ``None``)
-        env (Optional[str or Env], optional): Environment in which the module should live on the cluster, if system
-            is cluster. (Default: ``None``)
         load_from_den (bool, optional): Whether to try loading the module from Den. (Default: ``True``)
         dryrun (bool, optional): Whether to create the Module if it doesn't exist, or load a Module object as a dryrun.
             (Default: ``False``)
@@ -1374,11 +1433,11 @@ def module(
         >>>
         >>> # Sample rh.Module class
         >>> class Model(rh.Module):
-        >>>    def __init__(self, model_id, device="cpu", env=None):
+        >>>    def __init__(self, model_id, device="cpu"):
         >>>        # Note that the code here will be run in your local environment prior to being sent to
         >>>        # to a cluster. For loading large models/datasets that are only meant to be used remotely,
         >>>        # we recommend using lazy initialization (see tokenizer and model attributes below).
-        >>>        super().__init__(env=env)
+        >>>        super().__init__()
         >>>        self.model_id = model_id
         >>>        self.device = device
         >>>
@@ -1400,9 +1459,9 @@ def module(
         >>>        return self.model(x)
 
         >>> # Creating rh.Module instance
-        >>> model = Model(model_id="bert-base-uncased", device="cuda", env="my_env")
+        >>> model = Model(model_id="bert-base-uncased", device="cuda")
         >>> model = model.to(system="my_gpu")
-        >>> model.predict("Hello world!")   # Runs on system in env
+        >>> model.predict("Hello world!")   # Runs on system in process
         >>> tok = model.remote.tokenizer    # Returns remote tokenizer
         >>> id = model.local.model_id       # Returns local model_id, if any
         >>> model_id = model.model_id       # Returns local model_id (not remote)
@@ -1410,12 +1469,12 @@ def module(
         >>>
 
     Example - creating a Module from an existing class, via the rh.module() factory method:
-        >>> other_model = Model(model_id="bert-base-uncased", device="cuda").to("my_gpu", "my_env")
+        >>> other_model = Model(model_id="bert-base-uncased", device="cuda").to("my_gpu", "my_process")
         >>>
         >>> # Another method: Create a module instance from an existing non-Module class using rh.module()
-        >>> RemoteModel = rh.module(cls=BERTModel, env="my_env")
+        >>> RemoteModel = rh.module(cls=BERTModel).to("my_gpu", "my_process")
         >>> remote_model = RemoteModel(model_id="bert-base-uncased", device="cuda").to(system="my_gpu")
-        >>> remote_model.predict("Hello world!")  # Runs on system in env
+        >>> remote_model.predict("Hello world!")  # Runs on system in process
         >>>
         >>> # You can also call remote class methods
         >>> other_model = RemoteModel.get_model_size("bert-base-uncased")
@@ -1424,38 +1483,11 @@ def module(
         >>> my_local_module = rh.module(name="~/my_module")
         >>> my_s3_module = rh.module(name="@/my_module")
     """
-    if name and not any([cls, env]):
+    if name and not cls:
         # Try reloading existing module
         return Module.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
 
-    if env:
-        logger.warning(
-            "The `env` argument is deprecated and will be removed in a future version. Please first "
-            "construct your module and then do `module.to(system=system, env=env)` to set the environment. "
-            "You can do `module.to(system=rh.here, env=env)` to set the environment on the local system."
-        )
-
-    if not isinstance(env, Env):
-        env = _get_env_from(env)
-
-    env_for_current_process = obj_store.get_process_env()
-    env = (
-        env
-        or env_for_current_process
-        or _get_env_from(_default_env_if_on_cluster())
-        or Env()
-    )
-
     cls_pointers = Module._extract_pointers(cls)
-
-    if isinstance(env, Env):
-        # Sometimes env may still be a string, in which case it won't be modified
-        (
-            local_path_containing_module,
-            should_add,
-        ) = Module._get_local_path_containing_module(cls_pointers[0], env.reqs)
-        if should_add:
-            env.reqs = [str(local_path_containing_module)] + env.reqs
 
     name = name or (
         cls_pointers[2] if cls_pointers else generate_default_name(prefix="module")
@@ -1463,7 +1495,6 @@ def module(
 
     module_subclass = _module_subclass_factory(cls, cls_pointers)
     return module_subclass._module_init_only(
-        env=env,
         dryrun=dryrun,
         pointers=cls_pointers,
         name=name,

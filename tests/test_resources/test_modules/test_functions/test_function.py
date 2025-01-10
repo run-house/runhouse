@@ -109,7 +109,7 @@ class TestFunction:
     def test_create_function_from_rns(self, cluster, test_rns_folder):
         remote_func_name = get_remote_func_name(test_rns_folder)
         if cluster.on_this_cluster():
-            pytest.mark.skip("Function on local cluster cannot be loaded from RNS.")
+            pytest.mark.skip("Function on local cluster cannot be loaded from Den.")
 
         remote_sum = rh.function(summer).to(cluster).save(remote_func_name)
         del remote_sum
@@ -133,16 +133,18 @@ class TestFunction:
     def test_get_function_history(self, cluster, test_rns_folder):
         remote_func_name = get_remote_func_name(test_rns_folder)
 
-        # reload the function from RNS
+        # reload the function from Den
         remote_sum = rh.function(summer).to(cluster).save(remote_func_name)
 
         history = remote_sum.history()
         assert history
 
     @pytest.mark.level("local")
-    def test_function_in_new_env_with_multiprocessing(self, cluster):
+    def test_function_in_new_process_with_multiprocessing(self, cluster):
+        cluster.install_packages(["numpy"])
+        new_process = cluster.ensure_process_created("numpy_process")
         multiproc_remote_sum = rh.function(multiproc_np_sum, name="test_function").to(
-            cluster, env=rh.env(reqs=["numpy"], name="numpy_env")
+            cluster, process=new_process
         )
 
         summands = [[1, 3], [2, 4], [3, 5]]
@@ -188,36 +190,7 @@ class TestFunction:
         pid_res = pid_blob.fetch()
         assert pid_res > 0
 
-    @pytest.mark.skip("Install is way too heavy, choose a lighter example")
-    @pytest.mark.level("local")
-    def test_function_git_fn(self, cluster):
-        remote_parse = rh.function(
-            fn="https://github.com/huggingface/diffusers/blob/"
-            "main/examples/dreambooth/train_dreambooth.py:parse_args",
-            system=cluster,
-            env=[
-                "torch==1.12.1 --verbose",
-                "torchvision==0.13.1",
-                "transformers",
-                "datasets",
-                "evaluate",
-                "accelerate",
-                "pip:./diffusers --verbose",
-            ],
-        )
-        args = remote_parse(
-            input_args=[
-                "--pretrained_model_name_or_path",
-                "stabilityai/stable-diffusion-2-base",
-                "--instance_data_dir",
-                "remote_image_dir",
-                "--instance_prompt",
-                "a photo of sks person",
-            ]
-        )
-        assert (
-            args.pretrained_model_name_or_path == "stabilityai/stable-diffusion-2-base"
-        )
+    # TODO - test git function
 
     @pytest.mark.skip("Fix .run following local daemon refactor.")
     @pytest.mark.level("local")
@@ -254,16 +227,18 @@ class TestFunction:
         """Test functioning a module from reqs, not from working_dir"""
         import numpy as np
 
-        re_fn = rh.function(np.sum).to(cluster, env=["numpy"])
+        cluster.install_packages(["numpy"])
+        re_fn = rh.function(np.sum).to(cluster)
         res = re_fn(np.arange(5))
         assert int(res) == 10
 
     @pytest.mark.skip("Runs indefinitely.")
-    # originally used ondemand_aws_docker_cluster, therefore marked as minimal
+    # originally used local_launched_ondemand_aws_docker_cluster, therefore marked as minimal
     @pytest.mark.level("minimal")
     def test_notebook(self, cluster):
+        cluster.install_packages(["numpy"])
         nb_sum = lambda x: multiproc_np_sum(x)
-        re_fn = rh.function(nb_sum).to(cluster, env=["numpy"])
+        re_fn = rh.function(nb_sum).to(cluster)
 
         re_fn.notebook()
         summands = list(zip(range(5), range(4, 9)))
@@ -307,15 +282,20 @@ class TestFunction:
 
     @pytest.mark.level("release")
     def test_load_function_in_new_cluster(
-        self, ondemand_aws_docker_cluster, static_cpu_pwd_cluster, test_rns_folder
+        self,
+        local_launched_ondemand_aws_docker_cluster,
+        static_cpu_pwd_cluster,
+        test_rns_folder,
     ):
         remote_func_name = get_remote_func_name(test_rns_folder)
 
-        ondemand_aws_docker_cluster.save(
-            f"@/{ondemand_aws_docker_cluster.name}"
+        local_launched_ondemand_aws_docker_cluster.save(
+            f"@/{local_launched_ondemand_aws_docker_cluster.name}"
         )  # Needs to be saved to rns, right now has a local name by default
         remote_sum = (
-            rh.function(summer).to(ondemand_aws_docker_cluster).save(remote_func_name)
+            rh.function(summer)
+            .to(local_launched_ondemand_aws_docker_cluster)
+            .save(remote_func_name)
         )
 
         static_cpu_pwd_cluster.sync_secrets(["sky"])
@@ -332,9 +312,9 @@ class TestFunction:
 
     @pytest.mark.level("release")
     def test_nested_diff_clusters(
-        self, ondemand_aws_docker_cluster, static_cpu_pwd_cluster
+        self, local_launched_ondemand_aws_docker_cluster, static_cpu_pwd_cluster
     ):
-        summer_cpu = rh.function(summer).to(ondemand_aws_docker_cluster)
+        summer_cpu = rh.function(summer).to(local_launched_ondemand_aws_docker_cluster)
         call_function_diff_cpu = rh.function(call_function).to(static_cpu_pwd_cluster)
 
         kwargs = {"a": 1, "b": 5}
@@ -541,7 +521,7 @@ class TestFunction:
         assert await future_module == 5
 
     @pytest.mark.level("local")
-    def test_send_function_to_fresh_env(self, cluster):
-        env = rh.env(name="fresh_env", reqs=["numpy"])
-        summer_remote = rh.function(summer).to(cluster, env=env)
+    def test_send_function_to_fresh_process(self, cluster):
+        process = cluster.ensure_process_created("fresh_process")
+        summer_remote = rh.function(summer).to(cluster, process=process)
         summer_remote(2, 3)

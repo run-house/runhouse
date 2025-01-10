@@ -1,7 +1,6 @@
 import inspect
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Tuple
 
-from runhouse.resources.envs import _get_env_from, Env
 from runhouse.resources.module import Module, MODULE_ATTRS
 
 
@@ -65,7 +64,6 @@ class Asgi(Module):
 
 def asgi(
     app: Any,
-    env: Optional[Union[str, "Env"]] = None,
     name: Optional[str] = None,
     load_from_den: bool = True,
     dryrun: bool = False,
@@ -76,6 +74,11 @@ def asgi(
 
     Args:
         app (Any): The ASGI app to deploy.
+        name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
+            (Default: ``None``)
+        load_from_den (bool): Whether to try loading the Cluster resource from Den. (Default: ``True``)
+        dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
+            (Default: ``False``)
         **kwargs: Keyword arguments for the :class:`Asgi` constructor.
 
     Returns:
@@ -93,26 +96,19 @@ def asgi(
         >>> fast_api_module.summer(1, 2)
         >>> # output: 3
     """
-    if name and not any([app, kwargs, env]):
+    if name and not any([app, kwargs]):
         # Try reloading existing module
         return Asgi.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
-
-    if not isinstance(env, Env):
-        env = _get_env_from(env) or Env()
-        env.working_dir = env.working_dir or "./"
 
     callers_global_vars = inspect.currentframe().f_back.f_globals.items()
     app_name = [
         var_name for var_name, var_val in callers_global_vars if var_val is app
     ][0]
 
-    app_file, app_module, _ = Module._extract_pointers(
-        app.routes[4].endpoint, reqs=env.reqs
-    )
+    app_file, app_module, _ = Module._extract_pointers(app.routes[4].endpoint)
 
     return Asgi(
         app_pointers=(app_file, app_module, app_name),
-        env=env,
         name=name,
         dryrun=dryrun,
         **kwargs

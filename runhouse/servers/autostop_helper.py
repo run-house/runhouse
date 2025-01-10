@@ -1,6 +1,7 @@
 import shlex
 import subprocess
 
+from runhouse.constants import SKY_VENV
 from runhouse.logger import get_logger
 
 logger = get_logger(__name__)
@@ -9,8 +10,6 @@ logger = get_logger(__name__)
 class AutostopHelper:
     """A helper class strictly to run SkyPilot methods on OnDemandClusters inside SkyPilot's conda env."""
 
-    SKY_VENV = "~/skypilot-runtime"
-
     def __init__(self):
         self._activity_registered = False
 
@@ -18,7 +17,7 @@ class AutostopHelper:
         self._activity_registered = True
 
     def _run_python_in_sky_venv(self, cmd: str):
-        sky_python_cmd = f"{self.SKY_VENV}/bin/python -c {cmd}"
+        sky_python_cmd = f"{SKY_VENV}/bin/python -c {cmd}"
 
         logger.debug(f"Running command in SkyPilot's venv: {sky_python_cmd}")
         # run with subprocess and return the output

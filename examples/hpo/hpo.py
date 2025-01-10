@@ -20,10 +20,10 @@ def generate_params():
 
 async def find_best_params():
     cluster = rh.cluster(
-        name="rh-4x16-cpu", instance_type="CPU:16", num_instances=4, provider="aws"
+        name="rh-4x16-cpu", instance_type="CPU:16", num_nodes=4, provider="aws"
     ).up_if_not()
-    train_env = rh.env(name="worker_env", compute={"CPU": 8})
-    remote_train_fn = rh.function(train_fn).to(cluster, env=train_env)
+
+    remote_train_fn = rh.function(train_fn).to(cluster)
     available_worker_fns = [remote_train_fn] + remote_train_fn.replicate(
         NUM_WORKERS - 1
     )

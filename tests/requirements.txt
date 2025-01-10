@@ -1,6 +1,6 @@
 pytest
 pytest-mock
-httpx
+httpx < 0.28.0
 pytest_asyncio
 datasets
 dask
@@ -8,16 +8,15 @@ tqdm
 
 # packages for local and unit tests
 boto3
+google-cloud-storage
 docker
-s3fs
 pandas
 numpy<=1.26.4
-pyarrow
 openapi-core==0.19.1
 plotly
 
 # packages for minimal+ tests
-skypilot==0.5.0
+skypilot==0.7.0
 
 # requests must be lowered
 requests<2.32.0

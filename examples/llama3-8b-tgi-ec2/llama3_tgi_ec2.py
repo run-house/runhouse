@@ -153,28 +153,28 @@ class TGIInference:
 # :::
 if __name__ == "__main__":
     port = 8080  # Set to 8080 for http
+
+    # First, we define the image for our module. This includes the required dependencies that need
+    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
+    #
+    # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier. This is
+    # needed to download the model from the Hugging Face model hub. Runhouse will handle saving the token down
+    # on the cluster in the default Hugging Face token location (`~/.cache/huggingface/token`).
+    img = rh.Image(name="tgi_image").install_packages(
+        ["docker", "torch", "transformers"]
+    )
+
     cluster = rh.cluster(
         name="rh-a10",
         instance_type="A10G:1",
         memory="32+",
         provider="aws",
+        image=img,
         autostop_mins=30,  # Number of minutes to keep the cluster up after inactivity, -1 for indefinite
         open_ports=[port],  # Expose HTTP port to public
     ).up_if_not()
 
-    # Next, we define the environment for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    #
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier. This is
-    # needed to download the model from the Hugging Face model hub. Runhouse will handle saving the token down
-    # on the cluster in the default Hugging Face token location (`~/.cache/huggingface/token`).
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        name="tgi_env",
-        reqs=["docker", "torch", "transformers"],
-        secrets=["huggingface"],
-    )
+    cluster.sync_secrets(["huggingface"])
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
@@ -183,9 +183,7 @@ if __name__ == "__main__":
     #
     # Note that we also pass the `env` object to the `to` method, which will ensure that the environment is
     # set up on the remote machine before the module is run.
-    RemoteTGIInference = rh.module(TGIInference).to(
-        cluster, env=env, name="TGIInference"
-    )
+    RemoteTGIInference = rh.module(TGIInference).to(cluster, name="TGIInference")
 
     remote_tgi_model = RemoteTGIInference(container_port=port, name="tgi-inference")
 
@@ -224,7 +222,7 @@ if __name__ == "__main__":
     }
 
     response = requests.post(
-        f"http://{cluster.address}:{port}/generate",
+        f"http://{cluster.head_ip}:{port}/generate",
         headers=headers,
         json=data,
         verify=False,
@@ -240,7 +238,7 @@ if __name__ == "__main__":
     # Alternatively, we can also call the model via HTTP
     # Note: We can also use a streaming route by replacing `generate` with `generate_stream`:
     print(
-        f"curl http://{cluster.address}:{port}/generate -X POST -d '"
+        f"curl http://{cluster.head_ip}:{port}/generate -X POST -d '"
         f'{{"inputs":"{prompt_message}","parameters":{{"max_new_tokens":20}}}}'
         "' -H 'Content-Type: application/json'"
     )

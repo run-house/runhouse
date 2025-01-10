@@ -1,43 +1,29 @@
-Cloud Quick Start
-=================
+Quick Start
+===========
 
 .. raw:: html
 
     <p><a href="https://colab.research.google.com/github/run-house/notebooks/blob/stable/docs/quick-start-cloud.ipynb">
     <img height="20px" width="117px" src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a></p>
 
-Runhouse lets you easily deploy and run Python subroutines on remote
-infrastructure, granting you access to boundless compute from inside
-your Python interpreter.
+Runhouse lets you dispatch and execute regular Python on remote compute
+“serverlessly” whether the program is a simple function or a distributed
+multi-node training. You have rapid, local-like development and
+iteration from your local IDE while having the flexibility to execute on
+powerful remote compute. Then, identically execute your code in
+production simply by scheduling the code to launch compute and dispatch
+to it, but without any need to change the underlying program code.
 
-This tutorial demonstrates how to
+This tutorial demonstrates how to use Runhouse to:
 
--  Connect to an existing remote IP, fresh cloud VM, or fresh Kubernetes
-   pod in Python as a Runhouse cluster
--  Send a locally defined function onto the remote compute and call it
-   as a service
+- Launch a Runhouse cluster from elastic compute
+- Send a locally defined function onto the remote compute and call it on
+  the remote cluster.
+- Save, share, and manage your compute resources.
 
-Installing Runhouse
--------------------
-
-The Runhouse base package can be installed with:
-
-.. code:: ipython3
-
-    !pip install runhouse
-
-To use Runhouse to launch on-demand clusters, please instead run the
-following command. This additionally installs
-`SkyPilot <https://github.com/skypilot-org/skypilot>`__, which is used
-for launching fresh VMs through your cloud provider.
-
-.. code:: ipython3
-
-    !pip install "runhouse[sky]"
-
-.. code:: ipython3
-
-    import runhouse as rh
+This guide assumes you have already followed the Installation and Compute
+Setup steps of the `Installation and Setup Guide
+<https://www.run.house/docs/installation-setup>`__
 
 Local Python Function
 ---------------------
@@ -59,23 +45,32 @@ In Runhouse, a “cluster” is a unit of compute, somewhere you can send
 code, data, or requests to execute. We define a Runhouse cluster using
 the ``rh.cluster`` factory function.
 
-This requires having access to an existing box (via SSH), a cloud
-provider account, or a Kubernetes cluster (~/.kube/config). If you do
-not have access to a cluster, you can try the `local
+This requires having access to an existing VM (via SSH), a cloud
+provider account to launch elastic compute, or a Kubernetes cluster
+(~/.kube/config). If you do not have access to a cluster, you can try
+the `local
 version <https://www.run.house/docs/tutorials/quick-start-local>`__ of
 this tutorial, which sets up and deploys the Python function to a local
-server, rather than a remote cluster.
+server.
 
-.. note::
+.. code:: ipython3
 
-   Make sure that any code in your Python file that’s meant to only run
-   locally is placed within a ``if __name__ == "__main__":`` block.
-   Otherwise, that code will run when Runhouse attempts to import your
-   code remotely. For example, you wouldn’t want
-   ``function.to(cluster)`` to run again on the cluster. This is not
-   necessary when using a notebook. Please see our `examples
-   directory <https://github.com/run-house/runhouse/tree/main/examples>`__
-   for implementation details.
+    cluster = rh.ondemand_cluster(
+        name="rh-cluster",
+        num_cpus="4",
+        provider="aws", # gcp, kubernetes, etc.
+        launcher="den" # Switch to `local` if you are using Runhouse to launch from your local machine via Skypilot
+    )
+    cluster.up_if_not()
+
+There are a number of options to specify the resources more finely, such
+as GPUs (``accelerators="A10G:4"``), cloud provider names
+(``instance_type="m5.xlarge"``), ``num_nodes=n`` for multiple instances,
+``memory``, ``disk_size``, ``region``, ``use_spot``, and more. See the
+`on_demand_cluster docs
+<https://www.run.house/docs/api/python/cluster#runhouse.ondemand_cluster>`__.
+You can also omit the provider argument to allocate from the cheapest
+available source for which you have credentials.
 
 To use a cluster that’s already running:
 
@@ -87,49 +82,16 @@ To use a cluster that’s already running:
         ssh_creds={"ssh_user": "ubuntu", "ssh_private_key": "~/.ssh/id_rsa"},  # credentials for ssh-ing into the cluster
     )
 
-If you do not have a cluster up, but have cloud credentials (e.g. aws,
-gcp, azure) for launching clusters or a Kubernetes cluster, you can set
-up and launch an on-demand cluster with ``rh.ondemand_cluster``. This
-uses SkyPilot under the hood, so run ``sky check`` in a CLI first to
-make sure credentials are set up properly.
-
-.. code:: ipython3
-
-    cluster = rh.ondemand_cluster(
-        name="rh-cluster",
-        instance_type="CPU:2+",
-        provider="aws"
-    )
-    cluster.up_if_not()
-
-    # terminate this cluster with `cluster.teardown()` in Python, or `sky down rh-cluster` in CLI
-
-There are a number of options to specify the resources more finely, such
-as GPUs (``instance_type="A10G:4"``), cloud provider names
-(``instance_type="m5.xlarge"``), ``num_instances=n`` for multiple
-instances, ``memory``, ``disk_size``, ``region``, ``image_id``,
-``open_ports``, ``spot``, and more. See the `on_demand_cluster
-docs <https://www.run.house/docs/api/python/cluster#runhouse.ondemand_cluster>`__.
-You can also omit the provider argument to allocate from the cheapest
-available source for which you have credentials.
-
-Deployment
-----------
+Deploy Code to the Cluster
+--------------------------
 
 Simply wrap the function in ``rh.function`` and send it to the cluster
-with ``.to``. This deploys the function to the cluster as a proper
-service by syncing over the code, setting up any specified dependencies
-(see ``Envs``), and importing and serving it in the Runhouse API server.
-We’re connected via an SSH tunnel here, so the service is secure, but we
-can also open ports and secure it with Runhouse’s out-of-the-box
-authentication and HTTPS.
+with ``.to``. This deploys the function to the cluster as a service by
+syncing over the code, importing the synced code, and serving it in the
+Runhouse API server.
 
-Classes, or ``Modules`` are also supported, opening up a world of
-possibilities through persistent state. ``Envs`` allow you to specify
-the environment in which the function or class is served, such as
-dependencies, environment variables, secrets, conda environments, and
-more, and allow you to easily achieve powerful parallelism across the
-cluster. These are covered in more detail in the API tutorials.
+Classes, or ``Modules`` are also supported. Remote instances of a remote
+class have persisted state, enabling powerful usage patterns.
 
 .. code:: ipython3
 
@@ -144,20 +106,17 @@ cluster. These are covered in more detail in the API tutorials.
     INFO | 2024-05-16 03:20:53.081995 | Forwarding port 32301 to port 32300 on localhost.
     INFO | 2024-05-16 03:20:54.215570 | Server rh-cluster is up.
     INFO | 2024-05-16 03:20:54.224806 | Copying package from file:///Users/donny/code/notebooks to: rh-cluster
-    INFO | 2024-05-16 03:20:55.395007 | Calling _cluster_default_env.install
-    INFO | 2024-05-16 03:20:55.948421 | Time to call _cluster_default_env.install: 0.55 seconds
     INFO | 2024-05-16 03:20:55.960756 | Sending module get_platform of type <class 'runhouse.resources.functions.function.Function'> to rh-cluster
 
 
-The function we defined above, ``get_platform``, now exists remotely on
-the cluster, and can be called remotely using ``remote_fn``. You can
-call this remote function just as you would any other Python function,
-with ``remote_fn()``, and it runs on the cluster and returns the result
-to our local environment.
+Deploying the function to the cluster took ~2 seconds, and the function
+we defined above, ``get_platform``, now exists remotely on the cluster,
+and can be called remotely using ``remote_fn``. You can call this remote
+function normally from local, with ``remote_fn()``, and it runs on the
+cluster and returns the result to our local environment.
 
-Below, we run both the local and remote versions of this function, which
-give different results and confirms that the functions are indeed being
-run on different processes.
+When we run the local and remote versions of this function, you see
+different results based on where it executes.
 
 .. code:: ipython3
 
@@ -188,7 +147,66 @@ run on different processes.
 
     Remote Platform: Linux-5.15.0-1049-aws-x86_64-with-glibc2.31
 
+Saving and Reloading
+--------------------
 
+You can save the resources we created above to your Runhouse account
+with the ``.save()`` method.
+
+.. code:: ipython3
+
+    remote_get_platform.save()
+    cluster.save() # Clusters are automatically be saved by Runhouse
+
+Once saved, resources can be reloaded from any environment in which you
+are logged into. For instance, if you are running this in a Colab
+notebook, you can jump into your terminal, call ``runhouse login``, and
+then reconstruct and run the function on the cluster with the following
+Python script:
+
+.. code:: ipython3
+
+   import runhouse as rh
+   if __name__ == "__main__":
+       reloaded_fn = rh.function(name="get_platform")
+       print(reloaded_fn())
+
+The ``name`` used to reload the function is the method name by default.
+You can customize a function name using the following syntax:
+
+.. code:: ipython3
+
+   remote_get_platform = rh.function(fn=get_platform, name="my_function").to(cluster)
+
+Sharing
+-------
+
+You can also share your resource with collaborators, and choose which
+level of access to give. Once shared, they will be able to see the
+resource in their dashboard as well, and be able to load and use the
+shared resource. They’ll need to load the resource using its full name,
+which includes your username (``/your_username/get_platform``).
+
+.. code:: ipython3
+
+    remote_get_platform.share(
+        users=["teammate1@email.com"],
+        access_level="write",
+    )
+
+Web UI
+------
+
+After saving your resources, you can log in and see them on your `Den
+dashboard <https://www.run.house/dashboard>`__, labeled as
+``/<username>/rh-cluster`` and ``/<username>/get_platform``.
+
+Clicking into the resource provides information about your resource. You
+can view the resource metadata, previous versions, and activity, or add
+a description to the resource.
+
+Teardown
+--------
 If you launched an on-demand cluster, you can terminate it by calling
 ``cluster.teardown()``.
 
@@ -204,5 +222,8 @@ is just the tip of the iceberg of what’s possible with Runhouse. With a
 large suite of even more abstractions and features, Runhouse lets you
 quickly and seamlessly integrate between local and remote environments.
 
-To learn more, please take a look at our other tutorials, or at the `API
+We recommend you now review the `extended guide on getting
+started <https://www.run.house/docs/tutorials/quick-start-cloud>`__ with
+Runhouse. You can also take a look at our
+`examples <https://www.run.house/examples>`__ or at the `API
 reference <https://www.run.house/docs/api/python>`__

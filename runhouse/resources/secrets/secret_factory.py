@@ -26,12 +26,16 @@ def secret(
     Example:
         >>> rh.secret("in_memory_secret", values={"secret_key": "secret_val"})
     """
+    from runhouse.globals import rns_client
+
     if provider:
         return provider_secret(
             name=name, provider=provider, values=values, dryrun=dryrun
         )
 
     if name and not values:
+        if "/" not in name and rns_client.username:
+            name = f"/{rns_client.username}/{name}"
         return Secret.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
 
     if not values:
@@ -55,8 +59,8 @@ def provider_secret(
     from the default path or env vars for the given provider.
 
     Args:
-        provider (str): Provider corresponding to the secret. Currently supported options are:
-            ["aws", "azure", "huggingface", "lambda", "github", "gcp", "ssh"]
+        provider (str): Provider corresponding to the secret (e.g. "aws", "gcp"). To see all supported provider
+            types, run ``rh.Secret.builtin_providers(as_str=True)``.
         name (str, optional): Name to assign the resource. If none is provided, resource name defaults to the
             provider name.
         values (Dict, optional): Dictionary mapping of secret keys and values.
@@ -64,7 +68,7 @@ def provider_secret(
         env_vars (Dict, optional): Dictionary mapping secret keys to the corresponding
             environment variable key.
         load_from_den (bool): Whether to try loading the secret from Den. (Default: ``True``)
-        dryrun (bool): Whether to create in dryrun mode. (Default: False)
+        dryrun (bool): Whether to create in dryrun mode. (Default: ``False``)
 
     Returns:
         ProviderSecret: The resulting provider secret object.
@@ -74,11 +78,20 @@ def provider_secret(
         >>> gcp_secret = rh.provider("gcp", path="~/.gcp/credentials")
         >>> lamdba_secret = rh.provider_secret("lambda", values={"api_key": "xxxxx"})
     """
+    from runhouse.globals import rns_client
+
+    if name and "/" not in name and rns_client.username:
+        name = f"/{rns_client.username}/{name}"
+
     if not provider:
         if not name:
             raise ValueError("Either name or provider must be provided.")
-        if not any([values, path, env_vars]):
+        elif not any([values, path, env_vars]):
             return Secret.from_name(name, load_from_den=load_from_den)
+        else:
+            raise ValueError(
+                "provider must be given in order to construct a new secret."
+            )
 
     elif not any([values, path, env_vars]):
         if provider in Secret.builtin_providers(as_str=True):
@@ -86,7 +99,7 @@ def provider_secret(
             return secret_class(name=name, provider=provider, dryrun=dryrun)
         else:
             return ProviderSecret.from_name(
-                name or provider, load_from_den=load_from_den
+                name, provider=provider, load_from_den=load_from_den
             )
 
     elif sum([bool(x) for x in [values, path, env_vars]]) == 1:

@@ -12,18 +12,13 @@ import pytest
 
 import runhouse as rh
 
-from runhouse.constants import (
-    DEFAULT_HTTP_PORT,
-    DEFAULT_HTTPS_PORT,
-    DEFAULT_SSH_PORT,
-    EMPTY_DEFAULT_ENV_NAME,
-    TESTING_LOG_LEVEL,
-)
+from runhouse.constants import DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT, DEFAULT_SSH_PORT
 from runhouse.globals import rns_client
-from runhouse.resources.hardware.utils import ResourceServerStatus
-
+from runhouse.resources.images import Image
 from tests.conftest import init_args
-from tests.utils import friend_account, test_env
+
+from tests.constants import TEST_ENV_VARS, TEST_REQS
+from tests.utils import friend_account, setup_test_base
 
 SSH_USER = "rh-docker-user"
 BASE_LOCAL_SSH_PORT = 32320
@@ -49,7 +44,9 @@ def named_cluster():
     args = dict(
         name="test-simple-cluster",
         host="my_url.com",
-        ssh_creds=provider_secret_values["ssh"],
+        ssh_creds=rh.provider_secret(
+            provider="ssh", values=provider_secret_values["ssh"]
+        ),
     )
     c = rh.cluster(**args)
     init_args[id(c)] = args
@@ -62,7 +59,7 @@ def local_daemon(request):
         logging.info("Starting local_daemon.")
         local_rh_package_path = Path(importlib.util.find_spec("runhouse").origin).parent
         subprocess.run(
-            "runhouse restart",
+            "runhouse server restart",
             shell=True,  # Needed because we need to be in the right conda env
             cwd=local_rh_package_path,
             text=True,
@@ -76,7 +73,7 @@ def local_daemon(request):
 
     finally:
         if not request.config.getoption("--detached"):
-            subprocess.run("runhouse stop", text=True, shell=True)
+            subprocess.run("runhouse server stop", text=True, shell=True)
 
 
 ########### Docker Clusters ###########
@@ -107,7 +104,7 @@ def build_and_run_image(
         all=True,
         filters={
             "ancestor": f"runhouse:{image_name}",
-            "status": ResourceServerStatus.running,
+            "status": "running",
             "name": container_name,
         },
     )
@@ -280,15 +277,16 @@ def set_up_local_cluster(
     # Runhouse is already installed on the Docker clusters, but we need to sync our actual version
     rh_cluster.restart_server(resync_rh=True)
 
-    if rh_cluster.default_env.name == EMPTY_DEFAULT_ENV_NAME:
-        test_env(logged_in=logged_in).to(rh_cluster)
+    if not rh_cluster.image:
+        setup_test_base(rh_cluster, logged_in=logged_in)
 
     def cleanup():
         docker_client.containers.get(container_name).stop()
         docker_client.containers.prune()
         docker_client.images.prune()
-        if rh_cluster._creds:
-            rh_cluster._creds.delete()
+        if rh_cluster._creds and "ssh-secret" in rh_cluster._creds.name:
+            # secret was generated for the test cluster
+            rh_cluster._creds.delete_configs()
         rh_cluster.delete_configs()
 
     return rh_cluster, cleanup
@@ -355,7 +353,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
     """This basic cluster fixture is set up with:
     - Public key authentication
     - Caddy set up on startup to forward Runhouse HTTP server to port 443
-    - Default env with Ray 2.30.0
+    - Default image with Ray 2.30.0
     """
     # From pytest config
     detached = request.config.getoption("--detached")
@@ -368,18 +366,10 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
 
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 2
-    default_env = rh.env(
-        reqs=[
-            "ray==2.30.0",
-            "pytest",
-            "httpx",
-            "pytest_asyncio",
-            "pandas",
-            "numpy<=1.26.4",
-        ],
-        working_dir=None,
-        name="default_env",
-        env_vars={"RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL},
+    default_image = (
+        Image(name="default_image")
+        .set_env_vars(env_vars=TEST_ENV_VARS)
+        .install_packages(reqs=TEST_REQS + ["ray==2.30.0"])
     )
 
     local_cluster, cleanup = set_up_local_cluster(
@@ -398,7 +388,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
         additional_cluster_init_args={
             "name": f"{test_org_rns_folder}_docker_cluster_pk_ssh",
             "server_connection_type": "ssh",
-            "default_env": default_env,
+            "image": default_image,
         },
     )
 
@@ -458,7 +448,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
     - Public key authentication
     - Den auth disabled (to mimic VPC)
     - Caddy set up on startup to forward Runhouse HTTP Server to port 80
-    - Default conda_env with Python 3.11 and Ray 2.30.0
+    - Default conda image with Python 3.11 and Ray 2.30.0
     """
     # From pytest config
     detached = request.config.getoption("--detached")
@@ -472,22 +462,14 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
     # Ports to use on the Docker VM such that they don't conflict
     local_ssh_port = BASE_LOCAL_SSH_PORT + 3
     local_client_port = LOCAL_HTTP_SERVER_PORT + 3
-    default_env = rh.conda_env(
-        reqs=[
-            "ray==2.30.0",
-            "pytest",
-            "httpx",
-            "pytest_asyncio",
-            "pandas",
-            "numpy<=1.26.4",
-        ],
-        conda_env={"dependencies": ["python=3.11"], "name": "default_env"},
-        env_vars={
-            "OMP_NUM_THREADS": "8",
-            "RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL,
-        },
-        working_dir=None,
-        name="default_env",
+
+    default_image = (
+        Image(name="default_image")
+        .setup_conda_env(
+            conda_env_name="base_env",
+            conda_config={"dependencies": ["python=3.11"], "name": "base_env"},
+        )
+        .install_packages(TEST_REQS)
     )
 
     local_cluster, cleanup = set_up_local_cluster(
@@ -512,7 +494,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
             "server_port": DEFAULT_HTTP_PORT,
             "client_port": local_client_port,
             "den_auth": False,
-            "default_env": default_env,
+            "image": default_image,
         },
     )
     # Yield the cluster
@@ -648,7 +630,7 @@ def shared_function(shared_cluster):
     username_to_share = rh.configs.username
     with friend_account():
         # Create function on shared cluster with the same test account
-        f = rh.function(summer).to(shared_cluster, env=["pytest"]).save()
+        f = rh.function(summer).to(shared_cluster).save()
 
         # Share the cluster & function with the current account
         f.share(username_to_share, access_level="read", notify_users=False)

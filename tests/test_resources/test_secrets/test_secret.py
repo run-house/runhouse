@@ -4,6 +4,7 @@ import pytest
 
 import runhouse as rh
 
+from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import rns_client
 
 import tests.test_resources.test_resource
@@ -17,6 +18,7 @@ _provider_path_map = {
     "lambda": "lambda_key",
     "github": "hosts.yml",
     "huggingface": "token",
+    "kubernetes": "config",
     "ssh": "id_rsa",
     "sky": "sky-key",
     "custom_provider": "~/.rh/tests/custom_provider/config.json",
@@ -29,6 +31,7 @@ provider_secrets = [
     "lambda_secret",
     "github_secret",
     "huggingface_secret",
+    "kubeconfig_secret",
     "ssh_secret",
     "sky_secret",
     "custom_provider_secret",
@@ -78,19 +81,19 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
             "openai_secret",
             "custom_provider_secret",
         ],
-        "cluster": ["ondemand_aws_docker_cluster"],
+        "cluster": ["local_launched_ondemand_aws_docker_cluster"],
     }
     RELEASE = {
         "secret": ["test_secret"] + provider_secrets,
         "cluster": [
-            "ondemand_aws_docker_cluster",
+            "local_launched_ondemand_aws_docker_cluster",
             "static_cpu_pwd_cluster",
         ],
     }
     MAXIMAL = {
         "secret": ["test_secret"] + provider_secrets,
         "cluster": [
-            "ondemand_aws_docker_cluster",
+            "local_launched_ondemand_aws_docker_cluster",
             "ondemand_gcp_cluster",
             "ondemand_k8s_cluster",
             "ondemand_k8s_docker_cluster",
@@ -134,7 +137,7 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         assert_delete_local(secret, contents=delete_contents)
 
     @pytest.mark.level("local")
-    def test_provider_secret_to_cluster_env(self, secret, cluster):
+    def test_provider_secret_to_cluster_process(self, secret, cluster):
         if not isinstance(secret, rh.ProviderSecret):
             return
 
@@ -142,11 +145,10 @@ class TestSecret(tests.test_resources.test_resource.TestResource):
         if not env_vars:
             return
 
-        env = rh.env()
         get_remote_val = rh.function(_get_env_var_value, name="get_env_vars").to(
-            cluster, env=env
+            cluster
         )
-        secret.to(cluster, env=env)
+        secret.to(cluster, process=DEFAULT_PROCESS_NAME)
 
         for (key, val) in env_vars.items():
             assert get_remote_val(val) == secret.values[key]

@@ -57,17 +57,36 @@ class SSHSecret(ProviderSecret):
             self.name = name
         elif not self.name:
             self.name = f"ssh-{self.key}"
+            # Append username if available
+            if rns_client.username:
+                self.name = f"/{rns_client.username}/{self.name}"
+
+        if self.path:
+            try:
+                rel_path = "~" / Path(self.path).relative_to(Path.home())
+                self.path = str(rel_path)
+            except (ValueError, RuntimeError):
+                pass
+
         return super().save(
             save_values=save_values,
             headers=headers or rns_client.request_headers(),
             folder=folder,
         )
 
-    def _write_to_file(self, path: str, values: Dict = None, overwrite: bool = False):
+    def _write_to_file(
+        self,
+        path: str,
+        values: Dict = None,
+        overwrite: bool = False,
+        write_config: bool = True,
+    ):
         priv_key_path = path
 
         priv_key_path = Path(os.path.expanduser(priv_key_path))
         pub_key_path = Path(f"{os.path.expanduser(priv_key_path)}.pub")
+
+        values = values or self.values
 
         if priv_key_path.exists() and pub_key_path.exists():
             if values == self._from_path(path=path):
@@ -84,27 +103,32 @@ class SSHSecret(ProviderSecret):
 
         priv_key_path.parent.mkdir(parents=True, exist_ok=True)
         private_key = values.get("private_key")
-        if private_key is not None:
+        if private_key is not None and not priv_key_path.exists():
             priv_key_path.write_text(private_key)
             priv_key_path.chmod(0o600)
         public_key = values.get("public_key")
-        if public_key is not None:
+        if public_key is not None and not pub_key_path.exists():
             pub_key_path.write_text(public_key)
             pub_key_path.chmod(0o600)
 
         new_secret = copy.deepcopy(self)
         new_secret._values = None
         new_secret.path = path
-        try:
-            new_secret._add_to_rh_config(val=path)
-        except TypeError:
-            pass
+        new_secret.name = f"ssh-{os.path.basename(path)}"
+
+        if write_config:
+            try:
+                new_secret._add_to_rh_config(val=path)
+            except TypeError:
+                pass
 
         return new_secret
 
     def _from_path(self, path: str):
-        if path == self._DEFAULT_CREDENTIALS_PATH:
-            path = f"{self._DEFAULT_CREDENTIALS_PATH}/{self.key}"
+        if path == self._DEFAULT_CREDENTIALS_PATH or path == os.path.expanduser(
+            self._DEFAULT_CREDENTIALS_PATH
+        ):
+            path = f"{path}/{self.key}"
 
         return self.extract_secrets_from_path(path)
 
@@ -132,7 +156,7 @@ class SSHSecret(ProviderSecret):
             remote_priv_file = self.path
             # pub_key_path = f"{path}.pub"
             system.call(key, "_write_to_file", path=remote_priv_file, values=values)
-            system.run([f"chmod 600 {path}"])
+            system.run_bash_over_ssh([f"chmod 600 {path}"])
         else:
             system.call(key, "_write_to_file", path=path, values=values)
             remote_priv_file = path

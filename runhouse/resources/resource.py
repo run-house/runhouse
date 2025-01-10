@@ -18,6 +18,7 @@ from runhouse.rns.utils.api import (
     ResourceAccess,
     ResourceVisibility,
 )
+from runhouse.rns.utils.names import is_valid_resource_name
 
 logger = get_logger(__name__)
 
@@ -47,11 +48,17 @@ class Resource:
         """
         self._name, self._rns_folder = None, None
         if name is not None:
-            # TODO validate that name complies with a simple regex
             if name.startswith("/builtins/"):
                 name = name[len("/builtins/") :]
             if name[0] == "^" and name != "^":
                 name = name[1:]
+            # Validate that name complies with a simple regex
+            if not is_valid_resource_name(name):
+                raise ValueError(
+                    f"Invalid name: {name} "
+                    "Resource names are limited to alphanumerics, dashes, and underscores. Max 200 characters. "
+                    "Slashes may be used to specify folders and must be included as the first character."
+                )
             self._name, self._rns_folder = rns_client.split_rns_name_and_path(
                 rns_client.resolve_rns_path(name)
             )
@@ -61,11 +68,6 @@ class Resource:
         self._visibility = visibility
 
     # TODO add a utility to allow a parameter to be specified as "default" and then use the default value
-
-    @property
-    def config_for_rns(self):
-        # Added for BC for version 0.0.20
-        return self.config(condensed=False)
 
     def config(self, condensed=True):
         config = {
@@ -107,8 +109,7 @@ class Resource:
 
     @property
     def rns_address(self):
-        """Traverse up the filesystem until reaching one of the directories in rns_base_folders,
-        then compute the relative path to that."""
+        """Full address of resource saved in Den. Has the format {username}/{resource_name}"""
         if (
             self.name is None or self._rns_folder is None
         ):  # Anonymous folders have no rns address
@@ -118,6 +119,7 @@ class Resource:
 
     @property
     def name(self):
+        """Resource name."""
         return self._name
 
     @name.setter
@@ -132,6 +134,7 @@ class Resource:
 
     @property
     def visibility(self):
+        """Resource visibility."""
         return self._visibility
 
     @visibility.setter
@@ -168,8 +171,8 @@ class Resource:
             return self
 
     def save(self, name: str = None, overwrite: bool = True, folder: str = None):
-        """Register the resource, saving it to local working_dir config and RNS config store. Uses the resource's
-        `self.config()` to generate the dict to save."""
+        """Register the resource, saving it to the Den config store. Uses the resource's
+        ``self.config()`` to generate the dict to save."""
 
         # add this resource this run's downstream artifact registry if it's being saved as part of a run
         rns_client.add_downstream_resource(name or self.name)
@@ -192,52 +195,11 @@ class Resource:
         return config
 
     @classmethod
-    def _compare_config_with_alt_options(cls, config, alt_options):
-        """Overload by child resources to compare their config with the alt_options. If the user specifies alternate
-        options, compare the config with the options. It's generally up to the child class to decide how to handle the
-        options, but default behavior is provided. The default behavior simply checks if any of the alt_options are
-        present in the config (with awareness of resources), and if their values differ, return None.
-
-        If the child class returns None, it's deciding to override the config
-        with the options. If the child class returns a config, it's deciding to use the config and ignore the options
-        (or somehow incorporate them, rarely). Note that if alt_options are provided and the config is not found,
-        no error is raised, while if alt_options are not provided and the config is not found, an error is raised.
-        """
-
-        def str_dict_or_resource_to_str(val):
-            if isinstance(val, Resource):
-                return val.rns_address
-            elif isinstance(val, dict):
-                # This can either be a sub-resource which hasn't been converted to a resource yet, or an
-                # actual user-provided dict
-                if "rns_address" in val:
-                    return val["rns_address"]
-                if "name" in val:
-                    # convert a user-provided name to an rns_address
-                    return rns_client.resolve_rns_path(val["name"])
-                else:
-                    return val
-            elif isinstance(val, list):
-                val = [str(item) if isinstance(item, int) else item for item in val]
-            return val
-
-        for key, value in alt_options.items():
-            if key in config:
-                if str_dict_or_resource_to_str(value) != str_dict_or_resource_to_str(
-                    config[key]
-                ):
-                    return None
-            else:
-                return None
-        return config
-
-    @classmethod
     def from_name(
         cls,
         name: str,
         load_from_den: bool = True,
         dryrun: bool = False,
-        _alt_options: Dict = None,
         _resolve_children: bool = True,
     ):
         """Load existing Resource via its name.
@@ -254,14 +216,8 @@ class Resource:
             return obj_store.get(name)
 
         config = rns_client.load_config(name=name, load_from_den=load_from_den)
-
-        if _alt_options:
-            config = cls._compare_config_with_alt_options(config, _alt_options)
-            if not config:
-                return None
         if not config:
             raise ValueError(f"Resource {name} not found.")
-        config["name"] = name
 
         if _resolve_children:
             config = cls._check_for_child_configs(config)
@@ -307,8 +263,8 @@ class Resource:
         return loaded
 
     def unname(self):
-        """Remove the name of the resource. This changes the resource name to anonymous and deletes any local
-        or RNS configs for the resource."""
+        """Remove the name of the resource. This changes the resource name to anonymous and deletes any Den configs
+        for the resource."""
         self.delete_configs()
         self._name = None
 
@@ -344,14 +300,15 @@ class Resource:
 
     # TODO delete sub-resources
     def delete_configs(self):
-        """Delete the resource's config from local working_dir and RNS config store."""
+        """Delete the resource's config from Den config store."""
         rns_client.delete_configs(resource=self)
 
     def save_attrs_to_config(self, config: Dict, attrs: List[str]):
         """Save the given attributes to the config"""
         for attr in attrs:
             val = self.__getattribute__(attr)
-            if val is not None:
+            if val or (val is False):
+                # allow for saving `False` but not other falsey types
                 if isinstance(val, Enum):
                     val = val.value
                 config[attr] = val
@@ -372,7 +329,7 @@ class Resource:
         access_level: Union[ResourceAccess, str] = ResourceAccess.READ,
         visibility: Optional[Union[ResourceVisibility, str]] = None,
         notify_users: bool = True,
-        headers: Optional[Dict] = None,
+        headers: Dict = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
         """Grant access to the resource for a list of users (or a single user). By default, the user will
         receive an email notification of access (if they have a Runhouse account) or instructions on creating
@@ -391,7 +348,7 @@ class Resource:
                 resource. By default, the visibility is private. (Default: ``None``)
             notify_users (bool, optional): Whether to send an email notification to users who have been given access.
                 Note: This is relevant for resources which are not ``shareable``. (Default: ``True``)
-            headers (Dict, optional): Request headers to provide for the request to RNS. Contains the user's auth token.
+            headers (Dict, optional): Request headers to provide for the request to Den. Contains the user's auth token.
                 Example: ``{"Authorization": f"Bearer {token}"}``
 
         Returns:
@@ -473,8 +430,9 @@ class Resource:
         Args:
             users (Union[str, str], optional): List of user emails and / or runhouse account usernames
                 (or a single user). If no users are specified will revoke access for all users. (Default: ``None``)
-            headers (Optional[Dict]): Request headers to provide for the request to RNS. Contains the user's auth token.
-                Example: ``{"Authorization": f"Bearer {token}"}``
+            headers (Optional[Dict]): Request headers to provide for the request to Den. Contains the user's auth token.
+                Example: ``{"Authorization": f"Bearer {token}"}`` Will default to authorization headers of the local
+                config. (Default: ``None``)
         """
         if isinstance(users, str):
             users = [users]

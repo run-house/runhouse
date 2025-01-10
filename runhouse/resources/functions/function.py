@@ -5,7 +5,6 @@ from typing import Any, Iterable, List, Optional, Tuple, Union
 from runhouse import globals
 from runhouse.logger import get_logger
 
-from runhouse.resources.envs import Env
 from runhouse.resources.hardware import Cluster
 from runhouse.resources.module import Module
 
@@ -22,7 +21,6 @@ class Function(Module):
         fn_pointers: Optional[Tuple] = None,
         name: Optional[str] = None,
         system: Optional[Cluster] = None,
-        env: Optional[Env] = None,
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -35,7 +33,7 @@ class Function(Module):
         """
         self.fn_pointers = fn_pointers
         self._loaded_fn = None
-        super().__init__(name=name, dryrun=dryrun, system=system, env=env, **kwargs)
+        super().__init__(name=name, dryrun=dryrun, system=system, **kwargs)
 
     # ----------------- Constructor helper methods -----------------
 
@@ -46,10 +44,6 @@ class Function(Module):
         if isinstance(config["system"], dict):
             config["system"] = Cluster.from_config(
                 config["system"], dryrun=dryrun, _resolve_children=_resolve_children
-            )
-        if isinstance(config["env"], dict):
-            config["env"] = Env.from_config(
-                config["env"], dryrun=dryrun, _resolve_children=_resolve_children
             )
 
         config.pop("resource_subtype", None)
@@ -71,38 +65,32 @@ class Function(Module):
     def to(
         self,
         system: Union[str, Cluster],
-        env: Optional[Union[str, List[str], Env]] = None,
+        process: Optional[Union[str, "Process"]] = None,
         name: Optional[str] = None,
-        force_install: bool = False,
+        sync_local: bool = True,
     ):
         """
-        Send the function to the specified env on the cluster. This will sync over relevant code and packages
-        onto the cluster, and set up the environment if it does not yet exist on the cluster.
+        Send the function to a specified process on a cluster. This will sync over relevant code for the function
+        to run on the cluster, and return a remote_function object that will wrap remote calls to the function
+        living on the cluster.
 
         Args:
-            system (str or Cluster): The system to setup the function and env on.
-            env (str, List[str], or Env, optional): The environment where the function lives on in the cluster,
-                or the set of requirements necessary to run the function. (Default: ``None``)
+            system (str or Cluster): The cluster to setup the function and process on.
+            process (str or Dict, optional): The process to run the function on. If it's a Dict, it will be explicitly
+                created with those args. or the set of requirements necessary to run the function. If no process is
+                specified, the function will be sent to the default_process created when the cluster is created
+                (Default: ``None``)
             name (Optional[str], optional): Name to give to the function resource, if you wish to rename it.
                 (Default: ``None``)
-            force_install (bool, optional): Whether to re-install and perform the environment setup steps, even
-                if it may already exist on the cluster. (Defualt: ``False``)
+            sync_local (bool, optional): Whether to sync up and use the local function on the cluster. If ``False``,
+                don't sync up and use the equivalent function found on the cluster. (Default: ``True``)
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
-            >>> rh.function(fn=local_fn).to(system=gpu_cluster, env=my_conda_env)
-            >>> rh.function(fn=local_fn).to(system='aws_lambda')  # will deploy the rh.function to AWS as a Lambda.
+            >>> rh.function(fn=local_fn).to(system=gpu_cluster, process=my_conda_env)
         """  # noqa: E501
-
-        if isinstance(system, str) and system.lower() == "lambda_function":
-            from runhouse.resources.functions.aws_lambda_factory import aws_lambda_fn
-
-            return aws_lambda_fn(
-                fn=self._get_obj_from_pointers(*self.fn_pointers), env=env
-            )
-
         return super().to(
-            system=system, env=env, name=name, force_install=force_install
+            system=system, process=process, name=name, sync_local=sync_local
         )
 
     # ----------------- Function call methods -----------------
@@ -175,10 +163,10 @@ class Function(Module):
         return key
 
     def get(self, run_key):
-        """Get the result of a Function call that was submitted as async using `run`.
+        """Get the result of a Function call that was submitted as async using ``run``.
 
         Args:
-            run_key: A single or list of runhouse run_key strings returned by calling ``.call.remote()`` on the
+            run_key: A single or list of runhouse ``run_key`` strings returned by calling ``.call.remote()`` on the
                 Function. The ObjectRefs must be from the cluster that this Function is running on.
 
         Example:

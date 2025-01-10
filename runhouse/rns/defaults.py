@@ -13,7 +13,6 @@ from runhouse.logger import get_logger
 
 from runhouse.rns.utils.api import read_resp_data, to_bool
 
-
 req_ctx = contextvars.ContextVar("rh_ctx", default={})
 
 logger = get_logger(__name__)
@@ -29,20 +28,22 @@ class Defaults:
     BASE_DEFAULTS = {
         "default_folder": "~",
         "default_provider": "cheapest",
-        "default_autostop": -1,
+        "default_autostop": 60,
         "use_spot": False,
         "use_local_configs": True,
-        "disable_data_collection": False,
+        "disable_observability": False,
         "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
-        "autosave": True,
+        "launcher": "local",
+        "autosave": False,
     }
 
     def __init__(self):
         self._token = None
         self._username = None
         self._default_folder = None
+        self._launcher = None
         self._defaults_cache = defaultdict(dict)
         self._simulate_logged_out = False
         self._use_caller_token = False
@@ -116,6 +117,22 @@ class Defaults:
         self._default_folder = value
 
     @property
+    def launcher(self):
+        if self._launcher:
+            return self._launcher
+
+        if "launcher" in self.defaults_cache:
+            self._launcher = self.defaults_cache["launcher"]
+            return self._launcher
+
+        return self.BASE_DEFAULTS["launcher"]
+
+    @launcher.setter
+    def launcher(self, value):
+        self._launcher = value
+        self.set("launcher", value)
+
+    @property
     def defaults_cache(self):
         if self._simulate_logged_out:
             return {}
@@ -134,7 +151,7 @@ class Defaults:
         if Path(config_path).exists():
             with open(config_path, "r") as stream:
                 config = yaml.safe_load(stream)
-            logger.info(f"Loaded Runhouse config from {config_path}")
+            logger.debug(f"Loaded Runhouse config from {config_path}")
 
         return config or {}
 
@@ -249,7 +266,7 @@ class Defaults:
     # TODO [DG] allow hierarchical defaults from folders and groups
     def get(self, key: str, alt: Any = None) -> Any:
         # Prioritize env vars
-        env_var = os.getenv(key.upper())
+        env_var = os.getenv(f"RH_{key.upper()}") or os.getenv(key.upper())
         if env_var is not None:
             return env_var
 
@@ -278,15 +295,14 @@ class Defaults:
         except OSError:
             raise Exception(f"Failed to delete config file from path {config_path}")
 
-    def disable_data_collection(self):
-        self.set("disable_data_collection", True)
-        os.environ["DISABLE_DATA_COLLECTION"] = "True"
+    @property
+    def observability_enabled(self) -> bool:
+        return not self.get("disable_observability", False)
 
-    def data_collection_enabled(self) -> bool:
-        """Checks whether to enable data collection, based on values set in the local ~/.rh config or as an env var."""
-        if self.get("disable_data_collection") is True:
-            return False
-        if os.getenv("DISABLE_DATA_COLLECTION", "False").lower() in ("true", "1"):
-            return False
+    def disable_observability(self):
+        self.set("disable_observability", True)
+        os.environ["disable_observability"] = "True"
 
-        return True
+    def enable_observability(self):
+        self.set("disable_observability", False)
+        os.environ["disable_observability"] = "False"

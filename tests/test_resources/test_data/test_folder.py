@@ -148,6 +148,11 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         system = "here" if dest.system == "file" else dest.system
         expected_fs_str = "ssh" if isinstance(dest.system, rh.Cluster) else dest.system
 
+        # Ensure dest path is empty to avoid FileExistsError when copying (dest path must not exist)
+        dest_path = str(Path.cwd() / folder.path.split("/")[-1])
+        if Path(dest_path).is_dir():
+            shutil.rmtree(dest_path)
+
         new_folder = folder.to(system=system)
 
         assert new_folder._fs_str == expected_fs_str
@@ -161,7 +166,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
     def test_cluster_folder_sync_upload(self, local_folder, cluster):
         cluster_dest = rh.Folder.DEFAULT_CACHE_FOLDER
         cluster.rsync(source=local_folder.path, dest=cluster_dest, up=True)
-        res = cluster.run([f"ls -l {cluster_dest}"])
+        res = cluster.run_bash([f"ls -l {cluster_dest}"])
 
         assert all(f"sample_file_{i}.txt" in res[0][1] for i in range(3))
 

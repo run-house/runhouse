@@ -38,10 +38,10 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pwd_ssh_no_auth",
         ]
     }
-    MINIMAL = {"cluster": ["ondemand_aws_docker_cluster"]}
+    MINIMAL = {"cluster": ["local_launched_ondemand_aws_docker_cluster"]}
     RELEASE = {
         "cluster": [
-            "ondemand_aws_docker_cluster",
+            "local_launched_ondemand_aws_docker_cluster",
             "static_cpu_pwd_cluster",
         ]
     }
@@ -50,7 +50,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "docker_cluster_pk_ssh_no_auth",
             "docker_cluster_pk_ssh_den_auth",
             "docker_cluster_pwd_ssh_no_auth",
-            "ondemand_aws_docker_cluster",
+            "local_launched_ondemand_aws_docker_cluster",
             "static_cpu_pwd_cluster",
             "multinode_cpu_docker_conda_cluster"
         ]
@@ -130,6 +130,7 @@ def pytest_addoption(parser):
 
 def pytest_generate_tests(metafunc):
     level = metafunc.config.getoption("level")
+
     level_fixtures = getattr(
         metafunc.cls or metafunc.module, level.upper(), default_fixtures[level]
     )
@@ -235,10 +236,15 @@ from tests.fixtures.docker_cluster_fixtures import (
 
 from tests.fixtures.on_demand_cluster_fixtures import (
     a10g_gpu_cluster,  # noqa: F401
+    den_launched_ondemand_aws_docker_cluster,  # noqa: F401
+    den_launched_ondemand_aws_k8s_cluster,  # noqa: F401
+    den_launched_ondemand_gcp_k8s_cluster,  # noqa: F401
+    den_launcher_v100_gpu_cluster,  # noqa: F401
     k80_gpu_cluster,  # noqa: F401
+    local_launched_ondemand_aws_docker_cluster,  # noqa: F401
     multinode_cpu_docker_conda_cluster,  # noqa: F401
     multinode_gpu_cluster,  # noqa: F401
-    ondemand_aws_docker_cluster,  # noqa: F401
+    multinode_k8s_cpu_cluster,  # noqa: F401
     ondemand_aws_https_cluster_with_auth,  # noqa: F401
     ondemand_cluster,  # noqa: F401
     ondemand_gcp_cluster,  # noqa: F401
@@ -259,13 +265,10 @@ from tests.fixtures.resource_fixtures import (
     unnamed_resource,  # noqa: F401
 )
 
-from tests.fixtures.static_cluster_fixtures import static_cpu_pwd_cluster  # noqa: F401
-
-from tests.test_resources.test_clusters.test_sagemaker_cluster.conftest import (
-    other_sm_cluster,  # noqa: F401
-    sm_cluster,  # noqa: F401
-    sm_cluster_with_auth,  # noqa: F401
-    sm_gpu_cluster,  # noqa: F401
+from tests.fixtures.static_cluster_fixtures import (  # noqa: F401
+    static_cpu_pwd_cluster,
+    static_cpu_pwd_cluster_den_launcher,
+    static_gpu_pwd_cluster_den_launcher,
 )
 
 
@@ -304,6 +307,7 @@ from tests.fixtures.secret_fixtures import (
     gcp_secret,  # noqa: F401
     github_secret,  # noqa: F401
     huggingface_secret,  # noqa: F401
+    kubeconfig_secret,  # noqa: F401
     lambda_secret,  # noqa: F401
     langchain_secret,  # noqa: F401
     openai_secret,  # noqa: F401
@@ -313,17 +317,6 @@ from tests.fixtures.secret_fixtures import (
     ssh_secret,  # noqa: F401
     test_secret,  # noqa: F401
     wandb_secret,  # noqa: F401
-)
-
-# ----------------- Envs -----------------
-
-from tests.test_resources.test_envs.conftest import (
-    base_conda_env,  # noqa: F401
-    conda_env_from_local,  # noqa: F401
-    conda_env_from_path,  # noqa: F401
-    env,  # noqa: F401
-    named_conda_env_from_dict,  # noqa: F401
-    unnamed_env,  # noqa: F401
 )
 
 # ----------------- Modules -----------------
@@ -344,20 +337,19 @@ default_fixtures = {}
 default_fixtures[TestLevels.UNIT] = {"cluster": ["named_cluster"]}
 default_fixtures[TestLevels.LOCAL] = {
     "cluster": [
-        # "docker_cluster_pk_ssh_no_auth",  # Represents private dev use case
-        # "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
-        "docker_cluster_pk_tls_den_auth",  # Represents public app use case
-        # "docker_cluster_pk_http_exposed",  # Represents within VPC use case
+        "docker_cluster_pk_ssh_no_auth",  # Represents private dev use case
+        "docker_cluster_pk_ssh_den_auth",  # Helps isolate Auth issues
+        "docker_cluster_pk_http_exposed",  # Represents within VPC use case
     ]
 }
 default_fixtures[TestLevels.MINIMAL] = {
     "cluster": [
-        "ondemand_aws_docker_cluster",
+        "local_launched_ondemand_aws_docker_cluster",
     ]
 }
 default_fixtures[TestLevels.RELEASE] = {
     "cluster": [
-        "ondemand_aws_docker_cluster",
+        "local_launched_ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_k8s_docker_cluster",
@@ -370,13 +362,14 @@ default_fixtures[TestLevels.MAXIMAL] = {
         "docker_cluster_pk_ssh_no_auth",
         "docker_cluster_pk_ssh_den_auth",
         "docker_cluster_pwd_ssh_no_auth",
-        "ondemand_aws_docker_cluster",
+        "local_launched_ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
         "ondemand_k8s_docker_cluster",
         "ondemand_aws_https_cluster_with_auth",
         "multinode_cpu_docker_conda_cluster",
         "static_cpu_pwd_cluster",
+        "static_gpu_pwd_cluster_den_launcher",  # for testing cluster status on single-node gpu.
         "multinode_gpu_cluster",  # for testing cluster status on multinode gpu.
-    ]
+    ],
 }

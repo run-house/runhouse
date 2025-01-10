@@ -1,6 +1,9 @@
+import asyncio
 import json
 import time
 import warnings
+
+from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 from pathlib import Path
 from random import randrange
@@ -13,11 +16,10 @@ import requests
 from runhouse.globals import rns_client
 from runhouse.logger import get_logger
 
-from runhouse.resources.envs.utils import _get_env_from
-
 from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import (
     CallParams,
+    CreateProcessParams,
     DeleteObjectParams,
     FolderGetParams,
     FolderLsParams,
@@ -27,14 +29,19 @@ from runhouse.servers.http.http_utils import (
     FolderRmParams,
     GetObjectParams,
     handle_response,
+    InstallPackageParams,
+    KillProcessParams,
+    LogsParams,
     OutputType,
     PutObjectParams,
     PutResourceParams,
     RenameObjectParams,
+    RunBashParams,
     serialize_data,
+    SetProcessEnvVarsParams,
 )
 
-from runhouse.utils import ClusterLogsFormatter, generate_default_name
+from runhouse.utils import ClusterLogsFormatter, generate_default_name, thread_coroutine
 
 
 # Make this global so connections are pooled across instances of HTTPClient
@@ -167,7 +174,7 @@ class HTTPClient:
         endpoint,
         req_type="post",
         data=None,
-        env=None,
+        process=None,
         stream_logs=True,
         save=False,
         key=None,
@@ -178,7 +185,7 @@ class HTTPClient:
         headers = headers or self._request_headers
         json_dict = {
             "data": data,
-            "env": env,
+            "process": process,
             "stream_logs": stream_logs,
             "save": save,
             "key": key,
@@ -424,7 +431,7 @@ class HTTPClient:
             run_name = generate_default_name(
                 prefix=key if method_name == "__call__" else f"{key}_{method_name}",
                 precision="ms",  # Higher precision because we see collisions within the same second
-                sep="@",
+                sep="--",
             )
 
         # Measure the time it takes to send the message
@@ -434,53 +441,58 @@ class HTTPClient:
             + (f".{method_name}" if method_name else "")
         )
         serialization = serialization or "pickle"
-        res = retry_with_exponential_backoff(session.post)(
-            self._formatted_url(f"{key}/{method_name}"),
-            json=CallParams(
-                data=serialize_data(data, serialization),
-                serialization=serialization,
-                run_name=run_name,
-                stream_logs=stream_logs,
-                save=save,
-                remote=remote,
-            ).model_dump(),
-            stream=True,
-            headers=headers or self._request_headers,
-            auth=self.auth,
-            verify=self.verify,
-        )
-
-        if res.status_code != 200:
-            raise ValueError(
-                f"Error calling {method_name} on server: {res.content.decode()}"
-            )
         error_str = f"Error calling {method_name} on {key} on server"
 
-        # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
-        # maybe a stream of results), so we need to separate these out.
-        result = None
-        res_iter = res.iter_lines(chunk_size=None)
-        # We need to manually iterate through res_iter so we can try/except to bypass a ChunkedEncodingError bug
-        while True:
-            try:
-                responses_json = next(res_iter)
-            except requests.exceptions.ChunkedEncodingError:
-                # Some silly bug in urllib3, see https://github.com/psf/requests/issues/4248
-                continue
-            except StopIteration:
-                break
-            except StopAsyncIteration:
-                break
-
-            resp = json.loads(responses_json)
-            output_type = resp["output_type"]
-            result = handle_response(
-                resp, output_type, error_str, log_formatter=self.log_formatter
+        with ThreadPoolExecutor() as executor:
+            # Run logs request in separate thread. Can start it before because it'll wait 5 seconds for the
+            # calls request to begin.
+            if stream_logs:
+                logs_future = executor.submit(
+                    thread_coroutine,
+                    self._alogs_request(
+                        run_name=run_name,
+                        key=key,
+                        serialization=serialization,
+                        error_str=error_str,
+                        create_async_client=True,
+                    ),
+                )
+            response = retry_with_exponential_backoff(session.post)(
+                self._formatted_url(f"{key}/{method_name}"),
+                json=CallParams(
+                    data=serialize_data(data, serialization),
+                    serialization=serialization,
+                    run_name=run_name,
+                    stream_logs=stream_logs,
+                    save=save,
+                    remote=remote,
+                ).model_dump(),
+                headers=headers or self._request_headers,
+                auth=self.auth,
+                verify=self.verify,
             )
 
-            result = self._process_call_result(result, system, output_type)
+            if response.status_code != 200:
+                raise ValueError(
+                    f"Error calling {method_name} on server: {response.content.decode()}"
+                )
+
+            resp_json = response.json()
+            function_result = handle_response(
+                resp_json,
+                resp_json["output_type"],
+                error_str,
+                log_formatter=self.log_formatter,
+            )
+            output_type = resp_json["output_type"]
+            if stream_logs:
+                _ = logs_future.result()
 
         end = time.time()
+
+        function_result = self._process_call_result(
+            function_result, system, output_type
+        )
 
         if method_name:
             log_str = (
@@ -490,7 +502,7 @@ class HTTPClient:
             log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
 
         logger.info(log_str)
-        return result
+        return function_result
 
     async def acall(
         self,
@@ -518,6 +530,97 @@ class HTTPClient:
             system=self.system,
         )
 
+    async def _acall_request(
+        self,
+        key: str,
+        method_name: str,
+        run_name: str,
+        serialization: str,
+        stream_logs: bool,
+        run_async: bool,
+        save: bool,
+        remote: bool,
+        data: Any = None,
+        resource_address=None,
+    ):
+        response = await self.async_session.post(
+            self._formatted_url(f"{key}/{method_name}"),
+            json=CallParams(
+                data=serialize_data(data, serialization),
+                serialization=serialization,
+                run_name=run_name,
+                stream_logs=stream_logs,
+                save=save,
+                remote=remote,
+                run_async=run_async,
+            ).model_dump(),
+            headers=self._request_headers,
+        )
+        if response.status_code != 200:
+            raise ValueError(
+                f"Error calling {method_name} on server: {response.content.decode()}"
+            )
+
+        resp_json = response.json()
+        return resp_json
+
+    async def _alogs_request(
+        self,
+        run_name: str,
+        key: Optional[str] = None,
+        node_ip_or_idx: Optional[Union[str, int]] = None,
+        process: Optional[str] = None,
+        serialization: Optional[str] = None,
+        error_str: Optional[str] = None,
+        create_async_client=False,
+    ) -> None:
+        # When running this in another thread, we need to explicitly create an async client here. When running within
+        # the main thread, we can use the client that was passed in.
+        if sum(arg is not None for arg in [key, node_ip_or_idx, process]) != 1:
+            raise ValueError(
+                "Exactly one of key, node_ip_or_idx, or process must be provided to get logs"
+            )
+
+        if create_async_client:
+            client = httpx.AsyncClient(auth=self.auth, verify=self.verify, timeout=None)
+        else:
+            client = self.async_session
+
+        if error_str is None:
+            error_str = f"Error calling logs function on server for {run_name}"
+
+        async with client.stream(
+            "POST",
+            self._formatted_url("logs"),
+            headers=self._request_headers,
+            json=LogsParams(
+                run_name=run_name,
+                node_ip_or_idx=node_ip_or_idx,
+                process=process,
+                key=key,
+                serialization=serialization,
+            ).model_dump(),
+        ) as res:
+            if res.status_code != 200:
+                error_resp = await res.aread()
+                raise ValueError(
+                    f"Error calling logs function on server: {error_resp.decode()}"
+                )
+            async for response_json in res.aiter_lines():
+                resp = json.loads(response_json)
+                output_type = resp["output_type"]
+                if output_type not in [
+                    OutputType.EXCEPTION,
+                    OutputType.STDOUT,
+                    OutputType.STDERR,
+                ]:
+                    raise ValueError(
+                        f"Unexpected output type from logs function: {output_type}"
+                    )
+                handle_response(
+                    resp, output_type, error_str, log_formatter=self.log_formatter
+                )
+
     async def acall_module_method(
         self,
         key: str,
@@ -538,7 +641,7 @@ class HTTPClient:
             run_name = generate_default_name(
                 prefix=key if method_name == "__call__" else f"{key}_{method_name}",
                 precision="ms",  # Higher precision because we see collisions within the same second
-                sep="@",
+                sep="--",
             )
 
         # Measure the time it takes to send the message
@@ -548,63 +651,74 @@ class HTTPClient:
             + (f".{method_name}" if method_name else "")
         )
         serialization = serialization or "pickle"
-        async with self.async_session.stream(
-            "POST",
-            self._formatted_url(f"{key}/{method_name}"),
-            json=CallParams(
-                data=serialize_data(data, serialization),
-                serialization=serialization,
+        error_str = f"Error calling {method_name} on {key} on server"
+
+        acall_request = asyncio.create_task(
+            self._acall_request(
+                key=key,
+                method_name=method_name,
                 run_name=run_name,
+                serialization=serialization,
                 stream_logs=stream_logs,
+                run_async=run_async,
                 save=save,
                 remote=remote,
-                run_async=run_async,
-            ).model_dump(),
-            headers=self._request_headers,
-        ) as res:
-            if res.status_code != 200:
-                raise ValueError(
-                    f"Error calling {method_name} on server: {res.content.decode()}"
+                data=data,
+            )
+        )
+        alogs_request = asyncio.create_task(
+            self._alogs_request(
+                run_name=run_name,
+                key=key,
+                serialization=serialization,
+                error_str=error_str,
+            )
+        )
+
+        output_type = None
+        function_result = None
+        for fut_result in asyncio.as_completed([acall_request, alogs_request]):
+            resp_json = await fut_result
+            # alogs_request returns None, acall_request returns a legitimate result
+            if resp_json is not None:
+                function_result = handle_response(
+                    resp_json,
+                    resp_json["output_type"],
+                    error_str,
+                    log_formatter=self.log_formatter,
                 )
-            error_str = f"Error calling {method_name} on {key} on server"
+                output_type = resp_json["output_type"]
 
-            # We get back a stream of intermingled log outputs and results (maybe None, maybe error, maybe single result,
-            # maybe a stream of results), so we need to separate these out.
-            result = None
-            async for response_json in res.aiter_lines():
-                resp = json.loads(response_json)
-                output_type = resp["output_type"]
-                result = handle_response(
-                    resp, output_type, error_str, log_formatter=self.log_formatter
-                )
-                result = self._process_call_result(result, system, output_type)
+        end = time.time()
 
-            end = time.time()
+        function_result = self._process_call_result(
+            function_result, system, output_type
+        )
 
-            if method_name:
-                log_str = (
-                    f"Time to call {key}.{method_name}: {round(end - start, 2)} seconds"
-                )
-            else:
-                log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
-            logger.info(log_str)
-            return result
+        if method_name:
+            log_str = (
+                f"Time to call {key}.{method_name}: {round(end - start, 2)} seconds"
+            )
+        else:
+            log_str = f"Time to get {key}: {round(end - start, 2)} seconds"
+        logger.info(log_str)
+        return function_result
 
-    def put_object(self, key: str, value: Any, env=None):
+    def put_object(self, key: str, value: Any, process=None):
         return self.request_json(
             "object",
             req_type="post",
             json_dict=PutObjectParams(
                 key=key,
                 serialized_data=serialize_data(value, "pickle"),
-                env_name=env,
+                process_name=process,
                 serialization="pickle",
             ).model_dump(),
             err_str=f"Error putting object {key}",
         )
 
     def put_resource(
-        self, resource, env_name: Optional[str] = None, state=None, dryrun=False
+        self, resource, process: Optional[str] = None, state=None, dryrun=False
     ):
         config = resource.config(condensed=False)
         return self.request_json(
@@ -613,7 +727,7 @@ class HTTPClient:
             # TODO wire up dryrun properly
             json_dict=PutResourceParams(
                 serialized_data=serialize_data([config, state, dryrun], "pickle"),
-                env_name=env_name,
+                process_name=process,
                 serialization="pickle",
             ).model_dump(),
             err_str=f"Error putting resource {resource.name or type(resource)}",
@@ -681,7 +795,7 @@ class HTTPClient:
         self.resource_address = name
         return resp
 
-    def delete(self, keys=None, env=None):
+    def delete(self, keys=None, process=None):
         return self.request_json(
             "delete_object",
             req_type="post",
@@ -689,12 +803,83 @@ class HTTPClient:
             err_str=f"Error deleting keys {keys}",
         )
 
-    def keys(self, env=None):
-        if env is not None and not isinstance(env, str):
-            env = _get_env_from(env)
-            env_name = env.name
-        else:
-            env_name = env
+    def keys(self, process=None):
         return self.request(
-            f"keys/?env_name={env_name}" if env_name else "keys", req_type="get"
+            f"keys/?process_name={process}" if process else "keys", req_type="get"
+        )
+
+    ################################################################################################
+    # Process related functions
+    ################################################################################################
+
+    def list_processes(self):
+        return self.request_json("/processes", req_type="get")
+
+    def create_process(
+        self,
+        params: CreateProcessParams,
+    ):
+        return self.request_json(
+            "/create_process",
+            req_type="post",
+            json_dict=params.model_dump(),
+        )
+
+    def set_process_env_vars(
+        self,
+        process_name: str,
+        env_vars: Dict[str, str],
+    ):
+        return self.request_json(
+            "/process_env_vars",
+            req_type="post",
+            json_dict=SetProcessEnvVarsParams(
+                process_name=process_name, env_vars=env_vars
+            ).model_dump(),
+        )
+
+    def kill_process(self, process_name: str):
+        return self.request_json(
+            "/kill_process",
+            req_type="post",
+            json_dict=KillProcessParams(process_name=process_name).model_dump(),
+        )
+
+    def install_package(
+        self,
+        package: "Package",
+        conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
+    ):
+        return self.request_json(
+            "/install_package",
+            req_type="post",
+            json_dict=InstallPackageParams(
+                package_config=package.config(),
+                conda_env_name=conda_env_name,
+                force_sync_local=force_sync_local,
+            ).model_dump(),
+        )
+
+    def run_bash(
+        self,
+        command: str,
+        node_ip_or_idx: Optional[Union[str, int]] = None,
+        process: Optional[str] = None,
+        run_name: Optional[str] = None,
+        require_outputs: bool = False,
+    ):
+        if node_ip_or_idx is not None and process is not None:
+            raise ValueError("Cannot specify both node and process")
+
+        return self.request_json(
+            "/run_bash",
+            req_type="post",
+            json_dict=RunBashParams(
+                command=command,
+                require_outputs=require_outputs,
+                node_ip_or_idx=node_ip_or_idx,
+                process=process,
+                run_name=run_name,
+            ).model_dump(),
         )

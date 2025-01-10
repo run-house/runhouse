@@ -3,11 +3,11 @@ from datetime import datetime
 
 import pytest
 
-from runhouse.constants import TEST_ORG
 from runhouse.globals import rns_client
 from runhouse.resources.resource import Resource
-
 from tests.conftest import init_args
+
+from tests.constants import TEST_ORG
 
 ######## Constants ########
 
@@ -37,9 +37,14 @@ def saved_resource_pool():
                 pass
 
 
+def create_folder_path():
+    hash = uuid.uuid4().hex[:8]
+    return f"test-{hash}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+
 @pytest.fixture(scope="session")
 def test_rns_folder():
-    folder_path = f"testing-{uuid.uuid4()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    folder_path = create_folder_path()
     yield folder_path
     rns_client.delete_configs(folder_path)
 
@@ -84,7 +89,6 @@ def saved_resource(resource, saved_resource_pool, test_rns_folder):
                     # Need org access in order to save the resource to the org
                     # Remove subresources to avoid resaving shared resource which is not allowed
                     resource_copy._creds = None
-                    resource_copy._default_env = None
                     saved_resource = resource_copy.save(folder=top_level_folder)
             else:
                 saved_resource = resource_copy.save(folder=top_level_folder)

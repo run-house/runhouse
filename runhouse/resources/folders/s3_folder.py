@@ -21,7 +21,12 @@ class S3Folder(Folder):
     DEFAULT_FS = "s3"
 
     def __init__(self, dryrun: bool, **kwargs):
-        import boto3
+        try:
+            import boto3
+        except ImportError:
+            raise ImportError(
+                "`boto3` is required for S3 folders. You can install it with `pip install boto3`."
+            )
 
         super().__init__(dryrun=dryrun, **kwargs)
         self.client = boto3.client("s3")
@@ -61,7 +66,7 @@ class S3Folder(Folder):
             self.client.download_file(bucket_name, obj_key, str(dest_file_path))
 
     def _cluster_to_local(self, cluster, dest_path):
-        if not cluster.address:
+        if not cluster.ips:
             raise ValueError("Cluster must be started before copying data from it.")
 
         Path(dest_path).expanduser().mkdir(parents=True, exist_ok=True)
@@ -331,7 +336,7 @@ class S3Folder(Folder):
     def _to_cluster(self, dest_cluster, path=None):
         """Copy the folder from a s3 bucket onto a cluster."""
         download_command = self._download_command(src=self.fsspec_url, dest=path)
-        dest_cluster.run([download_command])
+        dest_cluster.run_bash([download_command])
         return S3Folder(path=path, system=dest_cluster, dryrun=True)
 
     def _to_local(self, dest_path: str):

@@ -26,12 +26,38 @@ class RequestContext(BaseModel):
     token: Optional[str]
 
 
+class InstallPackageParams(BaseModel):
+    package_config: Dict[str, Any]
+    conda_env_name: Optional[str] = None
+    force_sync_local: bool = False
+
+
+class RunBashParams(BaseModel):
+    command: str
+    node_ip_or_idx: Optional[Union[str, int]] = None
+    process: Optional[str] = None
+    require_outputs: bool = False
+    run_name: Optional[str] = None
+
+
 class ServerSettings(BaseModel):
     cluster_name: Optional[str] = None
     den_auth: Optional[bool] = None
     flush_auth_cache: Optional[bool] = None
     autostop_mins: Optional[int] = None
     status_check_interval: Optional[int] = None
+
+
+class CreateProcessParams(BaseModel):
+    name: str
+    compute: Optional[Dict] = {}
+    runtime_env: Optional[Dict] = {}
+    env_vars: Optional[Dict] = {}
+
+
+class SetProcessEnvVarsParams(BaseModel):
+    process_name: str
+    env_vars: Dict[str, str]
 
 
 class CallParams(BaseModel):
@@ -46,20 +72,32 @@ class CallParams(BaseModel):
 class PutResourceParams(BaseModel):
     serialized_data: Any
     serialization: Optional[str] = None
-    env_name: Optional[str] = None
+    process_name: Optional[str] = None
 
 
 class PutObjectParams(BaseModel):
     key: str
     serialized_data: Any
     serialization: Optional[str] = None
-    env_name: Optional[str] = None
+    process_name: Optional[str] = None
 
 
 class GetObjectParams(BaseModel):
     key: str
     serialization: Optional[str] = None
     remote: Optional[bool] = False
+
+
+class KillProcessParams(BaseModel):
+    process_name: str
+
+
+class LogsParams(BaseModel):
+    run_name: str
+    node_ip_or_idx: Optional[Union[str, int]] = None
+    process: Optional[str] = None
+    key: Optional[str] = None
+    serialization: Optional[str] = None
 
 
 class RenameObjectParams(BaseModel):
@@ -265,7 +303,7 @@ def handle_response(
     err_str: str,
     log_formatter: ClusterLogsFormatter,
 ):
-    system_color, reset_color = log_formatter.format(output_type)
+    system_color, reset_color = log_formatter.format_server_log(output_type)
 
     if output_type == OutputType.RESULT_SERIALIZED:
         return deserialize_data(response_data["data"], response_data["serialization"])

@@ -5,6 +5,8 @@ from pathlib import Path
 
 from typing import Dict, List, Optional, Union
 
+import yaml
+
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
 
@@ -45,9 +47,9 @@ class Secret(Resource):
     def values(self):
         return self._values
 
-    def config(self, condensed=True):
+    def config(self, condensed: bool = True, values: bool = True):
         config = super().config(condensed)
-        if self._values:
+        if self._values and values:
             config.update(
                 {
                     "values": self._values,
@@ -65,7 +67,7 @@ class Secret(Resource):
         private_key_value, public_key_value = new_creds_values.get(
             "private_key"
         ), new_creds_values.get("public_key")
-        private_key_path = public_key_path = Path(f"{path}").expanduser()
+        private_key_path = public_key_path = Path(path).expanduser()
         if private_key_value:
             if not private_key_path.exists():
                 os.makedirs(str(private_key_path))
@@ -115,9 +117,9 @@ class Secret(Resource):
     def from_name(
         cls,
         name,
+        provider: str = None,
         load_from_den: bool = True,
         dryrun: bool = False,
-        _alt_options: Dict = None,
         _resolve_children: bool = True,
     ):
         try:
@@ -126,13 +128,14 @@ class Secret(Resource):
                 return cls.from_config(config=config, dryrun=dryrun)
         except ValueError:
             pass
-        if name in cls.builtin_providers(as_str=True):
+        provider = provider or name
+        if provider in cls.builtin_providers(as_str=True):
             from runhouse.resources.secrets.provider_secrets.providers import (
                 _get_provider_class,
             )
 
-            provider_class = _get_provider_class(name)
-            return provider_class(provider=name, dryrun=dryrun)
+            provider_class = _get_provider_class(provider)
+            return provider_class(name=name, provider=provider, dryrun=dryrun)
         raise ValueError(f"Could not locate secret {name}")
 
     @classmethod
@@ -218,10 +221,12 @@ class Secret(Resource):
 
         names = names or _str_to_provider_class.keys()
         for provider in names:
-            if provider == "ssh":
+            if provider in ["ssh", "sky"]:
                 continue
             try:
                 secret = provider_secret(provider=provider)
+                if provider == "sky":
+                    provider = f"ssh-{secret.key}"
                 secrets[provider] = secret
             except ValueError:
                 continue
@@ -258,7 +263,7 @@ class Secret(Resource):
             name (str, optional): Name to save the secret resource as.
             save_values (str, optional): Whether to save the values of the secret to Vault in addition
                 to saving the metadata to Den. (Default: ``True``)
-            headers (Dict, optional): Request headers to provide for the request to RNS. Contains the
+            headers (Dict, optional): Request headers to provide for the request to Den. Contains the
                 user's auth token. Example: ``{"Authorization": f"Bearer {token}"}`` (Default: ``None``)
             folder (str, optional): If specified, save the secret to that folder in Den (e.g. saving secrets
                 for a cluster associated with an organization). (Default: ``None``)
@@ -280,7 +285,7 @@ class Secret(Resource):
 
         # Save metadata to Den
         if self.rns_address.startswith("/"):
-            logger.info(f"Saving config for {self.name} to Den")
+            logger.info(f"Saving config for {self.rns_address} to Den")
             payload = rns_client.resource_request_payload(config)
             uri = f"{rns_client.api_server_url}/resource"
             resp = rns_client.session.post(
@@ -296,7 +301,7 @@ class Secret(Resource):
                 )
 
             if save_values and self.values:
-                logger.info(f"Saving secrets for {self.name} to Vault")
+                logger.info(f"Saving secrets for {self.rns_address} to Vault")
                 resource_uri = rns_client.resource_uri(self.rns_address)
                 uri = f"{rns_client.api_server_url}/{self.USER_ENDPOINT}/{resource_uri}"
                 resp = rns_client.session.put(
@@ -350,7 +355,7 @@ class Secret(Resource):
         resource_uri = rns_client.resource_uri(self.rns_address)
         _delete_vault_secrets(resource_uri, self.USER_ENDPOINT, headers=headers)
 
-        # Delete RNS data for resource
+        # Delete Den data for resource
         uri = f"{rns_client.api_server_url}/resource/{resource_uri}"
         resp = rns_client.session.delete(
             uri,
@@ -365,14 +370,14 @@ class Secret(Resource):
         self,
         system: Union[str, Cluster],
         name: Optional[str] = None,
-        env: Optional["Env"] = None,
+        process: Optional[str] = None,
     ):
         """Return a copy of the secret on a system.
 
         Args:
             system (str or Cluster): Cluster to send the secret to
             name (str, optional): Name to assign the resource on the cluster.
-            env (Env, optional): Env to send the secret to.
+            process (str, optional): Process on the cluster to send the secret to.
 
         Example:
             >>> secret.to(my_cluster, path=secret.path)
@@ -385,10 +390,26 @@ class Secret(Resource):
         if system.on_this_cluster():
             new_secret.pin()
         else:
-            env = env or system.default_env
-            system.put_resource(new_secret, env=env)
+            system.put_resource(new_secret, process=process)
 
         return new_secret
+
+    def _write_to_file(self, path: str, overwrite: bool = False, format: str = "json"):
+        full_path = os.path.expanduser(path)
+        if os.path.exists(full_path) and not overwrite:
+            logger.info(
+                f"{path} already exists and overwrite set to `False`. Not overriding contents."
+            )
+        elif format == "json":
+            with open(full_path, "w+") as f:
+                json.dump(self.values, f, indent=4)
+        elif format == "yaml":
+            with open(full_path, "w+") as f:
+                yaml.safe_dump(self.values, f)
+        else:
+            logger.error(
+                f"Only 'json' and 'yaml' formats currently supported, not {format}."
+            )
 
     def in_local(self):
         """Whether the secret config is stored locally (as opposed to Vault)."""

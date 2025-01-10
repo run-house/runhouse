@@ -1,8 +1,7 @@
 import logging
 import sys
-from typing import Dict
 
-from runhouse.constants import EMPTY_DEFAULT_ENV_NAME
+from runhouse.constants import DEFAULT_PROCESS_NAME
 
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
@@ -11,19 +10,6 @@ from runhouse.servers.obj_store import ClusterServletSetupOption
 logger = get_logger(__name__)
 
 logging.getLogger("numexpr").setLevel(logging.WARNING)
-
-collect_data: bool = configs.data_collection_enabled()
-if collect_data:
-    import sentry_sdk
-
-    sentry_sdk.init(
-        dsn="https://93f64f9efc194d5bb66edc0693fde714@o4505521613307904.ingest.sentry.io/4505522385911808",
-        environment="production",
-        # Set traces_sample_rate to 1.0 to capture 100%
-        # of transactions for performance monitoring.
-        # We recommend adjusting this value in production,
-        traces_sample_rate=1.0,
-    )
 
 
 def resolve_rns_path(path: str):
@@ -66,31 +52,14 @@ def load(name: str, instantiate: bool = True, dryrun: bool = False):
 async def get_local_cluster_object():
     # By default, obj_store.initialize does not initialize Ray, and instead
     # attempts to connect to an existing cluster.
-    from runhouse.resources.hardware.utils import (
-        _unnamed_default_env_name,
-        load_cluster_config_from_file,
-    )
 
     # In case we are calling `rh.here` within the same Python process
     # as an initialized object store, keep the same name.
     # If it was not set, let's proxy requests to `base` since we're likely on the cluster
     # and want to easily read and write from the object store that the Server is using.
     try:
-        servlet_name = obj_store.servlet_name
-        if not servlet_name:
-            cluster_config = load_cluster_config_from_file()
-            default_env = cluster_config.get("default_env", None)
-            if isinstance(default_env, str):
-                servlet_name = default_env
-            elif isinstance(default_env, Dict):
-                servlet_name = default_env.get(
-                    "name", _unnamed_default_env_name(cluster_config.get("name"))
-                )
-            else:
-                servlet_name = EMPTY_DEFAULT_ENV_NAME
-
         await obj_store.ainitialize(
-            servlet_name=servlet_name,
+            servlet_name=obj_store.servlet_name or DEFAULT_PROCESS_NAME,
             setup_cluster_servlet=ClusterServletSetupOption.GET_OR_FAIL,
         )
     except ConnectionError:
@@ -109,7 +78,7 @@ async def get_local_cluster_object():
 
 
 def save(resource, name: str = None, overwrite: bool = True, folder: str = None):
-    """Register the resource, saving it to local working_dir config and/or RNS config store. Uses the resource's
+    """Register the resource, saving it to local working_dir config and/or Den config store. Uses the resource's
     `self.config()` to generate the dict to save."""
 
     # TODO handle self.access == 'read' instead of this weird overwrite argument
@@ -163,7 +132,7 @@ def ipython():
 
 
 def delete(resource_or_name: str):
-    """Delete the resource from the RNS or local config store."""
+    """Delete the resource from the Den or local config store."""
     rns_client.delete_configs(resource=resource_or_name)
 
 

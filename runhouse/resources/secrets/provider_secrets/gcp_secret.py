@@ -26,7 +26,13 @@ class GCPSecret(ProviderSecret):
     def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         return GCPSecret(**config, dryrun=dryrun)
 
-    def _write_to_file(self, path: str, values: Dict = None, overwrite: bool = False):
+    def _write_to_file(
+        self,
+        path: str,
+        values: Dict = None,
+        overwrite: bool = False,
+        write_config: bool = True,
+    ):
         new_secret = copy.deepcopy(self)
         if not _check_file_for_mismatches(
             path, self._from_path(path), values, overwrite
@@ -34,7 +40,9 @@ class GCPSecret(ProviderSecret):
             Path(path).parent.mkdir(parents=True, exist_ok=True)
             with open(path, "w+") as f:
                 json.dump(values, f, indent=4)
-            new_secret._add_to_rh_config(path)
+
+            if write_config:
+                new_secret._add_to_rh_config(path)
 
         new_secret._values = None
         new_secret.path = path

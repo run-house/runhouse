@@ -1,52 +1,56 @@
 import contextlib
 import importlib
+import json
 import os
 import uuid
+from datetime import datetime
 from pathlib import Path
+from typing import Dict, Optional
 
 import pytest
+import ray
+import requests
 
 import runhouse as rh
 import yaml
-from runhouse.constants import TESTING_LOG_LEVEL
 
+from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import rns_client
-from runhouse.servers.obj_store import get_cluster_servlet, ObjStore, RaySetupOption
+
+from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatus
+from runhouse.servers.http.http_utils import CreateProcessParams
+from runhouse.servers.obj_store import ObjStore, RaySetupOption
+
+from tests.constants import TEST_ENV_VARS, TEST_REQS
 
 
-def get_ray_env_servlet_and_obj_store(env_name):
+def get_ray_servlet_and_obj_store(env_name):
     """Helper method for getting object store"""
 
     test_obj_store = ObjStore()
     test_obj_store.initialize(env_name, setup_ray=RaySetupOption.GET_OR_FAIL)
 
-    test_env_servlet = test_obj_store.get_env_servlet(
-        env_name=env_name,
+    test_servlet = test_obj_store.get_servlet(
+        name=env_name,
+        create_process_params=CreateProcessParams(name=env_name),
         create=True,
     )
 
-    return test_env_servlet, test_obj_store
-
-
-def get_ray_cluster_servlet(cluster_config=None):
-    """Helper method for getting base cluster servlet"""
-    cluster_servlet = get_cluster_servlet(create_if_not_exists=True)
-
-    if cluster_config:
-        ObjStore.call_actor_method(
-            cluster_servlet, "aset_cluster_config", cluster_config
-        )
-
-    return cluster_servlet
+    return test_servlet, test_obj_store
 
 
 def get_pid_and_ray_node(a=0):
+    import logging
+
     import ray
 
-    return (
-        os.getpid(),
-        ray.runtime_context.RuntimeContext(ray.worker.global_worker).get_node_id(),
-    )
+    pid = os.getpid()
+    node_id = ray.runtime_context.RuntimeContext(ray.worker.global_worker).get_node_id()
+
+    print(f"PID: {pid}")
+    logging.info(f"Node ID: {node_id}")
+
+    return pid, node_id
 
 
 def get_random_str(length: int = 8):
@@ -114,21 +118,113 @@ def friend_account_in_org():
         rns_client.load_account_from_file()
 
 
-def test_env(logged_in=False):
-    return rh.env(
-        reqs=["pytest", "httpx", "pytest_asyncio", "pandas", "numpy<=1.26.4"],
-        working_dir=None,
-        env_vars={"RH_LOG_LEVEL": os.getenv("RH_LOG_LEVEL") or TESTING_LOG_LEVEL},
-        setup_cmds=[
-            f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
-            f"echo '{yaml.safe_dump(rh.configs.defaults_cache)}' > ~/.rh/config.yaml"
-        ]
-        if logged_in
-        else False,
+@contextlib.contextmanager
+def org_friend_account(new_username: str, token: str, original_username: str):
+    """Used for the purposes of testing listing clusters associated with test-org"""
+
+    os.environ["RH_USERNAME"] = new_username
+    os.environ["RH_TOKEN"] = token
+
+    local_rh_package_path = Path(
+        importlib.util.find_spec("runhouse").origin
+    ).parent.parent
+    dotenv_path = local_rh_package_path / ".env"
+    if not dotenv_path.exists():
+        dotenv_path = None  # Default to standard .env file search
+
+    try:
+        account = rns_client.load_account_from_env(
+            token_env_var="RH_TOKEN",
+            usr_env_var="RH_USERNAME",
+            dotenv_path=dotenv_path,
+        )
+        if account is None:
+            pytest.skip("`RH_USERNAME` or `RH_TOKEN` not set, skipping test.")
+        yield account
+
+    finally:
+        os.environ["RH_USERNAME"] = original_username
+        rns_client.load_account_from_file()
+
+
+def setup_test_base(cluster, logged_in=False):
+    setup_cmds = [
+        f"mkdir -p ~/.rh; touch ~/.rh/config.yaml; "
+        f"echo '{yaml.safe_dump(rh.configs.defaults_cache)}' > ~/.rh/config.yaml"
+    ]
+
+    cluster.install_packages(TEST_REQS)
+    cluster.set_process_env_vars(DEFAULT_PROCESS_NAME, TEST_ENV_VARS)
+    if logged_in:
+        cluster.run_bash(setup_cmds)
+
+
+def keep_config_keys(config, keys_to_keep):
+    condensed_config = {key: config.get(key) for key in keys_to_keep}
+    return condensed_config
+
+
+def set_daemon_and_cluster_status(
+    cluster: rh.Cluster,
+    daemon_status: RunhouseDaemonStatus,
+    cluster_status: ClusterStatus,
+):
+    cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
+    headers = rh.globals.rns_client.request_headers()
+    api_server_url = rh.globals.rns_client.api_server_url
+
+    # Note: the resource includes the cluster's status and the runhouse daemon status
+    status_data_resource = {
+        "daemon_status": daemon_status,
+        "cluster_status": cluster_status,
+        "cluster_status_last_checked": datetime.utcnow().isoformat(),
+    }
+    requests.put(
+        f"{api_server_url}/resource/{cluster_uri}",
+        data=json.dumps(status_data_resource),
+        headers=headers,
     )
 
 
-def remove_config_keys(config, keys_to_skip):
-    for key in keys_to_skip:
-        config.pop(key, None)
-    return config
+def set_output_env_vars():
+    env = os.environ.copy()
+    # Set the COLUMNS and LINES environment variables to control terminal width and height,
+    # so we could get the runhouse cluster list output properly using subprocess
+    env["COLUMNS"] = "250"
+    env["LINES"] = "40"  # Set a height value, though COLUMNS is the key one here
+
+    return env
+
+
+def _get_env_var_value(env_var):
+    import os
+
+    return os.environ[env_var]
+
+
+####################################################################################################
+# ray utils
+####################################################################################################
+def init_remote_cluster_servlet_actor(
+    current_ip: str,
+    runtime_env: Optional[Dict] = None,
+    cluster_config: Optional[Dict] = None,
+    servlet_name: Optional[str] = "cluster_servlet",
+):
+    from runhouse.servers.cluster_servlet import ClusterServlet
+
+    remote_actor = (
+        ray.remote(ClusterServlet)
+        .options(
+            name=servlet_name,
+            get_if_exists=True,
+            lifetime="detached",
+            namespace="runhouse",
+            max_concurrency=1000,
+            resources={f"node:{current_ip}": 0.001},
+            num_cpus=0,
+            runtime_env=runtime_env,
+        )
+        .remote(cluster_config=cluster_config, name=servlet_name)
+    )
+    return remote_actor

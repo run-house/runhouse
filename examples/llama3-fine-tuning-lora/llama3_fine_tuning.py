@@ -71,7 +71,7 @@ class FineTuner:
 
         # load the base model with the quantization configuration
         self.base_model = AutoModelForCausalLM.from_pretrained(
-            self.base_model_name, quantization_config=quant_config, device_map={"": 0}
+            self.base_model_name, quantization_config=quant_config, device_map="auto"
         )
 
         self.base_model.config.use_cache = False
@@ -172,21 +172,22 @@ class FineTuner:
 
         # Load the training data, tokenizer and model to be used by the trainer
         training_data = self.load_dataset()
-
+        print("dataset loaded")
         if self.tokenizer is None:
             self.load_tokenizer()
-
+        print("tokenizer loaded")
         if self.base_model is None:
             self.load_base_model()
-
+        print("base model loaded")
         # Use LoRA to update a small subset of the model's parameters
         peft_parameters = LoraConfig(
             lora_alpha=16, lora_dropout=0.1, r=8, bias="none", task_type="CAUSAL_LM"
         )
 
         train_params = self.training_params()
+        print("training to start")
         trainer = self.sft_trainer(training_data, peft_parameters, train_params)
-
+        print("training")
         # Force clean the pytorch cache
         gc.collect()
         torch.cuda.empty_cache()
@@ -240,41 +241,39 @@ class FineTuner:
 # improve readability.
 # :::
 if __name__ == "__main__":
-    cluster = rh.cluster(
-        name="rh-a10x",
-        instance_type="A10G:1",
-        memory="32+",
-        provider="aws",
-    ).up_if_not()
 
-    # Next, we define the environment for our module. This includes the required dependencies that need
+    # First, we define the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
-    #
-    # Learn more in the [Runhouse docs on envs](/docs/tutorials/api-envs).
-    env = rh.env(
-        name="ft_env",
-        reqs=[
+    # Then, we launch a cluster with a GPU.
+    # Finally, passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
+    img = rh.Image(name="llama3").install_packages(
+        [
             "torch",
             "tensorboard",
             "scipy",
             "peft==0.4.0",
-            "bitsandbytes==0.40.2",
+            "bitsandbytes",
             "transformers==4.31.0",
             "trl==0.4.7",
-            "accelerate",
-        ],
-        secrets=["huggingface"],  # Needed to download Llama 3 from Hugging Face
+            "accelerate==0.20.3",
+        ]
     )
+
+    cluster = rh.cluster(
+        name="rh-a10x",
+        gpus="A10G:1",
+        memory="32+",
+        image=img,
+        provider="aws",
+    ).up_if_not()
+
+    cluster.sync_secrets(["huggingface"])
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
     # by calling `cluster.get(name="llama3-medical-model")`. This would return the remote model after an initial run.
     # If we want to update the module each time we run this script, we prefer to use `to`.
-    #
-    # Note that we also pass the `env` object to the `to` method, which will ensure that the environment is
-    # set up on the remote machine before the module is run.
-    RemoteFineTuner = rh.module(FineTuner).to(cluster, env=env, name="FineTuner")
+    RemoteFineTuner = rh.module(FineTuner).to(cluster, name="FineTuner")
     fine_tuner_remote = RemoteFineTuner(name="llama3-medical-model")
 
     # ## Fine-tune the model on the cluster
