@@ -104,7 +104,7 @@ Table of Contents
    installation-setup
    tutorials/quick-start-cloud
    tutorials/quick-start-den
-   how-to-use-runhouse
+   development-guide
    runhouse-in-your-stack
 
 

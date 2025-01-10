@@ -70,6 +70,7 @@ save it into your Runhouse account, where they will be securely stored in `Vault
 the `Secrets Tutorial <https://www.run.house/docs/tutorials/api-secrets>`__.
 
 .. code:: ipython3
+
     gcp_creds = rh.provider_secret(provider="gcp", path="local_path/to/gcp-service-account.json")
     gcp_creds.save()
 
