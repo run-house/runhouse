@@ -90,7 +90,7 @@ if __name__ == "__main__":
         num_nodes=num_nodes,
         image=img,
         num_cpus=num_cpus_per_node,  # You have other options such as to specify memory and disk size
-        accelerators=None,  # This example does not need GPUs, but you can specify GPUs like "A100:2" here to get 2 A100 GPUs per node
+        gpus=None,  # This example does not need GPUs, but you can specify GPUs like "A100:2" here to get 2 A100 GPUs per node
         provider="aws",  # gcp, kubernetes, etc.
     ).up_if_not()
 
