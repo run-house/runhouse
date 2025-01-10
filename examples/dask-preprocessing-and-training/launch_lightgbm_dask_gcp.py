@@ -166,7 +166,7 @@ if __name__ == "__main__":
         "dask"
     )  # You can also start the Dask cluster with cluster.connect_dask()
 
-    cluster.ssh_tunnel('8787','8787') # Forward the Dask dashboard to local 
+    cluster.ssh_tunnel("8787", "8787")  # Forward the Dask dashboard to local
 
     # Now we call the remote model trainer class methods to do the training.
     data_path = "gs://rh-demo-external/taxi_parquet"  # NYC Taxi Data
