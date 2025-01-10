@@ -57,6 +57,8 @@ class Supervisor(Module):
                 else:
                     run_async = is_coroutine_function
 
+                args = args or []
+
                 if run_async:
                     return client_call_wrapper(
                         client,
@@ -67,10 +69,9 @@ class Supervisor(Module):
                         run_name=kwargs.pop("run_name", None),
                         stream_logs=kwargs.pop("stream_logs", True),
                         remote=kwargs.pop("remote", False),
-                        data={"args": [item] + (args or []), "kwargs": kwargs},
+                        data={"args": [item] + list(args), "kwargs": kwargs},
                     )
                 else:
-                    args = args or []
                     return client_call_wrapper(
                         client,
                         system,

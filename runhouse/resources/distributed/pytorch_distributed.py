@@ -1,5 +1,5 @@
 from concurrent.futures.thread import ThreadPoolExecutor
-from typing import List, Optional
+from typing import List
 
 from runhouse.resources.distributed.supervisor import Supervisor
 
@@ -29,7 +29,7 @@ class PyTorchDistributed(Supervisor):
             raise RuntimeError(f"Failed to find available port on head rank: {stdout}")
         return stdout
 
-    def forward(self, item, timeout: Optional[int] = None, *args, **kwargs):
+    def forward(self, item, *args, **kwargs):
         port = self._port or self._find_available_port_on_head_node()
 
         def run_on_replica(replica, rank):
