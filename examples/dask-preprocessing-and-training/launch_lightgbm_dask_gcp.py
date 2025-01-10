@@ -166,6 +166,8 @@ if __name__ == "__main__":
         "dask"
     )  # You can also start the Dask cluster with cluster.connect_dask()
 
+    cluster.ssh_tunnel('8787','8787') # Forward the Dask dashboard to local 
+
     # Now we call the remote model trainer class methods to do the training.
     data_path = "gs://rh-demo-external/taxi_parquet"  # NYC Taxi Data
     X_vars = ["passenger_count", "trip_distance", "fare_amount"]
@@ -184,5 +186,4 @@ if __name__ == "__main__":
     dask_trainer.save_model("gs://rh-model-checkpoints/lightgbm_dask/model.pkl")
     print("Model saved")
 
-    # cluster.teardown() # Optionally, automatically teardown the cluster after training
-    # cluster.notebook()  # Optionally, open a Jupyter notebook on the cluster to interact with the trained model
+    cluster.notebook()  # Optionally, open a Jupyter notebook on the cluster to interact with the Dask cluster
