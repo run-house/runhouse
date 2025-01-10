@@ -1,3 +1,11 @@
+# # Distributed ResNet Training with PyTorch Lightning
+#
+# In this example, we begin with regular Lightning code, defining the Lightning and data modules, and a Trainer class that encapsulates the training routine.
+# Runhouse does not need changes or alterations to standard Lightning training code in order to distribute and run it, but rather is designed
+# to work with your existing codebase and standard training routines.
+#
+# Starting on line 205, we have the script's main which will launch the Runhouse cluster, dispatch the Lightning class to the remote cluster,
+# wire up distribution, and run the training.
 import subprocess
 
 import boto3
@@ -12,7 +20,9 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torchvision import models
 
-# ### ResNet152 Lightning Module
+# ## ResNet152 Lightning Module and Data Module
+# The ResNet152 Lightning Module is a standard PyTorch Lightning module that defines the ResNet152 model, the training and validation steps,
+# and the optimizer and scheduler. The Data Module is a standard PyTorch Lightning data module that defines the training and validation dataloaders.
 class ResNet152LitModule(L.LightningModule):
     def __init__(
         self,
@@ -29,11 +39,9 @@ class ResNet152LitModule(L.LightningModule):
         super(ResNet152LitModule, self).__init__()
         self.save_hyperparameters(ignore=["s3_bucket", "s3_key"])
 
-        # Initialize the ResNet-152 model
         self.model = models.resnet152(pretrained=False)
         self.model.fc = nn.Linear(self.model.fc.in_features, num_classes)
 
-        # Load weights from S3 if specified
         if pretrained and s3_bucket and s3_key:
             self.load_weights_from_s3(s3_bucket, s3_key, weights_path)
 
@@ -86,7 +94,6 @@ class ResNet152LitModule(L.LightningModule):
         super().teardown(stage)
 
 
-# ### Data Module
 class ImageNetDataModule(L.LightningDataModule):
     def __init__(self, train_data_path, val_data_path, batch_size):
         super().__init__()
@@ -119,7 +126,9 @@ class ImageNetDataModule(L.LightningDataModule):
         )
 
 
-# ### Trainer Encapsulation
+# ## Encapsulation of Training
+# We briefly encapsulate the training routine in a class that loads the data, model, and trainer, and fits the model. We also provide a method to save the model weights to S3.
+# We will send this class to the remote compute in the main and create a remote instance of this class to run the training.
 class ResNetTrainer:
     def __init__(self, num_nodes, gpus_per_node, working_s3_bucket, working_s3_path):
         self.num_nodes = num_nodes
@@ -197,7 +206,14 @@ class ResNetTrainer:
         self.lit_module.save_weights_to_s3(self.working_s3_bucket, self.working_s3_path)
 
 
-# ### Training routine
+# ## Launch Compute and Run the Training
+# We will now launch a Runhouse cluster with multiple nodes and use it to train the ResNet with Lightning.
+# The data we use here is a sampled, preprocessed set of images from the ImageNet dataset. You can
+# see the preprocessing script at https://github.com/run-house/runhouse/blob/main/examples/pytorch-resnet/imagenet_preproc.py
+# :::note{.info title="Note"}
+# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
+# the script code will run when Runhouse attempts to run code remotely.
+# :::
 if __name__ == "__main__":
     train_data_path = (
         "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/train/"
@@ -209,10 +225,13 @@ if __name__ == "__main__":
     working_s3_bucket = "rh-demo-external"
     working_s3_path = "resnet-training-example/"
 
+    # We will launch a 3 node cluster with 1 GPU per node, and define the image to use for the cluster
+    # which here is a set of packages to install, but optionally could depend on a custom AMI, Docker image,
+    # include env vars, further bash commands, etc.
     gpus_per_node = 1
     num_nodes = 3
 
-    img = rh.Image("pytorch-image").install_packages(
+    img = rh.Image("runhouse-image").install_packages(
         [
             "torch==2.5.1",
             "torchvision==0.20.1",
@@ -228,10 +247,9 @@ if __name__ == "__main__":
     gpu_cluster = (
         rh.cluster(
             name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-            instance_type=f"A10G:{gpus_per_node}",
+            gpus=f"A10G:{gpus_per_node}",
             num_nodes=num_nodes,
             provider="aws",
-            launch_type="local",
             image=img,
         )
         .up_if_not()
@@ -241,10 +259,10 @@ if __name__ == "__main__":
     # gpu_cluster.restart_server() # to restart the Runhouse server, does not tear down the actual underlying compute
     gpu_cluster.sync_secrets(["aws"])  # sends our AWS secret to the remote cluster
 
-    # Send the Trainer class to the remote GPU cluster
+    # Now that the cluster is up, we will send our trainer to the remote cluster, instantiate a remote instance of it, and run the training.
+    # Note that we call .distribute("pytorch") to set up the PyTorch distributed backend. We run the training for 15 epochs with a batch size of 32,
+    # calling methods on the remote instance as if it were local.
     trainer = rh.module(ResNetTrainer).to(gpu_cluster)
-
-    # Setup the Trainer class as a remote object we interact with locally
     epochs = 15
     batch_size = 32
 
@@ -258,7 +276,7 @@ if __name__ == "__main__":
         "pytorch",
         replicas_per_node=gpus_per_node,
         num_replicas=gpus_per_node * num_nodes,
-    )  # note we call .distribute()
+    )
 
     remote_trainer.load_data(
         train_data_path=train_data_path,
