@@ -44,33 +44,9 @@ or the `Runhouse usage
 guide <https://www.run.house/docs/main/en/how-to-use-runhouse>`__ to
 see how you can get started with the Runhouse client as well.
 
-Installing Runhouse
--------------------
-
-To use Runhouse to launch on-demand clusters, run the following
-installation command.
-
-.. code:: ipython3
-
-    !pip install "runhouse"
-
-Account Creation & Login
-------------------------
-
-You can create an account on the `run.house <https://www.run.house>`__
-website or by calling the login command in Python or CLI.
-
-To login, call ``runhouse login --sync-secrets`` in CLI. This will ask
-you a series of questions on whether to sync local secrets to Runhouse -
-e.g. your AWS / GCP / Azure secrets; once synced, you can launch compute
-via Runhouse anywhere you are authenticated with Runhouse.
-
-For more information on Secrets management, refer to the `Secrets
-Tutorial <https://www.run.house/docs/tutorials/api-secrets>`__. Secrets
-are always securely stored in `Vault <https://www.vaultproject.io/>`__.
-If you have any questions about Runhouse’s information security
-policies, please reach out at `hello@run.house <hello@run.house>`__.
-
+This guide assumes you have already followed the Installation and Account
+Login steps of the `Installation and Setup Guide
+<https://www.run.house/docs/installation-setup>`__
 
 Den Launcher
 ------------
