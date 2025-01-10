@@ -34,7 +34,7 @@ class InstallPackageParams(BaseModel):
 
 class RunBashParams(BaseModel):
     command: str
-    node: Optional[str] = None
+    node_ip_or_idx: Optional[Union[str, int]] = None
     process: Optional[str] = None
     require_outputs: bool = False
     run_name: Optional[str] = None
@@ -94,7 +94,7 @@ class KillProcessParams(BaseModel):
 
 class LogsParams(BaseModel):
     run_name: str
-    node_ip: Optional[str] = None
+    node_ip_or_idx: Optional[Union[str, int]] = None
     process: Optional[str] = None
     key: Optional[str] = None
     serialization: Optional[str] = None

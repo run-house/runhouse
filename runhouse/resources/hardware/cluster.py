@@ -1674,21 +1674,32 @@ class Cluster(Resource):
                 )
             return results
 
-        node_ip = None
+        node_ip_or_idx = None
+
+        # Special case for BYO clusters -- internal and external IPs are the same. In order to know which IP
+        # to use, we need to pass up the index as opposed to the IP string
+        is_byo_cluster = self.ips == self.internal_ips
+
         if isinstance(node, int):
             if not (0 <= node < len(self.ips)):
                 raise ValueError(
                     f"Node index {node} is out of range. Cluster has {len(self.ips)} nodes."
                 )
 
-            node_ip = self.internal_ips[node]
+            if is_byo_cluster:
+                node_ip_or_idx = node
+            else:
+                node_ip_or_idx = self.internal_ips[node]
 
         elif isinstance(node, str):
             if node not in self.ips:
                 raise ValueError(f"Node IP {node} is not in the cluster's IP list.")
 
-            # Replace with the internal IP
-            node_ip = self.internal_ips[self.ips.index(node)]
+            if is_byo_cluster:
+                node_ip_or_idx = self.ips.index(node)
+            else:
+                # Replace with the internal IP
+                node_ip_or_idx = self.internal_ips[self.ips.index(node)]
 
         elif node is not None:
             raise ValueError(
@@ -1710,6 +1721,11 @@ class Cluster(Resource):
                 )
 
                 if self.on_this_cluster():
+
+                    # TODO: Case for calling when on the BYO cluster may not work
+                    if isinstance(node_ip_or_idx, int):
+                        node_ip = self.internal_ips[node_ip_or_idx]
+
                     if stream_logs:
 
                         async def print_logs():
@@ -1739,7 +1755,7 @@ class Cluster(Resource):
                             thread_coroutine,
                             self.client._alogs_request(
                                 run_name=run_name,
-                                node_ip=node_ip,
+                                node_ip_or_idx=node_ip_or_idx,
                                 process=process,
                                 create_async_client=True,
                             ),
@@ -1748,7 +1764,7 @@ class Cluster(Resource):
                     results.append(
                         self.client.run_bash(
                             command=command,
-                            node=node_ip,
+                            node_ip_or_idx=node_ip_or_idx,
                             process=process,
                             require_outputs=require_outputs,
                             run_name=run_name,
