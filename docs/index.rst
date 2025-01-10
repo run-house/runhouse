@@ -103,7 +103,6 @@ Table of Contents
 
    installation-setup
    tutorials/quick-start-cloud
-   tutorials/quick-start-den
    development-guide
    runhouse-in-your-stack
 
