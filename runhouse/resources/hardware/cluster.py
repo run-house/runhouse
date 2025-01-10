@@ -2223,6 +2223,7 @@ class Cluster(Resource):
         return self
 
     def disable_den_auth(self):
+        """Disable Den auth on the cluster."""
         if self.on_this_cluster():
             raise ValueError("Cannot toggle Den Auth live on the cluster.")
         else:
@@ -2510,6 +2511,19 @@ class Cluster(Resource):
         compute: Optional[Dict] = None,
         runtime_env: Optional[Dict] = None,
     ) -> str:
+        """
+        Create a new process on the cluster with the given arguments. If the process already exists on the cluster
+        with the same arguments, it is a no-op. If the process exists but was constructed with different arguments,
+        will throw an error.
+
+        Args:
+            name (str): Name to give the process.
+            env_vars (Dict, optional): Dict of env vars to set on the process.
+            compute (Dict, optional): Mapping of node index or compute resources (e.g. ``{"GPU": 1}``,
+                ``{"node_idx": 1}``)
+            runtime_env (Dict, optional): Runtime env to be used for the process.
+
+        """
         runtime_env = runtime_env or {}
         create_process_params = CreateProcessParams(
             name=name, compute=compute, runtime_env=runtime_env, env_vars=env_vars
@@ -2541,6 +2555,18 @@ class Cluster(Resource):
         compute: Optional[Dict] = None,
         runtime_env: Optional[Dict] = None,
     ) -> str:
+        """
+        Retrieve the process with the given name on the cluster if it already exists, or create a new process on the
+        cluster with the given arguments.
+
+        Args:
+            name (str): Name to give the process.
+            env_vars (Dict, optional): Dict of env vars to set on the process.
+            compute (Dict, optional): Mapping of node index or compute resources (e.g. ``{"GPU": 1}``,
+                ``{"node_idx": 1}``)
+            runtime_env (Dict, optional): Runtime env to be used for the process.
+
+        """
         existing_processes = self.list_processes()
         if name in existing_processes:
             return name
@@ -2551,6 +2577,12 @@ class Cluster(Resource):
         return name
 
     def set_process_env_vars(self, name: str, env_vars: Dict):
+        """Set the env vars for a process on the cluster.
+
+        Args:
+            name (str): Name of the process
+            env_vars (Dict): Env vars and values to set on the process.
+        """
         if self.on_this_cluster():
             return obj_store.set_process_env_vars(name, env_vars)
         else:
