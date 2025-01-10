@@ -286,5 +286,3 @@ if __name__ == "__main__":
     remote_trainer.load_model(num_classes=1000, pretrained=False)
     remote_trainer.load_trainer(epochs=epochs, strategy="ddp")
     remote_trainer.fit()
-
-    # gpu_cluster.teardown() # to teardown the underlying compute resources
