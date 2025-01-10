@@ -5,6 +5,7 @@ import time
 
 from datetime import datetime, timezone
 from enum import Enum
+from functools import update_wrapper
 from typing import Any, Dict, List
 
 import requests
@@ -589,3 +590,173 @@ def get_wrapped_server_start_cmd(flags: List[str], screen: bool, nohup: bool):
         )
 
     return wrapped_cmd
+
+
+####################################################################################################
+# Deploy utils
+####################################################################################################
+
+
+class PartialModule:
+    def __init__(
+        self,
+        fn_or_cls=None,
+        wip_module=None,
+        system=None,
+        module_process=None,
+        sync_local=None,
+        get_if_exists=None,
+        distribute_args=None,
+    ):
+        self.fn_or_cls = fn_or_cls
+        self.wip_module = wip_module
+        self.system = system
+        self.module_process = module_process
+        self.sync_local = sync_local
+        self.get_if_exists = get_if_exists
+        self.distribute_args = distribute_args
+
+    def __call__(self, *args, **kwargs):
+        # Raise an error that the user can't just use the @rh.distribute decorator, they need to apply
+        # the @rh.deploy decorator first.
+        raise ValueError(
+            "You need to use the @rh.deploy decorator before using @rh.distribute."
+        )
+
+    def deploy(self, get_if_exists=True):
+        self.system.up_if_not()
+
+        # Allows the user to force a redeploy of the module if it already exists on the cluster,
+        # either in the decorator code or in the deploy call.
+        if get_if_exists and self.get_if_exists:
+            new_module = self.wip_module.get_or_to(
+                system=self.system,
+                process=self.module_process,
+                sync_local=self.sync_local,
+            )
+        else:
+            # TODO Should we kill the existing process(es) here too? We'd want to put each module in a separate if so.
+            new_module = self.wip_module.to(
+                system=self.system,
+                process=self.module_process,
+                sync_local=self.sync_local,
+            )
+
+        if self.distribute_args:
+            args, kwargs = self.distribute_args
+            new_module = new_module.distribute(*args, **kwargs)
+        return new_module
+
+    def construct_without_deploying(self):
+        self.wip_module.system = self.system
+
+
+# @runhouse.deploy decorator that the user can use to wrap a function they want to deploy to a cluster,
+# and then deploy it with `runhouse deploy my_app.py` (we collect all the decorated functions imported in the file
+# to deploy them).
+def deploy(get_if_exists=False, **kwargs):
+    def decorator(func_or_cls):
+        from runhouse.globals import _deploying, disable_decorators
+
+        if disable_decorators:
+            return func_or_cls
+
+        if isinstance(func_or_cls, PartialModule):
+            distribute_args = func_or_cls.distribute_args
+            func_or_cls = func_or_cls.fn_or_cls
+        else:
+            distribute_args = None
+
+        module_name = kwargs.pop("name", None)
+        module_process = kwargs.pop("process", None)
+        load_from_den = kwargs.pop("load_from_den", True)
+
+        if isinstance(func_or_cls, type):
+            new_module = rh.module(
+                func_or_cls, name=module_name, load_from_den=load_from_den
+            )
+        else:
+            new_module = rh.function(
+                func_or_cls, name=module_name, load_from_den=load_from_den
+            )
+
+        # Default the name early here so the console status outputs look nice
+        if not new_module.name:
+            new_module.name = new_module.default_name()
+
+        if "system" in kwargs:
+            system = kwargs.pop("system")
+            if kwargs:
+                raise ValueError(
+                    "Please specify system or compute kwargs, but not both."
+                )
+        else:
+            # If we load the module from Den and it already has a system which is up, use that system
+            if (
+                get_if_exists
+                and new_module.system is not None
+                and new_module.system.is_up()
+            ):
+                system = new_module.system
+            else:
+                # Create a new cluster based on the compute parameters
+                cluster_name = (
+                    f"{module_name}-cluster"
+                    if module_name
+                    else f"{func_or_cls.__name__}-cluster"
+                )
+                system: rh.Cluster = rh.cluster(**kwargs, name=cluster_name)
+
+        if _deploying:
+            # Construct and register a partial module that will be deployed by the deploy command in main.py
+            partial_module = PartialModule(
+                fn_or_cls=func_or_cls,
+                wip_module=new_module,
+                system=system,
+                module_process=module_process,
+                get_if_exists=get_if_exists,
+                distribute_args=distribute_args,
+            )
+            update_wrapper(partial_module, func_or_cls)
+            return partial_module
+        else:
+            # Previously I tried calling system.get(new_module.name, default=None, remote=True) here to get the
+            # deployed module, but the cluster connection and checks were too heavy to always do at import time.
+            # That approach was nice because we could throw an error if the module wasn't deployed yet, but it's
+            # not worth the overhead.
+            new_module.system = system
+            update_wrapper(new_module, func_or_cls)
+            return new_module
+            # TODO find a new place to raise these errors at call time, maybe before attempting to call the module.
+            #   e.g. some kind of module.is_up() method.
+            # if not system.is_up():
+            #     raise ValueError(
+            #         f"Module's cluster {system.name} is not up. Please deploy the module first"
+            #         f" with `runhouse deploy <my_app.py>`."
+            #     )
+            # deployed_module = system.get(new_module.name, default=None, remote=True)
+            # if not deployed_module:
+            #     raise ValueError(
+            #         f"Module {new_module.name} not found on cluster {system.name}. Please deploy it first"
+            #         f" with `runhouse deploy <my_app.py>`."
+            #     )
+
+    return decorator
+
+
+def distribute(*args, **kwargs):
+    def decorator(func_or_cls):
+        from runhouse.globals import disable_decorators
+
+        if disable_decorators:
+            return func_or_cls
+
+        # This is a partial so the order of decorator chaining can be reversed for best aesthetics
+        # the deploy method will actually call .distribute on the function or class after it's been deployed
+        partial_module = PartialModule(
+            fn_or_cls=func_or_cls, distribute_args=(args, kwargs)
+        )
+        update_wrapper(partial_module, func_or_cls)
+        return partial_module
+
+    return decorator

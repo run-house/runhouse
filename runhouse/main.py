@@ -1,6 +1,9 @@
+import importlib
+import inspect
 import logging
 import shlex
 import subprocess
+import sys
 import time
 import webbrowser
 from pathlib import Path
@@ -24,6 +27,7 @@ from runhouse.cli_utils import (
     get_wrapped_server_start_cmd,
     is_command_available,
     LogsSince,
+    PartialModule,
     print_bring_cluster_up_msg,
     print_cluster_config,
     print_status,
@@ -131,6 +135,106 @@ def logout():
     """Logout of Runhouse. Provides options to delete locally configured secrets and local Runhouse configs"""
     runhouse.rns.login.logout(interactive=True)
     raise typer.Exit()
+
+
+###############################
+# Deploy CLI commands
+@app.command("deploy")
+def deploy(
+    target: str = typer.Argument(
+        ...,
+        help="Python module or file to deploy, optionally followed by a "
+        "single function or class to deploy. e.e. `my_module:my_cls`, or "
+        "`my_file.py`.",
+    ),
+    get_if_exists: bool = typer.Option(
+        False,
+        "--get-if-exists",
+        help="Whether to get existing deployed functions and modules if they already exist.",
+    ),
+    restart: bool = typer.Option(
+        False,
+        "--restart",
+        help="Whether to restart the Runhouse server after deploying.",
+    ),
+):
+    """Deploy a Python file to Runhouse. This will deploy all functions and modules decorated with
+    @rh.deploy in the file."""
+    # First, switch to deployment mode so deployment decorators know to behave accordingly
+    rh.globals._deploying = True
+
+    to_deploy = []
+    fn_or_class = None
+
+    if ":" in target:
+        target, fn_or_class = target.split(":")
+
+    if target.endswith(".py"):
+        abs_path = Path(target).resolve()
+        python_module = inspect.getmodulename(str(abs_path))
+
+        sys.path.insert(0, str(abs_path.parent))
+        spec = importlib.util.spec_from_file_location(python_module, abs_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    else:
+        sys.path.append(".")
+        module = importlib.import_module(target)
+
+    if fn_or_class:
+        if not hasattr(module, fn_or_class):
+            raise ValueError(f"Function or class {fn_or_class} not found in {target}.")
+        to_deploy = [getattr(module, fn_or_class)]
+        if not isinstance(to_deploy[0], PartialModule):
+            raise ValueError(
+                f"Function or class {fn_or_class} in {target} is not decorated with @rh.deploy."
+            )
+    else:
+        # Get all functions and classes to deploy
+        for name in dir(module):
+            obj = getattr(module, name)
+            if isinstance(obj, PartialModule):
+                to_deploy.append(obj)
+        if not to_deploy:
+            raise ValueError(
+                f"No functions or classes decorated with @rh.deploy found in {target}."
+            )
+
+    if not fn_or_class:
+        console.print(
+            f"Found the following functions and classes to deploy in {target}:"
+        )
+        for partial_module in to_deploy:
+            console.print(f"{BULLET_UNICODE} {partial_module.wip_module.name}")
+
+    restarted_systems = []
+
+    # We don't want to sync the local code over the cluster over and over and we know that all of these
+    # functions/classes are in the same package, so stop syncing after the first time.
+    sync_local = True
+    for partial_module in to_deploy:
+        try:
+            if partial_module.system.name not in restarted_systems and restart:
+                if not partial_module.system.is_up():
+                    partial_module.system.up()
+                else:
+                    # We don't need to restart if bringing up the cluster for the first time
+                    partial_module.system.restart_server()
+                restarted_systems.append(partial_module.system)
+
+            partial_module.sync_local = sync_local
+            console.print(f"Deploying {partial_module.wip_module.name}...")
+            partial_module.deploy(get_if_exists=get_if_exists)
+            console.print(f"Successfully deployed {partial_module.wip_module.name}.")
+            if partial_module.sync_local:
+                sync_local = False
+        except Exception as e:
+            console.print(f"Failed to deploy {partial_module}: {e}")
+            raise e
+            # raise typer.Exit(1)
+
+    if not fn_or_class:
+        console.print(f"Successfully deployed functions and modules from {target}.")
 
 
 ###############################

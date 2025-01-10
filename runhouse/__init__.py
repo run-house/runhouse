@@ -1,3 +1,4 @@
+from runhouse.cli_utils import deploy, distribute
 from runhouse.resources.asgi import Asgi, asgi
 from runhouse.resources.folders import Folder, folder, GCSFolder, S3Folder
 from runhouse.resources.functions.function import Function

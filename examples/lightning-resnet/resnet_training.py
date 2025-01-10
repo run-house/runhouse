@@ -120,6 +120,33 @@ class ImageNetDataModule(L.LightningDataModule):
 
 
 # ### Trainer Encapsulation
+gpus_per_node = 1
+num_nodes = 3
+
+img = rh.images.Ubuntu.install_packages(
+    [
+        "torch==2.5.1",
+        "torchvision==0.20.1",
+        "Pillow==11.0.0",
+        "datasets",
+        "boto3",
+        "awscli",
+        "lightning",
+        "runhouse==0.0.36",
+    ]
+).sync_secrets(
+    ["aws"]
+)  # sends our AWS secret to the remote cluster
+
+
+@rh.deploy(
+    gpus=f"A10G:{gpus_per_node}",
+    num_nodes=num_nodes,
+    provider="aws",
+    image=img,
+    idle_timeout=60,
+)
+@rh.distribute("pytorch", num_replicas=gpus_per_node * num_nodes)
 class ResNetTrainer:
     def __init__(self, num_nodes, gpus_per_node, working_s3_bucket, working_s3_path):
         self.num_nodes = num_nodes
@@ -209,64 +236,25 @@ if __name__ == "__main__":
     working_s3_bucket = "rh-demo-external"
     working_s3_path = "resnet-training-example/"
 
-    gpus_per_node = 1
-    num_nodes = 3
-
-    img = rh.Image("pytorch-image").install_packages(
-        [
-            "torch==2.5.1",
-            "torchvision==0.20.1",
-            "Pillow==11.0.0",
-            "datasets",
-            "boto3",
-            "awscli",
-            "lightning",
-            "runhouse==0.0.36",
-        ]
-    )
-
-    gpu_cluster = (
-        rh.cluster(
-            name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-            instance_type=f"A10G:{gpus_per_node}",
-            num_nodes=num_nodes,
-            provider="aws",
-            launch_type="local",
-            image=img,
-        )
-        .up_if_not()
-        .save()
-    )
-
-    # gpu_cluster.restart_server() # to restart the Runhouse server, does not tear down the actual underlying compute
-    gpu_cluster.sync_secrets(["aws"])  # sends our AWS secret to the remote cluster
-
-    # Send the Trainer class to the remote GPU cluster
-    trainer = rh.module(ResNetTrainer).to(gpu_cluster)
-
     # Setup the Trainer class as a remote object we interact with locally
     epochs = 15
     batch_size = 32
 
-    remote_trainer = trainer(
+    trainer = ResNetTrainer(
         name="resnet_trainer",
         num_nodes=num_nodes,
         gpus_per_node=gpus_per_node,
         working_s3_bucket=working_s3_bucket,
         working_s3_path=working_s3_path,
-    ).distribute(
-        "pytorch",
-        replicas_per_node=gpus_per_node,
-        num_replicas=gpus_per_node * num_nodes,
-    )  # note we call .distribute()
+    )
 
-    remote_trainer.load_data(
+    trainer.load_data(
         train_data_path=train_data_path,
         val_data_path=val_data_path,
         batch_size=batch_size,
     )
-    remote_trainer.load_model(num_classes=1000, pretrained=False)
-    remote_trainer.load_trainer(epochs=epochs, strategy="ddp")
-    remote_trainer.fit()
+    trainer.load_model(num_classes=1000, pretrained=False)
+    trainer.load_trainer(epochs=epochs, strategy="ddp")
+    trainer.fit()
 
     # gpu_cluster.teardown() # to teardown the underlying compute resources

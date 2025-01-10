@@ -11,13 +11,6 @@ import requests
 
 import rich.errors
 
-try:
-    import sky
-    from sky import ClusterStatus as SkyClusterStatus
-    from sky.backends import backend_utils
-except ImportError:
-    pass
-
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_HTTPS_PORT,
@@ -383,6 +376,12 @@ class OnDemandCluster(Cluster):
         .. note:: For more information see SkyPilot's :code:`ResourceHandle` `class
         <https://github.com/skypilot-org/skypilot/blob/0c2b291b03abe486b521b40a3069195e56b62324/sky/backends/cloud_vm_ray_backend.py#L1457>`__.
         """
+        # If skypilot isn't installed (e.g. on the cluster), we know the skydb is empty
+        try:
+            import sky
+        except ImportError:
+            return None
+
         if not sky.global_user_state.get_cluster_from_name(self.name):
             return None
 
@@ -409,6 +408,8 @@ class OnDemandCluster(Cluster):
         time.sleep(5)
 
     def _update_cluster_status_from_sky_status(self, sky_status: str):
+        from sky import ClusterStatus as SkyClusterStatus
+
         if sky_status == SkyClusterStatus.UP:
             self._cluster_status = ClusterStatus.RUNNING
         if sky_status == SkyClusterStatus.STOPPED:
@@ -429,6 +430,9 @@ class OnDemandCluster(Cluster):
     def _populate_connection_from_status_dict(self, cluster_dict: Dict[str, Any]):
         if not cluster_dict:
             return
+
+        from sky import ClusterStatus as SkyClusterStatus
+        from sky.backends import backend_utils
 
         sky_status = cluster_dict["status"]
         self._update_cluster_status_from_sky_status(sky_status)
