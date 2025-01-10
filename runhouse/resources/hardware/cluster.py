@@ -225,13 +225,25 @@ class Cluster(Resource):
     ):
         config = self.config(condensed=False)
 
-        # popping creds, because we don't want to save secret creds on the cluster.
-        config.pop("creds")
-        if config.get("image") and config.get("image").get("image_id"):
-            config["image"].pop("image_id")
-            config["image"].pop("docker_secret", None)
+        useful_config_keys = [
+            "name",
+            "resource_subtype",
+            "den_auth",
+            "server_port",
+            "server_connection_type",
+            "server_host",
+            "autostop_mins",
+            "domain",
+        ]
+        if config.get("resource_subtype", None) == "OnDemandCluster":
+            useful_config_keys.append("compute_properties")
+        else:
+            useful_config_keys.append("ips")
 
-        json_config = f"{json.dumps(config)}"
+        # saving only the relevant config keys and their values to be saved on the cluster.
+        condensed_cluster_config = {key: config.get(key) for key in useful_config_keys}
+
+        json_config = f"{json.dumps(condensed_cluster_config)}"
 
         self.run_bash_over_ssh(
             [
@@ -427,8 +439,6 @@ class Cluster(Resource):
                 # user A.
                 creds = creds.replace("loaded_secret_", "")
             config["creds"] = creds
-
-        config["api_server_url"] = rns_client.api_server_url
 
         if self._use_custom_certs:
             config["ssl_certfile"] = self.cert_config.cert_path
@@ -1014,6 +1024,12 @@ class Cluster(Resource):
                 "no longer be collected. To re-enable observability, please "
                 "run `rh.configs.enable_observability()` and restart the server (`cluster.restart_server()`)."
             )
+
+        # adding the full cluster_config, because the returned config is a condensed version of the cluster_config
+        # saved locally on the cluster.
+        full_config = copy.deepcopy(self.config())
+        full_config["is_gpu"] = status.get("cluster_config").get("is_gpu")
+        status["cluster_config"] = full_config
 
         return status
 
@@ -1635,7 +1651,8 @@ class Cluster(Resource):
             require_outputs (bool): Whether to return stdout/stderr in addition to status code. (Default: ``True``)
         """
 
-        if isinstance(commands, str):
+        command_is_str = isinstance(commands, str)
+        if command_is_str:
             commands = [commands]
 
         if node is not None and process is not None:
@@ -1741,7 +1758,8 @@ class Cluster(Resource):
                 if stream_logs:
                     _ = logs_future.result()
 
-                results.append(results)
+        if len(results) == 1 and command_is_str:
+            return results[0]
 
         return results
 

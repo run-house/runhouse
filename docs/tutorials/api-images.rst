@@ -51,4 +51,4 @@ cluster setup:
     [?25h
 
 The growing listing of setup steps available for Runhouse images is
-available in the API reference.
+available in the :ref:`API reference docs <Image Class>`.

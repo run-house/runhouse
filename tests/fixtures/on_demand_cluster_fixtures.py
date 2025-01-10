@@ -40,7 +40,7 @@ def setup_test_cluster(args, request, test_rns_folder, setup_base=False):
 
 @pytest.fixture(
     params=[
-        "ondemand_aws_docker_cluster",
+        "local_launched_ondemand_aws_docker_cluster",
         "den_launched_ondemand_aws_docker_cluster",
         "ondemand_gcp_cluster",
         "ondemand_k8s_cluster",
@@ -71,7 +71,7 @@ def ondemand_cluster(request):
 
 
 @pytest.fixture(scope="session")
-def ondemand_aws_docker_cluster(request, test_rns_folder):
+def local_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
     """
     Note: Also used to test docker and default process with alternate Ray version.
     """

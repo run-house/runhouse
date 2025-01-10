@@ -83,14 +83,14 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
     LOCAL = {"cluster": []}
     MINIMAL = {
         "cluster": [
-            "ondemand_aws_docker_cluster",
+            "local_launched_ondemand_aws_docker_cluster",
             "ondemand_gcp_cluster",
             "ondemand_k8s_cluster",
         ]
     }
     RELEASE = {
         "cluster": [
-            "ondemand_aws_docker_cluster",
+            "local_launched_ondemand_aws_docker_cluster",
             "den_launched_ondemand_aws_docker_cluster",
             "ondemand_gcp_cluster",
             "ondemand_aws_https_cluster_with_auth",
@@ -102,7 +102,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
     }
     MAXIMAL = {
         "cluster": [
-            "ondemand_aws_docker_cluster",
+            "local_launched_ondemand_aws_docker_cluster",
             "ondemand_gcp_cluster",
             "ondemand_k8s_cluster",
             "ondemand_k8s_docker_cluster",
@@ -267,13 +267,17 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         assert cluster.ips == original_ips
 
     @pytest.mark.level("release")
-    def test_docker_container_reqs(self, ondemand_aws_docker_cluster):
-        ret_code = ondemand_aws_docker_cluster.run_bash("pip freeze | grep torch")[0][0]
+    def test_docker_container_reqs(self, local_launched_ondemand_aws_docker_cluster):
+        ret_code = local_launched_ondemand_aws_docker_cluster.run_bash(
+            "pip freeze | grep torch"
+        )[0][0]
         assert ret_code == 0
 
     @pytest.mark.level("release")
-    def test_fn_to_docker_container(self, ondemand_aws_docker_cluster):
-        remote_torch_exists = rh.function(torch_exists).to(ondemand_aws_docker_cluster)
+    def test_fn_to_docker_container(self, local_launched_ondemand_aws_docker_cluster):
+        remote_torch_exists = rh.function(torch_exists).to(
+            local_launched_ondemand_aws_docker_cluster
+        )
         assert remote_torch_exists()
 
     ####################################################################################################
@@ -294,7 +298,7 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
 
         cluster_config = cluster.config()
         cluster_uri = rns_client.format_rns_address(cluster.rns_address)
-        api_server_url = cluster_config.get("api_server_url", rns_client.api_server_url)
+        api_server_url = rns_client.api_server_url
         cluster.teardown()
         get_status_data_resp = requests.get(
             f"{api_server_url}/resource/{cluster_uri}/cluster/status",
