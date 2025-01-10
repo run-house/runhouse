@@ -4,52 +4,11 @@ This page offers a more detailed guide on using Runhouse to develop and deploy y
 questions about what is described here, please reach out to `hello@run.house <mailto:hello@run.house>`_ or ping us on
 `Discord <https://discord.gg/RnhB6589Hs>`_, and we'd be happy to walk you through the details.
 
-Quick Start
------------
-Before reviewing this detailed guide, we recommend you start with the `Quick Start
+This guide assumes you have already followed the Installation and Compute Setup steps of the `Installation and Setup
+Guide <https://www.run.house/docs/installation-setup>`__.
+
+For a quicker run-through, we recommend you first start with the `Quick Start
 <https://www.run.house/docs/tutorials/quick-start-cloud>`_ guide.
-
-* Install Runhouse with ``pip install runhouse``
-
-* Optionally install with a specific cloud like ``pip install "runhouse[aws]"`` or with
-  `SkyPilot <https://skypilot.readthedocs.io/en/latest/docs/index.html>`_ for elastic compute
-  ``pip install "runhouse[sky]"``
-
-* Optionally create an account on the `Runhouse website <https://www.run.house/dashboard>`_ or with
-  ``runhouse login --sync-secrets`` to enable saving, reloading, and centralized authentication / secrets management.
-
-Access to Compute
------------------
-In order to use Runhouse, you must be able to access compute resources, which can take any form (e.g. VMs, elastic
-compute, Kubernetes). You should think about all the compute resources you have as a single pool, from which Runhouse
-allows you to launch ephemeral clusters to execute your code.
-
-* **Kubernetes**: All you need is a kubeconfig
-
-* **Elastic Compute**: We use Skypilot under the hood to launch elastic compute, and support most clouds. You can run
-  ``sky check`` in CLI after installing ``runhouse[sky]`` to confirm you have access to the cloud, or for the necessary
-  setup steps.
-
-* **Existing Clusters**: Runhouse supports a variety of authentication methods to access existing clusters, including
-  SSH with keys or passwords.
-
-For initial projects and getting started quickly, launching from local credentials is possible. In this setting, you
-already unlock serverless execution for your Python ML code, but you cannot yet take advantage of advanced usage
-patterns from compute saving and reuse.
-
-For production settings, we recommend that users load cloud secrets, Kubeconfig, and available compute resources into
-Runhouse Den and authenticate from all launch environments using only the Runhouse token. Platform teams gain
-centralized observability over utilization, including insights into who is launching clusters, how often they are
-launched, and the resources or tasks executed on them. Access management becomes much simpler, especially in
-multi-cloud or multi-cluster environments. To get started with Den enabled, simply run
-``runhouse login --sync-secrets`` in the CLI.
-
-
-.. note::
-
-    If you do not have access to the cloud from a local machine (ex: from within an orchestration pipeline), you
-    can use the Runhouse control plane to launch your compute. See :ref:`Den Launcher` for more information.
-
 Start Your Project
 -------------------
 Once you have established access to compute, you can start developing a new ML project. The following steps will

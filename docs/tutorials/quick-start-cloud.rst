@@ -20,25 +20,9 @@ This tutorial demonstrates how to
 - Send a locally defined function onto the remote compute and call it as
   a service
 
-Installing Runhouse
--------------------
-
-The Runhouse base package can be installed with:
-
-.. code:: ipython3
-
-    !pip install runhouse
-
-To use Runhouse to launch on-demand clusters, please instead run the
-following command.
-
-.. code:: ipython3
-
-    !pip install "runhouse[sky]"
-
-.. code:: ipython3
-
-    import runhouse as rh
+This guide assumes you have already followed the Installation and Compute
+Setup steps of the `Installation and Setup Guide
+<https://www.run.house/docs/installation-setup>`__
 
 Local Python Function
 ---------------------
