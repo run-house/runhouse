@@ -46,7 +46,8 @@ in on your machine, paste in your generated Runhouse token when prompted for it.
 .. code:: ipython3
 
     import runhouse as rh
-    rh.login(token=`generated_token_from_signup`)
+
+    rh.login(token="generated_token_from_signup")
 
 Access to Compute
 -----------------
