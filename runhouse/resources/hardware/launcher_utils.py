@@ -129,7 +129,7 @@ class Launcher:
             or "private_key" not in secret_values
         ):
             raise ValueError(
-                f"Public key and private key values not found in secret {secrets_name}"
+                f"Public key and private key values not found in secret {sky_secret.name}"
             )
         return sky_secret
 
