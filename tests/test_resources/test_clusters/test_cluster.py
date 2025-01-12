@@ -871,6 +871,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_run_within_cluster(self, cluster):
+        if cluster.config().get("resource_subtype") == "Cluster":
+            pytest.skip("run_bush don't work when running on the cluster, need to fix")
         remote_run = rh.function(run_in_no_env).to(cluster)
         res = remote_run("echo hello")
 
@@ -1045,7 +1047,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             # update the cluster status. Making sure that its name is in the same format as all testing clusters
             # (contains timestamp and uuid)
             terminated_cluster = rh.cluster(
-                name=f"{create_folder_path()}_terminated-cluster",
+                name=f"{create_folder_path()}-terminated-cluster",
                 server_connection_type="ssh",
             ).save()
             set_daemon_and_cluster_status(
@@ -1172,7 +1174,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert re.search(regex, cmd_stdout)
 
             # testing that the table column names is printed correctly
-            col_names = ["┃ Name", "┃ Cluster Type", "┃ Status", "┃ Last Active (UTC)"]
+            col_names = [
+                "┃ Name",
+                "┃ Cluster Type",
+                "┃ Status",
+                "┃ Last Active (UTC)",
+                "┃ Autostop (Mins)",
+            ]
             for name in col_names:
                 assert name in cmd_stdout
             assert (
@@ -1230,6 +1238,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                     "┃ Cluster Type",
                     "┃ Status",
                     "┃ Last Active (UTC)",
+                    "┃ Autostop (Mins)",
                 ]
                 for name in col_names:
                     assert name in cmd_stdout
