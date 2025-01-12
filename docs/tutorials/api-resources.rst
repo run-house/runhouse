@@ -8,20 +8,19 @@ Resource Management
 
 Runhouse provides a suite of accessibility features that makes it easy
 to keep track of and access your data, code, or secrets from anywhere.
-The Runhouse RNS (resource naming system) keeps track of lightweight
-metadata for your Resources, making it possible to save, reload, and
+Runhouse Den keeps track of lightweight metadata for your Resources, making it possible to save, reload, and
 reuse them.
 
 Anyone can take advantage of these accessibility features locally, and
 by creating a (free) Runhouse account, you can further access your
 resources and secrets from any environment or device you log into.
 
-This tutorial covers the following topics: 1. Configs 2. Local RNS 3.
-Runhouse RNS
+This tutorial covers the following topics:
 
-.. code:: ipython3
+1. :ref:`Configs <Setting Config Options>`
+2. :ref:`Local Runhouse <Local Runhouse>`
+3. :ref:`Runhouse Den <Runhouse Den>`
 
-    import runhouse as rh
 
 Setting Config Options
 ----------------------
@@ -56,28 +55,28 @@ To save updated configs to Runhouse, to be accessed from elsewhere:
 
     rh.configs.upload_defaults()
 
-Local RNS
----------
+Local Runhouse
+--------------
 
-The Local RNS is a git-based approach that allows for local persistence
+You can use Runhouse locally as a git-based approach that allows for local persistence
 and versioning, or sharing across OSS projects. It lets you publish the
 exact resource metadata in the same version tree as your code, and can
 be a highly visible way to publish distribute resources, such as cloud
 configurations and data artifacts, to OSS users.
 
-Local Resources live in the current local folder; they are saved down
+Local resources live in the current local folder; they are saved down
 into the ``rh`` folder of the current Git working directory.
 
 If you are not logged into a Runhouse account, calling ``.save()`` will
 save down resources locally by default. If you are logged into a
-Runhouse account however, Resources will be saved into Runhouse RNS by
+Runhouse account however, resources will be saved into Den by
 default, so if you would like to specify creating a local resource, you
 can do so by explicitly setting the resource name to begin with ``~/``
 to signal that it lives in the current folder.
 
 .. note::
 
-    If you are logged in and would like to turn on automatically saving resources to Runhouse RNS, you can
+    If you are logged in and would like to turn on automatically saving resources to Den, you can
     set ``autosave`` to ``true`` in your local ``~/.rh/config.yaml`` file.
 
 .. code:: ipython3
@@ -168,13 +167,13 @@ the resource factory method, passing in only the name.
 
 
 
-Runhouse RNS
+Runhouse Den
 ------------
 
-Runhouse RNS, or Den, is a key-value metadata store that allows
+Den is a key-value metadata store that allows
 resources to be shared across users or environments, and does not need
 to be backed by Git. It works anywhere with an internet connection and
-Python interpreter, making it more portable. The RNS is also backed by a
+Python interpreter, making it more portable. Den is also backed by a
 management dashboard to view and manage all resources, including
 creation and update history.
 
