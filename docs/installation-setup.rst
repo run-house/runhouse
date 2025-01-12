@@ -96,9 +96,9 @@ We recommend this approach for a couple of reasons:
 * **Distributed Workflows / Production Pipelines**: Launch clusters as part of distributed workflows
   or pipelines without needing to configure cloud credentials in your environment.
 
-To enable the Den launcher, you can set :code:`launcher="den"` in the:ref:`cluster factory
-<Cluster Factory Methods>`, or update your local :ref:`runhouse config <Setting Config Options>` with
-:code:`launcher: den` to apply the setting globally across all subsequent clusters created.
+To enable the Den launcher, you can set :code:`launcher="den"` in the :ref:`cluster factory <Cluster Factory Methods>`, or update
+your local :ref:`runhouse config <Setting Config Options>` with :code:`launcher: den` to apply the setting globally
+across all subsequent clusters created.
 
 Local Launcher
 ~~~~~~~~~~~~~~
