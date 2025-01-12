@@ -86,6 +86,18 @@ def install_conda(cluster: "Cluster" = None, node: Optional[str] = None):
             raise RuntimeError("Could not install Conda.")
 
 
+def parse_traceback_error(traceback_msg: str, fallback_msg: str):
+    traceback_match = re.search(
+        r"Traceback.*?\n(.+Error: .+)", traceback_msg, re.DOTALL
+    )
+    if not traceback_match:
+        return fallback_msg
+
+    error_message = traceback_match.group(1).strip()
+    cleaned_message = re.sub(r"\x1b\[[0-9;]*m", "", error_message)
+    return cleaned_message
+
+
 def create_conda_env_on_cluster(
     conda_env_name: str,
     conda_config: Dict,

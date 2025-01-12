@@ -22,6 +22,7 @@ from runhouse.utils import (
     install_conda,
     is_python_package_string,
     locate_working_dir,
+    parse_traceback_error,
     run_setup_command,
 )
 
@@ -281,10 +282,15 @@ class Package(Resource):
                 conda_env_name=conda_env_name, cluster=cluster
             )
             logger.info(f"Running via install_method pip: {install_cmd}")
-            retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
-            if retcode != 0:
+            status_codes = run_setup_command(install_cmd, cluster=cluster, node=node)
+            ret_code = status_codes[0]
+            if ret_code != 0:
                 raise RuntimeError(
-                    f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
+                    parse_traceback_error(
+                        status_codes[1],
+                        fallback_msg=f"Pip install {install_cmd} failed, check that the package exists "
+                        f"and is available for your platform.",
+                    )
                 )
 
         elif self.install_method == "conda":
@@ -292,11 +298,15 @@ class Package(Resource):
                 conda_env_name=conda_env_name, cluster=cluster
             )
             logger.info(f"Running via install_method conda: {install_cmd}")
-            retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
-            if retcode != 0:
+            status_codes = run_setup_command(install_cmd, cluster=cluster, node=node)
+            ret_code = status_codes[0]
+            if ret_code != 0:
                 raise RuntimeError(
-                    f"Conda install {install_cmd} failed, check that the package exists and is "
-                    "available for your platform."
+                    parse_traceback_error(
+                        status_codes[1],
+                        fallback_msg=f"Conda install {install_cmd} failed, check that the package exists and is "
+                        "available for your platform.",
+                    )
                 )
 
         elif self.install_method == "reqs":
@@ -305,11 +315,19 @@ class Package(Resource):
             )
             if install_cmd:
                 logger.info(f"Running via install_method reqs: {install_cmd}")
-                retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
-                if retcode != 0:
+                status_codes = run_setup_command(
+                    install_cmd, cluster=cluster, node=node
+                )
+                ret_code = status_codes[0]
+                if ret_code != 0:
                     raise RuntimeError(
-                        f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
+                        parse_traceback_error(
+                            status_codes[1],
+                            fallback_msg=f"Reqs install {install_cmd} failed, check that the package exists "
+                            f"and is available for your platform.",
+                        )
                     )
+
             else:
                 logger.info(
                     f"{self.install_target.full_local_path_str()}/requirements.txt not found, skipping reqs install"

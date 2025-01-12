@@ -39,6 +39,7 @@ from runhouse.utils import (
     generate_default_name,
     install_conda,
     locate_working_dir,
+    parse_traceback_error,
     run_command_with_password_login,
     run_setup_command,
     thread_coroutine,
@@ -1231,9 +1232,14 @@ class Cluster(Resource):
             stream_logs=True,
             node=self.head_ip,
         )
-
-        if not status_codes[0] == 0:
-            raise ValueError(f"Failed to restart server {self.name}")
+        ret_code = status_codes[0]
+        if ret_code != 0:
+            raise RuntimeError(
+                parse_traceback_error(
+                    status_codes[1],
+                    fallback_msg=f"Failed to restart server {self.name}",
+                )
+            )
 
         if https_flag:
             rns_address = self.rns_address or self.name
