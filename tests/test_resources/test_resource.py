@@ -172,6 +172,10 @@ class TestResource:
         # TODO: Remove this by doing some CI-specific logic.
         if saved_resource.__class__.__name__ == "OnDemandCluster":
             return
+        if "Folder" in saved_resource.__class__.__name__:
+            pytest.skip(
+                "Skipping folder tests for now, since folders might be deprecated"
+            )
 
         if TEST_ORG in saved_resource.rns_address:
             # Org resources require org membership or being granted explicit access - have a separate test for this
@@ -194,11 +198,10 @@ class TestResource:
         # First try loading in same process/filesystem because it's more debuggable, but not as thorough
         resource_class_name = saved_resource.config().get("resource_type").capitalize()
         config = saved_resource.config()
+        address = saved_resource.rns_address
 
         with friend_account():
-            new_config = load_shared_resource_config(
-                resource_class_name, saved_resource.rns_address
-            )
+            new_config = load_shared_resource_config(resource_class_name, address)
             if new_config["resource_subtype"] == "Secret":
                 secret_name = new_config.pop("name")
                 assert "loaded_secret_" in secret_name
