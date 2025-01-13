@@ -69,6 +69,7 @@ class OnDemandCluster(Cluster):
         domain: str = None,
         den_auth: bool = False,
         region: str = None,
+        vpc_name: str = None,
         sky_kwargs: Dict = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -113,6 +114,7 @@ class OnDemandCluster(Cluster):
         self._gpus = gpus
         self.sky_kwargs = sky_kwargs or {}
         self.launcher = cluster_launcher
+        self.vpc_name = vpc_name
 
         self.compute_properties = {}
         # backwards compatibility
@@ -231,6 +233,7 @@ class OnDemandCluster(Cluster):
                 "region",
                 "memory",
                 "disk_size",
+                "vpc_name",
                 "sky_kwargs",
                 "launcher",
                 "compute_properties",
