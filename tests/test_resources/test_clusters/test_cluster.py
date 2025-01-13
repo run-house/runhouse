@@ -1252,7 +1252,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_cluster_list_and_create_process(self, cluster):
+    def test_cluster_create_and_list_process(self, cluster):
         assert DEFAULT_PROCESS_NAME in cluster.list_processes()
 
         # create a process manually with the create_process functionality
