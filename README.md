@@ -1,6 +1,6 @@
 # 🏃‍♀️Runhouse🏠
 
-[![Discord](https://dcbadge.vercel.app/api/server/RnhB6589Hs?compact=true&style=flat)](https://discord.gg/RnhB6589Hs)
+[![Discord](https://img.shields.io/discord/1065833240625172600?label=Discord&style=for-the-badge)](https://discord.gg/RnhB6589Hs)
 [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/runhouse_.svg?style=social&label=@runhouse_)](https://twitter.com/runhouse_)
 [![Website](https://img.shields.io/badge/run.house-green)](https://www.run.house)
 [![Docs](https://img.shields.io/badge/docs-blue)](https://www.run.house/docs)
