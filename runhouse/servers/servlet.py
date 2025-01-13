@@ -7,9 +7,6 @@ import traceback
 from functools import wraps
 from typing import Any, Dict, Optional
 
-import psutil
-import pynvml
-
 from runhouse import configs
 
 from runhouse.constants import (
@@ -95,6 +92,8 @@ class Servlet:
     async def __init__(
         self, create_process_params: CreateProcessParams, *args, **kwargs
     ):
+        import psutil
+
         self.env_name = create_process_params.name
 
         await obj_store.ainitialize(
@@ -251,6 +250,7 @@ class Servlet:
         return await obj_store.aclear_local()
 
     def _get_env_cpu_usage(self, cluster_config: dict = None):
+        import psutil
 
         total_memory = psutil.virtual_memory().total
         node_ip = get_node_ip()
@@ -306,6 +306,7 @@ class Servlet:
 
     def _collect_env_gpu_usage(self):
         """periodically collects env gpu usage"""
+        import pynvml
 
         pynvml.nvmlInit()  # init nvidia ml info collection
 

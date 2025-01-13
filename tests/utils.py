@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import pytest
-import ray
 import requests
 
 import runhouse as rh
@@ -211,6 +210,7 @@ def init_remote_cluster_servlet_actor(
     cluster_config: Optional[Dict] = None,
     servlet_name: Optional[str] = "cluster_servlet",
 ):
+    import ray
     from runhouse.servers.cluster_servlet import ClusterServlet
 
     remote_actor = (

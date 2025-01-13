@@ -8,10 +8,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import requests
 
-from fastapi import HTTPException
 from pydantic import BaseModel, field_validator
-from ray import cloudpickle as pickle
-from ray.exceptions import RayTaskError
 
 from runhouse.logger import get_logger
 
@@ -171,10 +168,14 @@ class FolderMvParams(FolderParams):
 
 
 def pickle_b64(picklable):
+    from ray import cloudpickle as pickle
+
     return codecs.encode(pickle.dumps(picklable), "base64").decode()
 
 
 def b64_unpickle(b64_pickled):
+    from ray import cloudpickle as pickle
+
     return pickle.loads(codecs.decode(b64_pickled.encode(), "base64"))
 
 
@@ -213,6 +214,9 @@ def serialize_data(data: Any, serialization: Optional[str]):
 def handle_exception_response(
     exception: Exception, traceback: str, serialization="pickle", from_http_server=False
 ):
+    from fastapi import HTTPException
+    from ray.exceptions import RayTaskError
+
     if not (
         isinstance(exception, RunhouseStopIteration)
         or isinstance(exception, StopIteration)
@@ -394,6 +398,8 @@ def folder_mkdir(path: Path):
 
 
 def folder_get(path: Path, encoding: str = None, mode: str = None):
+    from fastapi import HTTPException
+
     mode = mode or "rb"
     binary_mode = "b" in mode
 
@@ -434,6 +440,8 @@ def folder_put(
     mode: str = None,
     serialization: str = None,
 ):
+    from fastapi import HTTPException
+
     mode = mode or "wb"
 
     if contents and not isinstance(contents, dict):
@@ -481,6 +489,8 @@ def folder_put(
 
 
 def folder_ls(path: Path, full_paths: bool, sort: bool):
+    from fastapi import HTTPException
+
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"Path {path} does not exist")
 
@@ -507,6 +517,8 @@ def folder_ls(path: Path, full_paths: bool, sort: bool):
 
 
 def folder_rm(path: Path, contents: List[str], recursive: bool):
+    from fastapi import HTTPException
+
     if contents:
         from runhouse import Folder
 
@@ -548,6 +560,8 @@ def folder_rm(path: Path, contents: List[str], recursive: bool):
 
 
 def folder_mv(src_path: Path, dest_path: str, overwrite: bool):
+    from fastapi import HTTPException
+
     dest_path = resolve_folder_path(dest_path)
 
     if not src_path.exists():
