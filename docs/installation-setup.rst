@@ -148,5 +148,5 @@ To tear this cluster down:
     cluster.teardown()
 
 Now you’re ready to start working with the Runhouse APIs. Jump over to the `API Quick Start
-guide <https://www.run.house/docs/tutorials/quick-start-den>`__ to start deploying and executing
+guide <https://www.run.house/docs/tutorials/quick-start-cloud>`__ to start deploying and executing
 code on your cluster.
