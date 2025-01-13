@@ -503,12 +503,17 @@ def cluster_logs(
     )
 
     if resp.status_code != 200:
-        console.print("Failed to get cluster logs.")
+        console.print("Failed to load cluster logs.")
         return
 
     logs_file_url = resp.json().get("data").get("logs_presigned_url")
     logs_file_content = requests.get(logs_file_url).content.decode("utf-8")
-    console.print(f"[reset][cyan]{logs_file_content}")
+
+    stripped_lines = "\n".join(line.strip() for line in logs_file_content.splitlines())
+    console.print("-" * len(cluster_name))
+    console.print(f"[reset][cyan]{cluster_name}")
+    console.print("-" * len(cluster_name))
+    console.print(f"[reset][cyan]{stripped_lines}")
 
 
 ###############################
