@@ -672,7 +672,8 @@ class Module(Resource):
         """Replicate the module on the cluster in new processes and return the new modules.
 
         Args:
-            num_relicas (int, optional): Number of replicas of the module to create. (Default: 1)
+            num_replicas (int, optional): Number of replicas of the module to create. (Default: 1)
+            replicas_per_node (int, optional): The number of replicas to create per node. (Defualt: ``None``)
             names (List[str], optional): List for the names for the replicas, if specified. (Default: ``None``)
             processes (List[Process], optional): List of the processes for the replicas, if specified. (Default: ``None``)
             parallel (bool, optional): Whether to create the replicas in parallel. (Default: ``False``)
@@ -741,7 +742,7 @@ class Module(Resource):
         self,
         distribution: str,
         name: Optional[str] = None,
-        num_replicas: int = 1,
+        num_replicas: Optional[int] = None,
         replicas_per_node: Optional[int] = None,
         replication_kwargs: Dict = {},
         **distribution_kwargs,
@@ -752,19 +753,19 @@ class Module(Resource):
             distribution (str): The distribution method to use, e.g. "pool", "ray", "pytorch", or "tensorflow".
             name (str, optional): The name to give to the distributed module, if applicable. Overwrites current module
                 name by default. (Default: ``None``)
-            num_replicas (int, optional): The number of replicas to create. (Default: 1)
+            num_replicas (int, optional): The number of replicas to create. (Default: ``None``)
             replicas_per_node (int, optional): The number of replicas to create per node. (Default: ``None``)
             replication_kwargs (Dict): The keyword arguments to pass to the replicate method. (Default: {})
             distribution_kwargs: The keyword arguments to pass to the distribution method.
         """
+
         if not self.system or not self.name:
             raise ValueError(
                 "Cannot distribute a module that is not on a cluster. Please send the module to a cluster first."
             )
 
         if not self.system.on_this_cluster():
-            # Distribute the module on the cluster and return the distributed module as a
-            # stub.
+            # Distribute the module on the cluster and return the distributed module as a stub.
             return self.system.call(
                 self.name,
                 "distribute",
@@ -779,6 +780,11 @@ class Module(Resource):
 
         if distribution == "pool":
             from runhouse.resources.distributed.distributed_pool import DistributedPool
+
+            if not num_replicas:
+                raise ValueError(
+                    "``num_replicas`` argument must be provided for distribution type pool"
+                )
 
             replicas = self.replicate(
                 num_replicas=num_replicas,
@@ -805,8 +811,6 @@ class Module(Resource):
             dask_module = DaskDistributed(
                 name=name,
                 module=self,
-                num_replicas=num_replicas,
-                replicas_per_node=replicas_per_node,
                 **distribution_kwargs,
             ).to(system=self.system, process=self.process)
             return dask_module
@@ -814,6 +818,12 @@ class Module(Resource):
             from runhouse.resources.distributed.pytorch_distributed import (
                 PyTorchDistributed,
             )
+
+            if not num_replicas:
+                num_nodes = len(self.system.ips)
+                if not replicas_per_node:
+                    replicas_per_node = self.system.gpus_per_node() or 1
+                num_replicas = replicas_per_node * num_nodes
 
             replicas = self.replicate(
                 num_replicas=num_replicas,
