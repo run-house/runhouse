@@ -261,8 +261,8 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             cluster.compute_properties["internal_ips"] = []
             assert not cluster._ping(retry=False)
 
-        if cluster.compute_properties.get("cloud") == "kubernetes":
-            # kubernetes does not use ips in command runner
+        if not cluster.compute_properties.get("cloud") == "kubernetes":
+            # kubernetes does not use ips in command runner, so this test is relevant only for not k8 clusters.
             cluster.compute_properties["ips"] = ["00.00.000.11"]
             assert not cluster._ping(retry=False)
 
