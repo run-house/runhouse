@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Union
 
-from runhouse.globals import configs, rns_client
+from runhouse.globals import rns_client
 
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.cluster import Cluster
@@ -303,7 +303,6 @@ def ondemand_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.ondemand_cluster(name="rh-4-a100s")
     """
-    vpc_name = vpc_name or configs.get("default_vpc")
     if vpc_name and launcher == "local":
         raise ValueError(
             "Custom VPCs are not supported with local launching. To use a custom VPC, please use the "
