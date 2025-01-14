@@ -34,8 +34,7 @@ tolerance, or multi-step workflows.
 * 👷‍♀️ Share Python functions or classes as robust services, including HTTPS, auth, observability, scaling, custom domains, secrets, versioning, and more.
 * 👩‍🍳 Support complex workflows or services and advanced logic since your components are de-coupled and infra/modules are interactable with code.
 
-The Runhouse API is simple. Send your **modules** (functions and classes) into **environments** (worker processes) on compute
-**infra**, like this:
+The Runhouse API is simple. Send your **modules** (functions and classes) onto **compute** like this:
 
 ```python
 import runhouse as rh
@@ -47,10 +46,10 @@ def sd_generate(prompt, **inference_kwargs):
 
 if __name__ == "__main__":
     img = rh.Image("sd_image").install_packages(["torch", "transformers", "diffusers"])
-    gpu = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws", image=img).up_if_not()
+    gpu_compute = rh.cluster(name="rh-a10x", instance_type="A10G:1", provider="aws", image=img).up_if_not()
 
-    # Deploy the function and environment (syncing over local code changes and installing dependencies)
-    remote_sd_generate = rh.function(sd_generate).to(gpu)
+    # Deploy the function (syncing over local code changes)
+    remote_sd_generate = rh.function(sd_generate).to(gpu_compute)
 
     # This call is actually an HTTP request to the app running on the remote server
     imgs = remote_sd_generate("A hot dog made out of matcha.")
@@ -60,23 +59,22 @@ if __name__ == "__main__":
     print(remote_sd_generate.endpoint())
 ```
 
-With the above simple structure you can build, call, and share:
+With the above simple structure, you can build, call, and share:
 * 🛠️ **AI primitives**: Preprocessing, training, fine-tuning, evaluation, inference
 * 🚀 **Higher-order services**: Multi-step inference, e2e workflows, evaluation gauntlets, HPO
 * 🧪 **UAT endpoints**: Instant endpoints for client teams to test and integrate
 * 🦺 **Best-practice utilities**: PII obfuscation, content moderation, data augmentation
 
 
-## 🛋️ Infra Monitoring, Resource Sharing and Versioning with Runhouse Den
+## 🛋️ Infra Monitoring, Resource Sharing, and Versioning with Runhouse Den
 
 You can unlock unique observability and sharing features with
 [Runhouse Den](https://www.run.house/dashboard), a complementary product to this repo.
 
-After you've sent a function or class to remote compute, Runhouse allows you to persist and share it as
-a service, turning otherwise redundant AI activities into common modular components across your team or company.
-* This makes the shared resource observable. With Den, you can see how often a resource was called (and by whom), and what was the GPU utilization of the box it was on.
-* This improves cost - think 10 ML pipelines and researchers calling the same shared preprocessing, training, evaluation, or batch inference service, rather than each allocating their own compute resources
-* This improves velocity and reproducibility. Avoid deploying slightly differing code per pipeline, and deploy the results of an improved method to everyone once published.
+* Collect all your available compute into a single compute poolhouse and launch clusters from a centralized service. 
+* Gain great observability over all your ML resources and see the telemetry and logging of the clusters. 
+* Reuse compute and deployed code as shared services, improving reproducibility and saving costs. 
+* Manage team permissions and set quotas without complex Kubernetes or IAM magic. 
 
 Log in from anywhere to save, share, and load resources and observe usage, logs, and compute utilization on a single pane of glass:
 ```shell
@@ -93,7 +91,7 @@ Extending the example above to share and load our app via Den:
 ```python
 remote_sd_generate.share(["my_pal@email.com"])
 
-# The service stub can now be reloaded from anywhere, always at yours and your collaborators' fingertips
+# The service stub can now be reloaded from anywhere, always at your and your collaborators' fingertips
 # Notice this code doesn't need to change if you update, move, or scale the service
 remote_sd_generate = rh.function("/your_username/sd_generate")
 imgs = remote_sd_generate("More matcha hotdogs.")
