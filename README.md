@@ -71,10 +71,10 @@ With the above simple structure, you can build, call, and share:
 You can unlock unique observability and sharing features with
 [Runhouse Den](https://www.run.house/dashboard), a complementary product to this repo.
 
-* Collect all your available compute into a single compute poolhouse and launch clusters from a centralized service. 
-* Gain great observability over all your ML resources and see the telemetry and logging of the clusters. 
-* Reuse compute and deployed code as shared services, improving reproducibility and saving costs. 
-* Manage team permissions and set quotas without complex Kubernetes or IAM magic. 
+* Collect all your available compute into a single compute poolhouse and launch clusters from a centralized service.
+* Gain great observability over all your ML resources and see the telemetry and logging of the clusters.
+* Reuse compute and deployed code as shared services, improving reproducibility and saving costs.
+* Manage team permissions and set quotas without complex Kubernetes or IAM magic.
 
 Log in from anywhere to save, share, and load resources and observe usage, logs, and compute utilization on a single pane of glass:
 ```shell
