@@ -269,7 +269,7 @@ to notify them.
 
     cpu_cluster.share(
         users=["teammate1@email.com"],
-        access_level="write",
+        access_level="read",
     )
 
 

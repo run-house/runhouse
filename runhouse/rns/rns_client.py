@@ -374,7 +374,7 @@ class RNSClient:
         )
         if resp.status_code != 200:
             raise Exception(
-                f"Received [{resp.status_code}] from Den PUT '{uri}': Failed to grant access to: {load_resp_content(resp)}"
+                f"Received [{resp.status_code}] from Den PUT '{uri}': Failed to grant access to resource {rns_address}"
             )
 
         resp_data: dict = read_resp_data(resp)
@@ -524,11 +524,11 @@ class RNSClient:
             )
             if resp.status_code != 200:
                 raise Exception(
-                    f"Received [{resp.status_code}] from Den POST '{post_uri}': Failed to create new resource '{resource_uri}': {load_resp_content(resp)}"
+                    f"Received [{resp.status_code}] from Den POST '{post_uri}': Failed to create new resource: {load_resp_content(resp)}"
                 )
         else:
             raise Exception(
-                f"Received [{resp.status_code}] from Den PUT '{put_uri}': Failed to save resource '{resource_uri}': {load_resp_content(resp)}"
+                f"Received [{resp.status_code}] from Den PUT '{put_uri}': Failed to save resource: {load_resp_content(resp)}"
             )
 
     def delete_configs(

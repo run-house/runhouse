@@ -275,7 +275,7 @@ def set_up_local_cluster(
     config["username"] = rh.configs.username
 
     # Runhouse is already installed on the Docker clusters, but we need to sync our actual version
-    rh_cluster.restart_server(resync_rh=True)
+    rh_cluster.start_server(resync_rh=True)
 
     if not rh_cluster.image:
         setup_test_base(rh_cluster, logged_in=logged_in)

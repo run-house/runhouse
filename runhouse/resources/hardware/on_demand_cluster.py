@@ -80,8 +80,7 @@ class OnDemandCluster(Cluster):
         .. note::
             To build a cluster, please use the factory method :func:`cluster`.
         """
-        cluster_launcher = launcher or configs.launcher
-        skip_creds = cluster_launcher == LauncherType.DEN
+        self.launcher = launcher or configs.launcher
 
         super().__init__(
             name=name,
@@ -93,7 +92,6 @@ class OnDemandCluster(Cluster):
             domain=domain,
             den_auth=den_auth,
             dryrun=dryrun,
-            skip_creds=skip_creds,
             **kwargs,
         )
 
@@ -114,7 +112,6 @@ class OnDemandCluster(Cluster):
         self._num_cpus = num_cpus
         self._gpus = gpus
         self.sky_kwargs = sky_kwargs or {}
-        self.launcher = cluster_launcher
         self.vpc_name = vpc_name
 
         self.compute_properties = {}
@@ -143,7 +140,7 @@ class OnDemandCluster(Cluster):
         self._cluster_status = kwargs.get("cluster_status")
 
         # Checks if state info is in local sky db, populates if so.
-        if not dryrun and not self.ips and not self.creds_values:
+        if not dryrun and not self.ips and self.launcher == LauncherType.LOCAL:
             # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
             self._update_from_sky_status(dryrun=True)
 
@@ -217,7 +214,7 @@ class OnDemandCluster(Cluster):
 
         if not self._creds:
             return
-        self._docker_user = get_docker_user(self, self.creds_values)
+        self._docker_user = get_docker_user(self, self.ssh_properties)
 
         return self._docker_user
 
@@ -458,7 +455,7 @@ class OnDemandCluster(Cluster):
                 ssh_values = backend_utils.ssh_credential_from_yaml(
                     yaml_path, ssh_user=handle.ssh_user
                 )
-                if not self.creds_values or not self.ssh_properties:
+                if not self.ssh_properties:
                     self._setup_creds(ssh_values)
 
             launched_resource = handle.launched_resources
@@ -536,15 +533,25 @@ class OnDemandCluster(Cluster):
                 self._kube_context = self.compute_properties.get("kube_context")
 
     def _update_from_sky_status(self, dryrun: bool = False):
+        if self.launcher != LauncherType.LOCAL:
+            return
+
         # Try to get the cluster status from SkyDB
         if self.is_shared:
             # If the cluster is shared can ignore, since the sky data will only be saved on the machine where
             # the cluster was initially upped
             return
 
-        if self.launcher == "local":
-            cluster_dict = self._sky_status(refresh=not dryrun)
-            self._populate_connection_from_status_dict(cluster_dict)
+        cluster_dict = self._sky_status(refresh=not dryrun)
+        self._populate_connection_from_status_dict(cluster_dict)
+
+    def _setup_default_creds(self):
+        if self.launcher == LauncherType.DEN:
+            return DenLauncher.load_creds()
+        elif self.launcher == LauncherType.LOCAL:
+            return LocalLauncher.load_creds()
+        else:
+            raise ValueError(f"Invalid launcher '{self.launcher}'")
 
     def get_instance_type(self):
         """Returns instance type of the cluster."""
@@ -634,6 +641,12 @@ class OnDemandCluster(Cluster):
             >>> rh.ondemand_cluster("rh-cpu").up()
         """
         if self.on_this_cluster():
+            return self
+
+        if self.is_shared:
+            logger.warning(
+                "Cannot up a shared cluster. Only cluster owners can perform this operation."
+            )
             return self
 
         if self.launcher == LauncherType.DEN:
@@ -786,7 +799,7 @@ class OnDemandCluster(Cluster):
             from runhouse.resources.hardware.sky_command_runner import SshMode
 
             sky_key = Path(
-                self.creds_values.get("ssh_private_key", self.DEFAULT_KEYFILE)
+                self.ssh_properties.get("ssh_private_key", self.DEFAULT_KEYFILE)
             ).expanduser()
 
             if not sky_key.exists():
