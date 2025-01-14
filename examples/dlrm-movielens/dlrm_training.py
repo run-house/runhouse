@@ -271,7 +271,7 @@ def ray_trainer(
 
 # ### Run distributed training with Runhouse
 # The following code snippet demonstrates how to create a Runhouse cluster and run the distributed training pipeline on the cluster.
-# - We define a 3 node cluster with GPUs where we will do the training.
+# - We define a 4 node cluster with GPUs where we will do the training.
 # - Then we dispatch the Ray trainer function to the remote cluster and call .distribute('ray') to properly setup Ray. It's that easy.
 if __name__ == "__main__":
     # Create a cluster of multiple nodes with GPUs
