@@ -35,7 +35,7 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "not clustertest and not ondemand and not multinode and not servertest"
+        run: pytest --level release tests -k "not cluster and not servertest"
         timeout-minutes: 60
 
   cluster-tests:

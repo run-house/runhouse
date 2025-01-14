@@ -145,7 +145,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
     def test_send_folder_to_dest(self, folder, dest):
         _check_skip_test(folder, dest)
 
-        system = "here" if dest.system == "file" else dest.system
+        system = dest.system
         expected_fs_str = "ssh" if isinstance(dest.system, rh.Cluster) else dest.system
 
         # Ensure dest path is empty to avoid FileExistsError when copying (dest path must not exist)
