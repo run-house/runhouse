@@ -1,6 +1,5 @@
 import ast
 import logging
-import shutil
 import sys
 from pathlib import Path
 from typing import Any, Optional
@@ -8,7 +7,6 @@ from typing import Any, Optional
 import requests
 
 import runhouse as rh
-from runhouse.constants import SSH_SKY_SECRET_NAME
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import (
@@ -16,7 +14,7 @@ from runhouse.resources.hardware.utils import (
     ClusterStatus,
     SSEClient,
 )
-from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content, read_resp_data
+from runhouse.rns.utils.api import load_resp_content, read_resp_data
 from runhouse.utils import ClusterLogsFormatter, ColoredFormatter, Spinner
 
 logger = get_logger(__name__)
@@ -104,18 +102,6 @@ class Launcher:
     def keep_warm(cls, cluster, mins: int):
         """Abstract method for keeping a cluster warm."""
         raise NotImplementedError
-
-    @classmethod
-    def load_creds(cls):
-        """Loads the SSH credentials resource required for the launcher."""
-        raise NotImplementedError
-
-    @classmethod
-    def _create_sky_secret(cls):
-        """Generate a new set of Sky SSH keys (in the default Sky path)."""
-        private_key_path, _ = generate_and_write_ssh_keys(force=True)
-        secret = rh.provider_secret(provider="sky")
-        return secret
 
     @staticmethod
     def supported_providers():
@@ -331,41 +317,25 @@ class DenLauncher(Launcher):
 
     @classmethod
     def load_creds(cls):
-        """Loads the SSH credentials resource required for the Den launcher."""
+        """Loads the SSH credentials required for the Den launcher, and for interacting with the cluster
+        once launched."""
         default_ssh_key = rns_client.default_ssh_key
-        if default_ssh_key:
-            # try using the default SSH creds already set by the user
-            try:
-                secret = rh.Secret.from_name(default_ssh_key)
-                secret.write(overwrite=True)
-                return secret
-            except ValueError:
-                pass
-
-        try:
-            # Try using default Sky keys saved in Den
-            secret = rh.Secret.from_name(SSH_SKY_SECRET_NAME)
-            if secret.values:
-                if not default_ssh_key:
-                    # use the Sky SSH keys as the default going forward
-                    configs.set("default_ssh_key", secret.name)
-                    logger.info(
-                        f"Updated default SSH key in the local Runhouse config to {secret.name}"
-                    )
-                secret.write(overwrite=True)
-                return secret
-        except ValueError:
-            pass
-
-        # if none are found create a new Sky SSH pair, save it Den, and set it as the default
-        secret = cls._create_sky_secret()
-        secret.save()
-        logger.info(f"Saved new SSH key pair in Den with name: {secret.rns_address}")
-
         if not default_ssh_key:
-            configs.set("default_ssh_key", secret.name)
-            logger.info(
-                f"Updated default SSH key in the local Runhouse config to {secret.name}"
+            raise ValueError(
+                "No default SSH key found in the local Runhouse config, "
+                "please set one by running `runhouse login`"
+            )
+        try:
+            # Note: we still need to load them down locally to use for certain cluster operations (ex: rsync)
+            secret = rh.Secret.from_name(default_ssh_key)
+            if not Path(secret.path).expanduser().exists():
+                # Ensure this specific keypair is written down locally
+                secret.write()
+                logger.info(f"Saved default SSH key locally in path: {secret.path}")
+        except ValueError:
+            raise ValueError(
+                "Failed to load default SSH key, "
+                "try re-saving by running `runhouse login`"
             )
 
         return secret
@@ -471,50 +441,6 @@ class LocalLauncher(Launcher):
         except ImportError:
             set_cluster_autostop_cmd = _cluster_set_autostop_command(mins)
             cluster.run_bash_over_ssh([set_cluster_autostop_cmd], node=cluster.head_ip)
-
-    @classmethod
-    def load_creds(cls):
-        """Loads the SSH credentials resource required for the local launcher."""
-        private_key_path = "~/.ssh/sky-key"
-        try:
-            # Note: doesn't require the secret to be saved in Den, just the SSH keypair existing in its local path
-            secret = rh.provider_secret(provider="sky")
-            if secret.path == private_key_path and secret.values:
-                return secret
-
-            # Create a new sky key pair that will be saved to its default path
-            secret = cls._create_sky_secret()
-            return secret
-
-        except ValueError:
-            sky_private_key = Path(private_key_path).expanduser()
-            sky_public_key = Path("~/.ssh/sky-key.pub").expanduser()
-
-            # if SSH creds already exist, use those for Sky too
-            secret = rh.provider_secret(provider="ssh")
-            default_private_key_path = Path(secret.path).expanduser()
-            default_public_key_path = Path(f"{secret.path}.pub").expanduser()
-
-            if (
-                secret.values
-                and default_private_key_path.exists()
-                and default_public_key_path.exists()
-            ):
-                # Re-use the same SSH creds for Sky, which need to be saved in a specific path for Sky to recognize
-                shutil.copy(default_private_key_path, sky_private_key)
-                shutil.copy(default_public_key_path, sky_public_key)
-                logger.info(
-                    f"Using existing SSH keys for local launching found in path: {default_private_key_path}"
-                )
-                return cls.load_creds()
-            else:
-                # if no SSH creds found create a new Sky keypair
-                secret = cls._create_sky_secret()
-                logger.info(
-                    f"Saved new SSH key pair for local launching in path: {secret.path}"
-                )
-
-            return secret
 
     @staticmethod
     def _set_docker_env_vars(image, task):

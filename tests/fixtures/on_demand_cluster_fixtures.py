@@ -23,9 +23,9 @@ def restart_server(request):
 
 def setup_test_cluster(args, request, test_rns_folder, setup_base=False):
     if request.config.getoption("--ci"):
-        rh.constants.SSH_SKY_SECRET_NAME = (
-            f"{test_rns_folder}-{rh.constants.SSH_SKY_SECRET_NAME}"
-        )
+        sky_key_name = f"{test_rns_folder}-{rh.constants.SSH_SKY_SECRET_NAME}"
+        rh.constants.SSH_SKY_SECRET_NAME = sky_key_name
+
     cluster = rh.ondemand_cluster(**args)
     init_args[id(cluster)] = args
     cluster.up_if_not()
@@ -130,6 +130,11 @@ def den_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
         "sky_kwargs": {"launch": {"retry_until_up": True}},
         "launcher": LauncherType.DEN,
     }
+
+    if request.config.getoption("--ci"):
+        from tests.fixtures.utils import save_default_ssh_creds
+
+        save_default_ssh_creds()
 
     cluster = setup_test_cluster(
         args, request, setup_base=True, test_rns_folder=test_rns_folder
@@ -240,6 +245,12 @@ def den_launched_ondemand_aws_k8s_cluster(request, test_rns_folder):
         "launcher": LauncherType.DEN,
         "context": os.getenv("EKS_ARN"),
     }
+
+    if request.config.getoption("--ci"):
+        from tests.fixtures.utils import save_default_ssh_creds
+
+        save_default_ssh_creds()
+
     cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
@@ -264,6 +275,12 @@ def den_launched_ondemand_gcp_k8s_cluster(request, test_rns_folder):
         "launcher": LauncherType.DEN,
         "context": "gke_testing",
     }
+
+    if request.config.getoption("--ci"):
+        from tests.fixtures.utils import save_default_ssh_creds
+
+        save_default_ssh_creds()
+
     cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):

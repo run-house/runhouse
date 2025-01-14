@@ -176,6 +176,7 @@ class Cluster(Resource):
 
         self.reqs = []
 
+        self._is_shared = self._is_cluster_shared(owner_info=kwargs.get("owner") or {})
         self._setup_creds(creds)
 
         if isinstance(image, dict):
@@ -343,7 +344,7 @@ class Cluster(Resource):
             return
 
         if not ssh_creds:
-            self._creds = self._setup_default_creds() if not self.is_shared else None
+            self._creds = self._setup_default_creds()
 
         elif isinstance(ssh_creds, Dict):
             creds, ssh_properties = _setup_creds_from_dict(ssh_creds, self.name)
@@ -355,6 +356,10 @@ class Cluster(Resource):
 
         default_ssh_key = rns_client.default_ssh_key
         if default_ssh_key is None:
+            logger.warning(
+                "No default SSH key found in the local Runhouse config. To "
+                "create one please run `runhouse login`"
+            )
             return None
 
         return Secret.from_name(default_ssh_key)
@@ -552,15 +557,6 @@ class Cluster(Resource):
 
         return self.head_ip
 
-    @property
-    def is_shared(self) -> bool:
-        rns_address = self.rns_address
-        if rns_address is None:
-            return False
-
-        # If the cluster is shared, the base directory of the rns address will differ from the current username
-        return rns_client.base_folder(rns_address) != rns_client.username
-
     def _command_runner(
         self, node: Optional[str] = None, use_docker_exec: Optional[bool] = False
     ) -> "CommandRunner":
@@ -628,7 +624,7 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").up_if_not()
         """
-        if self.is_shared:
+        if self._is_shared:
             logger.warning(
                 "Cannot up a shared cluster. Only cluster owners can perform this operation."
             )
@@ -648,6 +644,18 @@ class Cluster(Resource):
             f"cluster.keep_warm will have no effect on self-managed cluster {self.name}."
         )
         return self
+
+    def _is_cluster_shared(self, owner_info: dict) -> bool:
+        rns_address = self.rns_address
+        if rns_address is None:
+            # Cluster hasn't yet been saved
+            return False
+
+        if not owner_info:
+            # Cluster hasn't yet been launched
+            return False
+
+        return owner_info.get("username") != rns_client.username
 
     def _sync_image_to_cluster(self, parallel: bool = True):
         """
