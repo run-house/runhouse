@@ -100,23 +100,7 @@ If you would like to launch on-demand clusters using existing VPCs,
 you can easily set it up by specifying the :code:`vpc_name` argument when initializing a cluster.
 Without setting VPC, we launch in the default VPC in the region of the cluster.
 
-You can optionally set a `default_vpc` in your `~/.rh/config.yaml` file to specify the default VPC to use
-for all subsequent clusters.
-
-.. code:: ipython3
-
-    aws:
-        vpc_name: my-vpc-name
-
-And for Google Cloud you need:
-
-.. code:: ipython3
-
-    gcp:
-      vpc_name: my-vpc-name
-
-If you need support for more advanced enterprise configurations,
-please email support@run.house for more information.
+If you need support for more advanced enterprise configurations, please email support@run.house for more information.
 
 On-Demand Clusters with TLS exposed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
