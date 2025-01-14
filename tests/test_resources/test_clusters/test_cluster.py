@@ -383,9 +383,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             resource_class_name, cluster.rns_address
         )
 
-        assert new_creds is None
         orig_creds = config.pop("creds", None)
-
         assert sky_secret in orig_creds or generated_secret in orig_creds
         assert new_config == config
 

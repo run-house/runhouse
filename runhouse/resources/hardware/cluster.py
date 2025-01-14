@@ -177,6 +177,7 @@ class Cluster(Resource):
         self.reqs = []
 
         self._setup_creds(creds)
+        self._is_shared = self._is_cluster_shared()
 
         if isinstance(image, dict):
             # If reloading from config (ex: in Den)
@@ -343,7 +344,7 @@ class Cluster(Resource):
             return
 
         if not ssh_creds:
-            self._creds = self._setup_default_creds() if not self.is_shared else None
+            self._creds = self._setup_default_creds()
 
         elif isinstance(ssh_creds, Dict):
             creds, ssh_properties = _setup_creds_from_dict(ssh_creds, self.name)
@@ -355,6 +356,10 @@ class Cluster(Resource):
 
         default_ssh_key = rns_client.default_ssh_key
         if default_ssh_key is None:
+            logger.warning(
+                "No default SSH key found in the local Runhouse config. To "
+                "create one please run `runhouse login`"
+            )
             return None
 
         return Secret.from_name(default_ssh_key)
@@ -552,15 +557,6 @@ class Cluster(Resource):
 
         return self.head_ip
 
-    @property
-    def is_shared(self) -> bool:
-        rns_address = self.rns_address
-        if rns_address is None:
-            return False
-
-        # If the cluster is shared, the base directory of the rns address will differ from the current username
-        return rns_client.base_folder(rns_address) != rns_client.username
-
     def _command_runner(
         self, node: Optional[str] = None, use_docker_exec: Optional[bool] = False
     ) -> "CommandRunner":
@@ -628,7 +624,7 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").up_if_not()
         """
-        if self.is_shared:
+        if self._is_shared:
             logger.warning(
                 "Cannot up a shared cluster. Only cluster owners can perform this operation."
             )
@@ -648,6 +644,32 @@ class Cluster(Resource):
             f"cluster.keep_warm will have no effect on self-managed cluster {self.name}."
         )
         return self
+
+    def _is_cluster_shared(self) -> bool:
+        rns_address = self.rns_address
+        if rns_address is None:
+            return False
+
+        # If shared the creds used for launching will be attributed to another user
+        creds: str = (
+            self._resource_string_for_subconfig(self._creds, True)
+            if hasattr(self, "_creds") and self._creds
+            else None
+        )
+
+        if not creds or isinstance(creds, dict):
+            # specifying custom creds (for non on-demand clusters)
+            return False
+
+        cluster_folder = rns_client.base_folder(rns_address)
+        cluster_creds_folder = rns_client.base_folder(creds)
+
+        if cluster_folder != rns_client.username and (
+            creds and cluster_creds_folder != rns_client.username
+        ):
+            return True
+
+        return False
 
     def _sync_image_to_cluster(self, parallel: bool = True):
         """
