@@ -17,7 +17,7 @@ from runhouse.resources.hardware.utils import (
 
 import tests.test_resources.test_clusters.test_cluster
 from tests.constants import TESTING_AUTOSTOP_INTERVAL
-from tests.utils import friend_account
+from tests.utils import friend_account, friend_account_in_org
 
 
 def set_autostop_from_on_cluster_via_ah(mins):
@@ -276,6 +276,39 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             "pip freeze | grep torch"
         )[0][0]
         assert ret_code == 0
+
+    @pytest.mark.level("release")
+    @pytest.mark.clustertest
+    def test_ssh_access_to_shared_cluster(self, cluster):
+        cluster.share(
+            users=["support@run.house"],
+            access_level="read",
+            notify_users=False,
+        )
+
+        cluster_name = cluster.rns_address
+        cluster_ssh_properties = cluster.ssh_properties
+
+        with friend_account_in_org():
+            # friend account's public key will be added to the cluster, should then be able to
+            # perform SSH / HTTP operations
+            shared_cluster = rh.cluster(name=cluster_name)
+
+            assert shared_cluster.rns_address == cluster_name
+            assert shared_cluster.ssh_properties.keys() == cluster_ssh_properties.keys()
+            echo_msg = "hello from shared cluster"
+
+            if shared_cluster.ips == shared_cluster.internal_ips != ["localhost"]:
+                run_res = shared_cluster.run_bash_over_ssh([f"echo {echo_msg}"])
+            else:
+                run_res = shared_cluster.run_bash([f"echo {echo_msg}"])
+
+            assert echo_msg in run_res[0][1]
+            # First element, return code
+            if shared_cluster.ips == shared_cluster.internal_ips != ["localhost"]:
+                assert shared_cluster.run_bash_over_ssh(["echo hello"])[0][0] == 0
+            else:
+                assert shared_cluster.run_bash(["echo hello"])[0][0] == 0
 
     @pytest.mark.level("release")
     def test_fn_to_docker_container(self, local_launched_ondemand_aws_docker_cluster):

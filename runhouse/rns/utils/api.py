@@ -89,7 +89,7 @@ def relative_file_path(file_path: str):
     return relative_path
 
 
-def generate_ssh_keys() -> Tuple[str, str]:
+def generate_and_write_ssh_keys(force: bool = False) -> Tuple[str, str]:
     from cryptography.hazmat.backends import default_backend
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
@@ -98,7 +98,7 @@ def generate_ssh_keys() -> Tuple[str, str]:
     private_key_path = os.path.expanduser("~/.ssh/sky-key")
     public_key_path = os.path.expanduser("~/.ssh/sky-key.pub")
 
-    if os.path.exists(private_key_path):
+    if not force and os.path.exists(private_key_path):
         return private_key_path, public_key_path
 
     key = rsa.generate_private_key(

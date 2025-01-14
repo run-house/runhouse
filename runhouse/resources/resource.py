@@ -331,7 +331,7 @@ class Resource:
         notify_users: bool = True,
         headers: Dict = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
-        """Grant access to the resource for a list of users (or a single user). By default, the user will
+        """Grant access to the resource for a list of users (or a single user). By default, the user(s) will
         receive an email notification of access (if they have a Runhouse account) or instructions on creating
         an account to access the resource. If ``visibility`` is set to ``public``, users will not be notified.
 
@@ -339,7 +339,7 @@ class Resource:
             You can only grant access to other users if you have write access to the resource.
 
         Args:
-            users (Union[str, list], optional): Single user or list of user emails and / or runhouse account usernames.
+            users (Union[str, list], optional): Single user or list of user emails and / or Runhouse account usernames.
                 If none are provided and ``visibility`` is set to ``public``, resource will be made publicly
                 available to all users. (Default: ``None``)
             access_level (:obj:`ResourceAccess`, optional): Access level to provide for the resource.

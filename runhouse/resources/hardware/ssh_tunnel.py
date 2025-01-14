@@ -189,7 +189,7 @@ def get_existing_sky_ssh_runner(address: str, ssh_port: int) -> Optional[SshTunn
 
 def ssh_tunnel(
     address: str,
-    ssh_creds: Dict,
+    ssh_properties: Dict,
     local_port: int,
     ssh_port: int = 22,
     remote_port: Optional[int] = None,
@@ -201,7 +201,7 @@ def ssh_tunnel(
 
     Args:
         address (str): The address of the server we are trying to port forward an address to our local machine with.
-        ssh_creds (Dict): A dictionary of ssh credentials used to connect to the remote server.
+        ssh_properties (Dict): A dictionary of ssh properties used to connect to the remote server.
         local_port (int): The port locally where we are attempting to bind the remote server address to.
         ssh_port (int): The port on the machine where the ssh server is running.
             This is generally port 22, but occasionally
@@ -251,17 +251,16 @@ def ssh_tunnel(
         local_port += 1
         num_ports_to_try -= 1
 
-    ssh_credentials = copy.copy(ssh_creds)
-
+    ssh_properties = copy.copy(ssh_properties)
     # Host could be a proxy specified in credentials or is the provided address
-    host = ssh_credentials.pop("ssh_host", address)
-    ssh_control_name = ssh_credentials.pop("ssh_control_name", f"{address}:{ssh_port}")
+    host = ssh_properties.pop("ssh_host", address)
+    ssh_control_name = ssh_properties.pop("ssh_control_name", f"{address}:{ssh_port}")
 
     tunnel = SshTunnel(
         ip=host,
-        ssh_user=ssh_creds.get("ssh_user"),
-        ssh_private_key=ssh_creds.get("ssh_private_key"),
-        ssh_proxy_command=ssh_creds.get("ssh_proxy_command"),
+        ssh_user=ssh_properties.get("ssh_user"),
+        ssh_private_key=ssh_properties.get("ssh_private_key"),
+        ssh_proxy_command=ssh_properties.get("ssh_proxy_command"),
         ssh_control_name=ssh_control_name,
         docker_user=docker_user,
         ssh_port=ssh_port,

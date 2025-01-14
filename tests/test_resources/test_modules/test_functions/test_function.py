@@ -335,11 +335,12 @@ class TestFunction:
     @pytest.mark.level("local")
     def test_http_url(self, cluster):
         remote_sum = rh.function(summer).to(cluster).save("@/remote_function")
-        ssh_creds = cluster.creds_values
+        ssh_properties = cluster.ssh_properties
+        creds_values = cluster.creds_values
         addr = remote_sum.endpoint()
         auth = (
-            (ssh_creds.get("ssh_user"), ssh_creds.get("password"))
-            if ssh_creds.get("password")
+            (ssh_properties.get("ssh_user"), creds_values.get("password"))
+            if creds_values.get("password")
             else None
         )
         verify = cluster.client.verify

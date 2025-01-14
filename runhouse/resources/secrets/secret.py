@@ -55,43 +55,6 @@ class Secret(Resource):
         return config
 
     @staticmethod
-    def _write_shared_secret_to_local(config):
-        import runhouse as rh
-
-        new_creds_values = config["values"]
-        folder_name = config["name"].replace("/", "_")
-        path = f"{Secret.DEFAULT_DIR}/{folder_name}"
-        private_key_value, public_key_value = new_creds_values.get(
-            "private_key"
-        ), new_creds_values.get("public_key")
-        private_key_path = public_key_path = Path(path).expanduser()
-        if private_key_value:
-            if not private_key_path.exists():
-                os.makedirs(str(private_key_path))
-            private_file_path = private_key_path / "ssh-key"
-            with open(str(private_file_path), "w") as f:
-                f.write(private_key_value)
-            private_file_path.chmod(0o600)
-        if public_key_value:
-            public_file_path = public_key_path / "ssh-key.pub"
-            with open(str(public_key_path / "ssh-key.pub"), "w") as f:
-                f.write(public_key_value)
-            public_file_path.chmod(0o600)
-        if private_key_value and public_key_value:
-            new_creds_values = {
-                "ssh_private_key": str(private_key_path / "ssh-key"),
-                "ssh_public_key": str(public_key_path / "ssh-key.pub"),
-            }
-        if private_key_value and new_creds_values.get("ssh_user"):
-            new_creds_values = {
-                "ssh_private_key": str(private_key_path / "ssh-key"),
-                "ssh_user": new_creds_values.get("ssh_user"),
-            }
-        return rh.secret(
-            values=new_creds_values, name=f"loaded_secret_{config['name']}"
-        )
-
-    @staticmethod
     def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         if "provider" in config:
             from runhouse.resources.secrets.provider_secrets.providers import (
@@ -100,13 +63,6 @@ class Secret(Resource):
 
             provider_class = _get_provider_class(config["provider"])
             return provider_class.from_config(config, dryrun=dryrun)
-
-        # checks if the config is a of a shared secret
-        current_user = configs.username
-        owner_user = config["owner"]["username"] if "owner" in config.keys() else None
-
-        if owner_user and current_user != owner_user and config["values"]:
-            return Secret._write_shared_secret_to_local(config)
 
         return Secret(**config, dryrun=dryrun)
 
