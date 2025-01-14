@@ -35,6 +35,13 @@ from runhouse.rns.top_level_rns_fns import (
     set_folder,
     unset_folder,
 )
+
+from runhouse.servers.http.http_utils import (
+    ClusterOutOfMemory,
+    ProcessOutOfMemory,
+    RunhouseException,
+)
+
 from runhouse.utils import sync_function
 
 # Note these are global variables that are instantiated within globals.py:

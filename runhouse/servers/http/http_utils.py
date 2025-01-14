@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+import ray.exceptions
 import requests
 
 from pydantic import BaseModel, field_validator
@@ -115,6 +116,23 @@ class Response(BaseModel):
     data: Any = None
     output_type: str
     serialization: Optional[str] = None
+
+
+###############################
+# Runhouse Exceptions
+###############################
+
+
+class RunhouseException(Exception):
+    pass
+
+
+class ClusterOutOfMemory(Exception):
+    pass
+
+
+class ProcessOutOfMemory(Exception):
+    pass
 
 
 class OutputType:
@@ -250,6 +268,9 @@ def handle_exception_response(
         # handled by FastAPI's exception handling and returned to the user with the correct status code
         raise exception
 
+    if isinstance(exception, ray.exceptions.OutOfMemoryError):
+        exception = ProcessOutOfMemory()
+
     if isinstance(exception, RunhouseStopIteration):
         exception = StopIteration()
 
@@ -328,7 +349,6 @@ def handle_response(
             fn_traceback = exception_dict["traceback"]
         else:
             fn_traceback = response_data["data"]["traceback"]
-            fn_exception = None
             fn_exception_as_str = response_data["data"].get("exception_as_str", None)
             try:
                 fn_exception = deserialize_data(
