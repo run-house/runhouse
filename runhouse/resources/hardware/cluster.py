@@ -21,9 +21,9 @@ from runhouse.resources.hardware.utils import (
     _setup_creds_from_dict,
     _setup_default_creds,
     ClusterStatus,
-    get_clusters_from_den,
     get_running_and_not_running_clusters,
     get_unsaved_live_clusters,
+    load_den_clusters,
     parse_filters,
 )
 
@@ -2439,6 +2439,7 @@ class Cluster(Resource):
     def list(
         cls,
         show_all: bool = False,
+        show_shared: bool = False,
         since: Optional[str] = None,
         status: Optional[Union[str, ClusterStatus]] = None,
         force: bool = False,
@@ -2450,6 +2451,8 @@ class Cluster(Resource):
         Args:
             show_all (bool, optional): Whether to list all clusters saved in Den. Maximum of 200 will be listed.
                 (Default: False).
+            show_shared (bool, optional): Whether to list all shared clusters saved in Den.
+                Maximum of 200 will be listed. (Default: False).
             since (str, optional): Clusters that were active in the specified time period will be returned.
                 Value can be in seconds, minutes, hours or days.
             status (str or ClusterStatus, optional): Clusters with the provided status will be returned.
@@ -2466,13 +2469,13 @@ class Cluster(Resource):
         """
         cluster_filters = (
             parse_filters(since=since, cluster_status=status)
-            if not show_all
+            if not show_all and not show_shared
             else {"all": "all"}
         )
 
         # get clusters from den
-        den_clusters_resp = get_clusters_from_den(
-            cluster_filters=cluster_filters, force=force
+        den_clusters_resp = load_den_clusters(
+            cluster_filters=cluster_filters, force=force, show_shared=show_shared
         )
         if den_clusters_resp.status_code != 200:
             logger.error(f"Failed to load {rns_client.username}'s clusters from Den")

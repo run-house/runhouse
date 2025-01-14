@@ -68,6 +68,7 @@ def create_output_table(
     running_clusters: int,
     displayed_clusters: int,
     filters_requested: bool,
+    show_shared: bool,
 ):
     """The cluster list is printed as a table, this method creates it."""
     from runhouse.globals import rns_client
@@ -77,8 +78,13 @@ def create_output_table(
         if running_clusters < displayed_clusters
         else displayed_clusters
     )
-    table_title = (
+    header = (
         f"[bold cyan]Clusters for {rns_client.username} "
+        if not show_shared
+        else f"[bold cyan]Clusters shared with {rns_client.username} "
+    )
+
+    table_title = header + (
         f"(Running: {displayed_running_clusters}/{running_clusters}, "
         f"Total Displayed: {displayed_clusters}/{total_clusters})[/bold cyan]"
     )
@@ -113,10 +119,10 @@ def create_output_table(
     return table
 
 
-def add_cluster_as_table_row(table: Table, rh_cluster: dict):
+def add_cluster_as_table_row(table: Table, rh_cluster: dict, show_shared: bool):
     """Adding an info of a single cluster to the output table."""
     table.add_row(
-        rh_cluster.get("Name"),
+        rh_cluster.get("RNS Address") if show_shared else rh_cluster.get("Name"),
         rh_cluster.get("Cluster Type"),
         rh_cluster.get("Status"),
         rh_cluster.get("Last Active (UTC)"),
@@ -126,7 +132,7 @@ def add_cluster_as_table_row(table: Table, rh_cluster: dict):
     return table
 
 
-def add_clusters_to_output_table(table: Table, clusters: List[Dict]):
+def add_clusters_to_output_table(table: Table, clusters: List[Dict], show_shared: bool):
     """Adding clusters info to the output table."""
     for rh_cluster in clusters:
         last_active_at = rh_cluster.get("Last Active (UTC)")
@@ -144,7 +150,7 @@ def add_clusters_to_output_table(table: Table, clusters: List[Dict]):
         rh_cluster["Autostop (Mins)"] = AutoStopColors.format_autostop(
             int(autostop_value) if autostop_value else None
         )
-        table = add_cluster_as_table_row(table, rh_cluster)
+        table = add_cluster_as_table_row(table, rh_cluster, show_shared)
 
 
 def condense_resource_type(resource_type: str):

@@ -423,7 +423,7 @@ def parse_time_duration(duration: str):
         return LAST_ACTIVE_AT_TIMEFRAME
 
 
-def parse_filters(since: str, cluster_status: Union[str, ClusterStatus]):
+def parse_filters(since: str, cluster_status: Union[str, ClusterStatus]) -> dict:
     cluster_filters = {}
 
     if since:
@@ -439,8 +439,10 @@ def parse_filters(since: str, cluster_status: Union[str, ClusterStatus]):
     return cluster_filters
 
 
-def get_clusters_from_den(cluster_filters: dict, force: bool):
-    get_clusters_params = {"resource_type": "cluster", "folder": rns_client.username}
+def load_den_clusters(cluster_filters: dict, force: bool, show_shared: bool):
+    filter_params = {"resource_type": "cluster"}
+    if not show_shared:
+        filter_params["folder"] = rns_client.username
 
     if (
         "cluster_status" in cluster_filters
@@ -449,14 +451,14 @@ def get_clusters_from_den(cluster_filters: dict, force: bool):
         # Include the relevant daemon status for the filter
         cluster_filters["daemon_status"] = RunhouseDaemonStatus.TERMINATED
 
-    # If "all" filter is specified load all clusters (no filters are added to get_clusters_params)
+    # If `show_all` is set to `True` load all clusters (no additional filters are added to filter_params)
     if cluster_filters and "all" not in cluster_filters.keys():
-        get_clusters_params.update(cluster_filters)
+        filter_params.update(cluster_filters)
 
     # If not filters are specified, get only running clusters.
     elif not cluster_filters:
         # For ondemand clusters, use cluster status (via Sky). for other clusters, use the status of the daemon
-        get_clusters_params.update(
+        filter_params.update(
             {
                 "cluster_status": ClusterStatus.RUNNING,
                 "daemon_status": RunhouseDaemonStatus.RUNNING,
@@ -465,13 +467,13 @@ def get_clusters_from_den(cluster_filters: dict, force: bool):
             }
         )
 
-    clusters_in_den_resp = rns_client.session.get(
+    resp = rns_client.session.get(
         f"{rns_client.api_server_url}/resource",
-        params=get_clusters_params,
+        params=filter_params,
         headers=rns_client.request_headers(),
     )
 
-    return clusters_in_den_resp
+    return resp
 
 
 def get_unsaved_live_clusters(den_clusters: List[Dict]):
@@ -528,9 +530,12 @@ def cast_last_active_timestamp(clusters: List[Dict[str, Any]]):
 def get_running_and_not_running_clusters(clusters: list):
     up_clusters, down_clusters = [], []
     for den_cluster in clusters:
-        # Display the name instead of the full Den address
-        cluster_name = den_cluster.get("name").split("/")[-1]
+        rns_address = den_cluster.get("name")
+        cluster_rns_address = rns_address
+        cluster_name = rns_address.split("/")[-1]
+
         cluster_type = den_cluster.get("data").get("resource_subtype")
+
         cluster_status = den_cluster.get("cluster_status")
         cluster_status = cluster_status or ClusterStatus.UNKNOWN.value
 
@@ -552,6 +557,7 @@ def get_running_and_not_running_clusters(clusters: list):
 
         cluster_info = {
             "Name": cluster_name,
+            "RNS Address": cluster_rns_address,
             "Cluster Type": cluster_type,
             "Status": cluster_status,
             "Autostop": den_cluster.get("data", {}).get("autostop_mins"),

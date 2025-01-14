@@ -209,8 +209,13 @@ def cluster_list(
         False,
         "-a",
         "--all",
-        help=f"Get all clusters saved in Den. Up to {MAX_CLUSTERS_DISPLAY} most recently active clusters "
-        f"will be displayed.",
+        help=f"Load all clusters in your default folder (max {MAX_CLUSTERS_DISPLAY}).",
+    ),
+    show_shared: bool = typer.Option(
+        False,
+        "-s",
+        "--shared",
+        help=f"Load all clusters shared with you (max {MAX_CLUSTERS_DISPLAY}).",
     ),
     since: Optional[str] = typer.Option(
         None,
@@ -242,7 +247,6 @@ def cluster_list(
 
         ``$ runhouse cluster list --since 15m``
     """
-
     # logged out case
     if not rh.configs.token:
         sky_cli_command_formatted = f"{ITALIC_BOLD}`sky status -r{RESET_FORMAT}`"  # will be printed bold and italic
@@ -253,7 +257,11 @@ def cluster_list(
         return
 
     clusters = Cluster.list(
-        show_all=show_all, since=since, status=cluster_status, force=force
+        show_all=show_all,
+        show_shared=show_shared,
+        since=since,
+        status=cluster_status,
+        force=force,
     )
 
     den_clusters = clusters.get("den_clusters", None)
@@ -278,11 +286,11 @@ def cluster_list(
             console.print(SKY_LIVE_CLUSTERS_MSG)
         return
 
-    filters_requested: bool = show_all or since or cluster_status
+    filters_requested: bool = show_all or show_shared or since or cluster_status
 
     clusters_to_print = den_clusters if filters_requested else running_clusters
 
-    if show_all:
+    if show_all or show_shared:
         # if user requesting all den cluster, limit print only to 50 clusters max.
         clusters_to_print = clusters_to_print[
             : (min(len(clusters_to_print), MAX_CLUSTERS_DISPLAY))
@@ -294,9 +302,12 @@ def cluster_list(
         running_clusters=len(running_clusters),
         displayed_clusters=len(clusters_to_print),
         filters_requested=filters_requested,
+        show_shared=show_shared,
     )
 
-    add_clusters_to_output_table(table=table, clusters=clusters_to_print)
+    add_clusters_to_output_table(
+        table=table, clusters=clusters_to_print, show_shared=show_shared
+    )
 
     console.print(table)
 
