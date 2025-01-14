@@ -627,7 +627,7 @@ class OnDemandCluster(Cluster):
 
         if start_server:
             logger.info("Starting Runhouse server on cluster")
-            self.restart_server()
+            self.start_server()
 
         return self
 
