@@ -537,7 +537,7 @@ class OnDemandCluster(Cluster):
             return
 
         # Try to get the cluster status from SkyDB
-        if self.is_shared:
+        if self._is_shared:
             # If the cluster is shared can ignore, since the sky data will only be saved on the machine where
             # the cluster was initially upped
             return
@@ -546,12 +546,10 @@ class OnDemandCluster(Cluster):
         self._populate_connection_from_status_dict(cluster_dict)
 
     def _setup_default_creds(self):
+        """Setup the default creds used in launching. For Den launching we load the default ssh creds, and for
+        local launching we let Sky handle it."""
         if self.launcher == LauncherType.DEN:
             return DenLauncher.load_creds()
-        elif self.launcher == LauncherType.LOCAL:
-            return LocalLauncher.load_creds()
-        else:
-            raise ValueError(f"Invalid launcher '{self.launcher}'")
 
     def get_instance_type(self):
         """Returns instance type of the cluster."""
@@ -643,7 +641,7 @@ class OnDemandCluster(Cluster):
         if self.on_this_cluster():
             return self
 
-        if self.is_shared:
+        if self._is_shared:
             logger.warning(
                 "Cannot up a shared cluster. Only cluster owners can perform this operation."
             )

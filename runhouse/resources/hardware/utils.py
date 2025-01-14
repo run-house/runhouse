@@ -50,6 +50,10 @@ class LauncherType(str, Enum):
     LOCAL = "local"
     DEN = "den"
 
+    @classmethod
+    def strings(cls):
+        return [s.value for s in cls]
+
 
 class RunhouseDaemonStatus(str, Enum):
     RUNNING = "running"
