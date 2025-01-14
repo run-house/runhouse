@@ -14,7 +14,7 @@ USER_ENDPOINT = "user/secret"
 logger = get_logger(__name__)
 
 
-def load_config(name: str, endpoint: str = USER_ENDPOINT):
+def load_config(name: str):
     if "/" not in name:
         name = f"{rns_client.current_folder}/{name}"
     rns_address = rns_client.resolve_rns_path(name)
@@ -26,7 +26,7 @@ def load_config(name: str, endpoint: str = USER_ENDPOINT):
 
         # Load via Secrets API
         resource_uri = rns_client.resource_uri(name)
-        secret_values = _load_vault_secret(resource_uri, endpoint)
+        secret_values = _load_vault_secret(resource_uri)
         return {**rns_config, **{"values": secret_values}}
 
     # Load from local config
@@ -35,12 +35,11 @@ def load_config(name: str, endpoint: str = USER_ENDPOINT):
 
 def _load_vault_secret(
     resource_uri: str,
-    endpoint: str = USER_ENDPOINT,
     headers: Optional[Dict] = None,
 ):
     """Load secrets data from Vault for a particular resource URI. By default we allow for reloading shared secrets."""
     headers = headers or rns_client.request_headers()
-    uri = f"{rns_client.api_server_url}/{endpoint}/{resource_uri}?shared=true"
+    uri = f"{rns_client.api_server_url}/{USER_ENDPOINT}/{resource_uri}?shared=true"
     resp = rns_client.session.get(
         uri,
         headers=headers,
@@ -62,11 +61,10 @@ def _load_vault_secret(
 
 def _delete_vault_secrets(
     resource_uri: str,
-    endpoint: str = USER_ENDPOINT,
     headers: Optional[Dict] = None,
 ):
     headers = headers or rns_client.request_headers()
-    uri = f"{rns_client.api_server_url}/{endpoint}/{resource_uri}"
+    uri = f"{rns_client.api_server_url}/{USER_ENDPOINT}/{resource_uri}"
     resp = rns_client.session.delete(
         uri,
         headers=headers,
