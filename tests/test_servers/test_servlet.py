@@ -2,7 +2,6 @@ import logging
 import time
 
 import pytest
-import ray
 
 from runhouse.resources.resource import Resource
 from runhouse.servers.http.http_utils import deserialize_data, serialize_data
@@ -84,6 +83,7 @@ class TestServlet:
 
     @pytest.mark.level("local")
     def test_failed_cluster_servlet(self):
+        import ray
 
         # need to initialize ray so the cluster servlet will be initialized when calling get_cluster_servlet.
         ray.init(

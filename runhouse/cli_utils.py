@@ -589,3 +589,14 @@ def get_wrapped_server_start_cmd(flags: List[str], screen: bool, nohup: bool):
         )
 
     return wrapped_cmd
+
+
+def check_ray_installation():
+    try:
+        import ray  # noqa
+
+    except ImportError:
+        raise ImportError(
+            "Ray is required for this command. "
+            'You can install Ray and other server dependencies using `pip install "runhouse[server]"`'
+        )

@@ -73,6 +73,7 @@ install_requires = [
     "wheel",
     "apispec",
     "pyyaml",
+    "cloudpickle",
     "httpx",
     "pydantic >= 2.5.0",  # required for ray >= 2.9.0 (https://github.com/ray-project/ray/releases?page=2)
     "cryptography",
