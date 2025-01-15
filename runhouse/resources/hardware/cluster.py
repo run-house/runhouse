@@ -1099,11 +1099,6 @@ class Cluster(Resource):
         restart_ray: bool = True,
         restart_proxy: bool = False,
     ):
-        if not self.is_up():
-            raise ConnectionError(
-                f"Could not reach {self.name} {self.head_ip}. Is cluster up?"
-            )
-
         image_secrets, image_env_vars = self._sync_image_to_cluster()
 
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
@@ -1274,6 +1269,11 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
         """
+        if not self.is_up():
+            raise ConnectionError(
+                f"Could not reach {self.name} {self.head_ip}. Is cluster up?"
+            )
+
         logger.info(f"Restarting Runhouse API server on {self.name}.")
 
         return self._start_or_restart_helper(
