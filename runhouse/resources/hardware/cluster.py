@@ -1723,8 +1723,11 @@ class Cluster(Resource):
                 if self.on_this_cluster():
 
                     # TODO: Case for calling when on the BYO cluster may not work
-                    if isinstance(node_ip_or_idx, int):
-                        node_ip = self.internal_ips[node_ip_or_idx]
+                    node_ip = (
+                        self.internal_ips[node_ip_or_idx]
+                        if isinstance(node_ip_or_idx, int)
+                        else node_ip_or_idx
+                    )
 
                     if stream_logs:
 
