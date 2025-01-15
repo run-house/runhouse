@@ -42,19 +42,19 @@ You can also exclude fixtures with "-m" and a tilde, e.g. "-m ~docker_cluster_pu
 
 ## Sample Workflow
 
-Say you're adding a new type of infra behind an existing Resource abstraction in Runhouse, perhaps an AWSLambdaFn
-which is a subclass of Function. Here's an example of what your workflow might look like:
+Say you're adding a new type of infra behind an existing Resource abstraction in Runhouse, perhaps an OnDemandCluster
+which is a subclass of Cluster. Here's an example of what your workflow might look like:
 
-* Create a new directory test_aws_lambda underneath test_functions
-* Define some initial fixtures (likely minimal or local) in test_aws_lambda/conftest.py
-* Create a TestAWSLambdaFn class in test_aws_lambda/test_aws_lambda_fn.py
-  * Begin working through the inherited test cases from parents - Fn, Module, Resource - trying to get to passing with your new fixtures
-* Start adding AWS Lambda-specific unit, feature, and edge case tests to test_aws_lambda_fn.py
+* Create a new directory test_ondemand_cluster underneath test_clusters
+* Define some initial fixtures (likely minimal or local) in conftest.py
+* Create a TestOnDemandCluster class in test_aws_cluster.py
+  * Begin working through the inherited test cases from parents - Cluster, Resource - trying to get to passing with your new fixtures
+* Start adding AWS on-demand-cluster-specific unit, feature, and edge case tests to test_on_demand_cluster.py
   * Optional - review fixtures and tests with reviewer
   * Start unblocking the tests on each fixture level
-* If changes to function.py or module.py are required, run test_function or test_module with "minimal"
+* If changes to cluster.py or resource.py are required, run test_cluster or test_resource with "minimal"
   * Before merging, run with level "release" if any cross-cutting modules are materially modified
-    * If any breakage is found for a fixture (e.g. sagemaker), jump into culprit's test file and run with "minimal"
+    * If any breakage is found for a fixture (e.g. on-demand cluster), jump into culprit's test file and run with "minimal"
 * Iterate with reviewer and rerun tests at various levels as needed
 * CI/CD will run the full Runhouse suite with local before merging
 * Merge
