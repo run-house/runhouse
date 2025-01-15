@@ -6,8 +6,6 @@ import webbrowser
 from pathlib import Path
 from typing import Optional
 
-import ray
-
 import requests
 import typer
 from rich.console import Console
@@ -19,6 +17,7 @@ from runhouse import __version__, cluster, Cluster, configs
 
 from runhouse.cli_utils import (
     add_clusters_to_output_table,
+    check_ray_installation,
     create_output_table,
     get_cluster_or_local,
     get_wrapped_server_start_cmd,
@@ -777,6 +776,7 @@ def server_start(
 
         ``$ runhouse server start rh-cpu``
     """
+    check_ray_installation()
 
     # If server is already up, ask the user to restart the server instead.
     if not cluster_name:
@@ -891,6 +891,8 @@ def server_restart(
 
         ``$ runhouse server restart rh-cpu``
     """
+    check_ray_installation()
+
     if cluster_name:
         c = get_cluster_or_local(cluster_name=cluster_name)
         c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
@@ -935,6 +937,7 @@ def server_stop(
 
         ``$ runhouse server stop rh-cpu``
     """
+    check_ray_installation()
     logger.debug("Stopping the server")
 
     if cluster_name:
@@ -945,6 +948,8 @@ def server_stop(
     subprocess.run(SERVER_STOP_CMD, shell=True)
 
     if cleanup_actors:
+        import ray
+
         ray.init(
             address="auto",
             ignore_reinit_error=True,
@@ -976,6 +981,7 @@ def server_status(
 
         ``$ runhouse server status rh-cpu``
     """
+    check_ray_installation()
     logger.debug("Checking the server status.")
     current_cluster = get_cluster_or_local(cluster_name=cluster_name)
     try:
