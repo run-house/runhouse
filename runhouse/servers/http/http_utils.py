@@ -168,15 +168,15 @@ class FolderMvParams(FolderParams):
 
 
 def pickle_b64(picklable):
-    from ray import cloudpickle as pickle
+    import cloudpickle
 
-    return codecs.encode(pickle.dumps(picklable), "base64").decode()
+    return codecs.encode(cloudpickle.dumps(picklable), "base64").decode()
 
 
 def b64_unpickle(b64_pickled):
-    from ray import cloudpickle as pickle
+    import cloudpickle
 
-    return pickle.loads(codecs.decode(b64_pickled.encode(), "base64"))
+    return cloudpickle.loads(codecs.decode(b64_pickled.encode(), "base64"))
 
 
 def deserialize_data(data: Any, serialization: Optional[str]):
