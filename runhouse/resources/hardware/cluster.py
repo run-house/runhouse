@@ -214,7 +214,7 @@ class Cluster(Resource):
 
         if not self._http_client and not check_connect_server():
             if self.__class__.__name__ == "OnDemandCluster":
-                self._update_from_sky_status(dryrun=False)
+                self._update_from_status(dryrun=False)
             if not self._ping(retry=False):
                 raise ConnectionError(
                     f"Could not reach {self.name} {self.head_ip}. Is cluster up?"
