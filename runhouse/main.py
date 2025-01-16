@@ -136,7 +136,18 @@ def logout():
 # Cluster CLI commands
 ###############################
 @cluster_app.command("ssh")
-def cluster_ssh(cluster_name: str):
+def cluster_ssh(
+    cluster_name: str = typer.Argument(
+        ...,
+        help="Name of the cluster to SSH into.",
+    ),
+    node: Optional[str] = typer.Option(
+        None,
+        "-n",
+        "--node",
+        help="Specific cluster node to SSH into. If not specified will default to the head node.",
+    ),
+):
     """SSH into a remote cluster.
 
     Example:
@@ -145,11 +156,15 @@ def cluster_ssh(cluster_name: str):
     """
     try:
         c = cluster(name=cluster_name)
-        if not c.is_up():
-            print_bring_cluster_up_msg(cluster_name=cluster_name)
-            return
+        if isinstance(c, rh.OnDemandCluster):
+            c.ssh(node=node)
 
-        c.ssh()
+        else:
+            if node:
+                raise ValueError(
+                    "Node argument is only supported for on-demand clusters"
+                )
+            c.ssh()
 
     except ValueError:
         try:
@@ -161,8 +176,8 @@ def cluster_ssh(cluster_name: str):
 
         if len(state) == 0:
             console.print(
-                f"Could not load cluster called {cluster_name}. Cluster must either be saved to Den, "
-                "or be a local ondemand cluster that is currently up."
+                "Cluster must either be saved to Den, shared with you, or be a local ondemand cluster "
+                "that is currently up."
             )
             raise typer.Exit(1)
 
@@ -173,7 +188,7 @@ def cluster_ssh(cluster_name: str):
 def cluster_status(
     cluster_name: str = typer.Argument(
         None,
-        help="Name of cluster to check. If not specified will check the local cluster.",
+        help="Name of the cluster to check. If not specified will check the local cluster.",
     ),
     send_to_den: bool = typer.Option(
         default=False,
