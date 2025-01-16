@@ -516,6 +516,9 @@ def cluster_logs(
         headers=rns_client.request_headers(),
     )
 
+    if resp.status_code == 404:
+        console.print("Cluster logs are not available yet.")
+        return
     if resp.status_code != 200:
         console.print("Failed to load cluster logs.")
         return
