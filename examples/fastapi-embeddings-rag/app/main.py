@@ -177,7 +177,7 @@ def load_llm():
     )
 
     cluster = rh.cluster(
-        CLUSTER_NAME, gpus=ACCELERATOR, provider=CLOUD_PROVIDER, image=img
+        CLUSTER_NAME, gpus=GPUS, provider=CLOUD_PROVIDER, image=img
     ).up_if_not()
 
     module_name = "llama_model"

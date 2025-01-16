@@ -365,7 +365,7 @@ class LocalLauncher(Launcher):
                 sky.Resources(
                     cloud=cloud_provider,
                     instance_type=cluster.get_instance_type(),
-                    accelerators=cluster.gpus(),
+                    accelerators=cluster._requested_gpus(),
                     cpus=cluster.num_cpus(),
                     memory=cluster.memory,
                     region=cluster.region or configs.get("default_region"),

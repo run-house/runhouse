@@ -822,7 +822,7 @@ class Module(Resource):
             if not num_replicas:
                 num_nodes = len(self.system.ips)
                 if not replicas_per_node:
-                    replicas_per_node = self.system.gpus_per_node() or 1
+                    replicas_per_node = self.system._gpus_per_node() or 1
                 num_replicas = replicas_per_node * num_nodes
 
             replicas = self.replicate(
