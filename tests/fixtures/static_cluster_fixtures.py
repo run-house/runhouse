@@ -31,6 +31,7 @@ def setup_static_cluster(
         instance_type=instance_type,
         provider="aws",
         launcher=launcher,
+        den_auth=True,
     ).save()
     if not cluster.is_up():
         cluster.up()
@@ -60,7 +61,10 @@ def setup_static_cluster(
     # and the static cluster will be terminated. Otherwise, both of the clusters will be terminated using the on-demand
     # cluster auto-stop.
     args = dict(
-        name=f"{cluster_name}-static", host=[cluster.head_ip], ssh_creds=ssh_creds
+        name=f"{cluster_name}-static",
+        host=[cluster.head_ip],
+        ssh_creds=ssh_creds,
+        den_auth=True,
     )
     c = rh.cluster(**args).save()
     c.restart_server(resync_rh=True)
