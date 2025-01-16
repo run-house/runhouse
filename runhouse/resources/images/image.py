@@ -99,6 +99,20 @@ class Image:
             **kwargs,
         )
 
+    def _save_sub_resources(self):
+        secret_steps = [
+            step
+            for step in self.setup_steps
+            if step.step_type == ImageSetupStepType.SYNC_SECRETS
+        ]
+        for step in secret_steps:
+            from runhouse.resources.secrets.secret import Secret
+
+            secrets = step.kwargs.get("providers")
+            for secret in secrets:
+                if isinstance(secret, Secret):
+                    secret.save()
+
     def from_docker(self, image_id: str, docker_secret: Union["Secret", str] = None):
         """Set up and use an existing Docker image.
 
