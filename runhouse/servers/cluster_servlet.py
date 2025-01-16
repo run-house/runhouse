@@ -93,6 +93,8 @@ class ClusterServlet:
         # will be used when self.gpu_metrics will be updated by different threads.
         self.lock = threading.Lock()
 
+        self._cluster_config["is_gpu"] = is_gpu_cluster()
+
         # creating periodic check loops
         if self._cluster_config.get("is_gpu"):
             logger.debug("Creating _periodic_gpu_check thread.")
