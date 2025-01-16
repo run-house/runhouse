@@ -154,3 +154,55 @@ class TestMultiNodeCluster:
         for node in cluster.ips:
             result = cluster.run_bash("ls ~/.custom", node=node)
             assert "secret.json" in result[1]
+
+    @pytest.mark.level("release")
+    def test_head_to_all_rsync(self, cluster):
+        path = "/tmp/runhouse"
+        cluster.run_bash(
+            [f"mkdir -p {path}", f"echo 'hello there' > {path}/hello.txt"],
+            node=cluster.head_ip,
+            stream_logs=True,
+        )
+
+        cluster.rsync(
+            source=path,
+            dest=path,
+            src_node=cluster.head_ip,
+            node="all",
+            contents=True,
+            parallel=True,
+        )
+
+        for node in cluster.ips:
+            status_codes = cluster.run_bash([f"ls -l {path}"], node=node)
+            assert status_codes[0][0] == 0
+            assert "hello.txt" in status_codes[0][1]
+            status_codes = cluster.run_bash([f"cat {path}/hello.txt"], node=node)
+            assert status_codes[0][0] == 0
+            assert "hello there" in status_codes[0][1]
+
+        # Test in the opposite direction, from worker to head, and parallel=False
+        path = "/tmp/runhouse_2"
+        cluster.run_bash(
+            [f"mkdir -p {path}", f"echo 'hello again' > {path}/hello_again.txt"],
+            node=cluster.ips[1],
+            stream_logs=True,
+        )
+
+        cluster.rsync(
+            source=path,
+            dest=path,
+            src_node=cluster.ips[1],
+            node=cluster.head_ip,
+            contents=True,
+            parallel=False,
+        )
+
+        status_codes = cluster.run_bash([f"ls -l {path}"], node=cluster.head_ip)
+        assert status_codes[0][0] == 0
+        assert "hello_again.txt" in status_codes[0][1]
+        status_codes = cluster.run_bash(
+            [f"cat {path}/hello_again.txt"], node=cluster.head_ip
+        )
+        assert status_codes[0][0] == 0
+        assert "hello again" in status_codes[0][1]
