@@ -564,6 +564,12 @@ class OnDemandCluster(Cluster):
 
         return None
 
+    def gpus_per_node(self):
+        gpus = self.gpus()
+        if gpus:
+            return int(gpus.split(":")[-1]) if ":" in gpus else 1
+        return 0
+
     def accelerators(self):
         # TODO - deprecate this in the next release
         return self.gpus()
