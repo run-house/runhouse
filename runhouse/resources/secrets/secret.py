@@ -21,10 +21,7 @@ logger = get_logger(__name__)
 
 class Secret(Resource):
     RESOURCE_TYPE = "secret"
-
     USER_ENDPOINT = "user/secret"
-    GROUP_ENDPOINT = "group/secret"
-
     DEFAULT_DIR = "~/.rh/secrets"
 
     def __init__(
@@ -123,7 +120,7 @@ class Secret(Resource):
         _resolve_children: bool = True,
     ):
         try:
-            config = load_config(name, cls.USER_ENDPOINT)
+            config = load_config(name)
             if config:
                 return cls.from_config(config=config, dryrun=dryrun)
         except ValueError:
@@ -353,7 +350,7 @@ class Secret(Resource):
 
         # Delete secrets in Vault
         resource_uri = rns_client.resource_uri(self.rns_address)
-        _delete_vault_secrets(resource_uri, self.USER_ENDPOINT, headers=headers)
+        _delete_vault_secrets(resource_uri, headers=headers)
 
         # Delete Den data for resource
         uri = f"{rns_client.api_server_url}/resource/{resource_uri}"

@@ -22,7 +22,6 @@ class Defaults:
     """Class to handle defaults for Runhouse. Defaults are stored in a json file in the user's home directory."""
 
     USER_ENDPOINT = "user"
-    GROUP_ENDPOINT = "group"
     CONFIG_PATH = Path("~/.rh/config.yaml").expanduser()
     # TODO [DG] default sub-dicts for various resources (e.g. defaults.get('cluster').get('resource_type'))
     BASE_DEFAULTS = {
@@ -164,7 +163,6 @@ class Defaults:
         self,
         defaults: Optional[Dict] = None,
         headers: Optional[Dict] = None,
-        entity: Optional[str] = "user",
     ):
         """Upload defaults into rns. If defaults is None, upload the defaults from the local config file,
         `~/.rh/config.yaml."""
@@ -177,12 +175,7 @@ class Defaults:
         to_upload.pop("username", None)
         to_upload.pop("secrets", None)
 
-        endpoint = (
-            self.USER_ENDPOINT
-            if entity == "user"
-            else f"{self.GROUP_ENDPOINT}/{entity}"
-        )
-        uri = f'{self.get("api_server_url")}/{endpoint}/config'
+        uri = f'{self.get("api_server_url")}/{self.USER_ENDPOINT}/config'
         resp = requests.put(
             uri,
             data=json.dumps(to_upload),
@@ -190,25 +183,18 @@ class Defaults:
         )
         if resp.status_code != 200:
             raise Exception(
-                f"Received [{resp.status_code}] from Den PUT '{uri}': Failed to update defaults for {entity}."
+                f"Received [{resp.status_code}] from Den PUT '{uri}': Failed to update defaults for user."
             )
-        logger.info(f"Uploaded defaults for {entity} to rns.")
+        logger.info("Uploaded defaults for user to rns.")
 
-    def download_defaults(
-        self, headers: Optional[Dict] = None, entity: Optional[str] = "user"
-    ) -> Dict:
+    def download_defaults(self, headers: Optional[Dict] = None) -> Dict:
         """Get defaults for user or group."""
-        endpoint = (
-            self.USER_ENDPOINT
-            if entity == "user"
-            else f"{self.GROUP_ENDPOINT}/{entity}"
-        )
         headers = headers or self.request_headers
-        uri = f'{self.get("api_server_url")}/{endpoint}'
+        uri = f'{self.get("api_server_url")}/{self.USER_ENDPOINT}'
         resp = requests.get(uri, headers=headers)
         if resp.status_code != 200:
             raise Exception(
-                f"Received [{resp.status_code}] from Den GET '{uri}': Failed to download defaults for {entity}."
+                f"Received [{resp.status_code}] from Den GET '{uri}': Failed to download defaults for user."
             )
         resp_data: dict = read_resp_data(resp)
         raw_defaults = resp_data.get("config", {})
@@ -240,11 +226,10 @@ class Defaults:
     def download_and_save_defaults(
         self,
         headers: Optional[Dict] = None,
-        entity: Optional[str] = "user",
         config_path: Optional[str] = None,
     ):
         """Download defaults from rns and save them to the local config file."""
-        defaults = self.download_defaults(headers=headers, entity=entity)
+        defaults = self.download_defaults(headers=headers)
         # Note: downloaded defaults take priority over local defaults
         self.set_many(defaults, config_path=config_path)
 
