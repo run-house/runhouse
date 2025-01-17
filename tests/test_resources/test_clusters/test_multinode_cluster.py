@@ -144,3 +144,13 @@ class TestMultiNodeCluster:
         result = cluster.run_bash("echo 'Hello World!'", process=process)
         assert result[0] == 0
         assert result[1] == "Hello World!\n"
+
+    @pytest.mark.level("release")
+    def test_multinode_secrets_to(self, cluster):
+        custom_provider_secret = rh.provider_secret(
+            provider="custom", values={"secret": "value"}
+        )
+        custom_provider_secret.to(cluster, path="~/.custom/secret.json")
+        for node in cluster.ips:
+            result = cluster.run_bash("ls ~/.custom", node=node)
+            assert "secret.json" in result[1]
