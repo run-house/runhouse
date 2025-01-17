@@ -2,7 +2,7 @@ Installation and Compute Setup
 ==============================
 
 It will take just a few minutes to setup Runhouse, including the Runhouse installation, account
-creation, and configuring of compute credenitals (e.g. service or user account for a cloud
+creation, and configuring of compute credentials (e.g. service or user account for a cloud
 credential).
 
 Runhouse is compatible with:
@@ -106,7 +106,7 @@ We recommend this approach for a couple of reasons:
 * **Distributed Workflows / Production Pipelines**: Launch clusters as part of distributed workflows
   or pipelines without needing to configure cloud credentials in your environment.
 
-To enable the Den launcher, you can set :code:`launcher="den"` in the :ref:`cluster factory <Cluster Factory Methods>`, or update
+To enable the Den launcher, you can set :code:`launcher="den"` in the :ref:`cluster factory <Cluster>`, or update
 your local :ref:`runhouse config <Setting Config Options>` with :code:`launcher: den` to apply the setting globally
 across all subsequent clusters created.
 

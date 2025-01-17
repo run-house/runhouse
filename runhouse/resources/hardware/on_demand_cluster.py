@@ -550,7 +550,7 @@ class OnDemandCluster(Cluster):
 
         return None
 
-    def gpus(self):
+    def _requested_gpus(self):
         """Returns the gpu type, or None if is a CPU."""
         if self._gpus:
             return self._gpus
@@ -564,9 +564,19 @@ class OnDemandCluster(Cluster):
 
         return None
 
-    def accelerators(self):
-        # TODO - deprecate this in the next release
-        return self.gpus()
+    def _gpus_per_node(self):
+        if (
+            self.is_up()
+            and self.compute_properties
+            and self.compute_properties.get("gpus")
+        ):
+            gpus = self.compute_properties.get("gpus")
+        else:
+            gpus = self._requested_gpus()
+
+        if gpus:
+            return int(gpus.split(":")[-1]) if ":" in gpus else 1
+        return 0
 
     def num_cpus(self):
         """Return the number of CPUs for a CPU cluster."""

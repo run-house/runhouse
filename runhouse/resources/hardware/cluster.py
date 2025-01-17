@@ -360,6 +360,8 @@ class Cluster(Resource):
             # Only automatically set the creds folder if it doesn't have one yet
             # allows for org SSH keys to be associated with the user.
             self._creds.save(folder=creds_folder)
+        if self.image:
+            self.image._save_sub_resources()
 
     @classmethod
     def from_name(

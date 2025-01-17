@@ -365,7 +365,7 @@ class LocalLauncher(Launcher):
                 sky.Resources(
                     cloud=cloud_provider,
                     instance_type=cluster.get_instance_type(),
-                    accelerators=cluster.gpus(),
+                    accelerators=cluster._requested_gpus(),
                     cpus=cluster.num_cpus(),
                     memory=cluster.memory,
                     region=cluster.region or configs.get("default_region"),
@@ -443,7 +443,7 @@ class LocalLauncher(Launcher):
                 from runhouse.resources.secrets.secret import Secret
 
                 docker_secret = Secret.from_name(image.docker_secret)
-            docker_env_vars = image.docker_secret._map_env_vars()
+            docker_env_vars = docker_secret._map_env_vars()
         else:
             try:
                 docker_env_vars = rh.provider_secret("docker")._map_env_vars()
