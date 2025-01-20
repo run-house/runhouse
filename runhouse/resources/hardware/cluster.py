@@ -1432,12 +1432,14 @@ class Cluster(Resource):
         self,
         source: str,
         dest: str,
-        up: bool,
+        up: bool = True,
         node: str = None,
+        src_node: str = None,
         contents: bool = False,
         filter_options: str = None,
         stream_logs: bool = False,
         ignore_existing: bool = False,
+        parallel: bool = False,
     ):
         """
         Sync the contents of the source directory into the destination.
@@ -1449,6 +1451,7 @@ class Cluster(Resource):
               will rsync from cluster to local.
             node (str, optional): Specific cluster node to rsync to. If not specified will use the
                 address of the cluster's head node.
+            src_node (str, optional): Specific cluster node to rsync from, for node-to-node rsyncs.
             contents (bool, optional): Whether the contents of the source directory or the directory
                 itself should be copied to destination. If ``True`` the contents of the source directory are
                 copied to the destination, and the source directory itself is not created at the destination.
@@ -1467,21 +1470,44 @@ class Cluster(Resource):
         # https://github.com/skypilot-org/skypilot/blob/v0.4.1/sky/backends/cloud_vm_ray_backend.py#L3094
         # This is an interesting policy... by default we're syncing to all nodes if the cluster is multinode.
         # If we need to change it to be greedier we can.
-        if up and not Path(source).expanduser().exists():
+        if not src_node and up and not Path(source).expanduser().exists():
             raise ValueError(f"Could not locate path to sync: {source}.")
 
         if up and (node == "all" or (len(self.ips) > 1 and not node)):
-            for node in self.ips:
-                self.rsync(
-                    source,
-                    dest,
-                    up=up,
-                    node=node,
-                    contents=contents,
-                    filter_options=filter_options,
-                    stream_logs=stream_logs,
-                    ignore_existing=ignore_existing,
-                )
+            if not parallel:
+                for node in self.ips:
+                    self.rsync(
+                        source,
+                        dest,
+                        up=up,
+                        node=node,
+                        src_node=src_node,
+                        contents=contents,
+                        filter_options=filter_options,
+                        stream_logs=stream_logs,
+                        ignore_existing=ignore_existing,
+                    )
+            else:
+                from concurrent.futures import ThreadPoolExecutor
+
+                with ThreadPoolExecutor(max_workers=len(self.ips)) as executor:
+                    futures = [
+                        executor.submit(
+                            self.rsync,
+                            source,
+                            dest,
+                            up=up,
+                            node=node,
+                            src_node=src_node,
+                            contents=contents,
+                            filter_options=filter_options,
+                            stream_logs=stream_logs,
+                            ignore_existing=ignore_existing,
+                        )
+                        for node in self.ips
+                    ]
+                    for future in futures:
+                        future.result()
             return
 
         from runhouse.resources.hardware.sky_command_runner import SshMode
@@ -1493,8 +1519,12 @@ class Cluster(Resource):
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
 
-        # If we're already on this cluster (and node, if multinode), this is just a local rsync
-        if self.on_this_cluster() and node == self.head_ip:
+        if self.on_this_cluster():
+            src_node = src_node or self.head_ip
+
+        # If we're already on this node, this is just a local rsync
+        if node == src_node:
+            logger.info(f"Rsyncing {source} to {dest} on node {node}")
             if Path(source).expanduser().resolve() == Path(dest).expanduser().resolve():
                 return
 
@@ -1529,14 +1559,34 @@ class Cluster(Resource):
         ssh_credentials.pop("private_key", None)
         ssh_credentials.pop("public_key", None)
 
+        # If we're syncing between nodes on the cluster, we need to use the internal ip of the destination node
+        if src_node:
+            # Case 1: node-to-node rsync within the cluster
+            # Note that we don't care if it's a pwd cluster here, because all nodes have access to
+            # one other through internal ips
+            self._local_rsync(
+                source=source,
+                dest=dest,
+                up=up,
+                node=node,
+                src_node=src_node,
+                filter_options=filter_options,
+                stream_logs=stream_logs,
+                ignore_existing=ignore_existing,
+            )
+            return
+
         runner = self._command_runner(node=node)
         if not pwd:
+            # Case 2: Standard rsync with no password between cluster and local (e.g. laptop)
             if up:
+                logger.info(f"Rsyncing {source} to {dest} on {node}")
                 runner.run(
                     ["mkdir", "-p", dest],
                     ssh_mode=SshMode.INTERACTIVE,
                 )
             else:
+                logger.info(f"Rsyncing {source} on {node} to {dest}")
                 Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
             runner.rsync(
@@ -1547,33 +1597,37 @@ class Cluster(Resource):
                 stream_logs=stream_logs,
                 ignore_existing=ignore_existing,
             )
+            return
 
-        else:
-            if up:
-                ssh_command = runner.run(
-                    ["mkdir", "-p", dest],
-                    return_cmd=True,
-                    ssh_mode=SshMode.INTERACTIVE,
-                )
-                run_command_with_password_login(ssh_command, pwd, stream_logs=True)
-            else:
-                Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
-
-            rsync_cmd = runner.rsync(
-                source,
-                dest,
-                up=up,
-                filter_options=filter_options,
-                stream_logs=stream_logs,
+        # Case 3: rsync with password between cluster and local (e.g. laptop)
+        if up:
+            logger.info(f"Rsyncing {source} to {dest} on {node}")
+            ssh_command = runner.run(
+                ["mkdir", "-p", dest],
                 return_cmd=True,
-                ignore_existing=ignore_existing,
+                ssh_mode=SshMode.INTERACTIVE,
             )
-            run_command_with_password_login(rsync_cmd, pwd, stream_logs)
+            run_command_with_password_login(ssh_command, pwd, stream_logs=True)
+        else:
+            logger.info(f"Rsyncing {source} on {node} to {dest}")
+            Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
+
+        rsync_cmd = runner.rsync(
+            source,
+            dest,
+            up=up,
+            filter_options=filter_options,
+            stream_logs=stream_logs,
+            return_cmd=True,
+            ignore_existing=ignore_existing,
+        )
+        run_command_with_password_login(rsync_cmd, pwd, stream_logs)
 
     def _local_rsync(
         self,
         source: str,
         dest: str,
+        up: bool = True,
         node: str = None,
         src_node: str = None,
         filter_options: str = None,
@@ -1582,8 +1636,7 @@ class Cluster(Resource):
     ):
         """Rsync from head node onto another cluster node."""
         # Note: this is a minimal local rsync function, to rsync from one node to another node on the cluster.
-        # It does not (yet) support more advanced args in rsync such as up=False (download), contents=True,
-        # or rsyncing within the same node
+        # It does not support more advanced args in rsync such as contents=True or rsyncing within the same node
 
         src_node = src_node or self.head_ip
         if src_node == node:
@@ -1591,8 +1644,26 @@ class Cluster(Resource):
                 "The source and destination node must be different for _local_rsync."
             )
 
+        if node == self.head_ip:
+            # If the destination node is the head node, we may not have ssh access back from the worker node
+            # due to authorized_keys restrictions on the head node (this only affects ssh proper, not all other
+            # types of access, like starting a Ray worker or even a simple curl to the head node).
+            # In that case, switch the source and destination nodes and paths, and run the rsync command on the
+            # head node.
+            return self._local_rsync(
+                source=dest,
+                dest=source,
+                up=not up,
+                node=src_node,
+                src_node=node,
+                filter_options=filter_options,
+                stream_logs=stream_logs,
+                ignore_existing=ignore_existing,
+            )
+
         # use internal ip of destination node to sync between cluster nodes w/o additional creds
-        dest_node_internal_ip = self.internal_ips[self.ips.index(node)]
+        dest_node_idx = self.ips.index(node)
+        dest_node_internal_ip = self.internal_ips[dest_node_idx]
         ssh_user = self.creds_values.get("ssh_user")
         node_destination = f"{ssh_user}@{dest_node_internal_ip}"
 
@@ -1601,9 +1672,16 @@ class Cluster(Resource):
             rsync_cmd.append("--ignore-existing")
         if filter_options:
             rsync_cmd.append(filter_options)
-        rsync_cmd.extend([source, f"{node_destination}:{dest}"])
+        if up:
+            rsync_cmd.extend([source, f"{node_destination}:{dest}"])
+        else:
+            rsync_cmd.extend([f"{node_destination}:{source}", dest])
 
-        logger.info(f"Rsyncing {source} on {src_node} to {dest} on {node}")
+        src_node_idx = self.ips.index(src_node)
+        logger.info(
+            f"Rsyncing {source} on node {src_node_idx} ({src_node}) to "
+            f"{dest} on node {dest_node_idx} ({node})."
+        )
         self.run_bash(f"mkdir -p {dest}", node=node, stream_logs=stream_logs)
         self.run_bash(" ".join(rsync_cmd), node=src_node, stream_logs=stream_logs)
 
