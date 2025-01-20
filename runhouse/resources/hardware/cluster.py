@@ -321,14 +321,18 @@ class Cluster(Resource):
     def _should_save_creds(self, folder: str = None) -> bool:
         """Checks whether to save the creds associated with the cluster.
         Only do so as part of the save() if the user making the call is the creator"""
-
         from runhouse.resources.secrets import Secret
 
-        local_default_folder = folder or configs.username
+        current_user = configs.username
+
+        if folder is not None and folder != current_user:
+            # if the cluster is created on behalf of a different user (ex: an org)
+            return False
+
         # if not self.rns_address => we are saving the cluster first time in den
         # else, need to check if the username of the current saver is included in the rns_address.
         should_save_creds = (
-            (not self.rns_address or local_default_folder in self.rns_address)
+            (not self.rns_address or folder in self.rns_address)
             and self._creds
             and isinstance(self._creds, Secret)
         )
@@ -352,14 +356,10 @@ class Cluster(Resource):
         return should_save_creds
 
     def _save_sub_resources(self, folder: str = None):
-
-        creds_folder = (
-            folder if (not self._creds or not self._creds._rns_folder) else None
-        )
-        if self._should_save_creds(creds_folder):
+        if self._should_save_creds(folder):
             # Only automatically set the creds folder if it doesn't have one yet
-            # allows for org SSH keys to be associated with the user.
-            self._creds.save(folder=creds_folder)
+            # For any creds not associated with the cluster creator (ex: orgs), don't create new creds
+            self._creds.save()
         if self.image:
             self.image._save_sub_resources()
 

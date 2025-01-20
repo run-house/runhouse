@@ -18,6 +18,7 @@ from runhouse.constants import (
     LAST_ACTIVE_AT_TIMEFRAME,
     RESERVED_SYSTEM_NAMES,
     SKY_VENV,
+    SSH_SKY_SECRET_NAME,
     TIME_UNITS,
 )
 from runhouse.globals import configs, rns_client
@@ -179,7 +180,7 @@ def _setup_default_creds(cluster_type: str):
     default_ssh_key = rns_client.default_ssh_key
     if cluster_type == "OnDemandCluster":
         try:
-            sky_secret = Secret.from_name("sky")
+            sky_secret = Secret.from_name(SSH_SKY_SECRET_NAME)
             return sky_secret
         except ValueError:
             if default_ssh_key:
@@ -227,8 +228,9 @@ def _setup_creds_from_dict(ssh_creds: Dict, cluster_name: str):
         else:
             # set as standard SSH secret
             constructor = SkySecret if key == "sky-key" else SSHSecret
+            # Note: attribute this to the current user so it's saved to Den as the creds associated with this cluster
             cluster_secret = constructor(
-                name=f"ssh-{key}", key=key, path=private_key_path
+                name=f"/{rns_client.username}/ssh-{key}", key=key, path=private_key_path
             )
     elif password:
         cluster_secret = Secret(
