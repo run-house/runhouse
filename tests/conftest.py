@@ -127,6 +127,14 @@ def pytest_addoption(parser):
         help="URL of Runhouse Den",
     )
 
+    # will be used if we run tests in CI, in that case the resource names will include a timestamp and random hash.
+    parser.addoption(
+        "--ci",
+        action="store_true",
+        default=False,
+        help="Whether the tests run locally or in CI",
+    )
+
 
 def pytest_generate_tests(metafunc):
     level = metafunc.config.getoption("level")
