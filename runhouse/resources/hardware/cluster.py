@@ -1701,6 +1701,85 @@ class Cluster(Resource):
         self.run_bash(f"mkdir -p {dest}", node=node, stream_logs=stream_logs)
         self.run_bash(" ".join(rsync_cmd), node=src_node, stream_logs=stream_logs)
 
+    def mount(self, source, dest=None, mode="sshfs", node="all", src_node=None):
+        """Mount a directory from local or the head node to all nodes on the cluster"""
+        # If no dest path is provided, assume the source path is the same on the destination
+        dest = dest or source
+        if mode == "rsync":
+            self.rsync(
+                source=source,
+                dest=dest,
+                up=True,
+                node=node,
+                contents=True,
+                src_node=src_node,
+            )
+            return
+        src_node_idx = self.ips.index(src_node)
+        src_node_internal_ip = self.internal_ips[src_node_idx]
+        if mode == "nfs":
+            if not src_node:
+                # Assume this means the mount is from local to cluster, which we don't yet support (requires sshfs)
+                raise ValueError(
+                    "Mounting with nfs from local to cluster is not yet supported."
+                )
+            # Start nfs server on the src_node
+            nfs_server_cmds = [
+                "sudo apt update -y",
+                "sudo apt install -y nfs-kernel-server",
+                f"sudo mkdir -p {source}",
+                f"sudo chown -R nobody:nogroup {source}",
+                f"sudo chmod -R 777 {source}",
+                f"echo '{source} *(rw,sync,no_subtree_check,no_root_squash)' | sudo tee -a /etc/exports",
+                "sudo exportfs -a",
+                "sudo systemctl restart nfs-kernel-server",
+            ]
+            self.run_bash(nfs_server_cmds, node=src_node, stream_logs=True)
+            # TODO should we default to mount.nfs4?
+            # https://blog.ja-ke.tech/2019/08/27/nas-performance-sshfs-nfs-smb.html
+            mount_cmds = [
+                f"mkdir -p {dest}",
+                "sudo apt update -y",
+                "sudo apt install -y nfs-common",
+                f"sudo mount {src_node_internal_ip}:{source} {dest}",
+            ]
+            if node == "all":
+                for ip in self.ips:
+                    if not ip == src_node:
+                        self.run_bash(mount_cmds, node=ip, stream_logs=True)
+                return
+            self.run_bash(mount_cmds, node=node, stream_logs=True)
+            return
+        if mode == "sshfs":
+            if not src_node:
+                raise ValueError(
+                    "Mounting with sshfs from local to cluster is not yet supported."
+                )
+            sshfs_cmd = (
+                f"sshfs -o cache=yes -o kernel_cache -o Compression=no "
+                f"-o ServerAliveCountMax=3 -o ServerAliveInterval=15 -o reconnect -C "
+                f"-o idmap=user -o allow_other "
+                f"{src_node_internal_ip}:{source} {dest}"
+            )
+            mount_cmds = [
+                f"mkdir -p {dest}",
+                "sudo apt update -y",
+                "sudo apt install -y sshfs",
+                sshfs_cmd,
+            ]
+            # We need to run the sshfs bash command over ssh because ssh will forward the *local* private key
+            # to sshfs. If we do this over run_bash we'll get authorized_key errors when worker nodes try to run SSH
+            # commands pointed back at the head node (because the private key passing only works for one hop, and the
+            # tunnel to the head node counts as the first hop).
+            if node == "all":
+                for ip in self.ips:
+                    if not ip == src_node:
+                        self.run_bash_over_ssh(mount_cmds, node=ip, stream_logs=True)
+                return
+            self.run_bash_over_ssh(mount_cmds, node=node, stream_logs=True)
+            return
+        raise ValueError(f"Mount mode {mode} not supported.")
+
     def ssh(self):
         """SSH into the cluster
 

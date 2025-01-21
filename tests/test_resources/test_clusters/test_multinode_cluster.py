@@ -206,3 +206,72 @@ class TestMultiNodeCluster:
         )
         assert status_codes[0][0] == 0
         assert "hello again" in status_codes[0][1]
+
+    @pytest.mark.level("release")
+    def test_rsync_mount(self, cluster):
+        path = "/tmp/rsync_mount"
+        cluster.run_bash(
+            [f"mkdir -p {path}", f"echo 'hello there' > {path}/hello.txt"],
+            node=cluster.head_ip,
+        )
+        cluster.mount(source=path, src_node=cluster.head_ip, mode="rsync")
+
+        for node in cluster.ips:
+            status_codes = cluster.run_bash([f"ls -l {path}"], node=node)
+            assert status_codes[0][0] == 0
+            assert "hello.txt" in status_codes[0][1]
+            status_codes = cluster.run_bash([f"cat {path}/hello.txt"], node=node)
+            assert status_codes[0][0] == 0
+            assert "hello there" in status_codes[0][1]
+
+    @pytest.mark.level("release")
+    def test_sshfs_mount(self, cluster):
+        path = "/tmp/sshfs_mount"
+        cluster.run_bash(
+            [f"mkdir -p {path}", f"echo 'hello there' > {path}/hello.txt"],
+            node=cluster.head_ip,
+        )
+        cluster.mount(source=path, src_node=cluster.head_ip, mode="sshfs")
+
+        # Write from another node
+        cluster.run_bash(
+            f"echo 'Another file' > {path}/another.txt", node=cluster.ips[1]
+        )
+
+        for node in cluster.ips:
+            status_codes = cluster.run_bash([f"ls -l {path}"], node=node)
+            assert status_codes[0][0] == 0
+            assert "hello.txt" in status_codes[0][1]
+            assert "another.txt" in status_codes[0][1]
+            status_codes = cluster.run_bash([f"cat {path}/hello.txt"], node=node)
+            assert status_codes[0][0] == 0
+            assert "hello there" in status_codes[0][1]
+            status_codes = cluster.run_bash([f"cat {path}/another.txt"], node=node)
+            assert status_codes[0][0] == 0
+            assert "Another file" in status_codes[0][1]
+
+    @pytest.mark.level("release")
+    def test_nfs_mount(self, cluster):
+        path = "/tmp/nfs_mount"
+        cluster.run_bash(
+            [f"mkdir -p {path}", f"echo 'hello there' > {path}/hello.txt"],
+            node=cluster.head_ip,
+        )
+        cluster.mount(source=path, src_node=cluster.head_ip, mode="nfs")
+
+        # Write from another node
+        cluster.run_bash(
+            f"echo 'Another file' > {path}/another.txt", node=cluster.ips[1]
+        )
+
+        for node in cluster.ips:
+            status_codes = cluster.run_bash([f"ls -l {path}"], node=node)
+            assert status_codes[0][0] == 0
+            assert "hello.txt" in status_codes[0][1]
+            assert "another.txt" in status_codes[0][1]
+            status_codes = cluster.run_bash([f"cat {path}/hello.txt"], node=node)
+            assert status_codes[0][0] == 0
+            assert "hello there" in status_codes[0][1]
+            status_codes = cluster.run_bash([f"cat {path}/another.txt"], node=node)
+            assert status_codes[0][0] == 0
+            assert "Another file" in status_codes[0][1]
