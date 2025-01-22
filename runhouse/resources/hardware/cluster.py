@@ -29,6 +29,7 @@ from runhouse.resources.hardware.utils import (
 )
 
 from runhouse.resources.images import Image, ImageSetupStepType
+from runhouse.resources.images.image import ImageSetupMode
 
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
@@ -84,7 +85,7 @@ from runhouse.servers.http.http_utils import CreateProcessParams
 logger = get_logger(__name__)
 
 
-def _do_setup_step_for_node(cluster, setup_step, node):
+def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
     if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
         cluster.create_conda_env(
             conda_env_name=setup_step.kwargs.get("conda_env_name"),
@@ -646,7 +647,7 @@ class Cluster(Resource):
         )
         return self
 
-    def _sync_image_to_cluster(self, parallel: bool = True):
+    def _sync_image_to_cluster(self):
         """
         Image stuff that needs to happen over SSH because the daemon won't be up yet, so we can't
         use the HTTP client.
@@ -684,17 +685,34 @@ class Cluster(Resource):
                 env_vars.update(image_env_vars)
                 continue
 
-            if parallel:
+            if self.image.setup_mode == ImageSetupMode.PARALLEL.value:
                 # Launch in a new process so we can capture the logs
                 with multiprocessing.Pool(processes=len(self.ips)) as pool:
                     pool.starmap(
-                        _do_setup_step_for_node, [(self, step, ip) for ip in self.ips]
+                        _do_setup_step_for_node,
+                        [(self, step, ip, env_vars) for ip in self.ips],
                     )
                     # Fix any garbled terminal output
                     os.system("stty sane")
-            else:
+            elif self.image.setup_mode == ImageSetupMode.SEQUENTIAL.value:
                 for ip in self.ips:
-                    _do_setup_step_for_node(self, step, ip)
+                    _do_setup_step_for_node(self, step, ip, env_vars)
+            elif self.image.setup_mode in [
+                ImageSetupMode.HEAD_ONLY.value,
+                ImageSetupMode.RSYNC.value,
+                ImageSetupMode.MOUNT.value,
+            ]:
+                _do_setup_step_for_node(self, step, self.head_ip, env_vars)
+            else:
+                raise ValueError(
+                    f"Invalid setup mode {self.image.setup_mode} for image {self.image}, must be one of "
+                    f"{ImageSetupMode.strings()}"
+                )
+
+        if self.image.setup_mode == ImageSetupMode.RSYNC.value:
+            self.mount(source="~", node="all", src_node=self.head_ip, mode="rsync")
+        elif self.image.setup_mode == ImageSetupMode.MOUNT.value:
+            self.mount(source="~", node="all", src_node=self.head_ip, mode="nfs")
 
         return secrets_to_sync, env_vars
 
@@ -1115,9 +1133,8 @@ class Cluster(Resource):
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
-        parallel: bool = True,
     ):
-        image_secrets, image_env_vars = self._sync_image_to_cluster(parallel=parallel)
+        image_secrets, image_env_vars = self._sync_image_to_cluster()
 
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
         local_rh_package_path = None
@@ -1698,8 +1715,11 @@ class Cluster(Resource):
             f"Rsyncing {source} on node {src_node_idx} ({src_node}) to "
             f"{dest} on node {dest_node_idx} ({node})."
         )
-        self.run_bash(f"mkdir -p {dest}", node=node, stream_logs=stream_logs)
-        self.run_bash(" ".join(rsync_cmd), node=src_node, stream_logs=stream_logs)
+        self.run_bash_over_ssh(
+            [f"mkdir -p {dest}", " ".join(rsync_cmd)],
+            node=src_node,
+            stream_logs=stream_logs,
+        )
 
     def mount(self, source, dest=None, mode="sshfs", node="all", src_node=None):
         """Mount a directory from local or the head node to all nodes on the cluster"""
@@ -1713,6 +1733,7 @@ class Cluster(Resource):
                 node=node,
                 contents=True,
                 src_node=src_node,
+                parallel=True,
             )
             return
         src_node_idx = self.ips.index(src_node)
@@ -1734,7 +1755,7 @@ class Cluster(Resource):
                 "sudo exportfs -a",
                 "sudo systemctl restart nfs-kernel-server",
             ]
-            self.run_bash(nfs_server_cmds, node=src_node, stream_logs=True)
+            self.run_bash_over_ssh(nfs_server_cmds, node=src_node, stream_logs=True)
             # TODO should we default to mount.nfs4?
             # https://blog.ja-ke.tech/2019/08/27/nas-performance-sshfs-nfs-smb.html
             mount_cmds = [
@@ -1746,9 +1767,9 @@ class Cluster(Resource):
             if node == "all":
                 for ip in self.ips:
                     if not ip == src_node:
-                        self.run_bash(mount_cmds, node=ip, stream_logs=True)
+                        self.run_bash_over_ssh(mount_cmds, node=ip, stream_logs=True)
                 return
-            self.run_bash(mount_cmds, node=node, stream_logs=True)
+            self.run_bash_over_ssh(mount_cmds, node=node, stream_logs=True)
             return
         if mode == "sshfs":
             if not src_node:

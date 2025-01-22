@@ -13,6 +13,20 @@ class ImageSetupStepType(Enum):
     SET_ENV_VARS = "set_env_vars"
 
 
+class ImageSetupMode(Enum):
+    """Enum for valid Image setup modes"""
+
+    PARALLEL = "parallel"
+    SEQUENTIAL = "sequential"
+    RSYNC = "rsync"
+    MOUNT = "mount"
+    HEAD_ONLY = "head_only"
+
+    @classmethod
+    def strings(cls):
+        return [a.value for a in cls]
+
+
 class ImageSetupStep:
     def __init__(
         self,
@@ -33,13 +47,21 @@ class ImageSetupStep:
 
 
 class Image:
-    def __init__(self, name: str, image_id: str = None):
+    def __init__(self, name: str, image_id: str = None, setup_mode: str = "parallel"):
         """
         Runhouse Image object, specifying cluster setup properties and steps.
 
         Args:
             name (str): Name to assign the Runhouse image.
             image_id (str): Machine image to use, if any. (Default: ``None``)
+            setup_mode (str, optional): Setup mode to use for multi-node clusters, one of:
+                ``"parallel"``: Setup all nodes in parallel by replicating the setup steps on each node.
+                ``"sequential"``: Setup nodes sequentially, one after the other.
+                ``"rsync"``: Setup only the head node, and then rsync the entire home directory to all other nodes.
+                ``"mount"``: Setup only the head node, and then mount the home directory to all other nodes (note:
+                    mount is read-write).
+                ``"head_only"``: Setup only the head node.
+                (Default: ``"parallel"``)
 
         Example:
             >>> my_image = (
@@ -55,6 +77,11 @@ class Image:
 
         self.name = name
         self.image_id = image_id
+        self.setup_mode = setup_mode or ImageSetupMode.PARALLEL.value
+        if self.setup_mode not in ImageSetupMode.strings():
+            raise ValueError(
+                f"Invalid setup mode {self.setup_mode}. Must be one of {ImageSetupMode.strings()}"
+            )
 
         self.setup_steps = []
         self.conda_env_name = None
@@ -131,7 +158,7 @@ class Image:
         return self
 
     def config(self) -> Dict[str, Any]:
-        config = {"name": self.name}
+        config = {"name": self.name, "setup_mode": self.setup_mode}
         if self.image_id:
             config["image_id"] = self.image_id
         if self.docker_secret:
@@ -148,7 +175,11 @@ class Image:
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]):
-        img = Image(name=config["name"], image_id=config.get("image_id"))
+        img = Image(
+            name=config["name"],
+            image_id=config.get("image_id"),
+            setup_mode=config.get("setup_mode"),
+        )
         img.setup_steps = [
             Image._setup_step_from_config(step) for step in config["setup_steps"]
         ]
