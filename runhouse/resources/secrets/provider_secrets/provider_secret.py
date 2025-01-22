@@ -164,6 +164,9 @@ class ProviderSecret(Secret):
                     self.rename(name)
                 return self
             self.write(path=path, env=process)
+            if path and len(system.ips) > 1:
+                for node in system.ips[1:]:
+                    system._local_rsync(src=path, dest=Path(path).parent, node=node)
             new_secret = copy.deepcopy(self)
             new_secret._values = None
             new_secret.path = path
@@ -186,7 +189,9 @@ class ProviderSecret(Secret):
             new_secret.path = self._file_to(
                 key=key, system=system, path=path, values=self.values
             )
-
+            if len(system.ips) > 1:
+                for node in system.ips[1:]:
+                    system._local_rsync(source=path, dest=Path(path).parent, node=node)
         if process or self.env_vars:
             env_vars = self.env_vars or self._DEFAULT_ENV_VARS
             if env_vars:
