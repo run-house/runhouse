@@ -464,7 +464,7 @@ def cluster_down(
 
         raise typer.Exit(0)
 
-    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
+    current_cluster = rh.cluster(name=cluster_name, dryrun=True)
 
     try:
         if isinstance(current_cluster, rh.OnDemandCluster):
