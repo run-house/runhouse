@@ -220,6 +220,14 @@ class OnDemandCluster(Cluster):
 
         return self._docker_user
 
+    @property
+    def cluster_status(self):
+        return self._cluster_status
+
+    @cluster_status.setter
+    def cluster_status(self, new_status: ClusterStatus):
+        self._cluster_status = new_status
+
     def config(self, condensed=True):
         config = super().config(condensed)
         self.save_attrs_to_config(
@@ -253,7 +261,7 @@ class OnDemandCluster(Cluster):
         if (
             not self.ips
             or self.on_this_cluster()
-            or self._cluster_status == ClusterStatus.TERMINATED
+            or self.cluster_status == ClusterStatus.TERMINATED
         ):
             return None
 
@@ -355,7 +363,7 @@ class OnDemandCluster(Cluster):
         if self.launcher == LauncherType.LOCAL:
             self._fetch_sky_status_and_update_cluster_status()
 
-        if self._cluster_status == ClusterStatus.TERMINATED:
+        if self.cluster_status == ClusterStatus.TERMINATED:
             return False
 
         return self._ping(retry=True)
@@ -413,17 +421,17 @@ class OnDemandCluster(Cluster):
 
     def _update_cluster_status_from_sky_status(self, sky_status: str):
         if sky_status == SkyClusterStatus.UP:
-            self._cluster_status = ClusterStatus.RUNNING
+            self.cluster_status = ClusterStatus.RUNNING
         if sky_status == SkyClusterStatus.STOPPED:
-            self._cluster_status = ClusterStatus.TERMINATED
+            self.cluster_status = ClusterStatus.TERMINATED
         if sky_status == SkyClusterStatus.INIT:
-            self._cluster_status = ClusterStatus.INITIALIZING
+            self.cluster_status = ClusterStatus.INITIALIZING
 
-    def _fetch_sky_status_and_update_cluster_status(self):
-        cluster_dict = self._sky_status(refresh=False)
+    def _fetch_sky_status_and_update_cluster_status(self, refresh: bool = False):
+        cluster_dict = self._sky_status(refresh=refresh)
 
         if not cluster_dict:
-            self._cluster_status = ClusterStatus.TERMINATED
+            self.cluster_status = ClusterStatus.TERMINATED
             return
 
         sky_status = cluster_dict["status"]

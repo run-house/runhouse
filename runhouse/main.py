@@ -156,6 +156,11 @@ def cluster_ssh(
     try:
         c = cluster(name=cluster_name)
         if isinstance(c, rh.OnDemandCluster):
+            if c.cluster_status == ClusterStatus.INITIALIZING:
+                console.print(
+                    f"[reset]{cluster_name} is being initialized. Please wait for it to finish, or run [reset][bold italic]`runhouse cluster up {cluster_name} -f`[/bold italic] to abort the initialization and relaunch."
+                )
+                raise typer.Exit(0)
             c.ssh(node=node)
 
         else:
@@ -360,7 +365,13 @@ def cluster_up(
     cluster_name: str = typer.Argument(
         None,
         help="The name of cluster to bring up.",
-    )
+    ),
+    force: bool = typer.Option(
+        False,
+        "-f",
+        "--force",
+        help="Whether to up the cluster regardless of its current initialization status",
+    ),
 ):
     """Bring up the cluster if it is not up. No-op if cluster is already up.
     This only applies to on-demand clusters, and has no effect on self-managed clusters.
@@ -369,6 +380,7 @@ def cluster_up(
 
     Example:
         ``$ runhouse cluster up rh-basic-cpu``
+        ``$ runhouse cluster up rh-basic-cpu --force``
 
     """
     try:
@@ -376,7 +388,7 @@ def cluster_up(
         if current_cluster.is_up():
             console.print("Cluster is already up.")
             return
-        current_cluster.up()
+        current_cluster.up(force=force)
     except ValueError:
         console.print("Cluster not found in Den.")
     except Exception as e:
@@ -465,9 +477,8 @@ def cluster_down(
 
         raise typer.Exit(0)
 
-    current_cluster = rh.cluster(name=cluster_name, dryrun=True)
-
     try:
+        current_cluster: rh.Cluster = rh.cluster(name=cluster_name, dryrun=True)
         if isinstance(current_cluster, rh.OnDemandCluster):
             current_cluster.teardown_and_delete() if remove_configs else current_cluster.teardown()
         else:
