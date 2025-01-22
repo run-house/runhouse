@@ -418,10 +418,16 @@ def cluster_down(
     """
     if not force_deletion:
         if cluster_name:
-            proceed = typer.prompt(f"Terminating {cluster_name}. Proceed? [Y/n]")
+            proceed = typer.prompt(
+                f"Terminating {cluster_name}. Proceed? [Y/n] (Press Enter to terminate)",
+                default="",
+                show_default=False,
+            )
         elif remove_all:
             proceed = typer.prompt(
-                "Terminating all running clusters saved in Den. Proceed? [Y/n]"
+                "Terminating all running clusters saved in Den. Proceed? [Y/n] (Press Enter to terminate)",
+                default="",
+                show_default=False,
             )
         else:
             console.print("Cannot determine which cluster to terminate, aborting.")
