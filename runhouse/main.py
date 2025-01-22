@@ -507,7 +507,7 @@ def cluster_logs(
         ``$ runhouse cluster logs rh-basic-cpu --since 60``
 
     """
-    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
+    current_cluster: rh.Cluster = get_cluster_or_local(cluster_name=cluster_name)
 
     cluster_uri = rns_client.resource_uri(current_cluster.rns_address)
 
@@ -527,9 +527,9 @@ def cluster_logs(
     logs_file_content = requests.get(logs_file_url).content.decode("utf-8")
 
     stripped_lines = "\n".join(line.strip() for line in logs_file_content.splitlines())
-    console.print("-" * len(cluster_name))
-    console.print(f"[reset][cyan]{cluster_name}")
-    console.print("-" * len(cluster_name))
+    console.print("-" * len(current_cluster.rns_address))
+    console.print(f"[reset][cyan]{current_cluster.rns_address}")
+    console.print("-" * len(current_cluster.rns_address))
     console.print(f"[reset][cyan]{stripped_lines}")
 
 
