@@ -28,6 +28,7 @@ from runhouse.resources.hardware.sky.command_runner import (
     ssh_options_list,
     SshMode,
 )
+from runhouse.rns.utils.api import ResourceNotFoundError
 from runhouse.utils import run_setup_command
 
 logger = get_logger(__name__)
@@ -166,7 +167,7 @@ def _get_cluster_from(system, dryrun=False):
             return Cluster.from_config(config, dryrun)
         try:
             system = Cluster.from_name(name=system, dryrun=dryrun)
-        except ValueError:
+        except ResourceNotFoundError:
             # Name not found in Den. Doing the lookup this way saves us a hop to Den
             pass
 
@@ -181,7 +182,7 @@ def _setup_default_creds(cluster_type: str):
         try:
             sky_secret = Secret.from_name("sky")
             return sky_secret
-        except ValueError:
+        except ResourceNotFoundError:
             if default_ssh_key:
                 # copy over default key to sky-key for launching use
                 default_secret = Secret.from_name(default_ssh_key)

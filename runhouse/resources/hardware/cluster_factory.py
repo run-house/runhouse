@@ -18,6 +18,7 @@ from runhouse.resources.hardware.utils import (
     setup_kubernetes,
 )
 from runhouse.resources.images.image import Image
+from runhouse.rns.utils.api import ResourceNotFoundError
 
 logger = get_logger(__name__)
 
@@ -142,7 +143,7 @@ def cluster(
             cluster_type = "ondemand"
         else:
             cluster_type = "static"
-    except ValueError:
+    except ResourceNotFoundError:
         new_cluster = None
         cluster_type = "unsaved"
 
@@ -151,7 +152,7 @@ def cluster(
         "load_from_den",
         "dryrun",
     }:
-        raise ValueError(
+        raise ResourceNotFoundError(
             f"Cluster {name} not found in Den. Must provide cluster arguments to construct "
             "a new cluster object."
         )
@@ -323,7 +324,7 @@ def ondemand_cluster(
             name, load_from_den=load_from_den, dryrun=dryrun
         )
         cluster_type = "ondemand"
-    except ValueError:
+    except ResourceNotFoundError:
         new_cluster = None
         cluster_type = "unsaved"
 
@@ -332,7 +333,7 @@ def ondemand_cluster(
 
     if cluster_type == "unsaved":
         if cluster_args.keys() == {"name", "use_spot", "load_from_den", "dryrun"}:
-            raise ValueError(
+            raise ResourceNotFoundError(
                 f"OndemandCluster {name} not found in Den. Must provide cluster arguments to construct "
                 "a new cluster object."
             )

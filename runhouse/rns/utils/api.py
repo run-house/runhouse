@@ -156,3 +156,9 @@ class ResourceVisibility(str, Enum):
     PRIVATE = "private"
     UNLISTED = "unlisted"
     PUBLIC = "public"
+
+
+class ResourceNotFoundError(Exception):
+    """Raised when a resource is not found in Den."""
+
+    pass

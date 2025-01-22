@@ -16,6 +16,7 @@ from runhouse.rns.utils.api import (
     load_resp_content,
     read_resp_data,
     ResourceAccess,
+    ResourceNotFoundError,
     ResourceVisibility,
 )
 from runhouse.rns.utils.names import is_valid_resource_name
@@ -217,7 +218,7 @@ class Resource:
 
         config = rns_client.load_config(name=name, load_from_den=load_from_den)
         if not config:
-            raise ValueError(f"Resource {name} not found.")
+            raise ResourceNotFoundError(f"Resource {name} not found.")
 
         if _resolve_children:
             config = cls._check_for_child_configs(config)
