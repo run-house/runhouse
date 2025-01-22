@@ -664,7 +664,7 @@ class ClusterServlet:
         config_cluster = copy.deepcopy(self._cluster_config)
 
         # Popping out creds because we don't want to show them in the status
-        config_cluster.pop("creds", None)
+        config_cluster.get("compute_properties", {}).pop("creds", None)
 
         # Getting data from each env servlet about the objects it contains and the utilization data
         servlet_utilization_data = {}

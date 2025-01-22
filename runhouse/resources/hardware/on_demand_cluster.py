@@ -430,6 +430,8 @@ class OnDemandCluster(Cluster):
         self._update_cluster_status_from_sky_status(sky_status)
 
     def _populate_connection_from_status_dict(self, cluster_dict: Dict[str, Any]):
+        from runhouse import Secret
+
         if not cluster_dict:
             return
 
@@ -472,12 +474,21 @@ class OnDemandCluster(Cluster):
                 "memory": memory,
                 "num_cpus": num_cpus,
             }
+
+            creds = (
+                self._creds.rns_address
+                if isinstance(self._creds, Secret)
+                else self._creds
+            )
+
             if launched_resource.accelerators:
                 self.compute_properties["gpus"] = launched_resource.accelerators
             if handle.ssh_user:
                 self.compute_properties["ssh_user"] = handle.ssh_user
             if handle.docker_user:
                 self.compute_properties["docker_user"] = handle.docker_user
+            if creds:
+                self.compute_properties["creds"] = creds
             if cloud == "kubernetes":
                 if handle.cached_cluster_info:
                     self.compute_properties[

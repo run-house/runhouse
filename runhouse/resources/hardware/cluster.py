@@ -459,6 +459,8 @@ class Cluster(Resource):
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 
     def config(self, condensed: bool = True):
+        from runhouse import Secret
+
         config = super().config(condensed)
         if config.get("resource_subtype") == "Cluster":
             config["ips"] = self._ips
@@ -475,13 +477,20 @@ class Cluster(Resource):
                 "ssh_properties",
             ],
         )
+
+        # Store creds as an RNS address
         creds = (
-            self._resource_string_for_subconfig(self._creds, condensed)
-            if hasattr(self, "_creds") and self._creds
+            self._creds.rns_address
+            if isinstance(self._creds, Secret)
+            else self._creds
+            if isinstance(self._creds, str)
+            else _setup_creds_from_dict(self._creds, self.name)
+            if isinstance(self._creds, dict)
             else None
         )
+
         if creds:
-            config["creds"] = creds
+            config.setdefault("compute_properties", {})["creds"] = creds
 
         if self._use_custom_certs:
             config["ssl_certfile"] = self.cert_config.cert_path
