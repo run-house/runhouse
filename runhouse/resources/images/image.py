@@ -77,7 +77,7 @@ class Image:
 
         self.name = name
         self.image_id = image_id
-        self.setup_mode = setup_mode
+        self.setup_mode = setup_mode or ImageSetupMode.PARALLEL.value
         if self.setup_mode not in ImageSetupMode.strings():
             raise ValueError(
                 f"Invalid setup mode {self.setup_mode}. Must be one of {ImageSetupMode.strings()}"

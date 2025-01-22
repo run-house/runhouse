@@ -85,7 +85,7 @@ from runhouse.servers.http.http_utils import CreateProcessParams
 logger = get_logger(__name__)
 
 
-def _do_setup_step_for_node(cluster, setup_step, node):
+def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
     if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
         cluster.create_conda_env(
             conda_env_name=setup_step.kwargs.get("conda_env_name"),
@@ -689,19 +689,20 @@ class Cluster(Resource):
                 # Launch in a new process so we can capture the logs
                 with multiprocessing.Pool(processes=len(self.ips)) as pool:
                     pool.starmap(
-                        _do_setup_step_for_node, [(self, step, ip) for ip in self.ips]
+                        _do_setup_step_for_node,
+                        [(self, step, ip, env_vars) for ip in self.ips],
                     )
                     # Fix any garbled terminal output
                     os.system("stty sane")
             elif self.image.setup_mode == ImageSetupMode.SEQUENTIAL.value:
                 for ip in self.ips:
-                    _do_setup_step_for_node(self, step, ip)
+                    _do_setup_step_for_node(self, step, ip, env_vars)
             elif self.image.setup_mode in [
                 ImageSetupMode.HEAD_ONLY.value,
                 ImageSetupMode.RSYNC.value,
                 ImageSetupMode.MOUNT.value,
             ]:
-                _do_setup_step_for_node(self, step, self.head_ip)
+                _do_setup_step_for_node(self, step, self.head_ip, env_vars)
             else:
                 raise ValueError(
                     f"Invalid setup mode {self.image.setup_mode} for image {self.image}, must be one of "
@@ -711,7 +712,7 @@ class Cluster(Resource):
         if self.image.setup_mode == ImageSetupMode.RSYNC.value:
             self.mount(source="~", node="all", src_node=self.head_ip, mode="rsync")
         elif self.image.setup_mode == ImageSetupMode.MOUNT.value:
-            self.mount(source="~", node="all", src_node=self.head_ip, mode="sshfs")
+            self.mount(source="~", node="all", src_node=self.head_ip, mode="nfs")
 
         return secrets_to_sync, env_vars
 
@@ -1754,7 +1755,7 @@ class Cluster(Resource):
                 "sudo exportfs -a",
                 "sudo systemctl restart nfs-kernel-server",
             ]
-            self.run_bash(nfs_server_cmds, node=src_node, stream_logs=True)
+            self.run_bash_over_ssh(nfs_server_cmds, node=src_node, stream_logs=True)
             # TODO should we default to mount.nfs4?
             # https://blog.ja-ke.tech/2019/08/27/nas-performance-sshfs-nfs-smb.html
             mount_cmds = [
@@ -1766,9 +1767,9 @@ class Cluster(Resource):
             if node == "all":
                 for ip in self.ips:
                     if not ip == src_node:
-                        self.run_bash(mount_cmds, node=ip, stream_logs=True)
+                        self.run_bash_over_ssh(mount_cmds, node=ip, stream_logs=True)
                 return
-            self.run_bash(mount_cmds, node=node, stream_logs=True)
+            self.run_bash_over_ssh(mount_cmds, node=node, stream_logs=True)
             return
         if mode == "sshfs":
             if not src_node:
