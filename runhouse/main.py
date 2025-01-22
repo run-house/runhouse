@@ -49,6 +49,7 @@ from runhouse.resources.hardware import (
     kill_actors,
 )
 from runhouse.resources.hardware.utils import ClusterStatus
+from runhouse.rns.utils.api import ResourceNotFoundError
 
 from runhouse.servers.obj_store import ObjStoreError
 
@@ -166,7 +167,7 @@ def cluster_ssh(
                 )
             c.ssh()
 
-    except ValueError:
+    except ResourceNotFoundError:
         try:
             import sky
 
@@ -345,7 +346,7 @@ def cluster_keep_warm(
             return
         current_cluster.keep_warm(mins=mins)
 
-    except ValueError:
+    except ResourceNotFoundError:
         console.print(f"{cluster_name} is not saved in Den.")
         sky_live_clusters = get_all_sky_clusters()
         cluster_name = (
@@ -382,7 +383,7 @@ def cluster_up(
             console.print("Cluster is already up.")
             return
         current_cluster.up()
-    except ValueError:
+    except ResourceNotFoundError:
         console.print("Cluster not found in Den.")
     except Exception as e:
         console.print(f"Failed to bring up the cluster: {e}")
@@ -442,20 +443,17 @@ def cluster_down(
 
         num_terminated_clusters: int = 0
         for running_cluster in running_den_clusters:
-            try:
-                current_cluster = rh.cluster(
-                    name=f'/{rns_client.username}/{running_cluster.get("Name")}',
-                    dryrun=True,
+            current_cluster = rh.cluster(
+                name=f'/{rns_client.username}/{running_cluster.get("Name")}',
+                dryrun=True,
+            )
+            if isinstance(current_cluster, rh.OnDemandCluster):
+                current_cluster.teardown_and_delete() if remove_configs else current_cluster.teardown()
+                num_terminated_clusters += 1
+            else:
+                console.print(
+                    f"[reset][bold italic]{current_cluster.rns_address} [reset]is not an on-demand cluster and must be terminated manually."
                 )
-                if isinstance(current_cluster, rh.OnDemandCluster):
-                    current_cluster.teardown_and_delete() if remove_configs else current_cluster.teardown()
-                    num_terminated_clusters += 1
-                else:
-                    console.print(
-                        f"[reset][bold italic]{current_cluster.rns_address} [reset]is not an on-demand cluster and must be terminated manually."
-                    )
-            except ValueError:
-                continue
 
         if num_terminated_clusters > 0:
             console.print(
@@ -473,7 +471,7 @@ def cluster_down(
             console.print(
                 f"{current_cluster.rns_address} is not an on-demand cluster and must be terminated manually."
             )
-    except ValueError:
+    except ResourceNotFoundError:
         console.print("Cluster is not saved in Den, could not bring it down.")
         sky_live_clusters = get_all_sky_clusters()
         cluster_name = (

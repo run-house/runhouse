@@ -6,6 +6,7 @@ import typer
 
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
+from runhouse.rns.utils.api import ResourceNotFoundError
 
 logger = get_logger(__name__)
 
@@ -299,8 +300,8 @@ def logout(
                 )
                 configs.delete_provider(name)
                 continue
-        except ValueError:
-            pass
+        except ResourceNotFoundError:
+            logger.info(f"Secret {name} not found in Den, skipping.")
 
         if interactive_session:
             delete_loaded_secrets = typer.confirm(

@@ -31,7 +31,11 @@ from runhouse.resources.hardware.utils import (
 from runhouse.resources.images import Image, ImageSetupStepType
 from runhouse.resources.images.image import ImageSetupMode
 
-from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
+from runhouse.rns.utils.api import (
+    ResourceAccess,
+    ResourceNotFoundError,
+    ResourceVisibility,
+)
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import (
     _process_env_vars,
@@ -383,7 +387,7 @@ class Cluster(Resource):
                         new_creds = copy.deepcopy(self._creds)
                         new_creds.name = f"{self.name}-ssh-secret"
                         self._creds = new_creds
-            except ValueError:
+            except ResourceNotFoundError:
                 pass
 
         return should_save_creds

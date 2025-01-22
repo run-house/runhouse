@@ -5,6 +5,7 @@ from runhouse.logger import get_logger
 
 from runhouse.resources.folders.folder import Folder
 from runhouse.resources.hardware.utils import _get_cluster_from
+from runhouse.rns.utils.api import ResourceNotFoundError
 
 logger = get_logger(__name__)
 
@@ -42,7 +43,7 @@ def folder(
         # If only the name is provided
         try:
             return Folder.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
-        except ValueError:
+        except ResourceNotFoundError:
             # This is a rare instance where passing no constructor params is actually valid (anonymous folder),
             # so if we don't find the name, the user may still actually want to create a new folder.
             pass

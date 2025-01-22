@@ -13,7 +13,11 @@ from runhouse.logger import get_logger
 from runhouse.resources.hardware import _get_cluster_from, Cluster
 from runhouse.resources.resource import Resource
 from runhouse.resources.secrets.utils import _delete_vault_secrets, load_config
-from runhouse.rns.utils.api import load_resp_content, read_resp_data
+from runhouse.rns.utils.api import (
+    load_resp_content,
+    read_resp_data,
+    ResourceNotFoundError,
+)
 from runhouse.utils import generate_default_name
 
 logger = get_logger(__name__)
@@ -123,7 +127,7 @@ class Secret(Resource):
             config = load_config(name)
             if config:
                 return cls.from_config(config=config, dryrun=dryrun)
-        except ValueError:
+        except ResourceNotFoundError:
             pass
         provider = provider or name
         if provider in cls.builtin_providers(as_str=True):
@@ -225,7 +229,7 @@ class Secret(Resource):
                 if provider == "sky":
                     provider = f"ssh-{secret.key}"
                 secrets[provider] = secret
-            except ValueError:
+            except ResourceNotFoundError:
                 continue
 
         # locally configured ssh secrets

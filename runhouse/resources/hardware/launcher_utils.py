@@ -13,7 +13,12 @@ from runhouse.resources.hardware.utils import (
     ClusterStatus,
     SSEClient,
 )
-from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content, read_resp_data
+from runhouse.rns.utils.api import (
+    generate_ssh_keys,
+    load_resp_content,
+    read_resp_data,
+    ResourceNotFoundError,
+)
 from runhouse.utils import ClusterLogsFormatter, Spinner
 
 logger = get_logger(__name__)
@@ -111,7 +116,7 @@ class Launcher:
 
         try:
             sky_secret = rh.secret(SSH_SKY_SECRET_NAME)
-        except ValueError:
+        except ResourceNotFoundError:
             # Create a new default key pair required for the Den launcher and save it to Den
             from runhouse import provider_secret
 
@@ -447,7 +452,7 @@ class LocalLauncher(Launcher):
         else:
             try:
                 docker_env_vars = rh.provider_secret("docker")._map_env_vars()
-            except ValueError:
+            except ResourceNotFoundError:
                 docker_env_vars = {}
 
         if docker_env_vars:
