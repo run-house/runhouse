@@ -797,22 +797,26 @@ class Spinner:
         A loader-like context manager with logging support.
 
         Args:
+            logger (logging.Logger, optional): Logger for start and end messages.
             desc (str, optional): The loader's description.
             end (str, optional): Final print. Defaults to "Done!".
             timeout (float, optional): Sleep time between prints. Defaults to 0.1.
-            logger (logging.Logger, optional): Logger for start and end messages.
         """
         self.desc = desc
         self.end = end
         self.timeout = timeout
         self.logger = logger
 
-        self._thread = threading.Thread(target=self._animate, daemon=True)
         self.steps = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "⡿"]
         self.done = False
+        self._thread = None
 
     def start(self):
-        """Starts the loader thread."""
+        """Starts or restarts the loader thread."""
+        if self._thread and self._thread.is_alive():
+            self.stop()
+        self.done = False
+        self._thread = threading.Thread(target=self._animate, daemon=True)
         self._thread.start()
         return self
 
@@ -832,6 +836,8 @@ class Spinner:
     def stop(self):
         """Stops the loader and clears the line."""
         self.done = True
+        if self._thread:
+            self._thread.join()
         print("\r", end="", flush=True)  # Clear the line
         if self.end:
             self.logger.info(self.end)
