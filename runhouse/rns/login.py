@@ -100,7 +100,10 @@ def login(
         upload_config = (
             upload_config
             if upload_config is not None
-            else typer.confirm("Upload your local .rh config to Runhouse?")
+            else typer.confirm(
+                "Upload your local .rh config to Runhouse?",
+                default=True,
+            )
         )
 
         # Default ssh secret
@@ -130,14 +133,16 @@ def login(
                     download_secrets
                     if download_secrets is not None
                     else typer.confirm(
-                        "Download secrets from Vault to your local Runhouse environment?"
+                        "Download secrets from Vault to your local Runhouse environment?",
+                        default=True,
                     )
                 )
             upload_secrets = (
                 upload_secrets
                 if upload_secrets is not None
                 else typer.confirm(
-                    "Upload your local enabled provider secrets to Vault?"
+                    "Upload your local enabled provider secrets to Vault?",
+                    default=True,
                 )
             )
 
@@ -253,7 +258,10 @@ def _login_upload_secrets(interactive: bool, headers: Optional[Dict] = None):
             local_secrets.pop(name, None)
             continue
         if interactive is not False:
-            upload_secrets = typer.confirm(f"Upload secrets for {name}?")
+            upload_secrets = typer.confirm(
+                f"Upload secrets for {name}?",
+                default=True,
+            )
             if not upload_secrets:
                 local_secrets.pop(name, None)
 
@@ -304,7 +312,8 @@ def logout(
 
         if interactive_session:
             delete_loaded_secrets = typer.confirm(
-                f"Delete credentials in {value} for {name}?"
+                f"Delete credentials in {value} for {name}?",
+                default=True,
             )
 
         if delete_loaded_secrets:
@@ -338,7 +347,10 @@ def logout(
 
     rh_config_path = configs.CONFIG_PATH
     if not delete_rh_config_file and interactive_session:
-        delete_rh_config_file = typer.confirm("Delete your local Runhouse config file?")
+        delete_rh_config_file = typer.confirm(
+            "Delete your local Runhouse config file?",
+            default=True,
+        )
 
     if delete_rh_config_file:
         # Delete the credentials file on the file system
