@@ -93,10 +93,7 @@ def create_output_table(
         table.caption_justify = "left"
 
     if displayed_clusters == MAX_CLUSTERS_DISPLAY:
-        link_to_clusters_in_den = (
-            f"[reset]The full list of clusters can be viewed "
-            f"at https://www.run.house/resources?folder={rns_client.username}&type=cluster."
-        )
+        link_to_clusters_in_den = "[reset]The full list of clusters can be viewed at https://www.run.house/resources?type=cluster"
         if table.caption:
             table.caption += f"\n{link_to_clusters_in_den}"
         else:

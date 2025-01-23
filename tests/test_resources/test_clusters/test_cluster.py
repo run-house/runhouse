@@ -1025,7 +1025,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert any(
                 den_cluster
                 for den_cluster in default_clusters
-                if den_cluster.get("Name") == cluster.name
+                if den_cluster.get("Name") == cluster.rns_address
             )
 
     @pytest.mark.level("local")
@@ -1067,7 +1067,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             test_cluster = [
                 den_cluster
                 for den_cluster in all_clusters
-                if den_cluster.get("Name") == cluster.name
+                if den_cluster.get("Name") == cluster.rns_address
             ][0]
             assert test_cluster.get("Status") == ClusterStatus.RUNNING
 
@@ -1187,7 +1187,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                 f"Showing clusters that were active in the last {int(LAST_ACTIVE_AT_TIMEFRAME / HOUR)} hours."
                 in cmd_stdout
             )
-            assert cluster.name in cmd_stdout
+            assert cluster.rns_address in cmd_stdout
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -1249,7 +1249,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                 )
 
                 if status == ClusterStatus.RUNNING:
-                    assert cluster.name in cmd_stdout
+                    assert cluster.rns_address in cmd_stdout
 
                 # Check other statuses not found in output
                 cmd_stdout = cmd_stdout.replace("Running:", "")
