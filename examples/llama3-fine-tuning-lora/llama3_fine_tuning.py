@@ -130,7 +130,7 @@ class FineTuner:
         return SFTConfig(
             output_dir="./results_modified",
             num_train_epochs=1,
-            per_device_train_batch_size=4,
+            per_device_train_batch_size=2,
             gradient_accumulation_steps=1,
             optim="paged_adamw_32bit",
             save_steps=25,
