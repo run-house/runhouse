@@ -1,6 +1,6 @@
 # Run Llama 3 8B Model Inference with vLLM on GCP
 
-This example demonstrates how to run a Llama 3 8B model from Hugging Face with vLLM on GCP using Runhouse.
+This example demonstrates how to run a Llama 3 8B model from Hugging Face with vLLM using Runhouse.
 
 Make sure to sign the waiver on the [Hugging Face model page](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)
 so that you can access it.
@@ -19,7 +19,9 @@ Install the required dependencies:
 $ pip install -r requirements.txt
 ```
 
-We'll be launching a GCP instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to make sure your credentials are set up. You may be prompted to pick a cloud project to use after running `gcloud init`. If you don't have one ready yet, you can connect one later by listing your projects with `gcloud projects list` and setting one with `gcloud config set project <PROJECT_ID>`.
+If you do not have a Runhouse account and want to launch an instance via [SkyPilot](https://github.com/skypilot-org/skypilot), make sure your credentials are set up. You may be prompted to pick a cloud project to use after running `gcloud init`. If you don't have one ready yet, you can connect one later by listing your projects with `gcloud projects list` and setting one with `gcloud config set project <PROJECT_ID>`.
+
+If you already have a Runhosue account, you do not need
 
 ```shell
 $ gcloud init

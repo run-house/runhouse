@@ -14,12 +14,18 @@
 # $ pip install "runhouse[aws]"
 # ```
 #
-# We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
+# If you are launching with open source (i.e. locally using your own credentials), you we need to
 # make sure our AWS credentials are set up:
 # ```shell
 # $ aws configure
 # $ sky check
 # ```
+#
+# If you are launching with Runhouse, make sure you are logged in to runhouse:
+# ```shell
+# $ runhouse login
+# ```
+#
 # To download the Llama 3 model on our EC2 instance, we need to set up a
 # Hugging Face [token](https://huggingface.co/docs/hub/en/security-tokens):
 # ```shell
@@ -27,9 +33,21 @@
 # ```
 #
 # ## Create a model class
-#
-# We import runhouse, the only required library we need locally:
+import gc
+from pathlib import Path
+
 import runhouse as rh
+
+import torch
+from datasets import load_dataset
+from peft import AutoPeftModelForCausalLM, LoraConfig
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    pipeline,
+)
+from trl import SFTConfig, SFTTrainer
 
 # Next, we define a class that will hold the various methods needed to fine-tune the model.
 # We'll later wrap this with `rh.module`. This is a Runhouse class that allows you to
@@ -58,28 +76,21 @@ class FineTuner:
         self.pipeline = None
 
     def load_base_model(self):
-        import torch
-        from transformers import AutoModelForCausalLM, BitsAndBytesConfig
-
-        # configure the model for efficient training
         quant_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=False,
-        )
+        )  # configure the model for efficient training
 
-        # load the base model with the quantization configuration
         self.base_model = AutoModelForCausalLM.from_pretrained(
             self.base_model_name, quantization_config=quant_config, device_map="auto"
-        )
+        )  # load the base model with the quantization configuration
 
         self.base_model.config.use_cache = False
         self.base_model.config.pretraining_tp = 1
 
     def load_tokenizer(self):
-        from transformers import AutoTokenizer
-
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.base_model_name, trust_remote_code=True
         )
@@ -87,25 +98,17 @@ class FineTuner:
         self.tokenizer.padding_side = "right"
 
     def load_pipeline(self, max_length: int):
-        from transformers import pipeline
-
-        # Use the new fine-tuned model for generating text
         self.pipeline = pipeline(
             task="text-generation",
             model=self.fine_tuned_model,
             tokenizer=self.tokenizer,
             max_length=max_length,
-        )
+        )  # Use the new fine-tuned model for generating text
 
     def load_dataset(self):
-        from datasets import load_dataset
-
         return load_dataset(self.dataset_name, split="train")
 
     def load_fine_tuned_model(self):
-        import torch
-        from peft import AutoPeftModelForCausalLM
-
         if not self.new_model_exists():
             raise FileNotFoundError(
                 "No fine tuned model found on the cluster. "
@@ -121,14 +124,10 @@ class FineTuner:
         self.fine_tuned_model = self.fine_tuned_model.merge_and_unload()
 
     def new_model_exists(self):
-        from pathlib import Path
-
         return Path(f"~/{self.fine_tuned_model_name}").expanduser().exists()
 
     def training_params(self):
-        from transformers import TrainingArguments
-
-        return TrainingArguments(
+        return SFTConfig(
             output_dir="./results_modified",
             num_train_epochs=1,
             per_device_train_batch_size=4,
@@ -149,8 +148,6 @@ class FineTuner:
         )
 
     def sft_trainer(self, training_data, peft_parameters, train_params):
-        from trl import SFTTrainer
-
         # Set up the SFTTrainer with the model, training data, and parameters to learn from the new dataset
         return SFTTrainer(
             model=self.base_model,
@@ -162,11 +159,6 @@ class FineTuner:
         )
 
     def tune(self):
-        import gc
-
-        import torch
-        from peft import LoraConfig
-
         if self.new_model_exists():
             return
 
@@ -246,17 +238,21 @@ if __name__ == "__main__":
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
     # Then, we launch a cluster with a GPU.
     # Finally, passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
-    img = rh.Image(name="llama3").install_packages(
-        [
-            "torch",
-            "tensorboard",
-            "scipy",
-            "peft==0.4.0",
-            "bitsandbytes",
-            "transformers==4.31.0",
-            "trl==0.4.7",
-            "accelerate==0.20.3",
-        ]
+    img = (
+        rh.Image(name="llama2finetuning")
+        .install_packages(
+            [
+                "torch",
+                "tensorboard",
+                "transformers",
+                "bitsandbytes",
+                "peft",
+                "trl>0.12.0",
+                "accelerate",
+                "scipy",
+            ]
+        )
+        .sync_secrets(["huggingface"])
     )
 
     cluster = rh.cluster(
@@ -267,7 +263,7 @@ if __name__ == "__main__":
         provider="aws",
     ).up_if_not()
 
-    cluster.sync_secrets(["huggingface"])
+    cluster.restart_server()
 
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
