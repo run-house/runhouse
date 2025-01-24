@@ -77,6 +77,10 @@ class LogProcessor:
         else:
             self.cluster_logger.info(log_message)
 
+    def log_step(self, message):
+        """Log the completion of a launch step."""
+        self.cluster_logger.info(message)
+
 
 class Launcher:
     @classmethod
@@ -160,7 +164,7 @@ class Launcher:
 
         for event in client.events():
             # Stream through data events
-            if spinner:
+            if spinner and event.event != "step_complete":
                 spinner.stop()
                 spinner = None
 
@@ -178,6 +182,26 @@ class Launcher:
 
             if event.event == "log":
                 log_processor.log_event(event)
+
+            if event.event == "step_complete":
+                event_data = ast.literal_eval(event.data)
+                step_complete = event_data.get("step")
+                total_steps = event_data.get("total_steps")
+                message = event_data.get("message")
+
+                # use a custom message step completion
+                BLUE = "\033[94m"
+                ITALIC = "\033[3m"
+                RESET = "\033[0m"
+                styled_message = f"{BLUE}{ITALIC}► Step {step_complete}/{total_steps}: {message}{RESET}"
+
+                if spinner:
+                    # Temporarily pause the spinner to output the step if it's currently running
+                    spinner.stop()
+                    log_processor.log_step(styled_message)
+                    spinner.start()
+                else:
+                    log_processor.log_step(styled_message)
 
             if event.event == "error":
                 event_data = ast.literal_eval(event.data)
