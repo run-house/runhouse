@@ -9,8 +9,13 @@ class Llama70B_vLLM:
         self.sampling_params = None
         self.num_gpus = num_gpus
 
-    def load_model(self, temperature=1, top_p=0.95):
-        self.sampling_params = SamplingParams(temperature=temperature, top_p=top_p)
+    def load_model(self, temperature=1, top_p=0.9, max_tokens=256, min_tokens=32):
+        self.sampling_params = SamplingParams(
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            min_tokens=min_tokens,
+        )
         print("loading model")
         self.model = LLM(
             self.model_id,
@@ -50,7 +55,7 @@ if __name__ == "__main__":
 
     inference_remote = rh.module(Llama70B_vLLM).to(cluster, name="llama_model_vllm")
     llama = inference_remote(name="vllm_llama70b", num_gpus=8)
-
+    # llama = cluster.get("vllm_llama70b", remote = True)
     queries = [
         "What is the best type of bread in the world?",
         "What are some cheeses that go with bread?",
@@ -60,4 +65,4 @@ if __name__ == "__main__":
     for output in outputs:
         prompt = output.prompt
         generated_text = output.outputs[0].text
-        print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
+        print(f"Prompt: {prompt}, Generated text: {generated_text}")
