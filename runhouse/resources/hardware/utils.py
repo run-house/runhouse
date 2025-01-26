@@ -440,7 +440,7 @@ def parse_filters(since: str, cluster_status: Union[str, ClusterStatus]):
 
 
 def get_clusters_from_den(cluster_filters: dict, force: bool):
-    get_clusters_params = {"resource_type": "cluster", "folder": rns_client.username}
+    get_clusters_params = {"resource_type": "cluster", "owned": True}
 
     if (
         "cluster_status" in cluster_filters
@@ -528,8 +528,7 @@ def cast_last_active_timestamp(clusters: List[Dict[str, Any]]):
 def get_running_and_not_running_clusters(clusters: list):
     up_clusters, down_clusters = [], []
     for den_cluster in clusters:
-        # Display the name instead of the full Den address
-        cluster_name = den_cluster.get("name").split("/")[-1]
+        cluster_name = den_cluster.get("name")
         cluster_type = den_cluster.get("data").get("resource_subtype")
         cluster_status = den_cluster.get("cluster_status")
         cluster_status = cluster_status or ClusterStatus.UNKNOWN.value
