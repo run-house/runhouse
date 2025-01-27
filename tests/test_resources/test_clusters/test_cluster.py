@@ -401,7 +401,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         cluster.share(
             users=["support@run.house"],
-            access_level="write",
+            access_level="read",
             notify_users=False,
         )
 
