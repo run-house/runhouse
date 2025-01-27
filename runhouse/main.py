@@ -445,7 +445,7 @@ def cluster_down(
         for running_cluster in running_den_clusters:
             try:
                 current_cluster = rh.cluster(
-                    name=f'/{rns_client.username}/{running_cluster.get("Name")}',
+                    name=f'{running_cluster.get("Name")}',
                     dryrun=True,
                 )
                 if isinstance(current_cluster, rh.OnDemandCluster):
