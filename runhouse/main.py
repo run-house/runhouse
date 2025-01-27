@@ -19,11 +19,10 @@ from runhouse.cli_utils import (
     add_clusters_to_output_table,
     check_ray_installation,
     create_output_table,
-    get_cluster_or_local,
+    get_local_or_remote_cluster,
     get_wrapped_server_start_cmd,
     is_command_available,
     LogsSince,
-    print_bring_cluster_up_msg,
     print_cluster_config,
     print_status,
     StatusType,
@@ -200,7 +199,7 @@ def cluster_status(
     Example:
         ``$ runhouse cluster status rh-basic-cpu``
     """
-    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
+    current_cluster = get_local_or_remote_cluster(cluster_name=cluster_name)
 
     try:
         cluster_status = current_cluster.status(send_to_den=send_to_den)
@@ -337,23 +336,19 @@ def cluster_keep_warm(
         ``$ runhouse cluster keep-warm rh-basic-cpu``
 
     """
-    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
 
     try:
-        if not current_cluster.is_up():
-            print_bring_cluster_up_msg(cluster_name=cluster_name)
-            return
+        current_cluster = get_local_or_remote_cluster(cluster_name, exit_on_error=False)
         current_cluster.keep_warm(mins=mins)
 
     except ValueError:
-        console.print(f"{cluster_name} is not saved in Den.")
         sky_live_clusters = get_all_sky_clusters()
         cluster_name = (
             cluster_name.split("/")[-1] if "/" in cluster_name else cluster_name
         )
         if cluster_name in sky_live_clusters:
             console.print(
-                f"You can keep warm the cluster by running [italic bold] `sky autostop {cluster_name} -i {mins}`"
+                f"You can keep the cluster warm by running [italic bold]`sky autostop {cluster_name} -i {mins}`"
             )
 
     except Exception as e:
@@ -513,7 +508,7 @@ def cluster_logs(
         ``$ runhouse cluster logs rh-basic-cpu --since 60``
 
     """
-    current_cluster: rh.Cluster = get_cluster_or_local(cluster_name=cluster_name)
+    current_cluster = get_local_or_remote_cluster(cluster_name=cluster_name)
 
     cluster_uri = rns_client.resource_uri(current_cluster.rns_address)
 
@@ -817,7 +812,7 @@ def server_start(
             raise typer.Exit(0)
 
     if cluster_name:
-        c = get_cluster_or_local(cluster_name=cluster_name)
+        c = get_local_or_remote_cluster(cluster_name=cluster_name)
         c.start_server(resync_rh=resync_rh, restart_ray=restart_ray)
         return
 
@@ -918,7 +913,7 @@ def server_restart(
     check_ray_installation()
 
     if cluster_name:
-        c = get_cluster_or_local(cluster_name=cluster_name)
+        c = get_local_or_remote_cluster(cluster_name=cluster_name)
         c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
         return
 
@@ -965,7 +960,7 @@ def server_stop(
     logger.debug("Stopping the server")
 
     if cluster_name:
-        current_cluster = get_cluster_or_local(cluster_name=cluster_name)
+        current_cluster = get_local_or_remote_cluster(cluster_name=cluster_name)
         current_cluster.stop_server(stop_ray=stop_ray, cleanup_actors=cleanup_actors)
         return
 
@@ -1007,7 +1002,7 @@ def server_status(
     """
     check_ray_installation()
     logger.debug("Checking the server status.")
-    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
+    current_cluster = get_local_or_remote_cluster(cluster_name=cluster_name)
     try:
         status = current_cluster.status()
         console.print(f"[reset]{BULLET_UNICODE} server pid: {status.get('server_pid')}")
