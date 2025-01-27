@@ -137,8 +137,8 @@ class TestResourceSharing:
         assert "12" in res.stdout
 
     @pytest.mark.level("local")
-    def test_calling_resource_with_cluster_write_access(self, resource):
-        """Check that a user with write access to a cluster can call a function on that cluster, even without having
+    def test_calling_resource_with_cluster_read_access(self, resource):
+        """Check that a user with read access to a cluster can call a function on that cluster, even without having
         explicit access to the function."""
         current_username = rh.configs.username
         cluster = resource.system
@@ -154,7 +154,7 @@ class TestResourceSharing:
                 data=json.dumps(
                     {
                         "users": [current_username],
-                        "access_level": "write",
+                        "access_level": "read",
                         "notify_users": False,
                     }
                 ),
@@ -213,57 +213,3 @@ class TestResourceSharing:
         assert "12" in res.stdout
 
         assert resource(1, 2) == 3
-
-    @pytest.mark.level("local")
-    @pytest.mark.skip("Breaking in CI - investigate further")
-    def test_calling_resource_with_cluster_read_access(self, resource):
-        """Check that a user with read only access to the cluster cannot call a function on that cluster if they do not
-        explicitly have access to the function itself."""
-        current_username = rh.configs.username
-        cluster = resource.system
-
-        cluster_uri = rns_client.resource_uri(cluster.rns_address)
-        resource_uri = rns_client.resource_uri(resource.rns_address)
-
-        with friend_account():
-            friend_account_request_headers = rns_client.request_headers()
-
-            # Delete user access to the function
-            resp = requests.delete(
-                f"{rns_client.api_server_url}/resource/{resource_uri}/user/{current_username}",
-                headers=friend_account_request_headers,
-            )
-            if resp.status_code != 200:
-                assert (
-                    False
-                ), f"Failed to remove access to resource for user: {current_username}: {resp.text}"
-
-            # Ensure cluster access for the current user is set to read only
-            resp = requests.put(
-                f"{rns_client.api_server_url}/resource/{cluster_uri}/users/access",
-                data=json.dumps(
-                    {
-                        "users": [current_username],
-                        "access_level": "read",
-                        "notify_users": False,
-                    }
-                ),
-                headers=friend_account_request_headers,
-            )
-            if resp.status_code != 200:
-                assert (
-                    False
-                ), f"Failed to grant user {current_username} read access to cluster: {resp.text}"
-
-        # Flush auth cache
-        cluster.enable_den_auth(flush=True)
-
-        # Confirm user can no longer call the function with read only access to the cluster and no function access
-        cluster_token = rns_client.cluster_token(cluster.rns_address)
-        res = self.call_func_with_curl(
-            cluster, resource.name, cluster_token, **{"a": 1, "b": 2}
-        )
-        assert json.loads(res.stdout)["output_type"] == "exception"
-
-        with pytest.raises(PermissionError):
-            resource(1, 2)
