@@ -14,7 +14,7 @@ from runhouse.resources.hardware.utils import (
     SSEClient,
 )
 from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content, read_resp_data
-from runhouse.utils import ClusterLogsFormatter, Spinner
+from runhouse.utils import ClusterLogsFormatter, ColoredFormatter, Spinner
 
 logger = get_logger(__name__)
 
@@ -180,9 +180,6 @@ class Launcher:
             if event.event == "info":
                 logger.info(event.data)
 
-            if event.event == "log":
-                log_processor.log_event(event)
-
             if event.event == "step_complete":
                 event_data = ast.literal_eval(event.data)
                 step_complete = event_data.get("step")
@@ -190,10 +187,10 @@ class Launcher:
                 message = event_data.get("message")
 
                 # use a custom message step completion
-                BLUE = "\033[94m"
-                ITALIC = "\033[3m"
-                RESET = "\033[0m"
-                styled_message = f"{BLUE}{ITALIC}► Step {step_complete}/{total_steps}: {message}{RESET}"
+                blue = ColoredFormatter.get_color("blue")
+                italic = ColoredFormatter.get_color("italic")
+                reset = ColoredFormatter.get_color("reset")
+                styled_message = f"{blue}{italic}► Step {step_complete}/{total_steps}: {message}{reset}"
 
                 if spinner:
                     # Temporarily pause the spinner to output the step if it's currently running
@@ -293,9 +290,6 @@ class DenLauncher(Launcher):
                 )
                 cluster.cluster_status = ClusterStatus.RUNNING
                 cls._update_from_den_response(cluster=cluster, config=data)
-                logger.info(
-                    f"To view this cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(cluster.rns_address)}"
-                )
                 return
             except Exception as e:
                 cluster.cluster_status = ClusterStatus.UNKNOWN
@@ -315,9 +309,6 @@ class DenLauncher(Launcher):
             )
         data = read_resp_data(resp)
         logger.info("Successfully launched cluster")
-        logger.info(
-            f"To view this cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(cluster.rns_address)}"
-        )
         cluster.cluster_status = ClusterStatus.RUNNING
         cls._update_from_den_response(cluster=cluster, config=data)
 

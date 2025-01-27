@@ -28,7 +28,7 @@ from runhouse.resources.hardware.sky.command_runner import (
     ssh_options_list,
     SshMode,
 )
-from runhouse.utils import run_setup_command
+from runhouse.utils import ColoredFormatter, run_setup_command
 
 logger = get_logger(__name__)
 
@@ -394,8 +394,6 @@ def up_cluster_helper(cluster, capture_output: Union[bool, str] = True):
 ###################################
 # Cluster list helping methods
 ###################################
-
-
 def parse_time_duration(duration: str):
     # A simple parser for duration like "15m", "2h", "3d"
     try:
@@ -576,6 +574,37 @@ def get_running_and_not_running_clusters(clusters: list):
 
     return cast_last_active_timestamp(clusters=up_clusters), cast_last_active_timestamp(
         clusters=down_clusters
+    )
+
+
+def pprint_launched_cluster_summary(cluster):
+    properties: dict = cluster.compute_properties
+    cluster_name = cluster.name
+    rns_address = cluster.rns_address
+    properties["autostop_mins"] = cluster.autostop_mins
+
+    blue = ColoredFormatter.get_color("blue")
+    white = ColoredFormatter.get_color("white")
+    cyan = ColoredFormatter.get_color("cyan")
+    green = ColoredFormatter.get_color("green")
+    reset = ColoredFormatter.get_color("reset")
+    italic = ColoredFormatter.get_color("italic")
+
+    print(
+        f"► To view the cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(rns_address)}"
+    )
+    print(f"{blue}Launch Summary:{reset}")
+    for key, value in properties.items():
+        if value is None:
+            continue
+        bullet = f"{white}•{reset}"
+        key_str = f"{blue}{key.replace('_', ' ').capitalize()}{reset}"
+        value_str = f"{green}{value}{reset}"
+        print(f"{bullet} {key_str}: {value_str}")
+
+    print(
+        f"To teardown the cluster, run {italic}{cyan}runhouse cluster down {cluster_name}{reset}, "
+        f'or in python via {italic}{cyan}rh.cluster("{cluster_name}").teardown(){reset}'
     )
 
 

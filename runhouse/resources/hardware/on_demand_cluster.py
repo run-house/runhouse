@@ -31,6 +31,7 @@ from runhouse.resources.hardware.utils import (
     _cluster_set_autostop_command,
     ClusterStatus,
     LauncherType,
+    pprint_launched_cluster_summary,
     RunhouseDaemonStatus,
     ServerConnectionType,
     up_cluster_helper,
@@ -646,6 +647,8 @@ class OnDemandCluster(Cluster):
         if start_server:
             logger.info("Starting Runhouse server on cluster")
             self.start_server()
+
+        pprint_launched_cluster_summary(cluster=self)
 
         return self
 

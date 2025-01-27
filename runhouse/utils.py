@@ -719,6 +719,8 @@ class ColoredFormatter:
         "magenta": "\u001b[35m",
         "cyan": "\u001b[36m",
         "white": "\u001b[37m",
+        "bold": "\u001b[1m",
+        "italic": "\u001b[3m",
         "reset": "\u001b[0m",
     }
 
