@@ -14,7 +14,7 @@
 # $ pip install "runhouse[aws]"
 # ```
 #
-# If you are launching with open source (i.e. locally using your own credentials), you we need to
+# If you are launching with open source (i.e. locally using your own credentials), you need to
 # make sure our AWS credentials are set up:
 # ```shell
 # $ aws configure
