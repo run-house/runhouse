@@ -265,7 +265,7 @@ if __name__ == "__main__":
     cluster.restart_server()
     # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
-    # by calling `cluster.get(name="llama3-medical-model", remote = True)`. This would return the remote model after an initial run.
+    # by calling `cluster.get(name="llama3-medical-model", remote=True)`. This would return the remote model after an initial run.
     # If we want to update the module each time we run this script, we prefer to use `to`.
     RemoteFineTuner = rh.module(FineTuner).to(cluster, name="FineTuner")
     fine_tuner_remote = RemoteFineTuner(name="llama3-medical-model")
