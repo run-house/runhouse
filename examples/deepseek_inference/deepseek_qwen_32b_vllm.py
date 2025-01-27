@@ -1,10 +1,36 @@
 # # Launch DeepSeek-R1 on Your Own Cloud Account
 # DeepSeek-R1 32B distill is a smaller yet still powerful distillation of the DeepSeek R1 model.
-# The performance of the Qwen-32B is slightly worse
+# The performance of the Qwen-32B is roughly comparable across many tasks to o1-mini, with
+# the obvious advantage of being able to run within your own cloud.
+#
 # The best part is that we can run inference over an un-quantized version with vLLM using
 # 4 x L4 GPUs. These are very available on AWS and GCP (A10 is a good sub on Azure), as well as
-# most vertical GPU cloud providers.
+# most vertical GPU cloud providers, and the spot price is just $1/hour.
+#
+# We can easily add additional nodes and additional GPUs with Runhouse, and calling LLM to increase
+# tensor and pipeline parallelism.
+#
+# To get started, you simply need to install Runhouse with additional install for the cloud you want to use
+# ```shell
+# $ pip install "runhouse[aws]" torch vllm
+# ```
+#
+# If you do not have a Runhouse account, you will launch from your local machine. Set up your
+# cloud provider CLI:
+# ```shell
+# $ aws configure
+# $ gcloud init
+# ```
+# We'll be downloading the model from Hugging Face, so we may need to set up our Hugging Face token:
+# ```shell
+# $ export HF_TOKEN=<your huggingface token>
+# ```
 
+
+# ## Defining the vLLM Inference Class
+# We define a class that will hold the model and allow us to send prompts to it.
+# This is regular, undecorated Python code, that implements methods to
+# load the model (automatically downloading from HuggingFace), and to generate text from a prompt.
 import runhouse as rh
 from vllm import LLM, SamplingParams
 
@@ -15,14 +41,15 @@ class DeepSeek_Distill_Qwen_vLLM:
         self.model = None
         self.num_gpus = num_gpus
 
-    def load_model(self):
+    def load_model(self, pipeline_parallel_size=1):
         print("loading model")
         self.model = LLM(
             self.model_id,
             tensor_parallel_size=self.num_gpus,
+            pipeline_parallel_size=pipeline_parallel_size,
             dtype="bfloat16",
             trust_remote_code=True,
-            max_model_len=8192,  # Reduces size of KV store
+            max_model_len=8192,  # Reduces size of KV store at the cost of length
         )
         print("model loaded")
 
@@ -37,11 +64,19 @@ class DeepSeek_Distill_Qwen_vLLM:
             top_p=top_p,
             max_tokens=max_tokens,
             min_tokens=min_tokens,
-        )
+        )  # non-exhaustive of possible options here
 
         outputs = self.model.generate(queries, sampling_params)
         return outputs
 
+
+# ## Launch Compute and Run Inference
+# Now we will define compute using Runhouse and send our inference class to the remote machine.
+# First, we define an image with torch and vllm and a cluster with 4 x L4 with 1 node.
+# Then, we send our inference class to the remote cluster and instantiate a the remote inference class
+# with the name `deepseek` which we can access by name later. Finally, we call the remote inference class
+# as if it were local to generate text from a list of prompts and print the results. If you launch with multiple nodes
+# you can take advantage of vllm's parallelism.
 
 if __name__ == "__main__":
     img = (
@@ -55,7 +90,6 @@ if __name__ == "__main__":
         .sync_secrets(["huggingface"])
     )
 
-    # Requires access to a cloud account with the necessary permissions to launch compute.
     num_gpus = 4
     num_nodes = 1
     gpu_type = "L4"
@@ -73,15 +107,18 @@ if __name__ == "__main__":
         use_spot=use_spot,
         launcher=launcher,
         autostop_mins=autostop_mins,
-    ).up_if_not()
+    ).up_if_not()  # use cluster.restart_server() if you need to reset the remote cluster without tearing it down
 
     inference_remote = rh.module(DeepSeek_Distill_Qwen_vLLM).to(
         cluster, name="deepseek_vllm"
     )
-    llama = inference_remote(name="deepseek", num_gpus=num_gpus)
-    # llama = cluster.get("deepseek", remote = True) # Grab the remote inference module if already running from remote
+    llama = inference_remote(
+        name="deepseek", num_gpus=num_gpus
+    )  # Instantiate class. Can later use cluster.get("deepseek", remote = True) to grab remote inference if already running
 
-    cluster.ssh_tunnel(8265, 8265)  # View Ray Dashboard on localhost:8265
+    cluster.ssh_tunnel(
+        8265, 8265
+    )  # View cluster resource utilization dashboard on localhost:8265
 
     queries = [
         "What is the relationship between bees and a beehive compared to programmers and...?",

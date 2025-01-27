@@ -1,13 +1,40 @@
 # # Launch DeepSeek-R1 on Your Own Cloud Account
-# DeepSeek-R1 . The Llama-70B distill is the most powerful and largest of the
-# DeepSeek distills, but still easily fits on a single node of 8 x L4 GPUs.
+# The Llama-70B distill of DeepSeek R1 is the most powerful and largest of the
+# DeepSeek distills, but still easily fits on a single node of GPUs - even 8 x L4s with minor optimizations.
 # Of course, inference speed will improve if you change to A100s or H100s on your cloud provider,
 # but the L4s are cost-effective for experimentation or low throughput, latency-agnostic workloads, and also
-# fairly available on spot.
+# fairly available on spot meaning you can serve this model for as low as ~$4/hour. This is the full model,
+# not a quantization of it.
 #
 # On benchmarks, this Llama70B distillation meets or exceeds the performance of GPT-4o-0513,
 # Claude-3.5-Sonnet-1022, and o1-mini across most quantitative and coding tasks. Real world
-# quality of output depends
+# quality of output depends on your use case. This will run the model at ~20 tokens a second,
+# which means it takes 1-5 minutes per question asked. It will take some time to download the model
+# to the remote machine on the first run.
+#
+# We can easily add additional nodes with Runhouse, which will automatically form the cluster. We will
+# rely fully on vllm to make use of them and increasing tensor and pipeline parallelism.
+#
+# To get started, you simply need to install Runhouse with additional install for the cloud you want to use
+# ```shell
+# $ pip install "runhouse[aws]" torch vllm
+# ```
+#
+# If you do not have a Runhouse account, you will launch from your local machine. Set up your
+# cloud provider CLI:
+# ```shell
+# $ aws configure
+# $ gcloud init
+# ```
+# We'll be downloading the model from Hugging Face, so we may need to set up our Hugging Face token:
+# ```shell
+# $ export HF_TOKEN=<your huggingface token>
+# ```
+
+# ## Defining the vLLM Inference Class
+# We define a class that will hold the model and allow us to send prompts to it.
+# This is regular, undecorated Python code, that implements methods to
+# load the model (automatically downloading from HuggingFace), and to generate text from a prompt.
 
 import runhouse as rh
 from vllm import LLM, SamplingParams
@@ -31,7 +58,7 @@ class DeepSeek_Distill_Llama70B_vLLM:
         print("model loaded")
 
     def generate(
-        self, queries, temperature=0.65, top_p=0.95, max_tokens=2560, min_tokens=32
+        self, queries, temperature=0.65, top_p=0.95, max_tokens=5120, min_tokens=32
     ):
         if self.model is None:
             self.load_model()
@@ -46,6 +73,14 @@ class DeepSeek_Distill_Llama70B_vLLM:
         outputs = self.model.generate(queries, sampling_params)
         return outputs
 
+
+# ## Launch Compute and Run Inference
+# Now we will define compute using Runhouse and send our inference class to the remote machine.
+# First, we define an image with torch and vllm and a cluster with 4 x L4 with 1 node.
+# Then, we send our inference class to the remote cluster and instantiate a the remote inference class
+# with the name `deepseek` which we can access by name later. Finally, we call the remote inference class
+# as if it were local to generate text from a list of prompts and print the results. If you launch with multiple nodes
+# you can take advantage of vllm's parallelism.
 
 if __name__ == "__main__":
     img = (
@@ -79,26 +114,28 @@ if __name__ == "__main__":
         region=region,
         launcher=launcher,
         autostop_mins=autostop_mins,
-    ).up_if_not()
+    ).up_if_not()  # use cluster.restart_server() if you need to reset the remote cluster without tearing it down
 
-    # cluster.restart_server()
     inference_remote = rh.module(DeepSeek_Distill_Llama70B_vLLM).to(
         cluster, name="deepseek_vllm"
-    )
-    # llama = inference_remote(name="deepseek", num_gpus=num_gpus)
+    )  # Send the class to remote cluster
+    llama = inference_remote(
+        name="deepseek", num_gpus=num_gpus
+    )  # Instantiate class. Can later use cluster.get("deepseek", remote = True) to grab remote inference if already running
 
-    cluster.ssh_tunnel(8265, 8265)
-    llama = cluster.get("deepseek", remote=True)
+    cluster.ssh_tunnel(
+        8265, 8265
+    )  # View cluster resource utilization dashboard on localhost:8265
 
     queries = [
-        "Do not overthink. What is the relationship between bees and a beehive compared to programmers and...?",
-        "Do not overthink. How many R's are in Strawberry?",
-        """Do not overthink. Roman numerals are formed by appending the conversions of decimal place values from highest to lowest.
+        "What is the relationship between bees and a beehive compared to programmers and...?",
+        "How many R's are in Strawberry?",
+        """Roman numerals are formed by appending the conversions of decimal place values from highest to lowest.
         Converting a decimal place value into a Roman numeral has the following rules: If the value does not start with 4 or 9, select the symbol of the maximal value that can be subtracted from the input, append that symbol to the result, subtract its value, and convert the remainder to a Roman numeral.
         If the value starts with 4 or 9 use the subtractive form representing one symbol subtracted from the following symbol, for example, 4 is 1 (I) less than 5 (V): IV and 9 is 1 (I) less than 10 (X): IX. Only the following subtractive forms are used: 4 (IV), 9 (IX), 40 (XL), 90 (XC), 400 (CD) and 900 (CM). Only powers of 10 (I, X, C, M) can be appended consecutively at most 3 times to represent multiples of 10. You cannot append 5 (V), 50 (L), or 500 (D) multiple times. If you need to append a symbol 4 times use the subtractive form.
         Given an integer, write and return Python code to convert it to a Roman numeral.""",
     ]
-    outputs = llama.generate(queries, temperature=0.6)
+    outputs = llama.generate(queries, temperature=0.7)
     for output in outputs:
         prompt = output.prompt
         generated_text = output.outputs[0].text
