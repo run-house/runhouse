@@ -207,6 +207,10 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
             else:
                 val = cluster_config.get(key, None)
 
+            # don't print keys whose values are None
+            if val is None:
+                continue
+
             console.print(
                 f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
             ) if status_type == StatusType.cluster else console.print(
