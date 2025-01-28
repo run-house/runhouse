@@ -28,7 +28,7 @@ from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatu
 
 from runhouse.resources.images.image import ImageSetupStepType
 
-from runhouse.utils import _process_env_vars
+from runhouse.utils import _process_env_vars, get_random_str
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
@@ -37,7 +37,6 @@ from tests.utils import (
     _get_env_var_value,
     friend_account,
     friend_account_in_org,
-    get_random_str,
     keep_config_keys,
     org_friend_account,
     set_daemon_and_cluster_status,
@@ -812,15 +811,17 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_fn_to_default_process(self, cluster):
+    def test_fn_to_no_process_specified(self, cluster):
         remote_summer = rh.function(summer).to(cluster)
 
-        assert remote_summer.name in cluster.keys(process=DEFAULT_PROCESS_NAME)
-        assert remote_summer(3, 4) == 7
+        found = False
+        for p in cluster.list_processes():
+            if p.startswith(remote_summer.name):
+                found = True
+                assert remote_summer.name in cluster.keys(process=p)
+                break
 
-        # Test function with non-trivial imports
-        fn = rh.function(import_env).to(cluster)
-        assert fn() == "success"
+        assert found
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest

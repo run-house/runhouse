@@ -432,12 +432,28 @@ class Module(Resource):
         if not system:
             raise ValueError("No system specified to send module to.")
 
-        if not process:
-            process = DEFAULT_PROCESS_NAME
+        new_name = name or self.name or self.default_name()
+        if self.rns_address:
+            new_name = f"{self._rns_folder}/{new_name}"
 
+        if process is None:
+            # Make this an empty dict so it'll be picked up for the process creation
+            process = {}
+
+        # If process wasn't specified and name wasn't specified, we're going to use a default name tied to this
+        # module's class name and kill the old process if it exists.
         if isinstance(process, Dict):
+            if "name" not in process:
+                ephemeral_process_name = f"{new_name}_process"
+                if ephemeral_process_name in system.list_processes():
+                    system.kill_process(ephemeral_process_name)
+
+                # Now we make sure that the process created with the args provided by the user
+                process["name"] = ephemeral_process_name
+
             process = system.ensure_process_created(**process)
         else:
+            # If name was specified, we don't delete and overwrite, we just let it be
             system.ensure_process_created(name=process)
 
         if not isinstance(process, str):
