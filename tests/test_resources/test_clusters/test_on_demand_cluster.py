@@ -251,9 +251,9 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         original_ips = cluster.ips
 
         if cluster.launcher == LauncherType.DEN:
-            cluster._cluster_status = ClusterStatus.TERMINATED
+            cluster.cluster_status = ClusterStatus.TERMINATED
             assert not cluster.is_up()
-            cluster._cluster_status = None
+            cluster.cluster_status = None
         else:
             # test ping w/o retry fails with empty ips
             # can only override ips for local, will be updated in retry later in the test

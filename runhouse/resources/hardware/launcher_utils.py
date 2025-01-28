@@ -285,17 +285,21 @@ class DenLauncher(Launcher):
         }
 
         if verbose:
-            data = cls.run_verbose(
-                base_url=cls.LAUNCH_URL,
-                payload=payload,
-                cluster_name=cluster_config.get("name"),
-            )
-            cluster._cluster_status = ClusterStatus.RUNNING
-            cls._update_from_den_response(cluster=cluster, config=data)
-            logger.info(
-                f"To view this cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(cluster.rns_address)}"
-            )
-            return
+            try:
+                data = cls.run_verbose(
+                    base_url=cls.LAUNCH_URL,
+                    payload=payload,
+                    cluster_name=cluster_config.get("name"),
+                )
+                cluster.cluster_status = ClusterStatus.RUNNING
+                cls._update_from_den_response(cluster=cluster, config=data)
+                logger.info(
+                    f"To view this cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(cluster.rns_address)}"
+                )
+                return
+            except Exception as e:
+                cluster.cluster_status = ClusterStatus.UNKNOWN
+                raise e
 
         # Blocking call with no streaming
         resp = requests.post(
@@ -304,6 +308,7 @@ class DenLauncher(Launcher):
             headers=rns_client.request_headers(),
         )
         if resp.status_code != 200:
+            cluster.cluster_status = ClusterStatus.UNKNOWN
             raise Exception(
                 f"Received [{resp.status_code}] from Den POST '{cls.LAUNCH_URL}': Failed to "
                 f"launch cluster: {load_resp_content(resp)}"
@@ -313,7 +318,7 @@ class DenLauncher(Launcher):
         logger.info(
             f"To view this cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(cluster.rns_address)}"
         )
-        cluster._cluster_status = ClusterStatus.RUNNING
+        cluster.cluster_status = ClusterStatus.RUNNING
         cls._update_from_den_response(cluster=cluster, config=data)
 
     @classmethod
@@ -340,7 +345,7 @@ class DenLauncher(Launcher):
                 cluster_name=cluster_name,
                 payload=payload,
             )
-            cluster._cluster_status = ClusterStatus.TERMINATED
+            cluster.cluster_status = ClusterStatus.TERMINATED
             return
 
         # Run blocking call, with no streaming
@@ -354,7 +359,7 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.TEARDOWN_URL}': Failed to "
                 f"teardown cluster: {load_resp_content(resp)}"
             )
-        cluster._cluster_status = ClusterStatus.TERMINATED
+        cluster.cluster_status = ClusterStatus.TERMINATED
 
 
 class LocalLauncher(Launcher):
@@ -438,7 +443,7 @@ class LocalLauncher(Launcher):
         import sky
 
         sky.down(cluster.name)
-        cluster._cluster_status = ClusterStatus.TERMINATED
+        cluster.cluster_status = ClusterStatus.TERMINATED
         cluster._http_client = None
 
         # Save to Den with updated null IPs

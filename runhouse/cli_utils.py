@@ -28,6 +28,8 @@ from runhouse.constants import (
 )
 
 from runhouse.logger import get_logger
+
+from runhouse.resources.hardware.utils import ClusterStatus, LauncherType
 from runhouse.servers.obj_store import ObjStoreError
 
 logger = get_logger(__name__)
@@ -489,6 +491,24 @@ def get_local_or_remote_cluster(cluster_name: str = None, exit_on_error: bool = 
             if exit_on_error:
                 raise typer.Exit(1)
             raise e
+
+        if isinstance(current_cluster, rh.OnDemandCluster):
+
+            # in case we called current_cluster.up() on a local cluster, we need to update the cluster_status,
+            # because its being updated properly only if we call up_if_not()
+            if (
+                current_cluster.launcher == LauncherType.LOCAL
+                and current_cluster.cluster_status != ClusterStatus.RUNNING
+            ):
+                current_cluster._fetch_sky_status_and_update_cluster_status(
+                    refresh=True
+                )
+
+            if current_cluster.cluster_status == ClusterStatus.INITIALIZING:
+                console.print(
+                    f"[reset]{cluster_name} is being initialized. Please wait for it to finish, or run [reset][bold italic]`runhouse cluster up {cluster_name} -f`[/bold italic] to abort the initialization and relaunch."
+                )
+                raise typer.Exit(0)
 
         if not current_cluster.is_up():
             console.print(
