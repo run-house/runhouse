@@ -244,20 +244,23 @@ if __name__ == "__main__":
         ]
     )
 
-    gpu_cluster = (
-        rh.cluster(
-            name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-            gpus=f"A10G:{gpus_per_node}",
-            num_nodes=num_nodes,
-            provider="aws",
-            image=img,
-        )
-        .up_if_not()
-        .save()
-    )
+    gpu_cluster = rh.cluster(
+        name=f"rh-{num_nodes}x{gpus_per_node}GPU",
+        gpus=f"A10G:{gpus_per_node}",
+        num_nodes=num_nodes,
+        provider="aws",
+        image=img,
+    ).sync_secrets(
+        ["aws"]
+    )  # sends our AWS secret to the remote cluster
 
-    # gpu_cluster.restart_server() # to restart the Runhouse server, does not tear down the actual underlying compute
-    gpu_cluster.sync_secrets(["aws"])  # sends our AWS secret to the remote cluster
+    gpu_cluster = rh.cluster(
+        name=f"rh-{num_nodes}x{gpus_per_node}GPU",
+        accelerators=f"A10G:{gpus_per_node}",
+        num_nodes=num_nodes,
+        provider="aws",
+        image=img,
+    ).up_if_not()
 
     # Now that the cluster is up, we will send our trainer to the remote cluster, instantiate a remote instance of it, and run the training.
     # Note that we call .distribute("pytorch") to set up the PyTorch distributed backend. We run the training for 15 epochs with a batch size of 32,

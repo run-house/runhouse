@@ -1,6 +1,5 @@
 import contextlib
 import copy
-import importlib
 import json
 import multiprocessing
 import os
@@ -1117,11 +1116,15 @@ class Cluster(Resource):
         restart_proxy: bool = False,
         parallel: bool = True,
     ):
-        image_secrets, image_env_vars = self._sync_image_to_cluster(parallel=parallel)
+        if not self.is_up():
+            raise ConnectionError(
+                f"Could not reach {self.name} {self.head_ip}. Is cluster up?"
+            )
 
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
-        local_rh_package_path = None
-        if resync_rh is not False:
+        # This is so the Runhouse package will always be resynced and installed
+        # upon restart for Runhouse developers.
+        if resync_rh is None:
             local_rh_package_path = Path(
                 importlib.util.find_spec("runhouse").origin
             ).parent
@@ -1135,23 +1138,17 @@ class Cluster(Resource):
             if installed_editable_locally:
                 logger.debug("Runhouse is installed locally in editable mode.")
                 resync_rh = True
-            else:
-                # We only want this to be set if it was installed editable locally
-                local_rh_package_path = None
 
         # If resync_rh is still not confirmed to happen, check if Runhouse is installed on the cluster
-        if resync_rh is None:
-            return_codes = self.run_bash_over_ssh(["runhouse --version"], node="all")
-            if return_codes[0][0][0] != 0:
-                logger.debug("Runhouse is not installed on the cluster.")
-                resync_rh = True
+        if resync_rh:
+            self.image.install_packages(["ray", "pip:runhouse"])
+            logger.debug("Finished syncing Runhouse to cluster.")
+
+        image_secrets, image_env_vars = self._sync_image_to_cluster(parallel=parallel)
 
         if resync_rh:
-            self._sync_runhouse_to_cluster(
-                _install_url=_rh_install_url,
-                local_rh_package_path=local_rh_package_path,
-            )
-            logger.debug("Finished syncing Runhouse to cluster.")
+            # remove the runhouse install so it doesn't get reinstalled on restart
+            self.image.setup_steps.pop(-1)
 
         https_flag = self._use_https
         caddy_flag = self._use_caddy
@@ -1274,6 +1271,7 @@ class Cluster(Resource):
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
+        parallel: bool = True,
     ):
         """Restart the RPC server.
 
@@ -1300,6 +1298,7 @@ class Cluster(Resource):
             resync_rh=resync_rh,
             restart_ray=restart_ray,
             restart_proxy=restart_proxy,
+            parallel=parallel,
         )
 
     def start_server(
@@ -2772,7 +2771,11 @@ class Cluster(Resource):
 
         if isinstance(package, str):
             package = Package.from_string(package)
-            if package.install_method in ["reqs", "local"]:
+            from runhouse.resources.packages import InstallTarget
+
+            if package.install_method in ["reqs", "local"] or isinstance(
+                package.install_target, InstallTarget
+            ):
                 package = package.to(self)
 
         package._install(
