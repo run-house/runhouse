@@ -2768,11 +2768,13 @@ class Cluster(Resource):
         conda_env_name: str,
         force_sync_local: bool = False,
     ):
-        from runhouse.resources.packages.package import Package
+        from runhouse.resources.packages import InstallTarget, Package
 
         if isinstance(package, str):
             package = Package.from_string(package)
-            if package.install_method in ["reqs", "local"]:
+            if package.install_method in ["reqs", "local"] or isinstance(
+                package.install_target, InstallTarget
+            ):
                 package = package.to(self)
 
         package._install(
