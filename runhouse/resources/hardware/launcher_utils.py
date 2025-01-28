@@ -15,7 +15,7 @@ from runhouse.resources.hardware.utils import (
     SSEClient,
 )
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
-from runhouse.utils import ClusterLogsFormatter, Spinner
+from runhouse.utils import ClusterLogsFormatter, ColoredFormatter, Spinner
 
 logger = get_logger(__name__)
 

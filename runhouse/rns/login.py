@@ -97,14 +97,6 @@ def login(
                 default=True,
             )
         )
-        upload_config = (
-            upload_config
-            if upload_config is not None
-            else typer.confirm(
-                "Upload your local .rh config to Runhouse?",
-                default=True,
-            )
-        )
 
         # Default ssh secret
         if not rns_client.default_ssh_key:
@@ -120,10 +112,21 @@ def login(
                 if secret.values:
                     secret.save()
                     configs.set("default_ssh_key", secret.name)
+                    # ensure the default ssh key is saved to Den
+                    upload_config = True
                 else:
                     console.print(
                         f"Could not detect SSH key at {default_ssh_path}. Skipping"
                     )
+
+        upload_config = (
+            upload_config
+            if upload_config is not None
+            else typer.confirm(
+                "Upload your local .rh config to Runhouse?",
+                default=True,
+            )
+        )
 
         if sync_secrets:
             from runhouse import Secret

@@ -29,9 +29,7 @@ class Defaults:
         "default_provider": "cheapest",
         "default_autostop": 60,
         "use_spot": False,
-        "use_local_configs": True,
         "disable_observability": False,
-        "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
         "launcher": "local",
@@ -185,7 +183,7 @@ class Defaults:
             raise Exception(
                 f"Received [{resp.status_code}] from Den PUT '{uri}': Failed to update defaults for user."
             )
-        logger.info("Uploaded defaults for user to rns.")
+        logger.info("Uploaded defaults to Den")
 
     def download_defaults(self, headers: Optional[Dict] = None) -> Dict:
         """Get defaults for user or group."""
