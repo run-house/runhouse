@@ -590,9 +590,10 @@ def pprint_launched_cluster_summary(cluster):
     reset = ColoredFormatter.get_color("reset")
     italic = ColoredFormatter.get_color("italic")
 
-    print(
-        f"► To view the cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(rns_address)}"
-    )
+    if rns_address:
+        print(
+            f"► To view the cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(rns_address)}"
+        )
     print(f"{blue}Launch Summary:{reset}")
     for key, value in properties.items():
         if value is None:
