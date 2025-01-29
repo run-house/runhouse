@@ -221,11 +221,11 @@ class FineTuner:
 # ## Define Runhouse primitives
 #
 # Now, we define code that will run locally when we run this script and set up
-# our Runhouse module on a remote cluster. First, we create a cluster with the desired instance type and provider.
+# our Runhouse module on a remote cluster. First, we define compute with the desired instance type and provider.
 # Our `instance_type` here is defined as `A10G:1`, which is the accelerator type and count that we need. We could
 # alternatively specify a specific AWS instance type, such as `p3.2xlarge` or `g4dn.xlarge`.
 #
-# Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
+# Learn more in the [Runhouse docs on compute](/docs/tutorials/api-clusters).
 #
 # :::note{.info title="Note"}
 # Make sure that all the following code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
@@ -255,19 +255,19 @@ if __name__ == "__main__":
         .sync_secrets(["huggingface"])
     )
 
-    cluster = rh.compute(
+    gpu = rh.compute(
         name="rh-a10x",
         gpus="A10G:1",
         memory="32+",
         image=img,
         provider="aws",
     ).up_if_not()
-    cluster.restart_server()
-    # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
+    gpu.restart_server()
+    # Finally, we define our module and run it on the remote gpu. We construct it normally and then call
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
-    # by calling `cluster.get(name="llama3-medical-model", remote=True)`. This would return the remote model after an initial run.
+    # by calling `gpu.get(name="llama3-medical-model", remote=True)`. This would return the remote model after an initial run.
     # If we want to update the module each time we run this script, we prefer to use `to`.
-    RemoteFineTuner = rh.module(FineTuner).to(cluster, name="FineTuner")
+    RemoteFineTuner = rh.module(FineTuner).to(gpu, name="FineTuner")
     fine_tuner_remote = RemoteFineTuner(name="llama3-medical-model")
 
     # ## Fine-tune the model on the cluster
