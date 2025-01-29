@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Dict, Optional
 
@@ -18,8 +19,6 @@ def is_interactive():
 
 def login(
     token: str = None,
-    download_config: bool = None,
-    upload_config: bool = None,
     download_secrets: bool = None,
     upload_secrets: bool = None,
     ret_token: bool = False,
@@ -33,8 +32,6 @@ def login(
     Args:
         token (str): Runhouse token, can be found at https://www.run.house/account#token. If not provided, function will
             interactively prompt for the token to be entered manually.
-        download_config (bool): Whether to download configs from your Runhouse account to local environment.
-        upload_config (bool): Whether to upload local configs into your Runhouse account.
         download_secrets (bool): Whether to download secrets from your Runhouse account to local environment.
         upload_secrets (bool): Whether to upload local secrets to your Runhouse account.
         ret_token (bool): Whether to return your Runhouse token. (Default: False)
@@ -45,8 +42,7 @@ def login(
         Token if ``ret_token`` is set to True, otherwise nothing.
     """
     all_options_set = token and not any(
-        arg is None
-        for arg in (download_config, upload_config, download_secrets, upload_secrets)
+        arg is None for arg in (download_secrets, upload_secrets)
     )
 
     if interactive is False and not token:
@@ -77,7 +73,7 @@ def login(
         )
         if not token:
             console.print(
-                f"Retrieve your token :key: here to use :person_running: :house: Runhouse for "
+                f"Retrieve your token :key: to use :person_running: :house: Runhouse for "
                 f"secrets and artifact management: {link}",
                 style="bold yellow",
             )
@@ -85,18 +81,7 @@ def login(
 
         rh_config_exists = configs.CONFIG_PATH.exists()
         if not rh_config_exists:
-            upload_config = False
             download_secrets = False
-
-        # download the config automatically if no config.yaml exists
-        download_config = (
-            download_config
-            if download_config is not None or not rh_config_exists
-            else typer.confirm(
-                "Download your Runhouse config to your local .rh folder?",
-                default=True,
-            )
-        )
 
         # Default ssh secret
         if not rns_client.default_ssh_key:
@@ -112,21 +97,10 @@ def login(
                 if secret.values:
                     secret.save()
                     configs.set("default_ssh_key", secret.name)
-                    # ensure the default ssh key is saved to Den
-                    upload_config = True
                 else:
                     console.print(
                         f"Could not detect SSH key at {default_ssh_path}. Skipping"
                     )
-
-        upload_config = (
-            upload_config
-            if upload_config is not None
-            else typer.confirm(
-                "Upload your local .rh config to Runhouse?",
-                default=True,
-            )
-        )
 
         if sync_secrets:
             from runhouse import Secret
@@ -150,12 +124,21 @@ def login(
             )
 
     if token:
+        resp = requests.get(
+            f"{rns_client.api_server_url}/user",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if resp.status_code != 200:
+            error_msg = "Invalid token provided"
+            if interactive:
+                console.print(f"[red]{error_msg}[/red]")
+                raise typer.Exit(1)
+            else:
+                raise ValueError(error_msg)
+
         # Note, this is to explicitly add it to the config file, as opposed to setting in python
         # via configs.token = token
         configs.set("token", token)
-
-    if download_config:
-        configs.download_and_save_defaults()
 
     autostop_mins = configs.defaults_cache.get("default_autostop")
     if autostop_mins is None:
@@ -166,27 +149,47 @@ def login(
         )
         configs.set("default_autostop", int(new_autostop_mins))
 
-    if upload_config:
-        configs.load_defaults_from_file()
-        configs.upload_defaults(defaults=configs.defaults_cache)
+    local_config: dict = configs.load_defaults_from_file()
+    try:
+        den_config: dict = configs.load_defaults_from_den()
+        if not local_config and den_config:
+            # if logging in to a new env, use the den config if we have it
+            local_config = den_config
+    except:
+        # If we can't download the defaults, we'll just use the defaults
+        den_config = {}
 
-    if not (download_config or upload_config):
-        # If we are not downloading or uploading config, we still want to make sure the token is valid
-        # and also download the username and default folder
-        try:
-            defaults = configs.download_defaults()
-        except:
-            logger.error("Failed to validate token")
-            return None
-        configs.set("username", defaults["username"])
-        configs.set("default_folder", defaults["default_folder"])
+    if local_config and den_config:
+        if json.dumps(local_config, sort_keys=True) != json.dumps(
+            den_config, sort_keys=True
+        ):
+            message = (
+                "The local Runhouse config differs from the config saved in Den.\n"
+                "To replace your local version with the Den version, run: `runhouse config download`\n"
+                "To replace the Den version with your local version, run: `runhouse config upload`"
+            )
+            if interactive:
+                console.print(f"[yellow]{message}[/yellow]")
+            else:
+                logger.warning(message)
+
+    # we still want to make sure the username and default folder are set locally
+    if not local_config.get("username") and den_config:
+        configs.set("username", den_config["username"])
+    if not local_config.get("default_folder") and den_config:
+        configs.set("default_folder", den_config["default_folder"])
 
     if download_secrets:
         _login_download_secrets(from_cli=from_cli)
     if upload_secrets:
         _login_upload_secrets(interactive=interactive)
 
-    logger.info("Successfully logged into Runhouse.")
+    success_msg = "Successfully logged into Runhouse."
+    if interactive:
+        console.print(f"[green]{success_msg}[/green]")
+    else:
+        logger.info(success_msg)
+
     if ret_token:
         return token
 

@@ -319,7 +319,7 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
         dir_name="public-key-auth",
         keypath=str(
             Path(
-                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
+                rh.configs.get("default_ssh_key", DEFAULT_KEYPAIR_KEYPATH)
             ).expanduser()
         ),
         reuse_existing_container=detached,
@@ -378,7 +378,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
         dir_name="public-key-auth",
         keypath=str(
             Path(
-                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
+                rh.configs.get("default_ssh_key", DEFAULT_KEYPAIR_KEYPATH)
             ).expanduser()
         ),
         reuse_existing_container=detached,
@@ -478,7 +478,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
         dir_name="public-key-auth-conda",
         keypath=str(
             Path(
-                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
+                rh.configs.get("default_ssh_key", DEFAULT_KEYPAIR_KEYPATH)
             ).expanduser()
         ),
         reuse_existing_container=detached,
@@ -583,7 +583,7 @@ def friend_account_logged_in_docker_cluster_pk_ssh(request, test_rns_folder):
             dir_name="public-key-auth",
             keypath=str(
                 Path(
-                    rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
+                    rh.configs.get("default_ssh_key", DEFAULT_KEYPAIR_KEYPATH)
                 ).expanduser()
             ),
             reuse_existing_container=detached,

@@ -546,10 +546,9 @@ class OnDemandCluster(Cluster):
         self._populate_connection_from_status_dict(cluster_dict)
 
     def _setup_default_creds(self):
-        """Setup the default creds used in launching. For Den launching we load the default ssh creds, and for
-        local launching we let Sky handle it."""
-        if self.launcher == LauncherType.DEN:
-            return DenLauncher.load_creds()
+        """Setup the default creds used in launching and for interacting with the cluster once it's up.
+        For Den launching we load the default ssh creds, and for local launching we let Sky handle it."""
+        return DenLauncher.load_creds() if self.launcher == LauncherType.DEN else None
 
     def get_instance_type(self):
         """Returns instance type of the cluster."""
@@ -793,15 +792,26 @@ class OnDemandCluster(Cluster):
             subprocess.run(cmd, shell=True, check=True)
 
         else:
-            # If SSHing onto a specific node, which requires the default sky public key for verification
+            # If SSHing onto a specific node, which requires an SSH public key for verification
+            # Note: the SSH key must either be the one used for launch, or the user's default SSH public key
+            # if the cluster is shared
             from runhouse.resources.hardware.sky_command_runner import SshMode
 
-            sky_key = Path(
-                self.ssh_properties.get("ssh_private_key", self.DEFAULT_KEYFILE)
-            ).expanduser()
-
-            if not sky_key.exists():
-                raise FileNotFoundError(f"Expected default sky key in path: {sky_key}")
+            if self._is_shared:
+                # If the cluster is shared auth will be based on the user's default SSH key
+                default_ssh_key = configs.get("default_ssh_key")
+                if default_ssh_key is None:
+                    raise ValueError("No default SSH key found local Runhouse config")
+            else:
+                ssh_private_key_path = self.ssh_properties.get("ssh_private_key")
+                if (
+                    ssh_private_key_path is None
+                    or not Path(ssh_private_key_path).expanduser().exists()
+                ):
+                    # SSH keys used for launching must be present if it's not a shared cluster
+                    raise FileNotFoundError(
+                        f"Expected SSH key in path: {ssh_private_key_path}"
+                    )
 
             runner = self._command_runner(node=node)
             if self.docker_user:

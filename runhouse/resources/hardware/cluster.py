@@ -176,8 +176,8 @@ class Cluster(Resource):
 
         self.reqs = []
 
+        self._is_shared = self._is_cluster_shared(owner_info=kwargs.get("owner") or {})
         self._setup_creds(creds)
-        self._is_shared = self._is_cluster_shared()
 
         if isinstance(image, dict):
             # If reloading from config (ex: in Den)
@@ -645,31 +645,17 @@ class Cluster(Resource):
         )
         return self
 
-    def _is_cluster_shared(self) -> bool:
+    def _is_cluster_shared(self, owner_info: dict) -> bool:
         rns_address = self.rns_address
         if rns_address is None:
+            # Cluster hasn't yet been saved
             return False
 
-        # If shared the creds used for launching will be attributed to another user
-        creds: str = (
-            self._resource_string_for_subconfig(self._creds, True)
-            if hasattr(self, "_creds") and self._creds
-            else None
-        )
-
-        if not creds or isinstance(creds, dict):
-            # specifying custom creds (for non on-demand clusters)
+        if not owner_info:
+            # Cluster hasn't yet been launched
             return False
 
-        cluster_folder = rns_client.base_folder(rns_address)
-        cluster_creds_folder = rns_client.base_folder(creds)
-
-        if cluster_folder != rns_client.username and (
-            creds and cluster_creds_folder != rns_client.username
-        ):
-            return True
-
-        return False
+        return owner_info.get("username") != rns_client.username
 
     def _sync_image_to_cluster(self, parallel: bool = True):
         """
@@ -2817,11 +2803,13 @@ class Cluster(Resource):
         conda_env_name: str,
         force_sync_local: bool = False,
     ):
-        from runhouse.resources.packages.package import Package
+        from runhouse.resources.packages import InstallTarget, Package
 
         if isinstance(package, str):
             package = Package.from_string(package)
-            if package.install_method in ["reqs", "local"]:
+            if package.install_method in ["reqs", "local"] or isinstance(
+                package.install_target, InstallTarget
+            ):
                 package = package.to(self)
 
         package._install(

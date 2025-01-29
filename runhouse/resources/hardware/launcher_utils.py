@@ -242,6 +242,7 @@ class DenLauncher(Launcher):
             "force": force,
             "verbose": verbose,
             "observability": configs.observability_enabled,
+            "default_ssh_key": configs.get("default_ssh_key"),
         }
 
         if verbose:
