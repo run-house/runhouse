@@ -245,7 +245,7 @@ if __name__ == "__main__":
     )
 
     gpu_cluster = (
-        rh.cluster(
+        rh.compute(
             name=f"rh-{num_nodes}x{gpus_per_node}GPU",
             gpus=f"A10G:{gpus_per_node}",
             num_nodes=num_nodes,

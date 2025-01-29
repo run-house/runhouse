@@ -115,7 +115,7 @@ async def main():
         ["torch", "vllm==0.2.7"]  # >=0.3.0 causes pydantic version error
     )
 
-    gpu_cluster = rh.cluster(
+    gpu_cluster = rh.compute(
         name="rh-l4x",
         gpus="L4:1",
         memory="32+",

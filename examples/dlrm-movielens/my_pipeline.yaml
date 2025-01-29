@@ -74,7 +74,7 @@ spec:
 
         num_nodes = 2
 
-        cluster = rh.cluster(
+        cluster = rh.compute(
             name="rh-ray-preprocessing",
             num_cpus="4",
             memory = "15+",
@@ -128,7 +128,7 @@ spec:
         img = rh.Image('ray-torch').install_packages(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]).sync_secrets(["aws"])
 
         gpu_cluster = (
-            rh.cluster(
+            rh.compute(
                 name=f"rh-{num_nodes}x{gpus_per_node}GPU",
                 gpus=f"A10G:{gpus_per_node}",
                 num_nodes=num_nodes,
@@ -188,7 +188,7 @@ spec:
         img = rh.Image("ray-data").install_packages(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]).sync_secrets(["aws"])
 
         gpu_cluster = (
-            rh.cluster(
+            rh.compute(
                 name=f"rh-{num_nodes}x{gpus_per_node}GPU",
                 gpus=f"A10G:{gpus_per_node}",
                 num_nodes=num_nodes,

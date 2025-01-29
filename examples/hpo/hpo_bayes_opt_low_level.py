@@ -17,7 +17,7 @@ async def find_best_params():
 
     img = rh.Image("worker_image").install_packages(["bayesian-optimization"])
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-4x16-cpu",
         instance_type="CPU:16",
         num_nodes=4,

@@ -104,7 +104,7 @@ if __name__ == "__main__":
     provider = "aws"  # or gcp, azure, lambda, etc.
     autostop_mins = 120
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=f"rh-{gpu_type}-{num_gpus}x{num_nodes}",
         num_nodes=num_nodes,
         instance_type=f"{gpu_type}:{num_gpus}",

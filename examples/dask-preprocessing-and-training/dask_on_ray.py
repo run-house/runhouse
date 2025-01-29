@@ -45,7 +45,7 @@ if __name__ == "__main__":
     )
 
     cluster_name = f"py-{num_nodes}"
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=cluster_name,
         instance_type="r5d.xlarge",
         num_nodes=num_nodes,

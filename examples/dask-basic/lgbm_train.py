@@ -69,7 +69,7 @@ if __name__ == "__main__":
             "xgboost",
         ],
     )
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=f"rh-{num_nodes}",
         instance_type="r5d.xlarge",
         num_nodes=num_nodes,

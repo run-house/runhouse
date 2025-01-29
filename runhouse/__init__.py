@@ -42,11 +42,9 @@ from .globals import configs, obj_store
 
 from .rns.login import login, logout
 
-# Briefly keep for BC.
-send = function
-
 # Syntactic sugar
 fn = function
+compute = cluster
 
 
 def __getattr__(name):

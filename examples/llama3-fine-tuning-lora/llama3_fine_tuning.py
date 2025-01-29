@@ -255,7 +255,7 @@ if __name__ == "__main__":
         .sync_secrets(["huggingface"])
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-a10x",
         gpus="A10G:1",
         memory="32+",

@@ -135,7 +135,7 @@ if __name__ == "__main__":
         name="mistral_instruct", image_id="ami-0e0f965ee5cfbf89b"
     ).sync_secrets(["huggingface"])
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-inf2-8xlarge",
         instance_type="inf2.8xlarge",
         region="us-east-1",

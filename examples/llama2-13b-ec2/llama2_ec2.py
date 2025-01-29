@@ -111,7 +111,7 @@ if __name__ == "__main__":
         .sync_secrets(["huggingface"])
     )
 
-    gpu_cluster = rh.cluster(
+    gpu_cluster = rh.compute(
         name="rh-a10x",
         instance_type="A10G:1",
         provider="aws",

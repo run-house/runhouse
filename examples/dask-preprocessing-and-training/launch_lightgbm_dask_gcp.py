@@ -147,7 +147,7 @@ if __name__ == "__main__":
         ],
     )
 
-    cluster = rh.ondemand_cluster(
+    cluster = rh.compute(
         name=cluster_name,
         instance_type="n2-highmem-8",  # We can specify instance name or required resources
         num_nodes=num_nodes,  # Runhouse will automatically wire up multiple nodes into a Dask cluster

@@ -60,7 +60,7 @@ def bring_up_cluster(
     restart_server=False,
 ):
     # Requires access to a cloud account with the necessary permissions to launch compute.
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=f"rh-{num_gpus}x{num_nodes}",
         num_nodes=num_nodes,
         instance_type=f"{gpu_type}:{num_gpus}",

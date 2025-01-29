@@ -164,7 +164,7 @@ if __name__ == "__main__":
         ["docker", "torch", "transformers"]
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-a10",
         instance_type="A10G:1",
         memory="32+",

@@ -67,7 +67,7 @@ def bring_up_remote_inference_service():
             "scipy",
         ]
     )
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-yolov3", image=img, instance_type="A10G:1", provider="aws"
     )
 

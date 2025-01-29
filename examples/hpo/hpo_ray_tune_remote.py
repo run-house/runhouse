@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
     img = rh.Image("tune").install_packages(["pyarrow>=9.0.0", "ray[tune]>=2.38.0"])
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-cpu",
         num_nodes=num_nodes,
         image=img,

@@ -121,7 +121,7 @@ if __name__ == "__main__":
         ]
     )
 
-    gpu = rh.cluster(
+    gpu = rh.compute(
         name="rh-a10x", gpus="A10G:1", memory="32+", provider="aws", image=img
     ).up_if_not()
 

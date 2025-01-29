@@ -160,7 +160,7 @@ if __name__ == "__main__":
         ]
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         f"rh-{num_replicas}xa10g",
         instance_type="A10G:1",
         provider="aws",

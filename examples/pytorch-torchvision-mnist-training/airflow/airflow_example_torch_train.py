@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 def bring_up_cluster_callable(**kwargs):
     logger.info("Connecting to remote cluster")
     img = rh.Image("pytorch").install_packages(["torch", "torchvision"])
-    cluster = rh.ondemand_cluster(
+    cluster = rh.compute(
         name="a10g-cluster", instance_type="g5.xlarge", provider="aws", image=img
     ).up_if_not()
 
@@ -72,7 +72,7 @@ def bring_up_cluster_callable(**kwargs):
 # We will send the function to download data to the remote cluster and then invoke it to download the data to the remote machine. You can imagine that this is a data access or pre-processing step after which data is prepared.
 def access_data_callable(**kwargs):
     logger.info("Step 2: Access data")
-    cluster = rh.cluster(name="a10g-cluster").up_if_not()
+    cluster = rh.compute(name="a10g-cluster").up_if_not()
     remote_download = rh.function(download_data).to(cluster)
     remote_preprocess = rh.function(preprocess_data).to(cluster)
     logger.info("Download function sent to remote")
@@ -84,7 +84,7 @@ def access_data_callable(**kwargs):
 # Then we instantiate the trainer, and then invoke the training on the remote machine. On the remote, we have a GPU. This is also a natural point to split the workflow if we want to do some tasks on GPU and some on CPU.
 def train_model_callable(**kwargs):
     logger.info("Step 3: Train Model")
-    cluster = rh.cluster(name="a10g-cluster").up_if_not()
+    cluster = rh.compute(name="a10g-cluster").up_if_not()
 
     remote_torch_example = rh.module(SimpleTrainer).to(
         cluster, name="torch-basic-training"
@@ -110,7 +110,7 @@ def train_model_callable(**kwargs):
 
 # We programatically down the cluster, but we can also reuse this cluster by name.
 def down_cluster(**kwargs):
-    cluster = rh.cluster(name="a10g-cluster")
+    cluster = rh.compute(name="a10g-cluster")
     cluster.teardown()
 
 

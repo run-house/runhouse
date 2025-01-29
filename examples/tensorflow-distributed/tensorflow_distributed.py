@@ -49,7 +49,7 @@ async def train():
     # Create a cluster of 2 GPUs
     gpus_per_node = 1
     num_nodes = 2
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
         instance_type=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,

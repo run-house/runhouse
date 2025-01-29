@@ -192,7 +192,7 @@ if __name__ == "__main__":
     num_nodes = 3
 
     # Requires access to a cloud account with the necessary permissions to launch compute.
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=f"rh-L4x{num_nodes}",
         num_nodes=num_nodes,
         instance_type="L4:1",

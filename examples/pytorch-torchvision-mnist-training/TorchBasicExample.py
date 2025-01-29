@@ -225,7 +225,7 @@ if __name__ == "__main__":
 
     # Define a cluster type - here we launch an on-demand AWS cluster with 1 NVIDIA A10G GPU.
     # You can use any cloud you want, or existing compute
-    cluster = rh.ondemand_cluster(
+    cluster = rh.compute(
         name="a10g-cluster",
         instance_type="A10G:1",
         provider="aws",
