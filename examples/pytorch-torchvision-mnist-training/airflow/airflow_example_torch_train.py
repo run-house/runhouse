@@ -14,26 +14,6 @@
 # * Once you are satisfied with your code, you can write the callables for an Airflow PythonOperator. The code that is actually in the Airflow DAG is the **minimal code** to call out to already working Classes and Functions, defining the order of the steps (or you can even have a one-step Airflow DAG, making Airflow purely for scheduling and observability)
 # * And you can easily iterate further on your code, or test the pipeline end-to-end from local with no Airflow participation
 
-# ## Setup credentials and dependencies
-#
-# Optionally, set up a virtual environment:
-# ```shell
-# $ conda create -n demo-runhouse python=3.10
-# $ conda activate demo-runhouse
-# ```
-# Install the required dependencies:
-# ```shell
-# $ pip install "runhouse[aws]" torch torchvision airflow
-# ```
-#
-# We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
-# make sure our AWS credentials are set up:
-# ```shell
-# $ aws configure
-# $ sky check
-# ```
-#
-
 # Import some other libraries we need - namely Airflow, Runhouse, and a few others.
 import logging
 import os

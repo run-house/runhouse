@@ -15,21 +15,6 @@
 # We can easily add additional nodes with Runhouse, which will automatically form the compute. We will
 # rely fully on vllm to make use of them and increasing tensor and pipeline parallelism.
 #
-# To get started, you simply need to install Runhouse with additional install for the cloud you want to use
-# ```shell
-# $ pip install "runhouse[aws]" torch vllm
-# ```
-#
-# If you do not have a Runhouse account, you will launch from your local machine. Set up your
-# cloud provider CLI:
-# ```shell
-# $ aws configure
-# $ gcloud init
-# ```
-# We'll be downloading the model from Hugging Face, so we may need to set up our Hugging Face token:
-# ```shell
-# $ export HF_TOKEN=<your huggingface token>
-# ```
 
 # ## Defining the vLLM Inference Class
 # We define a class that will hold the model and allow us to send prompts to it.
