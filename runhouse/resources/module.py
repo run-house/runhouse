@@ -510,9 +510,6 @@ class Module(Resource):
                 )
 
         if isinstance(system, Cluster):
-            new_name = name or self.name or self.default_name()
-            if self.rns_address:
-                new_name = f"{self._rns_folder}/{new_name}"
             new_module.name = new_name
             # TODO dedup with _extract_state
             # Exclude anything already being sent in the config and private module attributes
