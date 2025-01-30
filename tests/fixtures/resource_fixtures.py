@@ -1,10 +1,10 @@
-import uuid
 from datetime import datetime
 
 import pytest
 
 from runhouse.globals import rns_client
 from runhouse.resources.resource import Resource
+from runhouse.utils import get_random_str
 from tests.conftest import init_args
 
 from tests.constants import TEST_ORG
@@ -38,7 +38,7 @@ def saved_resource_pool():
 
 
 def create_folder_path():
-    hash = uuid.uuid4().hex[:8]
+    hash = get_random_str(length=8)
     return f"test-{hash}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
 

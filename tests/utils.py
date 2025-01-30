@@ -2,7 +2,6 @@ import contextlib
 import importlib
 import json
 import os
-import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
@@ -50,13 +49,6 @@ def get_pid_and_ray_node(a=0):
     logging.info(f"Node ID: {node_id}")
 
     return pid, node_id
-
-
-def get_random_str(length: int = 8):
-    if length > 32:
-        raise ValueError("Max length of random string is 32")
-
-    return str(uuid.uuid4())[:length]
 
 
 @contextlib.contextmanager

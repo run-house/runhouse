@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from enum import Enum
@@ -32,6 +33,13 @@ from runhouse.constants import CONDA_INSTALL_CMDS, ENVS_DIR, RH_LOGFILE_PATH
 from runhouse.logger import get_logger, init_logger
 
 logger = get_logger(__name__)
+
+
+def get_random_str(length: int = 8):
+    if length > 32:
+        raise ValueError("Max length of random string is 32")
+
+    return str(uuid.uuid4())[:length]
 
 
 ####################################################################################################
