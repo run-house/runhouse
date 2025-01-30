@@ -279,7 +279,7 @@ if __name__ == "__main__":
     num_nodes = 4
 
     img = (
-        rh.Image("ray-torch")
+        rh.Image()
         .install_packages(
             ["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]
         )

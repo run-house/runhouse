@@ -129,7 +129,7 @@ if __name__ == "__main__":
     #
     # Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
     start_time = time.time()
-    img = rh.Image("embeddings").install_packages(
+    img = rh.Image().install_packages(
         [
             "langchain",
             "langchain-community",

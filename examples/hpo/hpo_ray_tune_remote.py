@@ -83,7 +83,7 @@ if __name__ == "__main__":
     num_nodes = 2
     num_cpus_per_node = 4
 
-    img = rh.Image("tune").install_packages(["pyarrow>=9.0.0", "ray[tune]>=2.38.0"])
+    img = rh.Image().install_packages(["pyarrow>=9.0.0", "ray[tune]>=2.38.0"])
 
     cpus = rh.compute(
         name="rh-cpu",

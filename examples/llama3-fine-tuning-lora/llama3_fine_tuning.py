@@ -214,7 +214,7 @@ if __name__ == "__main__":
     # Then, we launch a cluster with a GPU.
     # Finally, passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
     img = (
-        rh.Image(name="llama2finetuning")
+        rh.Image()
         .install_packages(
             [
                 "torch",
