@@ -52,8 +52,8 @@ class CreateProcessParams(BaseModel):
     env_vars: Optional[Dict] = {}
 
 
-class SetProcessEnvVarsParams(BaseModel):
-    process_name: str
+class SetEnvVarsParams(BaseModel):
+    process_name: Optional[str] = None
     env_vars: Dict[str, str]
 
 

@@ -271,7 +271,12 @@ class ObjStore:
             if path not in sys.path:
                 sys.path.insert(0, path)
 
-        # Set env vars that were passed in initialization
+        # Set env vars that need to be set on creation
+        env_vars_to_set = await self.aget_env_vars_to_set_in_new_processes()
+        self.set_process_env_vars_local(env_vars_to_set)
+
+        # Set env vars that were passed in initialization, these should override
+        # any env vars that were set globally via the previous global set
         if create_process_params and create_process_params.env_vars:
             self.set_process_env_vars_local(create_process_params.env_vars)
 
@@ -662,6 +667,11 @@ class ObjStore:
     def set_process_env_vars(self, servlet_name: str, env_vars: Dict[str, str]):
         return sync_function(self.aset_process_env_vars)(servlet_name, env_vars)
 
+    async def aset_env_vars_globally(self, env_vars: Dict[str, str]):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aset_env_vars_globally", env_vars
+        )
+
     ##############################################
     # Cluster config state storage methods
     ##############################################
@@ -823,6 +833,11 @@ class ObjStore:
     async def aadd_path_to_prepend_in_new_processes(self, path: str):
         return await self.acall_actor_method(
             self.cluster_servlet, "aadd_path_to_prepend_in_new_processes", path
+        )
+
+    async def aget_env_vars_to_set_in_new_processes(self) -> Dict[str, str]:
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aget_env_vars_to_set_in_new_processes"
         )
 
     ##############################################

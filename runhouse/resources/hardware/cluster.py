@@ -2728,6 +2728,12 @@ class Cluster(Resource):
         )
         return name
 
+    def set_env_vars_globally(self, env_vars: Dict):
+        if self.on_this_cluster():
+            return obj_store.set_env_vars_globally(env_vars)
+        else:
+            return self.client.set_env_vars(env_vars)
+
     def set_process_env_vars(self, name: str, env_vars: Dict):
         """Set the env vars for a process on the cluster.
 
@@ -2738,9 +2744,7 @@ class Cluster(Resource):
         if self.on_this_cluster():
             return obj_store.set_process_env_vars(name, env_vars)
         else:
-            return self.client.set_process_env_vars(
-                process_name=name, env_vars=env_vars
-            )
+            return self.client.set_env_vars(env_vars=env_vars, process_name=name)
 
     def install_package(
         self,

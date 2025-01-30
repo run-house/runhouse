@@ -67,6 +67,7 @@ class ClusterServlet:
         self._key_to_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache()
         self._paths_to_prepend_in_new_processes = []
+        self._env_vars_to_set_in_new_processes = {}
         self._node_servlet_names: List[str] = []
         self._cluster_name = self._cluster_config.get("name", None)
         self._cluster_uri = (
@@ -132,6 +133,31 @@ class ClusterServlet:
 
     async def aget_paths_to_prepend_in_new_processes(self) -> List[str]:
         return self._paths_to_prepend_in_new_processes
+
+    ##############################################
+    # Env vars to set and get env vars methods
+    ##############################################
+    async def aset_env_vars_globally(self, env_vars: Dict[str, Any]):
+
+        await asyncio.gather(
+            *[
+                obj_store.acall_servlet_method(
+                    servlet_name,
+                    "aset_env_vars",
+                    env_vars,
+                    use_servlet_cache=False,
+                )
+                for servlet_name in await self.aget_all_initialized_servlet_args()
+            ]
+        )
+
+        await self.aadd_env_vars_to_set_in_new_processes(env_vars)
+
+    async def aadd_env_vars_to_set_in_new_processes(self, env_vars: Dict[str, Any]):
+        self._env_vars_to_set_in_new_processes.update(env_vars)
+
+    async def aget_env_vars_to_set_in_new_processes(self) -> Dict[str, str]:
+        return self._env_vars_to_set_in_new_processes
 
     ##############################################
     # Cluster config state storage methods
