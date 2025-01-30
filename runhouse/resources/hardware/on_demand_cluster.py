@@ -71,6 +71,7 @@ class OnDemandCluster(Cluster):
         den_auth: bool = False,
         region: str = None,
         vpc_name: str = None,
+        security_group: str = None,
         sky_kwargs: Dict = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -113,6 +114,7 @@ class OnDemandCluster(Cluster):
         self._gpus = gpus
         self.sky_kwargs = sky_kwargs or {}
         self.vpc_name = vpc_name
+        self.security_group = security_group
 
         self.compute_properties = {}
 
@@ -234,6 +236,7 @@ class OnDemandCluster(Cluster):
                 "memory",
                 "disk_size",
                 "vpc_name",
+                "security_group",
                 "sky_kwargs",
                 "launcher",
                 "compute_properties",
