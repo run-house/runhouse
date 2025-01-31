@@ -1,10 +1,10 @@
 # # A Basic Torch Image Classification Example with the MNIST Dataset
 
 
-# This example demonstrates how to deploy a basic Torch model
-# and training class to a remote GPU using Runhouse, and do the training.
+# Deploy a basic Torch model and training class to a remote GPU for training
+# using Runhouse.
 #
-# We use the very popular MNIST dataset which includes a large number
+# We use the very popular MNIST dataset, which includes a large number
 # of handwritten digits, and create a neural network that accurately identifies
 # what digit is in an image.
 #

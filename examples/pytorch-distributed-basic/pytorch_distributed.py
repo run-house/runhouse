@@ -67,9 +67,5 @@ if __name__ == "__main__":
 
     remote_train_loop = rh.function(train_loop).to(gpu)
 
-    train_ddp = remote_train_loop.distribute(
-        "pytorch",
-        num_replicas=num_nodes * gpus_per_node,
-        replicas_per_node=gpus_per_node,
-    )
+    train_ddp = remote_train_loop.distribute("pytorch")
     train_ddp(epochs=10)
