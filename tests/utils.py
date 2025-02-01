@@ -19,7 +19,7 @@ from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatu
 from runhouse.servers.http.http_utils import CreateProcessParams
 from runhouse.servers.obj_store import ObjStore, RaySetupOption
 
-from tests.constants import TEST_ENV_VARS, TEST_REQS
+from tests.constants import DEFAULT_KEYPAIR_KEYPATH, TEST_ENV_VARS, TEST_REQS
 
 
 def get_ray_servlet_and_obj_store(env_name):
@@ -153,6 +153,15 @@ def setup_test_base(cluster, logged_in=False):
 def keep_config_keys(config, keys_to_keep):
     condensed_config = {key: config.get(key) for key in keys_to_keep}
     return condensed_config
+
+
+def get_default_keypair_path():
+    if rh.configs.get("default_ssh_key"):
+        secret = rh.secret(rh.configs.get("default_ssh_key"))
+        key_path = secret.path
+    else:
+        key_path = DEFAULT_KEYPAIR_KEYPATH
+    return str(Path(key_path).expanduser())
 
 
 def set_daemon_and_cluster_status(
