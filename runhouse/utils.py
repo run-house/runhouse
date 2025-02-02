@@ -863,7 +863,7 @@ class Spinner:
 # Status collection utils
 ####################################################################################################
 class ServletType(str, Enum):
-    env = "env"
+    process = "process"
     cluster = "cluster"
 
 

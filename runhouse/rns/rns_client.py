@@ -3,7 +3,7 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import dotenv
 
@@ -25,16 +25,13 @@ from runhouse.utils import locate_working_dir
 logger = get_logger(__name__)
 
 
-# This is a copy of the Pydantic model that we use to validate in Den
 class ResourceStatusData(BaseModel):
     cluster_config: dict
-    server_cpu_utilization: float
-    server_gpu_utilization: Optional[float]
-    server_memory_usage: Dict[str, Any]
-    server_gpu_usage: Optional[Dict[str, Any]]
-    env_servlet_processes: Dict[str, Dict[str, Any]]
+    workers: List[dict]
+    processes: Dict[str, Dict[str, Any]]
     server_pid: int
     runhouse_version: str
+    is_multinode: bool  # will make it easier to parse the status json
 
 
 class RNSClient:

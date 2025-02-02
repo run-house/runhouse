@@ -344,19 +344,33 @@ class ObjStore:
         from runhouse.servers.node_servlet import NodeServlet
 
         names = []
-        for ip in self.get_internal_ips():
+        internal_ips = self.get_internal_ips()
+        head_internal_ip = internal_ips[0]
+        for ip in internal_ips:
             resources = {f"node:{ip}": 0.001}
             node_servlet_name = self.node_servlet_name_for_ip(ip)
-            ray.remote(NodeServlet).options(
-                name=node_servlet_name,
-                get_if_exists=True,
-                lifetime="detached",
-                namespace="runhouse",
-                max_concurrency=1000,
-                resources=resources,
-                num_cpus=0,
-            ).remote()
+            node_servlet = (
+                ray.remote(NodeServlet)
+                .options(
+                    name=node_servlet_name,
+                    get_if_exists=True,
+                    lifetime="detached",
+                    namespace="runhouse",
+                    max_concurrency=1000,
+                    resources=resources,
+                    num_cpus=0,
+                )
+                .remote()
+            )
             names.append(node_servlet_name)
+
+            # make sure that the nodes are actually initialized, so we could collect status (relevant for multinode
+            # clusters). We are initializing all nodes apart from the head node, since the head node has the
+            # cluster_servlet node initialized.
+            if len(internal_ips) > 1 and ip != head_internal_ip:
+                await node_servlet.arun_with_logs_local.remote(
+                    f"echo from {node_servlet_name}"
+                )
 
         await self.acall_actor_method(
             self.cluster_servlet, "aset_node_servlet_names", names

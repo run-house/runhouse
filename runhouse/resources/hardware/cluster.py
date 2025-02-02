@@ -1047,7 +1047,7 @@ class Cluster(Resource):
             elif den_resp_status_code != 200:
                 logger.warning("Failed to send cluster status to Den")
 
-        if not configs.observability_enabled and status.get("env_servlet_processes"):
+        if not configs.observability_enabled and status.get("processes"):
             logger.warning(
                 "Cluster observability is disabled. Metrics are stale and will "
                 "no longer be collected. To re-enable observability, please "

@@ -1,7 +1,10 @@
 from typing import Optional
 
+import psutil
+
 from runhouse.globals import obj_store
 from runhouse.servers.obj_store import ClusterServletSetupOption
+from runhouse.utils import arun_in_thread
 
 
 class NodeServlet:
@@ -23,3 +26,23 @@ class NodeServlet:
     async def alogs_local(self, run_name: str):
         async for ret_lines in obj_store.alogs_local(run_name=run_name, bash_run=True):
             yield ret_lines
+
+    def _get_cpu_usage(self):
+
+        relevant_memory_info = {
+            "available": "free_memory",
+            "percent": "used_memory_percent",
+            "total": "total_memory",
+            "used": "used_memory",
+        }
+
+        cpu_usage = psutil.cpu_percent(interval=0)
+        cpu_memory_usage = psutil.virtual_memory()._asdict()
+        cpu_memory_usage = {
+            v: cpu_memory_usage[k] for k, v in relevant_memory_info.items()
+        }
+        cpu_memory_usage["utilization_percent"] = cpu_usage
+        return cpu_memory_usage
+
+    async def aget_cpu_usage(self):
+        return await arun_in_thread(self._get_cpu_usage)
