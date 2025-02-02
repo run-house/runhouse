@@ -246,6 +246,9 @@ class Servlet:
     async def adelete_local(self, key: Any):
         return await obj_store.adelete_local(key)
 
+    async def remove_servlet_from_cache(self, servlet_name: str):
+        return await obj_store.remove_servlet_from_cache(servlet_name)
+
     async def aclear_local(self):
         return await obj_store.aclear_local()
 

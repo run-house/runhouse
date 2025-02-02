@@ -304,6 +304,8 @@ class ClusterServlet:
     async def aclear_all_references_to_servlet_name(self, servlet_name: str):
         # using lock to prevent status thread access self._initialized_servlet_args before the env is deleted.
         with self.lock:
+            if servlet_name not in self._initialized_servlet_args:
+                return
             del self._initialized_servlet_args[servlet_name]
             deleted_keys = [
                 key

@@ -157,6 +157,8 @@ class ObjStore:
     """
 
     def __init__(self):
+        import ray
+
         self.servlet_name: Optional[str] = None
         self.cluster_servlet: Optional[ray.actor.ActorHandle] = None
         self.cluster_config: Optional[Dict[str, Any]] = None
@@ -531,7 +533,22 @@ class ObjStore:
             )
 
         if use_servlet_cache and name in self.servlet_cache:
-            return self.servlet_cache[name]
+            from ray.util.state import list_actors
+
+            actor = self.servlet_cache[name]
+            actor_id = actor._actor_id.hex()
+            matching_actors = list_actors(filters=[("actor_id", "=", actor_id)])
+            if matching_actors:
+                actor_status = matching_actors[0]["state"]
+                if actor_status == "ALIVE":
+                    # Make sure servlet is actually initialized
+                    return actor
+                else:
+                    create = create_process_params is not None
+                    if create:
+                        logger.info(
+                            f"Actor with name {name} is marked as {actor_status}. Re-creating new actor."
+                        )
 
         # It may not have been cached, but does exist
         try:
@@ -1186,15 +1203,43 @@ class ObjStore:
         await self.apop_local(key)
 
     async def adelete_servlet_contents(self, servlet_name: Any):
-        import ray
-
-        # delete the servlet actor and remove its references
-        if servlet_name in self.servlet_cache:
-            actor = self.servlet_cache[servlet_name]
-            ray.kill(actor)
-            del self.servlet_cache[servlet_name]
+        """Delete the servlet actor references in the servlet cache"""
+        await self.remove_servlet_from_cache(servlet_name)
         deleted_keys = await self.aclear_all_references_to_servlet_name(servlet_name)
         return deleted_keys
+
+    async def remove_servlet_from_cache(self, servlet_name: str):
+        import ray
+
+        if servlet_name in self.servlet_cache:
+            actor = self.servlet_cache.get(servlet_name)
+            if actor:
+                # delete the ray actor in the current servlet
+                ray.kill(actor)
+            del self.servlet_cache[servlet_name]
+
+    async def adelete_servlet_contents_from_all_processes(self, servlet_name: str):
+        try:
+            tasks = [
+                self.acall_servlet_method(
+                    key, "remove_servlet_from_cache", servlet_name
+                )
+                for key in await self.aget_all_initialized_servlet_args()
+            ]
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception) and isinstance(result, ObjStoreError):
+                    logging.info(
+                        f"Actor for {servlet_name} is already dead. Finishing cleanup."
+                    )
+
+        except Exception as e:
+            logging.error(
+                f"Unexpected error in deleting servlet contents from cache: {e}"
+            )
+
+        await self.aclear_all_references_to_servlet_name(servlet_name)
 
     def delete_servlet_contents(self, servlet_name: Any):
         return sync_function(self.adelete_servlet_contents)(servlet_name)

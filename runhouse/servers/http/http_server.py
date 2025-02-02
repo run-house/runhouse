@@ -447,7 +447,9 @@ class HTTPServer:
     @validate_cluster_access
     async def kill_process(request: Request, params: KillProcessParams):
         try:
-            await obj_store.adelete_servlet_contents(params.process_name)
+            await obj_store.adelete_servlet_contents_from_all_processes(
+                params.process_name
+            )
         except Exception as e:
             return handle_exception_response(
                 e, traceback.format_exc(), from_http_server=True
