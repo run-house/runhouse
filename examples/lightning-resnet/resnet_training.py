@@ -262,7 +262,7 @@ if __name__ == "__main__":
     # Now that the cluster is up, we will send our trainer to the remote compute, instantiate a remote instance of it, and run the training.
     # Note that we call .distribute("pytorch") to set up the PyTorch distributed backend. We run the training for 15 epochs with a batch size of 32,
     # calling methods on the remote instance as if it were local.
-    trainer = rh.module(ResNetTrainer).to(gpus)
+    trainer = rh.cls(ResNetTrainer).to(gpus)
     epochs = 15
     batch_size = 32
 

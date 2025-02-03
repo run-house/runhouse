@@ -45,6 +45,7 @@ from .rns.login import login, logout
 # Syntactic sugar
 fn = function
 compute = cluster
+cls = module
 
 
 def __getattr__(name):

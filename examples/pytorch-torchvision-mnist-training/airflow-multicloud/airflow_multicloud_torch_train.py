@@ -127,7 +127,7 @@ def train_model_callable(**kwargs):
     logger.info("Step 4: Train Model")
     cluster = get_cluster(**kwargs)
 
-    remote_torch_example = rh.module(SimpleTrainer).to(
+    remote_torch_example = rh.cls(SimpleTrainer).to(
         cluster, name="torch-basic-training"
     )
 
