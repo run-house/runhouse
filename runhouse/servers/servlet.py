@@ -33,9 +33,9 @@ from runhouse.servers.obj_store import ClusterServletSetupOption
 
 from runhouse.utils import (
     arun_in_thread,
-    get_gpu_usage,
     get_node_ip,
     get_pid,
+    parse_gpu_usage,
     ServletType,
 )
 
@@ -128,10 +128,11 @@ class Servlet:
             threading.Lock()
         )  # will be used when self.gpu_metrics will be updated by different threads.
 
-        if is_gpu_cluster():
+        self.is_gpu_cluster = is_gpu_cluster()
+        if self.is_gpu_cluster:
             logger.debug("Creating _periodic_gpu_check thread.")
             collect_gpu_thread = threading.Thread(
-                target=self._collect_env_gpu_usage, daemon=True
+                target=self._collect_process_gpu_usage, daemon=True
             )
             collect_gpu_thread.start()
 
@@ -253,22 +254,26 @@ class Servlet:
         import psutil
 
         total_memory = psutil.virtual_memory().total
-        node_ip = get_node_ip()
+        internal_node_ip = get_node_ip()
 
         if not cluster_config.get("resource_subtype") == "Cluster":
             compute_properties = cluster_config.get("compute_properties", {})
             if compute_properties.get("internal_ips"):
                 internal_ips = compute_properties.get("internal_ips", [])
+                ips = compute_properties.get("ips", [])
             else:
                 stable_internal_external_ips = cluster_config.get(
                     "stable_internal_external_ips", []
                 )
                 internal_ips = [int_ip for int_ip, _ in stable_internal_external_ips]
+                ips = [ip for _, ip in stable_internal_external_ips]
         else:
             # if it is a BYO cluster, assume that first ip in the ips list is the head.
-            internal_ips = cluster_config.get("ips", [])
+            internal_ips = ips = cluster_config.get("ips", [])
 
-        node_index = 0 if len(internal_ips) == 1 else internal_ips.index(node_ip)
+        node_index = (
+            0 if len(internal_ips) == 1 else internal_ips.index(internal_node_ip)
+        )
         node_name = f"worker_{node_index}"
 
         try:
@@ -294,23 +299,24 @@ class Servlet:
             node_name,
             total_memory,
             self.pid,
-            node_ip,
+            ips[
+                node_index
+            ],  # getting the "external" ip, so it will match the ip we see in the workers field in the cluster status output
             node_index,
         )
 
     def _get_process_gpu_usage(self):
-        # currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
 
         collected_gpus_info = copy.deepcopy(self.gpu_metrics)
 
-        if collected_gpus_info is None or not collected_gpus_info[0]:
+        if not collected_gpus_info or not collected_gpus_info[0]:
             return None
 
-        return get_gpu_usage(
-            collected_gpus_info=collected_gpus_info, servlet_type=ServletType.process
+        return parse_gpu_usage(
+            collected_gpu_info=collected_gpus_info, servlet_type=ServletType.process
         )
 
-    def _collect_env_gpu_usage(self):
+    def _collect_process_gpu_usage(self):
         """periodically collects env gpu usage"""
         import pynvml
 
@@ -375,11 +381,6 @@ class Servlet:
             node_index,
         ) = self._get_process_cpu_usage(cluster_config)
 
-        # Try loading GPU data (if relevant)
-        process_gpu_usage = (
-            self._get_process_gpu_usage() if cluster_config.get("is_gpu", False) else {}
-        )
-
         cluster_config = obj_store.cluster_config
         interval_size = cluster_config.get(
             "status_check_interval", DEFAULT_STATUS_CHECK_INTERVAL
@@ -392,19 +393,24 @@ class Servlet:
             configs.token is not None and interval_size != -1
         )
 
-        # reset the gpu_info only if the current env_gpu collection will be sent to den. Otherwise, keep collecting it.
-        if should_send_status_and_logs_to_den:
-            with self.lock:
-                self.gpu_metrics = None
-
         servlet_utilization_data = {
-            "process_gpu_usage": process_gpu_usage,
             "node_ip": node_ip,
             "node_name": node_name,
             "node_index": node_index,
             "process_cpu_usage": process_memory_usage,
             "pid": servlet_pid,
         }
+
+        if self.is_gpu_cluster:
+            # Try loading GPU data
+            process_gpu_usage = self._get_process_gpu_usage()
+            if process_gpu_usage:
+                if should_send_status_and_logs_to_den:
+                    # reset the gpu_info only if the current env_gpu collection will be sent to den. Otherwise, keep collecting it.
+                    with self.lock:
+                        self.gpu_metrics = None
+
+                servlet_utilization_data["process_gpu_usage"] = process_gpu_usage
 
         return objects_in_servlet, servlet_utilization_data
 

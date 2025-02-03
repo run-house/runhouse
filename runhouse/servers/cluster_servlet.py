@@ -37,8 +37,8 @@ from runhouse.servers.http.auth import AuthCache
 from runhouse.servers.http.http_utils import CreateProcessParams
 from runhouse.utils import (
     ColoredFormatter,
-    get_gpu_usage,
     get_pid,
+    parse_gpu_usage,
     ServletType,
     sync_function,
 )
@@ -615,7 +615,7 @@ class ClusterServlet:
                         total_memory = memory_info.total  # in bytes
                         used_memory = memory_info.used  # in bytes
                         free_memory = memory_info.free  # in bytes
-                        utilization_percent = util_info.gpu / 1.0  # make it float
+                        utilization_percent = float(util_info.gpu)  # make it float
 
                         # to reduce cluster memory usage (we are saving the gpu_usage info on the cluster),
                         # we save only the most updated gpu usage. If for some reason the size of updated_gpu_info is
@@ -657,21 +657,53 @@ class ClusterServlet:
         # This is only ever called once in its own thread, so we can do asyncio.run here instead of `sync_function`.
         asyncio.run(self._aperiodic_gpu_check())
 
-    def _get_node_gpu_usage(self, server_pid: int):
-        # TODO [SB] currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
-        collected_gpus_info = copy.deepcopy(self.gpu_metrics)
+    def _get_cluster_gpu_usage(
+        self, is_multinode: bool, workers_usage: list, send_to_den: bool = False
+    ):
 
-        if collected_gpus_info is None or not collected_gpus_info[0]:
-            return None
+        updated_workers_usage = []
+        head_collected_gpus_info = copy.deepcopy(self.gpu_metrics)
 
-        cluster_gpu_usage = get_gpu_usage(
-            collected_gpus_info=collected_gpus_info, servlet_type=ServletType.cluster
+        if not is_multinode and (
+            not head_collected_gpus_info or not head_collected_gpus_info[0]
+        ):
+            return updated_workers_usage
+
+        # Updating the head worker's resource usage to include its GPU usage.
+        head_node_resource_usage = workers_usage[0]
+        head_node_resource_usage["server_gpu_usage"] = parse_gpu_usage(
+            collected_gpu_info=head_collected_gpus_info,
+            servlet_type=ServletType.cluster,
         )
+        # Adding the head node's resource usage as the first element in the workers' resources list.
+        updated_workers_usage.append(head_node_resource_usage)
 
-        # will be useful for multi-node clusters.
-        cluster_gpu_usage["server_pid"] = server_pid
+        # adding the gpu usage of the other node (if such exist) and make them to the first element of the worker list,
+        # based on their order (equal to the ips list order)
+        compute_properties = self._cluster_config.get("compute_properties", None)
+        internal_ips = (
+            compute_properties.get("internal_ips", None) if compute_properties else None
+        )
+        if is_multinode and internal_ips and self._are_multinode_servlets_ready:
+            for ip_index in range(1, len(internal_ips)):
+                worker_resource_usage = workers_usage[ip_index]
+                if self._are_multinode_servlets_ready:
+                    node_servlet_name = obj_store.node_servlet_name_for_ip(
+                        internal_ips[ip_index]
+                    )
+                    node_servlet = obj_store.get_servlet(name=node_servlet_name)
+                    worker_gpu_usage = obj_store.call_actor_method(
+                        node_servlet, "get_gpu_metrics", send_to_den
+                    )
+                    worker_gpu_usage = parse_gpu_usage(
+                        collected_gpu_info=worker_gpu_usage,
+                        servlet_type=ServletType.cluster,
+                    )
+                    worker_resource_usage["server_gpu_usage"] = worker_gpu_usage
 
-        return cluster_gpu_usage
+                updated_workers_usage.append(worker_resource_usage)
+
+        return updated_workers_usage
 
     def _map_internal_external_ip(self, internal_ip: str):
         compute_properties = self._cluster_config.get("compute_properties", None)
@@ -769,32 +801,28 @@ class ClusterServlet:
             "server_cpu_usage": head_cpu_usage,
         }
 
-        workers_resource_usage = [head_node_resource_usage]
+        nodes_resource_usage = [head_node_resource_usage]
 
         # if the cluster is multinode, calculate the cpu_utilization and memory usage of the nodes that are not the head node.
         if is_multinode and ips and self._are_multinode_servlets_ready:
-            workers_resource_usage = workers_resource_usage + await asyncio.gather(
+            workers_resource_usage = await asyncio.gather(
                 *[
                     self._aget_node_cpu_usage(internal_ip=internal_ip)
                     for internal_ip in internal_ips[1:]
                 ]
             )
+            nodes_resource_usage = nodes_resource_usage + workers_resource_usage
 
-        # get general gpu usage
-        server_gpu_usage = (
-            self._get_node_gpu_usage(self.pid)
+        # get cluster gpu usage (if it's a multinode cluster, we get gpu usage per node)
+        workers_resource_usage = (
+            self._get_cluster_gpu_usage(
+                is_multinode=is_multinode,
+                workers_usage=nodes_resource_usage,
+                send_to_den=send_to_den,
+            )
             if self._cluster_config.get("is_gpu")
-            else None
+            else nodes_resource_usage
         )
-        gpu_utilization = (
-            server_gpu_usage.pop("utilization_percent", None)
-            if server_gpu_usage
-            else None
-        )
-
-        if gpu_utilization:
-            # TODO[SB]: will be implemented in the gpu-metrics-PR
-            pass
 
         # rest the gpu_info only after the status was sent to den. If we should not send status to den,
         # self.gpu_metrics will not be updated at all, therefore should not be reset.

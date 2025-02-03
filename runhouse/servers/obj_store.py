@@ -360,7 +360,7 @@ class ObjStore:
                     resources=resources,
                     num_cpus=0,
                 )
-                .remote()
+                .remote(node_name=node_servlet_name)
             )
             names.append(node_servlet_name)
 

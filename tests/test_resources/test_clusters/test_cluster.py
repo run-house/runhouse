@@ -651,10 +651,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # checking the memory info is printed correctly
         assert "CPU: " in status_output_string
         assert status_output_string.count("CPU: ") >= 1
-        assert "pid: " in status_output_string
-        assert status_output_string.count("pid: ") >= 1
-        assert "node: " in status_output_string
-        assert status_output_string.count("node: ") >= 1
+        assert f"worker_0, IP: {cluster.ips[0]}" in status_output_string
 
         cloud_properties = cluster.config().get("compute_properties", None)
         if cloud_properties:
@@ -728,7 +725,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_send_status_to_db(self, cluster):
-
         status = cluster.status()
         cluster_processes = status.pop("processes")
         status_data = {
