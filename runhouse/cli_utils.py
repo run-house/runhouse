@@ -294,7 +294,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
                 int(env_cpu_info["total_memory"]) / (1024**3)
             )
             cpu_memory_usage_percent = round(
-                float(env_cpu_info["used_memory"] / env_cpu_info["total_memory"]),
+                float(env_cpu_info["used_memory"] / env_cpu_info["total_memory"]) * 100,
                 2,
             )
             cpu_usage_percent = round(float(env_cpu_info["utilization_percent"]), 2)
