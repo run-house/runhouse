@@ -476,7 +476,7 @@ class ObjStore:
         servlet_name: str,
         method: str,
         *args,
-        use_servlet_cache: bool = True,
+        use_servlet_cache: bool = False,
         **kwargs,
     ):
         import ray
@@ -517,7 +517,7 @@ class ObjStore:
         create_process_params: Optional["CreateProcessParams"] = None,
         create: bool = False,
         raise_ex_if_not_found: bool = False,
-        use_servlet_cache: bool = True,
+        use_servlet_cache: bool = False,
         **kwargs,
     ):
         # Need to import these here to avoid circular imports
@@ -536,8 +536,7 @@ class ObjStore:
         # It may not have been cached, but does exist
         try:
             existing_actor = ray.get_actor(name, namespace="runhouse")
-            if use_servlet_cache:
-                self.servlet_cache[name] = existing_actor
+            self.servlet_cache[name] = existing_actor
             return existing_actor
         except ValueError:
             # ValueError: Failed to look up actor with name ...
