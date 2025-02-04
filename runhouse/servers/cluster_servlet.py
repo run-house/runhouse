@@ -521,6 +521,11 @@ class ClusterServlet:
         asyncio.run(self.aperiodic_autostop_check())
 
     async def _update_autostop(self, status: dict):
+        resources = [
+            resource
+            for resource in status.get("env_servlet_processes", {}).values()
+            if "env_resource_mapping" in resource
+        ]
         function_running = any(
             any(
                 len(
@@ -531,7 +536,7 @@ class ClusterServlet:
                 > 0
                 for resource_name in resource["env_resource_mapping"].keys()
             )
-            for resource in status.get("env_servlet_processes", {}).values()
+            for resource in resources
         )
         if function_running:
             await self.autostop_helper.set_last_active_time_to_now()
