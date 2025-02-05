@@ -4,7 +4,7 @@
 # Runhouse does not need changes or alterations to standard Lightning training code in order to distribute and run it, but rather is designed
 # to work with your existing codebase and standard training routines.
 #
-# Starting on line 205, we have the script's main which will launch the Runhouse cluster, dispatch the Lightning class to the remote cluster,
+# Then we have the script's main, which will launch the Runhouse cluster, dispatch the Lightning class to the remote compute,
 # wire up distribution, and run the training.
 import subprocess
 
@@ -207,7 +207,7 @@ class ResNetTrainer:
 
 
 # ## Launch Compute and Run the Training
-# We will now launch a Runhouse cluster with multiple nodes and use it to train the ResNet with Lightning.
+# We will now launch Runhouse compute with multiple nodes and use it to train the ResNet with Lightning.
 # The data we use here is a sampled, preprocessed set of images from the ImageNet dataset. You can
 # see the preprocessing script at https://github.com/run-house/runhouse/blob/main/examples/pytorch-resnet/imagenet_preproc.py
 # :::note{.info title="Note"}
@@ -244,7 +244,7 @@ if __name__ == "__main__":
         ]
     )
 
-    gpu_cluster = (
+    gpus = (
         rh.compute(
             name=f"rh-{num_nodes}x{gpus_per_node}GPU",
             gpus=f"A10G:{gpus_per_node}",
@@ -256,13 +256,13 @@ if __name__ == "__main__":
         .save()
     )
 
-    # gpu_cluster.restart_server() # to restart the Runhouse server, does not tear down the actual underlying compute
-    gpu_cluster.sync_secrets(["aws"])  # sends our AWS secret to the remote cluster
+    # gpus.restart_server() # to restart the Runhouse server, does not tear down the actual underlying compute
+    gpus.sync_secrets(["aws"])  # sends our AWS secret to the remote compute
 
-    # Now that the cluster is up, we will send our trainer to the remote cluster, instantiate a remote instance of it, and run the training.
+    # Now that the cluster is up, we will send our trainer to the remote compute, instantiate a remote instance of it, and run the training.
     # Note that we call .distribute("pytorch") to set up the PyTorch distributed backend. We run the training for 15 epochs with a batch size of 32,
     # calling methods on the remote instance as if it were local.
-    trainer = rh.module(ResNetTrainer).to(gpu_cluster)
+    trainer = rh.module(ResNetTrainer).to(gpus)
     epochs = 15
     batch_size = 32
 

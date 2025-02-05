@@ -27,7 +27,7 @@
 #
 # We import `runhouse` and other utility libraries; only the ones that are needed to run the script locally.
 # Imports of libraries that are needed on the remote machine (in this case, the `huggingface` dependencies)
-# can happen within the functions that will be sent to the Runhouse cluster.
+# can happen within the functions that will be sent to the Runhouse compute.
 
 import time
 from functools import partial
@@ -132,7 +132,7 @@ if __name__ == "__main__":
     urls = extract_urls(url_to_recursively_embed, max_depth=2)
     print(f"Time to extract {len(urls)} URLs: {time.time() - start_time}")
 
-    # First, we create a cluster with the desired instance type and provider.
+    # First, we define compute with the desired instance type and provider.
     # Our `instance_type` here is defined as `A10G:1`, which is the accelerator type and count we need We could
     # alternatively specify a specific AWS instance type, such as `p3.2xlarge` or `g4dn.xlarge`. However, we
     # provision `num_replicas` number of these instances. This gives us one Runhouse cluster that has
@@ -143,9 +143,8 @@ if __name__ == "__main__":
     # like this one. Note that it is also far easier to provision several A10G:1 machines as spot instances
     # than it is to provision a single A10G:4 machine, which is why we do it this way.
     #
-    # Note that if the cluster was
-    # already up (e.g. if we had run this script before), the code would just bring it up instead of creating a
-    # new one, since we have given it a unique name `"rh-4xa10g"`.
+    # Note that if the cluster was  already up (e.g. if we had run this script before), the code would just bring
+    # it up instead of creating a new one, since we have given it a unique name `"rh-4xa10g"`.
     #
     # Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
     start_time = time.time()
@@ -160,7 +159,7 @@ if __name__ == "__main__":
         ]
     )
 
-    cluster = rh.compute(
+    gpus = rh.compute(
         f"rh-{num_replicas}xa10g",
         instance_type="A10G:1",
         provider="aws",
@@ -183,9 +182,9 @@ if __name__ == "__main__":
     # returned "remote class" instead of the normal local class. These instances are then actually constructed
     # on the cluster, and any methods called on these instances would run on the cluster.
 
-    process = cluster.ensure_process_created("langchain_embed_env")
+    process = gpus.ensure_process_created("langchain_embed_env")
 
-    RemoteURLEmbedder = rh.module(URLEmbedder).to(cluster, process=process)
+    RemoteURLEmbedder = rh.module(URLEmbedder).to(gpus, process=process)
     remote_url_embedder = RemoteURLEmbedder(
         model_name_or_path="BAAI/bge-large-en-v1.5",
         device="cuda",

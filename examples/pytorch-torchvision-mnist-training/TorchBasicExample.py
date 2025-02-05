@@ -202,11 +202,11 @@ class SimpleTrainer:
 # ## Setting up Runhouse to run the defined class and functions remotely.
 #
 # Now, we define the main function that will run locally when we run this script, and set up
-# our Runhouse module on a remote cluster. First, we create a cluster with the desired instance type and provider.
+# our Runhouse module on a remote gpu. First, we dfine compute of the desired instance type and provider.
 # Our `instance_type` here is defined as `A10G:1`, which is the accelerator type and count that we need. We could
 # alternatively specify a specific AWS instance type, such as `p3.2xlarge` or `g4dn.xlarge`.
 #
-# Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
+# Learn more in the [Runhouse docs on compute](/docs/tutorials/api-clusters).
 #
 # :::note{.info title="Note"}
 # Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
@@ -223,24 +223,22 @@ if __name__ == "__main__":
         ["torch", "torchvision", "Pillow"]
     )
 
-    # Define a cluster type - here we launch an on-demand AWS cluster with 1 NVIDIA A10G GPU.
+    # Define the compute - here we launch an on-demand AWS cluster with 1 NVIDIA A10G GPU.
     # You can use any cloud you want, or existing compute
-    cluster = rh.compute(
-        name="a10g-cluster",
+    gpu = rh.compute(
+        name="a10g",
         instance_type="A10G:1",
         provider="aws",
         image=img,
     ).up_if_not()
 
-    # We define our module and run it on the remote cluster. We take our normal Python class SimpleTrainer, and wrap it in rh.module()
-    # We also take our function DownloadData and send it to the remote cluster as well
-    # Then, we use `.to()` to send it to the remote cluster we just defined.
+    # We define our module and run it on the remote compute. We take our normal Python class SimpleTrainer, and wrap it in rh.module()
+    # We also take our function DownloadData and send it to the remote compute as well
+    # Then, we use `.to()` to send it to the remote gpu we just defined.
     #
-    remote_torch_example = rh.module(SimpleTrainer).to(
-        cluster, name="torch-basic-training"
-    )
-    remote_download = rh.function(download_data).to(cluster)
-    remote_preprocess = rh.function(preprocess_data).to(cluster)
+    remote_torch_example = rh.module(SimpleTrainer).to(gpu, name="torch-basic-training")
+    remote_download = rh.function(download_data).to(gpu)
+    remote_preprocess = rh.function(preprocess_data).to(gpu)
 
     # ## Calling our remote Trainer
     # We instantiate the remote class
