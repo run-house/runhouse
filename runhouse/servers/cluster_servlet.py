@@ -312,6 +312,21 @@ class ClusterServlet:
             ]
             for key in deleted_keys:
                 self._key_to_servlet_name.pop(key)
+
+            # remove from servlet cache in all processes
+            await asyncio.gather(
+                *[
+                    obj_store.acall_servlet_method(
+                        servlet,
+                        "aremove_servlet_from_cache",
+                        servlet_name,
+                    )
+                    for servlet in await self.aget_all_initialized_servlet_args()
+                ]
+            )
+            # current process
+            await obj_store.adelete_servlet_from_cache(servlet_name)
+
         return deleted_keys
 
     ##############################################

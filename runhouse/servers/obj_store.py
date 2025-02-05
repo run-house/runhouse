@@ -1199,6 +1199,10 @@ class ObjStore:
     def delete_servlet_contents(self, servlet_name: Any):
         return sync_function(self.adelete_servlet_contents)(servlet_name)
 
+    async def adelete_servlet_from_cache(self, servlet_name: Any):
+        if servlet_name in self.servlet_cache:
+            del self.servlet_cache[servlet_name]
+
     async def adelete(self, key: Union[Any, List[Any]]):
         keys_to_delete = [key] if isinstance(key, str) else key
         deleted_keys = []
