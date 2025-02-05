@@ -1,7 +1,7 @@
 import runhouse as rh
 
 # We check if we have already created a "rh_finetuner" on the remote which is an *instance* of the remote fine tuner class
-cluster = rh.cluster(
+cluster = rh.compute(
     name="rh-a10x",
     instance_type="A10G:1",
     memory="32+",

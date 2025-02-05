@@ -135,7 +135,7 @@ def load_embedder():
         ],
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=CLUSTER_NAME, gpus=GPUS, provider=CLOUD_PROVIDER, image=img
     ).up_if_not()
 
@@ -176,7 +176,7 @@ def load_llm():
         .sync_secrets(["huggingface"])
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         CLUSTER_NAME, gpus=GPUS, provider=CLOUD_PROVIDER, image=img
     ).up_if_not()
 

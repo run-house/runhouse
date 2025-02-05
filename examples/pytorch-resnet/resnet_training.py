@@ -274,7 +274,7 @@ if __name__ == "__main__":
             "awscli",
         ],
     )
-    gpu_cluster = rh.cluster(
+    gpu_cluster = rh.compute(
         name=f"rh-{num_nodes}x{gpus_per_node}-gpu",
         instance_type=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,

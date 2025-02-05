@@ -135,7 +135,7 @@ if __name__ == "__main__":
     # Note: Runhouse also supports custom domains secured automatically with HTTPS so you can use your own domain name
     # when sharing an endpoint. Check out our docs on [using custom domains](https://www.run.house/docs/main/en/api/python/cluster#using-a-custom-domain)
     # for more information.
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-serving-cpu",
         instance_type="CPU:2",
         provider="aws",

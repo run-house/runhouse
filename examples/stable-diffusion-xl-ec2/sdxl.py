@@ -121,7 +121,7 @@ if __name__ == "__main__":
         ]
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-g5",
         instance_type="g5.8xlarge",
         provider="aws",

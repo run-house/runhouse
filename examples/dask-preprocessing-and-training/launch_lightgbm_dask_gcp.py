@@ -124,15 +124,15 @@ class LightGBMModelTrainer:
 
 
 # ## Launch Compute and Run the Training
-# We will now launch a Runhouse cluster with multiple nodes and use it to train a LightGBM model. We will first provide
-# the required pckage installs to a 3 node spot instance cluster on GCP.
+# We will now launch Runhouse compute with multiple nodes and use it to train a LightGBM model. We will first provide
+# the required package installs to a 3 node spot instance cluster on GCP.
 
 # :::note{.info title="Note"}
 # Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
 # the script code will run when Runhouse attempts to run code remotely.
 # :::
 if __name__ == "__main__":
-    # ## Create a Runhouse cluster with multiple nodes
+    # ## Define Runhouse compute with multiple nodes
     num_nodes = 3
     cluster_name = f"rh-{num_nodes}-dask-gcp"
 
@@ -147,7 +147,7 @@ if __name__ == "__main__":
         ],
     )
 
-    cluster = rh.ondemand_cluster(
+    cpus = rh.compute(
         name=cluster_name,
         instance_type="n2-highmem-8",  # We can specify instance name or required resources
         num_nodes=num_nodes,  # Runhouse will automatically wire up multiple nodes into a Dask cluster
@@ -161,12 +161,12 @@ if __name__ == "__main__":
     # Now we can dispatch the model trainer class to remote, and create a remote instance of the trainer class
     # This remote instance is fully locally interactible, and we can call methods on it as if it were local.
     # Importantly, we use .distribute("dask") to start the Dask cluster and indicate this will be used with Dask
-    remote_dask_trainer = rh.module(LightGBMModelTrainer).to(cluster)
+    remote_dask_trainer = rh.module(LightGBMModelTrainer).to(cpus)
     dask_trainer = remote_dask_trainer(name="my_trainer").distribute(
         "dask"
-    )  # You can also start the Dask cluster with cluster.connect_dask()
+    )  # You can also start the Dask cluster with cpus.connect_dask()
 
-    cluster.ssh_tunnel("8787", "8787")  # Forward the Dask dashboard to local
+    cpus.ssh_tunnel("8787", "8787")  # Forward the Dask dashboard to local
 
     # Now we call the remote model trainer class methods to do the training.
     data_path = "gs://rh-demo-external/taxi_parquet"  # NYC Taxi Data
@@ -186,4 +186,4 @@ if __name__ == "__main__":
     dask_trainer.save_model("gs://rh-model-checkpoints/lightgbm_dask/model.pkl")
     print("Model saved")
 
-    cluster.notebook()  # Optionally, open a Jupyter notebook on the cluster to interact with the Dask cluster
+    cpus.notebook()  # Optionally, open a Jupyter notebook on the cluster to interact with the Dask cluster

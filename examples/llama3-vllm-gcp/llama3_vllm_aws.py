@@ -106,7 +106,7 @@ async def main():
         .sync_secrets(["huggingface"])
     )
 
-    gpu_cluster = rh.cluster(
+    gpu_cluster = rh.compute(
         name="rh-l4x",
         gpus="L4:1",
         memory="32+",
