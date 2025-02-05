@@ -7,31 +7,6 @@
 # Make sure to sign the waiver on the [Hugging Face model](https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct)
 # page so that you can access it.
 #
-# ## Set up credentials and dependencies
-#
-# Install the required dependencies:
-# ```shell
-# $ pip install "runhouse[aws]"
-# ```
-#
-# If you are launching with open source (i.e. locally using your own credentials), you need to
-# make sure our AWS credentials are set up:
-# ```shell
-# $ aws configure
-# $ sky check
-# ```
-#
-# If you are launching with Runhouse, make sure you are logged in to runhouse:
-# ```shell
-# $ runhouse login
-# ```
-#
-# To download the Llama 3 model on our EC2 instance, we need to set up a
-# Hugging Face [token](https://huggingface.co/docs/hub/en/security-tokens):
-# ```shell
-# $ export HF_TOKEN=<your huggingface token>
-# ```
-#
 # ## Create a model class
 import gc
 from pathlib import Path

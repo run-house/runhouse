@@ -2,30 +2,11 @@
 
 
 # This example demonstrates how to deploy a basic Torch model
-# and training class to AWS EC2 using Runhouse, and do the training.
+# and training class to a remote GPU using Runhouse, and do the training.
 #
 # We use the very popular MNIST dataset which includes a large number
 # of handwritten digits, and create a neural network that accurately identifies
 # what digit is in an image.
-#
-# ## Setup credentials and dependencies
-#
-# Optionally, set up a virtual environment:
-# ```shell
-# $ conda create -n demo-runhouse python=3.10
-# $ conda activate demo-runhouse
-# ```
-# Install the required dependencies:
-# ```shell
-# $ pip install "runhouse[aws]" torch torchvision
-# ```
-#
-# We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
-# make sure our AWS credentials are set up:
-# ```shell
-# $ aws configure
-# $ sky check
-# ```
 #
 # ## Setting up a model class
 import runhouse as rh

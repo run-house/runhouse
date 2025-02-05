@@ -4,25 +4,6 @@
 # We use a [BGE large model from Hugging Face](https://huggingface.co/BAAI/bge-large-en-v1.5) and load it via
 # the `SentenceTransformer` class from the `huggingface` library.
 #
-# ## Setup credentials and dependencies
-#
-# Optionally, set up a virtual environment:
-# ```shell
-# $ conda create -n parallel-embed python=3.9.15
-# $ conda activate parallel-embed
-# ```
-# Install the required dependencies:
-# ```shell
-# $ pip install "runhouse[aws]" torch beautifulsoup4 tqdm
-# ```
-#
-# We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
-# make sure our AWS credentials are set up:
-# ```shell
-# $ aws configure
-# $ sky check
-# ```
-#
 # ## Some utility functions
 #
 # We import `runhouse` and other utility libraries; only the ones that are needed to run the script locally.
