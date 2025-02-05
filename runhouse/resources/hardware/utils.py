@@ -578,7 +578,7 @@ def get_running_and_not_running_clusters(clusters: list):
 
 
 def pprint_launched_cluster_summary(cluster):
-    properties: dict = cluster.compute_properties
+    properties: dict = copy.deepcopy(cluster.compute_properties)
     cluster_name = cluster.name
     rns_address = cluster.rns_address
     properties["autostop_mins"] = cluster.autostop_mins
