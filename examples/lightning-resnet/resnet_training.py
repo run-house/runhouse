@@ -272,11 +272,7 @@ if __name__ == "__main__":
         gpus_per_node=gpus_per_node,
         working_s3_bucket=working_s3_bucket,
         working_s3_path=working_s3_path,
-    ).distribute(
-        "pytorch",
-        replicas_per_node=gpus_per_node,
-        num_replicas=gpus_per_node * num_nodes,
-    )
+    ).distribute("pytorch")
 
     remote_trainer.load_data(
         train_data_path=train_data_path,
