@@ -9,6 +9,7 @@ from typing import Optional
 import requests
 import typer
 from rich.console import Console
+from rich.table import Table
 
 import runhouse as rh
 import runhouse.rns.login
@@ -18,7 +19,7 @@ from runhouse import __version__, cluster, Cluster, configs
 from runhouse.cli_utils import (
     add_clusters_to_output_table,
     check_ray_installation,
-    create_output_table,
+    cluster_output_table,
     get_local_or_remote_cluster,
     get_wrapped_server_start_cmd,
     is_command_available,
@@ -48,6 +49,7 @@ from runhouse.resources.hardware import (
     kill_actors,
 )
 from runhouse.resources.hardware.utils import ClusterStatus
+from runhouse.rns.utils.api import load_resp_content
 
 from runhouse.servers.obj_store import ObjStoreError
 
@@ -65,18 +67,21 @@ app = typer.Typer(add_completion=False)
 
 # creating a cluster app to enable subcommands of cluster (ex: runhouse cluster list).
 # Register it with the main runhouse application
-cluster_app = typer.Typer(help="Cluster related CLI commands.")
+cluster_app = typer.Typer(help="Cluster commands.")
 app.add_typer(cluster_app, name="cluster")
 
 # creating a server app to enable subcommands of server (ex: runhouse server status).
 # Register it with the main runhouse application
-server_app = typer.Typer(help="Runhouse server related CLI commands.")
+server_app = typer.Typer(help="Runhouse server commands.")
 app.add_typer(server_app, name="server")
 
 config_app = typer.Typer(
     help="Runhouse config related CLI commands", invoke_without_command=True
 )
 app.add_typer(config_app, name="config")
+
+pool_app = typer.Typer(help="Runhouse compute pool commands.")
+app.add_typer(pool_app, name="pool")
 
 # For printing with typer
 console = Console()
@@ -309,7 +314,7 @@ def cluster_list(
         ]
 
     # creating the clusters table
-    table = create_output_table(
+    table = cluster_output_table(
         total_clusters=len(den_clusters),
         running_clusters=len(running_clusters),
         displayed_clusters=len(clusters_to_print),
@@ -1146,6 +1151,118 @@ def server_status(
             )
     except (ObjStoreError, ConnectionError):
         console.print("Could not connect to Runhouse server. Is it up?")
+
+
+@pool_app.command("list")
+def pool_list(
+    organization: Optional[str] = typer.Argument(
+        None,
+        help="Organization which owns the compute pool. If not specified will use the default "
+        "folder specified in the local Runhouse config. ",
+    )
+):
+    """List all compute pools for a particular organization you are a member of.
+
+    Example:
+        ``$ runhouse pool list``
+
+        ``$ runhouse pool list my-org``
+    """
+    if organization is None:
+        default_folder = configs.get("default_folder")
+        if default_folder is None or not default_folder.startswith("/"):
+            console.print(
+                "[yellow]Please specify an organization or set a default folder in your config. "
+                "You can set a default folder by running "
+                "`runhouse config set default_folder /<my-org>`[/yellow]"
+            )
+            raise typer.Exit(1)
+
+        organization = default_folder.split("/")[-1]
+
+    resp = requests.get(
+        f"{rns_client.api_server_url}/compute-pool?organization={organization}",
+        headers=rns_client.request_headers(),
+    )
+
+    if resp.status_code != 200:
+        console.print(
+            f"[red]Failed to load compute pools for {organization}: {load_resp_content(resp)}[/red]"
+        )
+        raise typer.Exit(1)
+
+    pools = resp.json().get("data")
+    if not pools:
+        console.print(
+            f"No compute pools found for {organization}. "
+            f"To configure one, visit: https://www.run.house/organizations/{organization}#overview"
+        )
+        return
+
+    table = Table()
+    table.add_column("Name")
+    table.add_column("Region")
+    table.add_column("Cloud")
+    for pool in pools:
+        table.add_row(pool["name"], pool["region"], pool["cloud"])
+
+    console.print(table)
+
+
+@pool_app.command("get")
+def pool_get(
+    name: str = typer.Argument(..., help="Name of the compute pool"),
+):
+    """Load configuration data and current status of a particular compute pool.
+
+    Example:
+        ``$ runhouse pool get aws-us-east-1``
+    """
+    organization = rns_client.base_folder(name)
+    if organization is None:
+        default_folder = configs.get("default_folder")
+        if default_folder is None or not default_folder.startswith("/"):
+            console.print(
+                f"[yellow]Please specify the full name of the pool (ex: /my-org/{name}), "
+                "or set the default folder to your org by running "
+                "`runhouse config set default_folder /<my-org>`[/yellow]"
+            )
+            raise typer.Exit(1)
+        organization = default_folder.split("/")[-1]
+        compute_pool_uri = f"{organization}:{name}"
+    else:
+        compute_pool_uri = rns_client.resource_uri(name)
+
+    resp = requests.get(
+        f"{rns_client.api_server_url}/compute-pool/{compute_pool_uri}",
+        headers=rns_client.request_headers(),
+    )
+
+    if resp.status_code != 200:
+        console.print(
+            f"[red]Failed to load compute pool: {load_resp_content(resp)}[/red]"
+        )
+        raise typer.Exit(1)
+
+    pool: dict = resp.json().get("data")
+    resp = requests.get(
+        f"{rns_client.api_server_url}/compute-pool/{compute_pool_uri}/state",
+        headers=rns_client.request_headers(),
+    )
+    status_data = resp.json().get("data") if resp.status_code == 200 else {}
+
+    fields_to_remove = [
+        "_id",
+        "organization_id",
+        "organization",
+        "created_at",
+        "updated_at",
+        "ssh_username",
+        "pool_id",
+    ]
+    for k, v in {**pool, **status_data}.items():
+        if k not in fields_to_remove and v is not None:
+            console.print(f"{k}: {v}")
 
 
 @app.callback(invoke_without_command=True, help="Runhouse CLI")
