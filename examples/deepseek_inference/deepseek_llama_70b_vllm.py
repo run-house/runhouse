@@ -69,7 +69,7 @@ class DeepSeek_Distill_Llama70B_vLLM:
 
 if __name__ == "__main__":
     img = (
-        rh.Image(name="vllm_inference")
+        rh.Image()
         .install_packages(
             [
                 "torch",

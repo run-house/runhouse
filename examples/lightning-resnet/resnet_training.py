@@ -231,7 +231,7 @@ if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 3
 
-    img = rh.Image("runhouse-image").install_packages(
+    img = rh.Image().install_packages(
         [
             "torch==2.5.1",
             "torchvision==0.20.1",

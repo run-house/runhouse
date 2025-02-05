@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 # We can bring up an on-demand cluster using Runhouse. You can access powerful usage patterns by defining compute in code. All subsequent steps connect to this cluster by name, but you can bring up other clusters for other steps.
 def bring_up_cluster_callable(**kwargs):
     logger.info("Connecting to remote cluster")
-    img = rh.Image("pytorch").install_packages(["torch", "torchvision"])
+    img = rh.Image().install_packages(["torch", "torchvision"])
     cluster = rh.compute(
         name="a10g-cluster", instance_type="g5.xlarge", provider="aws", image=img
     ).up_if_not()

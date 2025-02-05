@@ -137,7 +137,7 @@ if __name__ == "__main__":
     cluster_name = f"rh-{num_nodes}-dask-gcp"
 
     # The environment for the remote cluster
-    img = rh.Image("dask-img").install_packages(
+    img = rh.Image().install_packages(
         [
             "dask[distributed,dataframe]",
             "dask-ml",
