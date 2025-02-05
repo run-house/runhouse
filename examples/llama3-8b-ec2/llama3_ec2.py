@@ -39,7 +39,7 @@ import runhouse as rh
 import torch
 
 # Next, we define a class that will hold the model and allow us to send prompts to it.
-# We'll later wrap this with `rh.module`.
+# We'll later wrap this with `rh.cls`.
 # This is a Runhouse class that allows you to
 # run code in your class on a remote machine.
 #
@@ -131,7 +131,7 @@ if __name__ == "__main__":
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
     # by calling `cluster.get(name="llama3-8b-model")`. This would return the remote model after an initial run.
     # If we want to update the module each time we run this script, we prefer to use `to`.
-    RemoteChatModel = rh.module(HFChatModel).to(gpu, name="HFChatModel")
+    RemoteChatModel = rh.cls(HFChatModel).to(gpu, name="HFChatModel")
     remote_hf_chat_model = RemoteChatModel(
         torch_dtype=torch.bfloat16, name="llama3-8b-model"
     )

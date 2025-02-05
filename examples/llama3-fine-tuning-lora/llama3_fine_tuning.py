@@ -25,7 +25,7 @@ from transformers import (
 from trl import SFTConfig, SFTTrainer
 
 # Next, we define a class that will hold the various methods needed to fine-tune the model.
-# We'll later wrap this with `rh.module`. This is a Runhouse class that allows you to
+# We'll later wrap this with `rh.cls`. This is a Runhouse class that allows you to
 # run code in your class on a remote machine.
 #
 # Learn more in the [Runhouse docs on functions and modules](/docs/tutorials/api-modules).
@@ -242,7 +242,7 @@ if __name__ == "__main__":
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
     # by calling `gpu.get(name="llama3-medical-model", remote=True)`. This would return the remote model after an initial run.
     # If we want to update the module each time we run this script, we prefer to use `to`.
-    RemoteFineTuner = rh.module(FineTuner).to(gpu, name="FineTuner")
+    RemoteFineTuner = rh.cls(FineTuner).to(gpu, name="FineTuner")
     fine_tuner_remote = RemoteFineTuner(name="llama3-medical-model")
 
     # ## Fine-tune the model on the cluster

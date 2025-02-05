@@ -98,7 +98,7 @@ if __name__ == "__main__":
     cluster.ssh_tunnel(8265, 8265)
 
     # Send our inference class to remote and instantiate it remotely
-    inference_remote = rh.module(Llama70B).to(cluster, name="llama_model")
+    inference_remote = rh.cls(Llama70B).to(cluster, name="llama_model")
     llama = inference_remote(name="inference_llama70b")
 
     # Make a query

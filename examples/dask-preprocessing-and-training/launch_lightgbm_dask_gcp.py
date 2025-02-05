@@ -161,7 +161,7 @@ if __name__ == "__main__":
     # Now we can dispatch the model trainer class to remote, and create a remote instance of the trainer class
     # This remote instance is fully locally interactible, and we can call methods on it as if it were local.
     # Importantly, we use .distribute("dask") to start the Dask cluster and indicate this will be used with Dask
-    remote_dask_trainer = rh.module(LightGBMModelTrainer).to(cpus)
+    remote_dask_trainer = rh.cls(LightGBMModelTrainer).to(cpus)
     dask_trainer = remote_dask_trainer(name="my_trainer").distribute(
         "dask"
     )  # You can also start the Dask cluster with cpus.connect_dask()

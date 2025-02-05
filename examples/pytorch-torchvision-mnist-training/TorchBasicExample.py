@@ -211,11 +211,11 @@ if __name__ == "__main__":
         image=img,
     ).up_if_not()
 
-    # We define our module and run it on the remote compute. We take our normal Python class SimpleTrainer, and wrap it in rh.module()
+    # We define our module and run it on the remote compute. We take our normal Python class SimpleTrainer, and wrap it in rh.cls()
     # We also take our function DownloadData and send it to the remote compute as well
     # Then, we use `.to()` to send it to the remote gpu we just defined.
     #
-    remote_torch_example = rh.module(SimpleTrainer).to(gpu, name="torch-basic-training")
+    remote_torch_example = rh.cls(SimpleTrainer).to(gpu, name="torch-basic-training")
     remote_download = rh.function(download_data).to(gpu)
     remote_preprocess = rh.function(preprocess_data).to(gpu)
 

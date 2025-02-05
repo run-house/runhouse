@@ -109,7 +109,7 @@ if __name__ == "__main__":
         autostop_mins=autostop_mins,
     ).up_if_not()  # use cluster.restart_server() if you need to reset the remote cluster without tearing it down
 
-    inference_remote = rh.module(DeepSeek_Distill_Qwen_vLLM).to(
+    inference_remote = rh.cls(DeepSeek_Distill_Qwen_vLLM).to(
         cluster, name="deepseek_vllm"
     )
     llama = inference_remote(

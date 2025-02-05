@@ -70,7 +70,7 @@ def extract_urls(url, max_depth=1):
 # ## Setting up the URL Embedder
 #
 # Next, we define a class that will hold the model and the logic to extract a document from a URL and embed it.
-# Later, we'll instantiate this class with `rh.module` and send it to the Runhouse cluster. Then, we can call
+# Later, we'll instantiate this class with `rh.cls` and send it to the Runhouse cluster. Then, we can call
 # the functions on this class and they'll run on the remote machine.
 #
 # Learn more in the [Runhouse docs on functions and modules](/docs/tutorials/api-modules).
@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
     process = gpus.ensure_process_created("langchain_embed_env")
 
-    RemoteURLEmbedder = rh.module(URLEmbedder).to(gpus, process=process)
+    RemoteURLEmbedder = rh.cls(URLEmbedder).to(gpus, process=process)
     remote_url_embedder = RemoteURLEmbedder(
         model_name_or_path="BAAI/bge-large-en-v1.5",
         device="cuda",

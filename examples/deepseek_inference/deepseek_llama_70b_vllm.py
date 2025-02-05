@@ -101,7 +101,7 @@ if __name__ == "__main__":
         autostop_mins=autostop_mins,
     ).up_if_not()  # use gpus.restart_server() if you need to reset the remote cluster without tearing it down
 
-    inference_remote = rh.module(DeepSeek_Distill_Llama70B_vLLM).to(
+    inference_remote = rh.cls(DeepSeek_Distill_Llama70B_vLLM).to(
         gpus, name="deepseek_vllm"
     )  # Send the class to remote compute
     llama = inference_remote(

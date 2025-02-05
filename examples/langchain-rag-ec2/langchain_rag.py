@@ -154,9 +154,7 @@ if __name__ == "__main__":
         "https://www.nyc.gov/content/tenantprotection/pages/new-protections-for-all-tenants",
     )
 
-    RemoteLangchainRAG = rh.module(LangchainRAG, name="basic_rag_app").get_or_to(
-        cluster
-    )
+    RemoteLangchainRAG = rh.cls(LangchainRAG, name="basic_rag_app").get_or_to(cluster)
 
     rag_app = RemoteLangchainRAG(urls)
 
