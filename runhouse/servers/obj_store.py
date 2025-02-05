@@ -476,7 +476,7 @@ class ObjStore:
         servlet_name: str,
         method: str,
         *args,
-        use_servlet_cache: bool = False,
+        use_servlet_cache: bool = True,
         **kwargs,
     ):
         import ray
@@ -517,7 +517,7 @@ class ObjStore:
         create_process_params: Optional["CreateProcessParams"] = None,
         create: bool = False,
         raise_ex_if_not_found: bool = False,
-        use_servlet_cache: bool = False,
+        use_servlet_cache: bool = True,
         **kwargs,
     ):
         # Need to import these here to avoid circular imports
@@ -536,7 +536,8 @@ class ObjStore:
         # It may not have been cached, but does exist
         try:
             existing_actor = ray.get_actor(name, namespace="runhouse")
-            self.servlet_cache[name] = existing_actor
+            if use_servlet_cache:
+                self.servlet_cache[name] = existing_actor
             return existing_actor
         except ValueError:
             # ValueError: Failed to look up actor with name ...
@@ -1197,6 +1198,10 @@ class ObjStore:
 
     def delete_servlet_contents(self, servlet_name: Any):
         return sync_function(self.adelete_servlet_contents)(servlet_name)
+
+    async def adelete_servlet_from_cache(self, servlet_name: Any):
+        if servlet_name in self.servlet_cache:
+            del self.servlet_cache[servlet_name]
 
     async def adelete(self, key: Union[Any, List[Any]]):
         keys_to_delete = [key] if isinstance(key, str) else key
