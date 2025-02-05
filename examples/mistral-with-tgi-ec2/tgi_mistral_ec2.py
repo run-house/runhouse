@@ -151,7 +151,7 @@ if __name__ == "__main__":
         ["docker", "openai", "torch", "transformers"]
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-g5-4xlarge",
         instance_type="g5.4xlarge",
         provider="aws",

@@ -6,8 +6,6 @@ import webbrowser
 from pathlib import Path
 from typing import Optional
 
-import ray
-
 import requests
 import typer
 from rich.console import Console
@@ -19,12 +17,12 @@ from runhouse import __version__, cluster, Cluster, configs
 
 from runhouse.cli_utils import (
     add_clusters_to_output_table,
+    check_ray_installation,
     create_output_table,
-    get_cluster_or_local,
+    get_local_or_remote_cluster,
     get_wrapped_server_start_cmd,
     is_command_available,
     LogsSince,
-    print_bring_cluster_up_msg,
     print_cluster_config,
     print_status,
     StatusType,
@@ -137,7 +135,18 @@ def logout():
 # Cluster CLI commands
 ###############################
 @cluster_app.command("ssh")
-def cluster_ssh(cluster_name: str):
+def cluster_ssh(
+    cluster_name: str = typer.Argument(
+        ...,
+        help="Name of the cluster to SSH into.",
+    ),
+    node: Optional[str] = typer.Option(
+        None,
+        "-n",
+        "--node",
+        help="Specific cluster node to SSH into. If not specified will default to the head node.",
+    ),
+):
     """SSH into a remote cluster.
 
     Example:
@@ -146,11 +155,20 @@ def cluster_ssh(cluster_name: str):
     """
     try:
         c = cluster(name=cluster_name)
-        if not c.is_up():
-            print_bring_cluster_up_msg(cluster_name=cluster_name)
-            return
+        if isinstance(c, rh.OnDemandCluster):
+            if c.cluster_status == ClusterStatus.INITIALIZING:
+                console.print(
+                    f"[reset]{cluster_name} is being initialized. Please wait for it to finish, or run [reset][bold italic]`runhouse cluster up {cluster_name} -f`[/bold italic] to abort the initialization and relaunch."
+                )
+                raise typer.Exit(0)
+            c.ssh(node=node)
 
-        c.ssh()
+        else:
+            if node:
+                raise ValueError(
+                    "Node argument is only supported for on-demand clusters"
+                )
+            c.ssh()
 
     except ValueError:
         try:
@@ -162,8 +180,8 @@ def cluster_ssh(cluster_name: str):
 
         if len(state) == 0:
             console.print(
-                f"Could not load cluster called {cluster_name}. Cluster must either be saved to Den, "
-                "or be a local ondemand cluster that is currently up."
+                "Cluster must either be saved to Den, shared with you, or be a local ondemand cluster "
+                "that is currently up."
             )
             raise typer.Exit(1)
 
@@ -174,7 +192,7 @@ def cluster_ssh(cluster_name: str):
 def cluster_status(
     cluster_name: str = typer.Argument(
         None,
-        help="Name of cluster to check. If not specified will check the local cluster.",
+        help="Name of the cluster to check. If not specified will check the local cluster.",
     ),
     send_to_den: bool = typer.Option(
         default=False,
@@ -186,7 +204,7 @@ def cluster_status(
     Example:
         ``$ runhouse cluster status rh-basic-cpu``
     """
-    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
+    current_cluster = get_local_or_remote_cluster(cluster_name=cluster_name)
 
     try:
         cluster_status = current_cluster.status(send_to_den=send_to_den)
@@ -323,23 +341,19 @@ def cluster_keep_warm(
         ``$ runhouse cluster keep-warm rh-basic-cpu``
 
     """
-    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
 
     try:
-        if not current_cluster.is_up():
-            print_bring_cluster_up_msg(cluster_name=cluster_name)
-            return
+        current_cluster = get_local_or_remote_cluster(cluster_name, exit_on_error=False)
         current_cluster.keep_warm(mins=mins)
 
     except ValueError:
-        console.print(f"{cluster_name} is not saved in Den.")
         sky_live_clusters = get_all_sky_clusters()
         cluster_name = (
             cluster_name.split("/")[-1] if "/" in cluster_name else cluster_name
         )
         if cluster_name in sky_live_clusters:
             console.print(
-                f"You can keep warm the cluster by running [italic bold] `sky autostop {cluster_name} -i {mins}`"
+                f"You can keep the cluster warm by running [italic bold]`sky autostop {cluster_name} -i {mins}`"
             )
 
     except Exception as e:
@@ -351,7 +365,13 @@ def cluster_up(
     cluster_name: str = typer.Argument(
         None,
         help="The name of cluster to bring up.",
-    )
+    ),
+    force: bool = typer.Option(
+        False,
+        "-f",
+        "--force",
+        help="Whether to up the cluster regardless of its current initialization status",
+    ),
 ):
     """Bring up the cluster if it is not up. No-op if cluster is already up.
     This only applies to on-demand clusters, and has no effect on self-managed clusters.
@@ -360,6 +380,7 @@ def cluster_up(
 
     Example:
         ``$ runhouse cluster up rh-basic-cpu``
+        ``$ runhouse cluster up rh-basic-cpu --force``
 
     """
     try:
@@ -367,7 +388,7 @@ def cluster_up(
         if current_cluster.is_up():
             console.print("Cluster is already up.")
             return
-        current_cluster.up()
+        current_cluster.up(force=force)
     except ValueError:
         console.print("Cluster not found in Den.")
     except Exception as e:
@@ -404,10 +425,16 @@ def cluster_down(
     """
     if not force_deletion:
         if cluster_name:
-            proceed = typer.prompt(f"Terminating {cluster_name}. Proceed? [Y/n]")
+            proceed = typer.prompt(
+                f"Terminating {cluster_name}. Proceed? [Y/n] (Press Enter to terminate)",
+                default="",
+                show_default=False,
+            )
         elif remove_all:
             proceed = typer.prompt(
-                "Terminating all running clusters saved in Den. Proceed? [Y/n]"
+                "Terminating all running clusters saved in Den. Proceed? [Y/n] (Press Enter to terminate)",
+                default="",
+                show_default=False,
             )
         else:
             console.print("Cannot determine which cluster to terminate, aborting.")
@@ -430,7 +457,7 @@ def cluster_down(
         for running_cluster in running_den_clusters:
             try:
                 current_cluster = rh.cluster(
-                    name=f'/{rns_client.username}/{running_cluster.get("Name")}',
+                    name=f'{running_cluster.get("Name")}',
                     dryrun=True,
                 )
                 if isinstance(current_cluster, rh.OnDemandCluster):
@@ -450,9 +477,8 @@ def cluster_down(
 
         raise typer.Exit(0)
 
-    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
-
     try:
+        current_cluster: rh.Cluster = rh.cluster(name=cluster_name, dryrun=True)
         if isinstance(current_cluster, rh.OnDemandCluster):
             current_cluster.teardown_and_delete() if remove_configs else current_cluster.teardown()
         else:
@@ -493,7 +519,7 @@ def cluster_logs(
         ``$ runhouse cluster logs rh-basic-cpu --since 60``
 
     """
-    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
+    current_cluster = get_local_or_remote_cluster(cluster_name=cluster_name)
 
     cluster_uri = rns_client.resource_uri(current_cluster.rns_address)
 
@@ -502,13 +528,21 @@ def cluster_logs(
         headers=rns_client.request_headers(),
     )
 
+    if resp.status_code == 404:
+        console.print("Cluster logs are not available yet.")
+        return
     if resp.status_code != 200:
-        console.print("Failed to get cluster logs.")
+        console.print("Failed to load cluster logs.")
         return
 
     logs_file_url = resp.json().get("data").get("logs_presigned_url")
     logs_file_content = requests.get(logs_file_url).content.decode("utf-8")
-    console.print(f"[reset][cyan]{logs_file_content}")
+
+    stripped_lines = "\n".join(line.strip() for line in logs_file_content.splitlines())
+    console.print("-" * len(current_cluster.rns_address))
+    console.print(f"[reset][cyan]{current_cluster.rns_address}")
+    console.print("-" * len(current_cluster.rns_address))
+    console.print(f"[reset][cyan]{stripped_lines}")
 
 
 ###############################
@@ -772,6 +806,7 @@ def server_start(
 
         ``$ runhouse server start rh-cpu``
     """
+    check_ray_installation()
 
     # If server is already up, ask the user to restart the server instead.
     if not cluster_name:
@@ -788,7 +823,7 @@ def server_start(
             raise typer.Exit(0)
 
     if cluster_name:
-        c = get_cluster_or_local(cluster_name=cluster_name)
+        c = get_local_or_remote_cluster(cluster_name=cluster_name)
         c.start_server(resync_rh=resync_rh, restart_ray=restart_ray)
         return
 
@@ -886,8 +921,10 @@ def server_restart(
 
         ``$ runhouse server restart rh-cpu``
     """
+    check_ray_installation()
+
     if cluster_name:
-        c = get_cluster_or_local(cluster_name=cluster_name)
+        c = get_local_or_remote_cluster(cluster_name=cluster_name)
         c.restart_server(resync_rh=resync_rh, restart_ray=restart_ray)
         return
 
@@ -930,16 +967,19 @@ def server_stop(
 
         ``$ runhouse server stop rh-cpu``
     """
+    check_ray_installation()
     logger.debug("Stopping the server")
 
     if cluster_name:
-        current_cluster = get_cluster_or_local(cluster_name=cluster_name)
+        current_cluster = get_local_or_remote_cluster(cluster_name=cluster_name)
         current_cluster.stop_server(stop_ray=stop_ray, cleanup_actors=cleanup_actors)
         return
 
     subprocess.run(SERVER_STOP_CMD, shell=True)
 
     if cleanup_actors:
+        import ray
+
         ray.init(
             address="auto",
             ignore_reinit_error=True,
@@ -971,14 +1011,19 @@ def server_status(
 
         ``$ runhouse server status rh-cpu``
     """
+    check_ray_installation()
     logger.debug("Checking the server status.")
-    current_cluster = get_cluster_or_local(cluster_name=cluster_name)
+    current_cluster = get_local_or_remote_cluster(cluster_name=cluster_name)
     try:
         status = current_cluster.status()
         console.print(f"[reset]{BULLET_UNICODE} server pid: {status.get('server_pid')}")
         print_cluster_config(
             cluster_config=status.get("cluster_config"), status_type=StatusType.server
         )
+        if rh.here == "file":
+            console.print(
+                "[reset]For more detailed information about the cluster, please use [italic bold]`runhouse cluster status <cluster_name>`[/italic bold]"
+            )
     except (ObjStoreError, ConnectionError):
         console.print("Could not connect to Runhouse server. Is it up?")
 

@@ -28,6 +28,8 @@ from runhouse.constants import (
 )
 
 from runhouse.logger import get_logger
+
+from runhouse.resources.hardware.utils import ClusterStatus, LauncherType
 from runhouse.servers.obj_store import ObjStoreError
 
 logger = get_logger(__name__)
@@ -93,10 +95,7 @@ def create_output_table(
         table.caption_justify = "left"
 
     if displayed_clusters == MAX_CLUSTERS_DISPLAY:
-        link_to_clusters_in_den = (
-            f"[reset]The full list of clusters can be viewed "
-            f"at https://www.run.house/resources?folder={rns_client.username}&type=cluster."
-        )
+        link_to_clusters_in_den = "[reset]The full list of clusters can be viewed at https://www.run.house/resources?type=cluster"
         if table.caption:
             table.caption += f"\n{link_to_clusters_in_den}"
         else:
@@ -208,6 +207,10 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
             else:
                 val = cluster_config.get(key, None)
 
+            # don't print keys whose values are None
+            if val is None:
+                continue
+
             console.print(
                 f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
             ) if status_type == StatusType.cluster else console.print(
@@ -227,7 +230,8 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
     console.print(envs_in_cluster_headline)
 
     env_resource_mapping = {
-        env: servlet_processes[env]["env_resource_mapping"] for env in servlet_processes
+        env: servlet_processes[env].get("env_resource_mapping", {})
+        for env in servlet_processes
     }
 
     if len(env_resource_mapping) == 0:
@@ -275,7 +279,15 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
         resources_in_env = env_resource_mapping[env_name]
         env_process_info = servlet_processes[env_name]
 
-        env_name_txt = f"{BULLET_UNICODE} {env_name} | pid: {env_process_info['pid']} | node: {env_process_info['node_name']}"
+        pid, node_name = env_process_info.get("pid", None), env_process_info.get(
+            "node_name", None
+        )
+
+        # if there is no info about the process, don't print it in the status output
+        if not pid or not node_name:
+            continue
+
+        env_name_txt = f"{BULLET_UNICODE} {env_name} | pid: {pid} | node: {node_name}"
         console.print(env_name_txt)
 
         # Print CPU info
@@ -291,7 +303,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
                 int(env_cpu_info["total_memory"]) / (1024**3)
             )
             cpu_memory_usage_percent = round(
-                float(env_cpu_info["used_memory"] / env_cpu_info["total_memory"]),
+                float(env_cpu_info["used_memory"] / env_cpu_info["total_memory"]) * 100,
                 2,
             )
             cpu_usage_percent = round(float(env_cpu_info["utilization_percent"]), 2)
@@ -481,33 +493,43 @@ def print_status(status_data: dict, current_cluster) -> None:
     print_envs_info(servlet_processes, current_cluster)
 
 
-def print_bring_cluster_up_msg(
-    cluster_name: str, msg_prefix="Can't execute the command"
-):
-    from runhouse.main import console
-
-    console.print(
-        f"{msg_prefix} because [reset]{cluster_name} is not up. To bring it up, "
-        f"run [bold italic]`runhouse cluster up {cluster_name}`[/bold italic]."
-    )
-
-
-def get_cluster_or_local(cluster_name: str = None):
+def get_local_or_remote_cluster(cluster_name: str = None, exit_on_error: bool = True):
     from runhouse.main import console
 
     if cluster_name:
         try:
             current_cluster = rh.cluster(name=cluster_name, dryrun=True)
-        except ValueError:
+        except ValueError as e:
             console.print("Cluster not found in Den.")
-            raise typer.Exit(1)
+            if exit_on_error:
+                raise typer.Exit(1)
+            raise e
+
+        if isinstance(current_cluster, rh.OnDemandCluster):
+
+            # in case we called current_cluster.up() on a local cluster, we need to update the cluster_status,
+            # because its being updated properly only if we call up_if_not()
+            if (
+                current_cluster.launcher == LauncherType.LOCAL
+                and current_cluster.cluster_status != ClusterStatus.RUNNING
+            ):
+                current_cluster._fetch_sky_status_and_update_cluster_status(
+                    refresh=True
+                )
+
+            if current_cluster.cluster_status == ClusterStatus.INITIALIZING:
+                console.print(
+                    f"[reset]{cluster_name} is being initialized. Please wait for it to finish, or run [reset][bold italic]`runhouse cluster up {cluster_name} -f`[/bold italic] to abort the initialization and relaunch."
+                )
+                raise typer.Exit(0)
 
         if not current_cluster.is_up():
             console.print(
                 f"Cluster [reset]{cluster_name} is not up. If it's an on-demand cluster, you can run "
                 f"[reset][bold italic]`runhouse cluster up {cluster_name}`[/bold italic] to bring it up automatically."
             )
-            raise typer.Exit(1)
+            if exit_on_error:
+                raise typer.Exit(1)
         try:
             if current_cluster._http_client:
                 current_cluster._http_client.check_server()
@@ -515,16 +537,18 @@ def get_cluster_or_local(cluster_name: str = None):
             console.print(
                 f"Could not connect to the server on cluster [reset]{cluster_name}. Check that the server is up with "
                 f"[reset][bold italic]`runhouse cluster status {cluster_name}`[/bold italic] or"
-                f" [bold italic]`sky status -r`[/bold italic] for on-demand clusters."
+                f" [bold italic]`sky status -r`[/bold italic] for locally launched on-demand clusters."
             )
-            raise typer.Exit(1)
+            if exit_on_error:
+                raise typer.Exit(1)
         return current_cluster
 
     try:
         cluster_or_local = rh.here
     except ObjStoreError:
         console.print("Could not connect to Runhouse server. Is it up?")
-        raise typer.Exit(1)
+        if exit_on_error:
+            raise typer.Exit(1)
 
     if cluster_or_local == "file":
         # If running outside the cluster must specify a cluster name
@@ -532,14 +556,16 @@ def get_cluster_or_local(cluster_name: str = None):
             "Please specify a `cluster_name` or run [reset][bold italic]`runhouse server start`[/bold italic] to start "
             "a Runhouse server locally."
         )
-        raise typer.Exit(1)
+        if exit_on_error:
+            raise typer.Exit(1)
     elif not cluster_or_local:
         console.print(
             "\N{smiling face with horns} Runhouse Daemon is not running... \N{No Entry} \N{Runner}. "
             "Start it with [reset][bold italic]`runhouse server restart`[/bold italic] or specify a remote "
             "cluster to poll with [reset][bold italic]`runhouse cluster status <cluster_name>`[/bold italic]."
         )
-        raise typer.Exit(1)
+        if exit_on_error:
+            raise typer.Exit(1)
 
     else:
         # we are inside the cluster
@@ -589,3 +615,14 @@ def get_wrapped_server_start_cmd(flags: List[str], screen: bool, nohup: bool):
         )
 
     return wrapped_cmd
+
+
+def check_ray_installation():
+    try:
+        import ray  # noqa
+
+    except ImportError:
+        raise ImportError(
+            "Ray is required for this command. "
+            'You can install Ray and other server dependencies using `pip install "runhouse[server]"`'
+        )

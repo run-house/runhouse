@@ -33,7 +33,7 @@ class ImageSetupStep:
 
 
 class Image:
-    def __init__(self, name: str, image_id: str = None):
+    def __init__(self, name: str = None, image_id: str = None):
         """
         Runhouse Image object, specifying cluster setup properties and steps.
 
@@ -60,6 +60,59 @@ class Image:
         self.conda_env_name = None
         self.docker_secret = None
 
+    @staticmethod
+    def _setup_step_config(step: ImageSetupStep):
+        """Get ImageSetupStep config"""
+        config = {
+            "step_type": step.step_type.value,
+        }
+        if step.step_type == ImageSetupStepType.SYNC_SECRETS:
+            secrets = step.kwargs.get("providers")
+            new_kwargs = []
+            for secret in secrets:
+                new_kwargs.append(
+                    secret if isinstance(secret, str) else secret.config(values=False)
+                )
+            config["kwargs"] = new_kwargs
+        else:
+            config["kwargs"] = step.kwargs
+        return config
+
+    @staticmethod
+    def _setup_step_from_config(step: Dict):
+        """Convert setup step config (dict) to ImageSetupStep object"""
+        step_type = step["step_type"]
+        if step_type == "sync_secrets":
+            from runhouse.resources.secrets.secret import Secret
+
+            secrets = step["kwargs"]
+            secret_list = []
+            for secret in secrets:
+                secret_list.append(
+                    Secret.from_config(secret) if isinstance(secret, Dict) else secret
+                )
+            kwargs = {"providers": secret_list}
+        else:
+            kwargs = step["kwargs"]
+        return ImageSetupStep(
+            step_type=ImageSetupStepType(step_type),
+            **kwargs,
+        )
+
+    def _save_sub_resources(self):
+        secret_steps = [
+            step
+            for step in self.setup_steps
+            if step.step_type == ImageSetupStepType.SYNC_SECRETS
+        ]
+        for step in secret_steps:
+            from runhouse.resources.secrets.secret import Secret
+
+            secrets = step.kwargs.get("providers")
+            for secret in secrets:
+                if isinstance(secret, Secret):
+                    secret.save()
+
     def from_docker(self, image_id: str, docker_secret: Union["Secret", str] = None):
         """Set up and use an existing Docker image.
 
@@ -78,7 +131,9 @@ class Image:
         return self
 
     def config(self) -> Dict[str, Any]:
-        config = {"name": self.name}
+        config = {}
+        if self.name:
+            config["name"] = self.name
         if self.image_id:
             config["image_id"] = self.image_id
         if self.docker_secret:
@@ -87,26 +142,20 @@ class Image:
                 if isinstance(self.docker_secret, str)
                 else self.docker_secret.config()
             )
-        config["setup_steps"] = [
-            {
-                "step_type": step.step_type.value,
-                "kwargs": step.kwargs,
-            }
-            for step in self.setup_steps
-        ]
+        if self.setup_steps:
+            config["setup_steps"] = [
+                Image._setup_step_config(step) for step in self.setup_steps
+            ]
 
         return config
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]):
-        img = Image(name=config["name"], image_id=config.get("image_id"))
-        img.setup_steps = [
-            ImageSetupStep(
-                step_type=ImageSetupStepType(step["step_type"]),
-                **step["kwargs"],
-            )
-            for step in config["setup_steps"]
-        ]
+        img = Image(name=config.get("name"), image_id=config.get("image_id"))
+        if config.get("setup_steps"):
+            img.setup_steps = [
+                Image._setup_step_from_config(step) for step in config["setup_steps"]
+            ]
 
         docker_secret = config.get("docker_secret")
         if docker_secret:
@@ -205,7 +254,7 @@ class Image:
         """Send secrets for the given providers.
 
         Args:
-            providers(List[str or Secret]): List of providers to send secrets for.
+            providers (List[str or Secret]): List of providers to send secrets for.
         """
         self.setup_steps.append(
             ImageSetupStep(

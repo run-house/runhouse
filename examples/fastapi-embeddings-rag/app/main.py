@@ -135,14 +135,14 @@ def load_embedder():
         ],
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=CLUSTER_NAME, gpus=GPUS, provider=CLOUD_PROVIDER, image=img
     ).up_if_not()
 
     module_name = "url_embedder"
     remote_url_embedder = cluster.get(module_name, default=None, remote=True)
     if DEBUG or remote_url_embedder is None:
-        RemoteEmbedder = rh.module(URLEmbedder).to(system=cluster, name="URLEmbedder")
+        RemoteEmbedder = rh.cls(URLEmbedder).to(system=cluster, name="URLEmbedder")
         remote_url_embedder = RemoteEmbedder(
             model_name_or_path="BAAI/bge-large-en-v1.5", device="cuda", name=module_name
         )
@@ -176,8 +176,8 @@ def load_llm():
         .sync_secrets(["huggingface"])
     )
 
-    cluster = rh.cluster(
-        CLUSTER_NAME, gpus=ACCELERATOR, provider=CLOUD_PROVIDER, image=img
+    cluster = rh.compute(
+        CLUSTER_NAME, gpus=GPUS, provider=CLOUD_PROVIDER, image=img
     ).up_if_not()
 
     module_name = "llama_model"
@@ -185,7 +185,7 @@ def load_llm():
     remote_llm = cluster.get(module_name, default=None, remote=True)
     if DEBUG or remote_llm is None:
         # If not found (or debugging) sync up the model and create a fresh instance
-        RemoteLlama = rh.module(LlamaModel).to(system=cluster, name="LlamaModel")
+        RemoteLlama = rh.cls(LlamaModel).to(system=cluster, name="LlamaModel")
         remote_llm = RemoteLlama(name=module_name)
     return remote_llm
 

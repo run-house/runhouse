@@ -22,9 +22,10 @@ def restart_server(request):
 
 
 def setup_test_cluster(args, request, test_rns_folder, setup_base=False):
-    rh.constants.SSH_SKY_SECRET_NAME = (
-        f"{test_rns_folder}-{rh.constants.SSH_SKY_SECRET_NAME}"
-    )
+    if request.config.getoption("--ci"):
+        rh.constants.SSH_SKY_SECRET_NAME = (
+            f"{test_rns_folder}-{rh.constants.SSH_SKY_SECRET_NAME}"
+        )
     cluster = rh.ondemand_cluster(**args)
     init_args[id(cluster)] = args
     cluster.up_if_not()
@@ -82,8 +83,13 @@ def local_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
         .install_packages(TEST_REQS + ["ray==2.30.0"])
         .set_env_vars(TEST_ENV_VARS)
     )
+    cluster_name = (
+        "aws-cpu"
+        if not request.config.getoption("--ci")
+        else f"{test_rns_folder}-aws-cpu"
+    )
     args = {
-        "name": f"{test_rns_folder}-aws-cpu",
+        "name": cluster_name,
         "instance_type": "CPU:2+",
         "provider": "aws",
         "region": "us-east-2",
@@ -110,9 +116,13 @@ def den_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
         .install_packages(TEST_REQS + ["ray==2.30.0"])
         .set_env_vars(TEST_ENV_VARS)
     )
-
+    cluster_name = (
+        "aws-cpu-den"
+        if not request.config.getoption("--ci")
+        else f"{test_rns_folder}-aws-cpu-den"
+    )
     args = {
-        "name": f"{test_rns_folder}-aws-cpu-den",
+        "name": cluster_name,
         "instance_type": "CPU:2+",
         "provider": "aws",
         "region": "us-east-2",
@@ -121,7 +131,9 @@ def den_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
         "launcher": LauncherType.DEN,
     }
 
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(
+        args, request, setup_base=True, test_rns_folder=test_rns_folder
+    )
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
@@ -129,9 +141,14 @@ def den_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
 
 @pytest.fixture(scope="session")
 def ondemand_aws_https_cluster_with_auth(request, test_rns_folder):
+    cluster_name = (
+        "aws-cpu-https"
+        if not request.config.getoption("--ci")
+        else f"{test_rns_folder}-aws-cpu-https"
+    )
     args = {
         # creating a unique name everytime, so the certs will be freshly generated on every test run.
-        "name": f"{test_rns_folder}_aws-cpu-https",
+        "name": cluster_name,
         "instance_type": "CPU:2+",
         "provider": "aws",
         "den_auth": True,
@@ -141,7 +158,7 @@ def ondemand_aws_https_cluster_with_auth(request, test_rns_folder):
         "open_ports": [DEFAULT_HTTPS_PORT],
     }
 
-    cluster = setup_test_cluster(args, request, test_rns_folder)
+    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
     yield cluster
     if not request.config.getoption("--detached"):
         cluster.teardown()
@@ -161,8 +178,13 @@ def ondemand_gcp_cluster(request, test_rns_folder):
         .install_packages(TEST_REQS + ["ray==2.30.0"], conda_env_name="base_env")
         .set_env_vars(env_vars=TEST_ENV_VARS)
     )
+    cluster_name = (
+        "gcp-cpu"
+        if not request.config.getoption("--ci")
+        else f"{test_rns_folder}-gcp-cpu"
+    )
     args = {
-        "name": "gcp-cpu",
+        "name": cluster_name,
         "instance_type": "CPU:2+",
         "provider": "gcp",
         "image": image,
@@ -181,11 +203,17 @@ def ondemand_k8s_cluster(request, test_rns_folder):
     if not kube_config_path.exists():
         pytest.skip("no kubeconfig found")
 
+    cluster_name = (
+        "k8s-cpu"
+        if not request.config.getoption("--ci")
+        else f"{test_rns_folder}-k8s-cpu"
+    )
     # Note: Cannot specify both `instance_type` and any of `memory`, `disk_size`, `num_cpus`, or `gpus`
     args = {
-        "name": "k8s-cpu",
+        "name": cluster_name,
         "provider": "kubernetes",
         "instance_type": "CPU:1",
+        "den_auth": True,
     }
 
     cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
@@ -200,9 +228,13 @@ def den_launched_ondemand_aws_k8s_cluster(request, test_rns_folder):
 
     if not kube_config_path.exists():
         pytest.skip("no kubeconfig found")
-
+    cluster_name = (
+        "k8s-cpu-den"
+        if not request.config.getoption("--ci")
+        else f"{test_rns_folder}-k8s-cpu-den"
+    )
     args = {
-        "name": f"{test_rns_folder}-k8s-cpu-den",
+        "name": cluster_name,
         "provider": "kubernetes",
         "instance_type": "CPU:1",
         "launcher": LauncherType.DEN,
@@ -220,9 +252,13 @@ def den_launched_ondemand_gcp_k8s_cluster(request, test_rns_folder):
 
     if not kube_config_path.exists():
         pytest.skip("no kubeconfig found")
-
+    cluster_name = (
+        "k8s-cpu-gke-den"
+        if not request.config.getoption("--ci")
+        else f"{test_rns_folder}-k8s-cpu-gke-den"
+    )
     args = {
-        "name": f"{test_rns_folder}-k8s-cpu-den",
+        "name": cluster_name,
         "provider": "kubernetes",
         "instance_type": "CPU:1",
         "launcher": LauncherType.DEN,
@@ -241,8 +277,13 @@ def ondemand_k8s_docker_cluster(request, test_rns_folder):
     if not kube_config_path.exists():
         pytest.skip("no kubeconfig found")
 
+    cluster_name = (
+        "k8s-docker-cpu"
+        if not request.config.getoption("--ci")
+        else f"{test_rns_folder}-k8s-docker-cpu"
+    )
     args = {
-        "name": "k8s-docker-cpu",
+        "name": cluster_name,
         "provider": "kubernetes",
         "instance_type": "CPU:1",
         "image": Image(name="default_image")
@@ -310,8 +351,13 @@ def a10g_gpu_cluster(request, test_rns_folder):
 
 @pytest.fixture(scope="session")
 def multinode_k8s_cpu_cluster(request, test_rns_folder):
+    cluster_name = (
+        "rh-cpu-multinode"
+        if not request.config.getoption("--ci")
+        else f"{test_rns_folder}-rh-cpu-multinode"
+    )
     args = {
-        "name": f"{test_rns_folder}-rh-cpu-multinode",
+        "name": cluster_name,
         "num_nodes": NUM_OF_NODES,
         "provider": "kubernetes",
         "instance_type": "CPU:2+",

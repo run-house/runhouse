@@ -2,6 +2,7 @@ import contextlib
 import copy
 import importlib
 import json
+import multiprocessing
 import os
 import re
 import shutil
@@ -81,6 +82,41 @@ from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import CreateProcessParams
 
 logger = get_logger(__name__)
+
+
+def _do_setup_step_for_node(cluster, setup_step, node):
+    if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
+        cluster.create_conda_env(
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            conda_config=setup_step.kwargs.get("conda_config"),
+        )
+    elif setup_step.step_type == ImageSetupStepType.PACKAGES:
+        cluster.install_packages(
+            setup_step.kwargs.get("reqs"),
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
+        command = setup_step.kwargs.get("command")
+        conda_env_name = setup_step.kwargs.get("conda_env_name")
+        if conda_env_name:
+            command = conda_env_cmd(command, conda_env_name)
+        run_setup_command(
+            cmd=command,
+            cluster=cluster,
+            env_vars=env_vars,
+            stream_logs=True,
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.RSYNC:
+        cluster.rsync(
+            source=setup_step.kwargs.get("source"),
+            dest=setup_step.kwargs.get("dest"),
+            node=node,
+            up=True,
+            contents=setup_step.kwargs.get("contents"),
+            filter_options=setup_step.kwargs.get("filter_options"),
+        )
 
 
 class Cluster(Resource):
@@ -360,6 +396,8 @@ class Cluster(Resource):
             # Only automatically set the creds folder if it doesn't have one yet
             # allows for org SSH keys to be associated with the user.
             self._creds.save(folder=creds_folder)
+        if self.image:
+            self.image._save_sub_resources()
 
     @classmethod
     def from_name(
@@ -608,7 +646,7 @@ class Cluster(Resource):
         )
         return self
 
-    def _sync_image_to_cluster(self):
+    def _sync_image_to_cluster(self, parallel: bool = True):
         """
         Image stuff that needs to happen over SSH because the daemon won't be up yet, so we can't
         use the HTTP client.
@@ -637,47 +675,26 @@ class Cluster(Resource):
 
         secrets_to_sync = []
 
-        for setup_step in self.image.setup_steps:
-            for node in self.ips:
-                if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
-                    self.create_conda_env(
-                        conda_env_name=setup_step.kwargs.get("conda_env_name"),
-                        conda_config=setup_step.kwargs.get("conda_config"),
+        for step in self.image.setup_steps:
+            if step.step_type == ImageSetupStepType.SYNC_SECRETS:
+                secrets_to_sync += step.kwargs.get("providers")
+                continue
+            elif step.step_type == ImageSetupStepType.SET_ENV_VARS:
+                image_env_vars = _process_env_vars(step.kwargs.get("env_vars"))
+                env_vars.update(image_env_vars)
+                continue
+
+            if parallel:
+                # Launch in a new process so we can capture the logs
+                with multiprocessing.Pool(processes=len(self.ips)) as pool:
+                    pool.starmap(
+                        _do_setup_step_for_node, [(self, step, ip) for ip in self.ips]
                     )
-                elif setup_step.step_type == ImageSetupStepType.PACKAGES:
-                    self.install_packages(
-                        setup_step.kwargs.get("reqs"),
-                        conda_env_name=setup_step.kwargs.get("conda_env_name"),
-                        node=node,
-                    )
-                elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
-                    command = setup_step.kwargs.get("command")
-                    conda_env_name = setup_step.kwargs.get("conda_env_name")
-                    if conda_env_name:
-                        command = conda_env_cmd(command, conda_env_name)
-                    run_setup_command(
-                        cmd=command,
-                        cluster=self,
-                        env_vars=env_vars,
-                        stream_logs=True,
-                        node=node,
-                    )
-                elif setup_step.step_type == ImageSetupStepType.SYNC_SECRETS:
-                    secrets_to_sync += setup_step.kwargs.get("providers")
-                elif setup_step.step_type == ImageSetupStepType.RSYNC:
-                    self.rsync(
-                        source=setup_step.kwargs.get("source"),
-                        dest=setup_step.kwargs.get("dest"),
-                        node=node,
-                        up=True,
-                        contents=setup_step.kwargs.get("contents"),
-                        filter_options=setup_step.kwargs.get("filter_options"),
-                    )
-                elif setup_step.step_type == ImageSetupStepType.SET_ENV_VARS:
-                    image_env_vars = _process_env_vars(
-                        setup_step.kwargs.get("env_vars")
-                    )
-                    env_vars.update(image_env_vars)
+                    # Fix any garbled terminal output
+                    os.system("stty sane")
+            else:
+                for ip in self.ips:
+                    _do_setup_step_for_node(self, step, ip)
 
         return secrets_to_sync, env_vars
 
@@ -724,7 +741,7 @@ class Cluster(Resource):
                 contents=True,
                 filter_options="- docs/",
             )
-            rh_install_cmd = f"python3 -m pip install {dest_path}"
+            rh_install_cmd = f"python3 -m pip install {dest_path}[server]"
 
         else:
             # Package is installed in site-packages
@@ -734,7 +751,7 @@ class Cluster(Resource):
             if not _install_url:
                 import runhouse
 
-                _install_url = f"runhouse=={runhouse.__version__}"
+                _install_url = f"runhouse[server]=={runhouse.__version__}"
             rh_install_cmd = f"python3 -m pip install {_install_url}"
 
         for node in self.ips:
@@ -1098,13 +1115,9 @@ class Cluster(Resource):
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
+        parallel: bool = True,
     ):
-        if not self.is_up():
-            raise ConnectionError(
-                f"Could not reach {self.name} {self.head_ip}. Is cluster up?"
-            )
-
-        image_secrets, image_env_vars = self._sync_image_to_cluster()
+        image_secrets, image_env_vars = self._sync_image_to_cluster(parallel=parallel)
 
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
         local_rh_package_path = None
@@ -1274,6 +1287,11 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
         """
+        if not self.is_up():
+            raise ConnectionError(
+                f"Could not reach {self.name} {self.head_ip}. Is cluster up?"
+            )
+
         logger.info(f"Restarting Runhouse API server on {self.name}.")
 
         return self._start_or_restart_helper(
@@ -1430,12 +1448,14 @@ class Cluster(Resource):
         self,
         source: str,
         dest: str,
-        up: bool,
+        up: bool = True,
         node: str = None,
+        src_node: str = None,
         contents: bool = False,
         filter_options: str = None,
         stream_logs: bool = False,
         ignore_existing: bool = False,
+        parallel: bool = False,
     ):
         """
         Sync the contents of the source directory into the destination.
@@ -1447,6 +1467,7 @@ class Cluster(Resource):
               will rsync from cluster to local.
             node (str, optional): Specific cluster node to rsync to. If not specified will use the
                 address of the cluster's head node.
+            src_node (str, optional): Specific cluster node to rsync from, for node-to-node rsyncs.
             contents (bool, optional): Whether the contents of the source directory or the directory
                 itself should be copied to destination. If ``True`` the contents of the source directory are
                 copied to the destination, and the source directory itself is not created at the destination.
@@ -1465,21 +1486,44 @@ class Cluster(Resource):
         # https://github.com/skypilot-org/skypilot/blob/v0.4.1/sky/backends/cloud_vm_ray_backend.py#L3094
         # This is an interesting policy... by default we're syncing to all nodes if the cluster is multinode.
         # If we need to change it to be greedier we can.
-        if up and not Path(source).expanduser().exists():
+        if not src_node and up and not Path(source).expanduser().exists():
             raise ValueError(f"Could not locate path to sync: {source}.")
 
         if up and (node == "all" or (len(self.ips) > 1 and not node)):
-            for node in self.ips:
-                self.rsync(
-                    source,
-                    dest,
-                    up=up,
-                    node=node,
-                    contents=contents,
-                    filter_options=filter_options,
-                    stream_logs=stream_logs,
-                    ignore_existing=ignore_existing,
-                )
+            if not parallel:
+                for node in self.ips:
+                    self.rsync(
+                        source,
+                        dest,
+                        up=up,
+                        node=node,
+                        src_node=src_node,
+                        contents=contents,
+                        filter_options=filter_options,
+                        stream_logs=stream_logs,
+                        ignore_existing=ignore_existing,
+                    )
+            else:
+                from concurrent.futures import ThreadPoolExecutor
+
+                with ThreadPoolExecutor(max_workers=len(self.ips)) as executor:
+                    futures = [
+                        executor.submit(
+                            self.rsync,
+                            source,
+                            dest,
+                            up=up,
+                            node=node,
+                            src_node=src_node,
+                            contents=contents,
+                            filter_options=filter_options,
+                            stream_logs=stream_logs,
+                            ignore_existing=ignore_existing,
+                        )
+                        for node in self.ips
+                    ]
+                    for future in futures:
+                        future.result()
             return
 
         from runhouse.resources.hardware.sky_command_runner import SshMode
@@ -1491,8 +1535,12 @@ class Cluster(Resource):
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
 
-        # If we're already on this cluster (and node, if multinode), this is just a local rsync
-        if self.on_this_cluster() and node == self.head_ip:
+        if self.on_this_cluster():
+            src_node = src_node or self.head_ip
+
+        # If we're already on this node, this is just a local rsync
+        if node == src_node:
+            logger.info(f"Rsyncing {source} to {dest} on node {node}")
             if Path(source).expanduser().resolve() == Path(dest).expanduser().resolve():
                 return
 
@@ -1527,14 +1575,34 @@ class Cluster(Resource):
         ssh_credentials.pop("private_key", None)
         ssh_credentials.pop("public_key", None)
 
+        # If we're syncing between nodes on the cluster, we need to use the internal ip of the destination node
+        if src_node:
+            # Case 1: node-to-node rsync within the cluster
+            # Note that we don't care if it's a pwd cluster here, because all nodes have access to
+            # one other through internal ips
+            self._local_rsync(
+                source=source,
+                dest=dest,
+                up=up,
+                node=node,
+                src_node=src_node,
+                filter_options=filter_options,
+                stream_logs=stream_logs,
+                ignore_existing=ignore_existing,
+            )
+            return
+
         runner = self._command_runner(node=node)
         if not pwd:
+            # Case 2: Standard rsync with no password between cluster and local (e.g. laptop)
             if up:
+                logger.info(f"Rsyncing {source} to {dest} on {node}")
                 runner.run(
                     ["mkdir", "-p", dest],
                     ssh_mode=SshMode.INTERACTIVE,
                 )
             else:
+                logger.info(f"Rsyncing {source} on {node} to {dest}")
                 Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
             runner.rsync(
@@ -1545,28 +1613,93 @@ class Cluster(Resource):
                 stream_logs=stream_logs,
                 ignore_existing=ignore_existing,
             )
+            return
 
+        # Case 3: rsync with password between cluster and local (e.g. laptop)
+        if up:
+            logger.info(f"Rsyncing {source} to {dest} on {node}")
+            ssh_command = runner.run(
+                ["mkdir", "-p", dest],
+                return_cmd=True,
+                ssh_mode=SshMode.INTERACTIVE,
+            )
+            run_command_with_password_login(ssh_command, pwd, stream_logs=True)
         else:
-            if up:
-                ssh_command = runner.run(
-                    ["mkdir", "-p", dest],
-                    return_cmd=True,
-                    ssh_mode=SshMode.INTERACTIVE,
-                )
-                run_command_with_password_login(ssh_command, pwd, stream_logs=True)
-            else:
-                Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Rsyncing {source} on {node} to {dest}")
+            Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
-            rsync_cmd = runner.rsync(
-                source,
-                dest,
-                up=up,
+        rsync_cmd = runner.rsync(
+            source,
+            dest,
+            up=up,
+            filter_options=filter_options,
+            stream_logs=stream_logs,
+            return_cmd=True,
+            ignore_existing=ignore_existing,
+        )
+        run_command_with_password_login(rsync_cmd, pwd, stream_logs)
+
+    def _local_rsync(
+        self,
+        source: str,
+        dest: str,
+        up: bool = True,
+        node: str = None,
+        src_node: str = None,
+        filter_options: str = None,
+        stream_logs: bool = False,
+        ignore_existing: bool = False,
+    ):
+        """Rsync from head node onto another cluster node."""
+        # Note: this is a minimal local rsync function, to rsync from one node to another node on the cluster.
+        # It does not support more advanced args in rsync such as contents=True or rsyncing within the same node
+
+        src_node = src_node or self.head_ip
+        if src_node == node:
+            raise ValueError(
+                "The source and destination node must be different for _local_rsync."
+            )
+
+        if node == self.head_ip:
+            # If the destination node is the head node, we may not have ssh access back from the worker node
+            # due to authorized_keys restrictions on the head node (this only affects ssh proper, not all other
+            # types of access, like starting a Ray worker or even a simple curl to the head node).
+            # In that case, switch the source and destination nodes and paths, and run the rsync command on the
+            # head node.
+            return self._local_rsync(
+                source=dest,
+                dest=source,
+                up=not up,
+                node=src_node,
+                src_node=node,
                 filter_options=filter_options,
                 stream_logs=stream_logs,
-                return_cmd=True,
                 ignore_existing=ignore_existing,
             )
-            run_command_with_password_login(rsync_cmd, pwd, stream_logs)
+
+        # use internal ip of destination node to sync between cluster nodes w/o additional creds
+        dest_node_idx = self.ips.index(node)
+        dest_node_internal_ip = self.internal_ips[dest_node_idx]
+        ssh_user = self.creds_values.get("ssh_user")
+        node_destination = f"{ssh_user}@{dest_node_internal_ip}"
+
+        rsync_cmd = ["rsync", "-Pavz", "-e", "ssh"]
+        if ignore_existing:
+            rsync_cmd.append("--ignore-existing")
+        if filter_options:
+            rsync_cmd.append(filter_options)
+        if up:
+            rsync_cmd.extend([source, f"{node_destination}:{dest}"])
+        else:
+            rsync_cmd.extend([f"{node_destination}:{source}", dest])
+
+        src_node_idx = self.ips.index(src_node)
+        logger.info(
+            f"Rsyncing {source} on node {src_node_idx} ({src_node}) to "
+            f"{dest} on node {dest_node_idx} ({node})."
+        )
+        self.run_bash(f"mkdir -p {dest}", node=node, stream_logs=stream_logs)
+        self.run_bash(" ".join(rsync_cmd), node=src_node, stream_logs=stream_logs)
 
     def ssh(self):
         """SSH into the cluster
@@ -1723,8 +1856,11 @@ class Cluster(Resource):
                 if self.on_this_cluster():
 
                     # TODO: Case for calling when on the BYO cluster may not work
-                    if isinstance(node_ip_or_idx, int):
-                        node_ip = self.internal_ips[node_ip_or_idx]
+                    node_ip = (
+                        self.internal_ips[node_ip_or_idx]
+                        if isinstance(node_ip_or_idx, int)
+                        else node_ip_or_idx
+                    )
 
                     if stream_logs:
 
@@ -2592,6 +2728,12 @@ class Cluster(Resource):
         )
         return name
 
+    def set_env_vars_globally(self, env_vars: Dict):
+        if self.on_this_cluster():
+            return obj_store.set_env_vars_globally(env_vars)
+        else:
+            return self.client.set_env_vars(env_vars)
+
     def set_process_env_vars(self, name: str, env_vars: Dict):
         """Set the env vars for a process on the cluster.
 
@@ -2602,9 +2744,7 @@ class Cluster(Resource):
         if self.on_this_cluster():
             return obj_store.set_process_env_vars(name, env_vars)
         else:
-            return self.client.set_process_env_vars(
-                process_name=name, env_vars=env_vars
-            )
+            return self.client.set_env_vars(env_vars=env_vars, process_name=name)
 
     def install_package(
         self,
@@ -2632,11 +2772,13 @@ class Cluster(Resource):
         conda_env_name: str,
         force_sync_local: bool = False,
     ):
-        from runhouse.resources.packages.package import Package
+        from runhouse.resources.packages import InstallTarget, Package
 
         if isinstance(package, str):
             package = Package.from_string(package)
-            if package.install_method in ["reqs", "local"]:
+            if package.install_method in ["reqs", "local"] or isinstance(
+                package.install_target, InstallTarget
+            ):
                 package = package.to(self)
 
         package._install(

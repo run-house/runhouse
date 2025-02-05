@@ -19,7 +19,7 @@ def generate_params():
 
 
 async def find_best_params():
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-4x16-cpu", instance_type="CPU:16", num_nodes=4, provider="aws"
     ).up_if_not()
 

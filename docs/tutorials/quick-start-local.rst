@@ -14,11 +14,11 @@ up a local web server, and deploy an arbitrary Python function to it.
 Runhouse Server Setup
 ---------------------
 
-First install Runhouse with ``pip install runhouse``
+First install Runhouse with the server dependencies using ``pip install runhouse[server]``
 
 .. code:: ipython3
 
-    !pip install runhouse
+    !pip install runhouse[server]
 
 Next, start the Runhouse server locally on CLI with
 ``runhouse server restart``, and use ``runhouse cluster status`` to print the status

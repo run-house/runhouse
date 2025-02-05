@@ -81,6 +81,11 @@ connection (either over SSH or HTTP/S). This is what enables the magic of Runhou
 * The HTTP server and workers can handle thousands of concurrent calls per second, and have similar latency to Flask
   under most conditions.
 
+.. note::
+
+    To run the daemon on your local machine, you will need a few additional requirements not included
+    in the base Runhouse package. You can install them by running :code:`pip install "runhouse[server]"`.
+
 2. Dispatch Your Code
 ---------------------
 Once you have established a connection to compute, the development pattern is to continuously dispatch code to the

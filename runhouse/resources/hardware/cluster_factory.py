@@ -194,6 +194,7 @@ def ondemand_cluster(
     accelerators: Union[int, str, None] = None,
     gpus: Union[int, str, None] = None,
     open_ports: Union[int, str, List[int], None] = None,
+    vpc_name: Optional[str] = None,
     sky_kwargs: Dict = None,
     # kubernetes related arguments
     kube_namespace: Optional[str] = None,
@@ -246,6 +247,8 @@ def ondemand_cluster(
         open_ports (int or str or List[int], optional): Ports to open in the cluster's security group. Note
             that you are responsible for ensuring that the applications listening on these ports are secure.
             (Default: ``None``)
+        vpc_name (str, optional): Specific VPC used for launching the cluster. If not specified,
+            cluster will be launched in the default VPC.
         sky_kwargs (dict, optional): Additional keyword arguments to pass to the SkyPilot `Resource` or `launch`
             APIs. Should be a dict of the form `{"resources": {<resources_kwargs>}, "launch": {<launch_kwargs>}}`,
             where resources_kwargs and launch_kwargs will be passed to the SkyPilot Resources API (See
@@ -300,6 +303,13 @@ def ondemand_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.ondemand_cluster(name="rh-4-a100s")
     """
+    if vpc_name and launcher == "local":
+        raise ValueError(
+            "Custom VPCs are not supported with local launching. To use a custom VPC, please use the "
+            "Den launcher. For more information see "
+            "https://www.run.house/docs/installation-setup#den-launcher"
+        )
+
     cluster_args = locals().copy()
     cluster_args = {k: v for k, v in cluster_args.items() if v is not None}
     if "accelerators" in cluster_args:

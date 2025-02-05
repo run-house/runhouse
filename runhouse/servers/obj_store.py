@@ -11,7 +11,6 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import ray
 from pydantic import BaseModel
 
 from runhouse.constants import (
@@ -74,6 +73,8 @@ def get_cluster_servlet(
     create_if_not_exists: bool = False,
     runtime_env: Optional[Dict] = None,
 ):
+    import ray
+
     from runhouse.servers.cluster_servlet import ClusterServlet
 
     if not ray.is_initialized():
@@ -174,6 +175,8 @@ class ObjStore:
         setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
         create_process_params: Optional["CreateProcessParams"] = None,
     ):
+        import ray
+
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
         # and it doesn't get created and destroyed when
@@ -268,7 +271,12 @@ class ObjStore:
             if path not in sys.path:
                 sys.path.insert(0, path)
 
-        # Set env vars that were passed in initialization
+        # Set env vars that need to be set on creation
+        env_vars_to_set = await self.aget_env_vars_to_set_in_new_processes()
+        self.set_process_env_vars_local(env_vars_to_set)
+
+        # Set env vars that were passed in initialization, these should override
+        # any env vars that were set globally via the previous global set
         if create_process_params and create_process_params.env_vars:
             self.set_process_env_vars_local(create_process_params.env_vars)
 
@@ -331,6 +339,8 @@ class ObjStore:
         dependency between the cluster servlet and the node servlets. We'll call this only on the head node in
         the server
         """
+        import ray
+
         from runhouse.servers.node_servlet import NodeServlet
 
         names = []
@@ -377,6 +387,8 @@ class ObjStore:
         node_ip: Optional[str] = None,
         process: Optional[str] = None,
     ):
+        import ray
+
         if node_ip and process:
             raise ValueError("Cannot specify both node_ip and process.")
 
@@ -400,6 +412,8 @@ class ObjStore:
     async def arun_bash_command_on_all_nodes(
         self, command: str, require_outputs: bool = False
     ):
+        import ray
+
         node_servlet_names = await self.aget_node_servlet_names()
         node_servlet_actors = [
             ray.get_actor(name, namespace="runhouse") for name in node_servlet_names
@@ -436,14 +450,10 @@ class ObjStore:
 
     def get_internal_ips(self):
         """Get list of internal IPs of all nodes in the cluster."""
+        import ray
+
         cluster_config = self.get_cluster_config()
-        if "stable_internal_external_ips" in cluster_config:
-            # TODO: remove, backwards compatibility
-            return [
-                internal_ip
-                for internal_ip, _ in cluster_config["stable_internal_external_ips"]
-            ]
-        elif cluster_config.get("compute_properties", {}).get("internal_ips", []):
+        if cluster_config.get("compute_properties", {}).get("internal_ips", []):
             return cluster_config.get("compute_properties").get("internal_ips")
         else:
             if not ray.is_initialized():
@@ -463,6 +473,8 @@ class ObjStore:
         use_servlet_cache: bool = True,
         **kwargs,
     ):
+        import ray
+
         servlet = self.get_servlet(servlet_name, use_servlet_cache=use_servlet_cache)
         if servlet is None:
             raise ObjStoreError(f"Got None servlet for servlet_name {servlet_name}.")
@@ -478,14 +490,16 @@ class ObjStore:
 
     @staticmethod
     async def acall_actor_method(
-        actor: ray.actor.ActorHandle, method: str, *args, **kwargs
+        actor: "ray.actor.ActorHandle", method: str, *args, **kwargs
     ):
         if actor is None:
             raise ObjStoreError("Attempting to call an actor method on a None actor.")
         return await getattr(actor, method).remote(*args, **kwargs)
 
     @staticmethod
-    def call_actor_method(actor: ray.actor.ActorHandle, method: str, *args, **kwargs):
+    def call_actor_method(actor: "ray.actor.ActorHandle", method: str, *args, **kwargs):
+        import ray
+
         if actor is None:
             raise ObjStoreError("Attempting to call an actor method on a None actor.")
 
@@ -501,6 +515,8 @@ class ObjStore:
         **kwargs,
     ):
         # Need to import these here to avoid circular imports
+        import ray
+
         from runhouse.servers.servlet import Servlet
 
         if create_process_params is not None and (name != create_process_params.name):
@@ -644,6 +660,11 @@ class ObjStore:
 
     def set_process_env_vars(self, servlet_name: str, env_vars: Dict[str, str]):
         return sync_function(self.aset_process_env_vars)(servlet_name, env_vars)
+
+    async def aset_env_vars_globally(self, env_vars: Dict[str, str]):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aset_env_vars_globally", env_vars
+        )
 
     ##############################################
     # Cluster config state storage methods
@@ -806,6 +827,11 @@ class ObjStore:
     async def aadd_path_to_prepend_in_new_processes(self, path: str):
         return await self.acall_actor_method(
             self.cluster_servlet, "aadd_path_to_prepend_in_new_processes", path
+        )
+
+    async def aget_env_vars_to_set_in_new_processes(self) -> Dict[str, str]:
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aget_env_vars_to_set_in_new_processes"
         )
 
     ##############################################
@@ -1154,6 +1180,7 @@ class ObjStore:
         await self.apop_local(key)
 
     async def adelete_servlet_contents(self, servlet_name: Any):
+        import ray
 
         # delete the servlet actor and remove its references
         if servlet_name in self.servlet_cache:
@@ -1165,6 +1192,10 @@ class ObjStore:
 
     def delete_servlet_contents(self, servlet_name: Any):
         return sync_function(self.adelete_servlet_contents)(servlet_name)
+
+    async def adelete_servlet_from_cache(self, servlet_name: Any):
+        if servlet_name in self.servlet_cache:
+            del self.servlet_cache[servlet_name]
 
     async def adelete(self, key: Union[Any, List[Any]]):
         keys_to_delete = [key] if isinstance(key, str) else key

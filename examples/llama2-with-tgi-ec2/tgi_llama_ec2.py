@@ -178,7 +178,7 @@ if __name__ == "__main__":
         .sync_secrets(["huggingface"])
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-g5-4xlarge",
         instance_type="g5.4xlarge",
         provider="aws",

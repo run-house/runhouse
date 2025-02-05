@@ -251,9 +251,9 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
         original_ips = cluster.ips
 
         if cluster.launcher == LauncherType.DEN:
-            cluster._cluster_status = ClusterStatus.TERMINATED
+            cluster.cluster_status = ClusterStatus.TERMINATED
             assert not cluster.is_up()
-            cluster._cluster_status = None
+            cluster.cluster_status = None
         else:
             # test ping w/o retry fails with empty ips
             # can only override ips for local, will be updated in retry later in the test
@@ -261,8 +261,8 @@ class TestOnDemandCluster(tests.test_resources.test_clusters.test_cluster.TestCl
             cluster.compute_properties["internal_ips"] = []
             assert not cluster._ping(retry=False)
 
-        if cluster.compute_properties.get("cloud") == "kubernetes":
-            # kubernetes does not use ips in command runner
+        if not cluster.compute_properties.get("cloud") == "kubernetes":
+            # kubernetes does not use ips in command runner, so this test is relevant only for not k8 clusters.
             cluster.compute_properties["ips"] = ["00.00.000.11"]
             assert not cluster._ping(retry=False)
 

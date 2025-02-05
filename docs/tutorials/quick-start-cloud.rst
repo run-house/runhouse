@@ -156,7 +156,7 @@ with the ``.save()`` method.
 .. code:: ipython3
 
     remote_get_platform.save()
-    cluster.save() # Clusters are automatically be saved by Runhouse
+    cluster.save() # Clusters are automatically saved by Runhouse
 
 Once saved, resources can be reloaded from any environment in which you
 are logged into. For instance, if you are running this in a Colab

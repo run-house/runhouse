@@ -8,13 +8,16 @@ from functools import wraps
 from pathlib import Path
 from typing import Dict, Optional
 
-import ray
-import requests
-import yaml
-from fastapi import Body, FastAPI, HTTPException, Request
-from fastapi.encoders import jsonable_encoder
-from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
-from fastapi.responses import StreamingResponse
+try:
+    import ray
+    import requests
+    import yaml
+    from fastapi import Body, FastAPI, HTTPException, Request
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+    from fastapi.responses import StreamingResponse
+except ImportError:
+    pass
 
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
@@ -62,7 +65,7 @@ from runhouse.servers.http.http_utils import (
     RunBashParams,
     serialize_data,
     ServerSettings,
-    SetProcessEnvVarsParams,
+    SetEnvVarsParams,
 )
 from runhouse.servers.obj_store import (
     ClusterServletSetupOption,
@@ -451,11 +454,17 @@ class HTTPServer:
             )
 
     @staticmethod
-    @app.post("/process_env_vars")
+    @app.post("/env_vars")
     @validate_cluster_access
-    async def set_process_env_vars(request: Request, params: SetProcessEnvVarsParams):
+    async def set_env_vars(request: Request, params: SetEnvVarsParams):
         try:
-            await obj_store.aset_process_env_vars(params.process_name, params.env_vars)
+            if params.process_name is not None:
+                await obj_store.aset_process_env_vars(
+                    params.process_name, params.env_vars
+                )
+            else:
+                await obj_store.aset_env_vars_globally(params.env_vars)
+
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             return handle_exception_response(

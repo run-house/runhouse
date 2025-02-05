@@ -7,6 +7,7 @@ from typing import Dict
 
 from runhouse.resources.secrets.provider_secrets.provider_secret import ProviderSecret
 from runhouse.resources.secrets.utils import _check_file_for_mismatches
+from runhouse.utils import create_local_dir
 
 
 class GCPSecret(ProviderSecret):
@@ -38,7 +39,9 @@ class GCPSecret(ProviderSecret):
             path, self._from_path(path), values, overwrite
         ):
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "w+") as f:
+
+            full_path = create_local_dir(path)
+            with open(full_path, "w+") as f:
                 json.dump(values, f, indent=4)
 
             if write_config:

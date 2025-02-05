@@ -14,7 +14,7 @@ from runhouse.resources.hardware.utils import (
     SSEClient,
 )
 from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content, read_resp_data
-from runhouse.utils import ClusterLogsFormatter, Spinner
+from runhouse.utils import ClusterLogsFormatter, ColoredFormatter, Spinner
 
 logger = get_logger(__name__)
 
@@ -77,6 +77,10 @@ class LogProcessor:
         else:
             self.cluster_logger.info(log_message)
 
+    def log_step(self, message):
+        """Log the completion of a launch step."""
+        self.cluster_logger.info(message)
+
 
 class Launcher:
     @classmethod
@@ -129,7 +133,7 @@ class Launcher:
             or "private_key" not in secret_values
         ):
             raise ValueError(
-                f"Public key and private key values not found in secret {secrets_name}"
+                f"Public key and private key values not found in secret {sky_secret.name}"
             )
         return sky_secret
 
@@ -160,7 +164,7 @@ class Launcher:
 
         for event in client.events():
             # Stream through data events
-            if spinner:
+            if spinner and event.event != "step_complete":
                 spinner.stop()
                 spinner = None
 
@@ -176,8 +180,25 @@ class Launcher:
             if event.event == "info":
                 logger.info(event.data)
 
-            if event.event == "log":
-                log_processor.log_event(event)
+            if event.event == "step_complete":
+                event_data = ast.literal_eval(event.data)
+                step_complete = event_data.get("step")
+                total_steps = event_data.get("total_steps")
+                message = event_data.get("message")
+
+                # use a custom message step completion
+                blue = ColoredFormatter.get_color("blue")
+                italic = ColoredFormatter.get_color("italic")
+                reset = ColoredFormatter.get_color("reset")
+                styled_message = f"{blue}{italic}► Step {step_complete}/{total_steps}: {message}{reset}"
+
+                if spinner:
+                    # Temporarily pause the spinner to output the step if it's currently running
+                    spinner.stop()
+                    log_processor.log_step(styled_message)
+                    spinner.start()
+                else:
+                    log_processor.log_step(styled_message)
 
             if event.event == "error":
                 event_data = ast.literal_eval(event.data)
@@ -261,17 +282,18 @@ class DenLauncher(Launcher):
         }
 
         if verbose:
-            data = cls.run_verbose(
-                base_url=cls.LAUNCH_URL,
-                payload=payload,
-                cluster_name=cluster_config.get("name"),
-            )
-            cluster._cluster_status = ClusterStatus.RUNNING
-            cls._update_from_den_response(cluster=cluster, config=data)
-            logger.info(
-                f"To view this cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(cluster.rns_address)}"
-            )
-            return
+            try:
+                data = cls.run_verbose(
+                    base_url=cls.LAUNCH_URL,
+                    payload=payload,
+                    cluster_name=cluster_config.get("name"),
+                )
+                cluster.cluster_status = ClusterStatus.RUNNING
+                cls._update_from_den_response(cluster=cluster, config=data)
+                return
+            except Exception as e:
+                cluster.cluster_status = ClusterStatus.UNKNOWN
+                raise e
 
         # Blocking call with no streaming
         resp = requests.post(
@@ -280,16 +302,14 @@ class DenLauncher(Launcher):
             headers=rns_client.request_headers(),
         )
         if resp.status_code != 200:
+            cluster.cluster_status = ClusterStatus.UNKNOWN
             raise Exception(
                 f"Received [{resp.status_code}] from Den POST '{cls.LAUNCH_URL}': Failed to "
                 f"launch cluster: {load_resp_content(resp)}"
             )
         data = read_resp_data(resp)
         logger.info("Successfully launched cluster")
-        logger.info(
-            f"To view this cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(cluster.rns_address)}"
-        )
-        cluster._cluster_status = ClusterStatus.RUNNING
+        cluster.cluster_status = ClusterStatus.RUNNING
         cls._update_from_den_response(cluster=cluster, config=data)
 
     @classmethod
@@ -316,7 +336,7 @@ class DenLauncher(Launcher):
                 cluster_name=cluster_name,
                 payload=payload,
             )
-            cluster._cluster_status = ClusterStatus.TERMINATED
+            cluster.cluster_status = ClusterStatus.TERMINATED
             return
 
         # Run blocking call, with no streaming
@@ -330,7 +350,7 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.TEARDOWN_URL}': Failed to "
                 f"teardown cluster: {load_resp_content(resp)}"
             )
-        cluster._cluster_status = ClusterStatus.TERMINATED
+        cluster.cluster_status = ClusterStatus.TERMINATED
 
 
 class LocalLauncher(Launcher):
@@ -365,7 +385,7 @@ class LocalLauncher(Launcher):
                 sky.Resources(
                     cloud=cloud_provider,
                     instance_type=cluster.get_instance_type(),
-                    accelerators=cluster.gpus(),
+                    accelerators=cluster._requested_gpus(),
                     cpus=cluster.num_cpus(),
                     memory=cluster.memory,
                     region=cluster.region or configs.get("default_region"),
@@ -414,7 +434,7 @@ class LocalLauncher(Launcher):
         import sky
 
         sky.down(cluster.name)
-        cluster._cluster_status = ClusterStatus.TERMINATED
+        cluster.cluster_status = ClusterStatus.TERMINATED
         cluster._http_client = None
 
         # Save to Den with updated null IPs
@@ -443,7 +463,7 @@ class LocalLauncher(Launcher):
                 from runhouse.resources.secrets.secret import Secret
 
                 docker_secret = Secret.from_name(image.docker_secret)
-            docker_env_vars = image.docker_secret._map_env_vars()
+            docker_env_vars = docker_secret._map_env_vars()
         else:
             try:
                 docker_env_vars = rh.provider_secret("docker")._map_env_vars()

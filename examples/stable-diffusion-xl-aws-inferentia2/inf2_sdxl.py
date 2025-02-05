@@ -158,7 +158,7 @@ if __name__ == "__main__":
     )
 
     # Then, we launch our cluster from elastic AWS compute.
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-inf2",
         instance_type="inf2.8xlarge",
         provider="aws",

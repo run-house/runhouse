@@ -11,6 +11,7 @@ ONDEMAND_COMPUTE_ARGS = {
     "region",
     "memory",
     "disk_size",
+    "vpc_name",
     "num_cpus",
     "accelerators",
     "gpus",

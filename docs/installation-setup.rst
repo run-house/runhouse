@@ -2,7 +2,7 @@ Installation and Compute Setup
 ==============================
 
 It will take just a few minutes to setup Runhouse, including the Runhouse installation, account
-creation, and configuring of compute credenitals (e.g. service or user account for a cloud
+creation, and configuring of compute credentials (e.g. service or user account for a cloud
 credential).
 
 Runhouse is compatible with:
@@ -31,6 +31,16 @@ the cloud provider of your choice as additional installs:
 .. code::
 
     !pip install "runhouse[gcp, sky]"
+
+The Runhouse server daemon requires additional dependencies not included in the base package.
+These are automatically installed on Runhouse clusters, but not by default if you are starting a local server.
+These dependencies can be installed with:
+
+.. code::
+
+    !pip install "runhouse[server]"
+
+See the :ref:`local quick start guide <Local Quick Start>` for more information.
 
 Account Creation & Login
 ------------------------
@@ -96,9 +106,9 @@ We recommend this approach for a couple of reasons:
 * **Distributed Workflows / Production Pipelines**: Launch clusters as part of distributed workflows
   or pipelines without needing to configure cloud credentials in your environment.
 
-To enable the Den launcher, you can set :code:`launcher="den"` in the:ref:`cluster factory
-<Cluster Factory Methods>`, or update your local :ref:`runhouse config <Setting Config Options>` with
-:code:`launcher: den` to apply the setting globally across all subsequent clusters created.
+To enable the Den launcher, you can set :code:`launcher="den"` in the :ref:`cluster factory <Cluster>`, or update
+your local :ref:`runhouse config <Setting Config Options>` with :code:`launcher: den` to apply the setting globally
+across all subsequent clusters created.
 
 Local Launcher
 ~~~~~~~~~~~~~~
@@ -138,5 +148,5 @@ To tear this cluster down:
     cluster.teardown()
 
 Now you’re ready to start working with the Runhouse APIs. Jump over to the `API Quick Start
-guide <https://www.run.house/docs/tutorials/quick-start-den>`__ to start deploying and executing
+guide <https://www.run.house/docs/tutorials/quick-start-cloud>`__ to start deploying and executing
 code on your cluster.

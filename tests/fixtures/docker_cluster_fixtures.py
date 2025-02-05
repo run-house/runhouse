@@ -18,13 +18,12 @@ from runhouse.resources.images import Image
 from tests.conftest import init_args
 
 from tests.constants import TEST_ENV_VARS, TEST_REQS
-from tests.utils import friend_account, setup_test_base
+from tests.utils import friend_account, get_default_keypair_path, setup_test_base
 
 SSH_USER = "rh-docker-user"
 BASE_LOCAL_SSH_PORT = 32320
 LOCAL_HTTPS_SERVER_PORT = 8443
 LOCAL_HTTP_SERVER_PORT = 8080
-DEFAULT_KEYPAIR_KEYPATH = "~/.ssh/sky-key"
 
 
 def get_rh_parent_path():
@@ -317,11 +316,7 @@ def docker_cluster_pk_tls_exposed(request, test_rns_folder):
         image_name="keypair",
         container_name="rh-pk-tls-port-fwd",
         dir_name="public-key-auth",
-        keypath=str(
-            Path(
-                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
-            ).expanduser()
-        ),
+        keypath=get_default_keypair_path(),
         reuse_existing_container=detached,
         force_rebuild=force_rebuild,
         port_fwds=[
@@ -376,11 +371,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
         image_name="keypair",
         container_name="rh-pk-ssh",
         dir_name="public-key-auth",
-        keypath=str(
-            Path(
-                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
-            ).expanduser()
-        ),
+        keypath=get_default_keypair_path(),
         reuse_existing_container=detached,
         force_rebuild=force_rebuild,
         port_fwds=[f"{local_ssh_port}:{DEFAULT_SSH_PORT}"],
@@ -476,11 +467,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
         image_name="keypair-conda",
         container_name="rh-pk-http-port-fwd",
         dir_name="public-key-auth-conda",
-        keypath=str(
-            Path(
-                rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
-            ).expanduser()
-        ),
+        keypath=get_default_keypair_path(),
         reuse_existing_container=detached,
         force_rebuild=force_rebuild,
         port_fwds=[
@@ -581,11 +568,7 @@ def friend_account_logged_in_docker_cluster_pk_ssh(request, test_rns_folder):
             image_name="keypair",
             container_name="rh-pk-test-acct",
             dir_name="public-key-auth",
-            keypath=str(
-                Path(
-                    rh.configs.get("default_keypair", DEFAULT_KEYPAIR_KEYPATH)
-                ).expanduser()
-            ),
+            keypath=get_default_keypair_path(),
             reuse_existing_container=detached,
             force_rebuild=force_rebuild,
             port_fwds=[f"{local_ssh_port}:{DEFAULT_SSH_PORT}"],

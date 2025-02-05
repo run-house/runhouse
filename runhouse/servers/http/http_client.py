@@ -38,7 +38,7 @@ from runhouse.servers.http.http_utils import (
     RenameObjectParams,
     RunBashParams,
     serialize_data,
-    SetProcessEnvVarsParams,
+    SetEnvVarsParams,
 )
 
 from runhouse.utils import ClusterLogsFormatter, generate_default_name, thread_coroutine
@@ -825,15 +825,15 @@ class HTTPClient:
             json_dict=params.model_dump(),
         )
 
-    def set_process_env_vars(
+    def set_env_vars(
         self,
-        process_name: str,
         env_vars: Dict[str, str],
+        process_name: Optional[str] = None,
     ):
         return self.request_json(
-            "/process_env_vars",
+            "/env_vars",
             req_type="post",
-            json_dict=SetProcessEnvVarsParams(
+            json_dict=SetEnvVarsParams(
                 process_name=process_name, env_vars=env_vars
             ).model_dump(),
         )

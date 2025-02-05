@@ -8,8 +8,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import httpx
 
-import psutil
-import pynvml
 import requests
 
 import runhouse
@@ -56,6 +54,8 @@ class ClusterServlet:
     async def __init__(
         self, cluster_config: Optional[Dict[str, Any]] = None, *args, **kwargs
     ):
+        import psutil
+
         # We do this here instead of at the start of the HTTP Server startup
         # because someone can be running `HTTPServer()` standalone in a test
         # and still want an initialized cluster config in the servlet.
@@ -67,6 +67,7 @@ class ClusterServlet:
         self._key_to_servlet_name: Dict[Any, str] = {}
         self._auth_cache: AuthCache = AuthCache()
         self._paths_to_prepend_in_new_processes = []
+        self._env_vars_to_set_in_new_processes = {}
         self._node_servlet_names: List[str] = []
         self._cluster_name = self._cluster_config.get("name", None)
         self._cluster_uri = (
@@ -92,6 +93,8 @@ class ClusterServlet:
         self.gpu_metrics = None  # will be updated only if this is a gpu cluster.
         # will be used when self.gpu_metrics will be updated by different threads.
         self.lock = threading.Lock()
+
+        self._cluster_config["is_gpu"] = is_gpu_cluster()
 
         # creating periodic check loops
         if self._cluster_config.get("is_gpu"):
@@ -130,6 +133,31 @@ class ClusterServlet:
 
     async def aget_paths_to_prepend_in_new_processes(self) -> List[str]:
         return self._paths_to_prepend_in_new_processes
+
+    ##############################################
+    # Env vars to set and get env vars methods
+    ##############################################
+    async def aset_env_vars_globally(self, env_vars: Dict[str, Any]):
+
+        await asyncio.gather(
+            *[
+                obj_store.acall_servlet_method(
+                    servlet_name,
+                    "aset_env_vars",
+                    env_vars,
+                    use_servlet_cache=False,
+                )
+                for servlet_name in await self.aget_all_initialized_servlet_args()
+            ]
+        )
+
+        await self.aadd_env_vars_to_set_in_new_processes(env_vars)
+
+    async def aadd_env_vars_to_set_in_new_processes(self, env_vars: Dict[str, Any]):
+        self._env_vars_to_set_in_new_processes.update(env_vars)
+
+    async def aget_env_vars_to_set_in_new_processes(self) -> Dict[str, str]:
+        return self._env_vars_to_set_in_new_processes
 
     ##############################################
     # Cluster config state storage methods
@@ -284,6 +312,21 @@ class ClusterServlet:
             ]
             for key in deleted_keys:
                 self._key_to_servlet_name.pop(key)
+
+            # remove from servlet cache in all processes
+            await asyncio.gather(
+                *[
+                    obj_store.acall_servlet_method(
+                        servlet,
+                        "aremove_servlet_from_cache",
+                        servlet_name,
+                    )
+                    for servlet in await self.aget_all_initialized_servlet_args()
+                ]
+            )
+            # current process
+            await obj_store.adelete_servlet_from_cache(servlet_name)
+
         return deleted_keys
 
     ##############################################
@@ -536,6 +579,7 @@ class ClusterServlet:
 
     async def _aperiodic_gpu_check(self):
         """periodically collects cluster gpu usage"""
+        import pynvml
 
         logger.debug("Started gpu usage collection")
 
@@ -615,6 +659,8 @@ class ClusterServlet:
         return cluster_gpu_usage
 
     async def astatus(self, send_to_den: bool = False) -> Tuple[Dict, Optional[int]]:
+        import psutil
+
         config_cluster = copy.deepcopy(self._cluster_config)
 
         # Popping out creds because we don't want to show them in the status

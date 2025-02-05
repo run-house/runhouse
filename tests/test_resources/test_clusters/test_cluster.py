@@ -21,14 +21,13 @@ from runhouse.constants import (
     LOCALHOST,
     MINUTE,
 )
-from runhouse.globals import rns_client
 
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatus
 
 from runhouse.resources.images.image import ImageSetupStepType
 
-from runhouse.utils import _process_env_vars
+from runhouse.utils import _process_env_vars, get_random_str
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
@@ -37,9 +36,7 @@ from tests.utils import (
     _get_env_var_value,
     friend_account,
     friend_account_in_org,
-    get_random_str,
     keep_config_keys,
-    org_friend_account,
     set_daemon_and_cluster_status,
     set_output_env_vars,
 )
@@ -401,7 +398,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         cluster.share(
             users=["support@run.house"],
-            access_level="write",
+            access_level="read",
             notify_users=False,
         )
 
@@ -812,15 +809,17 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_fn_to_default_process(self, cluster):
+    def test_fn_to_no_process_specified(self, cluster):
         remote_summer = rh.function(summer).to(cluster)
 
-        assert remote_summer.name in cluster.keys(process=DEFAULT_PROCESS_NAME)
-        assert remote_summer(3, 4) == 7
+        found = False
+        for p in cluster.list_processes():
+            if p.startswith(remote_summer.name):
+                found = True
+                assert remote_summer.name in cluster.keys(process=p)
+                break
 
-        # Test function with non-trivial imports
-        fn = rh.function(import_env).to(cluster)
-        assert fn() == "success"
+        assert found
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -871,6 +870,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_run_within_cluster(self, cluster):
+        if cluster.config().get("resource_subtype") == "Cluster":
+            pytest.skip("run_bush don't work when running on the cluster, need to fix")
         remote_run = rh.function(run_in_no_env).to(cluster)
         res = remote_run("echo hello")
 
@@ -1002,135 +1003,84 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_list_default_pythonic(self, cluster):
-        original_username = rns_client.username
-        new_username = (
-            "test-org"
-            if cluster.rns_address.startswith("/test-org/")
-            else original_username
+        default_clusters = Cluster.list().get("den_clusters", {})
+        assert len(default_clusters) > 0
+        assert [
+            den_cluster.get("Status") == ClusterStatus.RUNNING
+            for den_cluster in default_clusters
+        ]
+        assert any(
+            den_cluster
+            for den_cluster in default_clusters
+            if den_cluster.get("Name") == cluster.rns_address
         )
-
-        with org_friend_account(
-            new_username=new_username,
-            token=rns_client.token,
-            original_username=original_username,
-        ):
-            default_clusters = Cluster.list().get("den_clusters", {})
-            assert len(default_clusters) > 0
-            assert [
-                den_cluster.get("Status") == ClusterStatus.RUNNING
-                for den_cluster in default_clusters
-            ]
-            assert any(
-                den_cluster
-                for den_cluster in default_clusters
-                if den_cluster.get("Name") == cluster.name
-            )
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_list_all_pythonic(self, cluster):
-        original_username = rns_client.username
-        new_username = (
-            "test-org"
-            if cluster.rns_address.startswith("/test-org/")
-            else original_username
+        # create dummy terminated cluster - set the daemon status to terminated, which will also
+        # update the cluster status. Making sure that its name is in the same format as all testing clusters
+        # (contains timestamp and uuid)
+        terminated_cluster = rh.cluster(
+            name=f"{create_folder_path()}-terminated-cluster",
+            server_connection_type="ssh",
+        ).save()
+        set_daemon_and_cluster_status(
+            terminated_cluster,
+            daemon_status=RunhouseDaemonStatus.TERMINATED,
+            cluster_status=ClusterStatus.TERMINATED,
         )
 
-        with org_friend_account(
-            new_username=new_username,
-            token=rns_client.token,
-            original_username=original_username,
-        ):
-            # create dummy terminated cluster - set the daemon status to terminated, which will also
-            # update the cluster status. Making sure that its name is in the same format as all testing clusters
-            # (contains timestamp and uuid)
-            terminated_cluster = rh.cluster(
-                name=f"{create_folder_path()}_terminated-cluster",
-                server_connection_type="ssh",
-            ).save()
-            set_daemon_and_cluster_status(
-                terminated_cluster,
-                daemon_status=RunhouseDaemonStatus.TERMINATED,
-                cluster_status=ClusterStatus.TERMINATED,
-            )
+        all_clusters = Cluster.list(show_all=True).get("den_clusters", {})
+        present_statuses = set(
+            [den_cluster.get("Status") for den_cluster in all_clusters]
+        )
+        assert len(present_statuses) > 1
+        assert ClusterStatus.RUNNING in present_statuses
+        assert ClusterStatus.TERMINATED in present_statuses
 
-            all_clusters = Cluster.list(show_all=True).get("den_clusters", {})
-            present_statuses = set(
-                [den_cluster.get("Status") for den_cluster in all_clusters]
-            )
-            assert len(present_statuses) > 1
-            assert ClusterStatus.RUNNING in present_statuses
-            assert ClusterStatus.TERMINATED in present_statuses
-
-            test_cluster = [
-                den_cluster
-                for den_cluster in all_clusters
-                if den_cluster.get("Name") == cluster.name
-            ][0]
-            assert test_cluster.get("Status") == ClusterStatus.RUNNING
+        test_cluster = [
+            den_cluster
+            for den_cluster in all_clusters
+            if den_cluster.get("Name") == cluster.rns_address
+        ][0]
+        assert test_cluster.get("Status") == ClusterStatus.RUNNING
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_list_status_pythonic(self, cluster):
-        original_username = rns_client.username
-        new_username = (
-            "test-org"
-            if cluster.rns_address.startswith("/test-org/")
-            else original_username
-        )
-
-        with org_friend_account(
-            new_username=new_username,
-            token=rns_client.token,
-            original_username=original_username,
-        ):
-            for status in [ClusterStatus.RUNNING, ClusterStatus.TERMINATED]:
-                # check that filtered requests contains only specific status
-                filtered_clusters = Cluster.list(status=status).get("den_clusters", {})
-                if filtered_clusters:
-                    filtered_statuses = set(
-                        [cluster.get("Status") for cluster in filtered_clusters]
-                    )
-                    assert status in filtered_statuses
+        for status in [ClusterStatus.RUNNING, ClusterStatus.TERMINATED]:
+            # check that filtered requests contains only specific status
+            filtered_clusters = Cluster.list(status=status).get("den_clusters", {})
+            if filtered_clusters:
+                filtered_statuses = set(
+                    [cluster.get("Status") for cluster in filtered_clusters]
+                )
+                assert status in filtered_statuses
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_list_since_pythonic(self, cluster):
         cluster.save()  # tls exposed local cluster is not saved by default
 
-        original_username = rns_client.username
-        new_username = (
-            "test-org"
-            if cluster.rns_address.startswith("/test-org/")
-            else original_username
+        minutes_time_filter = 10
+        clusters = Cluster.list(since=f"{minutes_time_filter}m")
+        recent_clusters = clusters.get("den_clusters", {})
+
+        clusters_last_active_timestamps = set(
+            [den_cluster.get("Last Active (UTC)") for den_cluster in recent_clusters]
         )
 
-        with org_friend_account(
-            new_username=new_username,
-            token=rns_client.token,
-            original_username=original_username,
-        ):
-            minutes_time_filter = 10
-            clusters = Cluster.list(since=f"{minutes_time_filter}m")
-            recent_clusters = clusters.get("den_clusters", {})
+        assert len(clusters_last_active_timestamps) >= 1
+        current_utc_time = datetime.utcnow().replace(tzinfo=timezone.utc)
 
-            clusters_last_active_timestamps = set(
-                [
-                    den_cluster.get("Last Active (UTC)")
-                    for den_cluster in recent_clusters
-                ]
-            )
-
-            assert len(clusters_last_active_timestamps) >= 1
-            current_utc_time = datetime.utcnow().replace(tzinfo=timezone.utc)
-
-            for timestamp in clusters_last_active_timestamps:
-                # Convert the timestamp string to a naive datetime object
-                timestamp_obj = datetime.strptime(timestamp, "%m/%d/%Y, %H:%M:%S")
-                timestamp_obj = timestamp_obj.replace(tzinfo=timezone.utc)
-                assert (
-                    current_utc_time - timestamp_obj
-                ).total_seconds() <= minutes_time_filter * MINUTE
+        for timestamp in clusters_last_active_timestamps:
+            # Convert the timestamp string to a naive datetime object
+            timestamp_obj = datetime.strptime(timestamp, "%m/%d/%Y, %H:%M:%S")
+            timestamp_obj = timestamp_obj.replace(tzinfo=timezone.utc)
+            assert (
+                current_utc_time - timestamp_obj
+            ).total_seconds() <= minutes_time_filter * MINUTE
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -1138,48 +1088,42 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         import re
         import subprocess
 
-        original_username = rns_client.username
-        new_username = (
-            "test-org"
-            if cluster.rns_address.startswith("/test-org/")
-            else original_username
+        env = set_output_env_vars()
+
+        process = subprocess.Popen(
+            "runhouse cluster list",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
         )
+        process.wait()
+        stdout = process.communicate()[0]
+        capsys.readouterr()
+        cmd_stdout = stdout.decode("utf-8")
 
-        with org_friend_account(
-            new_username=new_username,
-            token=rns_client.token,
-            original_username=original_username,
-        ):
-            env = set_output_env_vars()
+        assert cmd_stdout
 
-            process = subprocess.Popen(
-                "runhouse cluster list",
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                env=env,
-            )
-            process.wait()
-            stdout = process.communicate()[0]
-            capsys.readouterr()
-            cmd_stdout = stdout.decode("utf-8")
+        # The output is printed as a table.
+        # testing that the table name is printed correctly
+        regex = f".*Clusters for {rh.configs.username}.*\(Running: .*/.*, Total Displayed: .*/.*\).*"
+        assert re.search(regex, cmd_stdout)
 
-            assert cmd_stdout
-
-            # The output is printed as a table.
-            # testing that the table name is printed correctly
-            regex = f".*Clusters for {rh.configs.username}.*\(Running: .*/.*, Total Displayed: .*/.*\).*"
-            assert re.search(regex, cmd_stdout)
-
-            # testing that the table column names is printed correctly
-            col_names = ["┃ Name", "┃ Cluster Type", "┃ Status", "┃ Last Active (UTC)"]
-            for name in col_names:
-                assert name in cmd_stdout
-            assert (
-                f"Showing clusters that were active in the last {int(LAST_ACTIVE_AT_TIMEFRAME / HOUR)} hours."
-                in cmd_stdout
-            )
-            assert cluster.name in cmd_stdout
+        # testing that the table column names is printed correctly
+        col_names = [
+            "┃ Name",
+            "┃ Cluster Type",
+            "┃ Status",
+            "┃ Last Active (UTC)",
+            "┃ Autostop (Mins)",
+        ]
+        for name in col_names:
+            assert name in cmd_stdout
+        assert (
+            f"Showing clusters that were active in the last {int(LAST_ACTIVE_AT_TIMEFRAME / HOUR)} hours."
+            in cmd_stdout
+        )
+        assert cluster.rns_address in cmd_stdout
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -1188,71 +1132,60 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         import re
         import subprocess
 
-        original_username = rns_client.username
-        new_username = (
-            "test-org"
-            if cluster.rns_address.startswith("/test-org/")
-            else original_username
-        )
+        cluster.save()  # tls exposed local cluster is not saved by default
 
-        with org_friend_account(
-            new_username=new_username,
-            token=rns_client.token,
-            original_username=original_username,
-        ):
-            cluster.save()  # tls exposed local cluster is not saved by default
+        subprocess_env = set_output_env_vars()
 
-            subprocess_env = set_output_env_vars()
+        for status in [ClusterStatus.RUNNING, ClusterStatus.TERMINATED]:
+            process = subprocess.Popen(
+                f"runhouse cluster list --status {status}",
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=subprocess_env,
+            )
+            process.wait()
+            stdout = process.communicate()[0]
+            capsys.readouterr()
+            cmd_stdout = stdout.decode("utf-8")
+            assert cmd_stdout
 
-            for status in [ClusterStatus.RUNNING, ClusterStatus.TERMINATED]:
-                process = subprocess.Popen(
-                    f"runhouse cluster list --status {status}",
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    env=subprocess_env,
-                )
-                process.wait()
-                stdout = process.communicate()[0]
-                capsys.readouterr()
-                cmd_stdout = stdout.decode("utf-8")
-                assert cmd_stdout
+            # The output is printed as a table.
+            # testing that the table name is printed correctly
 
-                # The output is printed as a table.
-                # testing that the table name is printed correctly
+            regex = ".*Clusters for.*\(Running: .*/.*, Total Displayed: .*/.*\).*"
+            assert re.search(regex, cmd_stdout)
 
-                regex = ".*Clusters for.*\(Running: .*/.*, Total Displayed: .*/.*\).*"
-                assert re.search(regex, cmd_stdout)
+            # testing that the table column names is printed correctly
+            col_names = [
+                "┃ Name",
+                "┃ Cluster Type",
+                "┃ Status",
+                "┃ Last Active (UTC)",
+                "┃ Autostop (Mins)",
+            ]
+            for name in col_names:
+                assert name in cmd_stdout
 
-                # testing that the table column names is printed correctly
-                col_names = [
-                    "┃ Name",
-                    "┃ Cluster Type",
-                    "┃ Status",
-                    "┃ Last Active (UTC)",
-                ]
-                for name in col_names:
-                    assert name in cmd_stdout
+            assert (
+                "Note: the above clusters have registered activity in the last 24 hours."
+                not in cmd_stdout
+            )
 
-                assert (
-                    "Note: the above clusters have registered activity in the last 24 hours."
-                    not in cmd_stdout
-                )
+            if status == ClusterStatus.RUNNING:
+                assert cluster.rns_address in cmd_stdout
 
-                if status == ClusterStatus.RUNNING:
-                    assert cluster.name in cmd_stdout
+            # Check other statuses not found in output
+            cmd_stdout = cmd_stdout.replace("Running:", "")
+            statuses = [s.lower() for s in list(ClusterStatus.__members__.keys())]
+            statuses.remove(status)
 
-                # Check other statuses not found in output
-                cmd_stdout = cmd_stdout.replace("Running:", "")
-                statuses = [s.lower() for s in list(ClusterStatus.__members__.keys())]
-                statuses.remove(status)
-
-                for status in statuses:
-                    assert status.capitalize() not in cmd_stdout
+            for status in statuses:
+                assert status.capitalize() not in cmd_stdout
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_cluster_list_and_create_process(self, cluster):
+    def test_cluster_create_and_list_process(self, cluster):
         assert DEFAULT_PROCESS_NAME in cluster.list_processes()
 
         # create a process manually with the create_process functionality

@@ -274,7 +274,7 @@ if __name__ == "__main__":
             "awscli",
         ],
     )
-    gpu_cluster = rh.cluster(
+    gpu_cluster = rh.compute(
         name=f"rh-{num_nodes}x{gpus_per_node}-gpu",
         instance_type=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,
@@ -285,7 +285,7 @@ if __name__ == "__main__":
     gpu_cluster.sync_secrets(["aws"])
 
     epochs = 15
-    remote_trainer_class = rh.module(ResNet152Trainer).to(gpu_cluster)
+    remote_trainer_class = rh.cls(ResNet152Trainer).to(gpu_cluster)
 
     remote_trainer = remote_trainer_class(
         name="trainer", s3_bucket=working_s3_bucket, s3_path=working_s3_path
