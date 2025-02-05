@@ -166,6 +166,13 @@ class StatusType(str, Enum):
     cluster = "cluster"
 
 
+# The user will be able to pass the node argument, which represents the specific cluster node they would like to get
+# the status of. The value of the node argument could be either the node IP or its index in the IPs list.
+class NodeFilterType(str, Enum):
+    ip = "ip"
+    node_index = "node_index"
+
+
 def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.cluster):
     """
     Helping function to the `_print_status` which prints the relevant info from the cluster config.
@@ -187,7 +194,7 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
 
     for key in top_level_config:
         console.print(
-            f"{BULLET_UNICODE} {key.replace('_', ' ')}: {cluster_config[key]}"
+            f"[reset]{BULLET_UNICODE} {key.replace('_', ' ')}: {cluster_config[key]}"
         )
 
     if status_type == StatusType.cluster:
@@ -196,7 +203,7 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
     for key in backend_config:
         if key == "autostop_mins" and cluster_config[key] == -1:
             console.print(
-                f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: autostop disabled"
+                f"[reset]{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: autostop disabled"
             )
         else:
             if (
@@ -212,103 +219,109 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
                 continue
 
             console.print(
-                f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
+                f"[reset]{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
             ) if status_type == StatusType.cluster else console.print(
-                f"{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
+                f"[reset]{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
             )
 
 
-def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluster):
+def print_processes_info(servlet_processes: Dict[str, Dict[str, Any]], node_index: int):
     """
-    Prints info about the envs in the current_cluster: resources in each env, the CPU usage and GPU usage of the env
-    (if exists)
+    Prints info about the processes in the current_cluster: resources in each process, the CPU usage and GPU usage of
+    the process (if exists)
     """
     from runhouse.main import console
 
     # Print headline
-    envs_in_cluster_headline = "Serving 🍦 :"
-    console.print(envs_in_cluster_headline)
+    processes_in_cluster_headline = "Serving 🍦 :"
+    console.print(processes_in_cluster_headline, style="bold turquoise4")
 
-    env_resource_mapping = {
-        env: servlet_processes[env].get("env_resource_mapping", {})
-        for env in servlet_processes
+    process_resource_mapping = {
+        process: servlet_processes[process].get("process_resource_mapping", {})
+        for process in servlet_processes
     }
 
-    if len(env_resource_mapping) == 0:
-        console.print("This cluster has no environment nor resources.")
+    if len(process_resource_mapping) == 0:
+        console.print("This cluster has no processes nor resources.")
 
-    first_envs_to_print = []
+    first_processes_to_print = []
 
-    # First: if the default env does not have resources, print it.
+    # First: if the default process does not have resources, print it.
     default_process_name = DEFAULT_PROCESS_NAME
-    if len(env_resource_mapping[default_process_name]) == 0:
-        # case where the default env doesn't hve any other resources, apart from the default env itself.
-        console.print(f"{BULLET_UNICODE} {default_process_name}")
+    if len(process_resource_mapping[default_process_name]) == 0:
+        # case where the default process doesn't hve any other resources, apart from the default process itself.
+        console.print(
+            f"{BULLET_UNICODE} {default_process_name}",
+            style="bold dark_cyan turquoise4",
+        )
         console.print(
             f"{DOUBLE_SPACE_UNICODE}This process has only python packages installed, if provided. No "
             "resources were found."
         )
 
     else:
-        # if the default env has other resources make sure it gets printed first
-        first_envs_to_print = [default_process_name]
+        # if the default process has other resources make sure it gets printed first
+        first_processes_to_print = [default_process_name]
 
-    # Make sure to print envs with no resources first.
-    # (the only resource they have is a runhouse.env, which is the env itself).
-    first_envs_to_print = first_envs_to_print + [
-        env_name
-        for env_name in env_resource_mapping
+    # Make sure to print process with no resources first.
+    first_processes_to_print = first_processes_to_print + [
+        process_name
+        for process_name in process_resource_mapping
         if (
-            len(env_resource_mapping[env_name]) == 0
-            and env_name != default_process_name
-            and env_resource_mapping[env_name]
+            len(process_resource_mapping[process_name]) == 0
+            and process_name != default_process_name
+            and process_resource_mapping[process_name]
         )
     ]
 
-    # Now, print the envs.
-    # If the env have packages installed, that means that it contains an env resource. In that case:
-    # * If the env contains only itself, we will print that the env contains only the installed packages.
-    # * Else, we will print the resources (rh.function, th.module) associated with the env.
-    envs_to_print = first_envs_to_print + [
-        env_name
-        for env_name in env_resource_mapping
-        if env_name not in first_envs_to_print + [default_process_name]
+    # Now, print the processes.
+    # If the process has no resource associated, we'll print that it contain only installed packages (if such exist).
+    # Otherwise, we will print the resources (rh.function, th.module) associated with the process.
+    processes_to_print = first_processes_to_print + [
+        process_name
+        for process_name in process_resource_mapping
+        if process_name not in first_processes_to_print + [default_process_name]
     ]
 
-    for env_name in envs_to_print:
-        resources_in_env = env_resource_mapping[env_name]
-        env_process_info = servlet_processes[env_name]
+    for process_name in processes_to_print:
+        resources_in_process = process_resource_mapping[process_name]
+        process_info = servlet_processes[process_name]
 
-        pid, node_name = env_process_info.get("pid", None), env_process_info.get(
-            "node_name", None
+        pid, node_name, process_node_index = (
+            process_info.get("pid", None),
+            process_info.get("node_name", None),
+            process_info.get("node_index", None),
         )
 
         # if there is no info about the process, don't print it in the status output
-        if not pid or not node_name:
+        if not pid or not node_name or node_index != process_node_index:
             continue
 
-        env_name_txt = f"{BULLET_UNICODE} {env_name} | pid: {pid} | node: {node_name}"
-        console.print(env_name_txt)
+        process_name_txt = f"[bold turquoise4]{BULLET_UNICODE} {process_name}"
+        console.print(process_name_txt)
 
         # Print CPU info
-        env_cpu_info = env_process_info.get("env_cpu_usage")
-        if env_cpu_info:
+        process_cpu_info = process_info.get("process_cpu_usage")
+        if process_cpu_info:
 
             # convert bytes to GB
             memory_usage_gb = round(
-                int(env_cpu_info["used_memory"]) / (1024**3),
-                2,
+                int(process_cpu_info["used_memory"]) / (1024**3),
+                3,
             )
             total_cluster_memory = math.ceil(
-                int(env_cpu_info["total_memory"]) / (1024**3)
+                int(process_cpu_info["total_memory"]) / (1024**3)
             )
             cpu_memory_usage_percent = round(
-                float(env_cpu_info["used_memory"] / env_cpu_info["total_memory"]) * 100,
-                2,
+                float(
+                    process_cpu_info["used_memory"] / process_cpu_info["total_memory"]
+                )
+                * 100,
+                3,
             )
-            cpu_usage_percent = round(float(env_cpu_info["utilization_percent"]), 2)
+            cpu_usage_percent = round(float(process_cpu_info["utilization_percent"]), 3)
 
-            cpu_usage_summary = f"{DOUBLE_SPACE_UNICODE}CPU: {cpu_usage_percent}% | Memory: {memory_usage_gb} / {total_cluster_memory} Gb ({cpu_memory_usage_percent}%)"
+            cpu_usage_summary = f"[reset]{DOUBLE_SPACE_UNICODE}CPU: {cpu_usage_percent}% | Memory: {memory_usage_gb} / {total_cluster_memory} Gb ({cpu_memory_usage_percent}%)"
 
         else:
             cpu_usage_summary = (
@@ -318,37 +331,37 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
         console.print(cpu_usage_summary)
 
         # Print GPU info
-        env_gpu_info = env_process_info.get("env_gpu_usage")
+        process_gpu_info = process_info.get("process_gpu_usage")
 
-        # sometimes the cluster has no GPU, therefore the env_gpu_info is an empty dictionary.
-        if env_gpu_info:
+        # sometimes the cluster has no GPU, therefore the process_gpu_info is an empty dictionary.
+        if process_gpu_info:
             # get the gpu usage info, and convert it to GB.
             total_gpu_memory = math.ceil(
-                float(env_gpu_info.get("total_memory")) / (1024**3)
+                float(process_gpu_info.get("total_memory")) / (1024**3)
             )
             used_gpu_memory = round(
-                float(env_gpu_info.get("used_memory")) / (1024**3), 2
+                float(process_gpu_info.get("used_memory")) / (1024**3), 3
             )
             gpu_memory_usage_percent = round(
-                float(used_gpu_memory / total_gpu_memory) * 100, 2
+                float(used_gpu_memory / total_gpu_memory) * 100, 3
             )
-            gpu_usage_summery = f"{DOUBLE_SPACE_UNICODE}GPU Memory: {used_gpu_memory} / {total_gpu_memory} Gb ({gpu_memory_usage_percent}%)"
+            gpu_usage_summery = f"[reset]{DOUBLE_SPACE_UNICODE}GPU Memory: {used_gpu_memory} / {total_gpu_memory} Gb ({gpu_memory_usage_percent}%)"
             console.print(gpu_usage_summery)
 
-        resources_in_env = [
-            {resource: resources_in_env[resource]}
-            for resource in resources_in_env
-            if resource is not env_name
+        resources_in_process = [
+            {resource: resources_in_process[resource]}
+            for resource in resources_in_process
+            if resource is not process_name
         ]
 
-        if len(resources_in_env) == 0:
-            # No resources were found in the env, only the associated installed python reqs were installed.
+        if len(resources_in_process) == 0:
+            # No resources were found in the process, only the associated installed python reqs were installed.
             console.print(
                 f"{DOUBLE_SPACE_UNICODE}No objects are stored in this process."
             )
 
         else:
-            for resource in resources_in_env:
+            for resource in resources_in_process:
                 for resource_name, resource_info in resource.items():
                     resource_type = condense_resource_type(
                         resource_info.get("resource_type")
@@ -385,15 +398,15 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
                         ).total_seconds()
 
                         is_func_running: str = (
-                            f" [italic bright_green]Running for {func_running_time} "
-                            f"seconds[/italic bright_green]"
+                            f" [italic dark_sea_green]Running for {func_running_time} "
+                            f"seconds[/italic dark_sea_green]"
                         )
 
                     elif (
                         resource_type == "runhouse.Function"
                         and not active_function_calls
                     ):
-                        is_func_running: str = " [italic bright_yellow]Currently not running[/italic bright_yellow]"
+                        is_func_running: str = " [italic light_goldenrod3]Currently not running[/italic light_goldenrod3]"
 
                     else:
                         is_func_running: str = ""
@@ -441,7 +454,67 @@ def print_cloud_properties(cluster_config: dict):
     console.print(f"[reset]{cpus_gpus_info_str}")
 
 
-def print_status(status_data: dict, current_cluster) -> None:
+# returns the worker cpu+gpu util info + it's index
+def get_node_status_data(
+    status_data: dict, ip_or_index: NodeFilterType = None, node: str = None
+):
+    workers = status_data.get("workers")
+
+    # if node is not provided, we print the data of the head node
+    if not node:
+        return workers[0], 0
+
+    if ip_or_index == NodeFilterType.ip:
+        return next(
+            (
+                (worker, worker_index)
+                for worker_index, worker in enumerate(workers)
+                if worker.get("ip") == node
+            ),
+            ({}, None),
+        )
+    if ip_or_index == NodeFilterType.node_index:
+        worker_index = int(node)
+        return (
+            (workers[worker_index], worker_index)
+            if worker_index < len(workers)
+            else ({}, None)
+        )
+
+
+def print_node_status(
+    node_status_data: dict,
+    worker_index: int,
+    servlet_processes: dict,
+    is_gpu: bool,
+    current_cluster,
+):
+    from runhouse.main import console
+
+    # print general cpu and gpu utilization
+    cluster_gpu_usage: dict = node_status_data.get("server_gpu_usage", None)
+    # Note: GPU utilization can be none, even if the cluster has GPU, if the cluster was not using its GPU when cluster.status() was invoked
+    cluster_gpu_utilization_percent: float = (
+        cluster_gpu_usage.get("utilization_percent") if cluster_gpu_usage else 0
+    )
+
+    cluster_cpu_usage: dict = node_status_data.get("server_cpu_usage")
+    cluster_cpu_utilization_percent = cluster_cpu_usage.get("utilization_percent")
+    node_name = f"worker {worker_index}" if worker_index > 0 else "head node"
+    node_ip = node_status_data.get("ip")
+
+    node_util_info = (
+        f"[reset][bold light_sea_green]{node_name} | IP: {node_ip} | CPU Utilization: {round(cluster_cpu_utilization_percent, 3)}% | GPU Utilization: {round(cluster_gpu_utilization_percent, 3)}%"
+        if is_gpu
+        else f"[reset][bold light_sea_green]{node_name} | IP: {node_ip} | CPU Utilization: {round(cluster_cpu_utilization_percent, 3)}%"
+    )
+    console.print(node_util_info)
+
+    # print the processes in the cluster, and the resources associated with each process.
+    print_processes_info(servlet_processes, worker_index)
+
+
+def print_status(status_data: dict, current_cluster, node: str = None) -> None:
     """Prints the status of the cluster to the console"""
     from runhouse.globals import rns_client
     from runhouse.main import console
@@ -449,6 +522,22 @@ def print_status(status_data: dict, current_cluster) -> None:
     cluster_config = status_data.get("cluster_config")
     servlet_processes = status_data.get("processes")
 
+    node_status_data, worker_index = None, None
+    if node:
+        node = "0" if node.lower() == "head" else node
+        ip_or_index = (
+            NodeFilterType.node_index if node.isnumeric() else NodeFilterType.ip
+        )
+        node_status_data, worker_index = get_node_status_data(
+            status_data=status_data, ip_or_index=ip_or_index, node=node
+        )
+        if not node_status_data:
+            console.print(
+                f"[reset][bold italic red]Invalid node provided: {node}. Please provide correct node IP or node index."
+            )
+            return
+
+    is_gpu = cluster_config.get("is_gpu", False)
     cluster_name = cluster_config.get("name", None)
     if cluster_name:
         cluster_uri = rns_client.format_rns_address(cluster_name)
@@ -457,8 +546,6 @@ def print_status(status_data: dict, current_cluster) -> None:
             cluster_name, style=f"link {cluster_link_in_den_ui} white"
         )
         console.print(cluster_name_hyperlink)
-
-    is_gpu = cluster_config.get("is_gpu", False)
 
     # print headline
     daemon_headline_txt = (
@@ -473,24 +560,23 @@ def print_status(status_data: dict, current_cluster) -> None:
     # Print relevant info from cluster config.
     print_cluster_config(cluster_config)
 
-    # print general cpu and gpu utilization
-    cluster_gpu_utilization: float = status_data.get("server_gpu_utilization")
-
-    # Note: GPU utilization can be none if the cluster was not using its GPU when cluster.status() was invoked
-    if cluster_gpu_utilization is None and is_gpu:
-        cluster_gpu_utilization: float = 0.0
-
-    cluster_cpu_utilization: float = status_data.get("server_cpu_utilization")
-
-    server_util_info = (
-        f"CPU Utilization: {round(cluster_cpu_utilization, 2)}% | GPU Utilization: {round(cluster_gpu_utilization, 2)}%"
-        if is_gpu
-        else f"CPU Utilization: {round(cluster_cpu_utilization, 2)}%"
-    )
-    console.print(server_util_info)
-
-    # print the environments in the cluster, and the resources associated with each environment.
-    print_envs_info(servlet_processes, current_cluster)
+    # Print processes information. If a node is provided, we'll print only the processes running on the specified node.
+    # If no node is provided, we'll print information about all cluster nodes.
+    if node:
+        print_node_status(
+            node_status_data, worker_index, servlet_processes, is_gpu, current_cluster
+        )
+    else:
+        nodes_status_data = status_data.get("workers")
+        for worker_index in range(len(nodes_status_data)):
+            node_status_data = nodes_status_data[worker_index]
+            print_node_status(
+                node_status_data,
+                worker_index,
+                servlet_processes,
+                is_gpu,
+                current_cluster,
+            )
 
 
 def get_local_or_remote_cluster(cluster_name: str = None, exit_on_error: bool = True):
@@ -572,6 +658,22 @@ def get_local_or_remote_cluster(cluster_name: str = None, exit_on_error: bool = 
         current_cluster = cluster_or_local  # cluster_or_local = rh.here
 
     return current_cluster
+
+
+####################################################################################################
+# Cluster ssh utils
+####################################################################################################
+
+
+def get_node_ip(node: str, cluster_ips: list):
+    if node in cluster_ips:
+        return node
+    elif node == "head":
+        return cluster_ips[0]
+    elif node.isnumeric():
+        return cluster_ips[int(node)]
+    else:
+        raise ValueError(f"Node {node} is unsupported, could not get its IP.")
 
 
 ####################################################################################################
