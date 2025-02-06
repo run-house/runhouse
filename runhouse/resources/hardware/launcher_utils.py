@@ -1,6 +1,7 @@
 import ast
 import logging
 import sys
+from pathlib import Path
 from typing import Any, Optional
 
 import requests
@@ -13,7 +14,7 @@ from runhouse.resources.hardware.utils import (
     ClusterStatus,
     SSEClient,
 )
-from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content, read_resp_data
+from runhouse.rns.utils.api import load_resp_content, read_resp_data
 from runhouse.utils import ClusterLogsFormatter, ColoredFormatter, Spinner
 
 logger = get_logger(__name__)
@@ -108,34 +109,6 @@ class Launcher:
         import sky
 
         return list(sky.clouds.CLOUD_REGISTRY)
-
-    @classmethod
-    def sky_secret(cls):
-        from runhouse.constants import SSH_SKY_SECRET_NAME
-
-        try:
-            sky_secret = rh.secret(SSH_SKY_SECRET_NAME)
-        except ValueError:
-            # Create a new default key pair required for the Den launcher and save it to Den
-            from runhouse import provider_secret
-
-            default_ssh_path, _ = generate_ssh_keys()
-            logger.info(f"Saved new SSH key to path: {default_ssh_path} ")
-            sky_secret = provider_secret(
-                provider="sky", path=default_ssh_path, name=SSH_SKY_SECRET_NAME
-            )
-            sky_secret.save()
-
-        secret_values = sky_secret.values
-        if (
-            not secret_values
-            or "public_key" not in secret_values
-            or "private_key" not in secret_values
-        ):
-            raise ValueError(
-                f"Public key and private key values not found in secret {sky_secret.name}"
-            )
-        return sky_secret
 
     @classmethod
     def run_verbose(
@@ -237,10 +210,6 @@ class DenLauncher(Launcher):
             if value:
                 setattr(cluster, attribute, value)
 
-        creds = config.get("creds")
-        if not cluster._creds and creds:
-            cluster._setup_creds(creds)
-
     @classmethod
     def keep_warm(cls, cluster, mins: int):
         """Keeping a Den launched cluster warm."""
@@ -265,17 +234,11 @@ class DenLauncher(Launcher):
     @classmethod
     def up(cls, cluster, verbose: bool = True, force: bool = False):
         """Launch the cluster via Den."""
-        sky_secret = cls.sky_secret()
-        cluster._setup_creds(sky_secret)
         cluster.save()
-
         cluster_config = cluster.config()
 
         payload = {
-            "cluster_config": {
-                **cluster_config,
-                "ssh_creds": sky_secret.rns_address,
-            },
+            "cluster_config": cluster_config,
             "force": force,
             "verbose": verbose,
             "observability": configs.observability_enabled,
@@ -351,6 +314,31 @@ class DenLauncher(Launcher):
                 f"teardown cluster: {load_resp_content(resp)}"
             )
         cluster.cluster_status = ClusterStatus.TERMINATED
+
+    @classmethod
+    def load_creds(cls):
+        """Loads the SSH credentials required for the Den launcher, and for interacting with the cluster
+        once launched."""
+        default_ssh_key = rns_client.default_ssh_key
+        if not default_ssh_key:
+            raise ValueError(
+                "No default SSH key found in the local Runhouse config, "
+                "please set one by running `runhouse login`"
+            )
+        try:
+            # Note: we still need to load them down locally to use for certain cluster operations (ex: rsync)
+            secret = rh.Secret.from_name(default_ssh_key)
+            if not Path(secret.path).expanduser().exists():
+                # Ensure this specific keypair is written down locally
+                secret.write()
+                logger.info(f"Saved default SSH key locally in path: {secret.path}")
+        except ValueError:
+            raise ValueError(
+                "Failed to load default SSH key, "
+                "try re-saving by running `runhouse login`"
+            )
+
+        return secret
 
 
 class LocalLauncher(Launcher):

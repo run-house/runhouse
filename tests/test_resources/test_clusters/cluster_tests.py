@@ -35,7 +35,7 @@ def test_cluster_config(local_launched_ondemand_aws_docker_cluster):
 def test_cluster_sharing(local_launched_ondemand_aws_docker_cluster):
     local_launched_ondemand_aws_docker_cluster.share(
         users=["donny@run.house", "josh@run.house"],
-        access_level="write",
+        access_level="read",
         notify_users=False,
     )
     assert True

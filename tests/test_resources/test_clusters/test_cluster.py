@@ -152,17 +152,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert cluster.head_ip == args["ips"][0]
 
         if "ssh_creds" in args:
-            args_creds = args["ssh_creds"]
-            args_creds_values = (
-                args_creds.values if isinstance(args_creds, rh.Secret) else args_creds
-            )
-
-            cluster_creds = cluster.creds_values
-            if "ssh_private_key" in cluster_creds:
-                # this means that the secret was created by accessing an ssh-key file
-                cluster_creds.pop("private_key", None)
-                cluster_creds.pop("public_key", None)
-            assert cluster_creds == args_creds_values
+            ssh_creds = args["ssh_creds"]
+            if isinstance(ssh_creds, rh.Secret):
+                assert ssh_creds.values == cluster.creds_values
+            if isinstance(ssh_creds, dict):
+                ssh_creds.pop("password", None)
+                assert ssh_creds == cluster.ssh_properties
 
         if "server_host" in args:
             assert cluster.server_host == args["server_host"]
@@ -349,6 +344,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # First try loading in same process/filesystem because it's more debuggable, but not as thorough
         resource_class_name = cluster.config().get("resource_type").capitalize()
         config = cluster.config()
+        config_copy = config.copy()
 
         sky_secret = "ssh-sky-key"
         generated_secret = f'{config["name"]}-ssh-secret'
@@ -363,9 +359,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             curr_config = load_shared_resource_config(
                 resource_class_name, cluster.rns_address
             )
+            curr_config_copy = curr_config.copy()
+            # Creds for shared cluster are not loaded down
             new_creds = curr_config.get("creds", None)
-            assert sky_secret in new_creds or generated_secret in new_creds
-            assert curr_config == config
+            assert new_creds is None
+
+            curr_config_copy.pop("creds", None)
+            config_copy.pop("creds", None)
+
+            assert curr_config_copy == config_copy
 
         # TODO: If we are testing with an ondemand_cluster we to
         # sync sky key so loading ondemand_cluster from config works
@@ -377,21 +379,22 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         new_config = load_shared_resource_config_cluster(
             resource_class_name, cluster.rns_address
         )
-        new_creds = curr_config.get("creds", None)
-        assert sky_secret in new_creds or generated_secret in new_creds
+
+        orig_creds = config.pop("creds", None)
+        assert sky_secret in orig_creds or generated_secret in orig_creds
         assert new_config == config
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_access_to_shared_cluster(self, cluster):
         # TODO: Remove this by doing some CI-specific logic.
+        from runhouse.globals import rns_client
+
         if cluster.__class__.__name__ == "OnDemandCluster":
             return
 
         if cluster.rns_address.startswith("~"):
             # For `local_named_resource` resolve the rns address so it can be shared and loaded
-            from runhouse.globals import rns_client
-
             cluster.rns_address = rns_client.local_to_remote_address(
                 cluster.rns_address
             )
@@ -403,25 +406,23 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
 
         cluster_name = cluster.rns_address
-        cluster_creds = cluster.creds_values
+        cluster_ssh_properties = cluster.ssh_properties
 
         with friend_account_in_org():
-            shared_cluster = rh.cluster(name=cluster_name)
-            assert shared_cluster.rns_address == cluster_name
-            assert shared_cluster.creds_values.keys() == cluster_creds.keys()
-            echo_msg = "hello from shared cluster"
+            # Friend should have access to the resource in Den
+            # Note: for docker clusters we do not support cluster access (i.e. adding the friend's public key
+            # to the cluster's authorized user's file)
+            resource_uri = rns_client.resource_uri(cluster_name)
+            uri = f"{rns_client.api_server_url}/resource/{resource_uri}"
+            resp = rns_client.session.get(uri, headers=rns_client.request_headers())
+            assert resp.status_code == 200
 
-            if shared_cluster.ips == shared_cluster.internal_ips != ["localhost"]:
-                run_res = shared_cluster.run_bash_over_ssh([f"echo {echo_msg}"])
-            else:
-                run_res = shared_cluster.run_bash([f"echo {echo_msg}"])
-
-            assert echo_msg in run_res[0][1]
-            # First element, return code
-            if shared_cluster.ips == shared_cluster.internal_ips != ["localhost"]:
-                assert shared_cluster.run_bash_over_ssh(["echo hello"])[0][0] == 0
-            else:
-                assert shared_cluster.run_bash(["echo hello"])[0][0] == 0
+            cluster_config: dict = resp.json().get("data")
+            assert cluster_config["name"] == cluster_name
+            assert (
+                cluster_config["data"]["ssh_properties"].keys()
+                == cluster_ssh_properties.keys()
+            )
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest

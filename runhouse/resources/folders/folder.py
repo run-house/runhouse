@@ -372,12 +372,13 @@ class Folder(Resource):
     def _cluster_to_cluster(self, dest_cluster, dest_path):
         src_path = self.path
 
+        cluster_ssh_properties = self.system.ssh_properties
         cluster_creds = self.system.creds_values
 
         if not cluster_creds.get("password") and not dest_cluster.creds_values.get(
             "password"
         ):
-            creds_file = cluster_creds.get("ssh_private_key")
+            creds_file = cluster_ssh_properties.get("ssh_private_key")
             creds_cmd = f"-i '{creds_file}' " if creds_file else ""
 
             dest_cluster.run_bash([f"mkdir -p {dest_path}"])

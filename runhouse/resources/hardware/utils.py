@@ -50,6 +50,10 @@ class LauncherType(str, Enum):
     LOCAL = "local"
     DEN = "den"
 
+    @classmethod
+    def strings(cls):
+        return [s.value for s in cls]
+
 
 class RunhouseDaemonStatus(str, Enum):
     RUNNING = "running"
@@ -171,27 +175,6 @@ def _get_cluster_from(system, dryrun=False):
             pass
 
     return system
-
-
-def _setup_default_creds(cluster_type: str):
-    from runhouse.resources.secrets import Secret
-
-    default_ssh_key = rns_client.default_ssh_key
-    if cluster_type == "OnDemandCluster":
-        try:
-            sky_secret = Secret.from_name("sky")
-            return sky_secret
-        except ValueError:
-            if default_ssh_key:
-                # copy over default key to sky-key for launching use
-                default_secret = Secret.from_name(default_ssh_key)
-                sky_secret = default_secret._write_to_file("~/.ssh/sky-key")
-                return sky_secret
-            else:
-                return None
-    elif default_ssh_key:
-        return Secret.from_name(default_ssh_key)
-    return None
 
 
 def _setup_creds_from_dict(ssh_creds: Dict, cluster_name: str):
