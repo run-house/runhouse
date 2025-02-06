@@ -443,7 +443,7 @@ def print_cloud_properties(cluster_config: dict):
     console.print(
         f"[reset]🤖 {cloud} {instance_type} cluster | 🌍 {region} | {cost_emoji} ${cost_per_hour}/hr"
     )
-    cpus_gpus_info_str = f"CPUs: {int(float(num_of_cpus))}"
+    cpus_gpus_info_str = f"CPUs: {num_of_cpus}"
     if num_of_gpus > 0:
         gpu_types_str = gpu_types.pop()
         for gpu_type in gpu_types:
