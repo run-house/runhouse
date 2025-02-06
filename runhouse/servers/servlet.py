@@ -404,3 +404,7 @@ class Servlet:
 
     async def astatus_local(self):
         return await arun_in_thread(self._status_local_helper)
+
+    async def aremove_servlet_from_cache(self, servlet_name):
+        logger.info(f"Removing {servlet_name} from {self.env_name}")
+        await obj_store.adelete_servlet_from_cache(servlet_name)

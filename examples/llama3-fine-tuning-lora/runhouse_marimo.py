@@ -46,7 +46,7 @@ def _(rh):
         .sync_secrets(["huggingface"])
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-L4", instance_type="L4:1", provider="aws", image=img, autostop_mins=120
     ).up_if_not()
     return cluster, img

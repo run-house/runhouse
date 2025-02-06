@@ -67,7 +67,7 @@ def bring_up_remote_inference_service():
             "scipy",
         ]
     )
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-yolov3", image=img, instance_type="A10G:1", provider="aws"
     )
 
@@ -76,14 +76,14 @@ def bring_up_remote_inference_service():
         cluster.run_bash(
             "curl -O -L https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7.pt"
         )
-        remote_YOLO = rh.module(YOLOv3).to(cluster, name="yolo")
+        remote_YOLO = rh.cls(YOLOv3).to(cluster, name="yolo")
         YOLO = remote_YOLO(name="yolo_model")
 
     else:
         try:
             YOLO = cluster.get("yolo_model", remote=True)
         except:
-            remote_YOLO = rh.module(YOLOv3).to(cluster, name="yolo")
+            remote_YOLO = rh.cls(YOLOv3).to(cluster, name="yolo")
             YOLO = remote_YOLO(name="yolo_model")
 
     return YOLO

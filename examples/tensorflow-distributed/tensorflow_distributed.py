@@ -49,7 +49,7 @@ async def train():
     # Create a cluster of 2 GPUs
     gpus_per_node = 1
     num_nodes = 2
-    cluster = rh.cluster(
+    gpus = rh.compute(
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
         instance_type=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,
@@ -59,21 +59,21 @@ async def train():
     train_workers = []
     tf_config = {
         "cluster": {
-            "worker": [f"{ip}:12345" for ip in cluster.internal_ips],
+            "worker": [f"{ip}:12345" for ip in gpus.internal_ips],
         },
     }
     for i in range(num_nodes):
         for j in range(gpus_per_node):
             # Per https://www.tensorflow.org/api_docs/python/tf/distribute/Strategy#attributes
             tf_config["task"] = {"type": "worker", "index": i * gpus_per_node + j}
-            proc = cluster.ensure_process_created(
+            proc = gpus.ensure_process_created(
                 f"train{i}",
                 env_vars={"TF_CONFIG": json.dumps(tf_config)},
                 compute={"node_idx": i},
             )
 
             # While iterating, you can kill the worker processes to stop any pending or hanging calls
-            train_worker = rh.function(train_process).to(cluster, process=proc)
+            train_worker = rh.function(train_process).to(gpus, process=proc)
             train_workers.append(train_worker)
 
     # Call the workers async to run them concurrently (each will connect and wait for the others)

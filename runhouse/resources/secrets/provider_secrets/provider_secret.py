@@ -196,7 +196,7 @@ class ProviderSecret(Secret):
             env_vars = self.env_vars or self._DEFAULT_ENV_VARS
             if env_vars:
                 env_vars = self._map_env_vars(env_vars)
-                system.set_process_env_vars(name=process, env_vars=env_vars)
+                system.set_env_vars_globally(env_vars=env_vars)
         return new_secret
 
     def _map_env_vars(self, env_vars: Dict = None):

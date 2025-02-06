@@ -4,30 +4,11 @@
 # We use a [BGE large model from Hugging Face](https://huggingface.co/BAAI/bge-large-en-v1.5) and load it via
 # the `SentenceTransformer` class from the `huggingface` library.
 #
-# ## Setup credentials and dependencies
-#
-# Optionally, set up a virtual environment:
-# ```shell
-# $ conda create -n parallel-embed python=3.9.15
-# $ conda activate parallel-embed
-# ```
-# Install the required dependencies:
-# ```shell
-# $ pip install "runhouse[aws]" torch beautifulsoup4 tqdm
-# ```
-#
-# We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
-# make sure our AWS credentials are set up:
-# ```shell
-# $ aws configure
-# $ sky check
-# ```
-#
 # ## Some utility functions
 #
 # We import `runhouse` and other utility libraries; only the ones that are needed to run the script locally.
 # Imports of libraries that are needed on the remote machine (in this case, the `huggingface` dependencies)
-# can happen within the functions that will be sent to the Runhouse cluster.
+# can happen within the functions that will be sent to the Runhouse compute.
 
 import time
 from functools import partial
@@ -89,7 +70,7 @@ def extract_urls(url, max_depth=1):
 # ## Setting up the URL Embedder
 #
 # Next, we define a class that will hold the model and the logic to extract a document from a URL and embed it.
-# Later, we'll instantiate this class with `rh.module` and send it to the Runhouse cluster. Then, we can call
+# Later, we'll instantiate this class with `rh.cls` and send it to the Runhouse cluster. Then, we can call
 # the functions on this class and they'll run on the remote machine.
 #
 # Learn more in the [Runhouse docs on functions and modules](/docs/tutorials/api-modules).
@@ -132,7 +113,7 @@ if __name__ == "__main__":
     urls = extract_urls(url_to_recursively_embed, max_depth=2)
     print(f"Time to extract {len(urls)} URLs: {time.time() - start_time}")
 
-    # First, we create a cluster with the desired instance type and provider.
+    # First, we define compute with the desired instance type and provider.
     # Our `instance_type` here is defined as `A10G:1`, which is the accelerator type and count we need We could
     # alternatively specify a specific AWS instance type, such as `p3.2xlarge` or `g4dn.xlarge`. However, we
     # provision `num_replicas` number of these instances. This gives us one Runhouse cluster that has
@@ -143,13 +124,12 @@ if __name__ == "__main__":
     # like this one. Note that it is also far easier to provision several A10G:1 machines as spot instances
     # than it is to provision a single A10G:4 machine, which is why we do it this way.
     #
-    # Note that if the cluster was
-    # already up (e.g. if we had run this script before), the code would just bring it up instead of creating a
-    # new one, since we have given it a unique name `"rh-4xa10g"`.
+    # Note that if the cluster was  already up (e.g. if we had run this script before), the code would just bring
+    # it up instead of creating a new one, since we have given it a unique name `"rh-4xa10g"`.
     #
     # Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
     start_time = time.time()
-    img = rh.Image("embeddings").install_packages(
+    img = rh.Image().install_packages(
         [
             "langchain",
             "langchain-community",
@@ -160,7 +140,7 @@ if __name__ == "__main__":
         ]
     )
 
-    cluster = rh.cluster(
+    gpus = rh.compute(
         f"rh-{num_replicas}xa10g",
         instance_type="A10G:1",
         provider="aws",
@@ -183,9 +163,9 @@ if __name__ == "__main__":
     # returned "remote class" instead of the normal local class. These instances are then actually constructed
     # on the cluster, and any methods called on these instances would run on the cluster.
 
-    process = cluster.ensure_process_created("langchain_embed_env")
+    process = gpus.ensure_process_created("langchain_embed_env")
 
-    RemoteURLEmbedder = rh.module(URLEmbedder).to(cluster, process=process)
+    RemoteURLEmbedder = rh.cls(URLEmbedder).to(gpus, process=process)
     remote_url_embedder = RemoteURLEmbedder(
         model_name_or_path="BAAI/bge-large-en-v1.5",
         device="cuda",

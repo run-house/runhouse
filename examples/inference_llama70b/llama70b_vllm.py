@@ -53,7 +53,7 @@ if __name__ == "__main__":
     cluster = bring_up_cluster(img, restart_server=True)
     # cluster = bring_up_cluster(img, num_gpus= 8, num_nodes = 1, gpu_type = 'L4', use_spot = True, launcher = 'local', autostop_mins = 120, restart_server = True)
 
-    inference_remote = rh.module(Llama70B_vLLM).to(cluster, name="llama_model_vllm")
+    inference_remote = rh.cls(Llama70B_vLLM).to(cluster, name="llama_model_vllm")
     llama = inference_remote(name="vllm_llama70b", num_gpus=8)
     # llama = cluster.get("vllm_llama70b", remote = True)
     queries = [

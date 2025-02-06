@@ -271,7 +271,12 @@ class ObjStore:
             if path not in sys.path:
                 sys.path.insert(0, path)
 
-        # Set env vars that were passed in initialization
+        # Set env vars that need to be set on creation
+        env_vars_to_set = await self.aget_env_vars_to_set_in_new_processes()
+        self.set_process_env_vars_local(env_vars_to_set)
+
+        # Set env vars that were passed in initialization, these should override
+        # any env vars that were set globally via the previous global set
         if create_process_params and create_process_params.env_vars:
             self.set_process_env_vars_local(create_process_params.env_vars)
 
@@ -448,13 +453,7 @@ class ObjStore:
         import ray
 
         cluster_config = self.get_cluster_config()
-        if "stable_internal_external_ips" in cluster_config:
-            # TODO: remove, backwards compatibility
-            return [
-                internal_ip
-                for internal_ip, _ in cluster_config["stable_internal_external_ips"]
-            ]
-        elif cluster_config.get("compute_properties", {}).get("internal_ips", []):
+        if cluster_config.get("compute_properties", {}).get("internal_ips", []):
             return cluster_config.get("compute_properties").get("internal_ips")
         else:
             if not ray.is_initialized():
@@ -662,6 +661,11 @@ class ObjStore:
     def set_process_env_vars(self, servlet_name: str, env_vars: Dict[str, str]):
         return sync_function(self.aset_process_env_vars)(servlet_name, env_vars)
 
+    async def aset_env_vars_globally(self, env_vars: Dict[str, str]):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aset_env_vars_globally", env_vars
+        )
+
     ##############################################
     # Cluster config state storage methods
     ##############################################
@@ -823,6 +827,11 @@ class ObjStore:
     async def aadd_path_to_prepend_in_new_processes(self, path: str):
         return await self.acall_actor_method(
             self.cluster_servlet, "aadd_path_to_prepend_in_new_processes", path
+        )
+
+    async def aget_env_vars_to_set_in_new_processes(self) -> Dict[str, str]:
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aget_env_vars_to_set_in_new_processes"
         )
 
     ##############################################
@@ -1183,6 +1192,10 @@ class ObjStore:
 
     def delete_servlet_contents(self, servlet_name: Any):
         return sync_function(self.adelete_servlet_contents)(servlet_name)
+
+    async def adelete_servlet_from_cache(self, servlet_name: Any):
+        if servlet_name in self.servlet_cache:
+            del self.servlet_cache[servlet_name]
 
     async def adelete(self, key: Union[Any, List[Any]]):
         keys_to_delete = [key] if isinstance(key, str) else key

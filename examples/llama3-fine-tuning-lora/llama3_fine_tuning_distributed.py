@@ -192,7 +192,7 @@ if __name__ == "__main__":
     num_nodes = 3
 
     # Requires access to a cloud account with the necessary permissions to launch compute.
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=f"rh-L4x{num_nodes}",
         num_nodes=num_nodes,
         instance_type="L4:1",
@@ -202,7 +202,7 @@ if __name__ == "__main__":
         autostop_mins=360,
     ).up_if_not()
     cluster.restart_server()
-    fine_tuner_remote = rh.module(FineTuner).to(cluster, name="ft_model")
+    fine_tuner_remote = rh.cls(FineTuner).to(cluster, name="ft_model")
     fine_tuner = fine_tuner_remote(name="ft_model_instance").distribute(
         "pytorch", num_replicas=num_nodes, replicas_per_node=1
     )

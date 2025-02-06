@@ -42,11 +42,10 @@ from .globals import configs, obj_store
 
 from .rns.login import login, logout
 
-# Briefly keep for BC.
-send = function
-
 # Syntactic sugar
 fn = function
+compute = cluster
+cls = module
 
 
 def __getattr__(name):
@@ -57,4 +56,4 @@ def __getattr__(name):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-__version__ = "0.0.39"
+__version__ = "0.0.40"

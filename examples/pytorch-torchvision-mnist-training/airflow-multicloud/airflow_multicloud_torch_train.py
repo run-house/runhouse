@@ -65,7 +65,7 @@ gpu_cluster_name = "gpu-cluster"
 
 def get_cluster(**kwargs):
     img = rh.Image("pytorch").install_packages(["torch", "torchvision"])
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=kwargs.get("cluster_name", "rh-cluster"),
         instance_type=kwargs.get("instance_type", None),
         gpus=kwargs.get("gpus", None),
@@ -127,7 +127,7 @@ def train_model_callable(**kwargs):
     logger.info("Step 4: Train Model")
     cluster = get_cluster(**kwargs)
 
-    remote_torch_example = rh.module(SimpleTrainer).to(
+    remote_torch_example = rh.cls(SimpleTrainer).to(
         cluster, name="torch-basic-training"
     )
 

@@ -115,14 +115,8 @@ class OnDemandCluster(Cluster):
         self.vpc_name = vpc_name
 
         self.compute_properties = {}
-        # backwards compatibility
-        if kwargs.get("stable_internal_external_ips"):
-            internal_ips, ips = map(
-                list, zip(*kwargs.get("stable_internal_external_ips"))
-            )
-            self.compute_properties["ips"] = ips
-            self.compute_properties["internal_ips"] = internal_ips
-        elif kwargs.get("ips"):
+
+        if kwargs.get("ips"):
             self.compute_properties["ips"] = kwargs.get("ips")
 
         self.compute_properties = {

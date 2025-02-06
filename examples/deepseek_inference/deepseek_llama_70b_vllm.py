@@ -12,24 +12,9 @@
 # which means it takes 1-5 minutes per question asked. It will take some time to download the model
 # to the remote machine on the first run.
 #
-# We can easily add additional nodes with Runhouse, which will automatically form the cluster. We will
+# We can easily add additional nodes with Runhouse, which will automatically form the compute. We will
 # rely fully on vllm to make use of them and increasing tensor and pipeline parallelism.
 #
-# To get started, you simply need to install Runhouse with additional install for the cloud you want to use
-# ```shell
-# $ pip install "runhouse[aws]" torch vllm
-# ```
-#
-# If you do not have a Runhouse account, you will launch from your local machine. Set up your
-# cloud provider CLI:
-# ```shell
-# $ aws configure
-# $ gcloud init
-# ```
-# We'll be downloading the model from Hugging Face, so we may need to set up our Hugging Face token:
-# ```shell
-# $ export HF_TOKEN=<your huggingface token>
-# ```
 
 # ## Defining the vLLM Inference Class
 # We define a class that will hold the model and allow us to send prompts to it.
@@ -84,7 +69,7 @@ class DeepSeek_Distill_Llama70B_vLLM:
 
 if __name__ == "__main__":
     img = (
-        rh.Image(name="vllm_inference")
+        rh.Image()
         .install_packages(
             [
                 "torch",
@@ -104,7 +89,7 @@ if __name__ == "__main__":
     provider = "aws"  # or gcp, azure, lambda, etc.
     autostop_mins = 120
 
-    cluster = rh.cluster(
+    gpus = rh.compute(
         name=f"rh-{gpu_type}-{num_gpus}x{num_nodes}",
         num_nodes=num_nodes,
         instance_type=f"{gpu_type}:{num_gpus}",
@@ -114,16 +99,16 @@ if __name__ == "__main__":
         region=region,
         launcher=launcher,
         autostop_mins=autostop_mins,
-    ).up_if_not()  # use cluster.restart_server() if you need to reset the remote cluster without tearing it down
+    ).up_if_not()  # use gpus.restart_server() if you need to reset the remote cluster without tearing it down
 
-    inference_remote = rh.module(DeepSeek_Distill_Llama70B_vLLM).to(
-        cluster, name="deepseek_vllm"
-    )  # Send the class to remote cluster
+    inference_remote = rh.cls(DeepSeek_Distill_Llama70B_vLLM).to(
+        gpus, name="deepseek_vllm"
+    )  # Send the class to remote compute
     llama = inference_remote(
         name="deepseek", num_gpus=num_gpus
-    )  # Instantiate class. Can later use cluster.get("deepseek", remote = True) to grab remote inference if already running
+    )  # Instantiate class. Can later use gpus.get("deepseek", remote = True) to grab remote inference if already running
 
-    cluster.ssh_tunnel(
+    gpus.ssh_tunnel(
         8265, 8265
     )  # View cluster resource utilization dashboard on localhost:8265
 

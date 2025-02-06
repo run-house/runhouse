@@ -91,7 +91,7 @@ if __name__ == "__main__":
         .sync_secrets(["aws", "huggingface"])
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-preprocessing",
         instance_type="i4i.2xlarge",
         provider="aws",

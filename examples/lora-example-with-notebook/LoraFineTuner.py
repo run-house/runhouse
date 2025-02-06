@@ -261,7 +261,7 @@ if __name__ == "__main__":
         .sync_secrets(["huggingface"])
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="a10g-rh", instance_type="A10G:1", memory="32+", provider="aws", image=img
     ).up_if_not()
 
@@ -274,7 +274,7 @@ if __name__ == "__main__":
     # If we have not, then we will send the local class to remote, and create an instance of it named "rh_finetuner"
     # If you disconnect locally after calling tune, you can simply reconnect to the remote object using this block from another local session
     if fine_tuner_remote is None:
-        fine_tuner = rh.module(FineTuner).to(cluster, name="llama3-medical-model")
+        fine_tuner = rh.cls(FineTuner).to(cluster, name="llama3-medical-model")
         fine_tuner_remote = fine_tuner(name=fine_tuner_remote_name)
 
     ## Once we have accessed the remote class, we can call against it as if it were a local object

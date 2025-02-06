@@ -33,7 +33,7 @@ class ImageSetupStep:
 
 
 class Image:
-    def __init__(self, name: str, image_id: str = None):
+    def __init__(self, name: str = None, image_id: str = None):
         """
         Runhouse Image object, specifying cluster setup properties and steps.
 
@@ -131,7 +131,9 @@ class Image:
         return self
 
     def config(self) -> Dict[str, Any]:
-        config = {"name": self.name}
+        config = {}
+        if self.name:
+            config["name"] = self.name
         if self.image_id:
             config["image_id"] = self.image_id
         if self.docker_secret:
@@ -140,18 +142,20 @@ class Image:
                 if isinstance(self.docker_secret, str)
                 else self.docker_secret.config()
             )
-        config["setup_steps"] = [
-            Image._setup_step_config(step) for step in self.setup_steps
-        ]
+        if self.setup_steps:
+            config["setup_steps"] = [
+                Image._setup_step_config(step) for step in self.setup_steps
+            ]
 
         return config
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]):
-        img = Image(name=config["name"], image_id=config.get("image_id"))
-        img.setup_steps = [
-            Image._setup_step_from_config(step) for step in config["setup_steps"]
-        ]
+        img = Image(name=config.get("name"), image_id=config.get("image_id"))
+        if config.get("setup_steps"):
+            img.setup_steps = [
+                Image._setup_step_from_config(step) for step in config["setup_steps"]
+            ]
 
         docker_secret = config.get("docker_secret")
         if docker_secret:

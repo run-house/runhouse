@@ -20,3 +20,5 @@ TEST_REQS = [
     "pandas",
     "numpy<=1.26.4",
 ]
+
+DEFAULT_KEYPAIR_KEYPATH = "~/.ssh/sky-key"

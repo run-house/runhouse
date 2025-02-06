@@ -1100,6 +1100,10 @@ def server_status(
         print_cluster_config(
             cluster_config=status.get("cluster_config"), status_type=StatusType.server
         )
+        if rh.here == "file":
+            console.print(
+                "[reset]For more detailed information about the cluster, please use [italic bold]`runhouse cluster status <cluster_name>`[/italic bold]"
+            )
     except (ObjStoreError, ConnectionError):
         console.print("Could not connect to Runhouse server. Is it up?")
 

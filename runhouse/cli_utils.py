@@ -207,6 +207,10 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
             else:
                 val = cluster_config.get(key, None)
 
+            # don't print keys whose values are None
+            if val is None:
+                continue
+
             console.print(
                 f"{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
             ) if status_type == StatusType.cluster else console.print(
@@ -226,7 +230,8 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
     console.print(envs_in_cluster_headline)
 
     env_resource_mapping = {
-        env: servlet_processes[env]["env_resource_mapping"] for env in servlet_processes
+        env: servlet_processes[env].get("env_resource_mapping", {})
+        for env in servlet_processes
     }
 
     if len(env_resource_mapping) == 0:
@@ -274,7 +279,15 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
         resources_in_env = env_resource_mapping[env_name]
         env_process_info = servlet_processes[env_name]
 
-        env_name_txt = f"{BULLET_UNICODE} {env_name} | pid: {env_process_info['pid']} | node: {env_process_info['node_name']}"
+        pid, node_name = env_process_info.get("pid", None), env_process_info.get(
+            "node_name", None
+        )
+
+        # if there is no info about the process, don't print it in the status output
+        if not pid or not node_name:
+            continue
+
+        env_name_txt = f"{BULLET_UNICODE} {env_name} | pid: {pid} | node: {node_name}"
         console.print(env_name_txt)
 
         # Print CPU info
@@ -290,7 +303,7 @@ def print_envs_info(servlet_processes: Dict[str, Dict[str, Any]], current_cluste
                 int(env_cpu_info["total_memory"]) / (1024**3)
             )
             cpu_memory_usage_percent = round(
-                float(env_cpu_info["used_memory"] / env_cpu_info["total_memory"]),
+                float(env_cpu_info["used_memory"] / env_cpu_info["total_memory"]) * 100,
                 2,
             )
             cpu_usage_percent = round(float(env_cpu_info["utilization_percent"]), 2)

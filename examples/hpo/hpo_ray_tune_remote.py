@@ -1,5 +1,5 @@
 # # Ray Hyperparameter Tuning with Runhouse
-# In this example, we show you how to start a basic hyperparameter tuning using Ray Tune on a remote cluster.
+# In this example, we show you how to start a basic hyperparameter tuning using Ray Tune on remote compute.
 # You simply need to write your Ray Tune program as you would normally, and then send it to the remote cluster using Runhouse.
 # Runhouse handles all the complexities of launching and setting up the remote Ray cluster for you.
 import time
@@ -83,9 +83,9 @@ if __name__ == "__main__":
     num_nodes = 2
     num_cpus_per_node = 4
 
-    img = rh.Image("tune").install_packages(["pyarrow>=9.0.0", "ray[tune]>=2.38.0"])
+    img = rh.Image().install_packages(["pyarrow>=9.0.0", "ray[tune]>=2.38.0"])
 
-    cluster = rh.cluster(
+    cpus = rh.compute(
         name="rh-cpu",
         num_nodes=num_nodes,
         image=img,
@@ -94,5 +94,5 @@ if __name__ == "__main__":
         provider="aws",  # gcp, kubernetes, etc.
     ).up_if_not()
 
-    remote_find_minimum = rh.function(find_minimum).to(cluster).distribute("ray")
+    remote_find_minimum = rh.function(find_minimum).to(cpus).distribute("ray")
     best_result = remote_find_minimum(num_samples=8)

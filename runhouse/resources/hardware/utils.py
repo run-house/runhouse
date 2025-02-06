@@ -561,7 +561,7 @@ def get_running_and_not_running_clusters(clusters: list):
 
 
 def pprint_launched_cluster_summary(cluster):
-    properties: dict = cluster.compute_properties
+    properties: dict = copy.deepcopy(cluster.compute_properties)
     cluster_name = cluster.name
     rns_address = cluster.rns_address
     properties["autostop_mins"] = cluster.autostop_mins
@@ -573,9 +573,10 @@ def pprint_launched_cluster_summary(cluster):
     reset = ColoredFormatter.get_color("reset")
     italic = ColoredFormatter.get_color("italic")
 
-    print(
-        f"► To view the cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(rns_address)}"
-    )
+    if rns_address:
+        print(
+            f"► To view the cluster in Den, visit https://run.house/resources/{rns_client.format_rns_address(rns_address)}"
+        )
     print(f"{blue}Launch Summary:{reset}")
     for key, value in properties.items():
         if value is None:
