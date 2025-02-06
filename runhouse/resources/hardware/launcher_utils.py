@@ -85,6 +85,10 @@ class LogProcessor:
 
 class Launcher:
     @classmethod
+    def _validate_provider(cls, cluster):
+        raise NotImplementedError
+
+    @classmethod
     def log_processor(cls, cluster_name: str):
         return LogProcessor(cluster_name)
 
@@ -194,6 +198,21 @@ class DenLauncher(Launcher):
     LAUNCH_URL = f"{rns_client.api_server_url}/cluster/up"
     TEARDOWN_URL = f"{rns_client.api_server_url}/cluster/teardown"
     AUTOSTOP_URL = f"{rns_client.api_server_url}/cluster/autostop"
+
+    @classmethod
+    def _validate_provider(cls, cluster):
+        provider = cluster.provider
+        if provider is None:
+            raise ValueError(
+                "Provider must be specified, either in the cluster factory or in your local "
+                "Runhouse config with the `default_provider` field. You can set this by running "
+                "`runhouse config set default_provider <provider>`."
+            )
+
+        if provider == "cheapest":
+            raise ValueError(
+                "Provider of 'cheapest' not currently supported, must provide an explicit cloud provider."
+            )
 
     @classmethod
     def _update_from_den_response(cls, cluster, config: dict):

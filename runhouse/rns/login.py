@@ -173,11 +173,11 @@ def login(
             else:
                 logger.warning(message)
 
-    # we still want to make sure the username and default folder are set locally
-    if not local_config.get("username") and den_config:
-        configs.set("username", den_config["username"])
-    if not local_config.get("default_folder") and den_config:
-        configs.set("default_folder", den_config["default_folder"])
+    _set_local_config_defaults(local_config, den_config)
+
+    if not den_config:
+        # save latest local copy in Den if none exists yet (ex: initial login)
+        configs.upload_defaults(local_config)
 
     if download_secrets:
         _login_download_secrets(from_cli=from_cli)
@@ -192,6 +192,27 @@ def login(
 
     if ret_token:
         return token
+
+
+def _set_local_config_defaults(local_config: dict, den_config: dict):
+    """Set base default values in the local config to match those that will be saved in Den if not explicitly set by
+    the user."""
+    if not local_config.get("username") and den_config:
+        configs.set("username", den_config["username"])
+
+    for property in [
+        "default_folder",
+        "default_provider",
+        "launcher",
+        "use_spot",
+        "autosave",
+        "disable_observability",
+        "api_server_url",
+        "dashboard_url",
+    ]:
+        if not local_config.get(property) and den_config:
+            value = den_config.get(property, configs.BASE_DEFAULTS[property])
+            configs.set(property, value)
 
 
 def _login_download_secrets(headers: Optional[str] = None, from_cli=False):
