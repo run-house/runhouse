@@ -202,11 +202,6 @@ class FineTuner:
 #
 # Learn more in the [Runhouse docs on compute](/docs/tutorials/api-clusters).
 #
-# :::note{.info title="Note"}
-# Make sure that all the following code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
-# the script code will run when Runhouse attempts to run code remotely. We'll break up the block in this example to
-# improve readability.
-# :::
 if __name__ == "__main__":
 
     # First, we define the image for our module. This includes the required dependencies that need
@@ -214,10 +209,9 @@ if __name__ == "__main__":
     # Then, we launch a cluster with a GPU.
     # Finally, passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
     img = (
-        rh.Image()
+        rh.images.pytorch()
         .install_packages(
             [
-                "torch",
                 "tensorboard",
                 "transformers",
                 "bitsandbytes",
@@ -235,7 +229,6 @@ if __name__ == "__main__":
         gpus="A10G:1",
         memory="32+",
         image=img,
-        provider="aws",
     ).up_if_not()
     gpu.restart_server()
     # Finally, we define our module and run it on the remote gpu. We construct it normally and then call

@@ -93,11 +93,6 @@ class URLEmbedder:
         return embedding
 
 
-# :::note{.info title="Note"}
-# Make sure that any code in your Python file that's meant to only run locally runs within
-# a `if __name__ == "__main__":` block, as shown below. Otherwise, the script code will run
-# when Runhouse attempts to import your code remotely.
-# :::
 if __name__ == "__main__":
     # ## Setting up Runhouse primitives
     #

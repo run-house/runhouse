@@ -126,33 +126,23 @@ class LightGBMModelTrainer:
 # ## Launch Compute and Run the Training
 # We will now launch Runhouse compute with multiple nodes and use it to train a LightGBM model. We will first provide
 # the required package installs to a 3 node spot instance cluster on GCP.
-
-# :::note{.info title="Note"}
-# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
-# the script code will run when Runhouse attempts to run code remotely.
-# :::
 if __name__ == "__main__":
     # ## Define Runhouse compute with multiple nodes
     num_nodes = 3
     cluster_name = f"rh-{num_nodes}-dask-gcp"
 
     # The environment for the remote cluster
-    img = rh.Image().install_packages(
+    img = rh.images.dask().install_packages(
         [
-            "dask[distributed,dataframe]",
-            "dask-ml",
             "gcsfs",
             "lightgbm",
-            "bokeh",
-        ],
+        ]
     )
 
     cpus = rh.compute(
         name=cluster_name,
         instance_type="n2-highmem-8",  # We can specify instance name or required resources
         num_nodes=num_nodes,  # Runhouse will automatically wire up multiple nodes into a Dask cluster
-        provider="gcp",
-        region="us-east1",
         use_spot=True,  # We can use Spot instances for significant cost savings
         image=img,
     ).up_if_not()
