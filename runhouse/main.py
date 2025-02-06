@@ -73,7 +73,9 @@ app.add_typer(cluster_app, name="cluster")
 server_app = typer.Typer(help="Runhouse server related CLI commands.")
 app.add_typer(server_app, name="server")
 
-config_app = typer.Typer(help="Runhouse config related CLI commands.")
+config_app = typer.Typer(
+    help="Runhouse config related CLI commands", invoke_without_command=True
+)
 app.add_typer(config_app, name="config")
 
 # For printing with typer
@@ -623,6 +625,44 @@ def config_set(
         console.print(f"[green]{success_message} and synced to Den[/green]")
     else:
         console.print(f"[green]{success_message}[/green]")
+
+
+@config_app.callback()
+def config_load(
+    den: Optional[bool] = typer.Option(
+        False,
+        "--den",
+        "-d",
+        help="Whether to load the config stored in Den. If not specified loads the local config.",
+    ),
+    path: Optional[str] = typer.Option(
+        None,
+        "--path",
+        "-p",
+        help="Optional path to load the local Runhouse config. By default will look in ``~/.rh/config.yaml``.",
+    ),
+):
+    """Load your Runhouse config. By default will load the version stored locally.
+
+    Example:
+        ``$ runhouse config -d``
+
+        ``$ runhouse config -p ~/path/to/config.yaml``
+
+    """
+    if den:
+        config = configs.load_defaults_from_den()
+    else:
+        config = configs.load_defaults_from_file(path)
+
+    if not config:
+        console.print("[red]No config found.[/red]")
+        raise typer.Exit(1)
+
+    config.pop("token", None)
+    config.pop("username", None)
+    for k, v in config.items():
+        console.print(f"{k}: {v}")
 
 
 ###############################
