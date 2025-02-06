@@ -6,6 +6,6 @@ def test_download_defaults():
     local_defaults = rh.configs.load_defaults_from_file()
     local_defaults.pop("secrets")
     rh.configs.upload_defaults(defaults=local_defaults)
-    loaded_defaults = rh.configs.download_defaults()
+    loaded_defaults = rh.configs.load_defaults_from_den()
     assert local_defaults == loaded_defaults
     assert rh.globals.rns_client.default_folder == "nonsense"

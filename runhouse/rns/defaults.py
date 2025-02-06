@@ -29,9 +29,7 @@ class Defaults:
         "default_provider": "cheapest",
         "default_autostop": 60,
         "use_spot": False,
-        "use_local_configs": True,
         "disable_observability": False,
-        "use_rns": False,
         "api_server_url": "https://api.run.house",
         "dashboard_url": "https://run.house",
         "launcher": "local",
@@ -183,18 +181,18 @@ class Defaults:
         )
         if resp.status_code != 200:
             raise Exception(
-                f"Received [{resp.status_code}] from Den PUT '{uri}': Failed to update defaults for user."
+                f"Received [{resp.status_code}] from Den PUT '{uri}': Failed to update config."
             )
-        logger.info("Uploaded defaults for user to rns.")
+        logger.info("Uploaded defaults to Den")
 
-    def download_defaults(self, headers: Optional[Dict] = None) -> Dict:
-        """Get defaults for user or group."""
+    def load_defaults_from_den(self, headers: Optional[Dict] = None) -> Dict:
+        """Get defaults for user saved in Den."""
         headers = headers or self.request_headers
         uri = f'{self.get("api_server_url")}/{self.USER_ENDPOINT}'
         resp = requests.get(uri, headers=headers)
         if resp.status_code != 200:
             raise Exception(
-                f"Received [{resp.status_code}] from Den GET '{uri}': Failed to download defaults for user."
+                f"Received [{resp.status_code}] from Den GET '{uri}': Failed to download config."
             )
         resp_data: dict = read_resp_data(resp)
         raw_defaults = resp_data.get("config", {})
@@ -229,7 +227,7 @@ class Defaults:
         config_path: Optional[str] = None,
     ):
         """Download defaults from rns and save them to the local config file."""
-        defaults = self.download_defaults(headers=headers)
+        defaults = self.load_defaults_from_den(headers=headers)
         # Note: downloaded defaults take priority over local defaults
         self.set_many(defaults, config_path=config_path)
 
