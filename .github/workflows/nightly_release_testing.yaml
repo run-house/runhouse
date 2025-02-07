@@ -27,6 +27,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
 
       - name: Run not cluster tests
@@ -58,6 +60,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 
@@ -90,6 +94,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 
@@ -122,6 +128,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 
@@ -154,6 +162,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 
@@ -186,6 +196,8 @@ jobs:
           DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 
@@ -218,6 +230,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 
@@ -250,6 +264,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 
@@ -293,6 +309,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 

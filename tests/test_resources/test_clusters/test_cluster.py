@@ -360,9 +360,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
                 resource_class_name, cluster.rns_address
             )
             curr_config_copy = curr_config.copy()
-            # Creds for shared cluster are not loaded down
+            # Creds for shared cluster will be the users default ssh key
             new_creds = curr_config.get("creds", None)
-            assert new_creds is None
+            assert "ssh-sky-key" in new_creds
 
             curr_config_copy.pop("creds", None)
             config_copy.pop("creds", None)
@@ -381,6 +381,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         )
 
         orig_creds = config.pop("creds", None)
+        new_config.pop("creds", None)
         assert sky_secret in orig_creds or generated_secret in orig_creds
         assert new_config == config
 

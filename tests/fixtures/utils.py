@@ -12,11 +12,3 @@ def create_gcs_bucket(bucket_name: str):
 
     gcs_store = GcsStore(name=bucket_name, source="")
     return gcs_store
-
-
-def save_default_ssh_creds():
-    """Save default creds required by the Den launcher."""
-    import runhouse as rh
-
-    sky_creds = rh.provider_secret("sky").save()
-    rh.configs.set("default_ssh_key", sky_creds.name)
