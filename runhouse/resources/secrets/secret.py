@@ -75,6 +75,8 @@ class Secret(Resource):
         dryrun: bool = False,
         _resolve_children: bool = True,
     ):
+        if name and "/" not in name and rns_client.username:
+            name = f"/{rns_client.username}/{name}"
         try:
             config = load_config(name)
             if config:
