@@ -140,6 +140,11 @@ def cluster(
         if isinstance(new_cluster, OnDemandCluster):
             # load from name, none of the other arguments were provided
             cluster_type = "ondemand"
+            if cluster_args.keys() & {*RH_SERVER_ARGS}:
+                return ondemand_cluster(
+                    **cluster_args,
+                    **kwargs,
+                )
         else:
             cluster_type = "static"
     except ValueError:
