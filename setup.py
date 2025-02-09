@@ -99,7 +99,7 @@ extras_require = {
         "gcsfs",
     ],
     "docker": ["docker"],
-    "kubernetes": ["skypilot==0.7.0", "kubernetes"],
+    "kubernetes": ["skypilot[kubernetes]==0.7.0", "kubernetes"],
 }
 
 extras_require["all"] = sum(extras_require.values(), [])
