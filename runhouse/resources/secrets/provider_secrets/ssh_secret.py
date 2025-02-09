@@ -88,7 +88,7 @@ class SSHSecret(ProviderSecret):
 
         values = values or self.values
 
-        if not overwrite and priv_key_path.exists() and pub_key_path.exists():
+        if priv_key_path.exists() and pub_key_path.exists():
             if values == self._from_path(path=path):
                 logger.info(f"Secrets already exist in {path}. Skipping.")
                 self.path = path
@@ -103,11 +103,11 @@ class SSHSecret(ProviderSecret):
 
         priv_key_path.parent.mkdir(parents=True, exist_ok=True)
         private_key = values.get("private_key")
-        if overwrite or (private_key is not None and not priv_key_path.exists()):
+        if private_key is not None and not priv_key_path.exists():
             priv_key_path.write_text(private_key)
             priv_key_path.chmod(0o600)
         public_key = values.get("public_key")
-        if overwrite or (public_key is not None and not pub_key_path.exists()):
+        if public_key is not None and not pub_key_path.exists():
             pub_key_path.write_text(public_key)
             pub_key_path.chmod(0o600)
 

@@ -21,11 +21,12 @@ def restart_server(request):
     return request.config.getoption("--restart-server")
 
 
-def setup_test_cluster(args, request, test_rns_folder, setup_base=False):
-    if request.config.getoption("--ci"):
-        sky_key_name = f"{test_rns_folder}-{rh.constants.SSH_SKY_SECRET_NAME}"
-        rh.constants.SSH_SKY_SECRET_NAME = sky_key_name
+def teardown_cluster_fixture(request, cluster):
+    if not request.config.getoption("--detached") and cluster.is_up():
+        cluster.teardown()
 
+
+def setup_test_cluster(args, request, setup_base=False):
     cluster = rh.ondemand_cluster(**args)
     init_args[id(cluster)] = args
     cluster.up_if_not()
@@ -97,12 +98,9 @@ def local_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
         "sky_kwargs": {"launch": {"retry_until_up": True}},
     }
 
-    cluster = setup_test_cluster(
-        args, request, setup_base=True, test_rns_folder=test_rns_folder
-    )
+    cluster = setup_test_cluster(args, request, setup_base=True)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
@@ -131,17 +129,9 @@ def den_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
         "launcher": LauncherType.DEN,
     }
 
-    if request.config.getoption("--ci"):
-        from tests.fixtures.utils import save_default_ssh_creds
-
-        save_default_ssh_creds()
-
-    cluster = setup_test_cluster(
-        args, request, setup_base=True, test_rns_folder=test_rns_folder
-    )
+    cluster = setup_test_cluster(args, request, setup_base=True)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
@@ -163,10 +153,9 @@ def ondemand_aws_https_cluster_with_auth(request, test_rns_folder):
         "open_ports": [DEFAULT_HTTPS_PORT],
     }
 
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(args, request)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
@@ -195,10 +184,9 @@ def ondemand_gcp_cluster(request, test_rns_folder):
         "image": image,
     }
 
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(args, request)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
@@ -221,10 +209,9 @@ def ondemand_k8s_cluster(request, test_rns_folder):
         "den_auth": True,
     }
 
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(args, request)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
@@ -246,15 +233,9 @@ def den_launched_ondemand_aws_k8s_cluster(request, test_rns_folder):
         "context": os.getenv("EKS_ARN"),
     }
 
-    if request.config.getoption("--ci"):
-        from tests.fixtures.utils import save_default_ssh_creds
-
-        save_default_ssh_creds()
-
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(args, request)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
@@ -276,15 +257,9 @@ def den_launched_ondemand_gcp_k8s_cluster(request, test_rns_folder):
         "context": "gke_testing",
     }
 
-    if request.config.getoption("--ci"):
-        from tests.fixtures.utils import save_default_ssh_creds
-
-        save_default_ssh_creds()
-
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(args, request)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
@@ -307,63 +282,58 @@ def ondemand_k8s_docker_cluster(request, test_rns_folder):
         .from_docker("rayproject/ray:latest-py311-cpu")
         .install_packages(TEST_REQS),
     }
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(args, request)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
-def v100_gpu_cluster(request, test_rns_folder):
+def v100_gpu_cluster(request):
     args = {
         "name": "rh-v100",
         "instance_type": "V100:1",
         "provider": "aws",
     }
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(args, request)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
-def den_launcher_v100_gpu_cluster(request, test_rns_folder):
+def den_launcher_v100_gpu_cluster(request):
     args = {
         "name": "rh-v100-den",
         "instance_type": "V100:1",
         "provider": "aws",
         "launcher": LauncherType.DEN,
     }
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(args, request)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
-def k80_gpu_cluster(request, test_rns_folder):
+def k80_gpu_cluster(request):
     args = {
         "name": "rh-k80",
         "instance_type": "K80:1",
         "provider": "aws",
     }
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(args, request)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
-def a10g_gpu_cluster(request, test_rns_folder):
+def a10g_gpu_cluster(request):
     args = {
         "name": "rh-a10x",
         "instance_type": "g5.2xlarge",
         "provider": "aws",
     }
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(args, request)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
@@ -379,14 +349,13 @@ def multinode_k8s_cpu_cluster(request, test_rns_folder):
         "provider": "kubernetes",
         "instance_type": "CPU:2+",
     }
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(args, request)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
-def multinode_cpu_docker_conda_cluster(request, test_rns_folder):
+def multinode_cpu_docker_conda_cluster(request):
     image = (
         Image(name="default_image")
         .from_docker("rayproject/ray:latest-py311-cpu")
@@ -403,20 +372,18 @@ def multinode_cpu_docker_conda_cluster(request, test_rns_folder):
         "provider": "aws",
         "instance_type": "CPU:2+",
     }
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(args, request)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
-def multinode_gpu_cluster(request, test_rns_folder):
+def multinode_gpu_cluster(request):
     args = {
         "name": "rh-gpu-multinode",
         "num_nodes": NUM_OF_NODES,
         "instance_type": "g5.xlarge",
     }
-    cluster = setup_test_cluster(args, request, test_rns_folder=test_rns_folder)
+    cluster = setup_test_cluster(args, request)
     yield cluster
-    if not request.config.getoption("--detached"):
-        cluster.teardown()
+    teardown_cluster_fixture(request, cluster)

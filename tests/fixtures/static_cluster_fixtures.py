@@ -21,8 +21,6 @@ def setup_static_cluster(
     compute_type: computeType = computeType.cpu,
     remote: bool = False,  # whether the fixture is used on a remote-running test or on a local one.
 ):
-    sky_key_name = f"{test_rns_folder}-{rh.constants.SSH_SKY_SECRET_NAME}"
-    rh.constants.SSH_SKY_SECRET_NAME = sky_key_name
     instance_type = "CPU:4" if compute_type == computeType.cpu else "g5.xlarge"
     launcher = launcher if launcher else LauncherType.LOCAL
     cluster_name = (
@@ -97,11 +95,6 @@ def static_cpu_pwd_cluster(request, test_rns_folder):
 
 @pytest.fixture(scope="session")
 def static_cpu_pwd_cluster_den_launcher(request, test_rns_folder):
-    if request.config.getoption("--ci"):
-        from tests.fixtures.utils import save_default_ssh_creds
-
-        save_default_ssh_creds()
-
     cluster = setup_static_cluster(
         launcher=LauncherType.DEN,
         test_rns_folder=test_rns_folder,
@@ -118,11 +111,6 @@ def static_cpu_pwd_cluster_den_launcher(request, test_rns_folder):
 
 @pytest.fixture(scope="session")
 def static_gpu_pwd_cluster_den_launcher(request, test_rns_folder):
-    if request.config.getoption("--ci"):
-        from tests.fixtures.utils import save_default_ssh_creds
-
-        save_default_ssh_creds()
-
     cluster = setup_static_cluster(
         launcher=LauncherType.DEN,
         compute_type=computeType.gpu,
