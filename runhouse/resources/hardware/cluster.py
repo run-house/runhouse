@@ -83,7 +83,7 @@ from runhouse.servers.http.http_utils import CreateProcessParams
 logger = get_logger(__name__)
 
 
-def _do_setup_step_for_node(cluster, setup_step, node):
+def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
     if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
         cluster.create_conda_env(
             conda_env_name=setup_step.kwargs.get("conda_env_name"),
@@ -699,13 +699,14 @@ class Cluster(Resource):
                 # Launch in a new process so we can capture the logs
                 with multiprocessing.Pool(processes=len(self.ips)) as pool:
                     pool.starmap(
-                        _do_setup_step_for_node, [(self, step, ip) for ip in self.ips]
+                        _do_setup_step_for_node,
+                        [(self, step, ip, env_vars) for ip in self.ips],
                     )
                     # Fix any garbled terminal output
                     os.system("stty sane")
             else:
                 for ip in self.ips:
-                    _do_setup_step_for_node(self, step, ip)
+                    _do_setup_step_for_node(self, step, ip, env_vars)
 
         return secrets_to_sync, env_vars
 
