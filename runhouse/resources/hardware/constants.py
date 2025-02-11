@@ -7,6 +7,7 @@ ONDEMAND_COMPUTE_ARGS = {
     "instance_type",
     "num_nodes",
     "provider",
+    "pool",
     "use_spot",
     "region",
     "memory",

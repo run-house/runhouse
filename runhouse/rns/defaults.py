@@ -27,6 +27,7 @@ class Defaults:
     BASE_DEFAULTS = {
         "default_folder": "~",
         "default_provider": None,
+        "default_pool": None,
         "default_autostop": 60,
         "use_spot": False,
         "disable_observability": False,
