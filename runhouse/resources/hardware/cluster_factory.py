@@ -190,6 +190,7 @@ def ondemand_cluster(
     instance_type: Optional[str] = None,
     num_nodes: Optional[int] = None,
     provider: Optional[str] = None,
+    pool: Optional[str] = None,
     autostop_mins: Optional[int] = None,
     use_spot: bool = False,
     region: Optional[str] = None,
@@ -238,6 +239,7 @@ def ondemand_cluster(
             num_cpus, gpus).
         num_nodes (int, optional): Number of nodes to use for the cluster.
         provider (str, optional): Cloud provider to use for the cluster.
+        pool (str, optional): Compute pool to use for the cluster.
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
             or ``-1`` to keep cluster up indefinitely. (Default: ``60``).
         use_spot (bool, optional): Whether or not to use spot instance. (Default: ``False``)
