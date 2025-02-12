@@ -74,24 +74,16 @@ def find_minimum(num_concurrent_trials=None, num_samples=1, metric_name="score")
 # * Then, we send our find_minumum function to the remote cluster with `.to()` and instruct Runhouse to setup Ray with `.distribute("ray")`.
 # * Finally, we run the remote function normally as we would locally to start the hyperparameter optimization.
 
-# :::note{.info title="Note"}
-# The code to launch, dispatch, and execute should run within a `if __name__ == "__main__":` block, as shown below. Otherwise,
-# this script code will run when Runhouse runs the code remotely.
-# :::
 if __name__ == "__main__":
 
     num_nodes = 2
     num_cpus_per_node = 4
 
-    img = rh.Image().install_packages(["pyarrow>=9.0.0", "ray[tune]>=2.38.0"])
-
     cpus = rh.compute(
         name="rh-cpu",
         num_nodes=num_nodes,
-        image=img,
-        num_cpus=num_cpus_per_node,  # You have other options such as to specify memory and disk size
-        gpus=None,  # This example does not need GPUs, but you can specify GPUs like "A100:2" here to get 2 A100 GPUs per node
-        provider="aws",  # gcp, kubernetes, etc.
+        num_cpus=num_cpus_per_node,
+        image=rh.images.ray(),
     ).up_if_not()
 
     remote_find_minimum = rh.function(find_minimum).to(cpus).distribute("ray")

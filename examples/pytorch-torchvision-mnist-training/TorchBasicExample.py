@@ -189,26 +189,13 @@ class SimpleTrainer:
 #
 # Learn more in the [Runhouse docs on compute](/docs/tutorials/api-clusters).
 #
-# :::note{.info title="Note"}
-# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
-# the script code will run when Runhouse attempts to run code remotely.
-#
-# :::
-
 if __name__ == "__main__":
-
-    # We define the image for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets (not needed here) that need to be synced up from local to remote.
-    # This is aggressively cached so during local iterative development, you do not need to worry about the image being rebuilt.
-    img = rh.Image().install_packages(["torch", "torchvision", "Pillow"])
-
-    # Define the compute - here we launch an on-demand AWS cluster with 1 NVIDIA A10G GPU.
-    # You can use any cloud you want, or existing compute
+    # Define the compute - here we launch an on-demand cluster with 1 NVIDIA A10G GPU.
+    # You can further specify the cloud, other compute constraints, or use existing compute
     gpu = rh.compute(
         name="a10g",
         instance_type="A10G:1",
-        provider="aws",
-        image=img,
+        image=rh.images.pytorch(),
     ).up_if_not()
 
     # We define our module and run it on the remote compute. We take our normal Python class SimpleTrainer, and wrap it in rh.cls()

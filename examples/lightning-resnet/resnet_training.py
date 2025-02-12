@@ -210,10 +210,6 @@ class ResNetTrainer:
 # We will now launch Runhouse compute with multiple nodes and use it to train the ResNet with Lightning.
 # The data we use here is a sampled, preprocessed set of images from the ImageNet dataset. You can
 # see the preprocessing script at https://github.com/run-house/runhouse/blob/main/examples/pytorch-resnet/imagenet_preproc.py
-# :::note{.info title="Note"}
-# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
-# the script code will run when Runhouse attempts to run code remotely.
-# :::
 if __name__ == "__main__":
     train_data_path = (
         "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/train/"
@@ -231,16 +227,12 @@ if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 3
 
-    img = rh.Image().install_packages(
+    img = rh.images.pytorch().install_packages(
         [
-            "torch==2.5.1",
-            "torchvision==0.20.1",
-            "Pillow==11.0.0",
             "datasets",
             "boto3",
             "awscli",
             "lightning",
-            "runhouse==0.0.36",
         ]
     )
 

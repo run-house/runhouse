@@ -50,10 +50,6 @@ def train_loop(epochs):
     torch.distributed.destroy_process_group()
 
 
-# :::note{.info title="Note"}
-# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
-# the script code will run when Runhouse attempts to run code remotely.
-# :::
 if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 2
@@ -62,10 +58,10 @@ if __name__ == "__main__":
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
         gpus=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,
+        image=rh.images.pytorch(),
     ).up_if_not()
-    gpus.install_packages(["torch"])
 
-    remote_train_loop = rh.function(train_loop).to(gpu)
+    remote_train_loop = rh.function(train_loop).to(gpus)
 
     train_ddp = remote_train_loop.distribute("pytorch")
     train_ddp(epochs=10)
