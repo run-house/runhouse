@@ -57,7 +57,7 @@ class OnDemandCluster(Cluster):
         autostop_mins: int = None,
         use_spot: bool = False,
         memory: Union[int, str] = None,
-        disk_size: Union[int, str] = None,
+        disk_size: int = None,
         num_cpus: Union[int, str] = None,
         gpus: str = None,
         open_ports: Union[int, str, List[int]] = None,
