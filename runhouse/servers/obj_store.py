@@ -273,12 +273,27 @@ class ObjStore:
 
         # Set env vars that need to be set on creation
         env_vars_to_set = await self.aget_env_vars_to_set_in_new_processes()
-        self.set_process_env_vars_local(env_vars_to_set)
 
         # Set env vars that were passed in initialization, these should override
         # any env vars that were set globally via the previous global set
         if create_process_params and create_process_params.env_vars:
-            self.set_process_env_vars_local(create_process_params.env_vars)
+            env_vars_to_set.update(create_process_params.env_vars)
+
+        # Ray defaults to setting OMP_NUM_THREADS to 1, which unexpectedly limit parallelism in user programs.
+        # We delete it by default, but if we find that the user explicitly set it to another value, we respect that.
+        # This is really only a factor if the user set the value inside the VM or container, or inside the base_env
+        # which a cluster was initialized with. If they set it inside the env constructor and the env was sent to the
+        # cluster normally with .to, it will be set after this point.
+        # TODO this had no effect when we did it below where we set CUDA_VISIBLE_DEVICES, so we may need to move that
+        #  here and mirror the same behavior (setting it based on the detected gpus in the whole cluster may not work
+        #  for multinode, but popping it may also break things, it needs to be tested).
+        if (
+            "OMP_NUM_THREADS" not in env_vars_to_set
+            or os.environ.get("OMP_NUM_THREADS") != "1"
+        ):
+            os.environ.pop("OMP_NUM_THREADS", None)
+
+        self.set_process_env_vars_local(env_vars_to_set)
 
     def initialize(
         self,
