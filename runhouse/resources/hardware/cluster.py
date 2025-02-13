@@ -95,6 +95,24 @@ def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
             conda_env_name=setup_step.kwargs.get("conda_env_name"),
             node=node,
         )
+    elif setup_step.step_type == ImageSetupStepType.PIP_INSTALL:
+        cluster.pip_install(
+            setup_step.kwargs.get("reqs"),
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.CONDA_INSTALL:
+        cluster.conda_install(
+            setup_step.kwargs.get("reqs"),
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.SYNC_PACKAGE:
+        cluster.sync_package(
+            setup_step.kwargs.get("package"),
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            node=node,
+        )
     elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
         command = setup_step.kwargs.get("command")
         conda_env_name = setup_step.kwargs.get("conda_env_name")
@@ -816,6 +834,65 @@ class Cluster(Resource):
                     conda_env_name=conda_env_name,
                     force_sync_local=force_sync_local,
                 )
+
+    def pip_install(
+        self,
+        reqs: List[Union["Package", str]],
+        node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
+    ):
+        from runhouse.resources.packages.package import Package
+
+        pip_packages = [
+            Package.from_string(f"pip:{req}") if isinstance(req, str) else req
+            for req in reqs
+        ]
+        self.install_packages(
+            reqs=pip_packages,
+            node=node,
+            conda_env_name=conda_env_name,
+            force_sync_local=force_sync_local,
+        )
+
+    def conda_install(
+        self,
+        reqs: List[Union["Package", str]],
+        node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
+    ):
+        from runhouse.resources.packages.package import Package
+
+        conda_packages = [
+            Package.from_string(f"conda:{req}") if isinstance(req, str) else req
+            for req in reqs
+        ]
+        self.install_packages(
+            reqs=conda_packages,
+            node=node,
+            conda_env_name=conda_env_name,
+            force_sync_local=force_sync_local,
+        )
+
+    def sync_package(
+        self,
+        package: Union["Package", str],
+        node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
+    ):
+        from runhouse.resources.packages.package import Package
+
+        package = (
+            Package.from_string(f"local:{package}")
+            if isinstance(package, str)
+            else package
+        )
+        self.install_packages(
+            reqs=[package],
+            node=node,
+            conda_env_name=conda_env_name,
+        )
 
     def get(self, key: str, default: Any = None, remote=False):
         """Get the result for a given key from the cluster's object store.
