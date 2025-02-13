@@ -26,7 +26,7 @@ from runhouse.utils import (
 )
 
 
-INSTALL_METHODS = {"local", "reqs", "pip", "conda", "rh"}
+INSTALL_METHODS = {"local", "pip", "conda"}
 
 logger = get_logger(__name__)
 
@@ -193,52 +193,6 @@ class Package(Resource):
         install_conda(cluster=cluster)
         return install_cmd
 
-    def _reqs_install_cmd(
-        self, conda_env_name: Optional[str] = None, cluster: "Cluster" = None
-    ):
-        install_args = f" {self.install_args}" if self.install_args else ""
-        if not isinstance(self.install_target, InstallTarget):
-            install_cmd = self.install_target + install_args
-        else:
-            on_cluster_path = self.install_target.local_path
-
-            # If not cluster, we're on the cluster, and we must deal with the path locally
-            if not cluster:
-                reqs_path = f"{on_cluster_path}/requirements.txt"
-                if not Path(reqs_path).expanduser().exists():
-                    return None
-
-                with open(str(Path(reqs_path).expanduser())) as f:
-                    reqs_list = f.readlines()
-
-            # Otherwise, make sure the target folder is on the cluster,
-            # and read reqs from the cluster
-            else:
-                if "requirements.txt" not in cluster._folder_ls(
-                    path=on_cluster_path, full_paths=False
-                ):
-                    return None
-
-                reqs_list = (
-                    cluster._folder_get(f"{on_cluster_path}/requirements.txt", mode="r")
-                    .strip("\n")
-                    .split("\n")
-                )
-                reqs_path = f"{on_cluster_path}/requirements.txt"
-
-            install_cmd = self._reqs_install_cmd_for_torch(
-                reqs_path, reqs_list, install_args, cluster=cluster
-            )
-
-        install_cmd = f"pip install {install_cmd}"
-        install_cmd = self._prepend_python_executable(
-            install_cmd, conda_env_name=conda_env_name, cluster=cluster
-        )
-        install_cmd = self._prepend_env_command(
-            install_cmd, conda_env_name=conda_env_name
-        )
-        return install_cmd
-
     def _install(
         self,
         cluster: "Cluster" = None,
@@ -305,22 +259,6 @@ class Package(Resource):
                     "available for your platform."
                 )
 
-        elif self.install_method == "reqs":
-            install_cmd = self._reqs_install_cmd(
-                conda_env_name=conda_env_name, cluster=cluster
-            )
-            if install_cmd:
-                logger.info(f"Running via install_method reqs: {install_cmd}")
-                retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
-                if retcode != 0:
-                    raise RuntimeError(
-                        f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
-                    )
-            else:
-                logger.info(
-                    f"{self.install_target.full_local_path_str()}/requirements.txt not found, skipping reqs install"
-                )
-
         else:
             if self.install_method != "local":
                 raise ValueError(
@@ -328,7 +266,7 @@ class Package(Resource):
                 )
 
         # Need to append to path
-        if self.install_method in ["local", "reqs"]:
+        if self.install_method == "local":
             if isinstance(self.install_target, InstallTarget):
                 obj_store.add_sys_path_to_all_processes(
                     self.install_target.full_local_path_str()
@@ -483,32 +421,10 @@ class Package(Resource):
                 local_path=config["install_target"][0],
                 _path_to_sync_to_on_cluster=config["install_target"][1],
             )
-        if config.get("resource_subtype") == "GitPackage":
-            from runhouse import GitPackage
-
-            return GitPackage.from_config(
-                config, dryrun=dryrun, _resolve_children=_resolve_children
-            )
         return Package(**config, dryrun=dryrun)
 
     @staticmethod
     def from_string(specifier: str, dryrun: bool = False):
-        if specifier == "requirements.txt":
-            specifier = "reqs:./"
-
-        # Use regex to check if specifier matches '<method>:https://github.com/<path>' or 'https://github.com/<path>'
-        match = re.search(
-            r"^(?:(?P<method>[^:]+):)?(?P<path>https://github.com/.+)", specifier
-        )
-        if match:
-            install_method = match.group("method")
-            url = match.group("path")
-            from runhouse.resources.packages.git_package import git_package
-
-            return git_package(
-                git_url=url, install_method=install_method, dryrun=dryrun
-            )
-
         install_method, target_and_args = Package.split_req_install_method(specifier)
 
         # Handles a case like "torch --index-url https://download.pytorch.org/whl/cu113"
@@ -532,10 +448,10 @@ class Package(Resource):
                     local_path=str(abs_target), _path_to_sync_to_on_cluster=None
                 )
 
-        # If install method is not provided, we need to infer it
+        # If install method is not provided, default to pip
         if not install_method:
             if Path(specifier).expanduser().resolve().exists():
-                install_method = "reqs"
+                install_method = "local"
             else:
                 install_method = "pip"
 
@@ -562,8 +478,7 @@ class Package(Resource):
             return Package(
                 install_target=target, install_method=install_method, dryrun=dryrun
             )
-
-        elif install_method in ["reqs", "pip", "conda"]:
+        elif install_method in ["pip", "conda"]:
             return Package(
                 install_target=target,
                 install_args=args,
@@ -571,9 +486,6 @@ class Package(Resource):
                 preferred_version=preferred_version,
                 dryrun=dryrun,
             )
-        elif install_method == "rh":
-            # Calling the factory method below
-            return package(name=specifier[len("rh:") :], dryrun=dryrun)
         else:
             raise ValueError(
                 f"Unknown install method {install_method}. Must be one of {INSTALL_METHODS}"
@@ -595,7 +507,7 @@ def package(
     Args:
         name (str, optional): Name to assign the package resource.
         install_method (str, optional): Method for installing the package.
-            Options: [``pip``, ``conda``, ``reqs``, ``local``]
+            Options: [``pip``, ``conda``, ``local``]
         install_str (str, optional): Additional arguments to install.
         path (str, optional): URL of the package to install.
         system (str, optional): File system or cluster on which the package lives.

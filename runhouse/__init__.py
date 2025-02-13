@@ -15,13 +15,7 @@ from runhouse.resources.images import Image
 # WARNING: Any built-in module that is imported here must be capitalized followed by all lowercase, or we will
 # will not find the module class when attempting to reconstruct it from a config.
 from runhouse.resources.module import Module, module
-from runhouse.resources.packages import (
-    CodeSyncError,
-    git_package,
-    GitPackage,
-    package,
-    Package,
-)
+from runhouse.resources.packages import CodeSyncError, package, Package
 from runhouse.resources.resource import Resource
 from runhouse.resources.secrets import provider_secret, ProviderSecret, Secret, secret
 
