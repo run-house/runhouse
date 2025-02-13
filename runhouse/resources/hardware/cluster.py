@@ -705,7 +705,7 @@ class Cluster(Resource):
         conda_env_name = self.image.conda_env_name if self.image else None
         self._run_setup_step(
             step=ImageSetupStep(
-                step_type=ImageSetupStepType.PACKAGES,
+                step_type=ImageSetupStepType.PIP_INSTALL,
                 reqs=["ray"],
                 conda_env_name=conda_env_name,
             ),
@@ -778,8 +778,8 @@ class Cluster(Resource):
                 the package does not already exist on the cluster. (Default: ``False``)
 
         Example:
-            >>> cluster.install_packages(reqs=["accelerate", "diffusers"])
-            >>> cluster.install_packages(reqs=["accelerate", "diffusers"], conda_env_name="my_conda_env", force_sync_local=True)
+            >>> cluster.pip_install(reqs=["accelerate", "diffusers"])
+            >>> cluster.pip_install(reqs=["accelerate", "diffusers"], conda_env_name="my_conda_env", force_sync_local=True)
         """
         for req in reqs:
             if not node:
@@ -795,6 +795,65 @@ class Cluster(Resource):
                     conda_env_name=conda_env_name,
                     force_sync_local=force_sync_local,
                 )
+
+    def pip_install(
+        self,
+        reqs: List[Union["Package", str]],
+        node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
+    ):
+        from runhouse.resources.packages.package import Package
+
+        pip_packages = [
+            Package.from_string(f"pip:{req}") if isinstance(req, str) else req
+            for req in reqs
+        ]
+        self.install_packages(
+            reqs=pip_packages,
+            node=node,
+            conda_env_name=conda_env_name,
+            force_sync_local=force_sync_local,
+        )
+
+    def conda_install(
+        self,
+        reqs: List[Union["Package", str]],
+        node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
+    ):
+        from runhouse.resources.packages.package import Package
+
+        conda_packages = [
+            Package.from_string(f"conda:{req}") if isinstance(req, str) else req
+            for req in reqs
+        ]
+        self.install_packages(
+            reqs=conda_packages,
+            node=node,
+            conda_env_name=conda_env_name,
+            force_sync_local=force_sync_local,
+        )
+
+    def sync_package(
+        self,
+        package: Union["Package", str],
+        node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
+    ):
+        from runhouse.resources.packages.package import Package
+
+        package = (
+            Package.from_string(f"local:{package}")
+            if isinstance(package, str)
+            else package
+        )
+        self.install_packages(
+            reqs=[package],
+            node=node,
+            conda_env_name=conda_env_name,
+        )
 
     def get(self, key: str, default: Any = None, remote=False):
         """Get the result for a given key from the cluster's object store.
@@ -2228,7 +2287,7 @@ class Cluster(Resource):
         try:
             jupyter_cmd = f"jupyter lab --port {port_fwd} --no-browser"
             with self.pause_autostop():
-                self.install_packages(["jupyterlab"])
+                self.pip_install(["jupyterlab"])
                 # TODO figure out why logs are not streaming here if we don't use ssh.
                 # When we do, it may be better to switch it back because then jupyter is killed
                 # automatically when the cluster is restarted (and the process is killed).

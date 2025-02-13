@@ -81,7 +81,7 @@ def local_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
     image = (
         Image(name="default_image")
         .from_docker("rayproject/ray:latest-py311-cpu")
-        .install_packages(TEST_REQS + ["ray==2.30.0"])
+        .pip_install(TEST_REQS + ["ray==2.30.0"])
         .set_env_vars(TEST_ENV_VARS)
     )
     cluster_name = (
@@ -111,7 +111,7 @@ def den_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
     image = (
         Image(name="default_image")
         .from_docker("rayproject/ray:latest-py311-cpu")
-        .install_packages(TEST_REQS + ["ray==2.30.0"])
+        .pip_install(TEST_REQS + ["ray==2.30.0"])
         .set_env_vars(TEST_ENV_VARS)
     )
     cluster_name = (
@@ -169,7 +169,7 @@ def ondemand_gcp_cluster(request, test_rns_folder):
             conda_env_name="base_env",
             conda_config={"dependencies": ["python=3.11"], "name": "base_env"},
         )
-        .install_packages(TEST_REQS + ["ray==2.30.0"], conda_env_name="base_env")
+        .pip_install(TEST_REQS + ["ray==2.30.0"], conda_env_name="base_env")
         .set_env_vars(env_vars=TEST_ENV_VARS)
     )
     cluster_name = (
@@ -280,7 +280,7 @@ def ondemand_k8s_docker_cluster(request, test_rns_folder):
         "instance_type": "CPU:1",
         "image": Image(name="default_image")
         .from_docker("rayproject/ray:latest-py311-cpu")
-        .install_packages(TEST_REQS),
+        .pip_install(TEST_REQS),
     }
     cluster = setup_test_cluster(args, request)
     yield cluster
@@ -363,7 +363,7 @@ def multinode_cpu_docker_conda_cluster(request):
             conda_env_name="base_env",
             conda_config={"dependencies": ["python=3.11"], "name": "base_env"},
         )
-        .install_packages(TEST_REQS + ["ray==2.30.0"], conda_env_name="base_env")
+        .pip_install(TEST_REQS + ["ray==2.30.0"], conda_env_name="base_env")
     )
     args = {
         "name": "rh-cpu-multinode",

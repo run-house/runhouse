@@ -208,6 +208,24 @@ def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
             contents=setup_step.kwargs.get("contents"),
             filter_options=setup_step.kwargs.get("filter_options"),
         )
+    elif setup_step.step_type == ImageSetupStepType.PIP_INSTALL:
+        cluster.pip_install(
+            setup_step.kwargs.get("reqs"),
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.CONDA_INSTALL:
+        cluster.conda_install(
+            setup_step.kwargs.get("reqs"),
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.SYNC_PACKAGE:
+        cluster.sync_package(
+            setup_step.kwargs.get("package"),
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            node=node,
+        )
 
 
 def _setup_creds_from_dict(ssh_creds: Dict, cluster_name: str):

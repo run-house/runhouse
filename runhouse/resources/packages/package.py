@@ -221,21 +221,34 @@ class Package(Resource):
             # already installed. If there is, and ``force_sync_local`` is not set to ``True``, then we ignore
             # preferred version and leave the existing version.  The user can also force a version install by
             # doing `numpy==2.0.0`. Else, we install the preferred version, that matches their local.
-            if (
-                is_python_package_string(self.install_target)
-                and self.preferred_version is not None
-            ):
-                # Check if this is installed
-                retcode = run_setup_command(
-                    f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
-                    cluster=cluster,
-                    conda_env_name=conda_env_name,
-                    node=node,
-                )[0]
-                if retcode != 0 or force_sync_local:
-                    self.install_target = (
-                        f"{self.install_target}=={self.preferred_version}"
-                    )
+            if is_python_package_string(self.install_target):
+                if self.preferred_version is not None:
+                    # Check if this is installed
+                    retcode = run_setup_command(
+                        f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
+                        cluster=cluster,
+                        conda_env_name=conda_env_name,
+                        node=node,
+                    )[0]
+                    if retcode != 0 or force_sync_local:
+                        self.install_target = (
+                            f"{self.install_target}=={self.preferred_version}"
+                        )
+                else:
+                    # If the package exists as a folder remotely
+                    if (
+                        run_setup_command(
+                            f"ls {self.install_target}",
+                            cluster=cluster,
+                            conda_env_name=conda_env_name,
+                            node=node,
+                        )[0]
+                        == 0
+                    ):
+                        self.install_target = InstallTarget(
+                            local_path=self.install_target,
+                            _path_to_sync_to_on_cluster=self.install_target,
+                        )
 
             install_cmd = self._pip_install_cmd(
                 conda_env_name=conda_env_name, cluster=cluster
@@ -375,7 +388,6 @@ class Package(Resource):
     def to(
         self,
         system: Union[str, Dict, "Cluster"],
-        path: Optional[str] = None,
     ):
         """Copy the package onto filesystem or cluster, and return the new Package object.
 
@@ -436,7 +448,7 @@ class Package(Resource):
 
         # If the target is a path
         # If it doesn't have a /, we're assuming it's a pip installable thing first and foremost
-        if "/" in target or "~" in target:
+        if "/" in target or "~" in target or install_method == "local":
             # We need to do this because relative paths are relative to the current working directory!
             abs_target = (
                 Path(target).expanduser()
@@ -455,23 +467,29 @@ class Package(Resource):
             else:
                 install_method = "pip"
 
-        # If we are just defaulting to pip, attempt to install the same version of the package
-        # that is already installed locally
-        # Check if the target is only letters, nothing else. This means its a string like 'numpy'.
+        # Attempt to use the same version of the package installed locally, if pip_install (pip)
+        # or a sync_package (local)
         preferred_version = None
-        if install_method == "pip" and is_python_package_string(target):
+        if is_python_package_string(target):
             locally_installed_version = find_locally_installed_version(target)
             if locally_installed_version:
                 # Check if this is a package that was installed from local
                 local_install_path = get_local_install_path(target)
                 if local_install_path and Path(local_install_path).exists():
-                    target = InstallTarget(
-                        local_path=local_install_path, _path_to_sync_to_on_cluster=None
-                    )
-
+                    install_method = install_method or "local"
+                    if install_method == "local":
+                        target = InstallTarget(
+                            local_path=local_install_path,
+                            _path_to_sync_to_on_cluster=None,
+                        )
                 else:
                     # We want to preferrably install this version of the package server-side
-                    preferred_version = locally_installed_version
+                    install_method == install_method or "pip"
+                    if install_method == "pip":
+                        preferred_version = locally_installed_version
+
+        # If install method is still not set, default to pip
+        install_method = install_method or "pip"
 
         # "Local" install method is a special case where we just copy a local folder and add to path
         if install_method == "local":

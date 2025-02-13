@@ -94,7 +94,7 @@ def test_install_cmd_for_torch_on_cluster(request, ondemand_cluster):
     for install_cmd in install_commands_for_cluster:
         # Run the complete install command on the cluster
         try:
-            ondemand_cluster.install_packages([install_cmd])
+            ondemand_cluster.pip_install([install_cmd])
         except subprocess.CalledProcessError:
             assert False, f"Failed to install {install_cmd}"
 
