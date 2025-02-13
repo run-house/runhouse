@@ -2812,7 +2812,7 @@ class Cluster(Resource):
 
         if isinstance(package, str):
             package = Package.from_string(package)
-            if package.install_method in ["reqs", "local"] or isinstance(
+            if package.install_method == "local" or isinstance(
                 package.install_target, InstallTarget
             ):
                 package = package.to(self)

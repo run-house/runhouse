@@ -296,13 +296,11 @@ from tests.fixtures.folder_fixtures import (  # usort: skip
 
 from tests.fixtures.package_fixtures import (
     conda_package,  # noqa: F401
-    git_package,  # noqa: F401
     installed_editable_package,  # noqa: F401
     installed_editable_package_copy,  # noqa: F401
     local_package,  # noqa: F401
     package,  # noqa: F401
     pip_package,  # noqa: F401
-    reqs_package,  # noqa: F401
     s3_package,  # noqa: F401
 )
 
