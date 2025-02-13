@@ -194,7 +194,7 @@ def ondemand_cluster(
     use_spot: bool = False,
     region: Optional[str] = None,
     memory: Union[int, str, None] = None,
-    disk_size: Union[int, str, None] = None,
+    disk_size: Optional[int] = None,
     num_cpus: Union[int, str, None] = None,
     accelerators: Union[int, str, None] = None,
     gpus: Union[int, str, None] = None,
@@ -244,7 +244,7 @@ def ondemand_cluster(
         region (str, optional): The region to use for the cluster. (Default: ``None``)
         memory (int or str, optional): Amount of memory to use for the cluster, e.g. `16` or "16+".
             (Default: ``None``)
-        disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. `100` or "100+".
+        disk_size (int, optional): Amount of disk space to use for the cluster in GiB, e.g. `100`.
             (Default: ``None``)
         num_cpus (int or str, optional): Number of CPUs to use for the cluster, e.g. `4` or "4+". (Default: ``None``)
         gpus (int or str, optional): Type and number of GPU to use for the cluster e.g. "A101" or "L4:8".
