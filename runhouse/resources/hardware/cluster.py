@@ -101,6 +101,12 @@ def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
             conda_env_name=setup_step.kwargs.get("conda_env_name"),
             node=node,
         )
+    elif setup_step.step_type == ImageSetupStepType.UV_INSTALL:
+        cluster.uv_install(
+            setup_step.kwargs.get("reqs"),
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            node=node,
+        )
     elif setup_step.step_type == ImageSetupStepType.CONDA_INSTALL:
         cluster.conda_install(
             setup_step.kwargs.get("reqs"),
@@ -855,6 +861,26 @@ class Cluster(Resource):
             force_sync_local=force_sync_local,
         )
 
+    def uv_install(
+        self,
+        reqs: List[Union["Package", str]],
+        node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
+    ):
+        from runhouse.resources.packages.package import Package
+
+        uv_packages = [
+            Package.from_string(f"uv:{req}") if isinstance(req, str) else req
+            for req in reqs
+        ]
+        self.install_packages(
+            reqs=uv_packages,
+            node=node,
+            conda_env_name=conda_env_name,
+            force_sync_local=force_sync_local,
+        )
+
     def conda_install(
         self,
         reqs: List[Union["Package", str]],
@@ -1206,6 +1232,17 @@ class Cluster(Resource):
         restart_proxy: bool = False,
         parallel: bool = True,
     ):
+        with multiprocessing.Pool(processes=len(self.ips)) as pool:
+            pool.starmap(
+                self.pip_install,
+                [
+                    (["uv"], ip, self.image.conda_env_name if self.image else None)
+                    for ip in self.ips
+                ],
+            )
+            # Fix any garbled terminal output
+            os.system("stty sane")
+
         image_secrets, image_env_vars = self._sync_image_to_cluster(parallel=parallel)
 
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
