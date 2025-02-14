@@ -1,3 +1,9 @@
+# ## BERT Training Example
+# This example demonstrates how to use Runhouse to further train a BERT model on a remote cluster with multiple GPUs.
+# Our goal here is to add significant contextual knowledge of the medical domain with a PubMed dataset used to train
+# MedBERT - https://huggingface.co/datasets/MedRAG/pubmed. We use ModernBert as a base model due to ModernBERT's ability to
+# use long context windows (8192 tokens) as opposed to other BERTs which have much smaller context windows.
+# The training will be distributed across multiple nodes and GPUs using PyTorch's distributed training capabilities.
 import os
 from pathlib import Path
 
@@ -14,17 +20,7 @@ from transformers import (
     TrainingArguments,
 )
 
-
-class SaveModelCallback(TrainerCallback):
-    def __init__(self, trainer, output_dir):
-        self.trainer = trainer
-        self.output_dir = output_dir
-
-    def on_epoch_end(self, args, state, control, **kwargs):
-        print(f"Epoch {state.epoch} finished. Saving model...")
-        self.trainer.save_model(self.output_dir)
-
-
+# Helper function used to download the preprocessed data we generated from preprocess.py
 def download_data(
     local_dir="./pubmed_processed",
     s3_path="s3://rh-demo-external/pubmed_processed/sample_10000",
@@ -51,6 +47,19 @@ def download_data(
             print(f"Found {split} split locally.")
 
 
+# Callback to save the model after each epoch
+class SaveModelCallback(TrainerCallback):
+    def __init__(self, trainer, output_dir):
+        self.trainer = trainer
+        self.output_dir = output_dir
+
+    def on_epoch_end(self, args, state, control, **kwargs):
+        print(f"Epoch {state.epoch} finished. Saving model...")
+        self.trainer.save_model(self.output_dir)
+
+
+# ## Trainer Class
+# This class encapsulates the training process for a BERT model.
 class BertTrainer:
     def __init__(
         self,
@@ -117,17 +126,16 @@ class BertTrainer:
         torch.cuda.empty_cache()
         gc.collect()
 
-        os.environ["OMP_NUM_THREADS"] = "1"
-        # Set LOCAL_RANK by taking modulo of RANK and WORLD_SIZE
+        os.environ[
+            "OMP_NUM_THREADS"
+        ] = "1"  # Runhouse might separately have set other values of OMP_NUM_THREADS
+
         torch.distributed.init_process_group(backend="nccl")
 
-        local_rank = str(dist.get_rank() % torch.cuda.device_count())
-        # Set local rank
+        local_rank = str(
+            dist.get_rank() % torch.cuda.device_count()
+        )  # Set LOCAL_RANK by taking modulo of RANK and WORLD_SIZE
         os.environ["LOCAL_RANK"] = local_rank
-        print("facts")
-        print(local_rank)
-        print(os.environ.get("RANK", 0))
-        print(os.environ.get("WORLD_SIZE", -1))
 
     def train(self, batch_size=32, max_length=128, learning_rate=2e-5, num_epochs=3):
         self.train_helper()
@@ -161,11 +169,12 @@ class BertTrainer:
             use_cpu=False,
         )
         print("Training Args Set")
-        save_model_callback = SaveModelCallback(self, output_dir="./bert_output")
-        print("Callback Set")
 
-        # Check current state
-        print(f"Local Rank {self.local_rank} Model device {self.model.device}")
+        save_model_callback = SaveModelCallback(self, output_dir="./bert_output")
+
+        print(
+            f"Local Rank {self.local_rank} Model device {self.model.device}"
+        )  # Check current state
 
         self.trainer = Trainer(
             model=self.model,
@@ -182,7 +191,6 @@ class BertTrainer:
         self.model.save_pretrained(output_dir)
         self.tokenizer.save_pretrained(output_dir)
 
-        # Put the model on S3
         fs = s3fs.S3FileSystem()
         fs.put(
             output_dir,
@@ -190,6 +198,13 @@ class BertTrainer:
             recursive=True,
         )
 
+
+# ## Launch Compute and Run Training
+# Now we use Runhouse to launch a cluster with multiple nodes and GPUs and run the training on the remote machine.
+# First, we define the RH image that will be used to install the necessary packages and sync secrets. You can also
+# use a base Docker image here. Then we will send our Trainer class to the remote cluster with `.to()`,
+# create a remote instance of the class, and instruct Runhouse to setup for PyTorch distributed training with `.distribute("pytorch")`.
+# Finally, we run the remote function normally as we would locally to start the training.
 
 if __name__ == "__main__":
     img = (
@@ -211,19 +226,15 @@ if __name__ == "__main__":
     num_nodes = 2
     num_gpus_per_node = 4
 
-    # Requires access to a cloud account with the necessary permissions to launch compute.
     cluster = rh.compute(
         name=f"rh-L4x{num_gpus_per_node}x{num_nodes}-2",
         num_nodes=num_nodes,
         instance_type=f"L4:{num_gpus_per_node}",
         provider="aws",
-        # image=img,
+        image=img,
         use_spot=False,
         autostop_mins=1000,
-    ).up_if_not()
-    cluster.restart_server(resync_rh=False)
-
-    cluster.ssh_tunnel(8265, 8265)
+    ).up_if_not()  # Requires access to a cloud account with the necessary permissions to launch compute.
 
     trainer_remote = rh.cls(BertTrainer).to(cluster, name="bert")
     trainer = trainer_remote(name="bert_trainer").distribute(
@@ -231,6 +242,7 @@ if __name__ == "__main__":
         num_replicas=num_nodes * num_gpus_per_node,
         replicas_per_node=num_gpus_per_node,
     )
+
     trainer.load_data(
         local_dir="./pubmed_processed",
         s3_path="s3://rh-demo-external/pubmed_processed/sample_100000",

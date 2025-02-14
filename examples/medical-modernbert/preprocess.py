@@ -91,7 +91,7 @@ if __name__ == "__main__":
         image=data_img,
         use_spot=False,
     ).up_if_not()
-    # preproc_compute.restart_server()
+
     preproc_remote = rh.function(preprocess_data_to_s3).to(
         preproc_compute, name="preproc"
     )
@@ -101,4 +101,3 @@ if __name__ == "__main__":
         sample_rows=100000,
     )
     preproc_compute.teardown()
-    # preproc_remote(model_name = "answerdotai/ModernBERT-base", cpus = preproc_compute.compute_properties["num_cpus"])
