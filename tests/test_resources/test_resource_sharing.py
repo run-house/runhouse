@@ -93,7 +93,7 @@ class TestResourceSharing:
 
         # Should not be able to install packages on the cluster with read access
         try:
-            cluster.install_packages(["numpy", "pandas"])
+            cluster.pip_install(["numpy", "pandas"])
         except Exception as e:
             assert "No read or write access to requested resource" in str(e)
 

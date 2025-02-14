@@ -2,12 +2,12 @@ from runhouse.resources.images.image import Image
 
 
 def dask():
-    return Image().install_packages(["dask[distributed,dataframe]", "dask-ml"])
+    return Image().pip_install(["dask[distributed,dataframe]", "dask-ml"])
 
 
 def pytorch():
-    return Image().install_packages(["torch"])
+    return Image().pip_install(["torch"])
 
 
 def ray():
-    return Image().install_packages(["ray[tune,data,train]"])
+    return Image().pip_install(["ray[tune,data,train]"])

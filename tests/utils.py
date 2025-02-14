@@ -144,7 +144,7 @@ def setup_test_base(cluster, logged_in=False):
         f"echo '{yaml.safe_dump(rh.configs.defaults_cache)}' > ~/.rh/config.yaml"
     ]
 
-    cluster.install_packages(TEST_REQS)
+    cluster.pip_install(TEST_REQS)
     cluster.set_process_env_vars(DEFAULT_PROCESS_NAME, TEST_ENV_VARS)
     if logged_in:
         cluster.run_bash(setup_cmds)
