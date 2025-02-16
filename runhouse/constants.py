@@ -115,3 +115,5 @@ RESET_FORMAT = "\x1B[0m"
 SKY_VENV = "~/skypilot-runtime"
 
 SSH_SKY_SECRET_NAME = "ssh-sky-key"
+
+DISK_OUT_OF_SPACE_MSG = "No space left on device"
