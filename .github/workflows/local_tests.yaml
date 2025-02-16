@@ -14,6 +14,11 @@ jobs:
   # DEVELOPMENT INCONSISTENCIES WHEN RUNNING ALL THE LOCAL
   # TESTS TOGETHER.
 
+
+  # PYDEVD_DISABLE_FILE_VALIDATION is an env variable which disables the python debugger on docker cluster. We don't
+  # actually need a python debugger live on docker cluster. Having it causing some unnecessary output in
+  # cluster.run_python()
+
   server-tests-logged-in-level-local:
     runs-on: ubuntu-latest
     steps:
@@ -65,6 +70,7 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
+          PYDEVD_DISABLE_FILE_VALIDATION: 1
         run: pytest -v --level local -k "not servertest and not secrettest and not moduletest and not functiontest and not clustertest"
         timeout-minutes: 60
 
@@ -122,6 +128,7 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
+          PYDEVD_DISABLE_FILE_VALIDATION: 1
         run: pytest -v --level local -k "moduletest"
         timeout-minutes: 60
 
@@ -178,5 +185,6 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
+          PYDEVD_DISABLE_FILE_VALIDATION: 1
         run: pytest -v --level local -k "clustertest"
         timeout-minutes: 60

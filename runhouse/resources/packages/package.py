@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Union
 
+from runhouse.constants import INSUFFICIENT_DISK_MSG
+from runhouse.exceptions import InsufficientDiskError
+
 from runhouse.globals import obj_store
 
 from runhouse.logger import get_logger
@@ -219,6 +222,19 @@ class Package(Resource):
         install_conda(cluster=cluster)
         return install_cmd
 
+    def _install_and_validate_output(
+        self, install_cmd: str, cluster: "Cluster" = None, node: Optional[str] = None
+    ):
+        install_res = run_setup_command(install_cmd, cluster=cluster, node=node)
+        retcode = install_res[0]
+        if retcode != 0:
+            stdout, stderr = install_res[1], install_res[2]
+            if INSUFFICIENT_DISK_MSG in stdout or INSUFFICIENT_DISK_MSG in stderr:
+                raise InsufficientDiskError(command=install_cmd)
+            raise RuntimeError(
+                f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
+            )
+
     def _install(
         self,
         cluster: "Cluster" = None,
@@ -280,23 +296,18 @@ class Package(Resource):
                 conda_env_name=conda_env_name, cluster=cluster
             )
             logger.info(f"Running via install_method pip: {install_cmd}")
-            retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
-            if retcode != 0:
-                raise RuntimeError(
-                    f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
-                )
+            self._install_and_validate_output(
+                install_cmd=install_cmd, cluster=cluster, node=node
+            )
 
         elif self.install_method == "conda":
             install_cmd = self._conda_install_cmd(
                 conda_env_name=conda_env_name, cluster=cluster
             )
             logger.info(f"Running via install_method conda: {install_cmd}")
-            retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
-            if retcode != 0:
-                raise RuntimeError(
-                    f"Conda install {install_cmd} failed, check that the package exists and is "
-                    "available for your platform."
-                )
+            self._install_and_validate_output(
+                install_cmd=install_cmd, cluster=cluster, node=node
+            )
 
         else:
             if self.install_method != "local":

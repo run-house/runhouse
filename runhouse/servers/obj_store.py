@@ -14,11 +14,14 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from pydantic import BaseModel
 
 from runhouse.constants import (
+    INSUFFICIENT_DISK_MSG,
     LOGGING_WAIT_TIME,
     LOGS_TO_SHOW_UP_CHECK_TIME,
     MAX_LOGS_TO_SHOW_UP_WAIT_TIME,
     RH_LOGFILE_PATH,
 )
+
+from runhouse.exceptions import InsufficientDiskError
 from runhouse.logger import get_logger
 
 from runhouse.rns.defaults import req_ctx
@@ -1965,6 +1968,23 @@ class ObjStore:
     ##############################################
     # Interact across nodes
     ##############################################
+
+    async def _install_packages_in_nodes_helper(self, install_cmd: str):
+        run_cmd_results = await self.arun_bash_command_on_all_nodes(
+            install_cmd, require_outputs=True
+        )
+        if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
+            error_code, stdout, stderr = run_cmd_results[0]
+            stderr = stderr.strip()
+            error_msg = f"Pip install {install_cmd} failed"
+            if INSUFFICIENT_DISK_MSG in stderr:
+                logger.info(f"command: {install_cmd}, error:{error_msg}")
+                raise InsufficientDiskError(command=install_cmd, error_msg=error_msg)
+            raise RuntimeError(
+                error_msg
+                + ", check that the package exists and is available for your platform."
+            )
+
     async def ainstall_package_in_all_nodes_and_processes(
         self,
         package: "Package",
@@ -2013,11 +2033,7 @@ class ObjStore:
 
             install_cmd = package._pip_install_cmd(conda_env_name=conda_env_name)
             logger.info(f"Running via install_method pip: {install_cmd}")
-            run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
-            if any(run_cmd_result != 0 for run_cmd_result in run_cmd_results):
-                raise RuntimeError(
-                    f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
-                )
+            await self._install_packages_in_nodes_helper(install_cmd)
 
         elif package.install_method == "conda":
             install_cmd = package._conda_install_cmd(conda_env_name=conda_env_name)
