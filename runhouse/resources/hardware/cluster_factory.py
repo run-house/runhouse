@@ -306,6 +306,32 @@ def ondemand_cluster(
     cluster_args = locals().copy()
     cluster_args = {k: v for k, v in cluster_args.items() if v is not None}
 
+    if pool is not None:
+        cluster_args["launcher"] = "den"
+        if autostop_mins and autostop_mins != -1:
+            logger.warning("Cannot set autostop for a node in a compute pool.")
+        cluster_args["autostop_mins"] = -1
+
+        ignored_fields = {
+            "provider",
+            "region",
+            "vpc_name",
+            "domain",
+            "den_auth",
+            "use_spot",
+            "kube_namespace",
+            "kube_config_path",
+            "ssl_keyfile",
+            "ssl_certfile",
+            "server_host",
+            "server_port",
+            "server_connection_type",
+        }
+        for field in ignored_fields:
+            if cluster_args.get(field):
+                logger.warning(f"Ignoring '{field}' argument when pool is provided")
+                cluster_args.pop(field, None)
+
     try:
         new_cluster = Cluster.from_name(
             name, load_from_den=load_from_den, dryrun=dryrun
