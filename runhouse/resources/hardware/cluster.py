@@ -74,6 +74,8 @@ from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import (
     _current_cluster,
     _run_ssh_command,
+    check_disk_sufficiency,
+    get_source_object_size,
     ServerConnectionType,
 )
 from runhouse.resources.resource import Resource
@@ -706,7 +708,7 @@ class Cluster(Resource):
         self._run_setup_step(
             step=ImageSetupStep(
                 step_type=ImageSetupStepType.PACKAGES,
-                reqs=["ray"],
+                reqs=["ray", "psutil"],
                 conda_env_name=conda_env_name,
             ),
             parallel=parallel,
@@ -1486,6 +1488,15 @@ class Cluster(Resource):
         if not src_node and up and not Path(source).expanduser().exists():
             raise ValueError(f"Could not locate path to sync: {source}.")
 
+        # before syncing the object, making sure there is enough disk space for it. If we not preform this check in
+        # advance, there might be a case where we start rsyncing the object -> during the rsync no disk space will
+        # be left (because the object is too big) -> the rsync will stack and no results will be return (even failures),
+        # because there is no disk space for running the process nor writing logs.
+        source_size = get_source_object_size(path=source)
+        check_disk_sufficiency(
+            cluster=self, node=node, object_name=source, object_size=source_size
+        )
+
         if up and (node == "all" or (len(self.ips) > 1 and not node)):
             if not parallel:
                 for node in self.ips:
@@ -2049,7 +2060,8 @@ class Cluster(Resource):
         )
 
         for command in commands:
-            logger.info(f"Running command on {self.name}: {command}")
+            if stream_logs:
+                logger.info(f"Running command on {self.name}: {command}")
 
             # set env vars after log statement
             command = f"{env_var_prefix} {command}" if env_var_prefix else command

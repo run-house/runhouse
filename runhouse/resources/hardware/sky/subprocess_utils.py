@@ -4,6 +4,9 @@ from typing import Callable, List, Optional, Union
 
 from runhouse.logger import get_logger
 
+from runhouse.exceptions import InsufficientDisk
+from runhouse.constants import INSUFFICIENT_DISK_MSG
+
 logger = get_logger(__name__)
 
 class CommandError(Exception):
@@ -45,6 +48,8 @@ def handle_returncode(returncode: int,
         if stderr is not None:
             echo(stderr)
 
+        if INSUFFICIENT_DISK_MSG in stderr:
+            raise InsufficientDisk(command=command, error_msg=error_msg)
         if callable(error_msg):
             error_msg = error_msg()
         raise CommandError(returncode, command, error_msg, stderr)
