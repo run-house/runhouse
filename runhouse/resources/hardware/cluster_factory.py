@@ -310,21 +310,34 @@ def ondemand_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.ondemand_cluster(name="rh-4-a100s")
     """
-    launcher = launcher.lower() if launcher else configs.launcher
-    if launcher not in LauncherType.strings():
-        raise ValueError(
-            f"Invalid launcher type '{launcher}'. Must be one of {LauncherType.strings()}."
-        )
+    cluster_args = locals().copy()
+    cluster_args = {k: v for k, v in cluster_args.items() if v is not None}
 
-    if vpc_name and launcher == "local":
+    if pool is not None:
+        cluster_args["launcher"] = "den"
+        ignored_fields = {"provider", "region", "vpc_name"}
+        for field in ignored_fields:
+            if cluster_args.get(field):
+                logger.warning(f"Ignoring '{field}' argument when pool is provided")
+                cluster_args.pop(field, None)
+        if autostop_mins != -1:
+            logger.warning(
+                "Setting autostop on compute launched in a pool is not recommended and will be deprecated."
+            )
+    else:
+        launcher = launcher.lower() if launcher else configs.launcher
+        if launcher not in LauncherType.strings():
+            raise ValueError(
+                f"Invalid launcher type '{launcher}'. Must be one of {LauncherType.strings()}."
+            )
+
+    if vpc_name and launcher and launcher == "local":
         raise ValueError(
             "Custom VPCs are not supported with local launching. To use a custom VPC, please use the "
             "Den launcher. For more information see "
             "https://www.run.house/docs/installation-setup#den-launcher"
         )
 
-    cluster_args = locals().copy()
-    cluster_args = {k: v for k, v in cluster_args.items() if v is not None}
     if "accelerators" in cluster_args:
         logger.warning(
             "``accelerators`` argument has been deprecated. Please use ``gpus`` argument instead."
