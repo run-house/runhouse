@@ -20,6 +20,7 @@ from runhouse.cli_utils import (
     check_ray_installation,
     create_output_table,
     get_local_or_remote_cluster,
+    get_node_ip,
     get_wrapped_server_start_cmd,
     is_command_available,
     LogsSince,
@@ -146,7 +147,7 @@ def cluster_ssh(
         None,
         "-n",
         "--node",
-        help="Specific cluster node to SSH into. If not specified will default to the head node.",
+        help="Specify the node by its public IP, an integer index, or specify 'head' to indicate the head node.",
     ),
 ):
     """SSH into a remote cluster.
@@ -163,6 +164,7 @@ def cluster_ssh(
                     f"[reset]{cluster_name} is being initialized. Please wait for it to finish, or run [reset][bold italic]`runhouse cluster up {cluster_name} -f`[/bold italic] to abort the initialization and relaunch."
                 )
                 raise typer.Exit(0)
+            node = get_node_ip(node=node or "head", cluster_ips=c.ips)
             c.ssh(node=node)
 
         else:
@@ -200,6 +202,12 @@ def cluster_status(
         default=False,
         help="Whether to update Den with the status.",
     ),
+    node: Optional[str] = typer.Option(
+        None,
+        "-n",
+        "--node",
+        help="Specify the node by its public IP, an integer index, or specify 'head' to indicate the head node.",
+    ),
 ):
     """Load the status of the cluster.
 
@@ -220,7 +228,7 @@ def cluster_status(
         )
         return
 
-    print_status(cluster_status, current_cluster)
+    print_status(cluster_status, current_cluster, node)
 
 
 @cluster_app.command("list")
