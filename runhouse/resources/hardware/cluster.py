@@ -19,6 +19,7 @@ import requests
 import yaml
 
 from runhouse.resources.hardware.utils import (
+    _do_setup_step_for_node,
     _setup_creds_from_dict,
     ClusterStatus,
     get_clusters_from_den,
@@ -29,6 +30,7 @@ from runhouse.resources.hardware.utils import (
 
 from runhouse.resources.images import Image, ImageSetupStepType
 
+from runhouse.resources.images.image import ImageSetupStep
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import (
@@ -81,41 +83,6 @@ from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import CreateProcessParams
 
 logger = get_logger(__name__)
-
-
-def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
-    if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
-        cluster.create_conda_env(
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            conda_config=setup_step.kwargs.get("conda_config"),
-        )
-    elif setup_step.step_type == ImageSetupStepType.PACKAGES:
-        cluster.install_packages(
-            setup_step.kwargs.get("reqs"),
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            node=node,
-        )
-    elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
-        command = setup_step.kwargs.get("command")
-        conda_env_name = setup_step.kwargs.get("conda_env_name")
-        if conda_env_name:
-            command = conda_env_cmd(command, conda_env_name)
-        run_setup_command(
-            cmd=command,
-            cluster=cluster,
-            env_vars=env_vars,
-            stream_logs=True,
-            node=node,
-        )
-    elif setup_step.step_type == ImageSetupStepType.RSYNC:
-        cluster.rsync(
-            source=setup_step.kwargs.get("source"),
-            dest=setup_step.kwargs.get("dest"),
-            node=node,
-            up=True,
-            contents=setup_step.kwargs.get("contents"),
-            filter_options=setup_step.kwargs.get("filter_options"),
-        )
 
 
 class Cluster(Resource):
@@ -657,6 +624,22 @@ class Cluster(Resource):
 
         return owner_info.get("username") != rns_client.username
 
+    def _run_setup_step(self, step, env_vars, parallel):
+        if parallel:
+            # Launch in a new process so we can capture the logs
+            with multiprocessing.Pool(processes=len(self.ips)) as pool:
+                results = pool.starmap(
+                    _do_setup_step_for_node,
+                    [(self, step, ip, env_vars) for ip in self.ips],
+                )
+                # Fix any garbled terminal output
+                os.system("stty sane")
+        else:
+            results = []
+            for ip in self.ips:
+                results.append(_do_setup_step_for_node(self, step, ip, env_vars))
+        return results
+
     def _sync_image_to_cluster(self, parallel: bool = True):
         """
         Image stuff that needs to happen over SSH because the daemon won't be up yet, so we can't
@@ -695,18 +678,7 @@ class Cluster(Resource):
                 env_vars.update(image_env_vars)
                 continue
 
-            if parallel:
-                # Launch in a new process so we can capture the logs
-                with multiprocessing.Pool(processes=len(self.ips)) as pool:
-                    pool.starmap(
-                        _do_setup_step_for_node,
-                        [(self, step, ip, env_vars) for ip in self.ips],
-                    )
-                    # Fix any garbled terminal output
-                    os.system("stty sane")
-            else:
-                for ip in self.ips:
-                    _do_setup_step_for_node(self, step, ip, env_vars)
+            self._run_setup_step(step, env_vars, parallel)
 
         return secrets_to_sync, env_vars
 
@@ -714,6 +686,8 @@ class Cluster(Resource):
         self,
         _install_url: Optional[str] = None,
         local_rh_package_path: Optional[Path] = None,
+        env_vars: Optional[Dict] = {},
+        parallel: bool = True,
     ):
         if self.on_this_cluster():
             return
@@ -723,21 +697,34 @@ class Cluster(Resource):
 
         conda_env_name = self.image.conda_env_name if self.image else None
 
-        remote_ray_version_call = self.run_bash_over_ssh(
-            ["ray --version"], node="all", conda_env_name=conda_env_name
+        remote_ray_version_call = self._run_setup_step(
+            step=ImageSetupStep(
+                step_type=ImageSetupStepType.CMD_RUN,
+                command="ray --version",
+                conda_env_name=conda_env_name,
+            ),
+            env_vars=env_vars,
+            parallel=parallel,
         )
-        ray_installed_remotely = remote_ray_version_call[0][0][0] == 0
+        ray_installed_remotely = all(
+            [remote_ray_version_call[i][0] == 0 for i in range(len(self.ips))]
+        )
+
         if not ray_installed_remotely:
             local_ray_version = find_locally_installed_version("ray")
 
             # if Ray is installed locally, install the same version on the cluster
             if local_ray_version:
                 ray_install_cmd = f"python3 -m pip install ray=={local_ray_version}"
-                self.run_bash_over_ssh(
-                    [ray_install_cmd],
-                    node="all",
-                    stream_logs=True,
-                    conda_env_name=conda_env_name,
+
+                self._run_setup_step(
+                    step=ImageSetupStep(
+                        step_type=ImageSetupStepType.CMD_RUN,
+                        command=ray_install_cmd,
+                        conda_env_name=conda_env_name,
+                    ),
+                    env_vars=env_vars,
+                    parallel=parallel,
                 )
 
         # If local_rh_package_path is provided, install the package from the local path
@@ -745,13 +732,16 @@ class Cluster(Resource):
             local_rh_package_path = local_rh_package_path.parent
             dest_path = f"~/{local_rh_package_path.name}"
 
-            self.rsync(
-                source=str(local_rh_package_path),
-                dest=dest_path,
-                node="all",
-                up=True,
-                contents=True,
-                filter_options="- docs/",
+            self._run_setup_step(
+                step=ImageSetupStep(
+                    step_type=ImageSetupStepType.RSYNC,
+                    source=str(local_rh_package_path),
+                    dest=dest_path,
+                    contents=True,
+                    filter_options="- docs/",
+                ),
+                env_vars=env_vars,
+                parallel=parallel,
             )
             rh_install_cmd = f"python3 -m pip install {dest_path}[server]"
 
@@ -766,18 +756,23 @@ class Cluster(Resource):
                 _install_url = f"runhouse[server]=={runhouse.__version__}"
             rh_install_cmd = f"python3 -m pip install {_install_url}"
 
-        for node in self.ips:
-            status_codes = self.run_bash_over_ssh(
-                [rh_install_cmd],
-                node=node,
-                stream_logs=True,
+        status_codes = self._run_setup_step(
+            step=ImageSetupStep(
+                step_type=ImageSetupStepType.CMD_RUN,
+                command=rh_install_cmd,
                 conda_env_name=conda_env_name,
+            ),
+            env_vars=env_vars,
+            parallel=parallel,
+        )
+        status_codes = [status_codes[i][0] == 0 for i in range(len(self.ips))]
+        if not all(status_codes):
+            failed_nodes = [
+                self.ips[i] for i, code in enumerate(status_codes) if not code
+            ]
+            raise ValueError(
+                f"Error installing runhouse on cluster <{self.name}> on nodes <{failed_nodes}>"
             )
-
-            if status_codes[0][0] != 0:
-                raise ValueError(
-                    f"Error installing runhouse on cluster <{self.name}> node <{node}>"
-                )
 
     def install_packages(
         self,
@@ -1162,6 +1157,8 @@ class Cluster(Resource):
             self._sync_runhouse_to_cluster(
                 _install_url=_rh_install_url,
                 local_rh_package_path=local_rh_package_path,
+                env_vars=image_env_vars,
+                parallel=parallel,
             )
             logger.debug("Finished syncing Runhouse to cluster.")
 
@@ -1286,6 +1283,7 @@ class Cluster(Resource):
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
+        parallel: bool = True,
     ):
         """Restart the RPC server.
 
@@ -1312,6 +1310,7 @@ class Cluster(Resource):
             resync_rh=resync_rh,
             restart_ray=restart_ray,
             restart_proxy=restart_proxy,
+            parallel=parallel,
         )
 
     def start_server(
@@ -1320,6 +1319,7 @@ class Cluster(Resource):
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
+        parallel: bool = True,
     ):
         """Restart the RPC server.
 
@@ -1341,6 +1341,7 @@ class Cluster(Resource):
             resync_rh=resync_rh,
             restart_ray=restart_ray,
             restart_proxy=restart_proxy,
+            parallel=parallel,
         )
 
     def stop_server(
