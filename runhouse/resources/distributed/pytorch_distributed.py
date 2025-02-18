@@ -41,11 +41,15 @@ class PyTorchDistributed(Supervisor):
                 if isinstance(self.system, Cluster)
                 else "localhost"
             )
+
+            processes_per_node = len(self._replicas) // len(self.system.ips)
+            
             dist_config = {
                 "MASTER_ADDR": master_addr,
                 "MASTER_PORT": port,
                 "RANK": str(rank),
                 "WORLD_SIZE": str(len(self._replicas)),
+                "LOCAL_RANK": str(rank % processes_per_node),
             }
             replica.system.set_process_env_vars(replica.process, dist_config)
             method = getattr(replica, item)
