@@ -108,9 +108,75 @@ def sort_processes(processes: dict):
     for k in keys:
         sub_keys = list(processes[k].keys())
         sub_keys.sort()
-        nested_dict = {i: processes[k][i] for i in sub_keys}
+        nested_dict = {i: processes[k][i] for i in sub_keys if processes[k][i]}
         sorted_processes[k] = nested_dict
     return sorted_processes
+
+
+def send_cluster_status_to_db_logic(cluster):
+    status = cluster.status()
+    cluster_processes = status.pop("processes")
+    status_data = {
+        "daemon_status": RunhouseDaemonStatus.RUNNING,
+        "resource_type": status.get("cluster_config").get("resource_type"),
+        "resource_info": status,
+        "processes": cluster_processes,
+    }
+    cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
+    headers = rh.globals.rns_client.request_headers()
+    api_server_url = rh.globals.rns_client.api_server_url
+    post_status_data_resp = requests.post(
+        f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+        data=json.dumps(status_data),
+        headers=headers,
+    )
+    assert post_status_data_resp.status_code in [200, 422]
+    get_status_data_resp = requests.get(
+        f"{api_server_url}/resource/{cluster_uri}/cluster/status?limit=1",
+        headers=headers,
+    )
+    assert get_status_data_resp.status_code == 200
+    get_status_data = get_status_data_resp.json()["data"][0]
+    assert get_status_data["resource_type"] == status.get("cluster_config").get(
+        "resource_type"
+    )
+    assert get_status_data["daemon_status"] == RunhouseDaemonStatus.RUNNING
+
+    den_resource_info = get_status_data.get("resource_info")
+    # remove None values from the status output we got from den
+    den_resource_info["workers"] = [
+        {k: v for k, v in worker.items() if v}
+        for worker in den_resource_info.get("workers")
+    ]
+    assert den_resource_info == status
+    env_servlet_processes = sort_processes(cluster_processes)
+    get_status_data["processes"] = sort_processes(get_status_data["processes"])
+    assert get_status_data["processes"] == env_servlet_processes
+
+    status_data["daemon_status"] = RunhouseDaemonStatus.TERMINATED
+    post_status_data_resp = requests.post(
+        f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+        data=json.dumps(status_data),
+        headers=headers,
+    )
+    assert post_status_data_resp.status_code == 200
+    get_status_data_resp = requests.get(
+        f"{api_server_url}/resource/{cluster_uri}/cluster/status?limit=1",
+        headers=headers,
+    )
+    assert (
+        get_status_data_resp.json()["data"][0]["daemon_status"]
+        == RunhouseDaemonStatus.TERMINATED
+    )
+
+    # setting the status to running again, so it won't mess with the following tests
+    # (when running all release suite at once, for example)
+    post_status_data_resp = requests.post(
+        f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+        data=json.dumps(status_data),
+        headers=headers,
+    )
+    assert post_status_data_resp.status_code in [200, 422]
 
 
 class TestCluster(tests.test_resources.test_resource.TestResource):
@@ -579,9 +645,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             "node_name",
             "pid",
             "process_cpu_usage",
-            "process_gpu_usage",
             "process_resource_mapping",
         ]
+        if cluster_data.get("cluster_config").get("is_gpu"):
+            expected_servlet_keys.append("process_gpu_usage")
+        expected_servlet_keys.sort()
         process_names = list(updated_cluster_processes.keys())
         process_names.sort()
         assert "workers" in cluster_data.keys()
@@ -651,7 +719,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # checking the memory info is printed correctly
         assert "CPU: " in status_output_string
         assert status_output_string.count("CPU: ") >= 1
-        assert f"worker_0, IP: {cluster.ips[0]}" in status_output_string
+        assert f"head node | IP: {cluster.ips[0]}" in status_output_string
 
         cloud_properties = cluster.config().get("compute_properties", None)
         if cloud_properties:
@@ -724,70 +792,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_send_status_to_db(self, cluster):
-        status = cluster.status()
-        cluster_processes = status.pop("processes")
-        status_data = {
-            "daemon_status": RunhouseDaemonStatus.RUNNING,
-            "resource_type": status.get("cluster_config").get("resource_type"),
-            "resource_info": status,
-            "processes": cluster_processes,
-        }
-        cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
-        headers = rh.globals.rns_client.request_headers()
-        api_server_url = rh.globals.rns_client.api_server_url
-        post_status_data_resp = requests.post(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-            data=json.dumps(status_data),
-            headers=headers,
-        )
-        assert post_status_data_resp.status_code in [200, 422]
-        get_status_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status?limit=1",
-            headers=headers,
-        )
-        assert get_status_data_resp.status_code == 200
-        get_status_data = get_status_data_resp.json()["data"][0]
-        assert get_status_data["resource_type"] == status.get("cluster_config").get(
-            "resource_type"
-        )
-        assert get_status_data["daemon_status"] == RunhouseDaemonStatus.RUNNING
-
-        assert get_status_data["resource_info"] == status
-        for k in cluster_processes:
-            if cluster_processes[k]["process_gpu_usage"] == {}:
-                cluster_processes[k]["proces_gpu_usage"] = {
-                    "used_memory": None,
-                    "total_memory": None,
-                }
-        env_servlet_processes = sort_processes(cluster_processes)
-        get_status_data["processes"] = sort_processes(get_status_data["processes"])
-        assert get_status_data["processes"] == env_servlet_processes
-
-        status_data["daemon_status"] = RunhouseDaemonStatus.TERMINATED
-        post_status_data_resp = requests.post(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-            data=json.dumps(status_data),
-            headers=headers,
-        )
-        assert post_status_data_resp.status_code == 200
-        get_status_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status?limit=1",
-            headers=headers,
-        )
-        assert (
-            get_status_data_resp.json()["data"][0]["daemon_status"]
-            == RunhouseDaemonStatus.TERMINATED
-        )
-
-        # setting the status to running again, so it won't mess with the following tests
-        # (when running all release suite at once, for example)
-        post_status_data_resp = requests.post(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-            data=json.dumps(status_data),
-            headers=headers,
-        )
-        assert post_status_data_resp.status_code in [200, 422]
+    def test_send_status_to_db(self, docker_cluster_pk_ssh_no_auth):
+        send_cluster_status_to_db_logic(docker_cluster_pk_ssh_no_auth)
 
     ####################################################################################################
     # Default process tests

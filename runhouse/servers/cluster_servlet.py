@@ -561,7 +561,7 @@ class ClusterServlet:
                 > 0
                 for resource_name in resource["process_resource_mapping"].keys()
             )
-            for resource in status.get("process_resource_mapping", {}).values()
+            for resource in status.get("processes", {}).values()
         )
         if function_running:
             await self.autostop_helper.set_last_active_time_to_now()
