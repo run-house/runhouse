@@ -43,7 +43,7 @@ class PyTorchDistributed(Supervisor):
             )
 
             processes_per_node = len(self._replicas) // len(self.system.ips)
-            
+    
             dist_config = {
                 "MASTER_ADDR": master_addr,
                 "MASTER_PORT": port,
