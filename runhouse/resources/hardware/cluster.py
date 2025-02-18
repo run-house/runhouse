@@ -1975,7 +1975,6 @@ class Cluster(Resource):
 
         return_codes = self._run_commands_with_runner(
             commands,
-            cmd_prefix="",
             stream_logs=stream_logs,
             node=node,
             require_outputs=require_outputs,
@@ -2036,7 +2035,6 @@ class Cluster(Resource):
         self,
         commands: list,
         env_vars: Dict = {},
-        cmd_prefix: str = "",
         stream_logs: bool = True,
         node: str = None,
         require_outputs: bool = True,
@@ -2066,7 +2064,6 @@ class Cluster(Resource):
         )
 
         for command in commands:
-            command = f"{cmd_prefix} {command}" if cmd_prefix else command
             logger.info(f"Running command on {self.name}: {command}")
 
             # set env vars after log statement
