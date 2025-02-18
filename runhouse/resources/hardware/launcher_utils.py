@@ -2,7 +2,7 @@ import ast
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import requests
 
@@ -98,7 +98,7 @@ class Launcher:
         raise NotImplementedError
 
     @classmethod
-    def teardown(cls, cluster, verbose: bool = True):
+    def teardown(cls, cluster, num_nodes: Union[int, str] = None, verbose: bool = True):
         """Abstract method for tearing down a cluster."""
         raise NotImplementedError
 
@@ -299,7 +299,7 @@ class DenLauncher(Launcher):
         cls._update_from_den_response(cluster=cluster, config=data)
 
     @classmethod
-    def teardown(cls, cluster, verbose: bool = True):
+    def teardown(cls, cluster, num_nodes: Union[int, str] = None, verbose: bool = True):
         """Tearing down a cluster via Den."""
         from runhouse.resources.secrets import Secret
 
@@ -314,6 +314,8 @@ class DenLauncher(Launcher):
             "delete_from_den": False,
             "ssh_creds": ssh_creds,
             "verbose": verbose,
+            "pool": cluster.pool,
+            "num_nodes": num_nodes,
         }
 
         if verbose:
@@ -440,7 +442,7 @@ class LocalLauncher(Launcher):
             raise e
 
     @classmethod
-    def teardown(cls, cluster, verbose: bool = True):
+    def teardown(cls, cluster, num_nodes: Union[int, str] = None, verbose: bool = True):
         """Tearing down a cluster locally via Sky."""
         import sky
 

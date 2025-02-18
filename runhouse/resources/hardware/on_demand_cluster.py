@@ -676,22 +676,24 @@ class OnDemandCluster(Cluster):
         self.autostop_mins = mins
         return self
 
-    def teardown(self, verbose: bool = True):
+    def teardown(self, num_nodes: Union[int, str] = None, verbose: bool = True):
         """Teardown cluster.
 
         Args:
             verbose (bool, optional): Whether to stream logs from Den when the cluster is being downed. Only relevant
                 when tearing down via Den. (Default: `True`)
+            num_nodes (bool, optional): Number of nodes to tear down. Optionally specify ``all`` to teardown all nodes.
+                Only relevant if cluster has been launched in a compute pool. (Default: ``None``)
 
         Example:
             >>> rh.ondemand_cluster("rh-cpu").teardown()
         """
         if self.launcher == LauncherType.DEN:
             logger.info("Tearing down cluster with Den.")
-            DenLauncher.teardown(cluster=self, verbose=verbose)
+            DenLauncher.teardown(cluster=self, num_nodes=num_nodes, verbose=verbose)
         else:
             logger.info("Tearing down cluster locally via Sky.")
-            LocalLauncher.teardown(cluster=self, verbose=verbose)
+            LocalLauncher.teardown(cluster=self, num_nodes=num_nodes, verbose=verbose)
 
         if self.rns_address is not None:
             try:
