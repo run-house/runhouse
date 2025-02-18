@@ -249,7 +249,7 @@ class Servlet:
     async def aclear_local(self):
         return await obj_store.aclear_local()
 
-    def _get_env_cpu_usage(self, cluster_config: dict = None):
+    def _get_process_cpu_usage(self, cluster_config: dict = None):
         import psutil
 
         total_memory = psutil.virtual_memory().total
@@ -274,17 +274,23 @@ class Servlet:
         try:
 
             memory_size_bytes = self.process.memory_full_info().uss
-            cpu_usage_percent = self.process.cpu_percent(interval=0)
-            env_memory_usage = {
+            used_memory_percent = round(
+                self.process.memory_percent(memtype="uss"), 2
+            )  # value is between 0 and 100
+            cpu_usage_percent = self.process.cpu_percent(
+                interval=0
+            )  # value is between 0 and 100
+            process_memory_usage = {
                 "used_memory": memory_size_bytes,
                 "utilization_percent": cpu_usage_percent,
                 "total_memory": total_memory,
+                "used_memory_percent": used_memory_percent,
             }
         except psutil.NoSuchProcess:
-            env_memory_usage = {}
+            process_memory_usage = {}
 
         return (
-            env_memory_usage,
+            process_memory_usage,
             node_name,
             total_memory,
             self.pid,
@@ -292,7 +298,7 @@ class Servlet:
             node_index,
         )
 
-    def _get_env_gpu_usage(self):
+    def _get_process_gpu_usage(self):
         # currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
 
         collected_gpus_info = copy.deepcopy(self.gpu_metrics)
@@ -301,7 +307,7 @@ class Servlet:
             return None
 
         return get_gpu_usage(
-            collected_gpus_info=collected_gpus_info, servlet_type=ServletType.env
+            collected_gpus_info=collected_gpus_info, servlet_type=ServletType.process
         )
 
     def _collect_env_gpu_usage(self):
@@ -361,17 +367,17 @@ class Servlet:
         cluster_config = obj_store.cluster_config
 
         (
-            env_memory_usage,
+            process_memory_usage,
             node_name,
             total_memory,
             servlet_pid,
             node_ip,
             node_index,
-        ) = self._get_env_cpu_usage(cluster_config)
+        ) = self._get_process_cpu_usage(cluster_config)
 
         # Try loading GPU data (if relevant)
-        env_gpu_usage = (
-            self._get_env_gpu_usage() if cluster_config.get("is_gpu", False) else {}
+        process_gpu_usage = (
+            self._get_process_gpu_usage() if cluster_config.get("is_gpu", False) else {}
         )
 
         cluster_config = obj_store.cluster_config
@@ -392,11 +398,11 @@ class Servlet:
                 self.gpu_metrics = None
 
         servlet_utilization_data = {
-            "env_gpu_usage": env_gpu_usage,
+            "process_gpu_usage": process_gpu_usage,
             "node_ip": node_ip,
             "node_name": node_name,
             "node_index": node_index,
-            "env_cpu_usage": env_memory_usage,
+            "process_cpu_usage": process_memory_usage,
             "pid": servlet_pid,
         }
 

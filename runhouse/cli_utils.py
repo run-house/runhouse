@@ -447,7 +447,7 @@ def print_status(status_data: dict, current_cluster) -> None:
     from runhouse.main import console
 
     cluster_config = status_data.get("cluster_config")
-    servlet_processes = status_data.get("env_servlet_processes")
+    servlet_processes = status_data.get("processes")
 
     cluster_name = cluster_config.get("name", None)
     if cluster_name:

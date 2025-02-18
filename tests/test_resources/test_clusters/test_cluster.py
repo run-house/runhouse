@@ -99,18 +99,18 @@ def run_node_all(cmd):
     return rh.here.run_bash(cmd, node="all")
 
 
-def sort_env_servlet_processes(env_servlet_processes: dict):
+def sort_processes(processes: dict):
     """helping function for the test_send_status_to_db test, sort the servlet_processed dict (including its sub
     dicts) by their keys."""
-    keys = list(env_servlet_processes.keys())
+    keys = list(processes.keys())
     keys.sort()
-    sorted_env_servlet_processes = {}
+    sorted_processes = {}
     for k in keys:
-        sub_keys = list(env_servlet_processes[k].keys())
+        sub_keys = list(processes[k].keys())
         sub_keys.sort()
-        nested_dict = {i: env_servlet_processes[k][i] for i in sub_keys}
-        sorted_env_servlet_processes[k] = nested_dict
-    return sorted_env_servlet_processes
+        nested_dict = {i: processes[k][i] for i in sub_keys}
+        sorted_processes[k] = nested_dict
+    return sorted_processes
 
 
 class TestCluster(tests.test_resources.test_resource.TestResource):
@@ -227,10 +227,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert status_data.get("cluster_config").get(
             "resource_subtype"
         ) == cluster.config().get("resource_subtype")
-        assert status_data.get("env_servlet_processes", None)
-        assert isinstance(status_data.get("server_cpu_utilization", None), float)
-        assert status_data.get("server_memory_usage", None)
-        assert not status_data.get("server_gpu_usage", None)
+        assert status_data.get("processes", None)
+        head_worker_resource_usage = status_data.get("workers", None)
+        assert head_worker_resource_usage
+        assert isinstance(head_worker_resource_usage, list)
+        head_worker_resource_usage = head_worker_resource_usage[0]
+        server_cpu_usage = head_worker_resource_usage.get("server_cpu_usage", None)
+        assert server_cpu_usage
+        assert isinstance(server_cpu_usage.get("utilization_percent", None), float)
+        assert not head_worker_resource_usage.get("server_gpu_usage", None)
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -505,10 +510,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         cluster_data = cluster.status()
 
         expected_cluster_status_data_keys = [
-            "env_servlet_processes",
+            "processes",
             "server_pid",
             "runhouse_version",
             "cluster_config",
+            "workers",
         ]
 
         actual_cluster_status_data_keys = list(cluster_data.keys())
@@ -528,22 +534,20 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         else:
             assert res.get("compute_properties").get("ips") == cluster.ips
 
-        assert process in cluster_data.get("env_servlet_processes").keys()
-        assert "status_key1" in cluster_data.get("env_servlet_processes").get(
-            process
-        ).get("env_resource_mapping")
+        cluster_processes = cluster_data.get("processes")
+        assert process in cluster_processes.keys()
+        assert "status_key1" in cluster_processes.get(process).get(
+            "process_resource_mapping"
+        )
         assert {
             "resource_type": "str",
             "active_function_calls": [],
-        } == cluster_data.get("env_servlet_processes").get(process).get(
-            "env_resource_mapping"
-        ).get(
+        } == cluster_processes.get(process).get("process_resource_mapping").get(
             "status_key1"
         )
         sleep_calls = (
-            cluster_data.get("env_servlet_processes")
-            .get(process)
-            .get("env_resource_mapping")
+            cluster_processes.get(process)
+            .get("process_resource_mapping")
             .get("sleep_fn")
             .get("active_function_calls")
         )
@@ -558,11 +562,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         for call_thread in call_threads:
             call_thread.join()
         updated_status = cluster.status()
+        updated_cluster_processes = updated_status.get("processes")
         # Check that the sleep calls are no longer active
         assert (
-            updated_status.get("env_servlet_processes")
-            .get(process)
-            .get("env_resource_mapping")
+            updated_cluster_processes.get(process)
+            .get("process_resource_mapping")
             .get("sleep_fn")
             .get("active_function_calls")
             == []
@@ -570,23 +574,25 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         # test memory usage info
         expected_servlet_keys = [
-            "env_cpu_usage",
-            "env_gpu_usage",
-            "env_resource_mapping",
             "node_index",
             "node_ip",
             "node_name",
             "pid",
+            "process_cpu_usage",
+            "process_gpu_usage",
+            "process_resource_mapping",
         ]
-        process_names = list(cluster_data.get("env_servlet_processes").keys())
+        process_names = list(updated_cluster_processes.keys())
         process_names.sort()
-        assert "env_servlet_processes" in cluster_data.keys()
-        servlets_info = cluster_data.get("env_servlet_processes")
-        actors_keys = list(servlets_info.keys())
+        assert "workers" in cluster_data.keys()
+        assert (
+            len(cluster_data.get("workers")) >= 1
+        )  # there is at least info about one worker (the head node)
+        actors_keys = list(updated_cluster_processes.keys())
         actors_keys.sort()
         assert process_names == actors_keys
         for process_name in process_names:
-            servlet_info = servlets_info.get(process_name)
+            servlet_info = updated_cluster_processes.get(process_name)
             servlet_info_keys = list(servlet_info.keys())
             servlet_info_keys.sort()
             assert servlet_info_keys == expected_servlet_keys
@@ -724,12 +730,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     def test_send_status_to_db(self, cluster):
 
         status = cluster.status()
-        env_servlet_processes = status.pop("env_servlet_processes")
+        cluster_processes = status.pop("processes")
         status_data = {
             "daemon_status": RunhouseDaemonStatus.RUNNING,
             "resource_type": status.get("cluster_config").get("resource_type"),
             "resource_info": status,
-            "env_servlet_processes": env_servlet_processes,
+            "processes": cluster_processes,
         }
         cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
         headers = rh.globals.rns_client.request_headers()
@@ -752,18 +758,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert get_status_data["daemon_status"] == RunhouseDaemonStatus.RUNNING
 
         assert get_status_data["resource_info"] == status
-        for k in env_servlet_processes:
-            if env_servlet_processes[k]["env_gpu_usage"] == {}:
-                env_servlet_processes[k]["env_gpu_usage"] = {
+        for k in cluster_processes:
+            if cluster_processes[k]["process_gpu_usage"] == {}:
+                cluster_processes[k]["proces_gpu_usage"] = {
                     "used_memory": None,
-                    "utilization_percent": None,
                     "total_memory": None,
                 }
-        env_servlet_processes = sort_env_servlet_processes(env_servlet_processes)
-        get_status_data["env_servlet_processes"] = sort_env_servlet_processes(
-            get_status_data["env_servlet_processes"]
-        )
-        assert get_status_data["env_servlet_processes"] == env_servlet_processes
+        env_servlet_processes = sort_processes(cluster_processes)
+        get_status_data["processes"] = sort_processes(get_status_data["processes"])
+        assert get_status_data["processes"] == env_servlet_processes
 
         status_data["daemon_status"] = RunhouseDaemonStatus.TERMINATED
         post_status_data_resp = requests.post(
@@ -798,7 +801,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.clustertest
     def test_default_process_in_status(self, cluster):
         res = cluster.status()
-        assert DEFAULT_PROCESS_NAME in res.get("env_servlet_processes")
+        assert DEFAULT_PROCESS_NAME in res.get("processes")
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest

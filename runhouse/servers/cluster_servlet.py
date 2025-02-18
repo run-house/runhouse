@@ -81,6 +81,8 @@ class ClusterServlet:
         # been created yet, since it is a freshly initialized cluster servlet. In this case, we will return an empty string.
         self._is_log_file_ready = False
 
+        self._are_multinode_servlets_ready = False
+
         # will need this to make sure that we are deleting the correct cluster servlet when we call kill_actors
         self.name = kwargs.get("name", "cluster_servlet")
 
@@ -124,6 +126,7 @@ class ClusterServlet:
 
     async def aset_node_servlet_names(self, node_servlet_names: List[str]):
         self._node_servlet_names = node_servlet_names
+        self._are_multinode_servlets_ready = True
 
     ##############################################
     # Add to path and get path methods
@@ -338,7 +341,7 @@ class ClusterServlet:
         # making a copy so the status won't be modified with pop, since it will be returned after sending to den.
         # (status is passed as pointer).
         status_copy = copy.deepcopy(status)
-        servlet_processes = status_copy.pop("env_servlet_processes")
+        servlet_processes = status_copy.pop("processes")
 
         status_data = {
             "daemon_status": RunhouseDaemonStatus.RUNNING,
@@ -346,7 +349,7 @@ class ClusterServlet:
                 "resource_type", "cluster"
             ),
             "resource_info": status_copy,
-            "env_servlet_processes": servlet_processes,
+            "processes": servlet_processes,
         }
 
         client = httpx.AsyncClient()
@@ -424,6 +427,12 @@ class ClusterServlet:
                     logger.debug("Successfully updated autostop")
 
             except Exception as e:
+                if (
+                    "Failed to look up actor with name" in str(e)
+                    and not self._are_multinode_servlets_ready
+                ):
+                    # try to update autostop from a multinode cluster before the NodeServlets on all nodes is ready
+                    continue
                 logger.error(f"Autostop check has failed: {e}")
 
                 # killing the cluster servlet only if log level is debug
@@ -507,6 +516,12 @@ class ClusterServlet:
                         logger.debug("Successfully sent cluster logs to Den.")
 
             except Exception as e:
+                if (
+                    "Failed to look up actor with name" in str(e)
+                    and not self._are_multinode_servlets_ready
+                ):
+                    # try to collect status from a multinode cluster before the NodeServlets on all nodes is ready
+                    continue
                 logger.error(f"Cluster checks have failed: {e}.\n")
 
                 # killing the cluster servlet only if log level is debug
@@ -539,14 +554,14 @@ class ClusterServlet:
         function_running = any(
             any(
                 len(
-                    resource["env_resource_mapping"][resource_name].get(
+                    resource["process_resource_mapping"][resource_name].get(
                         "active_function_calls", []
                     )
                 )
                 > 0
-                for resource_name in resource["env_resource_mapping"].keys()
+                for resource_name in resource["process_resource_mapping"].keys()
             )
-            for resource in status.get("env_servlet_processes", {}).values()
+            for resource in status.get("process_resource_mapping", {}).values()
         )
         if function_running:
             await self.autostop_helper.set_last_active_time_to_now()
@@ -658,10 +673,43 @@ class ClusterServlet:
 
         return cluster_gpu_usage
 
+    def _map_internal_external_ip(self, internal_ip: str):
+        compute_properties = self._cluster_config.get("compute_properties", None)
+        ips: list = (
+            compute_properties.get("ips")
+            if compute_properties
+            else self._cluster_config.get("ips")
+        )
+        internal_ips: list = (
+            compute_properties.get("internal_ips") if compute_properties else ips
+        )
+
+        return ips[internal_ips.index(internal_ip)]
+
+    async def _aget_node_cpu_usage(self, internal_ip: str):
+        return {
+            "ip": self._map_internal_external_ip(internal_ip),
+            "server_cpu_usage": await obj_store.acall_servlet_method(
+                servlet_name=obj_store.node_servlet_name_for_ip(internal_ip),
+                method="aget_cpu_usage",
+            ),
+        }
+
     async def astatus(self, send_to_den: bool = False) -> Tuple[Dict, Optional[int]]:
         import psutil
 
         config_cluster = copy.deepcopy(self._cluster_config)
+        compute_properties = config_cluster.get("compute_properties", None)
+        ips = (
+            compute_properties.get("ips")
+            if compute_properties
+            else config_cluster.get("ips")
+        )
+        internal_ips = (
+            compute_properties.get("internal_ips") if compute_properties else ips
+        )
+        is_multinode = len(ips) > 1
+        head_ip = ips[0]
 
         # Popping out creds because we don't want to show them in the status
         config_cluster.pop("creds", None)
@@ -677,12 +725,12 @@ class ClusterServlet:
             )
 
         # Store the data for the appropriate env servlet name
-        for env_status in servlets_status:
-            servlet_name = env_status.get("servlet_name")
+        for process_status in servlets_status:
+            servlet_name = process_status.get("servlet_name")
 
             # Nothing to store if there was an exception
-            if "Exception" in env_status.keys():
-                e = env_status.get("Exception")
+            if "Exception" in process_status.keys():
+                e = process_status.get("Exception")
                 logger.warning(
                     f"Exception {str(e)} in status for env servlet {servlet_name}"
                 )
@@ -690,31 +738,47 @@ class ClusterServlet:
 
             else:
                 # Store what was in the env and the utilization data
-                env_memory_info = env_status.get("servlet_utilization_data")
-                env_memory_info["env_resource_mapping"] = env_status.get(
+                process_memory_info = process_status.get("servlet_utilization_data")
+                process_memory_info["process_resource_mapping"] = process_status.get(
                     "objects_in_servlet"
                 )
-                servlet_utilization_data[servlet_name] = env_memory_info
-
-        # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
-        cpu_utilization = psutil.cpu_percent(interval=0)
+                servlet_utilization_data[servlet_name] = process_memory_info
 
         # A dictionary that match the keys of psutil.virtual_memory()._asdict() to match the keys we expect in Den.
         relevant_memory_info = {
             "available": "free_memory",
-            "percent": "percent",
+            "percent": "used_memory_percent",
             "total": "total_memory",
             "used": "used_memory",
         }
 
         # Fields: `total`, `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
         # according to psutil docs, percent = (total - available) / total * 100
-        memory_usage = psutil.virtual_memory()._asdict()
+        # we now it is memory usage of the head node because it is calculated on the cluster_servlet which is
+        # initialized on the head node
+        head_cpu_usage = psutil.virtual_memory()._asdict()
 
-        memory_usage = {
-            relevant_memory_info[k]: memory_usage[k]
-            for k in relevant_memory_info.keys()
+        head_cpu_usage = {v: head_cpu_usage[k] for k, v in relevant_memory_info.items()}
+
+        head_cpu_usage["utilization_percent"] = psutil.cpu_percent(
+            interval=0
+        )  # value is between 0 and 100
+
+        head_node_resource_usage = {
+            "ip": head_ip,
+            "server_cpu_usage": head_cpu_usage,
         }
+
+        workers_resource_usage = [head_node_resource_usage]
+
+        # if the cluster is multinode, calculate the cpu_utilization and memory usage of the nodes that are not the head node.
+        if is_multinode and ips and self._are_multinode_servlets_ready:
+            workers_resource_usage = workers_resource_usage + await asyncio.gather(
+                *[
+                    self._aget_node_cpu_usage(internal_ip=internal_ip)
+                    for internal_ip in internal_ips[1:]
+                ]
+            )
 
         # get general gpu usage
         server_gpu_usage = (
@@ -728,6 +792,10 @@ class ClusterServlet:
             else None
         )
 
+        if gpu_utilization:
+            # TODO[SB]: will be implemented in the gpu-metrics-PR
+            pass
+
         # rest the gpu_info only after the status was sent to den. If we should not send status to den,
         # self.gpu_metrics will not be updated at all, therefore should not be reset.
         if send_to_den:
@@ -738,11 +806,9 @@ class ClusterServlet:
             "cluster_config": config_cluster,
             "runhouse_version": runhouse.__version__,
             "server_pid": self.pid,
-            "env_servlet_processes": servlet_utilization_data,
-            "server_cpu_utilization": cpu_utilization,
-            "server_gpu_utilization": gpu_utilization,
-            "server_memory_usage": memory_usage,
-            "server_gpu_usage": server_gpu_usage,
+            "workers": workers_resource_usage,
+            "is_multinode": is_multinode,
+            "processes": servlet_utilization_data,
         }
 
         # converting status_data to ResourceStatusData instance to verify we constructed the status data correctly
