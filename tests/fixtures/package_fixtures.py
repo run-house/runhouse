@@ -37,17 +37,6 @@ def conda_package():
     return package
 
 
-@pytest.fixture(scope="session")
-def reqs_package():
-    args = {
-        "install_target": InstallTarget(local_path="."),
-        "install_method": "reqs",
-    }
-    package = rh.Package(**args)
-    init_args[id(package)] = args
-    return package
-
-
 @pytest.fixture
 def local_package(local_folder):
     args = {
@@ -66,19 +55,6 @@ def s3_package(s3_folder):
         "install_method": "local",
     }
     package = rh.Package(**args)
-    init_args[id(package)] = args
-    return package
-
-
-@pytest.fixture
-def git_package():
-    args = {
-        "install_target": "./transformers",
-        "install_method": "pip",
-        "git_url": "https://github.com/huggingface/transformers.git",
-        "revision": "v4.39.2",
-    }
-    package = rh.GitPackage(**args)
     init_args[id(package)] = args
     return package
 
