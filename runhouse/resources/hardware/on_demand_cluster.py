@@ -24,7 +24,6 @@ from runhouse.constants import (
     DEFAULT_SERVER_PORT,
     LOCAL_HOSTS,
 )
-
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import (
@@ -36,6 +35,7 @@ from runhouse.resources.hardware.utils import (
     ServerConnectionType,
     up_cluster_helper,
 )
+from runhouse.rns.utils.api import read_resp_data
 from .cluster import Cluster
 from .launcher_utils import DenLauncher, LocalLauncher
 
@@ -136,7 +136,7 @@ class OnDemandCluster(Cluster):
         # Checks if state info is in local sky db, populates if so.
         if not dryrun and not self.ips and self.launcher == LauncherType.LOCAL:
             # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
-            self._update_from_sky_status(dryrun=True)
+            self._update_from_status(dryrun=True)
 
     @property
     def ips(self):
@@ -153,7 +153,7 @@ class OnDemandCluster(Cluster):
         except ValueError as e:
             if not self.ips:
                 # Try loading in from local Sky DB
-                self._update_from_sky_status(dryrun=True)
+                self._update_from_status(dryrun=True)
                 if not self.ips:
                     raise ValueError(
                         f"Could not determine ips for ondemand cluster <{self.name}>. "
@@ -405,7 +405,7 @@ class OnDemandCluster(Cluster):
 
     def _start_ray_workers(self, ray_port, env_vars):
         if not self.internal_ips:
-            self._update_from_sky_status()
+            self._update_from_status()
 
         super()._start_ray_workers(ray_port, env_vars)
 
@@ -543,6 +543,45 @@ class OnDemandCluster(Cluster):
         """Setup the default creds used in launching and for interacting with the cluster once it's up.
         For Den launching we load the default ssh creds, and for local launching we let Sky handle it."""
         return DenLauncher.load_creds() if self.launcher == LauncherType.DEN else None
+
+    def _update_from_status(self, dryrun: bool = False):
+
+        if self._is_shared:
+            # If the cluster is shared can ignore, since the sky data will only be saved on the machine where
+            # the cluster was initially upped
+            return
+
+        if self.launcher == LauncherType.LOCAL:
+            # Try to get the cluster status from SkyDB
+            cluster_dict = self._sky_status(refresh=not dryrun)
+            self._populate_connection_from_status_dict(cluster_dict)
+        if self.launcher == LauncherType.DEN:
+            # checking if the function is called during the init process, before the cluster is saved to den.
+            if not self.rns_address:
+                return
+            cluster_uri = rns_client.format_rns_address(self.rns_address)
+            resp = requests.get(
+                f"{rns_client.api_server_url}/resource/{cluster_uri}/cluster/status",
+                headers=rns_client.request_headers(),
+            )
+            if resp.status_code != 200:
+                logger.warning(
+                    f"Received [{resp.status_code}] from Den GET '{cluster_uri}': Failed to load cluster status"
+                )
+                return
+            cluster_den_status: list = read_resp_data(resp)
+
+            if not cluster_den_status:
+                logger.warning("Failed to update cluster info")
+                return
+
+            resource_info = cluster_den_status[0].get("resource_info")
+            if not resource_info:
+                logger.warning("Failed to load resource info from cluster status")
+                return
+
+            cluster_dict = resource_info.get("cluster_config")
+            DenLauncher._update_from_den_response(cluster=self, config=cluster_dict)
 
     def get_instance_type(self):
         """Returns instance type of the cluster."""
@@ -828,6 +867,7 @@ class OnDemandCluster(Cluster):
             return True
 
         if retry:
-            self._update_from_sky_status(dryrun=False)
+            dryrun = False if self.launcher == LauncherType.LOCAL else None
+            self._update_from_status(dryrun=dryrun)
             return super()._ping(timeout=timeout, retry=False)
         return False
