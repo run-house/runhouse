@@ -29,7 +29,7 @@ from runhouse.resources.hardware.sky.command_runner import (
     SshMode,
 )
 from runhouse.resources.images.image import ImageSetupStepType
-from runhouse.utils import ColoredFormatter, conda_env_cmd, run_setup_command
+from runhouse.utils import ColoredFormatter, run_setup_command
 
 logger = get_logger(__name__)
 
@@ -191,14 +191,11 @@ def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
             node=node,
         )
     elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
-        command = setup_step.kwargs.get("command")
-        conda_env_name = setup_step.kwargs.get("conda_env_name")
-        if conda_env_name:
-            command = conda_env_cmd(command, conda_env_name)
         return run_setup_command(
-            cmd=command,
+            cmd=setup_step.kwargs.get("command"),
             cluster=cluster,
             env_vars=env_vars,
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
             stream_logs=True,
             node=node,
         )
