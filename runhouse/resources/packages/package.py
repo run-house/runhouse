@@ -275,6 +275,7 @@ class Package(Resource):
                 retcode = run_setup_command(
                     f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
                     cluster=cluster,
+                    conda_env_name=conda_env_name,
                     node=node,
                 )[0]
                 if retcode != 0 or force_sync_local:

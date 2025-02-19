@@ -59,6 +59,7 @@ def run_setup_command(
     cmd: str,
     cluster: "Cluster" = None,
     env_vars: Dict = None,
+    conda_env_name: Optional[str] = None,
     stream_logs: bool = True,
     node: Optional[str] = None,
 ):
@@ -70,6 +71,8 @@ def run_setup_command(
     Args:
         cmd (str): Command to run on the
         cluster (Optional[Cluster]): (default: None)
+        env_vars (Dict): Env vars to apply, applied only if running through SSH
+        conda_env_name (str, optional): Conda env to run the command in, applied only if running through SSH.
         stream_logs (bool): (default: True)
 
     Returns:
@@ -80,6 +83,8 @@ def run_setup_command(
     elif cluster.on_this_cluster():
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
 
+    if conda_env_name:
+        cmd = conda_env_cmd(cmd, conda_env_name)
     return cluster._run_commands_with_runner(
         [cmd], stream_logs=stream_logs, env_vars=env_vars, node=node
     )[0]
