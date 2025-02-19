@@ -53,6 +53,7 @@ class OnDemandCluster(Cluster):
         instance_type: str = None,
         num_nodes: int = None,
         provider: str = None,
+        pool: str = None,
         dryrun: bool = False,
         autostop_mins: int = None,
         use_spot: bool = False,
@@ -97,12 +98,20 @@ class OnDemandCluster(Cluster):
 
         self.instance_type = instance_type
         self.num_nodes = num_nodes
-        self.provider = provider or configs.get("default_provider")
         self._autostop_mins = (
             autostop_mins
             if autostop_mins is not None
             else configs.get("default_autostop")
         )
+
+        self.pool = pool
+        self.provider = provider
+        if not self.pool and not self.provider:
+            default_pool = configs.get("default_pool", None)
+            if default_pool:
+                self.pool = default_pool
+            else:
+                self.provider = configs.get("default_provider")
 
         self.open_ports = open_ports
         self.use_spot = use_spot if use_spot is not None else configs.get("use_spot")
@@ -228,6 +237,7 @@ class OnDemandCluster(Cluster):
                 "instance_type",
                 "num_nodes",
                 "provider",
+                "pool",
                 "open_ports",
                 "use_spot",
                 "region",

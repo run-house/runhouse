@@ -203,6 +203,7 @@ def _set_local_config_defaults(local_config: dict, den_config: dict):
     for property in [
         "default_folder",
         "default_provider",
+        "default_pool",
         "launcher",
         "use_spot",
         "autosave",
