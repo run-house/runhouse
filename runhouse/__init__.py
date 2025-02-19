@@ -38,6 +38,8 @@ from runhouse.rns.top_level_rns_fns import (
 )
 from runhouse.utils import sync_function
 
+from .exceptions import InsufficientDisk
+
 # Note these are global variables that are instantiated within globals.py:
 from .globals import configs, obj_store
 
