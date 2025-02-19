@@ -217,6 +217,12 @@ class Cluster(Resource):
     def docker_user(self) -> Optional[str]:
         return None
 
+    @property
+    def conda_env_name(self) -> Optional[str]:
+        if self.image and self.image.conda_env_name:
+            return self.image.conda_env_name
+        return None
+
     def _save_config_to_cluster(
         self,
         node: str = None,
@@ -1089,6 +1095,7 @@ class Cluster(Resource):
                 cmd=f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
                 cluster=self,
                 env_vars=env_vars,
+                conda_env=self.conda_env_name,
                 node=host,
                 stream_logs=True,
             )
@@ -1222,12 +1229,11 @@ class Cluster(Resource):
             + " --from-python"
         )
 
-        if self.image and self.image.conda_env_name:
-            restart_cmd = conda_env_cmd(restart_cmd, self.image.conda_env_name)
         status_codes = run_setup_command(
             cmd=restart_cmd,
             cluster=self,
             env_vars=image_env_vars,
+            conda_env_name=self.conda_env_name,
             stream_logs=True,
             node=self.head_ip,
         )
