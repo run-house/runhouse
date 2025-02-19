@@ -28,7 +28,8 @@ from runhouse.resources.hardware.sky.command_runner import (
     ssh_options_list,
     SshMode,
 )
-from runhouse.utils import ColoredFormatter, run_setup_command
+from runhouse.resources.images.image import ImageSetupStepType
+from runhouse.utils import ColoredFormatter, conda_env_cmd, run_setup_command
 
 logger = get_logger(__name__)
 
@@ -175,6 +176,41 @@ def _get_cluster_from(system, dryrun=False):
             pass
 
     return system
+
+
+def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
+    if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
+        cluster.create_conda_env(
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            conda_config=setup_step.kwargs.get("conda_config"),
+        )
+    elif setup_step.step_type == ImageSetupStepType.PACKAGES:
+        cluster.install_packages(
+            setup_step.kwargs.get("reqs"),
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
+        command = setup_step.kwargs.get("command")
+        conda_env_name = setup_step.kwargs.get("conda_env_name")
+        if conda_env_name:
+            command = conda_env_cmd(command, conda_env_name)
+        return run_setup_command(
+            cmd=command,
+            cluster=cluster,
+            env_vars=env_vars,
+            stream_logs=True,
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.RSYNC:
+        cluster.rsync(
+            source=setup_step.kwargs.get("source"),
+            dest=setup_step.kwargs.get("dest"),
+            node=node,
+            up=True,
+            contents=setup_step.kwargs.get("contents"),
+            filter_options=setup_step.kwargs.get("filter_options"),
+        )
 
 
 def _setup_creds_from_dict(ssh_creds: Dict, cluster_name: str):
