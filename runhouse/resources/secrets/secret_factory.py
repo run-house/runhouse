@@ -26,16 +26,12 @@ def secret(
     Example:
         >>> rh.secret("in_memory_secret", values={"secret_key": "secret_val"})
     """
-    from runhouse.globals import rns_client
-
     if provider:
         return provider_secret(
             name=name, provider=provider, values=values, dryrun=dryrun
         )
 
     if name and not values:
-        if "/" not in name and rns_client.username:
-            name = f"/{rns_client.username}/{name}"
         return Secret.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
 
     if not values:
@@ -78,11 +74,6 @@ def provider_secret(
         >>> gcp_secret = rh.provider("gcp", path="~/.gcp/credentials")
         >>> lamdba_secret = rh.provider_secret("lambda", values={"api_key": "xxxxx"})
     """
-    from runhouse.globals import rns_client
-
-    if name and "/" not in name and rns_client.username:
-        name = f"/{rns_client.username}/{name}"
-
     if not provider:
         if not name:
             raise ValueError("Either name or provider must be provided.")
