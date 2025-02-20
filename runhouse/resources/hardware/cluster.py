@@ -1095,7 +1095,7 @@ class Cluster(Resource):
                 cmd=f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
                 cluster=self,
                 env_vars=env_vars,
-                conda_env=self.conda_env_name,
+                conda_env_name=self.conda_env_name,
                 node=host,
                 stream_logs=True,
             )
