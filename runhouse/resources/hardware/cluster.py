@@ -1,6 +1,5 @@
 import contextlib
 import copy
-import importlib
 import json
 import multiprocessing
 import os
@@ -38,6 +37,7 @@ from runhouse.utils import (
     conda_env_cmd,
     create_conda_env_on_cluster,
     generate_default_name,
+    get_local_install_path,
     install_conda,
     locate_working_dir,
     run_command_with_password_login,
@@ -691,9 +691,7 @@ class Cluster(Resource):
 
     def _sync_runhouse_to_cluster(
         self,
-        _install_url: Optional[str] = None,
         local_rh_package_path: Optional[Path] = None,
-        env_vars: Optional[Dict] = {},
         parallel: bool = True,
     ):
         if self.on_this_cluster():
@@ -702,61 +700,33 @@ class Cluster(Resource):
         if not self.ips:
             raise ValueError(f"No IPs set for cluster <{self.name}>. Is it up?")
 
-        conda_env_name = self.image.conda_env_name if self.image else None
         self._run_setup_step(
             step=ImageSetupStep(
                 step_type=ImageSetupStepType.PIP_INSTALL,
                 reqs=["ray"],
-                conda_env_name=conda_env_name,
+                conda_env_name=self.conda_env_name,
             ),
             parallel=parallel,
         )
 
         # If local_rh_package_path is provided, install the package from the local path
         if local_rh_package_path:
-            local_rh_package_path = local_rh_package_path.parent
-            dest_path = f"~/{local_rh_package_path.name}"
-
             self._run_setup_step(
                 step=ImageSetupStep(
-                    step_type=ImageSetupStepType.RSYNC,
-                    source=str(local_rh_package_path),
-                    dest=dest_path,
-                    contents=True,
-                    filter_options="- docs/",
+                    step_type=ImageSetupStepType.SYNC_PACKAGE,
+                    package=str(local_rh_package_path),
                 ),
                 parallel=parallel,
             )
-            rh_install_cmd = f"python3 -m pip install {dest_path}[server]"
 
-        else:
-            # Package is installed in site-packages
-            # status_codes = self.run(['pip install runhouse-nightly==0.0.2.20221202'], stream_logs=True)
-            # rh_package = 'runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl'
-            # rh_download_cmd = f'curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}'
-            if not _install_url:
-                import runhouse
-
-                _install_url = f"runhouse[server]=={runhouse.__version__}"
-            rh_install_cmd = f"python3 -m pip install {_install_url}"
-
-        status_codes = self._run_setup_step(
+        self._run_setup_step(
             step=ImageSetupStep(
-                step_type=ImageSetupStepType.CMD_RUN,
-                command=rh_install_cmd,
-                conda_env_name=conda_env_name,
+                step_type=ImageSetupStepType.PIP_INSTALL,
+                reqs=["runhouse[server]"],
+                conda_env_name=self.conda_env_name,
             ),
-            env_vars=env_vars,
             parallel=parallel,
         )
-        status_codes = [status_codes[i][0] == 0 for i in range(len(self.ips))]
-        if not all(status_codes):
-            failed_nodes = [
-                self.ips[i] for i, code in enumerate(status_codes) if not code
-            ]
-            raise ValueError(
-                f"Error installing runhouse on cluster <{self.name}> on nodes <{failed_nodes}>"
-            )
 
     def install_packages(
         self,
@@ -1162,7 +1132,6 @@ class Cluster(Resource):
     def _start_or_restart_helper(
         self,
         base_cli_cmd: str,
-        _rh_install_url: str = None,
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
@@ -1173,14 +1142,10 @@ class Cluster(Resource):
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
         local_rh_package_path = None
         if resync_rh is not False:
-            local_rh_package_path = Path(
-                importlib.util.find_spec("runhouse").origin
-            ).parent
-
+            local_rh_package_path = get_local_install_path("runhouse")
             installed_editable_locally = (
-                not _rh_install_url
-                and local_rh_package_path.parent.name == "runhouse"
-                and (local_rh_package_path.parent / "setup.py").exists()
+                local_rh_package_path
+                and (Path(local_rh_package_path) / "setup.py").exists()
             )
 
             if installed_editable_locally:
@@ -1199,9 +1164,7 @@ class Cluster(Resource):
 
         if resync_rh:
             self._sync_runhouse_to_cluster(
-                _install_url=_rh_install_url,
                 local_rh_package_path=local_rh_package_path,
-                env_vars=image_env_vars,
                 parallel=parallel,
             )
             logger.debug("Finished syncing Runhouse to cluster.")
@@ -1322,7 +1285,6 @@ class Cluster(Resource):
 
     def restart_server(
         self,
-        _rh_install_url: str = None,
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
@@ -1349,7 +1311,6 @@ class Cluster(Resource):
 
         return self._start_or_restart_helper(
             base_cli_cmd=CLI_RESTART_CMD,
-            _rh_install_url=_rh_install_url,
             resync_rh=resync_rh,
             restart_ray=restart_ray,
             restart_proxy=restart_proxy,
@@ -1358,7 +1319,6 @@ class Cluster(Resource):
 
     def start_server(
         self,
-        _rh_install_url: str = None,
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
@@ -1380,7 +1340,6 @@ class Cluster(Resource):
 
         return self._start_or_restart_helper(
             base_cli_cmd=CLI_START_CMD,
-            _rh_install_url=_rh_install_url,
             resync_rh=resync_rh,
             restart_ray=restart_ray,
             restart_proxy=restart_proxy,
@@ -2853,10 +2812,11 @@ class Cluster(Resource):
 
         if isinstance(package, str):
             package = Package.from_string(package)
-            if package.install_method == "local" or isinstance(
-                package.install_target, InstallTarget
-            ):
-                package = package.to(self)
+
+        if package.install_method == "local" or isinstance(
+            package.install_target, InstallTarget
+        ):
+            package = package.to(self)
 
         package._install(
             cluster=self,

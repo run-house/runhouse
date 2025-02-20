@@ -223,7 +223,6 @@ def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
     elif setup_step.step_type == ImageSetupStepType.SYNC_PACKAGE:
         cluster.sync_package(
             setup_step.kwargs.get("package"),
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
             node=node,
         )
 
