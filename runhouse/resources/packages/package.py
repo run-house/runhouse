@@ -27,7 +27,7 @@ from runhouse.utils import (
 )
 
 
-INSTALL_METHODS = {"local", "pip", "conda"}
+INSTALL_METHODS = {"local", "pip", "uv", "conda"}
 
 logger = get_logger(__name__)
 
@@ -159,6 +159,7 @@ class Package(Resource):
         self,
         conda_env_name: Optional[str] = None,
         cluster: "Cluster" = None,
+        uv: bool = False,
     ):
         install_args = f" {self.install_args}" if self.install_args else ""
         install_extras = f"[{self.install_extras}]" if self.install_extras else ""
@@ -184,9 +185,13 @@ class Package(Resource):
             install_cmd = install_target + install_args
 
         install_cmd = f"pip install {self._install_cmd_for_torch(install_cmd, cluster)}"
-        install_cmd = self._prepend_python_executable(
-            install_cmd, cluster=cluster, conda_env_name=conda_env_name
-        )
+        if uv:
+            install_cmd = f"uv {install_cmd}"
+        else:
+            # uv doesn't need python executable
+            install_cmd = self._prepend_python_executable(
+                install_cmd, cluster=cluster, conda_env_name=conda_env_name
+            )
         install_cmd = self._prepend_env_command(
             install_cmd, conda_env_name=conda_env_name
         )
@@ -230,7 +235,7 @@ class Package(Resource):
         """
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
 
-        if self.install_method == "pip":
+        if self.install_method in ["pip", "uv"]:
 
             # If this is a generic pip package, with no version pinned, we want to check if there is a version
             # already installed. If there is, and ``force_sync_local`` is not set to ``True``, then we ignore
@@ -266,7 +271,9 @@ class Package(Resource):
                         )
 
             install_cmd = self._pip_install_cmd(
-                conda_env_name=conda_env_name, cluster=cluster
+                conda_env_name=conda_env_name,
+                cluster=cluster,
+                uv=(self.install_method == "uv"),
             )
             logger.info(f"Running via install_method pip: {install_cmd}")
             retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
@@ -501,7 +508,7 @@ class Package(Resource):
                 else:
                     # We want to preferrably install this version of the package server-side
                     install_method == install_method or "pip"
-                    if install_method == "pip":
+                    if install_method in ["pip", "uv"]:
                         preferred_version = locally_installed_version
 
         # If install method is still not set, default to pip
@@ -512,7 +519,7 @@ class Package(Resource):
             return Package(
                 install_target=target, install_method=install_method, dryrun=dryrun
             )
-        elif install_method in ["pip", "conda"]:
+        elif install_method in ["pip", "uv", "conda"]:
             return Package(
                 install_target=target,
                 install_args=args,
