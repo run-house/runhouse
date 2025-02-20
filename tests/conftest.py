@@ -302,6 +302,7 @@ from tests.fixtures.package_fixtures import (
     package,  # noqa: F401
     pip_package,  # noqa: F401
     s3_package,  # noqa: F401
+    uv_package,  # noqa: F401
 )
 
 from tests.fixtures.secret_fixtures import (
