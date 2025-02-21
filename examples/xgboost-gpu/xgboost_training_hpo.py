@@ -37,76 +37,75 @@ class Trainer:
     def _preprocess_features(X):
         X = X.reshape(X.shape[0], -1).astype(np.float32)
         return X / 255.0
-    
+
     def objective(self, trial):
         param = {
-            'objective': 'multi:softmax',
-            'num_class': 10,
-            'tree_method': 'gpu_hist',
-            'predictor': 'gpu_predictor',
-            'eval_metric': ['mlogloss', 'merror'],
-            
+            "objective": "multi:softmax",
+            "num_class": 10,
+            "tree_method": "gpu_hist",
+            "predictor": "gpu_predictor",
+            "eval_metric": ["mlogloss", "merror"],
             # Hyperparameters to optimize
-            'max_depth': trial.suggest_int('max_depth', 3, 10),
-            'eta': trial.suggest_float('eta', 0.01, 0.3, log=True),
-            'min_child_weight': trial.suggest_int('min_child_weight', 1, 7),
-            'subsample': trial.suggest_float('subsample', 0.6, 1.0),
-            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
-            'lambda': trial.suggest_float('lambda', 1e-8, 1.0, log=True),
-            'alpha': trial.suggest_float('alpha', 1e-8, 1.0, log=True),
-            'gamma': trial.suggest_float('gamma', 1e-8, 1.0, log=True),
-            
-            'seed': 42,
-            'n_jobs': -1
+            "max_depth": trial.suggest_int("max_depth", 3, 10),
+            "eta": trial.suggest_float("eta", 0.01, 0.3, log=True),
+            "min_child_weight": trial.suggest_int("min_child_weight", 1, 7),
+            "subsample": trial.suggest_float("subsample", 0.6, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
+            "lambda": trial.suggest_float("lambda", 1e-8, 1.0, log=True),
+            "alpha": trial.suggest_float("alpha", 1e-8, 1.0, log=True),
+            "gamma": trial.suggest_float("gamma", 1e-8, 1.0, log=True),
+            "seed": 42,
+            "n_jobs": -1,
         }
 
-        evals = [(self.dtrain, 'train'), (self.dval, 'val')]
+        evals = [(self.dtrain, "train"), (self.dval, "val")]
         model = xgb.train(
             param,
             self.dtrain,
             num_boost_round=1000,
             evals=evals,
             early_stopping_rounds=20,
-            verbose_eval=False
+            verbose_eval=False,
         )
-        
+
         # Return validation error (to be minimized)
         preds = model.predict(self.dval)
         return 1.0 - accuracy_score(self.dval.get_label(), preds)
-    
-    def run_optimization(self, n_trials = 100):
+
+    def run_optimization(self, n_trials=100):
         import optuna
 
         if not all([self.dtrain, self.dval]):
             raise ValueError("Data not loaded. Call load_data() first.")
 
         study = optuna.create_study(
-            direction="minimize",
-            pruner=optuna.pruners.MedianPruner(n_startup_trials=5)
+            direction="minimize", pruner=optuna.pruners.MedianPruner(n_startup_trials=5)
         )
-        
+
         study.optimize(self.objective, n_trials=n_trials)
-        
+
         self.best_params = study.best_params
-        self.best_params.update({
-            'objective': 'multi:softmax',
-            'num_class': 10,
-            'tree_method': 'gpu_hist',
-            'predictor': 'gpu_predictor',
-            'eval_metric': ['mlogloss', 'merror'],
-            'seed': 42,
-            'n_jobs': -1
-        })
-        
+        self.best_params.update(
+            {
+                "objective": "multi:softmax",
+                "num_class": 10,
+                "tree_method": "gpu_hist",
+                "predictor": "gpu_predictor",
+                "eval_metric": ["mlogloss", "merror"],
+                "seed": 42,
+                "n_jobs": -1,
+            }
+        )
+
         print("\nBest trial:")
         print(f"Value (Error rate): {study.best_trial.value:.4f}")
         print("Params:")
         for key, value in study.best_trial.params.items():
             print(f"{key}: {value}")
-            
+
         return self.best_params
 
-    def train_with_best_params(self, num_rounds = 1000):
+    def train_with_best_params(self, num_rounds=1000):
         if not self.best_params:
             raise ValueError("No best parameters found. Run optimization first.")
 
@@ -138,8 +137,11 @@ class Trainer:
         preds = self.model.predict(self.dtest)
         accuracy = accuracy_score(self.dtest.get_label(), preds)
         print(f"Test accuracy: {accuracy:.4f}")
-        print("\nClassification Report:\n", classification_report(self.dtest.get_label(), preds))
-        
+        print(
+            "\nClassification Report:\n",
+            classification_report(self.dtest.get_label(), preds),
+        )
+
         return preds, accuracy
 
     def predict(self, X):
@@ -164,24 +166,24 @@ if __name__ == "__main__":
         ["xgboost", "pandas", "scikit-learn", "tensorflow", "numpy", "optuna"]
     )
     cluster = rh.compute(
-        name="xgboost-gpu-cluster", 
-        instance_type="L4:1", 
-        provider="aws", 
-        image=img, 
+        name="xgboost-gpu-cluster",
+        instance_type="L4:1",
+        provider="aws",
+        image=img,
     ).up_if_not()
-    
+
     train_params = {
         "objective": "multi:softmax",
         "num_class": 10,
-        "eval_metric": ["mlogloss", "merror"], 
+        "eval_metric": ["mlogloss", "merror"],
         "max_depth": 6,
-        "eta": 0.1, 
+        "eta": 0.1,
         "subsample": 0.8,
         "colsample_bytree": 0.8,
-        "tree_method": "gpu_hist", # Using a GPU here reduces training time by ~99%
-        "predictor": "gpu_predictor", 
+        "tree_method": "gpu_hist",  # Using a GPU here reduces training time by ~99%
+        "predictor": "gpu_predictor",
         "seed": 42,
-        "n_jobs": -1  
+        "n_jobs": -1,
     }
 
     # Now we send the training class to the remote cluster and invoke the training
