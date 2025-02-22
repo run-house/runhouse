@@ -93,7 +93,7 @@ class Launcher:
         return LogProcessor(cluster_name)
 
     @classmethod
-    def up(cls, cluster, verbose: bool = True):
+    def up(cls, cluster, verbose: bool = True, force: bool = False):
         """Abstract method for launching a cluster."""
         raise NotImplementedError
 
@@ -105,6 +105,10 @@ class Launcher:
     @classmethod
     def keep_warm(cls, cluster, mins: int):
         """Abstract method for keeping a cluster warm."""
+        raise NotImplementedError
+
+    @classmethod
+    def ssh_properties(cls, cluster):
         raise NotImplementedError
 
     @staticmethod
@@ -360,6 +364,10 @@ class DenLauncher(Launcher):
 
         return secret
 
+    @classmethod
+    def ssh_properties(cls, cluster):
+        return cluster._ssh_properties
+
 
 class LocalLauncher(Launcher):
     """Launcher APIs for operations handled locally via Sky."""
@@ -375,7 +383,7 @@ class LocalLauncher(Launcher):
             )
 
     @classmethod
-    def up(cls, cluster, verbose: bool = True):
+    def up(cls, cluster, verbose: bool = True, force: bool = False):
         """Launch the cluster locally."""
         import sky
 
@@ -461,6 +469,21 @@ class LocalLauncher(Launcher):
         except ImportError:
             set_cluster_autostop_cmd = _cluster_set_autostop_command(mins)
             cluster.run_bash_over_ssh([set_cluster_autostop_cmd], node=cluster.head_ip)
+
+    @classmethod
+    def ssh_properties(cls, cluster):
+        ssh_properties = cluster._ssh_properties
+        if not ssh_properties:
+            return None
+
+        # Note: Sky requires the ssh private key path to be in this specific path
+        ssh_properties["ssh_private_key"] = "~/.ssh/ssh-sky-key"
+        return ssh_properties
+
+    @classmethod
+    def load_creds(cls):
+        # Note: We rely on Sky for handling creds with local launching
+        return None
 
     @staticmethod
     def _set_docker_env_vars(image, task):
