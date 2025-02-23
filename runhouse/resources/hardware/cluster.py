@@ -25,6 +25,7 @@ from runhouse.resources.hardware.utils import (
     get_running_and_not_running_clusters,
     get_unsaved_live_clusters,
     parse_filters,
+    RunhouseDaemonStatus,
 )
 
 from runhouse.resources.images import Image, ImageSetupStepType
@@ -68,6 +69,7 @@ from runhouse.constants import (
     NUM_PORTS_TO_TRY,
     RESERVED_SYSTEM_NAMES,
 )
+from runhouse.exceptions import ClusterTerminated
 from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
 
@@ -1072,6 +1074,32 @@ class Cluster(Resource):
 
         return status
 
+    def _update_cluster_status_to_terminated_in_den(self):
+        if self.rns_address:
+            try:
+                # Update Den with the terminated status
+                status_data = {
+                    "daemon_status": RunhouseDaemonStatus.TERMINATED,
+                    "resource_type": self.__class__.__base__.__name__.lower(),
+                    "data": {},
+                }
+
+                cluster_uri = rns_client.format_rns_address(self.rns_address)
+                status_resp = requests.post(
+                    f"{rns_client.api_server_url}/resource/{cluster_uri}/cluster/status",
+                    json=status_data,
+                    headers=rns_client.request_headers(),
+                )
+
+                # Note: 404 means that the cluster is not saved in Den
+                if status_resp.status_code not in [200, 404]:
+                    logger.warning(
+                        "Failed to update Den with terminated cluster status"
+                    )
+
+            except Exception as e:
+                logger.warning(e)
+
     def ssh_tunnel(
         self, local_port, remote_port=None, num_ports_to_try: int = 0
     ) -> "SshTunnel":
@@ -1506,6 +1534,11 @@ class Cluster(Resource):
         if not src_node and up and not Path(source).expanduser().exists():
             raise ValueError(f"Could not locate path to sync: {source}.")
 
+        # The cluster is probably auto-stopped / terminated via CLI while calling cluster.rsync
+        if not self.is_up():
+            self._update_cluster_status_to_terminated_in_den()
+            raise ClusterTerminated()
+
         # before syncing the object, making sure there is enough disk space for it. If we don't preform this check in
         # advance, there might be a case where we start rsyncing the object -> during the rsync no disk space will
         # be left (because the object is too big) -> the rsync will stack and no results will be return (even failures),
@@ -1631,14 +1664,19 @@ class Cluster(Resource):
                 logger.info(f"Rsyncing {source} on {node} to {dest}")
                 Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
-            runner.rsync(
-                source,
-                dest,
-                up=up,
-                filter_options=filter_options,
-                stream_logs=stream_logs,
-                ignore_existing=ignore_existing,
-            )
+            try:
+                runner.rsync(
+                    source,
+                    dest,
+                    up=up,
+                    filter_options=filter_options,
+                    stream_logs=stream_logs,
+                    ignore_existing=ignore_existing,
+                )
+            except ClusterTerminated as e:
+                if not self._ping():
+                    self._update_cluster_status_to_terminated_in_den()
+                    raise e
             return
 
         # Case 3: rsync with password between cluster and local (e.g. laptop)
@@ -1654,16 +1692,21 @@ class Cluster(Resource):
             logger.info(f"Rsyncing {source} on {node} to {dest}")
             Path(dest).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
-        rsync_cmd = runner.rsync(
-            source,
-            dest,
-            up=up,
-            filter_options=filter_options,
-            stream_logs=stream_logs,
-            return_cmd=True,
-            ignore_existing=ignore_existing,
-        )
-        run_command_with_password_login(rsync_cmd, pwd, stream_logs)
+        try:
+            rsync_cmd = runner.rsync(
+                source,
+                dest,
+                up=up,
+                filter_options=filter_options,
+                stream_logs=stream_logs,
+                return_cmd=True,
+                ignore_existing=ignore_existing,
+            )
+            run_command_with_password_login(rsync_cmd, pwd, stream_logs)
+        except ClusterTerminated as e:
+            if not self._ping():
+                self._update_cluster_status_to_terminated_in_den()
+                raise e
 
     def _local_rsync(
         self,
@@ -2170,6 +2213,18 @@ class Cluster(Resource):
             node=node,
             conda_env_name=conda_env_name,
         )
+
+        if node == "all":
+            status_code = set([return_code[0][0] for return_code in return_codes])
+            python_run_failed = len(status_code) > 1 or status_code.pop() != 0
+        else:
+            status_code = return_codes[0][0]
+            python_run_failed = status_code != 0
+        if python_run_failed:
+            if not self._ping():
+                self._update_cluster_status_to_terminated_in_den()
+                raise ClusterTerminated()
+            raise ValueError(f"Could not run python code on cluster, got {status_code}")
 
         return return_codes
 

@@ -4,8 +4,8 @@ from typing import Callable, List, Optional, Union
 
 from runhouse.logger import get_logger
 
-from runhouse.exceptions import InsufficientDiskError
-from runhouse.constants import INSUFFICIENT_DISK_MSG
+from runhouse.exceptions import InsufficientDiskError, ClusterTerminated
+from runhouse.constants import INSUFFICIENT_DISK_MSG, CONNECTION_REFUSED_MSG
 
 logger = get_logger(__name__)
 
@@ -50,6 +50,8 @@ def handle_returncode(returncode: int,
 
         if INSUFFICIENT_DISK_MSG in stderr:
             raise InsufficientDiskError(command=command, error_msg=error_msg)
+        if CONNECTION_REFUSED_MSG in stderr:
+            raise ClusterTerminated()
         if callable(error_msg):
             error_msg = error_msg()
         raise CommandError(returncode, command, error_msg, stderr)

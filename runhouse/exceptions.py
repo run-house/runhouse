@@ -26,3 +26,16 @@ class InsufficientDiskError(Exception):
         )
         msg = f"{msg}. To resolve it, teardown the cluster and re-launch it with larger disk size."
         super().__init__(msg)
+
+
+class ClusterTerminated(Exception):
+    """Raised when we try to connect to a terminated cluster"""
+
+    def __init__(
+        self,
+        error_msg: str = None,
+    ) -> None:
+        self.error_msg = error_msg
+        msg = self.error_msg if self.error_msg else "Cluster is terminated"
+        msg = f"{msg}. To resolve it, please bring the cluster up by using the Runhouse's python APIs or CLI commands."
+        super().__init__(msg)

@@ -7,8 +7,6 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
-import requests
-
 import rich.errors
 
 try:
@@ -32,7 +30,6 @@ from runhouse.resources.hardware.utils import (
     ClusterStatus,
     LauncherType,
     pprint_launched_cluster_summary,
-    RunhouseDaemonStatus,
     ServerConnectionType,
     up_cluster_helper,
 )
@@ -694,29 +691,7 @@ class OnDemandCluster(Cluster):
             LocalLauncher.teardown(cluster=self, verbose=verbose)
 
         if self.rns_address is not None:
-            try:
-                # Update Den with the terminated status
-                status_data = {
-                    "daemon_status": RunhouseDaemonStatus.TERMINATED,
-                    "resource_type": self.__class__.__base__.__name__.lower(),
-                    "data": {},
-                }
-
-                cluster_uri = rns_client.format_rns_address(self.rns_address)
-                status_resp = requests.post(
-                    f"{rns_client.api_server_url}/resource/{cluster_uri}/cluster/status",
-                    json=status_data,
-                    headers=rns_client.request_headers(),
-                )
-
-                # Note: 404 means that the cluster is not saved in Den
-                if status_resp.status_code not in [200, 404]:
-                    logger.warning(
-                        "Failed to update Den with terminated cluster status"
-                    )
-
-            except Exception as e:
-                logger.warning(e)
+            self._update_cluster_status_to_terminated_in_den()
 
     def teardown_and_delete(self, verbose: bool = True):
         """Teardown cluster and delete it from configs.
