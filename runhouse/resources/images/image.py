@@ -38,7 +38,9 @@ class ImageSetupStep:
 
 
 class Image:
-    def __init__(self, name: str = None, image_id: str = None):
+    def __init__(
+        self, name: str = None, image_id: str = None, python_version: str = None
+    ):
         """
         Runhouse Image object, specifying cluster setup properties and steps.
 
@@ -60,10 +62,11 @@ class Image:
 
         self.name = name
         self.image_id = image_id
+        self.python_version = str(python_version) if python_version else None
 
         self.setup_steps = []
         self.conda_env_name = None
-        self.venv_path = None
+        self.venv_path = ".venv" if python_version else None
         self.docker_secret = None
 
     @staticmethod
@@ -140,6 +143,8 @@ class Image:
         config = {}
         if self.name:
             config["name"] = self.name
+        if self.python_version:
+            config["python_version"] = self.python_version
         if self.image_id:
             config["image_id"] = self.image_id
         if self.docker_secret:
@@ -161,7 +166,11 @@ class Image:
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]):
-        img = Image(name=config.get("name"), image_id=config.get("image_id"))
+        img = Image(
+            name=config.get("name"),
+            python_version=config.get("python_version"),
+            image_id=config.get("image_id"),
+        )
         if config.get("setup_steps"):
             img.setup_steps = [
                 Image._setup_step_from_config(step) for step in config["setup_steps"]
