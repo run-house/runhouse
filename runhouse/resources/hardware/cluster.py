@@ -656,6 +656,34 @@ class Cluster(Resource):
                 results.append(_do_setup_step_for_node(self, step, ip, env_vars))
         return results
 
+    def _install_uv(
+        self,
+        python_version: Optional[str] = None,
+        parallel: bool = True,
+    ):
+        self._run_setup_step(
+            step=ImageSetupStep(
+                step_type=ImageSetupStepType.PIP_INSTALL,
+                reqs=["uv"],
+                conda_env_name=self.conda_env_name,
+                venv_path=self.venv_path,
+            ),
+            parallel=parallel,
+        )
+        if python_version:
+            for cmd in [f"uv python install {python_version}", "uv venv"]:
+                results = self._run_setup_step(
+                    step=ImageSetupStep(
+                        step_type=ImageSetupStepType.CMD_RUN,
+                        command=cmd,
+                        conda_env_name=self.conda_env_name,
+                        venv_path=self.venv_path,
+                    ),
+                    parallel=parallel,
+                )
+                if results[0][0] != 0:
+                    raise RuntimeError(results[0][2])
+
     def _sync_image_to_cluster(self, parallel: bool = True):
         """
         Image stuff that needs to happen over SSH because the daemon won't be up yet, so we can't
@@ -686,6 +714,13 @@ class Cluster(Resource):
         secrets_to_sync = []
         uv_install = False
 
+        if self.image.python_version:
+            self._install_uv(
+                python_version=self.image.python_version, parallel=parallel
+            )
+            uv_install = True
+            self.image.venv_path = ".venv"
+
         for step in self.image.setup_steps:
             if step.step_type == ImageSetupStepType.SYNC_SECRETS:
                 secrets_to_sync += step.kwargs.get("providers")
@@ -695,15 +730,7 @@ class Cluster(Resource):
                 env_vars.update(image_env_vars)
                 continue
             elif step.step_type == ImageSetupStepType.UV_INSTALL and not uv_install:
-                self._run_setup_step(
-                    step=ImageSetupStep(
-                        step_type=ImageSetupStepType.PIP_INSTALL,
-                        reqs=["uv"],
-                        conda_env_name=self.conda_env_name,
-                        venv_path=self.venv_path,
-                    ),
-                    parallel=parallel,
-                )
+                self._install_uv(parallel=parallel)
                 uv_install = True
 
             self._run_setup_step(step, env_vars, parallel)
