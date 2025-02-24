@@ -6,7 +6,7 @@ from runhouse import globals
 from runhouse.logger import get_logger
 
 from runhouse.resources.hardware import Cluster
-from runhouse.resources.module import Module
+from runhouse.resources.module import Module, RequestedResources
 
 from runhouse.resources.resource import Resource
 
@@ -64,18 +64,21 @@ class Function(Module):
 
     def to(
         self,
-        system: Union[str, Cluster],
+        system: Union[str, Cluster] = None,
+        pool: Optional[str] = None,
         process: Optional[Union[str, "Process"]] = None,
         name: Optional[str] = None,
         sync_local: bool = True,
+        **requested_resources: Any,
     ):
-        """
-        Send the function to a specified process on a cluster. This will sync over relevant code for the function
-        to run on the cluster, and return a remote_function object that will wrap remote calls to the function
-        living on the cluster.
+        f"""
+        Send the function to a specified process on a cluster, or to a specified compute pool. This will sync over
+        relevant code for the function to run on the cluster, and return a remote_function object that will wrap
+        remote calls to the function living on the cluster.
 
         Args:
-            system (str or Cluster): The cluster to setup the function and process on.
+            system (str or Cluster, optional): The cluster to setup the function and process on.
+            pool (str, optional): Name of the compute pool to send the function to.
             process (str or Dict, optional): The process to run the function on. If it's a Dict, it will be explicitly
                 created with those args. or the set of requirements necessary to run the function. If no process is
                 specified, the function will be sent to the default_process created when the cluster is created
@@ -84,13 +87,21 @@ class Function(Module):
                 (Default: ``None``)
             sync_local (bool, optional): Whether to sync up and use the local function on the cluster. If ``False``,
                 don't sync up and use the equivalent function found on the cluster. (Default: ``True``)
+            requested_resources (Any, optional): Requested resources for the function. Only relevant if
+                sending to a compute pool. Accepted values: {list(RequestedResources.model_fields)}
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
             >>> rh.function(fn=local_fn).to(system=gpu_cluster, process=my_conda_env)
+            >>> rh.function(fn=local_fn).to(pool="/my-org/aws-us-east-1", instance_type="p3.2xlarge")
         """  # noqa: E501
         return super().to(
-            system=system, process=process, name=name, sync_local=sync_local
+            system=system,
+            process=process,
+            pool=pool,
+            name=name,
+            sync_local=sync_local,
+            **requested_resources,
         )
 
     # ----------------- Function call methods -----------------
