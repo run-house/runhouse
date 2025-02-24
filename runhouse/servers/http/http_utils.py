@@ -28,6 +28,7 @@ class RequestContext(BaseModel):
 class InstallPackageParams(BaseModel):
     package_config: Dict[str, Any]
     conda_env_name: Optional[str] = None
+    venv_path: Optional[str] = None
     override_remote_version: bool = False
 
 
