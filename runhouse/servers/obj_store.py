@@ -1969,6 +1969,7 @@ class ObjStore:
         self,
         package: "Package",
         conda_env_name: Optional[str] = None,
+        venv_path: Optional[str] = None,
         force_sync_local: bool = False,
     ):
         from runhouse.resources.packages import InstallTarget, Package
@@ -2012,7 +2013,9 @@ class ObjStore:
                         )
 
             install_cmd = package._pip_install_cmd(
-                conda_env_name=conda_env_name, uv=(package.install_method == "uv")
+                conda_env_name=conda_env_name,
+                venv_path=venv_path,
+                uv=(package.install_method == "uv"),
             )
             logger.info(
                 f"Running via install_method {package.install_method}: {install_cmd}"
