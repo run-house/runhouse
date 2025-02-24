@@ -59,7 +59,8 @@ class SaveModelCallback(TrainerCallback):
 
 
 # ## Trainer Class
-# This class encapsulates the training process for a BERT model.
+# This class encapsulates the training process for a BERT model. This is standard
+# training code that leverages Transformers/Accelerate and PyTorch's distributed training capabilities.
 class BertTrainer:
     def __init__(
         self,
@@ -134,7 +135,7 @@ class BertTrainer:
 
         local_rank = str(
             dist.get_rank() % torch.cuda.device_count()
-        )  # Set LOCAL_RANK by taking modulo of RANK and WORLD_SIZE
+        )  # Set LOCAL_RANK by taking modulo of Rank and Device Count
         os.environ["LOCAL_RANK"] = local_rank
 
     def train(self, batch_size=32, max_length=128, learning_rate=2e-5, num_epochs=3):
