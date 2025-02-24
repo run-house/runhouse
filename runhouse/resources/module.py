@@ -7,10 +7,10 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from importlib import reload as importlib_reload
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 from apispec import APISpec
-from pydantic import create_model
+from pydantic import BaseModel, create_model
 
 from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import obj_store, rns_client
@@ -49,6 +49,16 @@ MODULE_ATTRS = [
 ]
 
 logger = get_logger(__name__)
+
+
+class RequestedResources(BaseModel):
+    instance_type: Optional[str] = None
+    memory: Optional[Union[int, str]] = None
+    disk_size: Optional[Union[int, str]] = None
+    num_cpus: Optional[int] = None
+    num_nodes: Optional[int] = None
+    accelerators: Optional[Union[str, Dict]] = None
+    gpus: Optional[Union[int, str, Dict]] = None
 
 
 class Module(Resource):
@@ -385,17 +395,20 @@ class Module(Resource):
 
     def to(
         self,
-        system: Union[str, Cluster],
+        system: Union[str, Cluster] = None,
+        pool: Optional[str] = None,
         process: Optional[Union[str, Dict]] = None,
         name: Optional[str] = None,
         sync_local: bool = True,
+        **requested_resources: Any,
     ):
-        """Send the module to a specified process on a cluster. This will sync over relevant code for the module
-        to run on the cluster, and return a remote_module object that will wrap remote calls to the module
-        living on the cluster.
+        f"""Send the module to a specified process on a cluster, or to a specified compute pool. This will sync over
+        relevant code for the module to run on the cluster, and return a remote_module object that will wrap
+        remote calls to the module living on the cluster.
 
         Args:
-            system (str or Cluster): The cluster to setup the module and process on.
+            system (str or Cluster, optional): The cluster to setup the module and process on.
+            pool (str, optional): Name of the compute pool to send the module to.
             process (str or Dict, optional): The process to run the module on. If it's a Dict, it will be explicitly
                 created with those args. or the set of requirements necessary to run the module. If no process is
                 specified, the module will be sent to the default_process created when the cluster is created
@@ -404,11 +417,34 @@ class Module(Resource):
                 (Default: ``None``)
             sync_local (bool, optional): Whether to sync up and use the local module on the cluster. If ``False``,
                 don't sync up and use the equivalent module found on the cluster. (Default: ``True``)
+            requested_resources (Any, optional): Requested resources for the function. Only relevant if
+                sending to a compute pool. Accepted values: {list(RequestedResources.model_fields)}
 
         Example:
             >>> local_module = rh.module(my_class)
             >>> cluster_module = local_module.to("my_cluster")
+            >>> pool_module = local_module.to(pool="/my-org/aws-us-east-1", instance_type="CPU:2+", disk_size=256)
         """
+        if pool is None and system is None:
+            raise ValueError("Must specify either `system` or `pool`.")
+
+        if pool is not None:
+            from runhouse import compute
+
+            if system is not None:
+                logger.warning("Ignoring `system` argument if `pool` is specified.")
+
+            requested_resource_args: dict = RequestedResources(
+                **requested_resources
+            ).model_dump(exclude_none=True)
+            if not requested_resource_args:
+                raise ValueError(
+                    "Must specify compute resources necessary to run the module in the provided pool."
+                )
+
+            compute_name = name or self.name or self.fn_pointers[-1]
+            system = compute(name=f"{compute_name}-compute", **requested_resource_args)
+
         if system == self.system:
             if name and not self.name == name:
                 # TODO return duplicate object under new name, don't rename
