@@ -85,7 +85,7 @@ class LogProcessor:
 
 class Launcher:
     @classmethod
-    def _validate_provider(cls, cluster):
+    def _validate_provider_pool(cls, cluster):
         raise NotImplementedError
 
     @classmethod
@@ -200,18 +200,19 @@ class DenLauncher(Launcher):
     AUTOSTOP_URL = f"{rns_client.api_server_url}/cluster/autostop"
 
     @classmethod
-    def _validate_provider(cls, cluster):
+    def _validate_provider_pool(cls, cluster):
         provider = cluster.provider
-        if provider is None:
-            raise ValueError(
-                "Provider must be specified, either in the cluster factory or in your local "
-                "Runhouse config with the `default_provider` field. You can set this by running "
-                "`runhouse config set default_provider <provider>`."
-            )
-
+        pool = cluster.pool
         if provider == "cheapest":
             raise ValueError(
                 "Provider of 'cheapest' not currently supported, must provide an explicit cloud provider."
+            )
+
+        if provider is None and pool is None:
+            raise ValueError(
+                "Provider or pool must be specified, either in the cluster factory or in your local "
+                "Runhouse config with the `default_provider` or `default_pool` fields, respectively. You can set these by running "
+                "`runhouse config set default_provider <provider>` or `runhouse config set default_pool <pool>`."
             )
 
     @classmethod
@@ -253,6 +254,8 @@ class DenLauncher(Launcher):
     @classmethod
     def up(cls, cluster, verbose: bool = True, force: bool = False):
         """Launch the cluster via Den."""
+        cls._validate_provider_pool(cluster)
+
         cluster.save()
         cluster_config = cluster.config()
 
@@ -358,7 +361,7 @@ class LocalLauncher(Launcher):
     """Launcher APIs for operations handled locally via Sky."""
 
     @classmethod
-    def _validate_provider(cls, cluster):
+    def _validate_provider_pool(cls, cluster):
         """Check if LocalLauncher supports the provided cloud provider."""
         supported_providers = ["cheapest"] + cls.supported_providers()
         if cluster.provider not in supported_providers:
@@ -372,7 +375,7 @@ class LocalLauncher(Launcher):
         """Launch the cluster locally."""
         import sky
 
-        cls._validate_provider(cluster)
+        cls._validate_provider_pool(cluster)
 
         task = sky.Task(num_nodes=cluster.num_nodes)
         cloud_provider = (
