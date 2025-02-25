@@ -236,23 +236,21 @@ In my local diffusers/src/diffusers/utils/import_utils.py file:
 Installing local version
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-When Runhoue installs packages on the remote cluster, it will check if
-you have a version of the package locally, as well as whether a version
-of the package already exists on this cluster. If it already exists
-remotely, by default the remote package will not be overriden, but you
-can force the local version by passing in the paramteter
-``force_sync_local==True`` to ``cluster.install_packages``.
+To install the local editable version of your package, you can call
+``cluster.sync_package``, which will detect the package folder and
+rsync it onto the home directory of the cluster. Then, you can call
+``cluster.pip_install`` to install it on the cluster.
 
 .. code:: ipython3
 
-    cluster.install_packages(["transformers", "diffusers"], force_sync_local=True)
+    cluster.sync_package("transformers")
+    cluster.sync_package("diffusers")
+    cluster.pip_install(["transformers", "diffusers"])
 
 Defining the Function
 ~~~~~~~~~~~~~~~~~~~~~
 
 Now construct a Runhouse function normally and send it to the cluster.
-Here, we can leave out the ``sync_local`` flag, which defaults to True -
-the local function will be synced onto the cluster.
 
 .. code:: ipython3
 
@@ -315,7 +313,9 @@ production branches.
        if prod:
            remote_fn = rh.function(is_transformers_available).to(cluster, sync_local=False)
        else:
-           cluster.install_packages(["transformers", "diffusers"], )
+           cluster.sync_package("transformers")
+           cluster.sync_package("diffusers")
+           cluster.pip_install(["transformers", "diffusers"], )
            remote_fn = rh.function(is_transformers_available).to(cluster)
 
        remote_fn()

@@ -30,7 +30,7 @@ def _(rh):
     # Launch a remote cluster with a GPU - here we use an L4 from AWS. We assume you have already set up with your cloud provider CLI (e.g. `aws configure` or `gcloud init`) and your account is authorized to launch compute.
     img = (
         rh.Image(name="llama3finetuning")
-        .install_packages(
+        .pip_install(
             [
                 "torch",
                 "tensorboard",

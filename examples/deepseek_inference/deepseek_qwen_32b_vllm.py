@@ -81,7 +81,7 @@ class DeepSeek_Distill_Qwen_vLLM:
 if __name__ == "__main__":
     img = (
         rh.Image(name="vllm_inference")
-        .install_packages(
+        .pip_install(
             [
                 "torch",
                 "vllm",

@@ -66,9 +66,7 @@ if __name__ == "__main__":
     # Define the image again
     img = (
         rh.Image("ray-data")
-        .install_packages(
-            ["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]
-        )
+        .pip_install(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"])
         .sync_secrets(["aws"])
     )
 

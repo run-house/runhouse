@@ -59,7 +59,7 @@ spec:
         # Now we can bring up the cluster with Runhouse.
         num_nodes = 2
 
-        img = rh.Image('ray-data').install_packages(
+        img = rh.Image('ray-data').pip_install(
             [
                 "ray[data]",
                 "pandas",
@@ -125,7 +125,7 @@ spec:
         gpus_per_node = 1
         num_nodes = 3
 
-        img = rh.Image('ray-torch').install_packages(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]).sync_secrets(["aws"])
+        img = rh.Image('ray-torch').pip_install(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]).sync_secrets(["aws"])
 
         gpu_cluster = (
             rh.compute(
@@ -185,7 +185,7 @@ spec:
         gpus_per_node = 1
         num_nodes = 2
 
-        img = rh.Image("ray-data").install_packages(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]).sync_secrets(["aws"])
+        img = rh.Image("ray-data").pip_install(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]).sync_secrets(["aws"])
 
         gpu_cluster = (
             rh.compute(

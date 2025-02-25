@@ -227,7 +227,7 @@ if __name__ == "__main__":
     # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
     img = (
         rh.Image(name="llama2finetuning")
-        .install_packages(
+        .pip_install(
             [
                 "torch",
                 "tensorboard",

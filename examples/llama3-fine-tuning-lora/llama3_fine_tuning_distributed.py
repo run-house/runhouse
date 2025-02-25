@@ -174,7 +174,7 @@ class FineTuner:
 if __name__ == "__main__":
     img = (
         rh.Image(name="llamafinetuning")
-        .install_packages(
+        .pip_install(
             [
                 "torch",
                 "tensorboard",

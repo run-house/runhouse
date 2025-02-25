@@ -132,7 +132,7 @@ if __name__ == "__main__":
     cluster_name = f"rh-{num_nodes}-dask-gcp"
 
     # The environment for the remote cluster
-    img = rh.images.dask().install_packages(
+    img = rh.images.dask().pip_install(
         [
             "gcsfs",
             "lightgbm",

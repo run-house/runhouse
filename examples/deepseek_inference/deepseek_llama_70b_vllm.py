@@ -68,7 +68,7 @@ class DeepSeek_Distill_Llama70B_vLLM:
 # you can take advantage of vllm's parallelism.
 
 if __name__ == "__main__":
-    img = rh.images.pytorch().install_packages(["vllm"]).sync_secrets(["huggingface"])
+    img = rh.images.pytorch().pip_install(["vllm"]).sync_secrets(["huggingface"])
 
     # Requires access to a cloud account with the necessary permissions to launch compute.
     num_gpus = 8

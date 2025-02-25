@@ -127,7 +127,7 @@ the original object but forwards method calls over HTTP to the remote object on 
 
 
       if __name__ == "__main__":
-         cluster.install_packages(["torch"])  # Install packages not already in the cluster image
+         cluster.pip_install(["torch"])  # Install packages not already in the cluster image
          RemoteTrainer = rh.module(TorchTrainer).to(cluster)  # Send to cluster
          trainer = RemoteTrainer(name='remote-instance-of-trainer')  # Instantiate remote object
 
@@ -229,7 +229,7 @@ a source file), and then reusing the object and cluster by name across steps.
             image = (
                 rh.Image("base_setup")
                 .from_docker("nvcr.io/nvidia/pytorch:23.10-py3")
-                .install_packages(["torch"])
+                .pip_install(["torch"])
             )
             cluster = rh.ondemand_cluster(
                   name="rh-cluster",

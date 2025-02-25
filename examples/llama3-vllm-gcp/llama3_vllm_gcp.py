@@ -111,7 +111,7 @@ async def main():
     # First, we define the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
     # Passing `"huggingface"` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
-    img = rh.Image(name="llama3inference").install_packages(
+    img = rh.Image(name="llama3inference").pip_install(
         ["torch", "vllm==0.2.7"]  # >=0.3.0 causes pydantic version error
     )
 

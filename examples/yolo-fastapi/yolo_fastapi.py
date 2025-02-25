@@ -55,7 +55,7 @@ class YOLOv3:
 
 
 def bring_up_remote_inference_service():
-    img = rh.Image(name="rh-yolov3").install_packages(
+    img = rh.Image(name="rh-yolov3").pip_install(
         [
             "torch",
             "torchvision",

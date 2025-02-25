@@ -147,7 +147,7 @@ if __name__ == "__main__":
     # We also can set environment variables, such as `NEURON_RT_NUM_CORES` which is required for AWS Neuron.
     img = (
         rh.Image(name="sdxl_inference")
-        .install_packages(
+        .pip_install(
             [
                 "optimum-neuron==0.0.20",
                 "diffusers==0.27.2",

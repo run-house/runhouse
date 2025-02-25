@@ -123,7 +123,7 @@ async def lifespan(app):
 # to be installed locally.
 def load_embedder():
     """Launch an A10G and send the embedding service to it."""
-    img = rh.Image("embedder_img").install_packages(
+    img = rh.Image("embedder_img").pip_install(
         [
             "langchain",
             "langchain-community",
@@ -172,7 +172,7 @@ def load_llm():
     # Specifying the same name will reuse our embedding service cluster
     img = (
         rh.Image("llama3_inference")
-        .install_packages(["torch", "vllm==0.5.4"])
+        .pip_install(["torch", "vllm==0.5.4"])
         .sync_secrets(["huggingface"])
     )
 

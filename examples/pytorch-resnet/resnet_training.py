@@ -265,7 +265,7 @@ if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 3
 
-    img = rh.Image(name="pytorch").install_packages(
+    img = rh.Image(name="pytorch").pip_install(
         [
             "torch==2.5.1 torchvision==0.20.1",
             "Pillow==11.0.0",

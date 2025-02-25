@@ -15,7 +15,7 @@ def train_fn(step, width, height):
 async def find_best_params():
     from bayes_opt import BayesianOptimization, UtilityFunction
 
-    img = rh.Image("worker_image").install_packages(["bayesian-optimization"])
+    img = rh.Image("worker_image").pip_install(["bayesian-optimization"])
 
     cluster = rh.compute(
         name="rh-4x16-cpu",
