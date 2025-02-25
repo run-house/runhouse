@@ -280,7 +280,7 @@ if __name__ == "__main__":
 
     img = (
         rh.images.ray()
-        .install_packages(["torch==2.5.1", "datasets", "boto3", "awscli"])
+        .pip_install(["torch==2.5.1", "datasets", "boto3", "awscli"])
         .sync_secrets(["aws"])
     )
 

@@ -80,7 +80,7 @@ class Trainer:
 # Now, we define the main function that will run locally when we run this script and set up
 # our Runhouse module on a remote cluster. First, we create a cluster with the desired instance type and provider.
 if __name__ == "__main__":
-    img = rh.Image().install_packages(
+    img = rh.Image().pip_install(
         ["xgboost", "pandas", "scikit-learn", "tensorflow", "numpy"]
     )
     cluster = rh.compute(

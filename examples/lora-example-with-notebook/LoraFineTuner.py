@@ -246,7 +246,7 @@ if __name__ == "__main__":
     # We can also show you how to launch with a Docker container / conda env
     img = (
         rh.Image(name="ft_image")
-        .install_packages(
+        .pip_install(
             [
                 "torch",
                 "tensorboard",

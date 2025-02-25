@@ -147,7 +147,7 @@ if __name__ == "__main__":
     port = 8080
     # First, we define the compute and the image. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    img = rh.Image(name="tgi_image").install_packages(
+    img = rh.Image(name="tgi_image").pip_install(
         ["docker", "openai", "torch", "transformers"]
     )
 

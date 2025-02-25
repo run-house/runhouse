@@ -119,7 +119,7 @@ if __name__ == "__main__":
     # Passing `openai` to the `secrets` parameter will load the OpenAI API key we set up earlier.
     img = (
         rh.Image("langchain_rag")
-        .install_packages(
+        .pip_install(
             [
                 "langchain",
                 "langchain-community",

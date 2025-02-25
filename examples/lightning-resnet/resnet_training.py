@@ -227,7 +227,7 @@ if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 3
 
-    img = rh.images.pytorch().install_packages(
+    img = rh.images.pytorch().pip_install(
         [
             "datasets",
             "boto3",

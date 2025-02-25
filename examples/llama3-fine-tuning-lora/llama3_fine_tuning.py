@@ -210,7 +210,7 @@ if __name__ == "__main__":
     # Finally, passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
     img = (
         rh.images.pytorch()
-        .install_packages(
+        .pip_install(
             [
                 "tensorboard",
                 "transformers",
