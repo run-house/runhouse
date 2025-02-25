@@ -6,6 +6,7 @@ import pytest
 import runhouse as rh
 import tests.test_resources.test_resource
 from runhouse.resources.packages import InstallTarget
+from runhouse.resources.packages.package import INSTALL_METHODS
 from runhouse.utils import run_with_logs
 
 
@@ -23,9 +24,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     packages = [
         "pip_package",
         "conda_package",
-        "reqs_package",
         "local_package",
-        "git_package",
     ]
 
     UNIT = {
@@ -55,7 +54,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("unit")
     def test_package_factory_and_properties(self, package):
         assert isinstance(package, rh.Package)
-        assert package.install_method in ["pip", "conda", "reqs", "local"]
+        assert package.install_method in INSTALL_METHODS
 
     @pytest.mark.level("unit")
     @pytest.mark.parametrize(
@@ -64,17 +63,15 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
             "numpy",
             "pip:numpy",
             "conda:numpy" "requirements.txt",
-            "reqs:./",
             "local:./",
-            "pip:https://github.com/runhouse/runhouse.git",
         ],
     )
     def test_from_string(self, pkg_str):
         package = rh.Package.from_string(pkg_str)
         assert isinstance(package, rh.Package)
-        assert package.install_method in ["pip", "conda", "reqs", "local"]
+        assert package.install_method in INSTALL_METHODS
 
-        if package.install_method in ["reqs", "local"]:
+        if package.install_method == "local":
             assert isinstance(package.install_target, InstallTarget)
 
     # --------- test install command ---------
@@ -90,20 +87,6 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         assert (
             conda_package._conda_install_cmd()
             == f"conda install -y {conda_package.install_target}"
-        )
-
-    @pytest.mark.level("unit")
-    def test_reqs_install_cmd(self, reqs_package):
-        assert (
-            reqs_package._reqs_install_cmd()
-            == f"{sys.executable} -m pip install -r {reqs_package.install_target.local_path}/requirements.txt"
-        )
-
-    @pytest.mark.level("unit")
-    def test_git_install_cmd(self, git_package):
-        assert (
-            git_package._pip_install_cmd()
-            == f'{sys.executable} -m pip install "{git_package.install_target}"'
         )
 
     # --------- test install on cluster ---------
@@ -134,21 +117,6 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         # install from on the cluster
         remote_package = cluster.put_resource(conda_package)
         cluster.call(remote_package, "_install")
-
-    @pytest.mark.level("local")
-    def test_remote_reqs_install(self, cluster, reqs_package):
-        remote_reqs_package = reqs_package.to(cluster)
-        path = remote_reqs_package.install_target.local_path
-
-        assert remote_reqs_package._reqs_install_cmd(cluster=cluster) in [
-            None,
-            f"python3 -m pip install -r {path}/requirements.txt",
-        ]
-        remote_reqs_package._install(cluster=cluster)
-
-    @pytest.mark.level("local")
-    def test_git_install(self, cluster, git_package):
-        git_package._install(cluster=cluster)
 
     @pytest.mark.level("local")
     def test_local_reqs_on_cluster(self, cluster, local_package):
