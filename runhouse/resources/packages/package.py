@@ -23,6 +23,7 @@ from runhouse.utils import (
     is_python_package_string,
     locate_working_dir,
     run_setup_command,
+    split_pip_extras,
 )
 
 
@@ -76,6 +77,7 @@ class Package(Resource):
         install_method: Optional[str] = None,
         install_target: Optional[Union[str, "Folder"]] = None,
         install_args: Optional[str] = None,
+        install_extras: Optional[str] = None,
         preferred_version: Optional[str] = None,
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
@@ -93,6 +95,7 @@ class Package(Resource):
         self.install_method = install_method
         self.install_target = install_target
         self.install_args = install_args
+        self.install_extras = install_extras
         self.preferred_version = preferred_version
 
     def config(self, condensed: bool = True):
@@ -111,6 +114,7 @@ class Package(Resource):
             else self.install_target
         )
         config["install_args"] = self.install_args
+        config["install_extras"] = self.install_extras
         config["preferred_version"] = self.preferred_version
         return config
 
@@ -157,15 +161,26 @@ class Package(Resource):
         cluster: "Cluster" = None,
     ):
         install_args = f" {self.install_args}" if self.install_args else ""
+        install_extras = f"[{self.install_extras}]" if self.install_extras else ""
         if isinstance(self.install_target, InstallTarget):
             if cluster:
                 install_cmd = (
-                    self.install_target.path_to_sync_to_on_cluster + install_args
+                    self.install_target.path_to_sync_to_on_cluster
+                    + install_extras
+                    + install_args
                 )
             else:
-                install_cmd = self.install_target.full_local_path_str() + install_args
+                install_cmd = (
+                    self.install_target.full_local_path_str()
+                    + install_extras
+                    + install_args
+                )
         else:
-            install_target = f'"{self.install_target}"'
+            install_target = (
+                f'"{self.install_target}"'
+                if not install_extras
+                else f'"{self.install_target}[{install_extras}]"'
+            )
             install_cmd = install_target + install_args
 
         install_cmd = f"pip install {self._install_cmd_for_torch(install_cmd, cluster)}"
@@ -247,7 +262,7 @@ class Package(Resource):
                     ):
                         self.install_target = InstallTarget(
                             local_path=self.install_target,
-                            _path_to_sync_to_on_cluster=self.install_target,
+                            _path_to_sync_to_on_cluster=f"~/{self.install_target}",
                         )
 
             install_cmd = self._pip_install_cmd(
@@ -284,7 +299,7 @@ class Package(Resource):
                 obj_store.add_sys_path_to_all_processes(
                     self.install_target.full_local_path_str()
                 ) if not cluster else run_setup_command(
-                    f"export PATH=$PATH;{self.install_target.full_local_path_str()}",
+                    f'export PATH="$PATH;{self.install_target.path_to_sync_to_on_cluster}"',
                     cluster=cluster,
                     node=node,
                 )
@@ -445,6 +460,7 @@ class Package(Resource):
             if " " in target_and_args
             else (target_and_args, "")
         )
+        target, extras = split_pip_extras(target_and_args)
 
         # If the target is a path
         # If it doesn't have a /, we're assuming it's a pip installable thing first and foremost
@@ -501,6 +517,7 @@ class Package(Resource):
                 install_target=target,
                 install_args=args,
                 install_method=install_method,
+                install_extras=extras,
                 preferred_version=preferred_version,
                 dryrun=dryrun,
             )

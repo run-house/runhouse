@@ -198,6 +198,17 @@ def is_python_package_string(s: str) -> bool:
     return isinstance(s, str) and re.match(r"^[a-zA-Z0-9\._-]+$", s) is not None
 
 
+def split_pip_extras(package: str):
+    # check if package is in the form package[extras]
+    match = re.search(
+        r"^(?P<package>[a-zA-Z0-9][a-zA-Z0-9\._-]*)(?:\[(?P<extras>[-a-zA-Z0-9\._,]+)\])?$",
+        package,
+    )
+    if match:
+        return match.group("package"), match.group("extras")
+    return package, None
+
+
 ####################################################################################################
 # Simple running utility
 ####################################################################################################
