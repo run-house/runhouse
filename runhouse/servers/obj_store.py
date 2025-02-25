@@ -1993,18 +1993,23 @@ class ObjStore:
             # already installed. If there is, then we ignore preferred version and leave the existing version.
             # The user can always force a version install by doing `numpy==2.0.0` for example. Else, we install
             # the preferred version, that matches their local.
-            if (
-                is_python_package_string(package.install_target)
-                and package.preferred_version is not None
-            ):
-                # Check if this is installed
-                retcode = run_with_logs(
-                    f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{package.install_target}') else exit(1)\"",
-                )
-                if retcode != 0 or force_sync_local:
-                    package.install_target = (
-                        f"{package.install_target}=={package.preferred_version}"
+            if is_python_package_string(package.install_target):
+                if package.preferred_version is not None:
+                    # Check if this is installed
+                    retcode = run_with_logs(
+                        f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{package.install_target}') else exit(1)\"",
                     )
+                    if retcode != 0 or force_sync_local:
+                        package.install_target = (
+                            f"{package.install_target}=={package.preferred_version}"
+                        )
+                else:
+                    # If the package exists as a folder remotely
+                    if run_with_logs(f"ls {package.install_target}") == 0:
+                        self.install_target = InstallTarget(
+                            local_path=package.install_target,
+                            _path_to_sync_to_on_cluster=package.install_target,
+                        )
 
             install_cmd = package._pip_install_cmd(conda_env_name=conda_env_name)
             logger.info(f"Running via install_method pip: {install_cmd}")

@@ -141,7 +141,7 @@ class TestFunction:
 
     @pytest.mark.level("local")
     def test_function_in_new_process_with_multiprocessing(self, cluster):
-        cluster.install_packages(["numpy"])
+        cluster.pip_install(["numpy"])
         new_process = cluster.ensure_process_created("numpy_process")
         multiproc_remote_sum = rh.function(multiproc_np_sum, name="test_function").to(
             cluster, process=new_process
@@ -227,7 +227,7 @@ class TestFunction:
         """Test functioning a module from reqs, not from working_dir"""
         import numpy as np
 
-        cluster.install_packages(["numpy"])
+        cluster.pip_install(["numpy"])
         re_fn = rh.function(np.sum).to(cluster)
         res = re_fn(np.arange(5))
         assert int(res) == 10
@@ -236,7 +236,7 @@ class TestFunction:
     # originally used local_launched_ondemand_aws_docker_cluster, therefore marked as minimal
     @pytest.mark.level("minimal")
     def test_notebook(self, cluster):
-        cluster.install_packages(["numpy"])
+        cluster.pip_install(["numpy"])
         nb_sum = lambda x: multiproc_np_sum(x)
         re_fn = rh.function(nb_sum).to(cluster)
 

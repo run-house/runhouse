@@ -11,6 +11,9 @@ class ImageSetupStepType(Enum):
     RSYNC = "rsync"
     SYNC_SECRETS = "sync_secrets"
     SET_ENV_VARS = "set_env_vars"
+    PIP_INSTALL = "pip_install"
+    CONDA_INSTALL = "conda_install"
+    SYNC_PACKAGE = "sync_package"
 
 
 class ImageSetupStep:
@@ -48,7 +51,7 @@ class Image:
             >>>         conda_env_name="base_env",
             >>>         conda_config={"dependencies": ["python=3.11"], "name": "base_env"},
             >>>     )
-            >>>     .install_packages(["numpy", "pandas"])
+            >>>     .pip_install(["numpy", "pandas"])
             >>>     .set_env_vars({"OMP_NUM_THREADS": 1})
             >>> )
         """
@@ -187,6 +190,64 @@ class Image:
                 step_type=ImageSetupStepType.PACKAGES,
                 reqs=reqs,
                 conda_env_name=conda_env_name or self.conda_env_name,
+            )
+        )
+        return self
+
+    def pip_install(
+        self, reqs: List[Union["Package", str]], conda_env_name: Optional[str] = None
+    ):
+        """Pip install the given packages.
+
+        Args:
+            reqs (List[Package or str]): List of packages to pip install on cluster and env.
+            conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
+                defaults to base environment. (Default: ``None``)
+        """
+
+        self.setup_steps.append(
+            ImageSetupStep(
+                step_type=ImageSetupStepType.PIP_INSTALL,
+                reqs=reqs,
+                conda_env_name=conda_env_name or self.conda_env_name,
+            )
+        )
+        return self
+
+    def conda_install(
+        self, reqs: List[Union["Package", str]], conda_env_name: Optional[str] = None
+    ):
+        """Conda install the given packages.
+
+        Args:
+            reqs (List[Package or str]): List of packages to conda install on cluster and env.
+            conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
+                defaults to base environment. (Default: ``None``)
+        """
+
+        self.setup_steps.append(
+            ImageSetupStep(
+                step_type=ImageSetupStepType.CONDA_INSTALL,
+                reqs=reqs,
+                conda_env_name=conda_env_name or self.conda_env_name,
+            )
+        )
+        return self
+
+    def sync_package(
+        self,
+        package: Union["Package", str],
+    ):
+        """Sync local package over, and add to path.
+
+        Args:
+            package (Package or str): Package to sync. Either the name of a local editably installed package, or
+                the path to the folder to sync over.
+        """
+        self.setup_steps.append(
+            ImageSetupStep(
+                step_type=ImageSetupStepType.SYNC_PACKAGE,
+                package=package,
             )
         )
         return self

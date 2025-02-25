@@ -62,7 +62,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         [
             "numpy",
             "pip:numpy",
-            "conda:numpy" "requirements.txt",
+            "conda:numpy",
             "local:./",
         ],
     )
@@ -127,7 +127,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     def test_local_package_version_gets_installed(self, cluster):
         run_with_logs("pip install beautifulsoup4==4.11.1")
-        cluster.install_packages(["beautifulsoup4"])
+        cluster.pip_install(["beautifulsoup4"])
 
         process = cluster.ensure_process_created("temp_env")
         remote_fn = rh.function(get_bs4_version).to(cluster, process=process)
