@@ -117,3 +117,4 @@ SKY_VENV = "~/skypilot-runtime"
 SSH_SKY_SECRET_NAME = "ssh-sky-key"
 
 INSUFFICIENT_DISK_MSG = "No space left on device"
+CONNECTION_REFUSED_MSG = "Connection refused"

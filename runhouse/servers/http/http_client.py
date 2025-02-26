@@ -13,6 +13,7 @@ import httpx
 
 import requests
 
+from runhouse.exceptions import ClusterTerminated
 from runhouse.globals import rns_client
 from runhouse.logger import get_logger
 
@@ -199,6 +200,12 @@ class HTTPClient:
             headers=headers,
         )
 
+    def _ping_cluster(self):
+        try:
+            self.check_server()
+        except ValueError:
+            raise ClusterTerminated()
+
     def request_json(
         self,
         endpoint: str,
@@ -250,12 +257,17 @@ class HTTPClient:
             )
         resp_json = response.json()
         if isinstance(resp_json, dict) and "output_type" in resp_json:
-            return handle_response(
-                resp_json,
-                resp_json["output_type"],
-                err_str,
-                log_formatter=self.log_formatter,
-            )
+            try:
+                return handle_response(
+                    resp_json,
+                    resp_json["output_type"],
+                    err_str,
+                    log_formatter=self.log_formatter,
+                )
+            except ConnectionError:
+                self._ping_cluster()
+            except requests.exceptions.ConnectionError:
+                self._ping_cluster()
         return resp_json
 
     def check_server(self):
