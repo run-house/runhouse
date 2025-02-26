@@ -155,6 +155,15 @@ class Package(Resource):
                 "Cannot sync the home directory. Please include a Python configuration file in a subdirectory."
             )
 
+    def _install_cmd_with_extras(self, install_target: str, install_extras: str):
+        install_specific_version_of_target = "==" in install_target
+        if install_specific_version_of_target:
+            split_target = install_target.split(
+                "=="
+            )  # split the target package name from its version
+            return f'"{split_target[0]}{install_extras}=={split_target[1]}"'
+        return f'"{self.install_target}{install_extras}"'
+
     def _pip_install_cmd(
         self,
         conda_env_name: Optional[str] = None,
@@ -179,7 +188,9 @@ class Package(Resource):
             install_target = (
                 f'"{self.install_target}"'
                 if not install_extras
-                else f'"{self.install_target}[{install_extras}]"'
+                else self._install_cmd_with_extras(
+                    install_target=self.install_target, install_extras=install_extras
+                )
             )
             install_cmd = install_target + install_args
 
