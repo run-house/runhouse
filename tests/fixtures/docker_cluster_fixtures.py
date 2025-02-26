@@ -93,7 +93,7 @@ def build_and_run_image(
     import docker
 
     rh_parent_path = Path(importlib.util.find_spec("runhouse").origin).parent.parent
-    dockerfile_path = rh_parent_path / f"docker/slim/{dir_name}/Dockerfile"
+    dockerfile_path = rh_parent_path / f"docker/testing/{dir_name}/Dockerfile"
     rh_path = "runhouse" if (rh_parent_path / "setup.py").exists() else None
     rh_version = rh.__version__ if not rh_path else None
 
