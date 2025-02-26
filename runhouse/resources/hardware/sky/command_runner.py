@@ -15,6 +15,7 @@ from runhouse.resources.hardware.sky import (
     log_lib,
     subprocess_utils,
 )
+from runhouse.constants import INSUFFICIENT_DISK_MSG
 
 ##### RH modification #####
 from runhouse.logger import get_logger
@@ -309,8 +310,10 @@ class CommandRunner:
             time.sleep(backoff.current_backoff())
 
         direction = 'up' if up else 'down'
-        error_msg = (f'Failed to rsync {direction}: {source} -> {target}. '
-                     'Ensure that the network is stable, then retry.')
+        error_msg = f'Failed to rsync {direction}: {source} -> {target}'
+        # means the error is not caused by an insufficient disk space
+        if INSUFFICIENT_DISK_MSG not in stderr:
+            error_msg = error_msg + ' Ensure that the network is stable, then retry.'
         subprocess_utils.handle_returncode(returncode,
                                            command,
                                            error_msg,

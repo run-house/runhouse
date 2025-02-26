@@ -10,6 +10,8 @@ import requests
 
 from pydantic import BaseModel, field_validator
 
+from runhouse.exceptions import InsufficientDiskError
+
 from runhouse.logger import get_logger
 
 from runhouse.servers.obj_store import RunhouseStopIteration
@@ -352,6 +354,11 @@ def handle_response(
         ):
             logger.error(f"{system_color}{err_str}: {fn_exception}{reset_color}")
             logger.error(f"{system_color}Traceback: {fn_traceback}{reset_color}")
+
+        # Errno 28 means "No space left on device"
+        if isinstance(fn_exception, OSError) and fn_exception.errno == 28:
+            raise InsufficientDiskError()
+
         raise fn_exception
     elif output_type == OutputType.STDOUT:
         res = response_data["data"]

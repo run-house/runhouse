@@ -380,7 +380,8 @@ def run_command_with_password_login(
         command_run.logfile_read = sys.stdout
 
     # If CommandRunner uses the control path, the password may not be requested
-    next_line = command_run.expect(["assword:", pexpect.EOF])
+    password_prompt_pattern = re.compile(r"[Pp]assword:")
+    next_line = command_run.expect([password_prompt_pattern, pexpect.EOF])
     if next_line == 0:
         command_run.sendline(password)
         command_run.expect(pexpect.EOF)

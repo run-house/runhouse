@@ -20,6 +20,8 @@ from runhouse.constants import (
     SKY_VENV,
     TIME_UNITS,
 )
+
+from runhouse.exceptions import InsufficientDiskError
 from runhouse.globals import configs, rns_client
 
 from runhouse.logger import get_logger
@@ -275,6 +277,11 @@ def _setup_creds_from_dict(ssh_creds: Dict, cluster_name: str):
     return cluster_secret, ssh_properties
 
 
+###################################
+# Cluster Information Methods
+###################################
+
+
 def is_gpu_cluster(cluster: "Cluster" = None, node: Optional[str] = None):
     if run_setup_command("nvidia-smi", cluster=cluster, node=node)[0] == 0:
         return True
@@ -305,6 +312,48 @@ def detect_cuda_version_or_cpu(cluster: "Cluster" = None, node: Optional[str] = 
     cuda_version = status_codes[1].split("release ")[1].split(",")[0]
 
     return cuda_version
+
+
+def parse_str_to_dict(dict_as_str: str):
+    dict_as_str = dict_as_str.strip().replace("'", '"')
+    return json.loads(dict_as_str)
+
+
+def get_source_object_size(path: str):
+    object_path = Path(path)
+    if object_path.is_dir():
+        # checks the size of all objects in the folder, including subdirectories. rglob is a recursive method, so it
+        # checks all files in all sub-folders, if such exist.
+        return sum(f.stat().st_size for f in object_path.rglob("*") if f.is_file())
+    else:
+        return object_path.stat().st_size
+
+
+def check_disk_sufficiency(
+    cluster: "Cluster", object_size: int, object_name: str, node: str = None
+):
+    # Checking whether the cluster has enough disk space to sync the object.
+    disk_usage = cluster.run_python(
+        commands=["import psutil", "print(psutil.disk_usage('/')._asdict())"],
+        node=node,
+        stream_logs=False,
+        conda_env_name=cluster.conda_env_name,
+    )[0]
+    if node == "all":
+        # If we sync the object to all cluster nodes, we get a list of disk_usage dictionaries, one per node.
+        # Therefore, we need to iterate through each dictionary to ensure that every node has enough disk space.
+        is_disk_sufficient = all(
+            parse_str_to_dict(node_disk_usage[1]).get("free") > object_size
+            for node_disk_usage in disk_usage
+        )
+    else:
+        is_disk_sufficient = parse_str_to_dict(disk_usage[1]).get("free") > object_size
+
+    if not is_disk_sufficient:
+        node = node if node else "head node"
+        raise InsufficientDiskError(
+            f"No space left on device ({node}) for {object_name}"
+        )
 
 
 def _run_ssh_command(

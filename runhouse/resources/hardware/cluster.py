@@ -74,6 +74,8 @@ from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import (
     _current_cluster,
     _run_ssh_command,
+    check_disk_sufficiency,
+    get_source_object_size,
     ServerConnectionType,
 )
 from runhouse.resources.resource import Resource
@@ -703,7 +705,7 @@ class Cluster(Resource):
         self._run_setup_step(
             step=ImageSetupStep(
                 step_type=ImageSetupStepType.PIP_INSTALL,
-                reqs=["ray"],
+                reqs=["ray", "psutil"],
                 conda_env_name=self.conda_env_name,
             ),
             parallel=parallel,
@@ -1504,6 +1506,15 @@ class Cluster(Resource):
         if not src_node and up and not Path(source).expanduser().exists():
             raise ValueError(f"Could not locate path to sync: {source}.")
 
+        # before syncing the object, making sure there is enough disk space for it. If we don't preform this check in
+        # advance, there might be a case where we start rsyncing the object -> during the rsync no disk space will
+        # be left (because the object is too big) -> the rsync will stack and no results will be return (even failures),
+        # because there is no disk space for running the process nor writing logs.
+        source_size = get_source_object_size(path=source)
+        check_disk_sufficiency(
+            cluster=self, node=node, object_name=source, object_size=source_size
+        )
+
         if up and (node == "all" or (len(self.ips) > 1 and not node)):
             if not parallel:
                 for node in self.ips:
@@ -1960,6 +1971,9 @@ class Cluster(Resource):
         if node is None:
             node = self.head_ip
 
+        if conda_env_name:
+            commands = [conda_env_cmd(cmd, conda_env_name) for cmd in commands]
+
         if node == "all":
             res_list = []
             for node in self.ips:
@@ -1972,9 +1986,6 @@ class Cluster(Resource):
                 )
                 res_list.append(res)
             return res_list
-
-        if conda_env_name:
-            commands = [conda_env_cmd(cmd, conda_env_name) for cmd in commands]
 
         return_codes = self._run_commands_with_runner(
             commands,
@@ -2067,7 +2078,8 @@ class Cluster(Resource):
         )
 
         for command in commands:
-            logger.info(f"Running command on {self.name}: {command}")
+            if stream_logs:
+                logger.info(f"Running command on {self.name}: {command}")
 
             # set env vars after log statement
             command = f"{env_var_prefix} {command}" if env_var_prefix else command
@@ -2149,12 +2161,7 @@ class Cluster(Resource):
 
         cmd_prefix = "python3 -c"
         command_str = "; ".join(commands)
-        command_str_repr = (
-            repr(repr(command_str))[2:-2]
-            if self.creds_values.get("password")
-            else command_str
-        )
-        formatted_command = f'{cmd_prefix} "{command_str_repr}"'
+        formatted_command = f'{cmd_prefix} "{command_str}"'
 
         # If invoking a run as part of the python commands also return the Run object
         return_codes = self.run_bash_over_ssh(
