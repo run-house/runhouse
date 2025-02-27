@@ -46,6 +46,7 @@ class ServerConnectionType(str, Enum):
 
     SSH = "ssh"
     TLS = "tls"
+    DOCKER = "docker"
     NONE = "none"
 
 
