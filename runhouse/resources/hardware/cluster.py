@@ -701,6 +701,19 @@ class Cluster(Resource):
 
         return secrets_to_sync, env_vars
 
+    def _get_image_env_vars_only(self):
+        env_vars = {}
+        if not self.image:
+            return env_vars
+
+        for step in self.image.setup_steps:
+            if step.step_type == ImageSetupStepType.SET_ENV_VARS:
+                image_env_vars = _process_env_vars(step.kwargs.get("env_vars"))
+                env_vars.update(image_env_vars)
+                continue
+
+        return env_vars
+
     def _sync_runhouse_to_cluster(
         self,
         local_rh_package_path: Optional[Path] = None,
@@ -1147,11 +1160,17 @@ class Cluster(Resource):
         self,
         base_cli_cmd: str,
         resync_rh: Optional[bool] = None,
+        resync_image: bool = True,
         restart_ray: bool = True,
         restart_proxy: bool = False,
         parallel: bool = True,
     ):
-        image_secrets, image_env_vars = self._sync_image_to_cluster(parallel=parallel)
+        if resync_image:
+            image_secrets, image_env_vars = self._sync_image_to_cluster(
+                parallel=parallel
+            )
+        else:
+            image_secrets, image_env_vars = [], self._get_image_env_vars_only()
 
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
         local_rh_package_path = None
@@ -1301,6 +1320,7 @@ class Cluster(Resource):
     def restart_server(
         self,
         resync_rh: Optional[bool] = None,
+        resync_image: bool = True,
         restart_ray: bool = True,
         restart_proxy: bool = False,
         parallel: bool = True,
@@ -1327,6 +1347,7 @@ class Cluster(Resource):
         return self._start_or_restart_helper(
             base_cli_cmd=CLI_RESTART_CMD,
             resync_rh=resync_rh,
+            resync_image=resync_image,
             restart_ray=restart_ray,
             restart_proxy=restart_proxy,
             parallel=parallel,
@@ -1335,6 +1356,7 @@ class Cluster(Resource):
     def start_server(
         self,
         resync_rh: Optional[bool] = None,
+        resync_image: bool = True,
         restart_ray: bool = True,
         restart_proxy: bool = False,
         parallel: bool = True,
@@ -1356,6 +1378,7 @@ class Cluster(Resource):
         return self._start_or_restart_helper(
             base_cli_cmd=CLI_START_CMD,
             resync_rh=resync_rh,
+            resync_image=resync_image,
             restart_ray=restart_ray,
             restart_proxy=restart_proxy,
             parallel=parallel,
