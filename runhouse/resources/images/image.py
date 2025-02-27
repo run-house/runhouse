@@ -62,11 +62,11 @@ class Image:
 
         self.name = name
         self.image_id = image_id
-        self.python_version = python_version
+        self.python_version = str(python_version) if python_version else None
 
         self.setup_steps = []
         self.conda_env_name = None
-        self.venv_path = None
+        self.venv_path = ".venv" if python_version else None
         self.docker_secret = None
 
     @staticmethod
@@ -143,6 +143,8 @@ class Image:
         config = {}
         if self.name:
             config["name"] = self.name
+        if self.python_version:
+            config["python_version"] = self.python_version
         if self.image_id:
             config["image_id"] = self.image_id
         if self.docker_secret:

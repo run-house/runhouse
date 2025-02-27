@@ -661,12 +661,12 @@ class Cluster(Resource):
         python_version: Optional[str] = None,
         parallel: bool = True,
     ):
+        # uv should be installed outside of the venv
         self._run_setup_step(
             step=ImageSetupStep(
                 step_type=ImageSetupStepType.PIP_INSTALL,
                 reqs=["uv"],
                 conda_env_name=self.conda_env_name,
-                venv_path=self.venv_path,
             ),
             parallel=parallel,
         )
@@ -677,7 +677,6 @@ class Cluster(Resource):
                         step_type=ImageSetupStepType.CMD_RUN,
                         command=cmd,
                         conda_env_name=self.conda_env_name,
-                        venv_path=self.venv_path,
                     ),
                     parallel=parallel,
                 )
@@ -708,6 +707,8 @@ class Cluster(Resource):
             logger.error(
                 "``image_id`` is only supported for OnDemandCluster, not static Clusters."
             )
+        if self.image.venv_path:
+            env_vars["VIRTUAL_ENV"] = self.image.venv_path
 
         logger.info(f"Syncing default image {self.image} to cluster.")
 
@@ -719,7 +720,6 @@ class Cluster(Resource):
                 python_version=self.image.python_version, parallel=parallel
             )
             uv_install = True
-            self.image.venv_path = ".venv"
 
         for step in self.image.setup_steps:
             if step.step_type == ImageSetupStepType.SYNC_SECRETS:
@@ -748,9 +748,14 @@ class Cluster(Resource):
         if not self.ips:
             raise ValueError(f"No IPs set for cluster <{self.name}>. Is it up?")
 
+        install_type = (
+            ImageSetupStepType.UV_INSTALL
+            if self.image and self.image.python_version
+            else ImageSetupStepType.PIP_INSTALL
+        )
         self._run_setup_step(
             step=ImageSetupStep(
-                step_type=ImageSetupStepType.PIP_INSTALL,
+                step_type=install_type,
                 reqs=["ray", "psutil"],
                 conda_env_name=self.conda_env_name,
                 venv_path=self.venv_path,
@@ -770,7 +775,7 @@ class Cluster(Resource):
 
         self._run_setup_step(
             step=ImageSetupStep(
-                step_type=ImageSetupStepType.PIP_INSTALL,
+                step_type=install_type,
                 reqs=["runhouse[server]"],
                 conda_env_name=self.conda_env_name,
                 venv_path=self.venv_path,
@@ -794,7 +799,7 @@ class Cluster(Resource):
                 package. (Default: ``None``)
             conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
                 defaults to base environment. (Default: ``None``)
-            venv_path (str, optional): Path of venv to install the package in, if relevant. (Defautl: ``None``)
+            venv_path (str, optional): Path of venv to install the package in, if relevant. (Default: ``None``)
             force_sync_local (bool, optional): If the package exists both locally and remotely, whether to override
                 the remote version with the local version. By default, the local version will be installed only if
                 the package does not already exist on the cluster. (Default: ``False``)
@@ -1323,6 +1328,11 @@ class Cluster(Resource):
             + (
                 f" --conda-env {self.image.conda_env_name}"
                 if self.image and self.image.conda_env_name
+                else ""
+            )
+            + (
+                f" --venv {self.image.venv_path}"
+                if self.image and self.image.venv_path
                 else ""
             )
             + " --from-python"

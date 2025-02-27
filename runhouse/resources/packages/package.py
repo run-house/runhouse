@@ -249,7 +249,7 @@ class Package(Resource):
             if INSUFFICIENT_DISK_MSG in stdout or INSUFFICIENT_DISK_MSG in stderr:
                 raise InsufficientDiskError(command=install_cmd)
             raise RuntimeError(
-                f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
+                f"{self.install_method} install '{install_cmd}' failed, check that the package exists and is available for your platform."
             )
 
     def _install(
