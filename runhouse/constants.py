@@ -71,7 +71,7 @@ CONDA_PREFERRED_PYTHON_VERSION = "3.10.9"
 DEFAULT_PROCESS_NAME = "default_process"
 DEFAULT_DOCKER_CONTAINER_NAME = "sky_container"
 
-# Constants for the status check
+# Constants for the status outputs and checks
 DOUBLE_SPACE_UNICODE = "\u00A0\u00A0"
 BULLET_UNICODE = "\u2022"
 SECOND = 1
@@ -83,6 +83,14 @@ DEFAULT_AUTOSTOP_CHECK_INTERVAL = 1 * MINUTE
 INCREASED_STATUS_CHECK_INTERVAL = 5 * MINUTE
 GPU_COLLECTION_INTERVAL = 5 * SECOND
 INCREASED_GPU_COLLECTION_INTERVAL = 1 * MINUTE
+CALLABLE_RESOURCE_TYPES = [
+    "runhouse.Function",
+    "runhouse.Module",
+    "RayDistributed",
+    "PyTorchDistributed",
+    "DistributedPool",
+    "DaskDistributed",
+]
 
 # We collect gpu every GPU_COLLECTION_INTERVAL.
 # Meaning that in one minute we collect (MINUTE / GPU_COLLECTION_INTERVAL) gpu stats.
