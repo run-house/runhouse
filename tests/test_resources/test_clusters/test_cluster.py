@@ -835,12 +835,19 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         if cluster.image:
             for step in cluster.image.setup_steps:
                 if step.step_type == ImageSetupStepType.PIP_INSTALL:
-                    reqs += step.kwargs.get("reqs")
-        for req in reqs:
-            if isinstance(req, str) and "_" in req:
-                # e.g. pytest_asyncio
-                req = req.replace("_", "-")
-                assert cluster.run_bash(f"pip freeze | grep {req}")[0] == 0
+                    reqs = step.kwargs.get("reqs")
+                    freeze_cmd = "pip freeze"
+                elif step.step_type == ImageSetupStepType.UV_INSTALL:
+                    reqs = step.kwargs.get("reqs")
+                    freeze_cmd = "uv pip freeze"
+                for req in reqs:
+                    req = (
+                        req.replace("_", "-")
+                        if isinstance(req, str) and "_" in req
+                        else req
+                    )
+                    cmd = f"{freeze_cmd} | grep {req}"
+                    assert cluster.run_bash(cmd)[0] == 0
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -873,6 +880,13 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         get_env_var_cpu = rh.function(_get_env_var_value).to(system=cluster)
         for var in env_vars.keys():
             assert get_env_var_cpu(var) == env_vars[var]
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_python_version_image(self, cluster):
+        if not cluster.image or not cluster.image.python_version:
+            pytest.skip("Python version not set in cluster image")
+        assert cluster.image.python_version in cluster.run_bash("python --version")[1]
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
