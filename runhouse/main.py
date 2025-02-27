@@ -20,6 +20,7 @@ from runhouse.cli_utils import (
     check_ray_installation,
     create_output_table,
     get_local_or_remote_cluster,
+    get_node_ip,
     get_wrapped_server_start_cmd,
     is_command_available,
     LogsSince,
@@ -66,13 +67,17 @@ app = typer.Typer(add_completion=False)
 # creating a cluster app to enable subcommands of cluster (ex: runhouse cluster list).
 # Register it with the main runhouse application
 cluster_app = typer.Typer(help="Cluster related CLI commands.")
-
 app.add_typer(cluster_app, name="cluster")
 
 # creating a server app to enable subcommands of server (ex: runhouse server status).
 # Register it with the main runhouse application
 server_app = typer.Typer(help="Runhouse server related CLI commands.")
 app.add_typer(server_app, name="server")
+
+config_app = typer.Typer(
+    help="Runhouse config related CLI commands", invoke_without_command=True
+)
+app.add_typer(config_app, name="config")
 
 # For printing with typer
 console = Console()
@@ -101,8 +106,6 @@ def login(
     valid_token: str = (
         runhouse.rns.login.login(
             token=token,
-            download_config=True,
-            upload_config=True,
             download_secrets=True,
             upload_secrets=True,
             from_cli=True,
@@ -144,7 +147,7 @@ def cluster_ssh(
         None,
         "-n",
         "--node",
-        help="Specific cluster node to SSH into. If not specified will default to the head node.",
+        help="Specify the node by its public IP, an integer index, or specify 'head' to indicate the head node.",
     ),
 ):
     """SSH into a remote cluster.
@@ -161,6 +164,7 @@ def cluster_ssh(
                     f"[reset]{cluster_name} is being initialized. Please wait for it to finish, or run [reset][bold italic]`runhouse cluster up {cluster_name} -f`[/bold italic] to abort the initialization and relaunch."
                 )
                 raise typer.Exit(0)
+            node = get_node_ip(node=node or "head", cluster_ips=c.ips)
             c.ssh(node=node)
 
         else:
@@ -198,6 +202,12 @@ def cluster_status(
         default=False,
         help="Whether to update Den with the status.",
     ),
+    node: Optional[str] = typer.Option(
+        None,
+        "-n",
+        "--node",
+        help="Specify the node by its public IP, an integer index, or specify 'head' to indicate the head node.",
+    ),
 ):
     """Load the status of the cluster.
 
@@ -218,7 +228,7 @@ def cluster_status(
         )
         return
 
-    print_status(cluster_status, current_cluster)
+    print_status(cluster_status, current_cluster, node)
 
 
 @cluster_app.command("list")
@@ -543,6 +553,124 @@ def cluster_logs(
     console.print(f"[reset][cyan]{current_cluster.rns_address}")
     console.print("-" * len(current_cluster.rns_address))
     console.print(f"[reset][cyan]{stripped_lines}")
+
+
+###############################
+# Config CLI commands
+###############################
+@config_app.command("upload")
+def config_upload():
+    """Upload your local Runhouse config to Den. This will override any existing values already saved in Den."""
+    configs.upload_defaults()
+
+
+@config_app.command("download")
+def config_download():
+    """Download your Runhouse config from Den. This will override any existing values already saved locally."""
+    configs.load_defaults_from_den()
+
+
+@config_app.command("set")
+def config_set(
+    key: str = typer.Argument(
+        None,
+        help="Config field name",
+    ),
+    value: str = typer.Argument(
+        None,
+        help="Config value",
+    ),
+    sync: bool = typer.Option(
+        False,
+        "-s",
+        "--sync",
+        help="Whether to sync the updated config to Den (default: ``False``).",
+    ),
+):
+    """Update a particular config value. Optionally sync the updated config with Den.
+
+    Example:
+        ``$ runhouse config set default_ssh_key ~/.ssh/id_rsa``
+
+        ``$ runhouse config set default_autostop 120 --sync``
+    """
+    success_message = "Successfully updated local config"
+    if value is None:
+        console.print(f"[red]Must provide a value for {key}[/red]")
+        raise typer.Exit(1)
+
+    supported_keys = list(configs.BASE_DEFAULTS) + [
+        "username",
+        "default_ssh_key",
+        "token",
+    ]
+    if key not in supported_keys:
+        console.print(
+            f"[yellow]Cannot set key '{key}'. Must be one of: {supported_keys}[/yellow]"
+        )
+        raise typer.Exit(1)
+
+    value = value.lower()
+    if value in {"true", "yes"}:
+        value = True
+    elif value in {"false", "no"}:
+        value = False
+    else:
+        try:
+            value = int(value)
+        except ValueError:
+            pass
+
+    if value is None:
+        console.print(f"[red]Invalid value for {key}[/red]")
+        raise typer.Exit(1)
+
+    configs.set(key, value)
+
+    if sync:
+        local_config = configs.load_defaults_from_file()
+        configs.upload_defaults(defaults=local_config)
+        console.print(f"[green]{success_message} and synced to Den[/green]")
+    else:
+        console.print(f"[green]{success_message}[/green]")
+
+
+@config_app.callback()
+def config_load(
+    den: Optional[bool] = typer.Option(
+        False,
+        "--den",
+        "-d",
+        help="Whether to load the config stored in Den. If not specified loads the local config.",
+    ),
+    path: Optional[str] = typer.Option(
+        None,
+        "--path",
+        "-p",
+        help="Optional path to load the local Runhouse config. By default will look in ``~/.rh/config.yaml``.",
+    ),
+):
+    """Load your Runhouse config. By default will load the version stored locally.
+
+    Example:
+        ``$ runhouse config -d``
+
+        ``$ runhouse config -p ~/path/to/config.yaml``
+
+    """
+    if den:
+        config = configs.load_defaults_from_den()
+    else:
+        config = configs.load_defaults_from_file(path)
+
+    if not config:
+        console.print("[red]No config found.[/red]")
+        raise typer.Exit(1)
+
+    config.pop("token", None)
+    config.pop("username", None)
+    for k, v in config.items():
+        console.print(f"{k}: {v}")
 
 
 ###############################

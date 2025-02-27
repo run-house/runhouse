@@ -1,6 +1,5 @@
 import contextlib
 import copy
-import importlib
 import json
 import multiprocessing
 import os
@@ -19,8 +18,8 @@ import requests
 import yaml
 
 from runhouse.resources.hardware.utils import (
+    _do_setup_step_for_node,
     _setup_creds_from_dict,
-    _setup_default_creds,
     ClusterStatus,
     get_clusters_from_den,
     get_running_and_not_running_clusters,
@@ -30,14 +29,15 @@ from runhouse.resources.hardware.utils import (
 
 from runhouse.resources.images import Image, ImageSetupStepType
 
+from runhouse.resources.images.image import ImageSetupStep
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import (
     _process_env_vars,
     conda_env_cmd,
     create_conda_env_on_cluster,
-    find_locally_installed_version,
     generate_default_name,
+    get_local_install_path,
     install_conda,
     locate_working_dir,
     run_command_with_password_login,
@@ -74,6 +74,8 @@ from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import (
     _current_cluster,
     _run_ssh_command,
+    check_disk_sufficiency,
+    get_source_object_size,
     ServerConnectionType,
 )
 from runhouse.resources.resource import Resource
@@ -82,41 +84,6 @@ from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import CreateProcessParams
 
 logger = get_logger(__name__)
-
-
-def _do_setup_step_for_node(cluster, setup_step, node):
-    if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
-        cluster.create_conda_env(
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            conda_config=setup_step.kwargs.get("conda_config"),
-        )
-    elif setup_step.step_type == ImageSetupStepType.PACKAGES:
-        cluster.install_packages(
-            setup_step.kwargs.get("reqs"),
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            node=node,
-        )
-    elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
-        command = setup_step.kwargs.get("command")
-        conda_env_name = setup_step.kwargs.get("conda_env_name")
-        if conda_env_name:
-            command = conda_env_cmd(command, conda_env_name)
-        run_setup_command(
-            cmd=command,
-            cluster=cluster,
-            env_vars=env_vars,
-            stream_logs=True,
-            node=node,
-        )
-    elif setup_step.step_type == ImageSetupStepType.RSYNC:
-        cluster.rsync(
-            source=setup_step.kwargs.get("source"),
-            dest=setup_step.kwargs.get("dest"),
-            node=node,
-            up=True,
-            contents=setup_step.kwargs.get("contents"),
-            filter_options=setup_step.kwargs.get("filter_options"),
-        )
 
 
 class Cluster(Resource):
@@ -143,7 +110,6 @@ class Cluster(Resource):
         ssh_properties: Dict = None,
         den_auth: bool = False,
         dryrun: bool = False,
-        skip_creds: bool = False,
         image: Optional["Image"] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -178,10 +144,8 @@ class Cluster(Resource):
 
         self.reqs = []
 
-        if skip_creds and not creds:
-            self._creds = None
-        else:
-            self._setup_creds(creds)
+        self._is_shared = self._is_cluster_shared(owner_info=kwargs.get("owner") or {})
+        self._setup_creds(creds)
 
         if isinstance(image, dict):
             # If reloading from config (ex: in Den)
@@ -249,10 +213,16 @@ class Cluster(Resource):
         if not self._creds:
             return {}
 
-        return {**self._creds.values, **self.ssh_properties}
+        return self._creds.values
 
     @property
     def docker_user(self) -> Optional[str]:
+        return None
+
+    @property
+    def conda_env_name(self) -> Optional[str]:
+        if self.image and self.image.conda_env_name:
+            return self.image.conda_env_name
         return None
 
     def _save_config_to_cluster(
@@ -338,21 +308,35 @@ class Cluster(Resource):
         if isinstance(ssh_creds, Secret):
             self._creds = ssh_creds
             return
+
         elif isinstance(ssh_creds, str):
-            self._creds = Secret.from_name(ssh_creds)
+            self._creds = (
+                Secret.from_name(ssh_creds)
+                if rns_client.base_folder(ssh_creds) == rns_client.username
+                else None
+            )
             return
 
         if not ssh_creds:
-            from runhouse.resources.hardware.on_demand_cluster import OnDemandCluster
+            self._creds = self._setup_default_creds()
 
-            cluster_subtype = (
-                "OnDemandCluster" if isinstance(self, OnDemandCluster) else "Cluster"
-            )
-            self._creds = _setup_default_creds(cluster_subtype)
         elif isinstance(ssh_creds, Dict):
             creds, ssh_properties = _setup_creds_from_dict(ssh_creds, self.name)
             self._creds = creds
             self.ssh_properties = ssh_properties
+
+    def _setup_default_creds(self):
+        from runhouse.resources.secrets import Secret
+
+        default_ssh_key = rns_client.default_ssh_key
+        if default_ssh_key is None:
+            logger.warning(
+                "No default SSH key found in the local Runhouse config. To "
+                "create one please run `runhouse login`"
+            )
+            return None
+
+        return Secret.from_name(default_ssh_key)
 
     def _should_save_creds(self, folder: str = None) -> bool:
         """Checks whether to save the creds associated with the cluster.
@@ -471,11 +455,6 @@ class Cluster(Resource):
             else None
         )
         if creds:
-            if "loaded_secret_" in creds:
-                # user A shares cluster with user B, with "write" permissions. If user B will save the cluster to Den, we
-                # would NOT like that the loaded secret will overwrite the original secret that was created and shared by
-                # user A.
-                creds = creds.replace("loaded_secret_", "")
             config["creds"] = creds
 
         if self._use_custom_certs:
@@ -552,25 +531,6 @@ class Cluster(Resource):
 
         return self.head_ip
 
-    @property
-    def is_shared(self) -> bool:
-        from runhouse import Secret
-
-        ssh_creds = self.creds_values
-        if not ssh_creds:
-            return False
-
-        ssh_private_key = ssh_creds.get("ssh_private_key")
-        if ssh_private_key:
-            ssh_private_key_path = Path(ssh_private_key).expanduser()
-            secrets_base_dir = Path(Secret.DEFAULT_DIR).expanduser()
-
-            # Check if the key path is saved down in the local .rh directory, which we only do for shared credentials
-            if str(ssh_private_key_path).startswith(str(secrets_base_dir)):
-                return True
-            return f"{self._creds.name}/" in ssh_private_key
-        return False
-
     def _command_runner(
         self, node: Optional[str] = None, use_docker_exec: Optional[bool] = False
     ) -> "CommandRunner":
@@ -595,16 +555,23 @@ class Cluster(Resource):
                 (namespace, pod_name), docker_user=self.docker_user
             )
         else:
-            ssh_credentials = copy.copy(self.creds_values) or {}
-            ssh_control_name = ssh_credentials.pop(
+            ssh_properties = copy.copy(self.ssh_properties) or {}
+            ssh_control_name = ssh_properties.pop(
                 "ssh_control_name", f"{node}:{self.ssh_port}"
             )
+            ssh_user = ssh_properties.get("ssh_user")
+            ssh_private_key = (
+                str(Path(ssh_properties.get("ssh_private_key")).expanduser())
+                if ssh_properties.get("ssh_private_key")
+                else None
+            )
+            ssh_proxy_command = ssh_properties.get("ssh_proxy_command")
 
             runner = SkySSHRunner(
                 (node, self.ssh_port),
-                ssh_user=ssh_credentials.get("ssh_user"),
-                ssh_private_key=ssh_credentials.get("ssh_private_key"),
-                ssh_proxy_command=ssh_credentials.get("ssh_proxy_command"),
+                ssh_user=ssh_user,
+                ssh_private_key=ssh_private_key,
+                ssh_proxy_command=ssh_proxy_command,
                 ssh_control_name=ssh_control_name,
                 docker_user=self.docker_user if not use_docker_exec else None,
                 use_docker_exec=use_docker_exec,
@@ -631,6 +598,12 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").up_if_not()
         """
+        if self._is_shared:
+            logger.warning(
+                "Cannot up a shared cluster. Only cluster owners can perform this operation."
+            )
+            return self
+
         if not self.is_up():
             self.up(verbose=verbose, force=False)
         return self
@@ -645,6 +618,36 @@ class Cluster(Resource):
             f"cluster.keep_warm will have no effect on self-managed cluster {self.name}."
         )
         return self
+
+    def _is_cluster_shared(self, owner_info: dict) -> bool:
+        rns_address = self.rns_address
+        if rns_address is None:
+            # Cluster hasn't yet been saved
+            return False
+
+        if not owner_info:
+            # Cluster hasn't yet been launched
+            return False
+
+        return owner_info.get("username") != rns_client.username
+
+    def _run_setup_step(
+        self, step, env_vars: Optional[Dict] = None, parallel: bool = True
+    ):
+        if parallel:
+            # Launch in a new process so we can capture the logs
+            with multiprocessing.Pool(processes=len(self.ips)) as pool:
+                results = pool.starmap(
+                    _do_setup_step_for_node,
+                    [(self, step, ip, env_vars) for ip in self.ips],
+                )
+                # Fix any garbled terminal output
+                os.system("stty sane")
+        else:
+            results = []
+            for ip in self.ips:
+                results.append(_do_setup_step_for_node(self, step, ip, env_vars))
+        return results
 
     def _sync_image_to_cluster(self, parallel: bool = True):
         """
@@ -684,24 +687,14 @@ class Cluster(Resource):
                 env_vars.update(image_env_vars)
                 continue
 
-            if parallel:
-                # Launch in a new process so we can capture the logs
-                with multiprocessing.Pool(processes=len(self.ips)) as pool:
-                    pool.starmap(
-                        _do_setup_step_for_node, [(self, step, ip) for ip in self.ips]
-                    )
-                    # Fix any garbled terminal output
-                    os.system("stty sane")
-            else:
-                for ip in self.ips:
-                    _do_setup_step_for_node(self, step, ip)
+            self._run_setup_step(step, env_vars, parallel)
 
         return secrets_to_sync, env_vars
 
     def _sync_runhouse_to_cluster(
         self,
-        _install_url: Optional[str] = None,
         local_rh_package_path: Optional[Path] = None,
+        parallel: bool = True,
     ):
         if self.on_this_cluster():
             return
@@ -709,63 +702,33 @@ class Cluster(Resource):
         if not self.ips:
             raise ValueError(f"No IPs set for cluster <{self.name}>. Is it up?")
 
-        conda_env_name = self.image.conda_env_name if self.image else None
-
-        remote_ray_version_call = self.run_bash_over_ssh(
-            ["ray --version"], node="all", conda_env_name=conda_env_name
+        self._run_setup_step(
+            step=ImageSetupStep(
+                step_type=ImageSetupStepType.PIP_INSTALL,
+                reqs=["ray", "psutil"],
+                conda_env_name=self.conda_env_name,
+            ),
+            parallel=parallel,
         )
-        ray_installed_remotely = remote_ray_version_call[0][0][0] == 0
-        if not ray_installed_remotely:
-            local_ray_version = find_locally_installed_version("ray")
-
-            # if Ray is installed locally, install the same version on the cluster
-            if local_ray_version:
-                ray_install_cmd = f"python3 -m pip install ray=={local_ray_version}"
-                self.run_bash_over_ssh(
-                    [ray_install_cmd],
-                    node="all",
-                    stream_logs=True,
-                    conda_env_name=conda_env_name,
-                )
 
         # If local_rh_package_path is provided, install the package from the local path
         if local_rh_package_path:
-            local_rh_package_path = local_rh_package_path.parent
-            dest_path = f"~/{local_rh_package_path.name}"
-
-            self.rsync(
-                source=str(local_rh_package_path),
-                dest=dest_path,
-                node="all",
-                up=True,
-                contents=True,
-                filter_options="- docs/",
-            )
-            rh_install_cmd = f"python3 -m pip install {dest_path}[server]"
-
-        else:
-            # Package is installed in site-packages
-            # status_codes = self.run(['pip install runhouse-nightly==0.0.2.20221202'], stream_logs=True)
-            # rh_package = 'runhouse_nightly-0.0.1.dev20221202-py3-none-any.whl'
-            # rh_download_cmd = f'curl https://runhouse-package.s3.amazonaws.com/{rh_package} --output {rh_package}'
-            if not _install_url:
-                import runhouse
-
-                _install_url = f"runhouse[server]=={runhouse.__version__}"
-            rh_install_cmd = f"python3 -m pip install {_install_url}"
-
-        for node in self.ips:
-            status_codes = self.run_bash_over_ssh(
-                [rh_install_cmd],
-                node=node,
-                stream_logs=True,
-                conda_env_name=conda_env_name,
+            self._run_setup_step(
+                step=ImageSetupStep(
+                    step_type=ImageSetupStepType.SYNC_PACKAGE,
+                    package=str(local_rh_package_path),
+                ),
+                parallel=parallel,
             )
 
-            if status_codes[0][0] != 0:
-                raise ValueError(
-                    f"Error installing runhouse on cluster <{self.name}> node <{node}>"
-                )
+        self._run_setup_step(
+            step=ImageSetupStep(
+                step_type=ImageSetupStepType.PIP_INSTALL,
+                reqs=["runhouse[server]"],
+                conda_env_name=self.conda_env_name,
+            ),
+            parallel=parallel,
+        )
 
     def install_packages(
         self,
@@ -787,8 +750,8 @@ class Cluster(Resource):
                 the package does not already exist on the cluster. (Default: ``False``)
 
         Example:
-            >>> cluster.install_packages(reqs=["accelerate", "diffusers"])
-            >>> cluster.install_packages(reqs=["accelerate", "diffusers"], conda_env_name="my_conda_env", force_sync_local=True)
+            >>> cluster.pip_install(reqs=["accelerate", "diffusers"])
+            >>> cluster.pip_install(reqs=["accelerate", "diffusers"], conda_env_name="my_conda_env", force_sync_local=True)
         """
         for req in reqs:
             if not node:
@@ -804,6 +767,65 @@ class Cluster(Resource):
                     conda_env_name=conda_env_name,
                     force_sync_local=force_sync_local,
                 )
+
+    def pip_install(
+        self,
+        reqs: List[Union["Package", str]],
+        node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
+    ):
+        from runhouse.resources.packages.package import Package
+
+        pip_packages = [
+            Package.from_string(f"pip:{req}") if isinstance(req, str) else req
+            for req in reqs
+        ]
+        self.install_packages(
+            reqs=pip_packages,
+            node=node,
+            conda_env_name=conda_env_name,
+            force_sync_local=force_sync_local,
+        )
+
+    def conda_install(
+        self,
+        reqs: List[Union["Package", str]],
+        node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
+    ):
+        from runhouse.resources.packages.package import Package
+
+        conda_packages = [
+            Package.from_string(f"conda:{req}") if isinstance(req, str) else req
+            for req in reqs
+        ]
+        self.install_packages(
+            reqs=conda_packages,
+            node=node,
+            conda_env_name=conda_env_name,
+            force_sync_local=force_sync_local,
+        )
+
+    def sync_package(
+        self,
+        package: Union["Package", str],
+        node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
+    ):
+        from runhouse.resources.packages.package import Package
+
+        package = (
+            Package.from_string(f"local:{package}")
+            if isinstance(package, str)
+            else package
+        )
+        self.install_packages(
+            reqs=[package],
+            node=node,
+            conda_env_name=conda_env_name,
+        )
 
     def get(self, key: str, default: Any = None, remote=False):
         """Get the result for a given key from the cluster's object store.
@@ -1035,7 +1057,7 @@ class Cluster(Resource):
             elif den_resp_status_code != 200:
                 logger.warning("Failed to send cluster status to Den")
 
-        if not configs.observability_enabled and status.get("env_servlet_processes"):
+        if not configs.observability_enabled and status.get("processes"):
             logger.warning(
                 "Cluster observability is disabled. Metrics are stale and will "
                 "no longer be collected. To re-enable observability, please "
@@ -1058,7 +1080,7 @@ class Cluster(Resource):
         cloud = self.compute_properties.get("cloud")
         return ssh_tunnel(
             address=self.head_ip,
-            ssh_creds=self.creds_values,
+            ssh_properties=self.ssh_properties,
             docker_user=self.docker_user,
             local_port=local_port,
             ssh_port=self.ssh_port,
@@ -1104,6 +1126,7 @@ class Cluster(Resource):
                 cmd=f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
                 cluster=self,
                 env_vars=env_vars,
+                conda_env_name=self.conda_env_name,
                 node=host,
                 stream_logs=True,
             )
@@ -1111,7 +1134,6 @@ class Cluster(Resource):
     def _start_or_restart_helper(
         self,
         base_cli_cmd: str,
-        _rh_install_url: str = None,
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
@@ -1122,14 +1144,10 @@ class Cluster(Resource):
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
         local_rh_package_path = None
         if resync_rh is not False:
-            local_rh_package_path = Path(
-                importlib.util.find_spec("runhouse").origin
-            ).parent
-
+            local_rh_package_path = get_local_install_path("runhouse")
             installed_editable_locally = (
-                not _rh_install_url
-                and local_rh_package_path.parent.name == "runhouse"
-                and (local_rh_package_path.parent / "setup.py").exists()
+                local_rh_package_path
+                and (Path(local_rh_package_path) / "setup.py").exists()
             )
 
             if installed_editable_locally:
@@ -1148,8 +1166,8 @@ class Cluster(Resource):
 
         if resync_rh:
             self._sync_runhouse_to_cluster(
-                _install_url=_rh_install_url,
                 local_rh_package_path=local_rh_package_path,
+                parallel=parallel,
             )
             logger.debug("Finished syncing Runhouse to cluster.")
 
@@ -1235,12 +1253,11 @@ class Cluster(Resource):
             + " --from-python"
         )
 
-        if self.image and self.image.conda_env_name:
-            restart_cmd = conda_env_cmd(restart_cmd, self.image.conda_env_name)
         status_codes = run_setup_command(
             cmd=restart_cmd,
             cluster=self,
             env_vars=image_env_vars,
+            conda_env_name=self.conda_env_name,
             stream_logs=True,
             node=self.head_ip,
         )
@@ -1270,10 +1287,10 @@ class Cluster(Resource):
 
     def restart_server(
         self,
-        _rh_install_url: str = None,
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
+        parallel: bool = True,
     ):
         """Restart the RPC server.
 
@@ -1296,18 +1313,18 @@ class Cluster(Resource):
 
         return self._start_or_restart_helper(
             base_cli_cmd=CLI_RESTART_CMD,
-            _rh_install_url=_rh_install_url,
             resync_rh=resync_rh,
             restart_ray=restart_ray,
             restart_proxy=restart_proxy,
+            parallel=parallel,
         )
 
     def start_server(
         self,
-        _rh_install_url: str = None,
         resync_rh: Optional[bool] = None,
         restart_ray: bool = True,
         restart_proxy: bool = False,
+        parallel: bool = True,
     ):
         """Restart the RPC server.
 
@@ -1325,10 +1342,10 @@ class Cluster(Resource):
 
         return self._start_or_restart_helper(
             base_cli_cmd=CLI_START_CMD,
-            _rh_install_url=_rh_install_url,
             resync_rh=resync_rh,
             restart_ray=restart_ray,
             restart_proxy=restart_proxy,
+            parallel=parallel,
         )
 
     def stop_server(
@@ -1489,6 +1506,15 @@ class Cluster(Resource):
         if not src_node and up and not Path(source).expanduser().exists():
             raise ValueError(f"Could not locate path to sync: {source}.")
 
+        # before syncing the object, making sure there is enough disk space for it. If we don't preform this check in
+        # advance, there might be a case where we start rsyncing the object -> during the rsync no disk space will
+        # be left (because the object is too big) -> the rsync will stack and no results will be return (even failures),
+        # because there is no disk space for running the process nor writing logs.
+        source_size = get_source_object_size(path=source)
+        check_disk_sufficiency(
+            cluster=self, node=node, object_name=source, object_size=source_size
+        )
+
         if up and (node == "all" or (len(self.ips) > 1 and not node)):
             if not parallel:
                 for node in self.ips:
@@ -1569,11 +1595,11 @@ class Cluster(Resource):
             subprocess.run(cmd, check=True, capture_output=not stream_logs, text=True)
             return
 
-        ssh_credentials = copy.copy(self.creds_values) or {}
-        ssh_credentials.pop("ssh_host", node)
-        pwd = ssh_credentials.pop("password", None)
-        ssh_credentials.pop("private_key", None)
-        ssh_credentials.pop("public_key", None)
+        ssh_properties = copy.copy(self.ssh_properties) or {}
+        ssh_properties.pop("ssh_host", node)
+
+        creds_values = copy.copy(self.creds_values) or {}
+        pwd = creds_values.pop("password", None)
 
         # If we're syncing between nodes on the cluster, we need to use the internal ip of the destination node
         if src_node:
@@ -1680,7 +1706,7 @@ class Cluster(Resource):
         # use internal ip of destination node to sync between cluster nodes w/o additional creds
         dest_node_idx = self.ips.index(node)
         dest_node_internal_ip = self.internal_ips[dest_node_idx]
-        ssh_user = self.creds_values.get("ssh_user")
+        ssh_user = self.ssh_properties.get("ssh_user")
         node_destination = f"{ssh_user}@{dest_node_internal_ip}"
 
         rsync_cmd = ["rsync", "-Pavz", "-e", "ssh"]
@@ -1707,12 +1733,12 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").ssh()
         """
-        creds = self.creds_values
+        ssh_properties = self.ssh_properties
         _run_ssh_command(
             address=self.head_ip,
-            ssh_user=creds["ssh_user"],
+            ssh_user=ssh_properties["ssh_user"],
             ssh_port=self.ssh_port,
-            ssh_private_key=creds["ssh_private_key"],
+            ssh_private_key=ssh_properties["ssh_private_key"],
             docker_user=self.docker_user,
         )
 
@@ -1945,6 +1971,9 @@ class Cluster(Resource):
         if node is None:
             node = self.head_ip
 
+        if conda_env_name:
+            commands = [conda_env_cmd(cmd, conda_env_name) for cmd in commands]
+
         if node == "all":
             res_list = []
             for node in self.ips:
@@ -1958,12 +1987,8 @@ class Cluster(Resource):
                 res_list.append(res)
             return res_list
 
-        if conda_env_name:
-            commands = [conda_env_cmd(cmd, conda_env_name) for cmd in commands]
-
         return_codes = self._run_commands_with_runner(
             commands,
-            cmd_prefix="",
             stream_logs=stream_logs,
             node=node,
             require_outputs=require_outputs,
@@ -2024,7 +2049,6 @@ class Cluster(Resource):
         self,
         commands: list,
         env_vars: Dict = {},
-        cmd_prefix: str = "",
         stream_logs: bool = True,
         node: str = None,
         require_outputs: bool = True,
@@ -2040,10 +2064,8 @@ class Cluster(Resource):
 
         return_codes = []
 
-        ssh_credentials = copy.copy(self.creds_values)
-        pwd = ssh_credentials.pop("password", None)
-        ssh_credentials.pop("private_key", None)
-        ssh_credentials.pop("public_key", None)
+        creds_values = copy.copy(self.creds_values)
+        pwd = creds_values.pop("password", None)
 
         runner = self._command_runner(
             node=node, use_docker_exec=self.docker_user is not None
@@ -2056,8 +2078,8 @@ class Cluster(Resource):
         )
 
         for command in commands:
-            command = f"{cmd_prefix} {command}" if cmd_prefix else command
-            logger.info(f"Running command on {self.name}: {command}")
+            if stream_logs:
+                logger.info(f"Running command on {self.name}: {command}")
 
             # set env vars after log statement
             command = f"{env_var_prefix} {command}" if env_var_prefix else command
@@ -2139,12 +2161,7 @@ class Cluster(Resource):
 
         cmd_prefix = "python3 -c"
         command_str = "; ".join(commands)
-        command_str_repr = (
-            repr(repr(command_str))[2:-2]
-            if self.creds_values.get("password")
-            else command_str
-        )
-        formatted_command = f'{cmd_prefix} "{command_str_repr}"'
+        formatted_command = f'{cmd_prefix} "{command_str}"'
 
         # If invoking a run as part of the python commands also return the Run object
         return_codes = self.run_bash_over_ssh(
@@ -2236,7 +2253,7 @@ class Cluster(Resource):
         try:
             jupyter_cmd = f"jupyter lab --port {port_fwd} --no-browser"
             with self.pause_autostop():
-                self.install_packages(["jupyterlab"])
+                self.pip_install(["jupyterlab"])
                 # TODO figure out why logs are not streaming here if we don't use ssh.
                 # When we do, it may be better to switch it back because then jupyter is killed
                 # automatically when the cluster is restarted (and the process is killed).
@@ -2424,22 +2441,44 @@ class Cluster(Resource):
         notify_users: bool = True,
         headers: Optional[Dict] = None,
     ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
+        """Grant access to the cluster for a single user or list of users. By default, the user(s) will
+        receive an email notification of access (if they have a Runhouse account) or instructions on creating
+        an account to access the cluster. If ``visibility`` is set to ``public``, users will not be notified.
 
-        # save cluster and creds if not saved
-        self.save()
+        Args:
+            users (Union[str, list], optional): Single user or list of user emails and / or Runhouse account usernames.
+                If none are provided and ``visibility`` is set to ``public``, cluster will be made publicly
+                available to all users. (Default: ``None``)
+            access_level (:obj:`ResourceAccess`, optional): Access level to provide for the cluster.
+                Note that for clusters only read access is currently supported.
+            visibility (:obj:`ResourceVisibility`, optional): Type of visibility to provide for the shared
+                resource. By default, the visibility is private. (Default: ``None``)
+            notify_users (bool, optional): Whether to send an email notification to users who have been given access.
+                (Default: ``True``)
+            headers (Dict, optional): Request headers to provide for the request to Den. Contains the user's auth token.
+                Example: ``{"Authorization": f"Bearer {token}"}``
 
-        # share creds
-        logger.info(
-            "Sharing cluster credentials, which enables the recipient to SSH into the cluster."
-        )
-        if self._creds:
-            self._creds.share(
-                users=users,
-                access_level=access_level,
-                visibility=visibility,
-                notify_users=notify_users,
-                headers=headers,
+        Returns:
+            Tuple(Dict, Dict, Set):
+
+            `added_users`:
+                Users who already have a Runhouse account and have been granted access to the cluster.
+            `new_users`:
+                Users who do not have Runhouse accounts and received notifications via their emails.
+            `valid_users`:
+                Set of valid usernames and emails from ``users`` parameter.
+
+        Example:
+            >>> # Visibility will be set to private (users can search for and view resource in Den dashboard)
+            >>> cluster.share(users=["username1", "user2@gmail.com"])
+        """
+        if access_level != ResourceAccess.READ:
+            raise ValueError(
+                f"Clusters can only be shared with read access, not {access_level}."
             )
+
+        # save cluster in case it's not already saved
+        self.save()
 
         # share cluster
         return super().share(
@@ -2459,7 +2498,11 @@ class Cluster(Resource):
         creds = config.pop("creds", None) or config.pop("ssh_creds", None)
 
         if isinstance(creds, str):
-            creds = Secret.from_config(config=load_config(name=creds))
+            creds = (
+                Secret.from_config(config=load_config(name=creds))
+                if rns_client.base_folder(creds) == rns_client.username
+                else None
+            )
         elif isinstance(creds, dict):
             creds = Secret.from_config(creds)
 
@@ -2776,10 +2819,11 @@ class Cluster(Resource):
 
         if isinstance(package, str):
             package = Package.from_string(package)
-            if package.install_method in ["reqs", "local"] or isinstance(
-                package.install_target, InstallTarget
-            ):
-                package = package.to(self)
+
+        if package.install_method == "local" or isinstance(
+            package.install_target, InstallTarget
+        ):
+            package = package.to(self)
 
         package._install(
             cluster=self,

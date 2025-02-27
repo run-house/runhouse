@@ -279,10 +279,8 @@ if __name__ == "__main__":
     num_nodes = 4
 
     img = (
-        rh.Image()
-        .install_packages(
-            ["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]
-        )
+        rh.images.ray()
+        .pip_install(["torch==2.5.1", "datasets", "boto3", "awscli"])
         .sync_secrets(["aws"])
     )
 

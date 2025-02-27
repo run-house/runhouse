@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # ## Create a Runhouse cluster with 3 nodes
     num_nodes = 3
 
-    img = rh.Image("dask_img").install_packages(
+    img = rh.Image("dask_img").pip_install(
         [
             "dask-ml",
             "dask[distributed]",

@@ -37,7 +37,7 @@ class Llama70B_vLLM:
 if __name__ == "__main__":
     img = (
         rh.Image(name="vllm_llama_inference")
-        .install_packages(
+        .pip_install(
             [
                 "torch",
                 "vllm",

@@ -30,13 +30,13 @@ except ImportError:
     pass
 
 
-def get_docker_user(cluster: "Cluster", ssh_creds: Dict) -> str:
+def get_docker_user(cluster: "Cluster", ssh_properties: Dict) -> str:
     """Find docker container username."""
     runner = SkySSHRunner(
         node=(cluster.head_ip, cluster.ssh_port),
-        ssh_user=ssh_creds.get("ssh_user", None),
-        ssh_private_key=ssh_creds.get("ssh_private_key", None),
-        ssh_control_name=ssh_creds.get(
+        ssh_user=ssh_properties.get("ssh_user", None),
+        ssh_private_key=ssh_properties.get("ssh_private_key", None),
+        ssh_control_name=ssh_properties.get(
             "ssh_control_name", f"{cluster.head_ip}:{cluster.ssh_port}"
         ),
     )

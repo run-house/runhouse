@@ -80,7 +80,7 @@ def bring_up_cluster(
 if __name__ == "__main__":
     img = (
         rh.Image(name="llama_inference")
-        .install_packages(
+        .pip_install(
             [
                 "torch",
                 "transformers",

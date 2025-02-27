@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # An image can include a base Docker image, package installations, setup commands, env vars, and secrets.
     img = (
         rh.Image("ray-data")
-        .install_packages(
+        .pip_install(
             [
                 "ray[data]",
                 "pandas",

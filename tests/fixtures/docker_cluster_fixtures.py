@@ -274,7 +274,7 @@ def set_up_local_cluster(
     config["username"] = rh.configs.username
 
     # Runhouse is already installed on the Docker clusters, but we need to sync our actual version
-    rh_cluster.restart_server(resync_rh=True)
+    rh_cluster.start_server(resync_rh=True)
 
     if not rh_cluster.image:
         setup_test_base(rh_cluster, logged_in=logged_in)
@@ -364,7 +364,7 @@ def docker_cluster_pk_ssh(request, test_org_rns_folder):
     default_image = (
         Image(name="default_image")
         .set_env_vars(env_vars=TEST_ENV_VARS)
-        .install_packages(reqs=TEST_REQS + ["ray==2.30.0"])
+        .pip_install(reqs=TEST_REQS + ["ray==2.30.0"])
     )
 
     local_cluster, cleanup = set_up_local_cluster(
@@ -460,7 +460,7 @@ def docker_cluster_pk_http_exposed(request, test_rns_folder):
             conda_env_name="base_env",
             conda_config={"dependencies": ["python=3.11"], "name": "base_env"},
         )
-        .install_packages(TEST_REQS)
+        .pip_install(TEST_REQS)
     )
 
     local_cluster, cleanup = set_up_local_cluster(

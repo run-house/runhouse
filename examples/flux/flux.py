@@ -59,7 +59,7 @@ class FluxPipeline:
 if __name__ == "__main__":
     img = (
         rh.Image("flux")
-        .install_packages(
+        .pip_install(
             [
                 "diffusers",
                 "torch",

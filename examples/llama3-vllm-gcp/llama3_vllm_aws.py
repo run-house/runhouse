@@ -97,7 +97,7 @@ async def main():
     # Passing `"huggingface"` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
     img = (
         rh.Image(name="llama3inference")
-        .install_packages(
+        .pip_install(
             [
                 "torch",
                 "vllm==0.2.7",

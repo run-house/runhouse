@@ -174,7 +174,7 @@ if __name__ == "__main__":
     # on the cluster in the default Hugging Face token location (`~/.cache/huggingface/token`).
     img = (
         rh.Image(name="tgi_env")
-        .install_packages(["docker", "torch", "transformers"])
+        .pip_install(["docker", "torch", "transformers"])
         .sync_secrets(["huggingface"])
     )
 

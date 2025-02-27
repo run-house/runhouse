@@ -78,7 +78,7 @@ if __name__ == "__main__":
     # The cluster here is launched from elastic compute, but can also be launched from a Kubernetes cluster.
     img = (
         rh.Image("rh-preprocessing")
-        .install_packages(
+        .pip_install(
             [
                 "torch",
                 "torchvision",

@@ -5,7 +5,7 @@ if __name__ == "__main__":
     num_nodes = 2
     cluster_name = f"rh-new-{num_nodes}"
 
-    img = rh.Image("dask-img").install_packages(
+    img = rh.Image("dask-img").pip_install(
         [
             "dask[distributed,dataframe]",
             "dask-ml",

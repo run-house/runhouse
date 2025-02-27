@@ -5,25 +5,16 @@ on:
 
 env:
   API_SERVER_URL: https://api-dev.run.house
+  RH_LOG_LEVEL: DEBUG
 
 jobs:
-  # TODO: THESE ARE ONLY SEPARATE JOBS BECAUSE THERE ARE
+  # THESE ARE ONLY SEPARATE JOBS BECAUSE THERE ARE
   # DEVELOPMENT INCONSISTENCIES WHEN RUNNING ALL THE LOCAL
   # TESTS TOGETHER.
-  # server-tests-logged-out-level-local:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Check out repository code
-  #       uses: actions/checkout@v3
 
-  #     - name: Setup Runhouse
-  #       uses: ./.github/workflows/setup_runhouse
-
-  #     - name: pytest -v --level local tests/test_servers/
-  #       env:
-  #         KITCHEN_TESTER_DEV_TOKEN: ${{ secrets.KITCHEN_TESTER_DEV_TOKEN }}
-  #         KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
-  #       run: pytest -v --level local tests/test_servers/
+  # PYDEVD_DISABLE_FILE_VALIDATION is an env variable which disables the python debugger on docker cluster. We don't
+  # actually need a python debugger live on docker cluster. Having it causing some unnecessary output in
+  # cluster.run_python()
 
   server-tests-logged-in-level-local:
     runs-on: ubuntu-latest
@@ -33,6 +24,9 @@ jobs:
 
       - name: Setup Runhouse
         uses: ./.github/workflows/setup_runhouse
+        with:
+          den_tester_ssh_private_key: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          den_tester_ssh_public_key: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
 
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
@@ -48,20 +42,6 @@ jobs:
         run: pytest -v --level local tests/test_servers/ --api-server-url $API_SERVER_URL
         timeout-minutes: 60
 
-  # most-tests-logged-out-level-local:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Check out repository code
-  #       uses: actions/checkout@v3
-
-  #     - name: Setup Runhouse
-  #       uses: ./.github/workflows/setup_runhouse
-
-  #     - name: pytest -v --level local -k "not servertest and not secrettest"
-  #       env:
-  #         KITCHEN_TESTER_DEV_TOKEN: ${{ secrets.KITCHEN_TESTER_DEV_TOKEN }}
-  #         KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
-  #       run: pytest -v --level local -k "not servertest and not secrettest"
 
   most-tests-logged-in-level-local:
     runs-on: ubuntu-latest
@@ -71,6 +51,9 @@ jobs:
 
       - name: Setup Runhouse
         uses: ./.github/workflows/setup_runhouse
+        with:
+          den_tester_ssh_private_key: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          den_tester_ssh_public_key: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
 
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
@@ -79,29 +62,15 @@ jobs:
           token: ${{ secrets.DEN_TESTER_DEV_TOKEN }}
           api_server_url: ${{ env.API_SERVER_URL }}
 
-      - name: pytest -v --level local -k "not servertest and not secrettest and not moduletest and not functiontest"
+      - name: pytest -v --level local -k "not servertest and not secrettest and not moduletest and not functiontest and not clustertest"
         env:
           KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_DEV_TOKEN }}
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_DEV_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest -v --level local -k "not servertest and not secrettest and not moduletest and not functiontest" --api-server-url $API_SERVER_URL
+          PYDEVD_DISABLE_FILE_VALIDATION: 1
+        run: pytest -v --level local -k "not servertest and not secrettest and not moduletest and not functiontest and not clustertest" --api-server-url $API_SERVER_URL
         timeout-minutes: 60
-
-  # secret-tests-logged-out-level-local:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Check out repository code
-  #       uses: actions/checkout@v3
-
-  #     - name: Setup Runhouse
-  #       uses: ./.github/workflows/setup_runhouse
-
-  #     - name: pytest -v --level local -k "secrettest"
-  #       env:
-  #         KITCHEN_TESTER_DEV_TOKEN: ${{ secrets.KITCHEN_TESTER_DEV_TOKEN }}
-  #         KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
-  #       run: pytest -v --level local -k "secrettest"
 
   secret-tests-logged-in-level-local:
     runs-on: ubuntu-latest
@@ -111,6 +80,9 @@ jobs:
 
       - name: Setup Runhouse
         uses: ./.github/workflows/setup_runhouse
+        with:
+          den_tester_ssh_private_key: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          den_tester_ssh_public_key: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
 
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
@@ -136,6 +108,9 @@ jobs:
 
       - name: Setup Runhouse
         uses: ./.github/workflows/setup_runhouse
+        with:
+          den_tester_ssh_private_key: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          den_tester_ssh_public_key: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
 
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
@@ -150,6 +125,7 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_DEV_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
+          PYDEVD_DISABLE_FILE_VALIDATION: 1
         run: pytest -v --level local -k "moduletest" --api-server-url $API_SERVER_URL
         timeout-minutes: 60
 
@@ -161,6 +137,9 @@ jobs:
 
       - name: Setup Runhouse
         uses: ./.github/workflows/setup_runhouse
+        with:
+          den_tester_ssh_private_key: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          den_tester_ssh_public_key: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
 
       - name: Setup ~/.rh/config.yaml
         uses: ./.github/workflows/setup_rh_config
@@ -176,4 +155,33 @@ jobs:
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_DEV_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
         run: pytest -v --level local -k "functiontest" --api-server-url $API_SERVER_URL
+        timeout-minutes: 60
+
+  cluster-tests-logged-in-level-local:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Runhouse
+        uses: ./.github/workflows/setup_runhouse
+        with:
+          den_tester_ssh_private_key: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          den_tester_ssh_public_key: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
+
+      - name: Setup ~/.rh/config.yaml
+        uses: ./.github/workflows/setup_rh_config
+        with:
+          username: ${{ secrets.DEN_TESTER_USERNAME }}
+          token: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
+          api_server_url: ${{ env.API_SERVER_URL }}
+
+      - name: pytest -v --level local -k "clustertest"
+        env:
+          KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_PROD_TOKEN }}
+          KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
+          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
+          ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
+          PYDEVD_DISABLE_FILE_VALIDATION: 1
+        run: pytest -v --level local -k "clustertest" --api-server-url $API_SERVER_URL
         timeout-minutes: 60

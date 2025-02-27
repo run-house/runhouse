@@ -10,7 +10,7 @@ Runhouse clusters expose various functions that allow you to set up
 state, dependencies, and whatnot on all nodes of your cluster. These
 include:
 
--  ``cluster.install_packages(...)``
+-  ``cluster.pip_install(...)``
 -  ``cluster.rsync(...)``
 -  ``cluster.set_env_vars(...)``
 -  ``cluster.run_bash(...)``
@@ -31,7 +31,7 @@ cluster setup:
     image = (
         rh.Image(name="sample_image")
         .from_docker("python:3.12.8-bookworm")
-        .install_packages(["numpy", "pandas"])
+        .pip_install(["numpy", "pandas"])
         .sync_secrets(["huggingface"])
         .set_env_vars({"RH_LOG_LEVEL": "debug"})
     )

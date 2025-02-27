@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Union
 
-from runhouse.globals import rns_client
+from runhouse.globals import configs, rns_client
 
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.cluster import Cluster
@@ -140,6 +140,11 @@ def cluster(
         if isinstance(new_cluster, OnDemandCluster):
             # load from name, none of the other arguments were provided
             cluster_type = "ondemand"
+            if cluster_args.keys() & {*RH_SERVER_ARGS}:
+                return ondemand_cluster(
+                    **cluster_args,
+                    **kwargs,
+                )
         else:
             cluster_type = "static"
     except ValueError:
@@ -185,11 +190,12 @@ def ondemand_cluster(
     instance_type: Optional[str] = None,
     num_nodes: Optional[int] = None,
     provider: Optional[str] = None,
+    pool: Optional[str] = None,
     autostop_mins: Optional[int] = None,
     use_spot: bool = False,
     region: Optional[str] = None,
     memory: Union[int, str, None] = None,
-    disk_size: Union[int, str, None] = None,
+    disk_size: Optional[int] = None,
     num_cpus: Union[int, str, None] = None,
     accelerators: Union[int, str, None] = None,
     gpus: Union[int, str, None] = None,
@@ -233,13 +239,14 @@ def ondemand_cluster(
             num_cpus, gpus).
         num_nodes (int, optional): Number of nodes to use for the cluster.
         provider (str, optional): Cloud provider to use for the cluster.
+        pool (str, optional): Compute pool to use for the cluster.
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
             or ``-1`` to keep cluster up indefinitely. (Default: ``60``).
         use_spot (bool, optional): Whether or not to use spot instance. (Default: ``False``)
         region (str, optional): The region to use for the cluster. (Default: ``None``)
         memory (int or str, optional): Amount of memory to use for the cluster, e.g. `16` or "16+".
             (Default: ``None``)
-        disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. `100` or "100+".
+        disk_size (int, optional): Amount of disk space to use for the cluster in GiB, e.g. `100`.
             (Default: ``None``)
         num_cpus (int or str, optional): Number of CPUs to use for the cluster, e.g. `4` or "4+". (Default: ``None``)
         gpus (int or str, optional): Type and number of GPU to use for the cluster e.g. "A101" or "L4:8".
@@ -303,6 +310,12 @@ def ondemand_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.ondemand_cluster(name="rh-4-a100s")
     """
+    launcher = launcher.lower() if launcher else configs.launcher
+    if launcher not in LauncherType.strings():
+        raise ValueError(
+            f"Invalid launcher type '{launcher}'. Must be one of {LauncherType.strings()}."
+        )
+
     if vpc_name and launcher == "local":
         raise ValueError(
             "Custom VPCs are not supported with local launching. To use a custom VPC, please use the "

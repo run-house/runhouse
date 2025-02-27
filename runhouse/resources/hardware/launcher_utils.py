@@ -1,6 +1,7 @@
 import ast
 import logging
 import sys
+from pathlib import Path
 from typing import Any, Optional
 
 import requests
@@ -13,7 +14,7 @@ from runhouse.resources.hardware.utils import (
     ClusterStatus,
     SSEClient,
 )
-from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content, read_resp_data
+from runhouse.rns.utils.api import load_resp_content, read_resp_data
 from runhouse.utils import ClusterLogsFormatter, ColoredFormatter, Spinner
 
 logger = get_logger(__name__)
@@ -84,6 +85,10 @@ class LogProcessor:
 
 class Launcher:
     @classmethod
+    def _validate_provider_pool(cls, cluster):
+        raise NotImplementedError
+
+    @classmethod
     def log_processor(cls, cluster_name: str):
         return LogProcessor(cluster_name)
 
@@ -108,34 +113,6 @@ class Launcher:
         import sky
 
         return list(sky.clouds.CLOUD_REGISTRY)
-
-    @classmethod
-    def sky_secret(cls):
-        from runhouse.constants import SSH_SKY_SECRET_NAME
-
-        try:
-            sky_secret = rh.secret(SSH_SKY_SECRET_NAME)
-        except ValueError:
-            # Create a new default key pair required for the Den launcher and save it to Den
-            from runhouse import provider_secret
-
-            default_ssh_path, _ = generate_ssh_keys()
-            logger.info(f"Saved new SSH key to path: {default_ssh_path} ")
-            sky_secret = provider_secret(
-                provider="sky", path=default_ssh_path, name=SSH_SKY_SECRET_NAME
-            )
-            sky_secret.save()
-
-        secret_values = sky_secret.values
-        if (
-            not secret_values
-            or "public_key" not in secret_values
-            or "private_key" not in secret_values
-        ):
-            raise ValueError(
-                f"Public key and private key values not found in secret {sky_secret.name}"
-            )
-        return sky_secret
 
     @classmethod
     def run_verbose(
@@ -223,6 +200,22 @@ class DenLauncher(Launcher):
     AUTOSTOP_URL = f"{rns_client.api_server_url}/cluster/autostop"
 
     @classmethod
+    def _validate_provider_pool(cls, cluster):
+        provider = cluster.provider
+        pool = cluster.pool
+        if provider == "cheapest":
+            raise ValueError(
+                "Provider of 'cheapest' not currently supported, must provide an explicit cloud provider."
+            )
+
+        if provider is None and pool is None:
+            raise ValueError(
+                "Provider or pool must be specified, either in the cluster factory or in your local "
+                "Runhouse config with the `default_provider` or `default_pool` fields, respectively. You can set these by running "
+                "`runhouse config set default_provider <provider>` or `runhouse config set default_pool <pool>`."
+            )
+
+    @classmethod
     def _update_from_den_response(cls, cluster, config: dict):
         """Updates cluster with config from Den. Only add fields if found."""
         if not config:
@@ -236,10 +229,6 @@ class DenLauncher(Launcher):
             value = config.get(attribute)
             if value:
                 setattr(cluster, attribute, value)
-
-        creds = config.get("creds")
-        if not cluster._creds and creds:
-            cluster._setup_creds(creds)
 
     @classmethod
     def keep_warm(cls, cluster, mins: int):
@@ -265,20 +254,17 @@ class DenLauncher(Launcher):
     @classmethod
     def up(cls, cluster, verbose: bool = True, force: bool = False):
         """Launch the cluster via Den."""
-        sky_secret = cls.sky_secret()
-        cluster._setup_creds(sky_secret)
-        cluster.save()
+        cls._validate_provider_pool(cluster)
 
+        cluster.save()
         cluster_config = cluster.config()
 
         payload = {
-            "cluster_config": {
-                **cluster_config,
-                "ssh_creds": sky_secret.rns_address,
-            },
+            "cluster_config": cluster_config,
             "force": force,
             "verbose": verbose,
             "observability": configs.observability_enabled,
+            "default_ssh_key": configs.get("default_ssh_key"),
         }
 
         if verbose:
@@ -315,18 +301,11 @@ class DenLauncher(Launcher):
     @classmethod
     def teardown(cls, cluster, verbose: bool = True):
         """Tearing down a cluster via Den."""
-        from runhouse.resources.secrets import Secret
-
-        ssh_creds = cluster._creds
-        if isinstance(ssh_creds, Secret):
-            ssh_creds = ssh_creds.rns_address
-
         cluster_name = cluster.rns_address or cluster.name
 
         payload = {
             "cluster_name": cluster_name,
             "delete_from_den": False,
-            "ssh_creds": ssh_creds,
             "verbose": verbose,
         }
 
@@ -352,12 +331,37 @@ class DenLauncher(Launcher):
             )
         cluster.cluster_status = ClusterStatus.TERMINATED
 
+    @classmethod
+    def load_creds(cls):
+        """Loads the SSH credentials required for the Den launcher, and for interacting with the cluster
+        once launched."""
+        default_ssh_key = rns_client.default_ssh_key
+        if not default_ssh_key:
+            raise ValueError(
+                "No default SSH key found in the local Runhouse config, "
+                "please set one by running `runhouse login`"
+            )
+        try:
+            # Note: we still need to load them down locally to use for certain cluster operations (ex: rsync)
+            secret = rh.Secret.from_name(default_ssh_key)
+            if not Path(secret.path).expanduser().exists():
+                # Ensure this specific keypair is written down locally
+                secret.write()
+                logger.info(f"Saved default SSH key locally in path: {secret.path}")
+        except ValueError:
+            raise ValueError(
+                "Failed to load default SSH key, "
+                "try re-saving by running `runhouse login`"
+            )
+
+        return secret
+
 
 class LocalLauncher(Launcher):
     """Launcher APIs for operations handled locally via Sky."""
 
     @classmethod
-    def _validate_provider(cls, cluster):
+    def _validate_provider_pool(cls, cluster):
         """Check if LocalLauncher supports the provided cloud provider."""
         supported_providers = ["cheapest"] + cls.supported_providers()
         if cluster.provider not in supported_providers:
@@ -371,7 +375,7 @@ class LocalLauncher(Launcher):
         """Launch the cluster locally."""
         import sky
 
-        cls._validate_provider(cluster)
+        cls._validate_provider_pool(cluster)
 
         task = sky.Task(num_nodes=cluster.num_nodes)
         cloud_provider = (

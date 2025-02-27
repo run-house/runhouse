@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Union
 
+from runhouse.constants import INSUFFICIENT_DISK_MSG
+from runhouse.exceptions import InsufficientDiskError
+
 from runhouse.globals import obj_store
 
 from runhouse.logger import get_logger
@@ -23,10 +26,11 @@ from runhouse.utils import (
     is_python_package_string,
     locate_working_dir,
     run_setup_command,
+    split_pip_extras,
 )
 
 
-INSTALL_METHODS = {"local", "reqs", "pip", "conda", "rh"}
+INSTALL_METHODS = {"local", "pip", "conda"}
 
 logger = get_logger(__name__)
 
@@ -76,6 +80,7 @@ class Package(Resource):
         install_method: Optional[str] = None,
         install_target: Optional[Union[str, "Folder"]] = None,
         install_args: Optional[str] = None,
+        install_extras: Optional[str] = None,
         preferred_version: Optional[str] = None,
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
@@ -93,6 +98,7 @@ class Package(Resource):
         self.install_method = install_method
         self.install_target = install_target
         self.install_args = install_args
+        self.install_extras = install_extras
         self.preferred_version = preferred_version
 
     def config(self, condensed: bool = True):
@@ -111,6 +117,7 @@ class Package(Resource):
             else self.install_target
         )
         config["install_args"] = self.install_args
+        config["install_extras"] = self.install_extras
         config["preferred_version"] = self.preferred_version
         return config
 
@@ -151,21 +158,43 @@ class Package(Resource):
                 "Cannot sync the home directory. Please include a Python configuration file in a subdirectory."
             )
 
+    def _install_cmd_with_extras(self, install_target: str, install_extras: str):
+        install_specific_version_of_target = "==" in install_target
+        if install_specific_version_of_target:
+            split_target = install_target.split(
+                "=="
+            )  # split the target package name from its version
+            return f'"{split_target[0]}{install_extras}=={split_target[1]}"'
+        return f'"{self.install_target}{install_extras}"'
+
     def _pip_install_cmd(
         self,
         conda_env_name: Optional[str] = None,
         cluster: "Cluster" = None,
     ):
         install_args = f" {self.install_args}" if self.install_args else ""
+        install_extras = f"[{self.install_extras}]" if self.install_extras else ""
         if isinstance(self.install_target, InstallTarget):
             if cluster:
                 install_cmd = (
-                    self.install_target.path_to_sync_to_on_cluster + install_args
+                    self.install_target.path_to_sync_to_on_cluster
+                    + install_extras
+                    + install_args
                 )
             else:
-                install_cmd = self.install_target.full_local_path_str() + install_args
+                install_cmd = (
+                    self.install_target.full_local_path_str()
+                    + install_extras
+                    + install_args
+                )
         else:
-            install_target = f'"{self.install_target}"'
+            install_target = (
+                f'"{self.install_target}"'
+                if not install_extras
+                else self._install_cmd_with_extras(
+                    install_target=self.install_target, install_extras=install_extras
+                )
+            )
             install_cmd = install_target + install_args
 
         install_cmd = f"pip install {self._install_cmd_for_torch(install_cmd, cluster)}"
@@ -193,51 +222,18 @@ class Package(Resource):
         install_conda(cluster=cluster)
         return install_cmd
 
-    def _reqs_install_cmd(
-        self, conda_env_name: Optional[str] = None, cluster: "Cluster" = None
+    def _install_and_validate_output(
+        self, install_cmd: str, cluster: "Cluster" = None, node: Optional[str] = None
     ):
-        install_args = f" {self.install_args}" if self.install_args else ""
-        if not isinstance(self.install_target, InstallTarget):
-            install_cmd = self.install_target + install_args
-        else:
-            on_cluster_path = self.install_target.local_path
-
-            # If not cluster, we're on the cluster, and we must deal with the path locally
-            if not cluster:
-                reqs_path = f"{on_cluster_path}/requirements.txt"
-                if not Path(reqs_path).expanduser().exists():
-                    return None
-
-                with open(str(Path(reqs_path).expanduser())) as f:
-                    reqs_list = f.readlines()
-
-            # Otherwise, make sure the target folder is on the cluster,
-            # and read reqs from the cluster
-            else:
-                if "requirements.txt" not in cluster._folder_ls(
-                    path=on_cluster_path, full_paths=False
-                ):
-                    return None
-
-                reqs_list = (
-                    cluster._folder_get(f"{on_cluster_path}/requirements.txt", mode="r")
-                    .strip("\n")
-                    .split("\n")
-                )
-                reqs_path = f"{on_cluster_path}/requirements.txt"
-
-            install_cmd = self._reqs_install_cmd_for_torch(
-                reqs_path, reqs_list, install_args, cluster=cluster
+        install_res = run_setup_command(install_cmd, cluster=cluster, node=node)
+        retcode = install_res[0]
+        if retcode != 0:
+            stdout, stderr = install_res[1], install_res[2]
+            if INSUFFICIENT_DISK_MSG in stdout or INSUFFICIENT_DISK_MSG in stderr:
+                raise InsufficientDiskError(command=install_cmd)
+            raise RuntimeError(
+                f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
             )
-
-        install_cmd = f"pip install {install_cmd}"
-        install_cmd = self._prepend_python_executable(
-            install_cmd, conda_env_name=conda_env_name, cluster=cluster
-        )
-        install_cmd = self._prepend_env_command(
-            install_cmd, conda_env_name=conda_env_name
-        )
-        return install_cmd
 
     def _install(
         self,
@@ -267,58 +263,51 @@ class Package(Resource):
             # already installed. If there is, and ``force_sync_local`` is not set to ``True``, then we ignore
             # preferred version and leave the existing version.  The user can also force a version install by
             # doing `numpy==2.0.0`. Else, we install the preferred version, that matches their local.
-            if (
-                is_python_package_string(self.install_target)
-                and self.preferred_version is not None
-            ):
-                # Check if this is installed
-                retcode = run_setup_command(
-                    f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
-                    cluster=cluster,
-                    node=node,
-                )[0]
-                if retcode != 0 or force_sync_local:
-                    self.install_target = (
-                        f"{self.install_target}=={self.preferred_version}"
-                    )
+            if is_python_package_string(self.install_target):
+                if self.preferred_version is not None:
+                    # Check if this is installed
+                    retcode = run_setup_command(
+                        f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
+                        cluster=cluster,
+                        conda_env_name=conda_env_name,
+                        node=node,
+                    )[0]
+                    if retcode != 0 or force_sync_local:
+                        self.install_target = (
+                            f"{self.install_target}=={self.preferred_version}"
+                        )
+                else:
+                    # If the package exists as a folder remotely
+                    if (
+                        run_setup_command(
+                            f"ls {self.install_target}",
+                            cluster=cluster,
+                            conda_env_name=conda_env_name,
+                            node=node,
+                        )[0]
+                        == 0
+                    ):
+                        self.install_target = InstallTarget(
+                            local_path=self.install_target,
+                            _path_to_sync_to_on_cluster=f"~/{self.install_target}",
+                        )
 
             install_cmd = self._pip_install_cmd(
                 conda_env_name=conda_env_name, cluster=cluster
             )
             logger.info(f"Running via install_method pip: {install_cmd}")
-            retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
-            if retcode != 0:
-                raise RuntimeError(
-                    f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
-                )
+            self._install_and_validate_output(
+                install_cmd=install_cmd, cluster=cluster, node=node
+            )
 
         elif self.install_method == "conda":
             install_cmd = self._conda_install_cmd(
                 conda_env_name=conda_env_name, cluster=cluster
             )
             logger.info(f"Running via install_method conda: {install_cmd}")
-            retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
-            if retcode != 0:
-                raise RuntimeError(
-                    f"Conda install {install_cmd} failed, check that the package exists and is "
-                    "available for your platform."
-                )
-
-        elif self.install_method == "reqs":
-            install_cmd = self._reqs_install_cmd(
-                conda_env_name=conda_env_name, cluster=cluster
+            self._install_and_validate_output(
+                install_cmd=install_cmd, cluster=cluster, node=node
             )
-            if install_cmd:
-                logger.info(f"Running via install_method reqs: {install_cmd}")
-                retcode = run_setup_command(install_cmd, cluster=cluster, node=node)[0]
-                if retcode != 0:
-                    raise RuntimeError(
-                        f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
-                    )
-            else:
-                logger.info(
-                    f"{self.install_target.full_local_path_str()}/requirements.txt not found, skipping reqs install"
-                )
 
         else:
             if self.install_method != "local":
@@ -327,12 +316,12 @@ class Package(Resource):
                 )
 
         # Need to append to path
-        if self.install_method in ["local", "reqs"]:
+        if self.install_method == "local":
             if isinstance(self.install_target, InstallTarget):
                 obj_store.add_sys_path_to_all_processes(
                     self.install_target.full_local_path_str()
                 ) if not cluster else run_setup_command(
-                    f"export PATH=$PATH;{self.install_target.full_local_path_str()}",
+                    f'export PATH="$PATH;{self.install_target.path_to_sync_to_on_cluster}"',
                     cluster=cluster,
                     node=node,
                 )
@@ -436,7 +425,6 @@ class Package(Resource):
     def to(
         self,
         system: Union[str, Dict, "Cluster"],
-        path: Optional[str] = None,
     ):
         """Copy the package onto filesystem or cluster, and return the new Package object.
 
@@ -482,32 +470,10 @@ class Package(Resource):
                 local_path=config["install_target"][0],
                 _path_to_sync_to_on_cluster=config["install_target"][1],
             )
-        if config.get("resource_subtype") == "GitPackage":
-            from runhouse import GitPackage
-
-            return GitPackage.from_config(
-                config, dryrun=dryrun, _resolve_children=_resolve_children
-            )
         return Package(**config, dryrun=dryrun)
 
     @staticmethod
     def from_string(specifier: str, dryrun: bool = False):
-        if specifier == "requirements.txt":
-            specifier = "reqs:./"
-
-        # Use regex to check if specifier matches '<method>:https://github.com/<path>' or 'https://github.com/<path>'
-        match = re.search(
-            r"^(?:(?P<method>[^:]+):)?(?P<path>https://github.com/.+)", specifier
-        )
-        if match:
-            install_method = match.group("method")
-            url = match.group("path")
-            from runhouse.resources.packages.git_package import git_package
-
-            return git_package(
-                git_url=url, install_method=install_method, dryrun=dryrun
-            )
-
         install_method, target_and_args = Package.split_req_install_method(specifier)
 
         # Handles a case like "torch --index-url https://download.pytorch.org/whl/cu113"
@@ -516,10 +482,11 @@ class Package(Resource):
             if " " in target_and_args
             else (target_and_args, "")
         )
+        target, extras = split_pip_extras(target_and_args)
 
         # If the target is a path
         # If it doesn't have a /, we're assuming it's a pip installable thing first and foremost
-        if "/" in target or "~" in target:
+        if "/" in target or "~" in target or install_method == "local":
             # We need to do this because relative paths are relative to the current working directory!
             abs_target = (
                 Path(target).expanduser()
@@ -531,48 +498,51 @@ class Package(Resource):
                     local_path=str(abs_target), _path_to_sync_to_on_cluster=None
                 )
 
-        # If install method is not provided, we need to infer it
+        # If install method is not provided, default to pip
         if not install_method:
             if Path(specifier).expanduser().resolve().exists():
-                install_method = "reqs"
+                install_method = "local"
             else:
                 install_method = "pip"
 
-        # If we are just defaulting to pip, attempt to install the same version of the package
-        # that is already installed locally
-        # Check if the target is only letters, nothing else. This means its a string like 'numpy'.
+        # Attempt to use the same version of the package installed locally, if pip_install (pip)
+        # or a sync_package (local)
         preferred_version = None
-        if install_method == "pip" and is_python_package_string(target):
+        if is_python_package_string(target):
             locally_installed_version = find_locally_installed_version(target)
             if locally_installed_version:
                 # Check if this is a package that was installed from local
                 local_install_path = get_local_install_path(target)
                 if local_install_path and Path(local_install_path).exists():
-                    target = InstallTarget(
-                        local_path=local_install_path, _path_to_sync_to_on_cluster=None
-                    )
-
+                    install_method = install_method or "local"
+                    if install_method == "local":
+                        target = InstallTarget(
+                            local_path=local_install_path,
+                            _path_to_sync_to_on_cluster=None,
+                        )
                 else:
                     # We want to preferrably install this version of the package server-side
-                    preferred_version = locally_installed_version
+                    install_method == install_method or "pip"
+                    if install_method == "pip":
+                        preferred_version = locally_installed_version
+
+        # If install method is still not set, default to pip
+        install_method = install_method or "pip"
 
         # "Local" install method is a special case where we just copy a local folder and add to path
         if install_method == "local":
             return Package(
                 install_target=target, install_method=install_method, dryrun=dryrun
             )
-
-        elif install_method in ["reqs", "pip", "conda"]:
+        elif install_method in ["pip", "conda"]:
             return Package(
                 install_target=target,
                 install_args=args,
                 install_method=install_method,
+                install_extras=extras,
                 preferred_version=preferred_version,
                 dryrun=dryrun,
             )
-        elif install_method == "rh":
-            # Calling the factory method below
-            return package(name=specifier[len("rh:") :], dryrun=dryrun)
         else:
             raise ValueError(
                 f"Unknown install method {install_method}. Must be one of {INSTALL_METHODS}"
@@ -594,7 +564,7 @@ def package(
     Args:
         name (str, optional): Name to assign the package resource.
         install_method (str, optional): Method for installing the package.
-            Options: [``pip``, ``conda``, ``reqs``, ``local``]
+            Options: [``pip``, ``conda``, ``local``]
         install_str (str, optional): Additional arguments to install.
         path (str, optional): URL of the package to install.
         system (str, optional): File system or cluster on which the package lives.

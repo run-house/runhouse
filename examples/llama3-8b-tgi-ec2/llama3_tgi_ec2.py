@@ -160,9 +160,7 @@ if __name__ == "__main__":
     # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier. This is
     # needed to download the model from the Hugging Face model hub. Runhouse will handle saving the token down
     # on the cluster in the default Hugging Face token location (`~/.cache/huggingface/token`).
-    img = rh.Image(name="tgi_image").install_packages(
-        ["docker", "torch", "transformers"]
-    )
+    img = rh.Image(name="tgi_image").pip_install(["docker", "torch", "transformers"])
 
     cluster = rh.compute(
         name="rh-a10",

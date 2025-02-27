@@ -35,7 +35,7 @@ def test_cluster_config(local_launched_ondemand_aws_docker_cluster):
 def test_cluster_sharing(local_launched_ondemand_aws_docker_cluster):
     local_launched_ondemand_aws_docker_cluster.share(
         users=["donny@run.house", "josh@run.house"],
-        access_level="write",
+        access_level="read",
         notify_users=False,
     )
     assert True
@@ -49,7 +49,7 @@ def test_read_shared_cluster(local_launched_ondemand_aws_docker_cluster):
 
 
 def test_install(cluster):
-    cluster.install_packages(
+    cluster.pip_install(
         [
             "./",
             "torch==1.12.1",
@@ -113,7 +113,7 @@ def test_byo_cluster_with_https(static_cpu_pwd_cluster):
     assert Path(local_cert_path).exists()
 
     # Confirm we can send https requests to the cluster
-    static_cpu_pwd_cluster.install_packages(["numpy"])
+    static_cpu_pwd_cluster.pip_install(["numpy"])
 
 
 def test_byo_proxy(static_cpu_pwd_cluster, local_folder):

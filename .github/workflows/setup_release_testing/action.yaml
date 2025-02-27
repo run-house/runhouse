@@ -23,6 +23,12 @@ inputs:
   DEN_TESTER_TOKEN:
     description: 'Den Tester Token'
     required: true
+  DEN_TESTER_SSH_PRIVATE_KEY:
+    description: 'Den Tester Private SSH Key'
+    required: true
+  DEN_TESTER_SSH_PUBLIC_KEY:
+    description: 'Den Tester Public SSH Key'
+    required: true
   DEN_TESTER_USERNAME:
     description: 'Den Tester Username'
     required: true
@@ -87,6 +93,9 @@ runs:
 
     - name: Setup Runhouse
       uses: ./.github/workflows/setup_runhouse
+      with:
+        den_tester_ssh_private_key: ${{ inputs.DEN_TESTER_SSH_PRIVATE_KEY }}
+        den_tester_ssh_public_key: ${{ inputs.DEN_TESTER_SSH_PUBLIC_KEY }}
 
     - name: Setup ~/.rh/config.yaml
       uses: ./.github/workflows/setup_rh_config

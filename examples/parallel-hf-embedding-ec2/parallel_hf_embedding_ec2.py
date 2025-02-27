@@ -93,11 +93,6 @@ class URLEmbedder:
         return embedding
 
 
-# :::note{.info title="Note"}
-# Make sure that any code in your Python file that's meant to only run locally runs within
-# a `if __name__ == "__main__":` block, as shown below. Otherwise, the script code will run
-# when Runhouse attempts to import your code remotely.
-# :::
 if __name__ == "__main__":
     # ## Setting up Runhouse primitives
     #
@@ -129,7 +124,7 @@ if __name__ == "__main__":
     #
     # Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
     start_time = time.time()
-    img = rh.Image().install_packages(
+    img = rh.Image().pip_install(
         [
             "langchain",
             "langchain-community",

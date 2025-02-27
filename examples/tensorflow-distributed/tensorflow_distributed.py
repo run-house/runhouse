@@ -53,7 +53,6 @@ async def train():
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
         instance_type=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,
-        provider="aws",
     ).up_if_not()
 
     train_workers = []
@@ -82,9 +81,5 @@ async def train():
     )
 
 
-# :::note{.info title="Note"}
-# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
-# the script code will run when Runhouse attempts to run code remotely.
-# :::
 if __name__ == "__main__":
     asyncio.run(train())

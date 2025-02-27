@@ -21,9 +21,6 @@ def setup_static_cluster(
     compute_type: computeType = computeType.cpu,
     remote: bool = False,  # whether the fixture is used on a remote-running test or on a local one.
 ):
-    rh.constants.SSH_SKY_SECRET_NAME = (
-        f"{test_rns_folder}-{rh.constants.SSH_SKY_SECRET_NAME}"
-    )
     instance_type = "CPU:4" if compute_type == computeType.cpu else "g5.xlarge"
     launcher = launcher if launcher else LauncherType.LOCAL
     cluster_name = (
@@ -31,6 +28,7 @@ def setup_static_cluster(
         if not remote
         else f"{test_rns_folder}-{launcher}-aws-{compute_type}-password"
     )
+
     cluster = rh.cluster(
         name=cluster_name,
         instance_type=instance_type,

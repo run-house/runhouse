@@ -14,11 +14,14 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from pydantic import BaseModel
 
 from runhouse.constants import (
+    INSUFFICIENT_DISK_MSG,
     LOGGING_WAIT_TIME,
     LOGS_TO_SHOW_UP_CHECK_TIME,
     MAX_LOGS_TO_SHOW_UP_WAIT_TIME,
     RH_LOGFILE_PATH,
 )
+
+from runhouse.exceptions import InsufficientDiskError
 from runhouse.logger import get_logger
 
 from runhouse.rns.defaults import req_ctx
@@ -344,19 +347,33 @@ class ObjStore:
         from runhouse.servers.node_servlet import NodeServlet
 
         names = []
-        for ip in self.get_internal_ips():
+        internal_ips = self.get_internal_ips()
+        head_internal_ip = internal_ips[0]
+        for ip in internal_ips:
             resources = {f"node:{ip}": 0.001}
             node_servlet_name = self.node_servlet_name_for_ip(ip)
-            ray.remote(NodeServlet).options(
-                name=node_servlet_name,
-                get_if_exists=True,
-                lifetime="detached",
-                namespace="runhouse",
-                max_concurrency=1000,
-                resources=resources,
-                num_cpus=0,
-            ).remote()
+            node_servlet = (
+                ray.remote(NodeServlet)
+                .options(
+                    name=node_servlet_name,
+                    get_if_exists=True,
+                    lifetime="detached",
+                    namespace="runhouse",
+                    max_concurrency=1000,
+                    resources=resources,
+                    num_cpus=0,
+                )
+                .remote(node_name=node_servlet_name)
+            )
             names.append(node_servlet_name)
+
+            # make sure that the nodes are actually initialized, so we could collect status (relevant for multinode
+            # clusters). We are initializing all nodes apart from the head node, since the head node has the
+            # cluster_servlet node initialized.
+            if len(internal_ips) > 1 and ip != head_internal_ip:
+                await node_servlet.arun_with_logs_local.remote(
+                    f"echo from {node_servlet_name}"
+                )
 
         await self.acall_actor_method(
             self.cluster_servlet, "aset_node_servlet_names", names
@@ -1951,6 +1968,23 @@ class ObjStore:
     ##############################################
     # Interact across nodes
     ##############################################
+
+    async def _install_packages_in_nodes_helper(self, install_cmd: str):
+        run_cmd_results = await self.arun_bash_command_on_all_nodes(
+            install_cmd, require_outputs=True
+        )
+        if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
+            error_code, stdout, stderr = run_cmd_results[0]
+            stderr = stderr.strip()
+            error_msg = f"Pip install {install_cmd} failed"
+            if INSUFFICIENT_DISK_MSG in stderr:
+                logger.info(f"command: {install_cmd}, error:{error_msg}")
+                raise InsufficientDiskError(command=install_cmd, error_msg=error_msg)
+            raise RuntimeError(
+                error_msg
+                + ", check that the package exists and is available for your platform."
+            )
+
     async def ainstall_package_in_all_nodes_and_processes(
         self,
         package: "Package",
@@ -1979,26 +2013,27 @@ class ObjStore:
             # already installed. If there is, then we ignore preferred version and leave the existing version.
             # The user can always force a version install by doing `numpy==2.0.0` for example. Else, we install
             # the preferred version, that matches their local.
-            if (
-                is_python_package_string(package.install_target)
-                and package.preferred_version is not None
-            ):
-                # Check if this is installed
-                retcode = run_with_logs(
-                    f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{package.install_target}') else exit(1)\"",
-                )
-                if retcode != 0 or force_sync_local:
-                    package.install_target = (
-                        f"{package.install_target}=={package.preferred_version}"
+            if is_python_package_string(package.install_target):
+                if package.preferred_version is not None:
+                    # Check if this is installed
+                    retcode = run_with_logs(
+                        f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{package.install_target}') else exit(1)\"",
                     )
+                    if retcode != 0 or force_sync_local:
+                        package.install_target = (
+                            f"{package.install_target}=={package.preferred_version}"
+                        )
+                else:
+                    # If the package exists as a folder remotely
+                    if run_with_logs(f"ls {package.install_target}") == 0:
+                        self.install_target = InstallTarget(
+                            local_path=package.install_target,
+                            _path_to_sync_to_on_cluster=package.install_target,
+                        )
 
             install_cmd = package._pip_install_cmd(conda_env_name=conda_env_name)
             logger.info(f"Running via install_method pip: {install_cmd}")
-            run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
-            if any(run_cmd_result != 0 for run_cmd_result in run_cmd_results):
-                raise RuntimeError(
-                    f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
-                )
+            await self._install_packages_in_nodes_helper(install_cmd)
 
         elif package.install_method == "conda":
             install_cmd = package._conda_install_cmd(conda_env_name=conda_env_name)
@@ -2009,21 +2044,6 @@ class ObjStore:
                     f"Conda install {install_cmd} failed, check that the package exists and is "
                     "available for your platform."
                 )
-
-        elif package.install_method == "reqs":
-            install_cmd = package._reqs_install_cmd(conda_env_name=conda_env_name)
-            if install_cmd:
-                logger.info(f"Running via install_method reqs: {install_cmd}")
-                run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
-                if any(run_cmd_result != 0 for run_cmd_result in run_cmd_results):
-                    raise RuntimeError(
-                        f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
-                    )
-            else:
-                logger.info(
-                    f"{package.install_target.full_local_path_str()}/requirements.txt not found, skipping reqs install"
-                )
-
         else:
             if package.install_method != "local":
                 raise ValueError(
@@ -2031,7 +2051,7 @@ class ObjStore:
                 )
 
         # Need to append to path
-        if package.install_method in ["local", "reqs"]:
+        if package.install_method == "local":
             if isinstance(package.install_target, InstallTarget):
                 await self.aadd_sys_path_to_all_processes(
                     package.install_target.full_local_path_str()
