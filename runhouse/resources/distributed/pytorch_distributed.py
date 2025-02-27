@@ -18,7 +18,7 @@ class PyTorchDistributed(Supervisor):
         return self.local._replicas[0].signature(rich=rich)
 
     def _find_available_port_on_head_node(self):
-        find_available_port_cmd = "python -c \"import socket; s=socket.socket(); s.bind(('', 0)); print(s.getsockname()[1]); s.close()\""
+        find_available_port_cmd = "python3 -c \"import socket; s=socket.socket(); s.bind(('', 0)); print(s.getsockname()[1]); s.close()\""
         status_code, stdout, _ = self._replicas[0].system.run_bash(
             find_available_port_cmd,
             node=self._replicas[0].system.head_ip,

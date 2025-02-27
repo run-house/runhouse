@@ -1229,6 +1229,7 @@ class Cluster(Resource):
                     dest="~/.rh/",
                     up=True,
                     ignore_existing=True,
+                    parallel=parallel,
                 )
                 logger.debug("saved config.yaml on the cluster")
             finally:
@@ -1770,7 +1771,7 @@ class Cluster(Resource):
         # Copy to the home directory by default
         source = str(Path(self.cert_config.key_path).parent)
         dest = self.cert_config.DEFAULT_CLUSTER_DIR
-        self.rsync(source, dest, up=True)
+        self.rsync(source, dest, up=True, parallel=True)
 
         if self._use_caddy:
             # Move to the Caddy directory to ensure the daemon has access to the certs
