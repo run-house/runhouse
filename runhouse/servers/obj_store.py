@@ -2017,7 +2017,7 @@ class ObjStore:
                 if package.preferred_version is not None:
                     # Check if this is installed
                     retcode = run_with_logs(
-                        f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{package.install_target}') else exit(1)\"",
+                        f"python3 -c \"import importlib.util; exit(0) if importlib.util.find_spec('{package.install_target}') else exit(1)\"",
                     )
                     if retcode != 0 or force_sync_local:
                         package.install_target = (
