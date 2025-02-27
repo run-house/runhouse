@@ -26,3 +26,21 @@ class InsufficientDiskError(Exception):
         )
         msg = f"{msg}. To resolve it, teardown the cluster and re-launch it with larger disk size."
         super().__init__(msg)
+
+
+class SerializationError(Exception):
+    """Raised when we have serialization error.
+
+    Args:
+        error_msg: The error message to print.
+    """
+
+    def __init__(
+        self,
+        error_msg: str = None,
+    ) -> None:
+        self.error_msg = error_msg
+        self.default_error_msg = "Got a serialization error."
+        msg = self.error_msg if self.error_msg else self.default_error_msg
+        msg = f"{msg}. Make sure that the remote and local versions of python and all installed packages are as expected.\n Please Check logs for more information."
+        super().__init__(msg)
