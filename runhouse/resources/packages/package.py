@@ -27,6 +27,7 @@ from runhouse.utils import (
     locate_working_dir,
     run_setup_command,
     split_pip_extras,
+    venv_cmd,
 )
 
 
@@ -130,18 +131,25 @@ class Package(Resource):
     def _prepend_python_executable(
         install_cmd: str,
         conda_env_name: Optional[str] = None,
+        venv_path: Optional[str] = None,
         cluster: "Cluster" = None,
     ):
-        return (
-            f"python3 -m {install_cmd}"
-            if cluster or conda_env_name
-            else f"{sys.executable} -m {install_cmd}"
-        )
+        if venv_path:
+            return install_cmd
+        if cluster or conda_env_name:
+            return f"python3 -m {install_cmd}"
+        return f"{sys.executable} -m {install_cmd}"
 
     @staticmethod
-    def _prepend_env_command(install_cmd: str, conda_env_name: Optional[str] = None):
+    def _prepend_env_command(
+        install_cmd: str,
+        conda_env_name: Optional[str] = None,
+        venv_path: Optional[str] = None,
+    ):
         if conda_env_name:
             install_cmd = conda_env_cmd(cmd=install_cmd, conda_env_name=conda_env_name)
+        if venv_path:
+            install_cmd = venv_cmd(cmd=install_cmd, venv_path=venv_path)
 
         return install_cmd
 
@@ -170,6 +178,7 @@ class Package(Resource):
     def _pip_install_cmd(
         self,
         conda_env_name: Optional[str] = None,
+        venv_path: Optional[str] = None,
         cluster: "Cluster" = None,
         uv: bool = False,
     ):
@@ -204,10 +213,13 @@ class Package(Resource):
         else:
             # uv doesn't need python executable
             install_cmd = self._prepend_python_executable(
-                install_cmd, cluster=cluster, conda_env_name=conda_env_name
+                install_cmd,
+                cluster=cluster,
+                conda_env_name=conda_env_name,
+                venv_path=venv_path,
             )
         install_cmd = self._prepend_env_command(
-            install_cmd, conda_env_name=conda_env_name
+            install_cmd, conda_env_name=conda_env_name, venv_path=venv_path
         )
         return install_cmd
 
@@ -245,6 +257,7 @@ class Package(Resource):
         cluster: "Cluster" = None,
         node: Optional[str] = None,
         conda_env_name: Optional[str] = None,
+        venv_path: Optional[str] = None,
         force_sync_local: bool = False,
     ):
         """Install package.
@@ -275,6 +288,7 @@ class Package(Resource):
                         f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
                         cluster=cluster,
                         conda_env_name=conda_env_name,
+                        venv_path=venv_path,
                         node=node,
                     )[0]
                     if retcode != 0 or force_sync_local:
@@ -288,6 +302,7 @@ class Package(Resource):
                             f"ls {self.install_target}",
                             cluster=cluster,
                             conda_env_name=conda_env_name,
+                            venv_path=venv_path,
                             node=node,
                         )[0]
                         == 0
@@ -299,6 +314,7 @@ class Package(Resource):
 
             install_cmd = self._pip_install_cmd(
                 conda_env_name=conda_env_name,
+                venv_path=venv_path,
                 cluster=cluster,
                 uv=(self.install_method == "uv"),
             )
@@ -330,6 +346,7 @@ class Package(Resource):
                 ) if not cluster else run_setup_command(
                     f'export PATH="$PATH;{self.install_target.path_to_sync_to_on_cluster}"',
                     cluster=cluster,
+                    venv_path=venv_path,
                     node=node,
                 )
             elif not cluster:
