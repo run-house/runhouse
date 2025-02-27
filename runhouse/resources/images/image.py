@@ -38,7 +38,9 @@ class ImageSetupStep:
 
 
 class Image:
-    def __init__(self, name: str = None, image_id: str = None):
+    def __init__(
+        self, name: str = None, image_id: str = None, python_version: str = None
+    ):
         """
         Runhouse Image object, specifying cluster setup properties and steps.
 
@@ -60,6 +62,7 @@ class Image:
 
         self.name = name
         self.image_id = image_id
+        self.python_version = python_version
 
         self.setup_steps = []
         self.conda_env_name = None
