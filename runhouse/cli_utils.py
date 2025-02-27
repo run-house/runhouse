@@ -17,6 +17,7 @@ import runhouse as rh
 
 from runhouse.constants import (
     BULLET_UNICODE,
+    CALLABLE_RESOURCE_TYPES,
     DEFAULT_PROCESS_NAME,
     DOUBLE_SPACE_UNICODE,
     HOUR,
@@ -377,7 +378,10 @@ def print_processes_info(servlet_processes: Dict[str, Dict[str, Any]], node_inde
                     if resource_type:
                         resource_info_str = resource_info_str + f" ({resource_type})"
 
-                    if resource_type == "runhouse.Function" and active_function_calls:
+                    if (
+                        resource_type in CALLABLE_RESOURCE_TYPES
+                        and active_function_calls
+                    ):
                         func_start_time_utc = active_function_calls[0].get(
                             "start_time", None
                         )
@@ -403,7 +407,7 @@ def print_processes_info(servlet_processes: Dict[str, Dict[str, Any]], node_inde
                         )
 
                     elif (
-                        resource_type == "runhouse.Function"
+                        resource_type in CALLABLE_RESOURCE_TYPES
                         and not active_function_calls
                     ):
                         is_func_running: str = " [italic light_goldenrod3]Currently not running[/italic light_goldenrod3]"
