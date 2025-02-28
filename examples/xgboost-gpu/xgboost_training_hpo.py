@@ -58,10 +58,6 @@ class Trainer:
             "n_jobs": -1,
         }
 
-<<<<<<< HEAD
-        # Train with early stopping
-=======
->>>>>>> origin/main
         evals = [(self.dtrain, "train"), (self.dval, "val")]
         model = xgb.train(
             param,
@@ -166,11 +162,7 @@ class Trainer:
 # Now, we define the main function that will run locally when we run this script and set up
 # our Runhouse module on a remote cluster. First, we create a cluster with the desired instance type and provider.
 if __name__ == "__main__":
-<<<<<<< HEAD
-    img = rh.Image().install_packages(
-=======
     img = rh.Image().pip_install(
->>>>>>> origin/main
         ["xgboost", "pandas", "scikit-learn", "tensorflow", "numpy", "optuna"]
     )
     cluster = rh.compute(
@@ -188,9 +180,5 @@ if __name__ == "__main__":
     remote_trainer.test_model()
     remote_trainer.save_model("fashion_mnist.model")
 
-<<<<<<< HEAD
-    # Finally, we tear down the cluster
-=======
     # Optionally, tear down the cluster
->>>>>>> origin/main
     # cluster.teardown()

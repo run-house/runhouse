@@ -771,7 +771,6 @@ class Module(Resource):
             replication_kwargs (Dict): The keyword arguments to pass to the replicate method. (Default: {})
             distribution_kwargs: The keyword arguments to pass to the distribution method.
         """
-
         if not self.system or not self.name:
             raise ValueError(
                 "Cannot distribute a module that is not on a cluster. Please send the module to a cluster first."
@@ -848,6 +847,20 @@ class Module(Resource):
                 **distribution_kwargs, name=name, replicas=replicas
             ).to(system=self.system, process=self.process)
             return ptd_module
+
+        elif distribution == "spark":
+
+            from runhouse.resources.distributed.spark_distributed import (
+                SparkDistributed,
+            )
+
+            name = name or f"spark_{self.name}"
+
+            spark_module = SparkDistributed(
+                **distribution_kwargs, name=name, module=self
+            ).to(system=self.system, process=self.process)
+
+            return spark_module
 
     @property
     def remote(self):
