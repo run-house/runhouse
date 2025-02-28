@@ -349,7 +349,7 @@ class Module(Resource):
                 logger.debug(f"Appending {module_path} to sys.path")
 
         # This updates the sys.path with any new paths that have been added since the last time we imported
-        # e.g. if the user ran cluster.run(["pip install my_package"]) since this module was created.
+        # e.g. if the user ran cluster.run_bash(["pip install my_package"]) since this module was created.
         importlib_reload(site)
 
         if module_name in obj_store.imported_modules and reload:
@@ -432,12 +432,28 @@ class Module(Resource):
         if not system:
             raise ValueError("No system specified to send module to.")
 
-        if not process:
-            process = DEFAULT_PROCESS_NAME
+        new_name = name or self.name or self.default_name()
+        if self.rns_address:
+            new_name = f"{self._rns_folder}/{new_name}"
 
+        if process is None:
+            # Make this an empty dict so it'll be picked up for the process creation
+            process = {}
+
+        # If process wasn't specified and name wasn't specified, we're going to use a default name tied to this
+        # module's class name and kill the old process if it exists.
         if isinstance(process, Dict):
+            if "name" not in process:
+                ephemeral_process_name = f"{new_name}_process"
+                if ephemeral_process_name in system.list_processes():
+                    system.kill_process(ephemeral_process_name)
+
+                # Now we make sure that the process created with the args provided by the user
+                process["name"] = ephemeral_process_name
+
             process = system.ensure_process_created(**process)
         else:
+            # If name was specified, we don't delete and overwrite, we just let it be
             system.ensure_process_created(name=process)
 
         if not isinstance(process, str):
@@ -494,9 +510,6 @@ class Module(Resource):
                 )
 
         if isinstance(system, Cluster):
-            new_name = name or self.name or self.default_name()
-            if self.rns_address:
-                new_name = f"{self._rns_folder}/{new_name}"
             new_module.name = new_name
             # TODO dedup with _extract_state
             # Exclude anything already being sent in the config and private module attributes
@@ -672,7 +685,8 @@ class Module(Resource):
         """Replicate the module on the cluster in new processes and return the new modules.
 
         Args:
-            num_relicas (int, optional): Number of replicas of the module to create. (Default: 1)
+            num_replicas (int, optional): Number of replicas of the module to create. (Default: 1)
+            replicas_per_node (int, optional): The number of replicas to create per node. (Defualt: ``None``)
             names (List[str], optional): List for the names for the replicas, if specified. (Default: ``None``)
             processes (List[Process], optional): List of the processes for the replicas, if specified. (Default: ``None``)
             parallel (bool, optional): Whether to create the replicas in parallel. (Default: ``False``)
@@ -719,7 +733,7 @@ class Module(Resource):
                     new_create_process_params["compute"] = {
                         "node_idx": i // replicas_per_node
                     }
-                self.system.create_process(**new_create_process_params)
+                self.system.ensure_process_created(**new_create_process_params)
 
             new_module = copy.copy(self)
             new_module.local.name = name
@@ -741,7 +755,7 @@ class Module(Resource):
         self,
         distribution: str,
         name: Optional[str] = None,
-        num_replicas: int = 1,
+        num_replicas: Optional[int] = None,
         replicas_per_node: Optional[int] = None,
         replication_kwargs: Dict = {},
         **distribution_kwargs,
@@ -752,7 +766,7 @@ class Module(Resource):
             distribution (str): The distribution method to use, e.g. "pool", "ray", "pytorch", or "tensorflow".
             name (str, optional): The name to give to the distributed module, if applicable. Overwrites current module
                 name by default. (Default: ``None``)
-            num_replicas (int, optional): The number of replicas to create. (Default: 1)
+            num_replicas (int, optional): The number of replicas to create. (Default: ``None``)
             replicas_per_node (int, optional): The number of replicas to create per node. (Default: ``None``)
             replication_kwargs (Dict): The keyword arguments to pass to the replicate method. (Default: {})
             distribution_kwargs: The keyword arguments to pass to the distribution method.
@@ -763,8 +777,7 @@ class Module(Resource):
             )
 
         if not self.system.on_this_cluster():
-            # Distribute the module on the cluster and return the distributed module as a
-            # stub.
+            # Distribute the module on the cluster and return the distributed module as a stub.
             return self.system.call(
                 self.name,
                 "distribute",
@@ -779,6 +792,11 @@ class Module(Resource):
 
         if distribution == "pool":
             from runhouse.resources.distributed.distributed_pool import DistributedPool
+
+            if not num_replicas:
+                raise ValueError(
+                    "``num_replicas`` argument must be provided for distribution type pool"
+                )
 
             replicas = self.replicate(
                 num_replicas=num_replicas,
@@ -805,8 +823,6 @@ class Module(Resource):
             dask_module = DaskDistributed(
                 name=name,
                 module=self,
-                num_replicas=num_replicas,
-                replicas_per_node=replicas_per_node,
                 **distribution_kwargs,
             ).to(system=self.system, process=self.process)
             return dask_module
@@ -814,6 +830,12 @@ class Module(Resource):
             from runhouse.resources.distributed.pytorch_distributed import (
                 PyTorchDistributed,
             )
+
+            if not num_replicas:
+                num_nodes = len(self.system.ips)
+                if not replicas_per_node:
+                    replicas_per_node = self.system._gpus_per_node() or 1
+                num_replicas = replicas_per_node * num_nodes
 
             replicas = self.replicate(
                 num_replicas=num_replicas,
@@ -825,6 +847,20 @@ class Module(Resource):
                 **distribution_kwargs, name=name, replicas=replicas
             ).to(system=self.system, process=self.process)
             return ptd_module
+
+        elif distribution == "spark":
+
+            from runhouse.resources.distributed.spark_distributed import (
+                SparkDistributed,
+            )
+
+            name = name or f"spark_{self.name}"
+
+            spark_module = SparkDistributed(
+                **distribution_kwargs, name=name, module=self
+            ).to(system=self.system, process=self.process)
+
+            return spark_module
 
     @property
     def remote(self):
