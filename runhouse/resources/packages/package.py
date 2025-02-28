@@ -264,38 +264,41 @@ class Package(Resource):
             # preferred version and leave the existing version.  The user can also force a version install by
             # doing `numpy==2.0.0`. Else, we install the preferred version, that matches their local.
             if is_python_package_string(self.install_target):
-                if self.preferred_version is not None:
-                    # Check if this is installed
-                    retcode = run_setup_command(
-                        f"python3 -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
+                exists_remotely = (
+                    run_setup_command(
+                        f"[ -d ~/{self.install_target} ]",
                         cluster=cluster,
                         conda_env_name=conda_env_name,
                         node=node,
+                        stream_logs=False,
                     )[0]
-                    if retcode != 0 or force_sync_local:
-                        self.install_target = (
-                            f"{self.install_target}=={self.preferred_version}"
-                        )
-                    else:
-                        logger.info(
-                            f"{self.install_target} already installed. Skipping."
-                        )
-                        return
-                else:
-                    # If the package exists as a folder remotely
-                    if (
-                        run_setup_command(
-                            f"[ -d ~/{self.install_target} ]",
+                    == 0
+                )
+                if exists_remotely:
+                    self.install_target = InstallTarget(
+                        local_path=self.install_target,
+                        _path_to_sync_to_on_cluster=f"~/{self.install_target}",
+                    )
+                elif self.preferred_version is not None:
+                    if not force_sync_local:
+                        # Check if this is installed
+                        retcode = run_setup_command(
+                            f"python3 -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
                             cluster=cluster,
                             conda_env_name=conda_env_name,
                             node=node,
-                            stream_logs=False,
                         )[0]
-                        == 0
-                    ):
-                        self.install_target = InstallTarget(
-                            local_path=self.install_target,
-                            _path_to_sync_to_on_cluster=f"~/{self.install_target}",
+
+                        if retcode == 0:
+                            logger.info(
+                                f"{self.install_target} already installed. Skipping."
+                            )
+                            return
+                        else:
+                            force_sync_local = True
+                    if force_sync_local:
+                        self.install_target = (
+                            f"{self.install_target}=={self.preferred_version}"
                         )
 
             install_cmd = self._pip_install_cmd(
