@@ -726,6 +726,7 @@ class Cluster(Resource):
                 step_type=ImageSetupStepType.PIP_INSTALL,
                 reqs=["runhouse[server]"],
                 conda_env_name=self.conda_env_name,
+                force_sync_local=True,
             ),
             parallel=parallel,
         )
