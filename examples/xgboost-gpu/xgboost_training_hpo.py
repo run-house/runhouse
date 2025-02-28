@@ -180,20 +180,6 @@ if __name__ == "__main__":
         image=img,
     ).up_if_not()
 
-    train_params = {
-        "objective": "multi:softmax",
-        "num_class": 10,
-        "eval_metric": ["mlogloss", "merror"],
-        "max_depth": 6,
-        "eta": 0.1,
-        "subsample": 0.8,
-        "colsample_bytree": 0.8,
-        "tree_method": "gpu_hist",  # Using a GPU here reduces training time by ~99%
-        "predictor": "gpu_predictor",
-        "seed": 42,
-        "n_jobs": -1,
-    }
-
     # Now we send the training class to the remote cluster and invoke the training
     remote_trainer = rh.cls(Trainer).to(cluster, name="xgboost-gpu-training")
     remote_trainer.load_data()

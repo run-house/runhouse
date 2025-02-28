@@ -130,7 +130,7 @@ def create_conda_env_on_cluster(
                     f"yaml.dump({conda_config}, open(path / '{conda_env_name}.yml', 'w'))",
                 ]
             )
-            subprocess.run(f'python -c "{python_commands}"', shell=True)
+            subprocess.run(f'python3 -c "{python_commands}"', shell=True)
         else:
             contents = yaml.dump(conda_config)
             run_setup_command(

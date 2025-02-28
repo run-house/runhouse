@@ -267,7 +267,7 @@ class Package(Resource):
                 if self.preferred_version is not None:
                     # Check if this is installed
                     retcode = run_setup_command(
-                        f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
+                        f"python3 -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
                         cluster=cluster,
                         conda_env_name=conda_env_name,
                         node=node,
@@ -276,14 +276,20 @@ class Package(Resource):
                         self.install_target = (
                             f"{self.install_target}=={self.preferred_version}"
                         )
+                    else:
+                        logger.info(
+                            f"{self.install_target} already installed. Skipping."
+                        )
+                        return
                 else:
                     # If the package exists as a folder remotely
                     if (
                         run_setup_command(
-                            f"ls {self.install_target}",
+                            f"[ -d ~/{self.install_target} ]",
                             cluster=cluster,
                             conda_env_name=conda_env_name,
                             node=node,
+                            stream_logs=False,
                         )[0]
                         == 0
                     ):
@@ -446,6 +452,7 @@ class Package(Resource):
                 up=True,
                 contents=True,
                 node="all",
+                parallel=True,
             )
 
             new_package = copy.copy(self)
