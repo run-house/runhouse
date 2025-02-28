@@ -12,6 +12,7 @@ class ImageSetupStepType(Enum):
     SYNC_SECRETS = "sync_secrets"
     SET_ENV_VARS = "set_env_vars"
     PIP_INSTALL = "pip_install"
+    UV_INSTALL = "uv_install"
     CONDA_INSTALL = "conda_install"
     SYNC_PACKAGE = "sync_package"
 
@@ -208,6 +209,26 @@ class Image:
         self.setup_steps.append(
             ImageSetupStep(
                 step_type=ImageSetupStepType.PIP_INSTALL,
+                reqs=reqs,
+                conda_env_name=conda_env_name or self.conda_env_name,
+            )
+        )
+        return self
+
+    def uv_install(
+        self, reqs: List[Union["Package", str]], conda_env_name: Optional[str] = None
+    ):
+        """Uv pip install the given packages.
+
+        Args:
+            reqs (List[Package or str]): List of packages to uv pip install on cluster and env.
+            conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
+                defaults to base environment. (Default: ``None``)
+        """
+
+        self.setup_steps.append(
+            ImageSetupStep(
+                step_type=ImageSetupStepType.UV_INSTALL,
                 reqs=reqs,
                 conda_env_name=conda_env_name or self.conda_env_name,
             )
