@@ -21,7 +21,7 @@ from trl import SFTConfig, SFTTrainer
 DEFAULT_MAX_LENGTH = 200
 
 
-class FineTuner:
+class Llama3:
     def __init__(
         self,
         dataset_name="mlabonne/guanaco-llama2-1k",
@@ -174,7 +174,7 @@ class FineTuner:
 if __name__ == "__main__":
     img = (
         rh.Image(name="llamafinetuning")
-        .pip_install(
+        .install_packages(
             [
                 "torch",
                 "tensorboard",
@@ -189,23 +189,19 @@ if __name__ == "__main__":
         .sync_secrets(["huggingface"])
     )
 
-    num_nodes = 3
+    num_nodes = 4
 
     # Requires access to a cloud account with the necessary permissions to launch compute.
-    cluster = rh.compute(
-        name=f"rh-L4x{num_nodes}",
+    gpus = rh.compute(
+        gpus="L4:1",
         num_nodes=num_nodes,
-        instance_type="L4:1",
         provider="aws",
+        name=f"rh-L4x{num_nodes}",
         image=img,
-        use_spot=True,
-        autostop_mins=360,
     ).up_if_not()
-    cluster.restart_server()
-    fine_tuner_remote = rh.cls(FineTuner).to(cluster, name="ft_model")
-    fine_tuner = fine_tuner_remote(name="ft_model_instance").distribute(
-        "pytorch", num_replicas=num_nodes, replicas_per_node=1
-    )
+    # gpus.restart_server(resync_image=False, resync_rh=False)
+    fine_tuner_remote = rh.cls(Llama3).to(gpus, name="ft_model")
+    fine_tuner = fine_tuner_remote(name="ft_model_instance").distribute("pytorch")
 
     fine_tuner.tune()
 
