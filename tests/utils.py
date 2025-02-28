@@ -2,13 +2,11 @@ import contextlib
 import importlib
 import json
 import os
-import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 
 import pytest
-import ray
 import requests
 
 import runhouse as rh
@@ -21,7 +19,7 @@ from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatu
 from runhouse.servers.http.http_utils import CreateProcessParams
 from runhouse.servers.obj_store import ObjStore, RaySetupOption
 
-from tests.constants import TEST_ENV_VARS, TEST_REQS
+from tests.constants import DEFAULT_KEYPAIR_KEYPATH, TEST_ENV_VARS, TEST_REQS
 
 
 def get_ray_servlet_and_obj_store(env_name):
@@ -51,13 +49,6 @@ def get_pid_and_ray_node(a=0):
     logging.info(f"Node ID: {node_id}")
 
     return pid, node_id
-
-
-def get_random_str(length: int = 8):
-    if length > 32:
-        raise ValueError("Max length of random string is 32")
-
-    return str(uuid.uuid4())[:length]
 
 
 @contextlib.contextmanager
@@ -153,16 +144,24 @@ def setup_test_base(cluster, logged_in=False):
         f"echo '{yaml.safe_dump(rh.configs.defaults_cache)}' > ~/.rh/config.yaml"
     ]
 
-    cluster.install_packages(TEST_REQS)
+    cluster.pip_install(TEST_REQS)
     cluster.set_process_env_vars(DEFAULT_PROCESS_NAME, TEST_ENV_VARS)
     if logged_in:
         cluster.run_bash(setup_cmds)
 
 
-def remove_config_keys(config, keys_to_skip):
-    for key in keys_to_skip:
-        config.pop(key, None)
-    return config
+def keep_config_keys(config, keys_to_keep):
+    condensed_config = {key: config.get(key) for key in keys_to_keep}
+    return condensed_config
+
+
+def get_default_keypair_path():
+    if rh.configs.get("default_ssh_key"):
+        secret = rh.secret(rh.configs.get("default_ssh_key"))
+        key_path = secret.path
+    else:
+        key_path = DEFAULT_KEYPAIR_KEYPATH
+    return str(Path(key_path).expanduser())
 
 
 def set_daemon_and_cluster_status(
@@ -212,6 +211,7 @@ def init_remote_cluster_servlet_actor(
     cluster_config: Optional[Dict] = None,
     servlet_name: Optional[str] = "cluster_servlet",
 ):
+    import ray
     from runhouse.servers.cluster_servlet import ClusterServlet
 
     remote_actor = (

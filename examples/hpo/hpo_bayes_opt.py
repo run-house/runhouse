@@ -13,9 +13,9 @@ def train_fn(x, y):
 
 
 if __name__ == "__main__":
-    img = rh.Image("worker_image").install_packages(["bayesian-optimization"])
+    img = rh.Image("worker_image").pip_install(["bayesian-optimization"])
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-4x16-cpu",
         instance_type="CPU:4+",
         num_nodes=2,

@@ -83,7 +83,7 @@ DEBUG = True  # In DEBUG mode we will always override Runhouse modules
 # cloud provider, be sure to install the appropriate version of Runhouse: e.g.
 # `runhouse[aws]` or `runhouse[gcp]`.
 CLUSTER_NAME = "rh-xa10g"  # Allows the cluster to be reused
-ACCELERATOR = "A10G:1"  # A10G GPU to handle LLM iinference
+GPUS = "A10G:1"  # A10G GPU to handle LLM iinference
 CLOUD_PROVIDER = "aws"  # Alternatively "gcp", "azure", or "cheapest"
 
 # Template to be used in the LLM generation phase of the RAG app
@@ -123,7 +123,7 @@ async def lifespan(app):
 # to be installed locally.
 def load_embedder():
     """Launch an A10G and send the embedding service to it."""
-    img = rh.Image("embedder_img").install_packages(
+    img = rh.Image("embedder_img").pip_install(
         [
             "langchain",
             "langchain-community",
@@ -135,14 +135,14 @@ def load_embedder():
         ],
     )
 
-    cluster = rh.cluster(
-        name=CLUSTER_NAME, accelerators=ACCELERATOR, provider=CLOUD_PROVIDER, image=img
+    cluster = rh.compute(
+        name=CLUSTER_NAME, gpus=GPUS, provider=CLOUD_PROVIDER, image=img
     ).up_if_not()
 
     module_name = "url_embedder"
     remote_url_embedder = cluster.get(module_name, default=None, remote=True)
     if DEBUG or remote_url_embedder is None:
-        RemoteEmbedder = rh.module(URLEmbedder).to(system=cluster, name="URLEmbedder")
+        RemoteEmbedder = rh.cls(URLEmbedder).to(system=cluster, name="URLEmbedder")
         remote_url_embedder = RemoteEmbedder(
             model_name_or_path="BAAI/bge-large-en-v1.5", device="cuda", name=module_name
         )
@@ -172,12 +172,12 @@ def load_llm():
     # Specifying the same name will reuse our embedding service cluster
     img = (
         rh.Image("llama3_inference")
-        .install_packages(["torch", "vllm==0.5.4"])
+        .pip_install(["torch", "vllm==0.5.4"])
         .sync_secrets(["huggingface"])
     )
 
-    cluster = rh.cluster(
-        CLUSTER_NAME, accelerators=ACCELERATOR, provider=CLOUD_PROVIDER, image=img
+    cluster = rh.compute(
+        CLUSTER_NAME, gpus=GPUS, provider=CLOUD_PROVIDER, image=img
     ).up_if_not()
 
     module_name = "llama_model"
@@ -185,7 +185,7 @@ def load_llm():
     remote_llm = cluster.get(module_name, default=None, remote=True)
     if DEBUG or remote_llm is None:
         # If not found (or debugging) sync up the model and create a fresh instance
-        RemoteLlama = rh.module(LlamaModel).to(system=cluster, name="LlamaModel")
+        RemoteLlama = rh.cls(LlamaModel).to(system=cluster, name="LlamaModel")
         remote_llm = RemoteLlama(name=module_name)
     return remote_llm
 

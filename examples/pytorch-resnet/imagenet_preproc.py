@@ -78,7 +78,7 @@ if __name__ == "__main__":
     # The cluster here is launched from elastic compute, but can also be launched from a Kubernetes cluster.
     img = (
         rh.Image("rh-preprocessing")
-        .install_packages(
+        .pip_install(
             [
                 "torch",
                 "torchvision",
@@ -91,7 +91,7 @@ if __name__ == "__main__":
         .sync_secrets(["aws", "huggingface"])
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-preprocessing",
         instance_type="i4i.2xlarge",
         provider="aws",
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     # Mount the disk to download the data to
     s3_bucket = "rh-demo-external"
     cache_dir = "/mnt/nvme"
-    cluster.run(
+    cluster.run_bash(
         [
             f"sudo mkdir {cache_dir}",
             "sudo mkfs.ext4 /dev/nvme1n1",

@@ -41,7 +41,7 @@ import asyncio
 import runhouse as rh
 
 # Next, we define a class that will hold the model and allow us to send prompts to it.
-# We'll later wrap this with `rh.module`.
+# We'll later wrap this with `rh.cls`.
 # This is a Runhouse class that allows you to run code in your class on a remote machine.
 #
 # Learn more in the [Runhouse docs on functions and modules](/docs/tutorials/api-modules).
@@ -111,13 +111,13 @@ async def main():
     # First, we define the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
     # Passing `"huggingface"` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
-    img = rh.Image(name="llama3inference").install_packages(
+    img = rh.Image(name="llama3inference").pip_install(
         ["torch", "vllm==0.2.7"]  # >=0.3.0 causes pydantic version error
     )
 
-    gpu_cluster = rh.cluster(
+    gpu_cluster = rh.compute(
         name="rh-l4x",
-        accelerators="L4:1",
+        gpus="L4:1",
         memory="32+",
         provider="gcp",
         image=img,
@@ -133,7 +133,7 @@ async def main():
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
     # by calling `cluster.get(name="llama3-8b-model")`. This would return the remote model after an initial run.
     # If we want to update the module each time we run this script, we prefer to use `to`.
-    RemoteLlamaModel = rh.module(LlamaModel).to(gpu_cluster, name="Llama3Model")
+    RemoteLlamaModel = rh.cls(LlamaModel).to(gpu_cluster, name="Llama3Model")
     remote_llama_model = RemoteLlamaModel(name="llama3-8b-model")
 
     # ## Calling our remote function

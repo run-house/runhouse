@@ -119,7 +119,7 @@ if __name__ == "__main__":
     # Passing `openai` to the `secrets` parameter will load the OpenAI API key we set up earlier.
     img = (
         rh.Image("langchain_rag")
-        .install_packages(
+        .pip_install(
             [
                 "langchain",
                 "langchain-community",
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     # Note: Runhouse also supports custom domains secured automatically with HTTPS so you can use your own domain name
     # when sharing an endpoint. Check out our docs on [using custom domains](https://www.run.house/docs/main/en/api/python/cluster#using-a-custom-domain)
     # for more information.
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-serving-cpu",
         instance_type="CPU:2",
         provider="aws",
@@ -154,9 +154,7 @@ if __name__ == "__main__":
         "https://www.nyc.gov/content/tenantprotection/pages/new-protections-for-all-tenants",
     )
 
-    RemoteLangchainRAG = rh.module(LangchainRAG, name="basic_rag_app").get_or_to(
-        cluster
-    )
+    RemoteLangchainRAG = rh.cls(LangchainRAG, name="basic_rag_app").get_or_to(cluster)
 
     rag_app = RemoteLangchainRAG(urls)
 

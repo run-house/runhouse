@@ -214,7 +214,7 @@ def dlrm_train(config):
     save_checkpoint("dlrm_model.pth")
 
 
-# Function that is sent to the remote cluster to run the training
+# Function that is sent to remote compute to run the training
 def ray_trainer(
     num_nodes,
     gpus_per_node,
@@ -270,25 +270,23 @@ def ray_trainer(
 
 
 # ### Run distributed training with Runhouse
-# The following code snippet demonstrates how to create a Runhouse cluster and run the distributed training pipeline on the cluster.
-# - We define a 3 node cluster with GPUs where we will do the training.
+# The following code snippet demonstrates how to define Runhouse compute and run the distributed training pipeline on it.
+# - We define a 4 node cluster with GPUs where we will do the training.
 # - Then we dispatch the Ray trainer function to the remote cluster and call .distribute('ray') to properly setup Ray. It's that easy.
 if __name__ == "__main__":
-    # Create a cluster of multiple nodes with GPUs
+    # Define compute with multiple nodes with GPUs
     gpus_per_node = 1
     num_nodes = 4
 
     img = (
-        rh.Image("ray-torch")
-        .install_packages(
-            ["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]
-        )
+        rh.images.ray()
+        .pip_install(["torch==2.5.1", "datasets", "boto3", "awscli"])
         .sync_secrets(["aws"])
     )
 
-    gpu_cluster = rh.cluster(
+    gpus = rh.compute(
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-        accelerators=f"A10G:{gpus_per_node}",
+        gpus=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,
         provider="aws",
         image=img,
@@ -305,7 +303,7 @@ if __name__ == "__main__":
     working_s3_path = "dlrm-training-example/"
 
     remote_trainer = (
-        rh.function(ray_trainer).to(gpu_cluster, name="ray_trainer").distribute("ray")
+        rh.function(ray_trainer).to(gpus, name="ray_trainer").distribute("ray")
     )
 
     # Call the training function on the cluster

@@ -27,6 +27,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
 
       - name: Run not cluster tests
@@ -35,7 +37,7 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "not clustertest and not ondemand and not multinode and not servertest"
+        run: pytest --level release tests -k "not cluster and not servertest" --ci
         timeout-minutes: 60
 
   cluster-tests:
@@ -58,6 +60,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 
@@ -67,7 +71,7 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "clustertest and not ondemand and not multinode"
+        run: pytest --level release tests -k "clustertest and not ondemand and not multinode and not cluster_list" --ci
         timeout-minutes: 60
 
   ondemand-aws-tests-local-launcher:
@@ -90,6 +94,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 
@@ -99,10 +105,7 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        # running with on-demand cluster that not using docker image, because the latter causing nightly tests in CI to
-        # run for a very long time (does not happen locally).
-        # TODO: [JL / SB]: check how we could make CI run with docker on-demand cluster
-        run: pytest --level release tests -k "ondemand_aws_https_cluster_with_auth"
+        run: pytest --level release tests -k "ondemand and local_launched_ondemand_aws_docker_cluster and not multinode and not servertest and not secrettest" --ci
         timeout-minutes: 60
 
   ondemand-aws-tests-den-launcher:
@@ -125,6 +128,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 
@@ -134,10 +139,7 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        # running with on-demand cluster that not using docker image, because the latter causing nightly tests in CI to
-        # run for a very long time (does not happen locally).
-        # TODO: [JL / SB]: check how we could make CI run with docker on-demand cluster
-        run: pytest --level release tests -k "den_launched_ondemand_aws_docker_cluster"
+        run: pytest --level release tests -k "den_launched_ondemand_aws_docker_cluster" --ci
         timeout-minutes: 60
 
   ondemand-aws-multinode-tests:
@@ -160,6 +162,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 
@@ -169,7 +173,7 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "multinode"
+        run: pytest --level release tests -k "multinode" --ci
         timeout-minutes: 60
 
   ondemand-gcp-tests:
@@ -192,6 +196,8 @@ jobs:
           DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 
@@ -201,7 +207,7 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "ondemand_gcp_cluster"
+        run: pytest --level release tests -k "ondemand_gcp_cluster" --ci
         timeout-minutes: 60
 
   kubernetes-tests:
@@ -224,6 +230,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 
@@ -233,20 +241,10 @@ jobs:
           KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
           ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
           ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
-        run: pytest --level release tests -k "ondemand_k8s_cluster"
+        run: pytest --level release tests -k "ondemand_k8s_cluster and not cluster_list" --ci
         timeout-minutes: 60
 
-  # making sure that the clusters were terminated after the test runs.
-  check-cluster-status:
-    if: always()
-    needs:
-      - not-cluster-not-server-tests
-      - cluster-tests
-      - ondemand-aws-tests-local-launcher
-      - ondemand-aws-tests-den-launcher
-      - ondemand-gcp-tests
-      - kubernetes-tests
-      - ondemand-aws-multinode-tests
+  cluster-list-tests:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -266,6 +264,53 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
           DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
+          API_SERVER_URL: ${{ env.API_SERVER_URL }}
+          EKS_ARN: ${{ secrets.EKS_ARN }}
+
+      - name: Run cluster list tests
+        env:
+          KITCHEN_TESTER_TOKEN: ${{ secrets.KITCHEN_TESTER_PROD_TOKEN }}
+          KITCHEN_TESTER_USERNAME: ${{ secrets.KITCHEN_TESTER_USERNAME }}
+          ORG_MEMBER_TOKEN: ${{ secrets.ORG_MEMBER_PROD_TOKEN }}
+          ORG_MEMBER_USERNAME: ${{ secrets.ORG_MEMBER_USERNAME }}
+        run: pytest --level release tests -k "cluster_list and not aws and not gcp" --ci
+        timeout-minutes: 60
+
+  # making sure that the clusters were terminated after the test runs.
+  check-cluster-status:
+    if: always()
+    needs:
+      - not-cluster-not-server-tests
+      - cluster-tests
+      - ondemand-aws-tests-local-launcher
+      - ondemand-aws-tests-den-launcher
+      - ondemand-gcp-tests
+      - kubernetes-tests
+      - ondemand-aws-multinode-tests
+      - cluster-list-tests
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Release Testing
+        uses: ./.github/workflows/setup_release_testing
+        with:
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+          AWS_OSS_ROLE_ARN: ${{ secrets.AWS_OSS_ROLE_ARN }}
+          DEV_AWS_ACCESS_KEY: ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          DEV_AWS_SECRET_KEY: ${{ secrets.DEV_AWS_SECRET_KEY }}
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          DEN_TESTER_TOKEN: ${{ secrets.DEN_TESTER_PROD_TOKEN }}
+          DEN_TESTER_USERNAME: ${{ secrets.DEN_TESTER_USERNAME }}
+          DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
           EKS_ARN: ${{ secrets.EKS_ARN }}
 

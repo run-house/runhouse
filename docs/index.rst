@@ -101,9 +101,9 @@ Table of Contents
    :maxdepth: 1
    :caption: Getting Started
 
+   installation-setup
    tutorials/quick-start-cloud
-   tutorials/quick-start-den
-   how-to-use-runhouse
+   development-guide
    runhouse-in-your-stack
 
 

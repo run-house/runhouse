@@ -8,10 +8,9 @@ from typing import Any, Dict, List, Optional, Union
 
 import requests
 
-from fastapi import HTTPException
 from pydantic import BaseModel, field_validator
-from ray import cloudpickle as pickle
-from ray.exceptions import RayTaskError
+
+from runhouse.exceptions import InsufficientDiskError
 
 from runhouse.logger import get_logger
 
@@ -34,7 +33,7 @@ class InstallPackageParams(BaseModel):
 
 class RunBashParams(BaseModel):
     command: str
-    node: Optional[str] = None
+    node_ip_or_idx: Optional[Union[str, int]] = None
     process: Optional[str] = None
     require_outputs: bool = False
     run_name: Optional[str] = None
@@ -55,8 +54,8 @@ class CreateProcessParams(BaseModel):
     env_vars: Optional[Dict] = {}
 
 
-class SetProcessEnvVarsParams(BaseModel):
-    process_name: str
+class SetEnvVarsParams(BaseModel):
+    process_name: Optional[str] = None
     env_vars: Dict[str, str]
 
 
@@ -94,7 +93,7 @@ class KillProcessParams(BaseModel):
 
 class LogsParams(BaseModel):
     run_name: str
-    node_ip: Optional[str] = None
+    node_ip_or_idx: Optional[Union[str, int]] = None
     process: Optional[str] = None
     key: Optional[str] = None
     serialization: Optional[str] = None
@@ -171,11 +170,15 @@ class FolderMvParams(FolderParams):
 
 
 def pickle_b64(picklable):
-    return codecs.encode(pickle.dumps(picklable), "base64").decode()
+    import cloudpickle
+
+    return codecs.encode(cloudpickle.dumps(picklable), "base64").decode()
 
 
 def b64_unpickle(b64_pickled):
-    return pickle.loads(codecs.decode(b64_pickled.encode(), "base64"))
+    import cloudpickle
+
+    return cloudpickle.loads(codecs.decode(b64_pickled.encode(), "base64"))
 
 
 def deserialize_data(data: Any, serialization: Optional[str]):
@@ -213,6 +216,9 @@ def serialize_data(data: Any, serialization: Optional[str]):
 def handle_exception_response(
     exception: Exception, traceback: str, serialization="pickle", from_http_server=False
 ):
+    from fastapi import HTTPException
+    from ray.exceptions import RayTaskError
+
     if not (
         isinstance(exception, RunhouseStopIteration)
         or isinstance(exception, StopIteration)
@@ -348,6 +354,11 @@ def handle_response(
         ):
             logger.error(f"{system_color}{err_str}: {fn_exception}{reset_color}")
             logger.error(f"{system_color}Traceback: {fn_traceback}{reset_color}")
+
+        # Errno 28 means "No space left on device"
+        if isinstance(fn_exception, OSError) and fn_exception.errno == 28:
+            raise InsufficientDiskError()
+
         raise fn_exception
     elif output_type == OutputType.STDOUT:
         res = response_data["data"]
@@ -394,6 +405,8 @@ def folder_mkdir(path: Path):
 
 
 def folder_get(path: Path, encoding: str = None, mode: str = None):
+    from fastapi import HTTPException
+
     mode = mode or "rb"
     binary_mode = "b" in mode
 
@@ -434,6 +447,8 @@ def folder_put(
     mode: str = None,
     serialization: str = None,
 ):
+    from fastapi import HTTPException
+
     mode = mode or "wb"
 
     if contents and not isinstance(contents, dict):
@@ -481,6 +496,8 @@ def folder_put(
 
 
 def folder_ls(path: Path, full_paths: bool, sort: bool):
+    from fastapi import HTTPException
+
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"Path {path} does not exist")
 
@@ -507,6 +524,8 @@ def folder_ls(path: Path, full_paths: bool, sort: bool):
 
 
 def folder_rm(path: Path, contents: List[str], recursive: bool):
+    from fastapi import HTTPException
+
     if contents:
         from runhouse import Folder
 
@@ -548,6 +567,8 @@ def folder_rm(path: Path, contents: List[str], recursive: bool):
 
 
 def folder_mv(src_path: Path, dest_path: str, overwrite: bool):
+    from fastapi import HTTPException
+
     dest_path = resolve_folder_path(dest_path)
 
     if not src_path.exists():

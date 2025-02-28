@@ -59,7 +59,7 @@ spec:
         # Now we can bring up the cluster with Runhouse.
         num_nodes = 2
 
-        img = rh.Image('ray-data').install_packages(
+        img = rh.Image('ray-data').pip_install(
             [
                 "ray[data]",
                 "pandas",
@@ -74,7 +74,7 @@ spec:
 
         num_nodes = 2
 
-        cluster = rh.cluster(
+        cluster = rh.compute(
             name="rh-ray-preprocessing",
             num_cpus="4",
             memory = "15+",
@@ -125,12 +125,12 @@ spec:
         gpus_per_node = 1
         num_nodes = 3
 
-        img = rh.Image('ray-torch').install_packages(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]).sync_secrets(["aws"])
+        img = rh.Image('ray-torch').pip_install(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]).sync_secrets(["aws"])
 
         gpu_cluster = (
-            rh.cluster(
+            rh.compute(
                 name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-                accelerators=f"A10G:{gpus_per_node}",
+                gpus=f"A10G:{gpus_per_node}",
                 num_nodes=num_nodes,
                 provider="aws",
                 image = img,
@@ -185,12 +185,12 @@ spec:
         gpus_per_node = 1
         num_nodes = 2
 
-        img = rh.Image("ray-data").install_packages(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]).sync_secrets(["aws"])
+        img = rh.Image("ray-data").pip_install(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]).sync_secrets(["aws"])
 
         gpu_cluster = (
-            rh.cluster(
+            rh.compute(
                 name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-                accelerators=f"A10G:{gpus_per_node}",
+                gpus=f"A10G:{gpus_per_node}",
                 num_nodes=num_nodes,
                 provider="aws",
                 autostop_minutes=45,

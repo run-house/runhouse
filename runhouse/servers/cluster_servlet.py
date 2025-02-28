@@ -8,8 +8,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import httpx
 
-import psutil
-import pynvml
 import requests
 
 import runhouse
@@ -39,8 +37,8 @@ from runhouse.servers.http.auth import AuthCache
 from runhouse.servers.http.http_utils import CreateProcessParams
 from runhouse.utils import (
     ColoredFormatter,
-    get_gpu_usage,
     get_pid,
+    parse_gpu_usage,
     ServletType,
     sync_function,
 )
@@ -56,52 +54,52 @@ class ClusterServlet:
     async def __init__(
         self, cluster_config: Optional[Dict[str, Any]] = None, *args, **kwargs
     ):
-        # will need this to make sure that we are deleting the correct cluster servlet when we call kill_actors
-        self.name = kwargs.get("name", "cluster_servlet")
+        import psutil
+
         # We do this here instead of at the start of the HTTP Server startup
         # because someone can be running `HTTPServer()` standalone in a test
         # and still want an initialized cluster config in the servlet.
         if not cluster_config:
             cluster_config = load_cluster_config_from_file()
-
-        self.cluster_config: Optional[Dict[str, Any]] = (
-            cluster_config if cluster_config else {}
-        )
-        self.cluster_config["has_cuda"] = is_gpu_cluster()
+        self._cluster_config: Optional[Dict[str, Any]] = cluster_config
 
         self._initialized_servlet_args: Dict[str, CreateProcessParams] = {}
         self._key_to_servlet_name: Dict[Any, str] = {}
-        self._auth_cache: AuthCache = AuthCache(self.cluster_config)
-        self.autostop_helper = None
+        self._auth_cache: AuthCache = AuthCache()
         self._paths_to_prepend_in_new_processes = []
+        self._env_vars_to_set_in_new_processes = {}
         self._node_servlet_names: List[str] = []
-
-        if cluster_config.get("resource_subtype", None) == "OnDemandCluster":
-            self.autostop_helper = AutostopHelper()
-
-        self._cluster_name = self.cluster_config.get("name", None)
+        self._cluster_name = self._cluster_config.get("name", None)
         self._cluster_uri = (
             rns_client.format_rns_address(self._cluster_name)
             if self._cluster_name
             else None
         )
 
-        self._api_server_url = self.cluster_config.get(
-            "api_server_url", rns_client.api_server_url
-        )
-        self.pid = get_pid()
-        self.process = psutil.Process(pid=self.pid)
-        self.gpu_metrics = None  # will be updated only if this is a gpu cluster.
-
-        # will be used when self.gpu_metrics will be updated by different threads.
-        self.lock = threading.Lock()
-
         # will be used in the periodic loop which sends cluster logs to den. Since we are saving logs to the server.log
         # file asynchronously, there might be a use case where we want to send logs to den but the server.log has not
         # been created yet, since it is a freshly initialized cluster servlet. In this case, we will return an empty string.
         self._is_log_file_ready = False
 
-        if self.cluster_config.get("has_cuda"):
+        self._are_multinode_servlets_ready = False
+
+        # will need this to make sure that we are deleting the correct cluster servlet when we call kill_actors
+        self.name = kwargs.get("name", "cluster_servlet")
+
+        self.autostop_helper = None
+        if self._cluster_config.get("resource_subtype", None) == "OnDemandCluster":
+            self.autostop_helper = AutostopHelper()
+
+        self.pid = get_pid()
+        self.process = psutil.Process(pid=self.pid)
+        self.gpu_metrics = None  # will be updated only if this is a gpu cluster.
+        # will be used when self.gpu_metrics will be updated by different threads.
+        self.lock = threading.Lock()
+
+        self._cluster_config["is_gpu"] = is_gpu_cluster()
+
+        # creating periodic check loops
+        if self._cluster_config.get("is_gpu"):
             logger.debug("Creating _periodic_gpu_check thread.")
             collect_gpu_thread = threading.Thread(
                 target=self._periodic_gpu_check, daemon=True
@@ -128,6 +126,7 @@ class ClusterServlet:
 
     async def aset_node_servlet_names(self, node_servlet_names: List[str]):
         self._node_servlet_names = node_servlet_names
+        self._are_multinode_servlets_ready = True
 
     ##############################################
     # Add to path and get path methods
@@ -139,16 +138,41 @@ class ClusterServlet:
         return self._paths_to_prepend_in_new_processes
 
     ##############################################
+    # Env vars to set and get env vars methods
+    ##############################################
+    async def aset_env_vars_globally(self, env_vars: Dict[str, Any]):
+
+        await asyncio.gather(
+            *[
+                obj_store.acall_servlet_method(
+                    servlet_name,
+                    "aset_env_vars",
+                    env_vars,
+                    use_servlet_cache=False,
+                )
+                for servlet_name in await self.aget_all_initialized_servlet_args()
+            ]
+        )
+
+        await self.aadd_env_vars_to_set_in_new_processes(env_vars)
+
+    async def aadd_env_vars_to_set_in_new_processes(self, env_vars: Dict[str, Any]):
+        self._env_vars_to_set_in_new_processes.update(env_vars)
+
+    async def aget_env_vars_to_set_in_new_processes(self) -> Dict[str, str]:
+        return self._env_vars_to_set_in_new_processes
+
+    ##############################################
     # Cluster config state storage methods
     ##############################################
     async def aget_cluster_config(self) -> Dict[str, Any]:
-        return self.cluster_config
+        return self._cluster_config
 
     async def aset_cluster_config(self, cluster_config: Dict[str, Any]):
-        if "has_cuda" not in cluster_config.keys():
-            cluster_config["has_cuda"] = is_gpu_cluster()
+        if "is_gpu" not in cluster_config.keys():
+            cluster_config["is_gpu"] = is_gpu_cluster()
 
-        self.cluster_config = cluster_config
+        self._cluster_config = cluster_config
 
         # Propagate the changes to all other process's obj_stores
         await asyncio.gather(
@@ -163,12 +187,12 @@ class ClusterServlet:
             ]
         )
 
-        return self.cluster_config
+        return self._cluster_config
 
     async def aset_cluster_config_value(self, key: str, value: Any):
         if self.autostop_helper and key == "autostop_mins":
             await self.autostop_helper.set_autostop(value)
-        self.cluster_config[key] = value
+        self._cluster_config[key] = value
 
         # Propagate the changes to all other process's obj_stores
         await asyncio.gather(
@@ -184,7 +208,7 @@ class ClusterServlet:
             ]
         )
 
-        return self.cluster_config
+        return self._cluster_config
 
     ##############################################
     # Auth cache internal functions
@@ -291,6 +315,21 @@ class ClusterServlet:
             ]
             for key in deleted_keys:
                 self._key_to_servlet_name.pop(key)
+
+            # remove from servlet cache in all processes
+            await asyncio.gather(
+                *[
+                    obj_store.acall_servlet_method(
+                        servlet,
+                        "aremove_servlet_from_cache",
+                        servlet_name,
+                    )
+                    for servlet in await self.aget_all_initialized_servlet_args()
+                ]
+            )
+            # current process
+            await obj_store.adelete_servlet_from_cache(servlet_name)
+
         return deleted_keys
 
     ##############################################
@@ -302,7 +341,7 @@ class ClusterServlet:
         # making a copy so the status won't be modified with pop, since it will be returned after sending to den.
         # (status is passed as pointer).
         status_copy = copy.deepcopy(status)
-        servlet_processes = status_copy.pop("env_servlet_processes")
+        servlet_processes = status_copy.pop("processes")
 
         status_data = {
             "daemon_status": RunhouseDaemonStatus.RUNNING,
@@ -310,13 +349,13 @@ class ClusterServlet:
                 "resource_type", "cluster"
             ),
             "resource_info": status_copy,
-            "env_servlet_processes": servlet_processes,
+            "processes": servlet_processes,
         }
 
         client = httpx.AsyncClient()
 
         return await client.post(
-            f"{self._api_server_url}/resource/{self._cluster_uri}/cluster/status",
+            f"{rns_client.api_server_url}/resource/{self._cluster_uri}/cluster/status",
             data=json.dumps(status_data),
             headers=rns_client.request_headers(),
         )
@@ -388,6 +427,12 @@ class ClusterServlet:
                     logger.debug("Successfully updated autostop")
 
             except Exception as e:
+                if (
+                    "Failed to look up actor with name" in str(e)
+                    and not self._are_multinode_servlets_ready
+                ):
+                    # try to update autostop from a multinode cluster before the NodeServlets on all nodes is ready
+                    continue
                 logger.error(f"Autostop check has failed: {e}")
 
                 # killing the cluster servlet only if log level is debug
@@ -405,7 +450,6 @@ class ClusterServlet:
         and save it to Den."""
 
         logger.debug("started periodic cluster checks")
-
         disable_observability = (
             os.getenv("disable_observability", "false").strip().lower() == "true"
         )
@@ -472,6 +516,12 @@ class ClusterServlet:
                         logger.debug("Successfully sent cluster logs to Den.")
 
             except Exception as e:
+                if (
+                    "Failed to look up actor with name" in str(e)
+                    and not self._are_multinode_servlets_ready
+                ):
+                    # try to collect status from a multinode cluster before the NodeServlets on all nodes is ready
+                    continue
                 logger.error(f"Cluster checks have failed: {e}.\n")
 
                 # killing the cluster servlet only if log level is debug
@@ -504,14 +554,14 @@ class ClusterServlet:
         function_running = any(
             any(
                 len(
-                    resource["env_resource_mapping"][resource_name].get(
+                    resource["process_resource_mapping"][resource_name].get(
                         "active_function_calls", []
                     )
                 )
                 > 0
-                for resource_name in resource["env_resource_mapping"].keys()
+                for resource_name in resource["process_resource_mapping"].keys()
             )
-            for resource in status.get("env_servlet_processes", {}).values()
+            for resource in status.get("processes", {}).values()
         )
         if function_running:
             await self.autostop_helper.set_last_active_time_to_now()
@@ -544,6 +594,7 @@ class ClusterServlet:
 
     async def _aperiodic_gpu_check(self):
         """periodically collects cluster gpu usage"""
+        import pynvml
 
         logger.debug("Started gpu usage collection")
 
@@ -564,7 +615,7 @@ class ClusterServlet:
                         total_memory = memory_info.total  # in bytes
                         used_memory = memory_info.used  # in bytes
                         free_memory = memory_info.free  # in bytes
-                        utilization_percent = util_info.gpu / 1.0  # make it float
+                        utilization_percent = float(util_info.gpu)  # make it float
 
                         # to reduce cluster memory usage (we are saving the gpu_usage info on the cluster),
                         # we save only the most updated gpu usage. If for some reason the size of updated_gpu_info is
@@ -606,24 +657,91 @@ class ClusterServlet:
         # This is only ever called once in its own thread, so we can do asyncio.run here instead of `sync_function`.
         asyncio.run(self._aperiodic_gpu_check())
 
-    def _get_node_gpu_usage(self, server_pid: int):
-        # TODO [SB] currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
-        collected_gpus_info = copy.deepcopy(self.gpu_metrics)
+    def _get_cluster_gpu_usage(
+        self, is_multinode: bool, workers_usage: list, send_to_den: bool = False
+    ):
 
-        if collected_gpus_info is None or not collected_gpus_info[0]:
-            return None
+        updated_workers_usage = []
+        head_collected_gpus_info = copy.deepcopy(self.gpu_metrics)
 
-        cluster_gpu_usage = get_gpu_usage(
-            collected_gpus_info=collected_gpus_info, servlet_type=ServletType.cluster
+        if not is_multinode and (
+            not head_collected_gpus_info or not head_collected_gpus_info[0]
+        ):
+            return updated_workers_usage
+
+        # Updating the head worker's resource usage to include its GPU usage.
+        head_node_resource_usage = workers_usage[0]
+        head_node_resource_usage["server_gpu_usage"] = parse_gpu_usage(
+            collected_gpu_info=head_collected_gpus_info,
+            servlet_type=ServletType.cluster,
+        )
+        # Adding the head node's resource usage as the first element in the workers' resources list.
+        updated_workers_usage.append(head_node_resource_usage)
+
+        # adding the gpu usage of the other node (if such exist) and make them to the first element of the worker list,
+        # based on their order (equal to the ips list order)
+        compute_properties = self._cluster_config.get("compute_properties", None)
+        internal_ips = (
+            compute_properties.get("internal_ips", None) if compute_properties else None
+        )
+        if is_multinode and internal_ips and self._are_multinode_servlets_ready:
+            for ip_index in range(1, len(internal_ips)):
+                worker_resource_usage = workers_usage[ip_index]
+                if self._are_multinode_servlets_ready:
+                    node_servlet_name = obj_store.node_servlet_name_for_ip(
+                        internal_ips[ip_index]
+                    )
+                    node_servlet = obj_store.get_servlet(name=node_servlet_name)
+                    worker_gpu_usage = obj_store.call_actor_method(
+                        node_servlet, "get_gpu_metrics", send_to_den
+                    )
+                    worker_gpu_usage = parse_gpu_usage(
+                        collected_gpu_info=worker_gpu_usage,
+                        servlet_type=ServletType.cluster,
+                    )
+                    worker_resource_usage["server_gpu_usage"] = worker_gpu_usage
+
+                updated_workers_usage.append(worker_resource_usage)
+
+        return updated_workers_usage
+
+    def _map_internal_external_ip(self, internal_ip: str):
+        compute_properties = self._cluster_config.get("compute_properties", None)
+        ips: list = (
+            compute_properties.get("ips")
+            if compute_properties
+            else self._cluster_config.get("ips")
+        )
+        internal_ips: list = (
+            compute_properties.get("internal_ips") if compute_properties else ips
         )
 
-        # will be useful for multi-node clusters.
-        cluster_gpu_usage["server_pid"] = server_pid
+        return ips[internal_ips.index(internal_ip)]
 
-        return cluster_gpu_usage
+    async def _aget_node_cpu_usage(self, internal_ip: str):
+        return {
+            "ip": self._map_internal_external_ip(internal_ip),
+            "server_cpu_usage": await obj_store.acall_servlet_method(
+                servlet_name=obj_store.node_servlet_name_for_ip(internal_ip),
+                method="aget_cpu_usage",
+            ),
+        }
 
     async def astatus(self, send_to_den: bool = False) -> Tuple[Dict, Optional[int]]:
-        config_cluster = copy.deepcopy(self.cluster_config)
+        import psutil
+
+        config_cluster = copy.deepcopy(self._cluster_config)
+        compute_properties = config_cluster.get("compute_properties", None)
+        ips = (
+            compute_properties.get("ips")
+            if compute_properties
+            else config_cluster.get("ips")
+        )
+        internal_ips = (
+            compute_properties.get("internal_ips") if compute_properties else ips
+        )
+        is_multinode = len(ips) > 1
+        head_ip = ips[0]
 
         # Popping out creds because we don't want to show them in the status
         config_cluster.pop("creds", None)
@@ -639,12 +757,12 @@ class ClusterServlet:
             )
 
         # Store the data for the appropriate env servlet name
-        for env_status in servlets_status:
-            servlet_name = env_status.get("servlet_name")
+        for process_status in servlets_status:
+            servlet_name = process_status.get("servlet_name")
 
             # Nothing to store if there was an exception
-            if "Exception" in env_status.keys():
-                e = env_status.get("Exception")
+            if "Exception" in process_status.keys():
+                e = process_status.get("Exception")
                 logger.warning(
                     f"Exception {str(e)} in status for env servlet {servlet_name}"
                 )
@@ -652,42 +770,58 @@ class ClusterServlet:
 
             else:
                 # Store what was in the env and the utilization data
-                env_memory_info = env_status.get("servlet_utilization_data")
-                env_memory_info["env_resource_mapping"] = env_status.get(
+                process_memory_info = process_status.get("servlet_utilization_data")
+                process_memory_info["process_resource_mapping"] = process_status.get(
                     "objects_in_servlet"
                 )
-                servlet_utilization_data[servlet_name] = env_memory_info
-
-        # TODO: decide if we need this info at all: cpu_usage, memory_usage, disk_usage
-        cpu_utilization = psutil.cpu_percent(interval=0)
+                servlet_utilization_data[servlet_name] = process_memory_info
 
         # A dictionary that match the keys of psutil.virtual_memory()._asdict() to match the keys we expect in Den.
         relevant_memory_info = {
             "available": "free_memory",
-            "percent": "percent",
+            "percent": "used_memory_percent",
             "total": "total_memory",
             "used": "used_memory",
         }
 
         # Fields: `total`, `available`, `percent`, `used`, `free`, `active`, `inactive`, `buffers`, `cached`, `shared`, `slab`
         # according to psutil docs, percent = (total - available) / total * 100
-        memory_usage = psutil.virtual_memory()._asdict()
+        # we now it is memory usage of the head node because it is calculated on the cluster_servlet which is
+        # initialized on the head node
+        head_cpu_usage = psutil.virtual_memory()._asdict()
 
-        memory_usage = {
-            relevant_memory_info[k]: memory_usage[k]
-            for k in relevant_memory_info.keys()
+        head_cpu_usage = {v: head_cpu_usage[k] for k, v in relevant_memory_info.items()}
+
+        head_cpu_usage["utilization_percent"] = psutil.cpu_percent(
+            interval=0
+        )  # value is between 0 and 100
+
+        head_node_resource_usage = {
+            "ip": head_ip,
+            "server_cpu_usage": head_cpu_usage,
         }
 
-        # get general gpu usage
-        server_gpu_usage = (
-            self._get_node_gpu_usage(self.pid)
-            if self.cluster_config.get("has_cuda", False)
-            else None
-        )
-        gpu_utilization = (
-            server_gpu_usage.pop("utilization_percent", None)
-            if server_gpu_usage
-            else None
+        nodes_resource_usage = [head_node_resource_usage]
+
+        # if the cluster is multinode, calculate the cpu_utilization and memory usage of the nodes that are not the head node.
+        if is_multinode and ips and self._are_multinode_servlets_ready:
+            workers_resource_usage = await asyncio.gather(
+                *[
+                    self._aget_node_cpu_usage(internal_ip=internal_ip)
+                    for internal_ip in internal_ips[1:]
+                ]
+            )
+            nodes_resource_usage = nodes_resource_usage + workers_resource_usage
+
+        # get cluster gpu usage (if it's a multinode cluster, we get gpu usage per node)
+        workers_resource_usage = (
+            self._get_cluster_gpu_usage(
+                is_multinode=is_multinode,
+                workers_usage=nodes_resource_usage,
+                send_to_den=send_to_den,
+            )
+            if self._cluster_config.get("is_gpu")
+            else nodes_resource_usage
         )
 
         # rest the gpu_info only after the status was sent to den. If we should not send status to den,
@@ -700,11 +834,9 @@ class ClusterServlet:
             "cluster_config": config_cluster,
             "runhouse_version": runhouse.__version__,
             "server_pid": self.pid,
-            "env_servlet_processes": servlet_utilization_data,
-            "server_cpu_utilization": cpu_utilization,
-            "server_gpu_utilization": gpu_utilization,
-            "server_memory_usage": memory_usage,
-            "server_gpu_usage": server_gpu_usage,
+            "workers": workers_resource_usage,
+            "is_multinode": is_multinode,
+            "processes": servlet_utilization_data,
         }
 
         # converting status_data to ResourceStatusData instance to verify we constructed the status data correctly
@@ -774,7 +906,7 @@ class ClusterServlet:
         }
 
         post_logs_resp = requests.post(
-            f"{self._api_server_url}/resource/{self._cluster_uri}/logs",
+            f"{rns_client.api_server_url}/resource/{self._cluster_uri}/logs",
             data=json.dumps(logs_data),
             headers=rns_client.request_headers(),
         )

@@ -5,7 +5,7 @@ if __name__ == "__main__":
     num_nodes = 2
     cluster_name = f"rh-new-{num_nodes}"
 
-    img = rh.Image("dask-img").install_packages(
+    img = rh.Image("dask-img").pip_install(
         [
             "dask[distributed,dataframe]",
             "dask-ml",
@@ -14,7 +14,7 @@ if __name__ == "__main__":
         ],
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=cluster_name,
         instance_type="r5d.xlarge",
         num_nodes=num_nodes,
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     # LightGBMModelTrainer is a completely normal class encapsulating training, that a researcher would also be able to use locally as-is
     from lightgbm_training import LightGBMModelTrainer
 
-    remote_dask_trainer = rh.module(LightGBMModelTrainer).to(cluster)
+    remote_dask_trainer = rh.cls(LightGBMModelTrainer).to(cluster)
 
     # Create is a locally callable, but remote instance of the trainer class
     # You can interact with this trainer class in a different notebook / elsewhere using

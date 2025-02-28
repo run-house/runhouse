@@ -859,7 +859,7 @@ class TestModule:
 
         cluster.share(
             users=["info@run.house"],
-            access_level="write",
+            access_level="read",
             notify_users=False,
         )
 

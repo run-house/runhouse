@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # An image can include a base Docker image, package installations, setup commands, env vars, and secrets.
     img = (
         rh.Image("ray-data")
-        .install_packages(
+        .pip_install(
             [
                 "ray[data]",
                 "pandas",
@@ -60,10 +60,10 @@ if __name__ == "__main__":
 
     # Create a Runhouse cluster with 2 nodes with 4 CPUs and 15+GB memory each
     # Launch from AWS (EC2) on US East 1 region
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-ray-preprocessing",
         num_cpus="4",
-        memory="15+",  # Also `accelerators` `disk_size`
+        memory="15+",  # Also `gpus` `disk_size`
         provider="aws",  # kubernetes, etc.
         region="us-east-1",  # eu-west-1, etc.
         num_nodes=2,  # Launch two nodes, each with the requirements above

@@ -44,6 +44,9 @@ jobs:
 
       - name: Setup Runhouse
         uses: ./.github/workflows/setup_runhouse
+        with:
+          den_tester_ssh_private_key: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
+          den_tester_ssh_public_key: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
 
       - name: Setup Runhouse Config
         uses: ./.github/workflows/setup_rh_config

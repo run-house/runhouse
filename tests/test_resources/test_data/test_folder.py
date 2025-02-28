@@ -2,13 +2,14 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import cloudpickle
+
 import pytest
 
 import runhouse as rh
 
 import tests.test_resources.test_resource
 
-from ray import cloudpickle as pickle
 
 DATA_STORE_BUCKET = "runhouse-folder"
 DATA_STORE_PATH = f"/{DATA_STORE_BUCKET}/folder-tests"
@@ -130,7 +131,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         assert deserialize_data(file_contents, pickle_serialization) == raw_data
 
         with pytest.raises(Exception):
-            docker_cluster_folder.put({"some_file.pickle": pickle.dumps(raw_data)})
+            docker_cluster_folder.put({"some_file.pickle": cloudpickle.dumps(raw_data)})
 
         json_serialization = "json"
         raw_data = {"name": "Runhouse"}
@@ -145,7 +146,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
     def test_send_folder_to_dest(self, folder, dest):
         _check_skip_test(folder, dest)
 
-        system = "here" if dest.system == "file" else dest.system
+        system = dest.system
         expected_fs_str = "ssh" if isinstance(dest.system, rh.Cluster) else dest.system
 
         # Ensure dest path is empty to avoid FileExistsError when copying (dest path must not exist)
@@ -214,7 +215,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         s3_folder = local_folder.to("s3")
         assert s3_folder.system == "s3"
 
-        s3_folder.put({"test_data.py": pickle.dumps(data)}, overwrite=True)
+        s3_folder.put({"test_data.py": cloudpickle.dumps(data)}, overwrite=True)
         assert s3_folder.exists_in_system()
 
         s3_folder.rm()
@@ -227,7 +228,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
             data = list(range(50))
             fake_file_path = Path(temp_dir) / "test_data.py"
             with open(fake_file_path, "wb") as f:
-                pickle.dump(data, f)
+                cloudpickle.dump(data, f)
 
             local_folder = rh.folder(path=fake_file_path.parent)
             assert local_folder.system == "file"
@@ -247,7 +248,7 @@ class TestFolder(tests.test_resources.test_resource.TestResource):
         file_name = "test_data.py"
         file_stream = s3_folder.open(name=file_name)
         with file_stream as f:
-            data = pickle.load(f)
+            data = cloudpickle.load(f)
 
         assert data == list(range(50))
 

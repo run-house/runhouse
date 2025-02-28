@@ -189,12 +189,12 @@ if __name__ == "__main__":
     # on the cluster in the default Hugging Face token location (`~/.cache/huggingface/token`).
     img = (
         rh.Image(name="tgi", image_id="ami-0e0f965ee5cfbf89b")
-        .install_packages(["docker"])
+        .pip_install(["docker"])
         .sync_secrets(["huggingface"])
     )
 
     # Launch an 8xlarge AWS Inferentia2 instance
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-inf2-8xlarge",
         instance_type="inf2.8xlarge",
         region="us-east-1",
@@ -204,11 +204,11 @@ if __name__ == "__main__":
         open_ports=[port],
     ).up_if_not()
 
-    # We can run commands directly on the cluster via `cluster.run()`. Here, we set up the environment for our
+    # We can run commands directly on the cluster via `cluster.run_bash()`. Here, we set up the environment for our
     # upcoming environment (more on that below) that installed some AWS-neuron specific libraries.
     # We install the `transformers-neuronx` library before restarting the Runhouse cluster (not affecting the underlying infra) to avoid
     # [common errors](https://awsdocs-neuron.readthedocs-hosted.com/en/latest/frameworks/torch/torch-neuronx/training-troubleshooting.html):
-    cluster.run(
+    cluster.run_bash(
         [
             "python -m pip config set global.extra-index-url https://pip.repos.neuron.amazonaws.com",
             "python -m pip install neuronx-cc==2.* torch-neuronx==1.13.1.1.13.1 transformers-neuronx==0.9.474",

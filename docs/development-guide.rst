@@ -1,62 +1,30 @@
-How to Use Runhouse
-===================
-This page offers a more detailed guide on using Runhouse to develop and deploy your ML projects. If you have any
-questions about what is described here, please reach out to `hello@run.house <mailto:hello@run.house>`_ or ping us on
-`Discord <https://discord.gg/RnhB6589Hs>`_, and we'd be happy to walk you through the details.
+Development Guide
+=================
 
-Quick Start
------------
-Before reviewing this detailed guide, we recommend you start with the `Quick Start
+This page offers a more detailed guide on using Runhouse to develop and deploy your ML projects. With Runhouse, you
+can manage all of your compute and make it available through ephemeral clusters for both research and production
+workflows.
+
+- Launch compute from any source and manage all your cloud accounts and Kubernetes clusters as one pool.
+- Iterably develop and reproducibly execute ML workloads at any scale.
+- Execute distributed workloads on multiple node clusters without any infrastructure setup.
+- Monitor resource usage in detail and access persisted logs in the web UI.
+- Save and reload services and resources (clusters, functions, classes, etc).
+
+Getting Started
+---------------
+
+This guide assumes you have already followed the Installation and Compute Setup steps of the `Installation and Setup
+Guide <https://www.run.house/docs/installation-setup>`__.
+
+For a quicker run-through, we recommend you first start with the `Quick Start
 <https://www.run.house/docs/tutorials/quick-start-cloud>`_ guide.
 
-* Install Runhouse with ``pip install runhouse``
-
-* Optionally install with a specific cloud like ``pip install "runhouse[aws]"`` or with
-  `SkyPilot <https://skypilot.readthedocs.io/en/latest/docs/index.html>`_ for elastic compute
-  ``pip install "runhouse[sky]"``
-
-* Optionally create an account on the `Runhouse website <https://www.run.house/dashboard>`_ or with
-  ``runhouse login --sync-secrets`` to enable saving, reloading, and centralized authentication / secrets management.
-
-Access to Compute
------------------
-In order to use Runhouse, you must be able to access compute resources, which can take any form (e.g. VMs, elastic
-compute, Kubernetes). You should think about all the compute resources you have as a single pool, from which Runhouse
-allows you to launch ephemeral clusters to execute your code.
-
-* **Kubernetes**: All you need is a kubeconfig
-
-* **Elastic Compute**: We use Skypilot under the hood to launch elastic compute, and support most clouds. You can run
-  ``sky check`` in CLI after installing ``runhouse[sky]`` to confirm you have access to the cloud, or for the necessary
-  setup steps.
-
-* **Existing Clusters**: Runhouse supports a variety of authentication methods to access existing clusters, including
-  SSH with keys or passwords.
-
-For initial projects and getting started quickly, launching from local credentials is possible. In this setting, you
-already unlock serverless execution for your Python ML code, but you cannot yet take advantage of advanced usage
-patterns from compute saving and reuse.
-
-For production settings, we recommend that users load cloud secrets, Kubeconfig, and available compute resources into
-Runhouse Den and authenticate from all launch environments using only the Runhouse token. Platform teams gain
-centralized observability over utilization, including insights into who is launching clusters, how often they are
-launched, and the resources or tasks executed on them. Access management becomes much simpler, especially in
-multi-cloud or multi-cluster environments. To get started with Den enabled, simply run
-``runhouse login --sync-secrets`` in the CLI.
-
-
-.. note::
-
-    If you do not have access to the cloud from a local machine (ex: from within an orchestration pipeline), you
-    can use the Runhouse control plane to launch your compute. See :ref:`Den Launcher` for more information.
-
-Start Your Project
--------------------
-Once you have established access to compute, you can start developing a new ML project. The following steps will
-provide the details of how to use Runhouse, starting from a blank page in your IDE.
+If you have any questions about what is described here, please reach out to `hello@run.house <mailto:hello@run.house>`_
+or ping us on `Discord <https://discord.gg/RnhB6589Hs>`_, and we'd be happy to walk you through the details.
 
 1. Define Compute
-^^^^^^^^^^^^^^^^^
+-----------------
 Runhouse allows you to define compute requirements in code, and launch ephemeral clusters from the compute pool we
 described in the prior section. Here, you can define the required CPU, GPU, memory, and disk requirements (or name
 a specific cluster) to use.
@@ -96,12 +64,12 @@ You can find full documentation about the Runhouse cluster API in the `Cluster d
 
 Starting the Runhouse Server Daemon
 """""""""""""""""""""""""""""""""""
-If not already running, the client will start the Runhouse API server daemon on the compute and form a secure network
-connection (either over SSH or HTTP/S).
+Once the compute is brought up, the client will start the Runhouse API server daemon on the compute and form a secure network
+connection (either over SSH or HTTP/S). This is what enables the magic of Runhouse.
 
-* The daemon can be thought of as a "Python object store," holding key-value pairs of names and Python objects in
-  memory (objects you will dispatch to it in the next step), and exposing an HTTP API to call methods on those
-  objects by name.
+* In the next step, you will dispatch regular Python functions and modules for remote execution.
+  The Runhouse daemon can be thought of as a "Python object store," holding key-value pairs of names and these dispatched Python objects in
+  memory, and exposing an HTTP API to call methods on those objects by name.
 
 * By default, objects are held in a single default worker process but can be sent to other worker processes, including
   on other nodes in the cluster, to achieve powerful parallelism out of the box.
@@ -113,8 +81,13 @@ connection (either over SSH or HTTP/S).
 * The HTTP server and workers can handle thousands of concurrent calls per second, and have similar latency to Flask
   under most conditions.
 
+.. note::
+
+    To run the daemon on your local machine, you will need a few additional requirements not included
+    in the base Runhouse package. You can install them by running :code:`pip install "runhouse[server]"`.
+
 2. Dispatch Your Code
-^^^^^^^^^^^^^^^^^^^^^^
+---------------------
 Once you have established a connection to compute, the development pattern is to continuously dispatch code to the
 cluster and execute it there. You are doing local-like execution and debug, but with the power of the remote compute.
 Runhouse is agnostic to whether you dispatch using a Notebook or run directly from a Python script.
@@ -138,7 +111,9 @@ the original object but forwards method calls over HTTP to the remote object on 
       def add_two_numbers(a,b):
             return a+b
 
-      remote_add = rh.function(add_two_numbers).to(cluster)
+            remote_add = rh.function(add_two_numbers).to(cluster) # Send to the cluster that has already been defined above
+
+.. code:: python
 
       class TorchTrainer:
          def __init__(self):
@@ -150,23 +125,24 @@ the original object but forwards method calls over HTTP to the remote object on 
          def test(self, X, y):
             ..
 
+
       if __name__ == "__main__":
-         cluster.install_packages(["torch"])
-         RemoteTrainer = rh.module(TorchTrainer).to(cluster) # Send to cluster
-         trainer = RemoteTrainer(name='remote-instance-of-trainer') # Instantiate remote object
+         cluster.pip_install(["torch"])  # Install packages not already in the cluster image
+         RemoteTrainer = rh.module(TorchTrainer).to(cluster)  # Send to cluster
+         trainer = RemoteTrainer(name='remote-instance-of-trainer')  # Instantiate remote object
 
 .. note::
 
       The code that should only run locally (e.g. defining compute, dispatch, and calling remote objects for execution)
-      should live within a ``if __name__ == "__main__":`` block in a script. This way, the code will not execute on remote compute
-      when it is sent there.
+      should live within a ``if __name__ == "__main__":`` block in a script. This way, the code will not execute on
+      remote compute when it is sent there.
 
 Read more about `functions and modules <https://www.run.house/docs/tutorials/api-modules>`_.
 
 3. Execute Your Code Remotely
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-----------------------------
 It's now possible to use your remote objects as if they were local. From here on, you can think of Runhouse as
-facilitating regular object-oriented programming but with the objects living remotely, maybe in a different cluster,
+facilitating regular programming but with the objects living remotely, maybe in a different cluster,
 region, or cloud than the local code. Python behavior such as async, exceptions, printing, and logging are all
 preserved across remote calls, but can also be disabled or controlled if desired.
 
@@ -194,7 +170,7 @@ team would ever manually split their ML pipeline into multiple applications due 
   :align: center
 
 4. Saving and Loading
-^^^^^^^^^^^^^^^^^^^^^
+---------------------
 Runhouse resources (clusters, functions, modules) can be saved, shared, and reused based on a compact JSON metadata
 signature. This allows for easy sharing of clusters and services across users and environments. For instance, the team
 might want to use a single shared embeddings service to save costs and improve reproducibility.
@@ -219,7 +195,7 @@ You can access the metadata directly by calling ``resource.config()`` and recons
 ``<Resource Type>.from_config(config)``.
 
 5. Terminating Modules, Workers, or Clusters
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------------------------
 When a remote object is no longer needed, it can be deallocated from the remote compute by calling
 ``cluster.delete(obj_name)``. This will remove the object from the key-value store and free up the memory on the
 worker. A worker process can similarly be terminated with ``cluster.delete(worker_name)``, terminating its activities
@@ -253,7 +229,7 @@ a source file), and then reusing the object and cluster by name across steps.
             image = (
                 rh.Image("base_setup")
                 .from_docker("nvcr.io/nvidia/pytorch:23.10-py3")
-                .install_packages(["torch"])
+                .pip_install(["torch"])
             )
             cluster = rh.ondemand_cluster(
                   name="rh-cluster",
@@ -286,23 +262,23 @@ when you launch with the container.
 
 My Pipeline is in Production, What's Next?
 ------------------------------------------
-Once in production, your ML pipelines will eventually experience some failures you need to debug. With Runhouse,
-engineers can easily and locally reproduce production runs, make changes to the underlying code, and push a change to
-the codebase. There is no debugging through the orchestrator, and no need to rebuild and resubmit. Fruthermore, we find
-that deploying with Runhouse has fewer errors to begin with, as the code has already been developed in a
-production-like environment.
+Once in production, your ML pipelines will inevitably encounter failures that require debugging. With Runhouse,
+engineers can easily and locally reproduce production runs, modify the underlying code, and push changes to the
+codebase. There’s no need to debug through the orchestrator or rebuild and resubmit. Furthermore, deploying with
+Runhouse tends to result in fewer errors from the start, as the code is developed in a production-like environment.
 
-This also makes production-to-research a seamless process. Many teams loathe revisiting the research-to-production
-process, so when code is deployed to production, there is little appetite to make small incremental improvements to the
-pipeline. With Runhouse, the pipeline is already running serverlessly, so incremental changes that are merged to the
-team codebase are automatically reflected in the production pipeline once tested via normal development processes.
+This also makes the transition from production back to research seamless. Many teams dread revisiting the
+research-to-production process, so once code is deployed, there’s often little motivation to make incremental
+improvements to the pipeline. With Runhouse, pipelines already run serverlessly, ensuring that incremental changes
+merged into the team codebase are automatically reflected in the production pipeline after being tested through
+standard development processes.
 
 There are other benefits to using Runhouse in production as you scale up usage. A few are included here:
 
-* **Shared services**: You may want to deploy shared services like an embeddings endpoint, and have all pipelines call
-  it by name as a live service *or* import the code from the underlying team repository and stand it up separately in
-  each pipeline. Either way, if you every update or improve this shared service, all pipelines will receive the
-  downstream updates without any changes to the pipeline code.
+* **Shared services**: Deploy shared services, such as an embeddings endpoint, and allow all pipelines to either call
+  it by name as a live service or import the code from the team repository to deploy it independently within each
+  pipeline. Any updates or improvements to the shared service are automatically applied to all pipelines without
+  requiring changes to pipeline code.
 
 * **Compute abstraction**: As you add new resources to your pool, get credits from new clouds, or get new quota, if all
   users are using Runhouse to allocate ephemeral compute, there is no need to update any code or configuration files at

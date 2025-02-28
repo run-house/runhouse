@@ -227,7 +227,7 @@ if __name__ == "__main__":
     # Passing `huggingface` to the `secrets` parameter will load the Hugging Face token we set up earlier.
     img = (
         rh.Image(name="llama2finetuning")
-        .install_packages(
+        .pip_install(
             [
                 "torch",
                 "tensorboard",
@@ -241,7 +241,7 @@ if __name__ == "__main__":
         .sync_secrets(["huggingface"])
     )
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-a10x", instance_type="A10G:1", provider="aws", image=img
     ).up_if_not()
 

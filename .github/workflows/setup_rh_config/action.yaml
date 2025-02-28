@@ -26,5 +26,6 @@ runs:
         echo "token: ${{ inputs.token }}" >> ~/.rh/config.yaml
         echo "username: ${{ inputs.username }}" >> ~/.rh/config.yaml
         echo "api_server_url: ${{ inputs.api_server_url }}" >> ~/.rh/config.yaml
+        echo "default_ssh_key: ssh-sky-key" >> ~/.rh/config.yaml
         echo "autosave: false" >> ~/.rh/config.yaml
         echo "disable_observability: false" >> ~/.rh/config.yaml

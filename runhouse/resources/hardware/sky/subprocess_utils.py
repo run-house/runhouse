@@ -1,9 +1,11 @@
 # Source: https://github.com/skypilot-org/skypilot/blob/feb52cf/sky/utils/subprocess_utils.py
 
-import psutil
 from typing import Callable, List, Optional, Union
 
 from runhouse.logger import get_logger
+
+from runhouse.exceptions import InsufficientDiskError
+from runhouse.constants import INSUFFICIENT_DISK_MSG
 
 logger = get_logger(__name__)
 
@@ -46,6 +48,8 @@ def handle_returncode(returncode: int,
         if stderr is not None:
             echo(stderr)
 
+        if INSUFFICIENT_DISK_MSG in stderr:
+            raise InsufficientDiskError(command=command, error_msg=error_msg)
         if callable(error_msg):
             error_msg = error_msg()
         raise CommandError(returncode, command, error_msg, stderr)
@@ -68,6 +72,8 @@ def kill_children_processes(
          This is for guaranteeing the order of cleaning up and suppress
          flaky errors.
     """
+    import psutil
+
     pid_to_proc = dict()
     child_processes = []
     if isinstance(first_pid_to_kill, int):

@@ -1,7 +1,7 @@
 import runhouse as rh
 
 # First, we define a class that will hold the model and allow us to send prompts to it.
-# We'll later wrap this with `rh.module`. This is a Runhouse class that allows you to
+# We'll later wrap this with `rh.cls`. This is a Runhouse class that allows you to
 # run code in your class on a remote machine.
 #
 # Learn more in the [Runhouse docs on functions and modules](/docs/tutorials/api-modules).
@@ -59,7 +59,7 @@ class FluxPipeline:
 if __name__ == "__main__":
     img = (
         rh.Image("flux")
-        .install_packages(
+        .pip_install(
             [
                 "diffusers",
                 "torch",
@@ -69,9 +69,9 @@ if __name__ == "__main__":
         )
         .sync_secrets(["huggingface"])
     )
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-a10-8xlarge",
-        accelerators="A10G",
+        gpus="A10G",
         num_cpus="32",
         provider="aws",
         image=img,
@@ -81,7 +81,7 @@ if __name__ == "__main__":
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
     # by calling `cluster.get(name="flux")`. This would return the remote model after an initial run.
     # If we want to update the module each time we run this script, we prefer to use `to`.
-    RemoteFlux = rh.module(FluxPipeline).to(cluster)
+    RemoteFlux = rh.cls(FluxPipeline).to(cluster)
     remote_flux = RemoteFlux(
         name="flux"
     )  # This has now been set up as a service on the remote cluster and can be used for inference.

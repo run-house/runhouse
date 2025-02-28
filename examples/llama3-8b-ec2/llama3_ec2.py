@@ -39,7 +39,7 @@ import runhouse as rh
 import torch
 
 # Next, we define a class that will hold the model and allow us to send prompts to it.
-# We'll later wrap this with `rh.module`.
+# We'll later wrap this with `rh.cls`.
 # This is a Runhouse class that allows you to
 # run code in your class on a remote machine.
 #
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     # First, we define the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
     # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
-    img = rh.Image(name="llama3inference").install_packages(
+    img = rh.Image(name="llama3inference").pip_install(
         [
             "torch",
             "transformers",
@@ -121,8 +121,8 @@ if __name__ == "__main__":
         ]
     )
 
-    gpu = rh.cluster(
-        name="rh-a10x", accelerators="A10G:1", memory="32+", provider="aws", image=img
+    gpu = rh.compute(
+        name="rh-a10x", gpus="A10G:1", memory="32+", provider="aws", image=img
     ).up_if_not()
 
     gpu.sync_secrets(["huggingface"])
@@ -131,7 +131,7 @@ if __name__ == "__main__":
     # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
     # by calling `cluster.get(name="llama3-8b-model")`. This would return the remote model after an initial run.
     # If we want to update the module each time we run this script, we prefer to use `to`.
-    RemoteChatModel = rh.module(HFChatModel).to(gpu, name="HFChatModel")
+    RemoteChatModel = rh.cls(HFChatModel).to(gpu, name="HFChatModel")
     remote_hf_chat_model = RemoteChatModel(
         torch_dtype=torch.bfloat16, name="llama3-8b-model"
     )

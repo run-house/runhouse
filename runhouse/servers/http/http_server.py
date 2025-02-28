@@ -8,13 +8,16 @@ from functools import wraps
 from pathlib import Path
 from typing import Dict, Optional
 
-import ray
-import requests
-import yaml
-from fastapi import Body, FastAPI, HTTPException, Request
-from fastapi.encoders import jsonable_encoder
-from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
-from fastapi.responses import StreamingResponse
+try:
+    import ray
+    import requests
+    import yaml
+    from fastapi import Body, FastAPI, HTTPException, Request
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+    from fastapi.responses import StreamingResponse
+except ImportError:
+    pass
 
 from runhouse.constants import (
     DEFAULT_HTTP_PORT,
@@ -62,7 +65,7 @@ from runhouse.servers.http.http_utils import (
     RunBashParams,
     serialize_data,
     ServerSettings,
-    SetProcessEnvVarsParams,
+    SetEnvVarsParams,
 )
 from runhouse.servers.obj_store import (
     ClusterServletSetupOption,
@@ -345,29 +348,38 @@ class HTTPServer:
     async def run_bash(request: Request, params: RunBashParams):
         try:
             run_cmd_result = None
-            if params.node and params.process:
+            if params.node_ip_or_idx is not None and params.process is not None:
                 raise ValueError("Cannot specify both node and process.")
 
-            elif not params.node and not params.process:
+            elif params.node_ip_or_idx is None and params.process is None:
                 # TODO: Logging when running on multiple nodes
                 run_cmd_result = await obj_store.arun_bash_command_on_all_nodes(
                     command=params.command, require_outputs=params.require_outputs
                 )
 
-            elif params.node:
+            elif params.node_ip_or_idx is not None:
+                internal_ips = obj_store.get_internal_ips()
+
+                if isinstance(params.node_ip_or_idx, int):
+                    if params.node_ip_or_idx >= len(internal_ips):
+                        raise ValueError(
+                            f"Node index {params.node_ip_or_idx} out of range for cluster with {len(internal_ips)} nodes."
+                        )
+                    params.node_ip_or_idx = internal_ips[params.node_ip_or_idx]
+
                 if (
-                    params.node not in obj_store.get_internal_ips()
-                    and params.node != "localhost"
+                    params.node_ip_or_idx not in internal_ips
+                    and params.node_ip_or_idx != "localhost"
                 ):
                     raise ValueError(
-                        f"Node {params.node} not a valid internal IP on the cluster."
+                        f"Node {params.node_ip_or_idx} not a valid internal IP on the cluster."
                     )
 
                 run_cmd_result = await obj_store.arun_bash_command_on_node_or_process(
                     command=params.command,
                     require_outputs=params.require_outputs,
                     run_name=params.run_name,
-                    node_ip=params.node,
+                    node_ip=params.node_ip_or_idx,
                 )
 
             elif params.process:
@@ -442,11 +454,17 @@ class HTTPServer:
             )
 
     @staticmethod
-    @app.post("/process_env_vars")
+    @app.post("/env_vars")
     @validate_cluster_access
-    async def set_process_env_vars(request: Request, params: SetProcessEnvVarsParams):
+    async def set_env_vars(request: Request, params: SetEnvVarsParams):
         try:
-            await obj_store.aset_process_env_vars(params.process_name, params.env_vars)
+            if params.process_name is not None:
+                await obj_store.aset_process_env_vars(
+                    params.process_name, params.env_vars
+                )
+            else:
+                await obj_store.aset_env_vars_globally(params.env_vars)
+
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:
             return handle_exception_response(
@@ -820,18 +838,27 @@ class HTTPServer:
             if (
                 sum(
                     arg is not None
-                    for arg in [params.key, params.node_ip, params.process]
+                    for arg in [params.key, params.node_ip_or_idx, params.process]
                 )
                 != 1
             ):
                 raise ValueError(
                     "Exactly one of key, node_ip, or process must be provided to get logs"
                 )
+
+            if isinstance(params.node_ip_or_idx, int):
+                internal_ips = obj_store.get_internal_ips()
+                if params.node_ip_or_idx >= len(internal_ips):
+                    raise ValueError(
+                        f"Node index {params.node_ip_or_idx} out of range for cluster with {len(internal_ips)} nodes."
+                    )
+                params.node_ip_or_idx = internal_ips[params.node_ip_or_idx]
+
             return StreamingResponse(
                 HTTPServer._get_logs_generator(
                     run_name=params.run_name,
                     key=params.key,
-                    node_ip=params.node_ip,
+                    node_ip=params.node_ip_or_idx,
                     process=params.process,
                     serialization=params.serialization,
                 ),
@@ -1218,7 +1245,11 @@ async def main():
             f"cluster_config.json: {cluster_config.get('ips', [None])[0]}. Prioritizing CLI provided certs_address."
         )
 
-    certs_addresses = parse_args.certs_address or cluster_config.get("ips", None)
+    certs_addresses = (
+        parse_args.certs_address
+        or cluster_config.get("ips", None)
+        or cluster_config.get("compute_properties", {}).get("ips", None)
+    )
 
     # We don't want to unset multiple addresses if they were set in the cluster config
     if certs_addresses is not None:

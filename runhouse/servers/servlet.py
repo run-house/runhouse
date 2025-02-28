@@ -7,9 +7,6 @@ import traceback
 from functools import wraps
 from typing import Any, Dict, Optional
 
-import psutil
-import pynvml
-
 from runhouse import configs
 
 from runhouse.constants import (
@@ -36,9 +33,9 @@ from runhouse.servers.obj_store import ClusterServletSetupOption
 
 from runhouse.utils import (
     arun_in_thread,
-    get_gpu_usage,
     get_node_ip,
     get_pid,
+    parse_gpu_usage,
     ServletType,
 )
 
@@ -95,6 +92,8 @@ class Servlet:
     async def __init__(
         self, create_process_params: CreateProcessParams, *args, **kwargs
     ):
+        import psutil
+
         self.env_name = create_process_params.name
 
         await obj_store.ainitialize(
@@ -129,10 +128,11 @@ class Servlet:
             threading.Lock()
         )  # will be used when self.gpu_metrics will be updated by different threads.
 
-        if is_gpu_cluster():
+        self.is_gpu_cluster = is_gpu_cluster()
+        if self.is_gpu_cluster:
             logger.debug("Creating _periodic_gpu_check thread.")
             collect_gpu_thread = threading.Thread(
-                target=self._collect_env_gpu_usage, daemon=True
+                target=self._collect_process_gpu_usage, daemon=True
             )
             collect_gpu_thread.start()
 
@@ -250,62 +250,75 @@ class Servlet:
     async def aclear_local(self):
         return await obj_store.aclear_local()
 
-    def _get_env_cpu_usage(self, cluster_config: dict = None):
+    def _get_process_cpu_usage(self, cluster_config: dict = None):
+        import psutil
 
         total_memory = psutil.virtual_memory().total
-        node_ip = get_node_ip()
+        internal_node_ip = get_node_ip()
 
         if not cluster_config.get("resource_subtype") == "Cluster":
             compute_properties = cluster_config.get("compute_properties", {})
             if compute_properties.get("internal_ips"):
                 internal_ips = compute_properties.get("internal_ips", [])
+                ips = compute_properties.get("ips", [])
             else:
                 stable_internal_external_ips = cluster_config.get(
                     "stable_internal_external_ips", []
                 )
                 internal_ips = [int_ip for int_ip, _ in stable_internal_external_ips]
+                ips = [ip for _, ip in stable_internal_external_ips]
         else:
             # if it is a BYO cluster, assume that first ip in the ips list is the head.
-            internal_ips = cluster_config.get("ips", [])
+            internal_ips = ips = cluster_config.get("ips", [])
 
-        node_index = 0 if len(internal_ips) == 1 else internal_ips.index(node_ip)
+        node_index = (
+            0 if len(internal_ips) == 1 else internal_ips.index(internal_node_ip)
+        )
         node_name = f"worker_{node_index}"
 
         try:
 
             memory_size_bytes = self.process.memory_full_info().uss
-            cpu_usage_percent = self.process.cpu_percent(interval=0)
-            env_memory_usage = {
+            used_memory_percent = round(
+                self.process.memory_percent(memtype="uss"), 2
+            )  # value is between 0 and 100
+            cpu_usage_percent = self.process.cpu_percent(
+                interval=0
+            )  # value is between 0 and 100
+            process_memory_usage = {
                 "used_memory": memory_size_bytes,
                 "utilization_percent": cpu_usage_percent,
                 "total_memory": total_memory,
+                "used_memory_percent": used_memory_percent,
             }
         except psutil.NoSuchProcess:
-            env_memory_usage = {}
+            process_memory_usage = {}
 
         return (
-            env_memory_usage,
+            process_memory_usage,
             node_name,
             total_memory,
             self.pid,
-            node_ip,
+            ips[
+                node_index
+            ],  # getting the "external" ip, so it will match the ip we see in the workers field in the cluster status output
             node_index,
         )
 
-    def _get_env_gpu_usage(self):
-        # currently works correctly for a single node GPU. Multinode-clusters will be supported shortly.
+    def _get_process_gpu_usage(self):
 
         collected_gpus_info = copy.deepcopy(self.gpu_metrics)
 
-        if collected_gpus_info is None or not collected_gpus_info[0]:
+        if not collected_gpus_info or not collected_gpus_info[0]:
             return None
 
-        return get_gpu_usage(
-            collected_gpus_info=collected_gpus_info, servlet_type=ServletType.env
+        return parse_gpu_usage(
+            collected_gpu_info=collected_gpus_info, servlet_type=ServletType.process
         )
 
-    def _collect_env_gpu_usage(self):
+    def _collect_process_gpu_usage(self):
         """periodically collects env gpu usage"""
+        import pynvml
 
         pynvml.nvmlInit()  # init nvidia ml info collection
 
@@ -360,18 +373,13 @@ class Servlet:
         cluster_config = obj_store.cluster_config
 
         (
-            env_memory_usage,
+            process_memory_usage,
             node_name,
             total_memory,
             servlet_pid,
             node_ip,
             node_index,
-        ) = self._get_env_cpu_usage(cluster_config)
-
-        # Try loading GPU data (if relevant)
-        env_gpu_usage = (
-            self._get_env_gpu_usage() if cluster_config.get("has_cuda", False) else {}
-        )
+        ) = self._get_process_cpu_usage(cluster_config)
 
         cluster_config = obj_store.cluster_config
         interval_size = cluster_config.get(
@@ -385,21 +393,30 @@ class Servlet:
             configs.token is not None and interval_size != -1
         )
 
-        # reset the gpu_info only if the current env_gpu collection will be sent to den. Otherwise, keep collecting it.
-        if should_send_status_and_logs_to_den:
-            with self.lock:
-                self.gpu_metrics = None
-
         servlet_utilization_data = {
-            "env_gpu_usage": env_gpu_usage,
             "node_ip": node_ip,
             "node_name": node_name,
             "node_index": node_index,
-            "env_cpu_usage": env_memory_usage,
+            "process_cpu_usage": process_memory_usage,
             "pid": servlet_pid,
         }
+
+        if self.is_gpu_cluster:
+            # Try loading GPU data
+            process_gpu_usage = self._get_process_gpu_usage()
+            if process_gpu_usage:
+                if should_send_status_and_logs_to_den:
+                    # reset the gpu_info only if the current env_gpu collection will be sent to den. Otherwise, keep collecting it.
+                    with self.lock:
+                        self.gpu_metrics = None
+
+                servlet_utilization_data["process_gpu_usage"] = process_gpu_usage
 
         return objects_in_servlet, servlet_utilization_data
 
     async def astatus_local(self):
         return await arun_in_thread(self._status_local_helper)
+
+    async def aremove_servlet_from_cache(self, servlet_name):
+        logger.info(f"Removing {servlet_name} from {self.env_name}")
+        await obj_store.adelete_servlet_from_cache(servlet_name)

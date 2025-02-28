@@ -1,31 +1,12 @@
 # # A Basic Torch Image Classification Example with the MNIST Dataset
 
 
-# This example demonstrates how to deploy a basic Torch model
-# and training class to AWS EC2 using Runhouse, and do the training.
+# Deploy a basic Torch model and training class to a remote GPU for training
+# using Runhouse.
 #
-# We use the very popular MNIST dataset which includes a large number
+# We use the very popular MNIST dataset, which includes a large number
 # of handwritten digits, and create a neural network that accurately identifies
 # what digit is in an image.
-#
-# ## Setup credentials and dependencies
-#
-# Optionally, set up a virtual environment:
-# ```shell
-# $ conda create -n demo-runhouse python=3.10
-# $ conda activate demo-runhouse
-# ```
-# Install the required dependencies:
-# ```shell
-# $ pip install "runhouse[aws]" torch torchvision
-# ```
-#
-# We'll be launching an AWS EC2 instance via [SkyPilot](https://github.com/skypilot-org/skypilot), so we need to
-# make sure our AWS credentials are set up:
-# ```shell
-# $ aws configure
-# $ sky check
-# ```
 #
 # ## Setting up a model class
 import runhouse as rh
@@ -202,45 +183,28 @@ class SimpleTrainer:
 # ## Setting up Runhouse to run the defined class and functions remotely.
 #
 # Now, we define the main function that will run locally when we run this script, and set up
-# our Runhouse module on a remote cluster. First, we create a cluster with the desired instance type and provider.
+# our Runhouse module on a remote gpu. First, we dfine compute of the desired instance type and provider.
 # Our `instance_type` here is defined as `A10G:1`, which is the accelerator type and count that we need. We could
 # alternatively specify a specific AWS instance type, such as `p3.2xlarge` or `g4dn.xlarge`.
 #
-# Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
+# Learn more in the [Runhouse docs on compute](/docs/tutorials/api-clusters).
 #
-# :::note{.info title="Note"}
-# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
-# the script code will run when Runhouse attempts to run code remotely.
-#
-# :::
-
 if __name__ == "__main__":
-
-    # We define the image for our module. This includes the required dependencies that need
-    # to be installed on the remote machine, as well as any secrets (not needed here) that need to be synced up from local to remote.
-    # This is aggressively cached so during local iterative development, you do not need to worry about the image being rebuilt.
-    img = rh.Image(name="torch-vision").install_packages(
-        ["torch", "torchvision", "Pillow"]
-    )
-
-    # Define a cluster type - here we launch an on-demand AWS cluster with 1 NVIDIA A10G GPU.
-    # You can use any cloud you want, or existing compute
-    cluster = rh.ondemand_cluster(
-        name="a10g-cluster",
+    # Define the compute - here we launch an on-demand cluster with 1 NVIDIA A10G GPU.
+    # You can further specify the cloud, other compute constraints, or use existing compute
+    gpu = rh.compute(
+        name="a10g",
         instance_type="A10G:1",
-        provider="aws",
-        image=img,
+        image=rh.images.pytorch(),
     ).up_if_not()
 
-    # We define our module and run it on the remote cluster. We take our normal Python class SimpleTrainer, and wrap it in rh.module()
-    # We also take our function DownloadData and send it to the remote cluster as well
-    # Then, we use `.to()` to send it to the remote cluster we just defined.
+    # We define our module and run it on the remote compute. We take our normal Python class SimpleTrainer, and wrap it in rh.cls()
+    # We also take our function DownloadData and send it to the remote compute as well
+    # Then, we use `.to()` to send it to the remote gpu we just defined.
     #
-    remote_torch_example = rh.module(SimpleTrainer).to(
-        cluster, name="torch-basic-training"
-    )
-    remote_download = rh.function(download_data).to(cluster)
-    remote_preprocess = rh.function(preprocess_data).to(cluster)
+    remote_torch_example = rh.cls(SimpleTrainer).to(gpu, name="torch-basic-training")
+    remote_download = rh.function(download_data).to(gpu)
+    remote_preprocess = rh.function(preprocess_data).to(gpu)
 
     # ## Calling our remote Trainer
     # We instantiate the remote class

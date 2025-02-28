@@ -11,9 +11,8 @@ import argparse
 import sys
 import time
 
-import psutil
-
 if __name__ == '__main__':
+    import psutil
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--parent-pid', type=int, required=True)

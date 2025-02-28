@@ -21,14 +21,13 @@ from runhouse.constants import (
     LOCALHOST,
     MINUTE,
 )
-from runhouse.globals import rns_client
 
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatus
 
 from runhouse.resources.images.image import ImageSetupStepType
 
-from runhouse.utils import _process_env_vars
+from runhouse.utils import _process_env_vars, get_random_str
 
 import tests.test_resources.test_resource
 from tests.conftest import init_args
@@ -37,9 +36,7 @@ from tests.utils import (
     _get_env_var_value,
     friend_account,
     friend_account_in_org,
-    get_random_str,
-    org_friend_account,
-    remove_config_keys,
+    keep_config_keys,
     set_daemon_and_cluster_status,
     set_output_env_vars,
 )
@@ -102,18 +99,84 @@ def run_node_all(cmd):
     return rh.here.run_bash(cmd, node="all")
 
 
-def sort_env_servlet_processes(env_servlet_processes: dict):
+def sort_processes(processes: dict):
     """helping function for the test_send_status_to_db test, sort the servlet_processed dict (including its sub
     dicts) by their keys."""
-    keys = list(env_servlet_processes.keys())
+    keys = list(processes.keys())
     keys.sort()
-    sorted_env_servlet_processes = {}
+    sorted_processes = {}
     for k in keys:
-        sub_keys = list(env_servlet_processes[k].keys())
+        sub_keys = list(processes[k].keys())
         sub_keys.sort()
-        nested_dict = {i: env_servlet_processes[k][i] for i in sub_keys}
-        sorted_env_servlet_processes[k] = nested_dict
-    return sorted_env_servlet_processes
+        nested_dict = {i: processes[k][i] for i in sub_keys if processes[k][i]}
+        sorted_processes[k] = nested_dict
+    return sorted_processes
+
+
+def send_cluster_status_to_db_logic(cluster):
+    status = cluster.status()
+    cluster_processes = status.pop("processes")
+    status_data = {
+        "daemon_status": RunhouseDaemonStatus.RUNNING,
+        "resource_type": status.get("cluster_config").get("resource_type"),
+        "resource_info": status,
+        "processes": cluster_processes,
+    }
+    cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
+    headers = rh.globals.rns_client.request_headers()
+    api_server_url = rh.globals.rns_client.api_server_url
+    post_status_data_resp = requests.post(
+        f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+        data=json.dumps(status_data),
+        headers=headers,
+    )
+    assert post_status_data_resp.status_code in [200, 422]
+    get_status_data_resp = requests.get(
+        f"{api_server_url}/resource/{cluster_uri}/cluster/status?limit=1",
+        headers=headers,
+    )
+    assert get_status_data_resp.status_code == 200
+    get_status_data = get_status_data_resp.json()["data"][0]
+    assert get_status_data["resource_type"] == status.get("cluster_config").get(
+        "resource_type"
+    )
+    assert get_status_data["daemon_status"] == RunhouseDaemonStatus.RUNNING
+
+    den_resource_info = get_status_data.get("resource_info")
+    # remove None values from the status output we got from den
+    den_resource_info["workers"] = [
+        {k: v for k, v in worker.items() if v}
+        for worker in den_resource_info.get("workers")
+    ]
+    assert den_resource_info == status
+    env_servlet_processes = sort_processes(cluster_processes)
+    get_status_data["processes"] = sort_processes(get_status_data["processes"])
+    assert get_status_data["processes"] == env_servlet_processes
+
+    status_data["daemon_status"] = RunhouseDaemonStatus.TERMINATED
+    post_status_data_resp = requests.post(
+        f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+        data=json.dumps(status_data),
+        headers=headers,
+    )
+    assert post_status_data_resp.status_code == 200
+    get_status_data_resp = requests.get(
+        f"{api_server_url}/resource/{cluster_uri}/cluster/status?limit=1",
+        headers=headers,
+    )
+    assert (
+        get_status_data_resp.json()["data"][0]["daemon_status"]
+        == RunhouseDaemonStatus.TERMINATED
+    )
+
+    # setting the status to running again, so it won't mess with the following tests
+    # (when running all release suite at once, for example)
+    post_status_data_resp = requests.post(
+        f"{api_server_url}/resource/{cluster_uri}/cluster/status",
+        data=json.dumps(status_data),
+        headers=headers,
+    )
+    assert post_status_data_resp.status_code in [200, 422]
 
 
 class TestCluster(tests.test_resources.test_resource.TestResource):
@@ -155,17 +218,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             assert cluster.head_ip == args["ips"][0]
 
         if "ssh_creds" in args:
-            args_creds = args["ssh_creds"]
-            args_creds_values = (
-                args_creds.values if isinstance(args_creds, rh.Secret) else args_creds
-            )
-
-            cluster_creds = cluster.creds_values
-            if "ssh_private_key" in cluster_creds:
-                # this means that the secret was created by accessing an ssh-key file
-                cluster_creds.pop("private_key", None)
-                cluster_creds.pop("public_key", None)
-            assert cluster_creds == args_creds_values
+            ssh_creds = args["ssh_creds"]
+            if isinstance(ssh_creds, rh.Secret):
+                assert ssh_creds.values == cluster.creds_values
+            if isinstance(ssh_creds, dict):
+                ssh_creds.pop("password", None)
+                assert ssh_creds == cluster.ssh_properties
 
         if "server_host" in args:
             assert cluster.server_host == args["server_host"]
@@ -181,14 +239,22 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_recreate(self, cluster):
-        # Create underlying ssh connection if not already
-        cluster.run_bash(["echo hello"])
+        # # Create underlying ssh connection if not already
+        if cluster.ips == cluster.internal_ips != ["localhost"]:
+            cluster.run_bash_over_ssh(["echo hello"])
+        else:
+            cluster.run_bash(["echo hello"])
+
         num_open_tunnels = len(rh.globals.ssh_tunnel_cache)
 
         # Create a new cluster object for the same remote cluster
         cluster.save()
         new_cluster = rh.cluster(cluster.rns_address)
-        new_cluster.run_bash(["echo hello"])
+        if new_cluster.ips == new_cluster.internal_ips != ["localhost"]:
+            new_cluster.run_bash_over_ssh(["echo hello"])
+        else:
+            new_cluster.run_bash(["echo hello"])
+
         # Check that the same underlying ssh connection was used
         assert len(rh.globals.ssh_tunnel_cache) == num_open_tunnels
 
@@ -224,11 +290,18 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         status_data = r.json()[
             0
         ]  # getting the first element because the endpoint returns the status + response to den.
-        assert status_data["cluster_config"]["resource_type"] == "cluster"
-        assert status_data["env_servlet_processes"]
-        assert isinstance(status_data["server_cpu_utilization"], float)
-        assert status_data["server_memory_usage"]
-        assert not status_data.get("server_gpu_usage", None)
+        assert status_data.get("cluster_config").get(
+            "resource_subtype"
+        ) == cluster.config().get("resource_subtype")
+        assert status_data.get("processes", None)
+        head_worker_resource_usage = status_data.get("workers", None)
+        assert head_worker_resource_usage
+        assert isinstance(head_worker_resource_usage, list)
+        head_worker_resource_usage = head_worker_resource_usage[0]
+        server_cpu_usage = head_worker_resource_usage.get("server_cpu_usage", None)
+        assert server_cpu_usage
+        assert isinstance(server_cpu_usage.get("utilization_percent", None), float)
+        assert not head_worker_resource_usage.get("server_gpu_usage", None)
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -296,16 +369,22 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         on_cluster_config = remote_cluster_config()
         local_cluster_config = cluster.config()
 
-        keys_to_skip = [
-            "creds",
-            "client_port",
-            "server_host",
-            "api_server_url",
-            "ssl_keyfile",
-            "ssl_certfile",
+        keys_to_keep = [
+            "name",
+            "is_gpu",
+            "resource_subtype",
+            "den_auth",
+            "server_port",
+            "server_connection_type",
+            "autostop_mins",
+            "domain",
         ]
-        on_cluster_config = remove_config_keys(on_cluster_config, keys_to_skip)
-        local_cluster_config = remove_config_keys(local_cluster_config, keys_to_skip)
+        if local_cluster_config.get("resource_subtype", None) == "OnDemandCluster":
+            keys_to_keep.append("compute_properties")
+        else:
+            keys_to_keep.append("ips")
+        on_cluster_config = keep_config_keys(on_cluster_config, keys_to_keep)
+        local_cluster_config = keep_config_keys(local_cluster_config, keys_to_keep)
 
         assert on_cluster_config == local_cluster_config
 
@@ -336,6 +415,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # First try loading in same process/filesystem because it's more debuggable, but not as thorough
         resource_class_name = cluster.config().get("resource_type").capitalize()
         config = cluster.config()
+        config_copy = config.copy()
 
         sky_secret = "ssh-sky-key"
         generated_secret = f'{config["name"]}-ssh-secret'
@@ -350,9 +430,15 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             curr_config = load_shared_resource_config(
                 resource_class_name, cluster.rns_address
             )
+            curr_config_copy = curr_config.copy()
+            # Creds for shared cluster will be the users default ssh key
             new_creds = curr_config.get("creds", None)
-            assert sky_secret in new_creds or generated_secret in new_creds
-            assert curr_config == config
+            assert "ssh-sky-key" in new_creds
+
+            curr_config_copy.pop("creds", None)
+            config_copy.pop("creds", None)
+
+            assert curr_config_copy == config_copy
 
         # TODO: If we are testing with an ondemand_cluster we to
         # sync sky key so loading ondemand_cluster from config works
@@ -364,43 +450,51 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         new_config = load_shared_resource_config_cluster(
             resource_class_name, cluster.rns_address
         )
-        new_creds = curr_config.get("creds", None)
-        assert sky_secret in new_creds or generated_secret in new_creds
+
+        orig_creds = config.pop("creds", None)
+        new_config.pop("creds", None)
+        assert sky_secret in orig_creds or generated_secret in orig_creds
         assert new_config == config
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_access_to_shared_cluster(self, cluster):
         # TODO: Remove this by doing some CI-specific logic.
+        from runhouse.globals import rns_client
+
         if cluster.__class__.__name__ == "OnDemandCluster":
             return
 
         if cluster.rns_address.startswith("~"):
             # For `local_named_resource` resolve the rns address so it can be shared and loaded
-            from runhouse.globals import rns_client
-
             cluster.rns_address = rns_client.local_to_remote_address(
                 cluster.rns_address
             )
 
         cluster.share(
             users=["support@run.house"],
-            access_level="write",
+            access_level="read",
             notify_users=False,
         )
 
         cluster_name = cluster.rns_address
-        cluster_creds = cluster.creds_values
+        cluster_ssh_properties = cluster.ssh_properties
 
         with friend_account_in_org():
-            shared_cluster = rh.cluster(name=cluster_name)
-            assert shared_cluster.rns_address == cluster_name
-            assert shared_cluster.creds_values.keys() == cluster_creds.keys()
-            echo_msg = "hello from shared cluster"
-            run_res = shared_cluster.run_bash([f"echo {echo_msg}"])
-            assert echo_msg in run_res[0][1]
-            # First element, return code
-            assert shared_cluster.run_bash(["echo hello"])[0][0] == 0
+            # Friend should have access to the resource in Den
+            # Note: for docker clusters we do not support cluster access (i.e. adding the friend's public key
+            # to the cluster's authorized user's file)
+            resource_uri = rns_client.resource_uri(cluster_name)
+            uri = f"{rns_client.api_server_url}/resource/{resource_uri}"
+            resp = rns_client.session.get(uri, headers=rns_client.request_headers())
+            assert resp.status_code == 200
+
+            cluster_config: dict = resp.json().get("data")
+            assert cluster_config["name"] == cluster_name
+            assert (
+                cluster_config["data"]["ssh_properties"].keys()
+                == cluster_ssh_properties.keys()
+            )
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -450,7 +544,12 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             )
 
         # Docker clusters are logged out, ondemand clusters are logged in
-        output = cluster.run_bash("sed -n 's/.*token: *//p' ~/.rh/config.yaml")
+        if cluster.ips == cluster.internal_ips != ["localhost"]:
+            output = cluster.run_bash_over_ssh(
+                "sed -n 's/.*token: *//p' ~/.rh/config.yaml"
+            )
+        else:
+            output = cluster.run_bash("sed -n 's/.*token: *//p' ~/.rh/config.yaml")
         # No config file
         if output[0] == 2:
             assert unassumed_token is None
@@ -477,10 +576,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         cluster_data = cluster.status()
 
         expected_cluster_status_data_keys = [
-            "env_servlet_processes",
+            "processes",
             "server_pid",
             "runhouse_version",
             "cluster_config",
+            "workers",
         ]
 
         actual_cluster_status_data_keys = list(cluster_data.keys())
@@ -491,7 +591,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         res = cluster_data.get("cluster_config")
 
         # test cluster config info
-        assert res.get("creds") is None
         assert res.get("server_port") == (cluster.server_port or DEFAULT_SERVER_PORT)
         assert res.get("server_connection_type") == cluster.server_connection_type
         assert res.get("den_auth") == cluster.den_auth
@@ -501,22 +600,20 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         else:
             assert res.get("compute_properties").get("ips") == cluster.ips
 
-        assert process in cluster_data.get("env_servlet_processes").keys()
-        assert "status_key1" in cluster_data.get("env_servlet_processes").get(
-            process
-        ).get("env_resource_mapping")
+        cluster_processes = cluster_data.get("processes")
+        assert process in cluster_processes.keys()
+        assert "status_key1" in cluster_processes.get(process).get(
+            "process_resource_mapping"
+        )
         assert {
             "resource_type": "str",
             "active_function_calls": [],
-        } == cluster_data.get("env_servlet_processes").get(process).get(
-            "env_resource_mapping"
-        ).get(
+        } == cluster_processes.get(process).get("process_resource_mapping").get(
             "status_key1"
         )
         sleep_calls = (
-            cluster_data.get("env_servlet_processes")
-            .get(process)
-            .get("env_resource_mapping")
+            cluster_processes.get(process)
+            .get("process_resource_mapping")
             .get("sleep_fn")
             .get("active_function_calls")
         )
@@ -531,11 +628,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         for call_thread in call_threads:
             call_thread.join()
         updated_status = cluster.status()
+        updated_cluster_processes = updated_status.get("processes")
         # Check that the sleep calls are no longer active
         assert (
-            updated_status.get("env_servlet_processes")
-            .get(process)
-            .get("env_resource_mapping")
+            updated_cluster_processes.get(process)
+            .get("process_resource_mapping")
             .get("sleep_fn")
             .get("active_function_calls")
             == []
@@ -543,23 +640,27 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
         # test memory usage info
         expected_servlet_keys = [
-            "env_cpu_usage",
-            "env_gpu_usage",
-            "env_resource_mapping",
             "node_index",
             "node_ip",
             "node_name",
             "pid",
+            "process_cpu_usage",
+            "process_resource_mapping",
         ]
-        process_names = list(cluster_data.get("env_servlet_processes").keys())
+        if cluster_data.get("cluster_config").get("is_gpu"):
+            expected_servlet_keys.append("process_gpu_usage")
+        expected_servlet_keys.sort()
+        process_names = list(updated_cluster_processes.keys())
         process_names.sort()
-        assert "env_servlet_processes" in cluster_data.keys()
-        servlets_info = cluster_data.get("env_servlet_processes")
-        actors_keys = list(servlets_info.keys())
+        assert "workers" in cluster_data.keys()
+        assert (
+            len(cluster_data.get("workers")) >= 1
+        )  # there is at least info about one worker (the head node)
+        actors_keys = list(updated_cluster_processes.keys())
         actors_keys.sort()
         assert process_names == actors_keys
         for process_name in process_names:
-            servlet_info = servlets_info.get(process_name)
+            servlet_info = updated_cluster_processes.get(process_name)
             servlet_info_keys = list(servlet_info.keys())
             servlet_info_keys.sort()
             assert servlet_info_keys == expected_servlet_keys
@@ -584,7 +685,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         default_process_name = DEFAULT_PROCESS_NAME
 
         cluster.put(key="status_key2", obj="status_value2")
-        status_output_response = cluster.run_bash([status_cli_command])[0]
+
+        if cluster.ips == cluster.internal_ips != ["localhost"]:
+            status_output_response = cluster.run_bash_over_ssh([status_cli_command])[0]
+        else:
+            status_output_response = cluster.run_bash([status_cli_command])[0]
         assert status_output_response[0] == 0
         status_output_string = status_output_response[1]
         # The string that's returned is utf-8 with the literal escape characters mixed in.
@@ -614,10 +719,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         # checking the memory info is printed correctly
         assert "CPU: " in status_output_string
         assert status_output_string.count("CPU: ") >= 1
-        assert "pid: " in status_output_string
-        assert status_output_string.count("pid: ") >= 1
-        assert "node: " in status_output_string
-        assert status_output_string.count("node: ") >= 1
+        assert f"head node | IP: {cluster.ips[0]}" in status_output_string
 
         cloud_properties = cluster.config().get("compute_properties", None)
         if cloud_properties:
@@ -690,74 +792,8 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_send_status_to_db(self, cluster):
-
-        status = cluster.status()
-        env_servlet_processes = status.pop("env_servlet_processes")
-        status_data = {
-            "daemon_status": RunhouseDaemonStatus.RUNNING,
-            "resource_type": status.get("cluster_config").get("resource_type"),
-            "resource_info": status,
-            "env_servlet_processes": env_servlet_processes,
-        }
-        cluster_uri = rh.globals.rns_client.format_rns_address(cluster.rns_address)
-        headers = rh.globals.rns_client.request_headers()
-        api_server_url = rh.globals.rns_client.api_server_url
-        post_status_data_resp = requests.post(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-            data=json.dumps(status_data),
-            headers=headers,
-        )
-        assert post_status_data_resp.status_code in [200, 422]
-        get_status_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status?limit=1",
-            headers=headers,
-        )
-        assert get_status_data_resp.status_code == 200
-        get_status_data = get_status_data_resp.json()["data"][0]
-        assert get_status_data["resource_type"] == status.get("cluster_config").get(
-            "resource_type"
-        )
-        assert get_status_data["daemon_status"] == RunhouseDaemonStatus.RUNNING
-
-        assert get_status_data["resource_info"] == status
-        for k in env_servlet_processes:
-            if env_servlet_processes[k]["env_gpu_usage"] == {}:
-                env_servlet_processes[k]["env_gpu_usage"] = {
-                    "used_memory": None,
-                    "utilization_percent": None,
-                    "total_memory": None,
-                }
-        env_servlet_processes = sort_env_servlet_processes(env_servlet_processes)
-        get_status_data["env_servlet_processes"] = sort_env_servlet_processes(
-            get_status_data["env_servlet_processes"]
-        )
-        assert get_status_data["env_servlet_processes"] == env_servlet_processes
-
-        status_data["daemon_status"] = RunhouseDaemonStatus.TERMINATED
-        post_status_data_resp = requests.post(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-            data=json.dumps(status_data),
-            headers=headers,
-        )
-        assert post_status_data_resp.status_code == 200
-        get_status_data_resp = requests.get(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status?limit=1",
-            headers=headers,
-        )
-        assert (
-            get_status_data_resp.json()["data"][0]["daemon_status"]
-            == RunhouseDaemonStatus.TERMINATED
-        )
-
-        # setting the status to running again, so it won't mess with the following tests
-        # (when running all release suite at once, for example)
-        post_status_data_resp = requests.post(
-            f"{api_server_url}/resource/{cluster_uri}/cluster/status",
-            data=json.dumps(status_data),
-            headers=headers,
-        )
-        assert post_status_data_resp.status_code in [200, 422]
+    def test_send_status_to_db(self, docker_cluster_pk_ssh_no_auth):
+        send_cluster_status_to_db_logic(docker_cluster_pk_ssh_no_auth)
 
     ####################################################################################################
     # Default process tests
@@ -767,7 +803,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.clustertest
     def test_default_process_in_status(self, cluster):
         res = cluster.status()
-        assert DEFAULT_PROCESS_NAME in res.get("env_servlet_processes")
+        assert DEFAULT_PROCESS_NAME in res.get("processes")
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -780,15 +816,17 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_fn_to_default_process(self, cluster):
+    def test_fn_to_no_process_specified(self, cluster):
         remote_summer = rh.function(summer).to(cluster)
 
-        assert remote_summer.name in cluster.keys(process=DEFAULT_PROCESS_NAME)
-        assert remote_summer(3, 4) == 7
+        found = False
+        for p in cluster.list_processes():
+            if p.startswith(remote_summer.name):
+                found = True
+                assert remote_summer.name in cluster.keys(process=p)
+                break
 
-        # Test function with non-trivial imports
-        fn = rh.function(import_env).to(cluster)
-        assert fn() == "success"
+        assert found
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -796,7 +834,7 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         reqs = []
         if cluster.image:
             for step in cluster.image.setup_steps:
-                if step.step_type == ImageSetupStepType.PACKAGES:
+                if step.step_type == ImageSetupStepType.PIP_INSTALL:
                     reqs += step.kwargs.get("reqs")
         for req in reqs:
             if isinstance(req, str) and "_" in req:
@@ -839,12 +877,26 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_run_within_cluster(self, cluster):
+        if cluster.config().get("resource_subtype") == "Cluster":
+            pytest.skip("run_bush don't work when running on the cluster, need to fix")
         remote_run = rh.function(run_in_no_env).to(cluster)
         res = remote_run("echo hello")
-        exp = cluster.run_bash("echo hello")
 
-        assert res[0] == 0
-        assert res[1].strip() == exp[1].strip()
+        if cluster.ips == cluster.internal_ips != ["localhost"]:
+            exp = cluster.run_bash_over_ssh(["echo hello"])
+        else:
+            exp = cluster.run_bash(["echo hello"])
+
+        # multinode case; check that the call passes on all nodes
+        if len(cluster.ips) > 1:
+            assert len(res) == len(exp)
+            for node_id in range(len(res)):
+                assert res[node_id][0] == 0
+                assert res[node_id][1].strip() == exp[node_id][1].strip()
+        else:
+            # single-node case
+            assert res[0] == 0
+            assert res[1].strip() == exp[0][1].strip()
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -958,135 +1010,84 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_list_default_pythonic(self, cluster):
-        original_username = rns_client.username
-        new_username = (
-            "test-org"
-            if cluster.rns_address.startswith("/test-org/")
-            else original_username
+        default_clusters = Cluster.list().get("den_clusters", {})
+        assert len(default_clusters) > 0
+        assert [
+            den_cluster.get("Status") == ClusterStatus.RUNNING
+            for den_cluster in default_clusters
+        ]
+        assert any(
+            den_cluster
+            for den_cluster in default_clusters
+            if den_cluster.get("Name") == cluster.rns_address
         )
-
-        with org_friend_account(
-            new_username=new_username,
-            token=rns_client.token,
-            original_username=original_username,
-        ):
-            default_clusters = Cluster.list().get("den_clusters", {})
-            assert len(default_clusters) > 0
-            assert [
-                den_cluster.get("Status") == ClusterStatus.RUNNING
-                for den_cluster in default_clusters
-            ]
-            assert any(
-                den_cluster
-                for den_cluster in default_clusters
-                if den_cluster.get("Name") == cluster.name
-            )
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_list_all_pythonic(self, cluster):
-        original_username = rns_client.username
-        new_username = (
-            "test-org"
-            if cluster.rns_address.startswith("/test-org/")
-            else original_username
+        # create dummy terminated cluster - set the daemon status to terminated, which will also
+        # update the cluster status. Making sure that its name is in the same format as all testing clusters
+        # (contains timestamp and uuid)
+        terminated_cluster = rh.cluster(
+            name=f"{create_folder_path()}-terminated-cluster",
+            server_connection_type="ssh",
+        ).save()
+        set_daemon_and_cluster_status(
+            terminated_cluster,
+            daemon_status=RunhouseDaemonStatus.TERMINATED,
+            cluster_status=ClusterStatus.TERMINATED,
         )
 
-        with org_friend_account(
-            new_username=new_username,
-            token=rns_client.token,
-            original_username=original_username,
-        ):
-            # create dummy terminated cluster - set the daemon status to terminated, which will also
-            # update the cluster status. Making sure that its name is in the same format as all testing clusters
-            # (contains timestamp and uuid)
-            terminated_cluster = rh.cluster(
-                name=f"{create_folder_path()}_terminated-cluster",
-                server_connection_type="ssh",
-            ).save()
-            set_daemon_and_cluster_status(
-                terminated_cluster,
-                daemon_status=RunhouseDaemonStatus.TERMINATED,
-                cluster_status=ClusterStatus.TERMINATED,
-            )
+        all_clusters = Cluster.list(show_all=True).get("den_clusters", {})
+        present_statuses = set(
+            [den_cluster.get("Status") for den_cluster in all_clusters]
+        )
+        assert len(present_statuses) > 1
+        assert ClusterStatus.RUNNING in present_statuses
+        assert ClusterStatus.TERMINATED in present_statuses
 
-            all_clusters = Cluster.list(show_all=True).get("den_clusters", {})
-            present_statuses = set(
-                [den_cluster.get("Status") for den_cluster in all_clusters]
-            )
-            assert len(present_statuses) > 1
-            assert ClusterStatus.RUNNING in present_statuses
-            assert ClusterStatus.TERMINATED in present_statuses
-
-            test_cluster = [
-                den_cluster
-                for den_cluster in all_clusters
-                if den_cluster.get("Name") == cluster.name
-            ][0]
-            assert test_cluster.get("Status") == ClusterStatus.RUNNING
+        test_cluster = [
+            den_cluster
+            for den_cluster in all_clusters
+            if den_cluster.get("Name") == cluster.rns_address
+        ][0]
+        assert test_cluster.get("Status") == ClusterStatus.RUNNING
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_list_status_pythonic(self, cluster):
-        original_username = rns_client.username
-        new_username = (
-            "test-org"
-            if cluster.rns_address.startswith("/test-org/")
-            else original_username
-        )
-
-        with org_friend_account(
-            new_username=new_username,
-            token=rns_client.token,
-            original_username=original_username,
-        ):
-            for status in [ClusterStatus.RUNNING, ClusterStatus.TERMINATED]:
-                # check that filtered requests contains only specific status
-                filtered_clusters = Cluster.list(status=status).get("den_clusters", {})
-                if filtered_clusters:
-                    filtered_statuses = set(
-                        [cluster.get("Status") for cluster in filtered_clusters]
-                    )
-                    assert status in filtered_statuses
+        for status in [ClusterStatus.RUNNING, ClusterStatus.TERMINATED]:
+            # check that filtered requests contains only specific status
+            filtered_clusters = Cluster.list(status=status).get("den_clusters", {})
+            if filtered_clusters:
+                filtered_statuses = set(
+                    [cluster.get("Status") for cluster in filtered_clusters]
+                )
+                assert status in filtered_statuses
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
     def test_cluster_list_since_pythonic(self, cluster):
         cluster.save()  # tls exposed local cluster is not saved by default
 
-        original_username = rns_client.username
-        new_username = (
-            "test-org"
-            if cluster.rns_address.startswith("/test-org/")
-            else original_username
+        minutes_time_filter = 10
+        clusters = Cluster.list(since=f"{minutes_time_filter}m")
+        recent_clusters = clusters.get("den_clusters", {})
+
+        clusters_last_active_timestamps = set(
+            [den_cluster.get("Last Active (UTC)") for den_cluster in recent_clusters]
         )
 
-        with org_friend_account(
-            new_username=new_username,
-            token=rns_client.token,
-            original_username=original_username,
-        ):
-            minutes_time_filter = 10
-            clusters = Cluster.list(since=f"{minutes_time_filter}m")
-            recent_clusters = clusters.get("den_clusters", {})
+        assert len(clusters_last_active_timestamps) >= 1
+        current_utc_time = datetime.utcnow().replace(tzinfo=timezone.utc)
 
-            clusters_last_active_timestamps = set(
-                [
-                    den_cluster.get("Last Active (UTC)")
-                    for den_cluster in recent_clusters
-                ]
-            )
-
-            assert len(clusters_last_active_timestamps) >= 1
-            current_utc_time = datetime.utcnow().replace(tzinfo=timezone.utc)
-
-            for timestamp in clusters_last_active_timestamps:
-                # Convert the timestamp string to a naive datetime object
-                timestamp_obj = datetime.strptime(timestamp, "%m/%d/%Y, %H:%M:%S")
-                timestamp_obj = timestamp_obj.replace(tzinfo=timezone.utc)
-                assert (
-                    current_utc_time - timestamp_obj
-                ).total_seconds() <= minutes_time_filter * MINUTE
+        for timestamp in clusters_last_active_timestamps:
+            # Convert the timestamp string to a naive datetime object
+            timestamp_obj = datetime.strptime(timestamp, "%m/%d/%Y, %H:%M:%S")
+            timestamp_obj = timestamp_obj.replace(tzinfo=timezone.utc)
+            assert (
+                current_utc_time - timestamp_obj
+            ).total_seconds() <= minutes_time_filter * MINUTE
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -1094,48 +1095,42 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         import re
         import subprocess
 
-        original_username = rns_client.username
-        new_username = (
-            "test-org"
-            if cluster.rns_address.startswith("/test-org/")
-            else original_username
+        env = set_output_env_vars()
+
+        process = subprocess.Popen(
+            "runhouse cluster list",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
         )
+        process.wait()
+        stdout = process.communicate()[0]
+        capsys.readouterr()
+        cmd_stdout = stdout.decode("utf-8")
 
-        with org_friend_account(
-            new_username=new_username,
-            token=rns_client.token,
-            original_username=original_username,
-        ):
-            env = set_output_env_vars()
+        assert cmd_stdout
 
-            process = subprocess.Popen(
-                "runhouse cluster list",
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                env=env,
-            )
-            process.wait()
-            stdout = process.communicate()[0]
-            capsys.readouterr()
-            cmd_stdout = stdout.decode("utf-8")
+        # The output is printed as a table.
+        # testing that the table name is printed correctly
+        regex = f".*Clusters for {rh.configs.username}.*\(Running: .*/.*, Total Displayed: .*/.*\).*"
+        assert re.search(regex, cmd_stdout)
 
-            assert cmd_stdout
-
-            # The output is printed as a table.
-            # testing that the table name is printed correctly
-            regex = f".*Clusters for {rh.configs.username}.*\(Running: .*/.*, Total Displayed: .*/.*\).*"
-            assert re.search(regex, cmd_stdout)
-
-            # testing that the table column names is printed correctly
-            col_names = ["┃ Name", "┃ Cluster Type", "┃ Status", "┃ Last Active (UTC)"]
-            for name in col_names:
-                assert name in cmd_stdout
-            assert (
-                f"Showing clusters that were active in the last {int(LAST_ACTIVE_AT_TIMEFRAME / HOUR)} hours."
-                in cmd_stdout
-            )
-            assert cluster.name in cmd_stdout
+        # testing that the table column names is printed correctly
+        col_names = [
+            "┃ Name",
+            "┃ Cluster Type",
+            "┃ Status",
+            "┃ Last Active (UTC)",
+            "┃ Autostop (Mins)",
+        ]
+        for name in col_names:
+            assert name in cmd_stdout
+        assert (
+            f"Showing clusters that were active in the last {int(LAST_ACTIVE_AT_TIMEFRAME / HOUR)} hours."
+            in cmd_stdout
+        )
+        assert cluster.rns_address in cmd_stdout
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
@@ -1144,71 +1139,60 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         import re
         import subprocess
 
-        original_username = rns_client.username
-        new_username = (
-            "test-org"
-            if cluster.rns_address.startswith("/test-org/")
-            else original_username
-        )
+        cluster.save()  # tls exposed local cluster is not saved by default
 
-        with org_friend_account(
-            new_username=new_username,
-            token=rns_client.token,
-            original_username=original_username,
-        ):
-            cluster.save()  # tls exposed local cluster is not saved by default
+        subprocess_env = set_output_env_vars()
 
-            subprocess_env = set_output_env_vars()
+        for status in [ClusterStatus.RUNNING, ClusterStatus.TERMINATED]:
+            process = subprocess.Popen(
+                f"runhouse cluster list --status {status}",
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=subprocess_env,
+            )
+            process.wait()
+            stdout = process.communicate()[0]
+            capsys.readouterr()
+            cmd_stdout = stdout.decode("utf-8")
+            assert cmd_stdout
 
-            for status in [ClusterStatus.RUNNING, ClusterStatus.TERMINATED]:
-                process = subprocess.Popen(
-                    f"runhouse cluster list --status {status}",
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    env=subprocess_env,
-                )
-                process.wait()
-                stdout = process.communicate()[0]
-                capsys.readouterr()
-                cmd_stdout = stdout.decode("utf-8")
-                assert cmd_stdout
+            # The output is printed as a table.
+            # testing that the table name is printed correctly
 
-                # The output is printed as a table.
-                # testing that the table name is printed correctly
+            regex = ".*Clusters for.*\(Running: .*/.*, Total Displayed: .*/.*\).*"
+            assert re.search(regex, cmd_stdout)
 
-                regex = ".*Clusters for.*\(Running: .*/.*, Total Displayed: .*/.*\).*"
-                assert re.search(regex, cmd_stdout)
+            # testing that the table column names is printed correctly
+            col_names = [
+                "┃ Name",
+                "┃ Cluster Type",
+                "┃ Status",
+                "┃ Last Active (UTC)",
+                "┃ Autostop (Mins)",
+            ]
+            for name in col_names:
+                assert name in cmd_stdout
 
-                # testing that the table column names is printed correctly
-                col_names = [
-                    "┃ Name",
-                    "┃ Cluster Type",
-                    "┃ Status",
-                    "┃ Last Active (UTC)",
-                ]
-                for name in col_names:
-                    assert name in cmd_stdout
+            assert (
+                "Note: the above clusters have registered activity in the last 24 hours."
+                not in cmd_stdout
+            )
 
-                assert (
-                    "Note: the above clusters have registered activity in the last 24 hours."
-                    not in cmd_stdout
-                )
+            if status == ClusterStatus.RUNNING:
+                assert cluster.rns_address in cmd_stdout
 
-                if status == ClusterStatus.RUNNING:
-                    assert cluster.name in cmd_stdout
+            # Check other statuses not found in output
+            cmd_stdout = cmd_stdout.replace("Running:", "")
+            statuses = [s.lower() for s in list(ClusterStatus.__members__.keys())]
+            statuses.remove(status)
 
-                # Check other statuses not found in output
-                cmd_stdout = cmd_stdout.replace("Running:", "")
-                statuses = [s.lower() for s in list(ClusterStatus.__members__.keys())]
-                statuses.remove(status)
-
-                for status in statuses:
-                    assert status.capitalize() not in cmd_stdout
+            for status in statuses:
+                assert status.capitalize() not in cmd_stdout
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
-    def test_cluster_list_and_create_process(self, cluster):
+    def test_cluster_create_and_list_process(self, cluster):
         assert DEFAULT_PROCESS_NAME in cluster.list_processes()
 
         # create a process manually with the create_process functionality

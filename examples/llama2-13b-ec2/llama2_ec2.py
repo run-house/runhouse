@@ -98,7 +98,7 @@ if __name__ == "__main__":
     # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
     img = (
         rh.Image(name="llama2inference")
-        .install_packages(
+        .pip_install(
             [
                 "torch",
                 "transformers",
@@ -111,7 +111,7 @@ if __name__ == "__main__":
         .sync_secrets(["huggingface"])
     )
 
-    gpu_cluster = rh.cluster(
+    gpu_cluster = rh.compute(
         name="rh-a10x",
         instance_type="A10G:1",
         provider="aws",

@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Union
 
-from runhouse.globals import rns_client
+from runhouse.globals import configs, rns_client
 
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.cluster import Cluster
@@ -140,6 +140,11 @@ def cluster(
         if isinstance(new_cluster, OnDemandCluster):
             # load from name, none of the other arguments were provided
             cluster_type = "ondemand"
+            if cluster_args.keys() & {*RH_SERVER_ARGS}:
+                return ondemand_cluster(
+                    **cluster_args,
+                    **kwargs,
+                )
         else:
             cluster_type = "static"
     except ValueError:
@@ -185,14 +190,17 @@ def ondemand_cluster(
     instance_type: Optional[str] = None,
     num_nodes: Optional[int] = None,
     provider: Optional[str] = None,
+    pool: Optional[str] = None,
     autostop_mins: Optional[int] = None,
     use_spot: bool = False,
     region: Optional[str] = None,
     memory: Union[int, str, None] = None,
-    disk_size: Union[int, str, None] = None,
+    disk_size: Optional[int] = None,
     num_cpus: Union[int, str, None] = None,
     accelerators: Union[int, str, None] = None,
+    gpus: Union[int, str, None] = None,
     open_ports: Union[int, str, List[int], None] = None,
+    vpc_name: Optional[str] = None,
     sky_kwargs: Dict = None,
     # kubernetes related arguments
     kube_namespace: Optional[str] = None,
@@ -220,7 +228,7 @@ def ondemand_cluster(
       These args are passed through to SkyPilot's `Resource constructor
       <https://skypilot.readthedocs.io/en/latest/reference/api.html#resources>`__: ``instance_type``,
       ``num_nodes``, ``provider``, ``use_spot``, ``region``, ``memory``, ``disk_size``, ``num_cpus``,
-      ``accelerators``, ``open_ports``, ``autostop_mins``, ``sky_kwargs``.
+      ``gpus`` (``accelerators``), ``open_ports``, ``autostop_mins``, ``sky_kwargs``.
     * If runhouse related arguments are mismatched with loaded Cluster, override those Cluster properties
 
 
@@ -228,23 +236,26 @@ def ondemand_cluster(
         name (str): Name for the cluster, to re-use later on.
         instance_type (int, optional): Type of cloud VM type to use for the cluster, e.g. "r5d.xlarge".
             Optional, as may instead choose to specify resource requirements (e.g. memory, disk_size,
-            num_cpus, accelerators).
+            num_cpus, gpus).
         num_nodes (int, optional): Number of nodes to use for the cluster.
         provider (str, optional): Cloud provider to use for the cluster.
+        pool (str, optional): Compute pool to use for the cluster.
         autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
             or ``-1`` to keep cluster up indefinitely. (Default: ``60``).
         use_spot (bool, optional): Whether or not to use spot instance. (Default: ``False``)
         region (str, optional): The region to use for the cluster. (Default: ``None``)
         memory (int or str, optional): Amount of memory to use for the cluster, e.g. `16` or "16+".
             (Default: ``None``)
-        disk_size (int or str, optional): Amount of disk space to use for the cluster, e.g. `100` or "100+".
+        disk_size (int, optional): Amount of disk space to use for the cluster in GiB, e.g. `100`.
             (Default: ``None``)
         num_cpus (int or str, optional): Number of CPUs to use for the cluster, e.g. `4` or "4+". (Default: ``None``)
-        accelerators (int or str, optional): Number of accelerators to use for the cluster, e.g. "A101" or "L4:8".
+        gpus (int or str, optional): Type and number of GPU to use for the cluster e.g. "A101" or "L4:8".
             (Default: ``None``)
         open_ports (int or str or List[int], optional): Ports to open in the cluster's security group. Note
             that you are responsible for ensuring that the applications listening on these ports are secure.
             (Default: ``None``)
+        vpc_name (str, optional): Specific VPC used for launching the cluster. If not specified,
+            cluster will be launched in the default VPC.
         sky_kwargs (dict, optional): Additional keyword arguments to pass to the SkyPilot `Resource` or `launch`
             APIs. Should be a dict of the form `{"resources": {<resources_kwargs>}, "launch": {<launch_kwargs>}}`,
             where resources_kwargs and launch_kwargs will be passed to the SkyPilot Resources API (See
@@ -299,8 +310,26 @@ def ondemand_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.ondemand_cluster(name="rh-4-a100s")
     """
+    launcher = launcher.lower() if launcher else configs.launcher
+    if launcher not in LauncherType.strings():
+        raise ValueError(
+            f"Invalid launcher type '{launcher}'. Must be one of {LauncherType.strings()}."
+        )
+
+    if vpc_name and launcher == "local":
+        raise ValueError(
+            "Custom VPCs are not supported with local launching. To use a custom VPC, please use the "
+            "Den launcher. For more information see "
+            "https://www.run.house/docs/installation-setup#den-launcher"
+        )
+
     cluster_args = locals().copy()
     cluster_args = {k: v for k, v in cluster_args.items() if v is not None}
+    if "accelerators" in cluster_args:
+        logger.warning(
+            "``accelerators`` argument has been deprecated. Please use ``gpus`` argument instead."
+        )
+        cluster_args["gpus"] = cluster_args.pop("accelerators")
 
     try:
         new_cluster = Cluster.from_name(

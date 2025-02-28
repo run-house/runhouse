@@ -23,6 +23,12 @@ inputs:
   DEN_TESTER_TOKEN:
     description: 'Den Tester Token'
     required: true
+  DEN_TESTER_SSH_PRIVATE_KEY:
+    description: 'Den Tester Private SSH Key'
+    required: true
+  DEN_TESTER_SSH_PUBLIC_KEY:
+    description: 'Den Tester Public SSH Key'
+    required: true
   DEN_TESTER_USERNAME:
     description: 'Den Tester Username'
     required: true
@@ -33,6 +39,11 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Setup python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
     - name: Check out repository code
       uses: actions/checkout@v3
 
@@ -43,7 +54,7 @@ runs:
         export KUBECONFIG=$HOME/.kube/config
         kubectl config view
         sudo apt-get update
-        sudo apt-get install -y socat netcat
+        sudo apt-get install -y socat netcat-openbsd
       shell: bash
 
     - name: Configure & Authenticate to AWS
@@ -68,7 +79,7 @@ runs:
     - name: Install & check skypilot configuration
       run: |
         python -m pip install --upgrade pip
-        pip install skypilot[aws,gcp,kubernetes]
+        pip install "skypilot[aws,gcp,kubernetes]"
         sky check
         sky status
       shell: bash
@@ -77,10 +88,14 @@ runs:
       run: |
         pip install git+https://github.com/run-house/runhouse.git@main#egg=runhouse[aws,gcp,kubernetes]
         pip install -r tests/requirements.txt
+        pip install beautifulsoup4==4.11.1
       shell: bash
 
     - name: Setup Runhouse
       uses: ./.github/workflows/setup_runhouse
+      with:
+        den_tester_ssh_private_key: ${{ inputs.DEN_TESTER_SSH_PRIVATE_KEY }}
+        den_tester_ssh_public_key: ${{ inputs.DEN_TESTER_SSH_PUBLIC_KEY }}
 
     - name: Setup ~/.rh/config.yaml
       uses: ./.github/workflows/setup_rh_config

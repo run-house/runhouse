@@ -64,11 +64,11 @@ gpu_cluster_name = "gpu-cluster"
 
 
 def get_cluster(**kwargs):
-    img = rh.Image("pytorch").install_packages(["torch", "torchvision"])
-    cluster = rh.cluster(
+    img = rh.Image("pytorch").pip_install(["torch", "torchvision"])
+    cluster = rh.compute(
         name=kwargs.get("cluster_name", "rh-cluster"),
         instance_type=kwargs.get("instance_type", None),
-        accelerators=kwargs.get("accelerators", None),
+        gpus=kwargs.get("gpus", None),
         provider=kwargs.get("provider", "aws"),
         image=img,
     ).up_if_not()
@@ -127,7 +127,7 @@ def train_model_callable(**kwargs):
     logger.info("Step 4: Train Model")
     cluster = get_cluster(**kwargs)
 
-    remote_torch_example = rh.module(SimpleTrainer).to(
+    remote_torch_example = rh.cls(SimpleTrainer).to(
         cluster, name="torch-basic-training"
     )
 
@@ -136,7 +136,7 @@ def train_model_callable(**kwargs):
     batch_size = 64
     epochs = 5
     learning_rate = 0.01
-    cluster.run(["ls"])
+    cluster.run_bash(["ls"])
     model.load_train("./data", batch_size)
     model.load_test("./data", batch_size)
 
@@ -173,7 +173,7 @@ cpu_cluster_config = {
 }
 gpu_cluster_config = {
     "cluster_name": "gpu-cluster",
-    "accelerators": "L4:1",
+    "gpus": "L4:1",
     "provider": "gcp",
 }
 

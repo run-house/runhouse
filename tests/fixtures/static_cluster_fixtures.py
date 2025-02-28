@@ -19,18 +19,22 @@ def setup_static_cluster(
     test_rns_folder: str,
     launcher: Union[LauncherType, str] = None,
     compute_type: computeType = computeType.cpu,
+    remote: bool = False,  # whether the fixture is used on a remote-running test or on a local one.
 ):
-    rh.constants.SSH_SKY_SECRET_NAME = (
-        f"{test_rns_folder}-{rh.constants.SSH_SKY_SECRET_NAME}"
-    )
     instance_type = "CPU:4" if compute_type == computeType.cpu else "g5.xlarge"
     launcher = launcher if launcher else LauncherType.LOCAL
-    cluster_name = f"{test_rns_folder}-{launcher}-aws-{compute_type}-password"
+    cluster_name = (
+        f"{launcher}-aws-{compute_type}-password"
+        if not remote
+        else f"{test_rns_folder}-{launcher}-aws-{compute_type}-password"
+    )
+
     cluster = rh.cluster(
         name=cluster_name,
         instance_type=instance_type,
         provider="aws",
         launcher=launcher,
+        den_auth=True,
     ).save()
     if not cluster.is_up():
         cluster.up()
@@ -60,7 +64,10 @@ def setup_static_cluster(
     # and the static cluster will be terminated. Otherwise, both of the clusters will be terminated using the on-demand
     # cluster auto-stop.
     args = dict(
-        name=f"{cluster_name}-static", host=[cluster.head_ip], ssh_creds=ssh_creds
+        name=f"{cluster_name}-static",
+        host=[cluster.head_ip],
+        ssh_creds=ssh_creds,
+        den_auth=True,
     )
     c = rh.cluster(**args).save()
     c.restart_server(resync_rh=True)
@@ -73,7 +80,9 @@ def setup_static_cluster(
 
 @pytest.fixture(scope="session")
 def static_cpu_pwd_cluster(request, test_rns_folder):
-    cluster = setup_static_cluster(test_rns_folder=test_rns_folder)
+    cluster = setup_static_cluster(
+        test_rns_folder=test_rns_folder, remote=request.config.getoption("--ci")
+    )
     yield cluster
     if not request.config.getoption("--detached"):
         # for static cluster fixtures, we first create an ondemand cluster, to mock to user's BYO cluster, spinning it
@@ -85,9 +94,11 @@ def static_cpu_pwd_cluster(request, test_rns_folder):
 
 
 @pytest.fixture(scope="session")
-def static_cpu_pwd_cluster_den_launcher(test_rns_folder):
+def static_cpu_pwd_cluster_den_launcher(request, test_rns_folder):
     cluster = setup_static_cluster(
-        launcher=LauncherType.DEN, test_rns_folder=test_rns_folder
+        launcher=LauncherType.DEN,
+        test_rns_folder=test_rns_folder,
+        remote=request.config.getoption("--ci"),
     )
     yield cluster
     # for static cluster fixtures, we first create an ondemand cluster, to mock to user's BYO cluster, spinning it
@@ -99,11 +110,12 @@ def static_cpu_pwd_cluster_den_launcher(test_rns_folder):
 
 
 @pytest.fixture(scope="session")
-def static_gpu_pwd_cluster_den_launcher(test_rns_folder):
+def static_gpu_pwd_cluster_den_launcher(request, test_rns_folder):
     cluster = setup_static_cluster(
         launcher=LauncherType.DEN,
         compute_type=computeType.gpu,
         test_rns_folder=test_rns_folder,
+        remote=request.config.getoption("--ci"),
     )
     yield cluster
     # for static cluster fixtures, we first create an ondemand cluster, to mock to user's BYO cluster, spinning it

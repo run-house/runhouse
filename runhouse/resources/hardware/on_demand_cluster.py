@@ -31,6 +31,7 @@ from runhouse.resources.hardware.utils import (
     _cluster_set_autostop_command,
     ClusterStatus,
     LauncherType,
+    pprint_launched_cluster_summary,
     RunhouseDaemonStatus,
     ServerConnectionType,
     up_cluster_helper,
@@ -52,13 +53,14 @@ class OnDemandCluster(Cluster):
         instance_type: str = None,
         num_nodes: int = None,
         provider: str = None,
+        pool: str = None,
         dryrun: bool = False,
         autostop_mins: int = None,
         use_spot: bool = False,
         memory: Union[int, str] = None,
-        disk_size: Union[int, str] = None,
+        disk_size: int = None,
         num_cpus: Union[int, str] = None,
-        accelerators: str = None,
+        gpus: str = None,
         open_ports: Union[int, str, List[int]] = None,
         server_host: int = None,
         server_port: int = None,
@@ -69,6 +71,7 @@ class OnDemandCluster(Cluster):
         domain: str = None,
         den_auth: bool = False,
         region: str = None,
+        vpc_name: str = None,
         sky_kwargs: Dict = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
@@ -78,8 +81,7 @@ class OnDemandCluster(Cluster):
         .. note::
             To build a cluster, please use the factory method :func:`cluster`.
         """
-        cluster_launcher = launcher or configs.launcher
-        skip_creds = cluster_launcher == LauncherType.DEN
+        self.launcher = launcher or configs.launcher
 
         super().__init__(
             name=name,
@@ -91,18 +93,25 @@ class OnDemandCluster(Cluster):
             domain=domain,
             den_auth=den_auth,
             dryrun=dryrun,
-            skip_creds=skip_creds,
             **kwargs,
         )
 
         self.instance_type = instance_type
         self.num_nodes = num_nodes
-        self.provider = provider or configs.get("default_provider")
         self._autostop_mins = (
             autostop_mins
             if autostop_mins is not None
             else configs.get("default_autostop")
         )
+
+        self.pool = pool
+        self.provider = provider
+        if not self.pool and not self.provider:
+            default_pool = configs.get("default_pool", None)
+            if default_pool:
+                self.pool = default_pool
+            else:
+                self.provider = configs.get("default_provider")
 
         self.open_ports = open_ports
         self.use_spot = use_spot if use_spot is not None else configs.get("use_spot")
@@ -110,19 +119,13 @@ class OnDemandCluster(Cluster):
         self.memory = memory
         self.disk_size = disk_size
         self._num_cpus = num_cpus
-        self._accelerators = accelerators
+        self._gpus = gpus
         self.sky_kwargs = sky_kwargs or {}
-        self.launcher = cluster_launcher
+        self.vpc_name = vpc_name
 
         self.compute_properties = {}
-        # backwards compatibility
-        if kwargs.get("stable_internal_external_ips"):
-            internal_ips, ips = map(
-                list, zip(*kwargs.get("stable_internal_external_ips"))
-            )
-            self.compute_properties["ips"] = ips
-            self.compute_properties["internal_ips"] = internal_ips
-        elif kwargs.get("ips"):
+
+        if kwargs.get("ips"):
             self.compute_properties["ips"] = kwargs.get("ips")
 
         self.compute_properties = {
@@ -140,7 +143,7 @@ class OnDemandCluster(Cluster):
         self._cluster_status = kwargs.get("cluster_status")
 
         # Checks if state info is in local sky db, populates if so.
-        if not dryrun and not self.ips and not self.creds_values:
+        if not dryrun and not self.ips and self.launcher == LauncherType.LOCAL:
             # Cluster status is set to INIT in the Sky DB right after starting, so we need to refresh once
             self._update_from_sky_status(dryrun=True)
 
@@ -214,9 +217,17 @@ class OnDemandCluster(Cluster):
 
         if not self._creds:
             return
-        self._docker_user = get_docker_user(self, self.creds_values)
+        self._docker_user = get_docker_user(self, self.ssh_properties)
 
         return self._docker_user
+
+    @property
+    def cluster_status(self):
+        return self._cluster_status
+
+    @cluster_status.setter
+    def cluster_status(self, new_status: ClusterStatus):
+        self._cluster_status = new_status
 
     def config(self, condensed=True):
         config = super().config(condensed)
@@ -226,11 +237,13 @@ class OnDemandCluster(Cluster):
                 "instance_type",
                 "num_nodes",
                 "provider",
+                "pool",
                 "open_ports",
                 "use_spot",
                 "region",
                 "memory",
                 "disk_size",
+                "vpc_name",
                 "sky_kwargs",
                 "launcher",
                 "compute_properties",
@@ -238,7 +251,7 @@ class OnDemandCluster(Cluster):
         )
         config["autostop_mins"] = self._autostop_mins
         config["num_cpus"] = self._num_cpus
-        config["accelerators"] = self._accelerators
+        config["gpus"] = self._gpus
         if self._kube_namespace is not None:
             config["kube_namespace"] = self._kube_namespace
         if self._kube_context is not None:
@@ -250,7 +263,7 @@ class OnDemandCluster(Cluster):
         if (
             not self.ips
             or self.on_this_cluster()
-            or self._cluster_status == ClusterStatus.TERMINATED
+            or self.cluster_status == ClusterStatus.TERMINATED
         ):
             return None
 
@@ -352,7 +365,7 @@ class OnDemandCluster(Cluster):
         if self.launcher == LauncherType.LOCAL:
             self._fetch_sky_status_and_update_cluster_status()
 
-        if self._cluster_status == ClusterStatus.TERMINATED:
+        if self.cluster_status == ClusterStatus.TERMINATED:
             return False
 
         return self._ping(retry=True)
@@ -410,17 +423,17 @@ class OnDemandCluster(Cluster):
 
     def _update_cluster_status_from_sky_status(self, sky_status: str):
         if sky_status == SkyClusterStatus.UP:
-            self._cluster_status = ClusterStatus.RUNNING
+            self.cluster_status = ClusterStatus.RUNNING
         if sky_status == SkyClusterStatus.STOPPED:
-            self._cluster_status = ClusterStatus.TERMINATED
+            self.cluster_status = ClusterStatus.TERMINATED
         if sky_status == SkyClusterStatus.INIT:
-            self._cluster_status = ClusterStatus.INITIALIZING
+            self.cluster_status = ClusterStatus.INITIALIZING
 
-    def _fetch_sky_status_and_update_cluster_status(self):
-        cluster_dict = self._sky_status(refresh=False)
+    def _fetch_sky_status_and_update_cluster_status(self, refresh: bool = False):
+        cluster_dict = self._sky_status(refresh=refresh)
 
         if not cluster_dict:
-            self._cluster_status = ClusterStatus.TERMINATED
+            self.cluster_status = ClusterStatus.TERMINATED
             return
 
         sky_status = cluster_dict["status"]
@@ -446,7 +459,7 @@ class OnDemandCluster(Cluster):
                 ssh_values = backend_utils.ssh_credential_from_yaml(
                     yaml_path, ssh_user=handle.ssh_user
                 )
-                if not self.creds_values or not self.ssh_properties:
+                if not self.ssh_properties:
                     self._setup_creds(ssh_values)
 
             launched_resource = handle.launched_resources
@@ -457,7 +470,6 @@ class OnDemandCluster(Cluster):
             disk_size = launched_resource.disk_size
             num_cpus = launched_resource.cpus
             memory = launched_resource.memory
-            accelerators = launched_resource.accelerators
 
             self.compute_properties = {
                 "ips": ips,
@@ -468,11 +480,10 @@ class OnDemandCluster(Cluster):
                 "cost_per_hour": str(cost_per_hr),
                 "disk_size": disk_size,
                 "memory": memory,
-                "accelerators": accelerators,
                 "num_cpus": num_cpus,
             }
             if launched_resource.accelerators:
-                self.compute_properties["accelerators"] = launched_resource.accelerators
+                self.compute_properties["gpus"] = launched_resource.accelerators
             if handle.ssh_user:
                 self.compute_properties["ssh_user"] = handle.ssh_user
             if handle.docker_user:
@@ -522,16 +533,26 @@ class OnDemandCluster(Cluster):
                     _, current_context = kubernetes.config.list_kube_config_contexts()
                     self.compute_properties["kube_context"] = current_context["name"]
 
+                self._kube_namespace = self.compute_properties.get("kube_namespace")
+                self._kube_context = self.compute_properties.get("kube_context")
+
     def _update_from_sky_status(self, dryrun: bool = False):
+        if self.launcher != LauncherType.LOCAL:
+            return
+
         # Try to get the cluster status from SkyDB
-        if self.is_shared:
+        if self._is_shared:
             # If the cluster is shared can ignore, since the sky data will only be saved on the machine where
             # the cluster was initially upped
             return
 
-        if self.launcher == "local":
-            cluster_dict = self._sky_status(refresh=not dryrun)
-            self._populate_connection_from_status_dict(cluster_dict)
+        cluster_dict = self._sky_status(refresh=not dryrun)
+        self._populate_connection_from_status_dict(cluster_dict)
+
+    def _setup_default_creds(self):
+        """Setup the default creds used in launching and for interacting with the cluster once it's up.
+        For Den launching we load the default ssh creds, and for local launching we let Sky handle it."""
+        return DenLauncher.load_creds() if self.launcher == LauncherType.DEN else None
 
     def get_instance_type(self):
         """Returns instance type of the cluster."""
@@ -546,10 +567,10 @@ class OnDemandCluster(Cluster):
 
         return None
 
-    def accelerators(self):
-        """Returns the acclerator type, or None if is a CPU."""
-        if self._accelerators:
-            return self._accelerators
+    def _requested_gpus(self):
+        """Returns the gpu type, or None if is a CPU."""
+        if self._gpus:
+            return self._gpus
 
         if (
             self.instance_type
@@ -559,6 +580,20 @@ class OnDemandCluster(Cluster):
             return self.instance_type
 
         return None
+
+    def _gpus_per_node(self):
+        if (
+            self.is_up()
+            and self.compute_properties
+            and self.compute_properties.get("gpus")
+        ):
+            gpus = self.compute_properties.get("gpus")
+        else:
+            gpus = self._requested_gpus()
+
+        if gpus:
+            return int(gpus.split(":")[-1]) if ":" in gpus else 1
+        return 0
 
     def num_cpus(self):
         """Return the number of CPUs for a CPU cluster."""
@@ -594,7 +629,7 @@ class OnDemandCluster(Cluster):
             await self.a_up(capture_output=capture_output)
         return self
 
-    def up(self, verbose: bool = True, force: bool = False):
+    def up(self, verbose: bool = True, force: bool = False, start_server: bool = True):
         """Up the cluster.
 
         Args:
@@ -609,6 +644,12 @@ class OnDemandCluster(Cluster):
         if self.on_this_cluster():
             return self
 
+        if self._is_shared:
+            logger.warning(
+                "Cannot up a shared cluster. Only cluster owners can perform this operation."
+            )
+            return self
+
         if self.launcher == LauncherType.DEN:
             logger.info("Launching cluster with Den")
             DenLauncher.up(cluster=self, verbose=verbose, force=force)
@@ -616,6 +657,12 @@ class OnDemandCluster(Cluster):
         elif self.launcher == LauncherType.LOCAL:
             logger.info("Provisioning cluster")
             LocalLauncher.up(cluster=self, verbose=verbose)
+
+        if start_server:
+            logger.info("Starting Runhouse server on cluster")
+            self.start_server()
+
+        pprint_launched_cluster_summary(cluster=self)
 
         return self
 
@@ -690,7 +737,7 @@ class OnDemandCluster(Cluster):
 
         Example:
             >>> with rh.ondemand_cluster.pause_autostop():
-            >>>     rh.ondemand_cluster.run(["python train.py"])
+            >>>     rh.ondemand_cluster.run_bash(["python train.py"])
         """
         self.run_bash_over_ssh(_cluster_set_autostop_command(-1), node=self.head_ip)
         yield
@@ -749,15 +796,26 @@ class OnDemandCluster(Cluster):
             subprocess.run(cmd, shell=True, check=True)
 
         else:
-            # If SSHing onto a specific node, which requires the default sky public key for verification
+            # If SSHing onto a specific node, which requires an SSH public key for verification
+            # Note: the SSH key must either be the one used for launch, or the user's default SSH public key
+            # if the cluster is shared
             from runhouse.resources.hardware.sky_command_runner import SshMode
 
-            sky_key = Path(
-                self.creds_values.get("ssh_private_key", self.DEFAULT_KEYFILE)
-            ).expanduser()
-
-            if not sky_key.exists():
-                raise FileNotFoundError(f"Expected default sky key in path: {sky_key}")
+            if self._is_shared:
+                # If the cluster is shared auth will be based on the user's default SSH key
+                default_ssh_key = configs.get("default_ssh_key")
+                if default_ssh_key is None:
+                    raise ValueError("No default SSH key found local Runhouse config")
+            else:
+                ssh_private_key_path = self.ssh_properties.get("ssh_private_key")
+                if (
+                    ssh_private_key_path is None
+                    or not Path(ssh_private_key_path).expanduser().exists()
+                ):
+                    # SSH keys used for launching must be present if it's not a shared cluster
+                    raise FileNotFoundError(
+                        f"Expected SSH key in path: {ssh_private_key_path}"
+                    )
 
             runner = self._command_runner(node=node)
             if self.docker_user:

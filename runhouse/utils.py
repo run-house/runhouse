@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from enum import Enum
@@ -34,6 +35,13 @@ from runhouse.logger import get_logger, init_logger
 logger = get_logger(__name__)
 
 
+def get_random_str(length: int = 8):
+    if length > 32:
+        raise ValueError("Max length of random string is 32")
+
+    return str(uuid.uuid4())[:length]
+
+
 ####################################################################################################
 # Simple env setup utilities
 ####################################################################################################
@@ -51,6 +59,7 @@ def run_setup_command(
     cmd: str,
     cluster: "Cluster" = None,
     env_vars: Dict = None,
+    conda_env_name: Optional[str] = None,
     stream_logs: bool = True,
     node: Optional[str] = None,
 ):
@@ -62,6 +71,8 @@ def run_setup_command(
     Args:
         cmd (str): Command to run on the
         cluster (Optional[Cluster]): (default: None)
+        env_vars (Dict): Env vars to apply, applied only if running through SSH
+        conda_env_name (str, optional): Conda env to run the command in, applied only if running through SSH.
         stream_logs (bool): (default: True)
 
     Returns:
@@ -72,6 +83,8 @@ def run_setup_command(
     elif cluster.on_this_cluster():
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
 
+    if conda_env_name:
+        cmd = conda_env_cmd(cmd, conda_env_name)
     return cluster._run_commands_with_runner(
         [cmd], stream_logs=stream_logs, env_vars=env_vars, node=node
     )[0]
@@ -117,7 +130,7 @@ def create_conda_env_on_cluster(
                     f"yaml.dump({conda_config}, open(path / '{conda_env_name}.yml', 'w'))",
                 ]
             )
-            subprocess.run(f'python -c "{python_commands}"', shell=True)
+            subprocess.run(f'python3 -c "{python_commands}"', shell=True)
         else:
             contents = yaml.dump(conda_config)
             run_setup_command(
@@ -183,6 +196,17 @@ def get_local_install_path(package_name: str) -> Optional[str]:
 
 def is_python_package_string(s: str) -> bool:
     return isinstance(s, str) and re.match(r"^[a-zA-Z0-9\._-]+$", s) is not None
+
+
+def split_pip_extras(package: str):
+    # check if package is in the form package[extras]
+    match = re.search(
+        r"^(?P<package>[a-zA-Z0-9][a-zA-Z0-9\._-]*)(?:\[(?P<extras>[-a-zA-Z0-9\._,]+)\])?$",
+        package,
+    )
+    if match:
+        return match.group("package"), match.group("extras")
+    return package, None
 
 
 ####################################################################################################
@@ -356,7 +380,8 @@ def run_command_with_password_login(
         command_run.logfile_read = sys.stdout
 
     # If CommandRunner uses the control path, the password may not be requested
-    next_line = command_run.expect(["assword:", pexpect.EOF])
+    password_prompt_pattern = re.compile(r"[Pp]assword:")
+    next_line = command_run.expect([password_prompt_pattern, pexpect.EOF])
     if next_line == 0:
         command_run.sendline(password)
         command_run.expect(pexpect.EOF)
@@ -719,6 +744,8 @@ class ColoredFormatter:
         "magenta": "\u001b[35m",
         "cyan": "\u001b[36m",
         "white": "\u001b[37m",
+        "bold": "\u001b[1m",
+        "italic": "\u001b[3m",
         "reset": "\u001b[0m",
     }
 
@@ -797,22 +824,26 @@ class Spinner:
         A loader-like context manager with logging support.
 
         Args:
+            logger (logging.Logger, optional): Logger for start and end messages.
             desc (str, optional): The loader's description.
             end (str, optional): Final print. Defaults to "Done!".
             timeout (float, optional): Sleep time between prints. Defaults to 0.1.
-            logger (logging.Logger, optional): Logger for start and end messages.
         """
         self.desc = desc
         self.end = end
         self.timeout = timeout
         self.logger = logger
 
-        self._thread = threading.Thread(target=self._animate, daemon=True)
         self.steps = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "⡿"]
         self.done = False
+        self._thread = None
 
     def start(self):
-        """Starts the loader thread."""
+        """Starts or restarts the loader thread."""
+        if self._thread and self._thread.is_alive():
+            self.stop()
+        self.done = False
+        self._thread = threading.Thread(target=self._animate, daemon=True)
         self._thread.start()
         return self
 
@@ -832,6 +863,8 @@ class Spinner:
     def stop(self):
         """Stops the loader and clears the line."""
         self.done = True
+        if self._thread:
+            self._thread.join()
         print("\r", end="", flush=True)  # Clear the line
         if self.end:
             self.logger.info(self.end)
@@ -847,27 +880,31 @@ class Spinner:
 # Status collection utils
 ####################################################################################################
 class ServletType(str, Enum):
-    env = "env"
+    process = "process"
     cluster = "cluster"
 
 
-def get_gpu_usage(collected_gpus_info: dict, servlet_type: ServletType):
-    gpus_indices = list(collected_gpus_info.keys())
+def parse_gpu_usage(collected_gpu_info: dict, servlet_type: ServletType):
+
+    if not collected_gpu_info:
+        return
+
+    gpus_indices = list(collected_gpu_info.keys())
 
     # how we retrieve total_gpu_memory:
-    # 1. getting the first gpu usage of the first gpu un the gpus list
+    # 1. getting the first gpu usage of the first gpu in the gpus list
     # 2. getting the first gpu_info dictionary of the specific gpu (we collected the gpu info over time)
     # 3. get total_memory value (it is the same across all envs)
-    total_gpu_memory = collected_gpus_info[gpus_indices[0]][0].get("total_memory")
+    total_gpu_memory = collected_gpu_info[gpus_indices[0]][0].get("total_memory")
     total_used_memory, gpu_utilization_percent, free_memory = 0, 0, 0
 
     if servlet_type == ServletType.cluster:
-        free_memory = collected_gpus_info[gpus_indices[0]][-1].get(
+        free_memory = collected_gpu_info[gpus_indices[0]][-1].get(
             "free_memory"
         )  # getting the latest free_memory value collected.
 
     for gpu_index in gpus_indices:
-        collected_gpu_info = collected_gpus_info.get(gpu_index)
+        collected_gpu_info = collected_gpu_info.get(gpu_index)
         sum_used_memery = sum(
             [gpu_info.get("used_memory") for gpu_info in collected_gpu_info]
         )
@@ -879,14 +916,23 @@ def get_gpu_usage(collected_gpus_info: dict, servlet_type: ServletType):
             )
             gpu_utilization_percent = sum_cpu_util / len(collected_gpu_info)  # average
 
-    total_used_memory = total_used_memory / len(gpus_indices)
+    total_used_memory = int(total_used_memory / len(gpus_indices))
+    used_memory_percent = round(
+        (total_used_memory / total_gpu_memory) * 100, 2
+    )  # values can be between 0 and 100
 
-    gpu_usage = {"total_memory": total_gpu_memory, "used_memory": total_used_memory}
+    gpu_usage = {
+        "total_memory": total_gpu_memory,
+        "used_memory": total_used_memory,
+        "used_memory_percent": used_memory_percent,
+    }
 
     if servlet_type == ServletType.cluster:
         gpu_utilization_percent = round(gpu_utilization_percent / len(gpus_indices), 2)
         gpu_usage["free_memory"] = free_memory
         gpu_usage["gpu_count"] = len(gpus_indices)
-        gpu_usage["utilization_percent"] = gpu_utilization_percent
+        gpu_usage[
+            "utilization_percent"
+        ] = gpu_utilization_percent  # value can be from 0 to 100
 
     return gpu_usage

@@ -27,7 +27,7 @@ if __name__ == "__main__":
     gpus_per_worker = 2
     num_hpo_workers = 2
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=f"rh-{num_hpo_workers}x{gpus_per_node}GPU",
         instance_type=f"A10G:{gpus_per_node}",
         num_nodes=gpus_per_worker * num_hpo_workers,

@@ -23,6 +23,9 @@ ImageSteupStepType
     .. autoattribute:: RSYNC
     .. autoattribute:: SYNC_SECRETS
     .. autoattribute:: SET_ENV_VARS
+    .. autoattribute:: PIP_INSTALL
+    .. autoattribute:: CONDA_INSTALL
+    .. autoattribute:: SYNC_PACKAGE
 
 ImageSetupStep
 ~~~~~~~~~~~~~~

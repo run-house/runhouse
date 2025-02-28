@@ -26,30 +26,30 @@ def sd_generate_image(prompt):
     return model(prompt).images[0]
 
 
-def test_cluster_config(ondemand_aws_docker_cluster):
-    config = ondemand_aws_docker_cluster.config()
+def test_cluster_config(local_launched_ondemand_aws_docker_cluster):
+    config = local_launched_ondemand_aws_docker_cluster.config()
     cluster2 = OnDemandCluster.from_config(config)
-    assert cluster2.head_ip == ondemand_aws_docker_cluster.head_ip
+    assert cluster2.head_ip == local_launched_ondemand_aws_docker_cluster.head_ip
 
 
-def test_cluster_sharing(ondemand_aws_docker_cluster):
-    ondemand_aws_docker_cluster.share(
+def test_cluster_sharing(local_launched_ondemand_aws_docker_cluster):
+    local_launched_ondemand_aws_docker_cluster.share(
         users=["donny@run.house", "josh@run.house"],
-        access_level="write",
+        access_level="read",
         notify_users=False,
     )
     assert True
 
 
-def test_read_shared_cluster(ondemand_aws_docker_cluster):
-    res = ondemand_aws_docker_cluster.run_python(
+def test_read_shared_cluster(local_launched_ondemand_aws_docker_cluster):
+    res = local_launched_ondemand_aws_docker_cluster.run_python(
         ["import numpy", "print(numpy.__version__)"]
     )
     assert res[0][1]
 
 
 def test_install(cluster):
-    cluster.install_packages(
+    cluster.pip_install(
         [
             "./",
             "torch==1.12.1",
@@ -80,8 +80,10 @@ def test_on_same_cluster(cluster):
     assert func_hw(hw_copy)
 
 
-def test_on_diff_cluster(ondemand_aws_docker_cluster, static_cpu_pwd_cluster):
-    func_hw = rh.function(is_on_cluster).to(ondemand_aws_docker_cluster)
+def test_on_diff_cluster(
+    local_launched_ondemand_aws_docker_cluster, static_cpu_pwd_cluster
+):
+    func_hw = rh.function(is_on_cluster).to(local_launched_ondemand_aws_docker_cluster)
     assert not func_hw(static_cpu_pwd_cluster)
 
 
@@ -111,7 +113,7 @@ def test_byo_cluster_with_https(static_cpu_pwd_cluster):
     assert Path(local_cert_path).exists()
 
     # Confirm we can send https requests to the cluster
-    static_cpu_pwd_cluster.install_packages(["numpy"])
+    static_cpu_pwd_cluster.pip_install(["numpy"])
 
 
 def test_byo_proxy(static_cpu_pwd_cluster, local_folder):

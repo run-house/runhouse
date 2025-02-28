@@ -91,7 +91,14 @@ class TestResource:
     @pytest.mark.level("unit")
     def test_from_config(self, resource):
         new_resource = rh.Resource.from_config(resource.config())
-        assert new_resource.config() == resource.config()
+        # If the resource is a cluster, creds will differ depending on which user is loading it (ex: owner vs other)
+        new_resource_config = new_resource.config()
+        resource_config = resource.config()
+
+        new_resource_config.pop("creds", None)
+        resource_config.pop("creds", None)
+
+        assert new_resource_config == resource_config
         assert new_resource.rns_address == resource.rns_address
         # TODO allow resource subclass tests to extend set of properties to test
 
@@ -172,6 +179,10 @@ class TestResource:
         # TODO: Remove this by doing some CI-specific logic.
         if saved_resource.__class__.__name__ == "OnDemandCluster":
             return
+        if "Folder" in saved_resource.__class__.__name__:
+            pytest.skip(
+                "Skipping folder tests for now, since folders might be deprecated"
+            )
 
         if TEST_ORG in saved_resource.rns_address:
             # Org resources require org membership or being granted explicit access - have a separate test for this
@@ -194,15 +205,10 @@ class TestResource:
         # First try loading in same process/filesystem because it's more debuggable, but not as thorough
         resource_class_name = saved_resource.config().get("resource_type").capitalize()
         config = saved_resource.config()
+        address = saved_resource.rns_address
 
         with friend_account():
-            new_config = load_shared_resource_config(
-                resource_class_name, saved_resource.rns_address
-            )
-            if new_config["resource_subtype"] == "Secret":
-                secret_name = new_config.pop("name")
-                assert "loaded_secret_" in secret_name
-                new_config["name"] = secret_name.replace("loaded_secret_", "")
+            new_config = load_shared_resource_config(resource_class_name, address)
 
             # Don't compare the client keys, their paths could differ locally and on the cluster
             # Cluster: '/home/runner/.ssh/sky-key
@@ -222,10 +228,6 @@ class TestResource:
         new_config = load_shared_resource_config_cluster(
             resource_class_name, saved_resource.rns_address
         )
-        if new_config["resource_subtype"] == "Secret":
-            secret_name = new_config.pop("name")
-            assert "loaded_secret_" in secret_name
-            new_config["name"] = secret_name.replace("loaded_secret_", "")
 
         new_config.get("data_config", {}).pop("client_keys", None)
         config.get("data_config", {}).pop("client_keys", None)

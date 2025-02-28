@@ -141,7 +141,7 @@ class TestFunction:
 
     @pytest.mark.level("local")
     def test_function_in_new_process_with_multiprocessing(self, cluster):
-        cluster.install_packages(["numpy"])
+        cluster.pip_install(["numpy"])
         new_process = cluster.ensure_process_created("numpy_process")
         multiproc_remote_sum = rh.function(multiproc_np_sum, name="test_function").to(
             cluster, process=new_process
@@ -227,16 +227,16 @@ class TestFunction:
         """Test functioning a module from reqs, not from working_dir"""
         import numpy as np
 
-        cluster.install_packages(["numpy"])
+        cluster.pip_install(["numpy"])
         re_fn = rh.function(np.sum).to(cluster)
         res = re_fn(np.arange(5))
         assert int(res) == 10
 
     @pytest.mark.skip("Runs indefinitely.")
-    # originally used ondemand_aws_docker_cluster, therefore marked as minimal
+    # originally used local_launched_ondemand_aws_docker_cluster, therefore marked as minimal
     @pytest.mark.level("minimal")
     def test_notebook(self, cluster):
-        cluster.install_packages(["numpy"])
+        cluster.pip_install(["numpy"])
         nb_sum = lambda x: multiproc_np_sum(x)
         re_fn = rh.function(nb_sum).to(cluster)
 
@@ -282,15 +282,20 @@ class TestFunction:
 
     @pytest.mark.level("release")
     def test_load_function_in_new_cluster(
-        self, ondemand_aws_docker_cluster, static_cpu_pwd_cluster, test_rns_folder
+        self,
+        local_launched_ondemand_aws_docker_cluster,
+        static_cpu_pwd_cluster,
+        test_rns_folder,
     ):
         remote_func_name = get_remote_func_name(test_rns_folder)
 
-        ondemand_aws_docker_cluster.save(
-            f"@/{ondemand_aws_docker_cluster.name}"
+        local_launched_ondemand_aws_docker_cluster.save(
+            f"@/{local_launched_ondemand_aws_docker_cluster.name}"
         )  # Needs to be saved to rns, right now has a local name by default
         remote_sum = (
-            rh.function(summer).to(ondemand_aws_docker_cluster).save(remote_func_name)
+            rh.function(summer)
+            .to(local_launched_ondemand_aws_docker_cluster)
+            .save(remote_func_name)
         )
 
         static_cpu_pwd_cluster.sync_secrets(["sky"])
@@ -307,9 +312,9 @@ class TestFunction:
 
     @pytest.mark.level("release")
     def test_nested_diff_clusters(
-        self, ondemand_aws_docker_cluster, static_cpu_pwd_cluster
+        self, local_launched_ondemand_aws_docker_cluster, static_cpu_pwd_cluster
     ):
-        summer_cpu = rh.function(summer).to(ondemand_aws_docker_cluster)
+        summer_cpu = rh.function(summer).to(local_launched_ondemand_aws_docker_cluster)
         call_function_diff_cpu = rh.function(call_function).to(static_cpu_pwd_cluster)
 
         kwargs = {"a": 1, "b": 5}
@@ -330,11 +335,12 @@ class TestFunction:
     @pytest.mark.level("local")
     def test_http_url(self, cluster):
         remote_sum = rh.function(summer).to(cluster).save("@/remote_function")
-        ssh_creds = cluster.creds_values
+        ssh_properties = cluster.ssh_properties
+        creds_values = cluster.creds_values
         addr = remote_sum.endpoint()
         auth = (
-            (ssh_creds.get("ssh_user"), ssh_creds.get("password"))
-            if ssh_creds.get("password")
+            (ssh_properties.get("ssh_user"), creds_values.get("password"))
+            if creds_values.get("password")
             else None
         )
         verify = cluster.client.verify

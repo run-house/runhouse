@@ -11,15 +11,17 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import ray
 from pydantic import BaseModel
 
 from runhouse.constants import (
+    INSUFFICIENT_DISK_MSG,
     LOGGING_WAIT_TIME,
     LOGS_TO_SHOW_UP_CHECK_TIME,
     MAX_LOGS_TO_SHOW_UP_WAIT_TIME,
     RH_LOGFILE_PATH,
 )
+
+from runhouse.exceptions import InsufficientDiskError
 from runhouse.logger import get_logger
 
 from runhouse.rns.defaults import req_ctx
@@ -74,6 +76,8 @@ def get_cluster_servlet(
     create_if_not_exists: bool = False,
     runtime_env: Optional[Dict] = None,
 ):
+    import ray
+
     from runhouse.servers.cluster_servlet import ClusterServlet
 
     if not ray.is_initialized():
@@ -174,6 +178,8 @@ class ObjStore:
         setup_cluster_servlet: ClusterServletSetupOption = ClusterServletSetupOption.GET_OR_CREATE,
         create_process_params: Optional["CreateProcessParams"] = None,
     ):
+        import ray
+
         # The initialization of the obj_store needs to be in a separate method
         # so the HTTPServer actually initalizes the obj_store,
         # and it doesn't get created and destroyed when
@@ -268,7 +274,12 @@ class ObjStore:
             if path not in sys.path:
                 sys.path.insert(0, path)
 
-        # Set env vars that were passed in initialization
+        # Set env vars that need to be set on creation
+        env_vars_to_set = await self.aget_env_vars_to_set_in_new_processes()
+        self.set_process_env_vars_local(env_vars_to_set)
+
+        # Set env vars that were passed in initialization, these should override
+        # any env vars that were set globally via the previous global set
         if create_process_params and create_process_params.env_vars:
             self.set_process_env_vars_local(create_process_params.env_vars)
 
@@ -331,22 +342,38 @@ class ObjStore:
         dependency between the cluster servlet and the node servlets. We'll call this only on the head node in
         the server
         """
+        import ray
+
         from runhouse.servers.node_servlet import NodeServlet
 
         names = []
-        for ip in self.get_internal_ips():
+        internal_ips = self.get_internal_ips()
+        head_internal_ip = internal_ips[0]
+        for ip in internal_ips:
             resources = {f"node:{ip}": 0.001}
             node_servlet_name = self.node_servlet_name_for_ip(ip)
-            ray.remote(NodeServlet).options(
-                name=node_servlet_name,
-                get_if_exists=True,
-                lifetime="detached",
-                namespace="runhouse",
-                max_concurrency=1000,
-                resources=resources,
-                num_cpus=0,
-            ).remote()
+            node_servlet = (
+                ray.remote(NodeServlet)
+                .options(
+                    name=node_servlet_name,
+                    get_if_exists=True,
+                    lifetime="detached",
+                    namespace="runhouse",
+                    max_concurrency=1000,
+                    resources=resources,
+                    num_cpus=0,
+                )
+                .remote(node_name=node_servlet_name)
+            )
             names.append(node_servlet_name)
+
+            # make sure that the nodes are actually initialized, so we could collect status (relevant for multinode
+            # clusters). We are initializing all nodes apart from the head node, since the head node has the
+            # cluster_servlet node initialized.
+            if len(internal_ips) > 1 and ip != head_internal_ip:
+                await node_servlet.arun_with_logs_local.remote(
+                    f"echo from {node_servlet_name}"
+                )
 
         await self.acall_actor_method(
             self.cluster_servlet, "aset_node_servlet_names", names
@@ -377,6 +404,8 @@ class ObjStore:
         node_ip: Optional[str] = None,
         process: Optional[str] = None,
     ):
+        import ray
+
         if node_ip and process:
             raise ValueError("Cannot specify both node_ip and process.")
 
@@ -400,6 +429,8 @@ class ObjStore:
     async def arun_bash_command_on_all_nodes(
         self, command: str, require_outputs: bool = False
     ):
+        import ray
+
         node_servlet_names = await self.aget_node_servlet_names()
         node_servlet_actors = [
             ray.get_actor(name, namespace="runhouse") for name in node_servlet_names
@@ -436,14 +467,10 @@ class ObjStore:
 
     def get_internal_ips(self):
         """Get list of internal IPs of all nodes in the cluster."""
+        import ray
+
         cluster_config = self.get_cluster_config()
-        if "stable_internal_external_ips" in cluster_config:
-            # TODO: remove, backwards compatibility
-            return [
-                internal_ip
-                for internal_ip, _ in cluster_config["stable_internal_external_ips"]
-            ]
-        elif cluster_config.get("compute_properties", {}).get("internal_ips", []):
+        if cluster_config.get("compute_properties", {}).get("internal_ips", []):
             return cluster_config.get("compute_properties").get("internal_ips")
         else:
             if not ray.is_initialized():
@@ -463,6 +490,8 @@ class ObjStore:
         use_servlet_cache: bool = True,
         **kwargs,
     ):
+        import ray
+
         servlet = self.get_servlet(servlet_name, use_servlet_cache=use_servlet_cache)
         if servlet is None:
             raise ObjStoreError(f"Got None servlet for servlet_name {servlet_name}.")
@@ -478,14 +507,16 @@ class ObjStore:
 
     @staticmethod
     async def acall_actor_method(
-        actor: ray.actor.ActorHandle, method: str, *args, **kwargs
+        actor: "ray.actor.ActorHandle", method: str, *args, **kwargs
     ):
         if actor is None:
             raise ObjStoreError("Attempting to call an actor method on a None actor.")
         return await getattr(actor, method).remote(*args, **kwargs)
 
     @staticmethod
-    def call_actor_method(actor: ray.actor.ActorHandle, method: str, *args, **kwargs):
+    def call_actor_method(actor: "ray.actor.ActorHandle", method: str, *args, **kwargs):
+        import ray
+
         if actor is None:
             raise ObjStoreError("Attempting to call an actor method on a None actor.")
 
@@ -501,6 +532,8 @@ class ObjStore:
         **kwargs,
     ):
         # Need to import these here to avoid circular imports
+        import ray
+
         from runhouse.servers.servlet import Servlet
 
         if create_process_params is not None and (name != create_process_params.name):
@@ -644,6 +677,11 @@ class ObjStore:
 
     def set_process_env_vars(self, servlet_name: str, env_vars: Dict[str, str]):
         return sync_function(self.aset_process_env_vars)(servlet_name, env_vars)
+
+    async def aset_env_vars_globally(self, env_vars: Dict[str, str]):
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aset_env_vars_globally", env_vars
+        )
 
     ##############################################
     # Cluster config state storage methods
@@ -806,6 +844,11 @@ class ObjStore:
     async def aadd_path_to_prepend_in_new_processes(self, path: str):
         return await self.acall_actor_method(
             self.cluster_servlet, "aadd_path_to_prepend_in_new_processes", path
+        )
+
+    async def aget_env_vars_to_set_in_new_processes(self) -> Dict[str, str]:
+        return await self.acall_actor_method(
+            self.cluster_servlet, "aget_env_vars_to_set_in_new_processes"
         )
 
     ##############################################
@@ -1154,6 +1197,7 @@ class ObjStore:
         await self.apop_local(key)
 
     async def adelete_servlet_contents(self, servlet_name: Any):
+        import ray
 
         # delete the servlet actor and remove its references
         if servlet_name in self.servlet_cache:
@@ -1165,6 +1209,10 @@ class ObjStore:
 
     def delete_servlet_contents(self, servlet_name: Any):
         return sync_function(self.adelete_servlet_contents)(servlet_name)
+
+    async def adelete_servlet_from_cache(self, servlet_name: Any):
+        if servlet_name in self.servlet_cache:
+            del self.servlet_cache[servlet_name]
 
     async def adelete(self, key: Union[Any, List[Any]]):
         keys_to_delete = [key] if isinstance(key, str) else key
@@ -1920,6 +1968,23 @@ class ObjStore:
     ##############################################
     # Interact across nodes
     ##############################################
+
+    async def _install_packages_in_nodes_helper(self, install_cmd: str):
+        run_cmd_results = await self.arun_bash_command_on_all_nodes(
+            install_cmd, require_outputs=True
+        )
+        if any(run_cmd_result[0] != 0 for run_cmd_result in run_cmd_results):
+            error_code, stdout, stderr = run_cmd_results[0]
+            stderr = stderr.strip()
+            error_msg = f"Pip install {install_cmd} failed"
+            if INSUFFICIENT_DISK_MSG in stderr:
+                logger.info(f"command: {install_cmd}, error:{error_msg}")
+                raise InsufficientDiskError(command=install_cmd, error_msg=error_msg)
+            raise RuntimeError(
+                error_msg
+                + ", check that the package exists and is available for your platform."
+            )
+
     async def ainstall_package_in_all_nodes_and_processes(
         self,
         package: "Package",
@@ -1948,26 +2013,27 @@ class ObjStore:
             # already installed. If there is, then we ignore preferred version and leave the existing version.
             # The user can always force a version install by doing `numpy==2.0.0` for example. Else, we install
             # the preferred version, that matches their local.
-            if (
-                is_python_package_string(package.install_target)
-                and package.preferred_version is not None
-            ):
-                # Check if this is installed
-                retcode = run_with_logs(
-                    f"python -c \"import importlib.util; exit(0) if importlib.util.find_spec('{package.install_target}') else exit(1)\"",
-                )
-                if retcode != 0 or force_sync_local:
-                    package.install_target = (
-                        f"{package.install_target}=={package.preferred_version}"
+            if is_python_package_string(package.install_target):
+                if package.preferred_version is not None:
+                    # Check if this is installed
+                    retcode = run_with_logs(
+                        f"python3 -c \"import importlib.util; exit(0) if importlib.util.find_spec('{package.install_target}') else exit(1)\"",
                     )
+                    if retcode != 0 or force_sync_local:
+                        package.install_target = (
+                            f"{package.install_target}=={package.preferred_version}"
+                        )
+                else:
+                    # If the package exists as a folder remotely
+                    if run_with_logs(f"ls {package.install_target}") == 0:
+                        self.install_target = InstallTarget(
+                            local_path=package.install_target,
+                            _path_to_sync_to_on_cluster=package.install_target,
+                        )
 
             install_cmd = package._pip_install_cmd(conda_env_name=conda_env_name)
             logger.info(f"Running via install_method pip: {install_cmd}")
-            run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
-            if any(run_cmd_result != 0 for run_cmd_result in run_cmd_results):
-                raise RuntimeError(
-                    f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
-                )
+            await self._install_packages_in_nodes_helper(install_cmd)
 
         elif package.install_method == "conda":
             install_cmd = package._conda_install_cmd(conda_env_name=conda_env_name)
@@ -1978,21 +2044,6 @@ class ObjStore:
                     f"Conda install {install_cmd} failed, check that the package exists and is "
                     "available for your platform."
                 )
-
-        elif package.install_method == "reqs":
-            install_cmd = package._reqs_install_cmd(conda_env_name=conda_env_name)
-            if install_cmd:
-                logger.info(f"Running via install_method reqs: {install_cmd}")
-                run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
-                if any(run_cmd_result != 0 for run_cmd_result in run_cmd_results):
-                    raise RuntimeError(
-                        f"Reqs install {install_cmd} failed, check that the package exists and is available for your platform."
-                    )
-            else:
-                logger.info(
-                    f"{package.install_target.full_local_path_str()}/requirements.txt not found, skipping reqs install"
-                )
-
         else:
             if package.install_method != "local":
                 raise ValueError(
@@ -2000,7 +2051,7 @@ class ObjStore:
                 )
 
         # Need to append to path
-        if package.install_method in ["local", "reqs"]:
+        if package.install_method == "local":
             if isinstance(package.install_target, InstallTarget):
                 await self.aadd_sys_path_to_all_processes(
                     package.install_target.full_local_path_str()

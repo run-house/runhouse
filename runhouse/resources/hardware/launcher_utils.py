@@ -1,6 +1,7 @@
 import ast
 import logging
 import sys
+from pathlib import Path
 from typing import Any, Optional
 
 import requests
@@ -13,8 +14,8 @@ from runhouse.resources.hardware.utils import (
     ClusterStatus,
     SSEClient,
 )
-from runhouse.rns.utils.api import generate_ssh_keys, load_resp_content, read_resp_data
-from runhouse.utils import ClusterLogsFormatter, Spinner
+from runhouse.rns.utils.api import load_resp_content, read_resp_data
+from runhouse.utils import ClusterLogsFormatter, ColoredFormatter, Spinner
 
 logger = get_logger(__name__)
 
@@ -77,8 +78,16 @@ class LogProcessor:
         else:
             self.cluster_logger.info(log_message)
 
+    def log_step(self, message):
+        """Log the completion of a launch step."""
+        self.cluster_logger.info(message)
+
 
 class Launcher:
+    @classmethod
+    def _validate_provider_pool(cls, cluster):
+        raise NotImplementedError
+
     @classmethod
     def log_processor(cls, cluster_name: str):
         return LogProcessor(cluster_name)
@@ -104,34 +113,6 @@ class Launcher:
         import sky
 
         return list(sky.clouds.CLOUD_REGISTRY)
-
-    @classmethod
-    def sky_secret(cls):
-        from runhouse.constants import SSH_SKY_SECRET_NAME
-
-        try:
-            sky_secret = rh.secret(SSH_SKY_SECRET_NAME)
-        except ValueError:
-            # Create a new default key pair required for the Den launcher and save it to Den
-            from runhouse import provider_secret
-
-            default_ssh_path, _ = generate_ssh_keys()
-            logger.info(f"Saved new SSH key to path: {default_ssh_path} ")
-            sky_secret = provider_secret(
-                provider="sky", path=default_ssh_path, name=SSH_SKY_SECRET_NAME
-            )
-            sky_secret.save()
-
-        secret_values = sky_secret.values
-        if (
-            not secret_values
-            or "public_key" not in secret_values
-            or "private_key" not in secret_values
-        ):
-            raise ValueError(
-                f"Public key and private key values not found in secret {secrets_name}"
-            )
-        return sky_secret
 
     @classmethod
     def run_verbose(
@@ -160,7 +141,7 @@ class Launcher:
 
         for event in client.events():
             # Stream through data events
-            if spinner:
+            if spinner and event.event != "step_complete":
                 spinner.stop()
                 spinner = None
 
@@ -176,8 +157,25 @@ class Launcher:
             if event.event == "info":
                 logger.info(event.data)
 
-            if event.event == "log":
-                log_processor.log_event(event)
+            if event.event == "step_complete":
+                event_data = ast.literal_eval(event.data)
+                step_complete = event_data.get("step")
+                total_steps = event_data.get("total_steps")
+                message = event_data.get("message")
+
+                # use a custom message step completion
+                blue = ColoredFormatter.get_color("blue")
+                italic = ColoredFormatter.get_color("italic")
+                reset = ColoredFormatter.get_color("reset")
+                styled_message = f"{blue}{italic}► Step {step_complete}/{total_steps}: {message}{reset}"
+
+                if spinner:
+                    # Temporarily pause the spinner to output the step if it's currently running
+                    spinner.stop()
+                    log_processor.log_step(styled_message)
+                    spinner.start()
+                else:
+                    log_processor.log_step(styled_message)
 
             if event.event == "error":
                 event_data = ast.literal_eval(event.data)
@@ -202,6 +200,22 @@ class DenLauncher(Launcher):
     AUTOSTOP_URL = f"{rns_client.api_server_url}/cluster/autostop"
 
     @classmethod
+    def _validate_provider_pool(cls, cluster):
+        provider = cluster.provider
+        pool = cluster.pool
+        if provider == "cheapest":
+            raise ValueError(
+                "Provider of 'cheapest' not currently supported, must provide an explicit cloud provider."
+            )
+
+        if provider is None and pool is None:
+            raise ValueError(
+                "Provider or pool must be specified, either in the cluster factory or in your local "
+                "Runhouse config with the `default_provider` or `default_pool` fields, respectively. You can set these by running "
+                "`runhouse config set default_provider <provider>` or `runhouse config set default_pool <pool>`."
+            )
+
+    @classmethod
     def _update_from_den_response(cls, cluster, config: dict):
         """Updates cluster with config from Den. Only add fields if found."""
         if not config:
@@ -215,10 +229,6 @@ class DenLauncher(Launcher):
             value = config.get(attribute)
             if value:
                 setattr(cluster, attribute, value)
-
-        creds = config.get("creds")
-        if not cluster._creds and creds:
-            cluster._setup_creds(creds)
 
     @classmethod
     def keep_warm(cls, cluster, mins: int):
@@ -244,31 +254,32 @@ class DenLauncher(Launcher):
     @classmethod
     def up(cls, cluster, verbose: bool = True, force: bool = False):
         """Launch the cluster via Den."""
-        sky_secret = cls.sky_secret()
-        cluster._setup_creds(sky_secret)
-        cluster.save()
+        cls._validate_provider_pool(cluster)
 
+        cluster.save()
         cluster_config = cluster.config()
 
         payload = {
-            "cluster_config": {
-                **cluster_config,
-                "ssh_creds": sky_secret.rns_address,
-            },
+            "cluster_config": cluster_config,
             "force": force,
             "verbose": verbose,
             "observability": configs.observability_enabled,
+            "default_ssh_key": configs.get("default_ssh_key"),
         }
 
         if verbose:
-            data = cls.run_verbose(
-                base_url=cls.LAUNCH_URL,
-                payload=payload,
-                cluster_name=cluster_config.get("name"),
-            )
-            cluster._cluster_status = ClusterStatus.RUNNING
-            cls._update_from_den_response(cluster=cluster, config=data)
-            return
+            try:
+                data = cls.run_verbose(
+                    base_url=cls.LAUNCH_URL,
+                    payload=payload,
+                    cluster_name=cluster_config.get("name"),
+                )
+                cluster.cluster_status = ClusterStatus.RUNNING
+                cls._update_from_den_response(cluster=cluster, config=data)
+                return
+            except Exception as e:
+                cluster.cluster_status = ClusterStatus.UNKNOWN
+                raise e
 
         # Blocking call with no streaming
         resp = requests.post(
@@ -277,30 +288,24 @@ class DenLauncher(Launcher):
             headers=rns_client.request_headers(),
         )
         if resp.status_code != 200:
+            cluster.cluster_status = ClusterStatus.UNKNOWN
             raise Exception(
                 f"Received [{resp.status_code}] from Den POST '{cls.LAUNCH_URL}': Failed to "
                 f"launch cluster: {load_resp_content(resp)}"
             )
         data = read_resp_data(resp)
         logger.info("Successfully launched cluster")
-        cluster._cluster_status = ClusterStatus.RUNNING
+        cluster.cluster_status = ClusterStatus.RUNNING
         cls._update_from_den_response(cluster=cluster, config=data)
 
     @classmethod
     def teardown(cls, cluster, verbose: bool = True):
         """Tearing down a cluster via Den."""
-        from runhouse.resources.secrets import Secret
-
-        ssh_creds = cluster._creds
-        if isinstance(ssh_creds, Secret):
-            ssh_creds = ssh_creds.rns_address
-
         cluster_name = cluster.rns_address or cluster.name
 
         payload = {
             "cluster_name": cluster_name,
             "delete_from_den": False,
-            "ssh_creds": ssh_creds,
             "verbose": verbose,
         }
 
@@ -310,7 +315,7 @@ class DenLauncher(Launcher):
                 cluster_name=cluster_name,
                 payload=payload,
             )
-            cluster._cluster_status = ClusterStatus.TERMINATED
+            cluster.cluster_status = ClusterStatus.TERMINATED
             return
 
         # Run blocking call, with no streaming
@@ -324,14 +329,39 @@ class DenLauncher(Launcher):
                 f"Received [{resp.status_code}] from Den POST '{cls.TEARDOWN_URL}': Failed to "
                 f"teardown cluster: {load_resp_content(resp)}"
             )
-        cluster._cluster_status = ClusterStatus.TERMINATED
+        cluster.cluster_status = ClusterStatus.TERMINATED
+
+    @classmethod
+    def load_creds(cls):
+        """Loads the SSH credentials required for the Den launcher, and for interacting with the cluster
+        once launched."""
+        default_ssh_key = rns_client.default_ssh_key
+        if not default_ssh_key:
+            raise ValueError(
+                "No default SSH key found in the local Runhouse config, "
+                "please set one by running `runhouse login`"
+            )
+        try:
+            # Note: we still need to load them down locally to use for certain cluster operations (ex: rsync)
+            secret = rh.Secret.from_name(default_ssh_key)
+            if not Path(secret.path).expanduser().exists():
+                # Ensure this specific keypair is written down locally
+                secret.write()
+                logger.info(f"Saved default SSH key locally in path: {secret.path}")
+        except ValueError:
+            raise ValueError(
+                "Failed to load default SSH key, "
+                "try re-saving by running `runhouse login`"
+            )
+
+        return secret
 
 
 class LocalLauncher(Launcher):
     """Launcher APIs for operations handled locally via Sky."""
 
     @classmethod
-    def _validate_provider(cls, cluster):
+    def _validate_provider_pool(cls, cluster):
         """Check if LocalLauncher supports the provided cloud provider."""
         supported_providers = ["cheapest"] + cls.supported_providers()
         if cluster.provider not in supported_providers:
@@ -345,7 +375,7 @@ class LocalLauncher(Launcher):
         """Launch the cluster locally."""
         import sky
 
-        cls._validate_provider(cluster)
+        cls._validate_provider_pool(cluster)
 
         task = sky.Task(num_nodes=cluster.num_nodes)
         cloud_provider = (
@@ -359,7 +389,7 @@ class LocalLauncher(Launcher):
                 sky.Resources(
                     cloud=cloud_provider,
                     instance_type=cluster.get_instance_type(),
-                    accelerators=cluster.accelerators(),
+                    accelerators=cluster._requested_gpus(),
                     cpus=cluster.num_cpus(),
                     memory=cluster.memory,
                     region=cluster.region or configs.get("default_region"),
@@ -388,8 +418,6 @@ class LocalLauncher(Launcher):
                     "Please add an A record to your DNS provider to point this domain to the cluster's "
                     f"public IP address ({cluster.head_ip}) to ensure successful requests."
                 )
-            logger.info("Starting Runhouse server on cluster")
-            cluster.restart_server()
 
             if rns_client.autosave_resources():
                 logger.debug("Saving cluster to Den")
@@ -410,7 +438,7 @@ class LocalLauncher(Launcher):
         import sky
 
         sky.down(cluster.name)
-        cluster._cluster_status = ClusterStatus.TERMINATED
+        cluster.cluster_status = ClusterStatus.TERMINATED
         cluster._http_client = None
 
         # Save to Den with updated null IPs
@@ -439,7 +467,7 @@ class LocalLauncher(Launcher):
                 from runhouse.resources.secrets.secret import Secret
 
                 docker_secret = Secret.from_name(image.docker_secret)
-            docker_env_vars = image.docker_secret._map_env_vars()
+            docker_env_vars = docker_secret._map_env_vars()
         else:
             try:
                 docker_env_vars = rh.provider_secret("docker")._map_env_vars()

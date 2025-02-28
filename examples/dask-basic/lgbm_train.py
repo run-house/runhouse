@@ -59,7 +59,7 @@ def xgboost_dask(dataset_path, X_vars, y_vars):
 if __name__ == "__main__":
     # ## Create a Runhouse cluster with 3 nodes
     num_nodes = 3
-    img = rh.Image("dask").install_packages(
+    img = rh.Image("dask").pip_install(
         [
             "dask-ml",
             "dask[distributed]",
@@ -69,7 +69,7 @@ if __name__ == "__main__":
             "xgboost",
         ],
     )
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=f"rh-{num_nodes}",
         instance_type="r5d.xlarge",
         num_nodes=num_nodes,

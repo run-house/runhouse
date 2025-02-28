@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # ## Create a Runhouse cluster with 3 nodes
     num_nodes = 3
 
-    img = rh.Image("dask_img").install_packages(
+    img = rh.Image("dask_img").pip_install(
         [
             "dask-ml",
             "dask[distributed]",
@@ -45,11 +45,12 @@ if __name__ == "__main__":
     )
 
     cluster_name = f"py-{num_nodes}"
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name=cluster_name,
         instance_type="r5d.xlarge",
         num_nodes=num_nodes,
         provider="aws",
+        image=img,
     ).up_if_not()
 
     cluster.sync_secrets(["aws"])
@@ -60,5 +61,5 @@ if __name__ == "__main__":
     X_vars = ["passenger_count", "trip_distance", "fare_amount"]
     y_var = ["tip_amount"]
 
-    remote_read_taxi_df_dask = rh.function(read_taxi_df_dask).to(cluster, env=env)
+    remote_read_taxi_df_dask = rh.function(read_taxi_df_dask).to(cluster)
     remote_read_taxi_df_dask(dataset_path, X_vars, y_var)

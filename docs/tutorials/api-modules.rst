@@ -177,7 +177,7 @@ factory function.
 
     from bert_module import BERT
 
-    img = rh.Image("my_image").install_packages(["torch", "transformers"])
+    img = rh.Image("my_image").pip_install(["torch", "transformers"])
 
     my_gpu = rh.cluster(name="rh-a10g", instance_type="A10G:1", image = img).up_if_not()
     RemoteBERT = rh.module(BERT).to(my_gpu)

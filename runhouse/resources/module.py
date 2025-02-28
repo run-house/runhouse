@@ -771,6 +771,7 @@ class Module(Resource):
             replication_kwargs (Dict): The keyword arguments to pass to the replicate method. (Default: {})
             distribution_kwargs: The keyword arguments to pass to the distribution method.
         """
+
         if not self.system or not self.name:
             raise ValueError(
                 "Cannot distribute a module that is not on a cluster. Please send the module to a cluster first."

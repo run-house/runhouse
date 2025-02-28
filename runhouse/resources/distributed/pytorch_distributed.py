@@ -1,5 +1,5 @@
 from concurrent.futures.thread import ThreadPoolExecutor
-from typing import List, Optional
+from typing import List
 
 from runhouse.resources.distributed.supervisor import Supervisor
 
@@ -18,7 +18,7 @@ class PyTorchDistributed(Supervisor):
         return self.local._replicas[0].signature(rich=rich)
 
     def _find_available_port_on_head_node(self):
-        find_available_port_cmd = "python -c \"import socket; s=socket.socket(); s.bind(('', 0)); print(s.getsockname()[1]); s.close()\""
+        find_available_port_cmd = "python3 -c \"import socket; s=socket.socket(); s.bind(('', 0)); print(s.getsockname()[1]); s.close()\""
         status_code, stdout, _ = self._replicas[0].system.run_bash(
             find_available_port_cmd,
             node=self._replicas[0].system.head_ip,
@@ -29,7 +29,7 @@ class PyTorchDistributed(Supervisor):
             raise RuntimeError(f"Failed to find available port on head rank: {stdout}")
         return stdout
 
-    def forward(self, item, timeout: Optional[int] = None, *args, **kwargs):
+    def forward(self, item, *args, **kwargs):
         port = self._port or self._find_available_port_on_head_node()
 
         def run_on_replica(replica, rank):
@@ -41,12 +41,17 @@ class PyTorchDistributed(Supervisor):
                 if isinstance(self.system, Cluster)
                 else "localhost"
             )
+
+            processes_per_node = len(self._replicas) // len(self.system.ips)
+
             dist_config = {
                 "MASTER_ADDR": master_addr,
                 "MASTER_PORT": port,
                 "RANK": str(rank),
                 "WORLD_SIZE": str(len(self._replicas)),
+                "LOCAL_RANK": str(rank % processes_per_node),
             }
+
             replica.system.set_process_env_vars(replica.process, dist_config)
             method = getattr(replica, item)
             return method(*args, **kwargs)

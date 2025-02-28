@@ -30,7 +30,7 @@ import requests
 import runhouse as rh
 
 # Next, we define a class that will hold the model and allow us to send prompts to it.
-# We'll later wrap this with `rh.module`. This is a Runhouse class that allows you to
+# We'll later wrap this with `rh.cls`. This is a Runhouse class that allows you to
 # run code in your class on a remote machine.
 #
 # Learn more in the [Runhouse docs on functions and modules](/docs/tutorials/api-modules).
@@ -160,11 +160,9 @@ if __name__ == "__main__":
     # Passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier. This is
     # needed to download the model from the Hugging Face model hub. Runhouse will handle saving the token down
     # on the cluster in the default Hugging Face token location (`~/.cache/huggingface/token`).
-    img = rh.Image(name="tgi_image").install_packages(
-        ["docker", "torch", "transformers"]
-    )
+    img = rh.Image(name="tgi_image").pip_install(["docker", "torch", "transformers"])
 
-    cluster = rh.cluster(
+    cluster = rh.compute(
         name="rh-a10",
         instance_type="A10G:1",
         memory="32+",
@@ -183,7 +181,7 @@ if __name__ == "__main__":
     #
     # Note that we also pass the `env` object to the `to` method, which will ensure that the environment is
     # set up on the remote machine before the module is run.
-    RemoteTGIInference = rh.module(TGIInference).to(cluster, name="TGIInference")
+    RemoteTGIInference = rh.cls(TGIInference).to(cluster, name="TGIInference")
 
     remote_tgi_model = RemoteTGIInference(container_port=port, name="tgi-inference")
 

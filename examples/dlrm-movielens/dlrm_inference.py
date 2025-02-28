@@ -66,17 +66,15 @@ if __name__ == "__main__":
     # Define the image again
     img = (
         rh.Image("ray-data")
-        .install_packages(
-            ["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"]
-        )
+        .pip_install(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"])
         .sync_secrets(["aws"])
     )
 
     # Launch the cluster, we can reuse the same cluster as in the training step, or launch a new one
     # with fewer nodes.
-    gpu_cluster = rh.cluster(
+    gpu_cluster = rh.compute(
         name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-        accelerators=f"A10G:{gpus_per_node}",
+        gpus=f"A10G:{gpus_per_node}",
         num_nodes=num_nodes,
         provider="aws",
         image=img,
