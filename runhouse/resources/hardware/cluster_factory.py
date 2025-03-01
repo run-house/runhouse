@@ -201,6 +201,7 @@ def ondemand_cluster(
     gpus: Union[int, str, None] = None,
     open_ports: Union[int, str, List[int], None] = None,
     vpc_name: Optional[str] = None,
+    security_group: Optional[str] = None,
     sky_kwargs: Dict = None,
     # kubernetes related arguments
     kube_namespace: Optional[str] = None,
@@ -256,6 +257,8 @@ def ondemand_cluster(
             (Default: ``None``)
         vpc_name (str, optional): Specific VPC used for launching the cluster. If not specified,
             cluster will be launched in the default VPC.
+        security_group (str, optional): Specific security group name to use for launching the cluster. If not specified,
+            cluster will be launched using a new security group in the format sky-sg-<hash>.
         sky_kwargs (dict, optional): Additional keyword arguments to pass to the SkyPilot `Resource` or `launch`
             APIs. Should be a dict of the form `{"resources": {<resources_kwargs>}, "launch": {<launch_kwargs>}}`,
             where resources_kwargs and launch_kwargs will be passed to the SkyPilot Resources API (See
@@ -319,6 +322,13 @@ def ondemand_cluster(
     if vpc_name and launcher == "local":
         raise ValueError(
             "Custom VPCs are not supported with local launching. To use a custom VPC, please use the "
+            "Den launcher. For more information see "
+            "https://www.run.house/docs/installation-setup#den-launcher"
+        )
+
+    if security_group and launcher == "local":
+        raise ValueError(
+            "Custom security groups are not supported with local launching. To use a custom security group, please use the "
             "Den launcher. For more information see "
             "https://www.run.house/docs/installation-setup#den-launcher"
         )
