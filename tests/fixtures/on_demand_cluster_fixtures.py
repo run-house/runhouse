@@ -232,7 +232,6 @@ def den_launched_ondemand_aws_k8s_cluster(request, test_rns_folder):
         "launcher": LauncherType.DEN,
         "context": os.getenv("EKS_ARN"),
     }
-
     cluster = setup_test_cluster(args, request)
     yield cluster
     teardown_cluster_fixture(request, cluster)
@@ -256,7 +255,6 @@ def den_launched_ondemand_gcp_k8s_cluster(request, test_rns_folder):
         "launcher": LauncherType.DEN,
         "context": "gke_testing",
     }
-
     cluster = setup_test_cluster(args, request)
     yield cluster
     teardown_cluster_fixture(request, cluster)
