@@ -66,7 +66,7 @@ class AutoStopColors:
             return f"[yellow]{autostop_value}[/yellow]"
 
 
-def create_output_table(
+def cluster_output_table(
     total_clusters: int,
     running_clusters: int,
     displayed_clusters: int,

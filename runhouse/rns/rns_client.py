@@ -101,10 +101,11 @@ class RNSClient:
 
     @property
     def api_server_url(self):
-        url_as_env_var = os.getenv("API_SERVER_URL")
-        if url_as_env_var:
-            return url_as_env_var
-        return self._configs.get("api_server_url", None)
+        return "http://localhost:8000"
+        # url_as_env_var = os.getenv("API_SERVER_URL")
+        # if url_as_env_var:
+        #     return url_as_env_var
+        # return self._configs.get("api_server_url", None)
 
     @property
     def autosave(self):
