@@ -343,6 +343,9 @@ class DenLauncher(Launcher):
             )
         try:
             # Note: we still need to load them down locally to use for certain cluster operations (ex: rsync)
+            if "/" not in default_ssh_key:
+                # SSH key should use username, current_folder used in from_name may differ
+                default_ssh_key = f"{rns_client.username}/{default_ssh_key}"
             secret = rh.Secret.from_name(default_ssh_key)
             if not Path(secret.path).expanduser().exists():
                 # Ensure this specific keypair is written down locally
