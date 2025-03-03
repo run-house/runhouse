@@ -335,6 +335,8 @@ class DenLauncher(Launcher):
     def load_creds(cls):
         """Loads the SSH credentials required for the Den launcher, and for interacting with the cluster
         once launched."""
+        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
+
         default_ssh_key = rns_client.default_ssh_key
         if not default_ssh_key:
             raise ValueError(
@@ -343,7 +345,7 @@ class DenLauncher(Launcher):
             )
         try:
             # Note: we still need to load them down locally to use for certain cluster operations (ex: rsync)
-            secret = rh.Secret.from_name(default_ssh_key)
+            secret = SSHSecret.from_name(default_ssh_key)
             if not Path(secret.path).expanduser().exists():
                 # Ensure this specific keypair is written down locally
                 secret.write()

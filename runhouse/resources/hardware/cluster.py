@@ -304,6 +304,7 @@ class Cluster(Resource):
     def _setup_creds(self, ssh_creds: Union[Dict, "Secret", str]):
         """Setup cluster credentials from user provided ssh_creds"""
         from runhouse.resources.secrets import Secret
+        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
         if isinstance(ssh_creds, Secret):
             self._creds = ssh_creds
@@ -311,7 +312,7 @@ class Cluster(Resource):
 
         elif isinstance(ssh_creds, str):
             self._creds = (
-                Secret.from_name(ssh_creds)
+                SSHSecret.from_name(ssh_creds)
                 if rns_client.base_folder(ssh_creds) == rns_client.username
                 else None
             )
@@ -326,7 +327,7 @@ class Cluster(Resource):
             self.ssh_properties = ssh_properties
 
     def _setup_default_creds(self):
-        from runhouse.resources.secrets import Secret
+        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
         default_ssh_key = rns_client.default_ssh_key
         if default_ssh_key is None:
@@ -336,7 +337,7 @@ class Cluster(Resource):
             )
             return None
 
-        return Secret.from_name(default_ssh_key)
+        return SSHSecret.from_name(default_ssh_key)
 
     def _should_save_creds(self, folder: str = None) -> bool:
         """Checks whether to save the creds associated with the cluster.

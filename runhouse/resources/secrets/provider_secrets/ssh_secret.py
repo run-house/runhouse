@@ -35,6 +35,7 @@ class SSHSecret(ProviderSecret):
         self.key = (
             key or os.path.basename(path) if path else (name or self._DEFAULT_KEY)
         )
+        name = self.ensure_user_prefix(name)
         super().__init__(
             name=name, provider=provider, values=values, path=path, dryrun=dryrun
         )
@@ -45,6 +46,24 @@ class SSHSecret(ProviderSecret):
     def from_config(config: dict, dryrun: bool = False, _resolve_children: bool = True):
         # try block if for the case we are trying to load a shared secret.
         return SSHSecret(**config, dryrun=dryrun)
+
+    @classmethod
+    def from_name(
+        cls,
+        name,
+        provider: str = None,
+        load_from_den: bool = True,
+        dryrun: bool = False,
+        _resolve_children: bool = True,
+    ):
+        name = cls.ensure_user_prefix(name)
+        return super().from_name(
+            name=name,
+            provider=cls._PROVIDER,
+            load_from_den=load_from_den,
+            dryrun=dryrun,
+            _resolve_children=_resolve_children,
+        )
 
     def save(
         self,
@@ -73,6 +92,11 @@ class SSHSecret(ProviderSecret):
             headers=headers or rns_client.request_headers(),
             folder=folder,
         )
+
+    @staticmethod
+    def ensure_user_prefix(name: str):
+        # SSH key should always be associated with a user
+        return f"/{rns_client.username}/{name}" if name and "/" not in name else name
 
     def _write_to_file(
         self,
