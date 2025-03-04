@@ -849,6 +849,20 @@ class Module(Resource):
             ).to(system=self.system, process=self.process)
             return ptd_module
 
+        elif distribution == "spark":
+
+            from runhouse.resources.distributed.spark_distributed import (
+                SparkDistributed,
+            )
+
+            name = name or f"spark_{self.name}"
+
+            spark_module = SparkDistributed(
+                **distribution_kwargs, name=name, module=self
+            ).to(system=self.system, process=self.process)
+
+            return spark_module
+
     @property
     def remote(self):
         """Helper property to allow for access to remote properties, both public and private. Returning functions
