@@ -1,10 +1,12 @@
 # Direct translation of TF code from GPT-2 Repo: https://github.com/openai/gpt-2/blob/master/src/model.py
+import math
+from dataclasses import dataclass
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import math
-import numpy as np
-from dataclasses import dataclass
+
 
 @dataclass
 class HParams:
@@ -18,11 +20,18 @@ class HParams:
 def default_hparams():
     return HParams()
 
+
 def shape_list(x):
     return list(x.size())
 
+
 def gelu(x):
-    return 0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
+    return (
+        0.5
+        * x
+        * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
+    )
+
 
 class LayerNorm(nn.Module):
     def __init__(self, n_state, epsilon=1e-5):
@@ -64,13 +73,13 @@ class Attention(nn.Module):
     def _attn(self, q, k, v, mask=True):
         w = torch.matmul(q, k.transpose(-1, -2))
         w = w / torch.sqrt(torch.tensor(v.size(-1), dtype=w.dtype))
-        
+
         if mask:
             # Create attention mask
             nd, ns = q.size(-2), k.size(-2)
             mask = torch.tril(torch.ones(nd, ns, device=q.device)).view(1, 1, nd, ns)
             w = w * mask - 1e10 * (1 - mask)
-            
+
         w = F.softmax(w, dim=-1)
         return torch.matmul(w, v)
 
@@ -91,14 +100,14 @@ class Attention(nn.Module):
         q = self._split_heads(q)
         k = self._split_heads(k)
         v = self._split_heads(v)
-        
+
         present = torch.stack([k, v], dim=1)
-        
+
         if past is not None:
             pk, pv = torch.unbind(past, dim=1)
             k = torch.cat([pk, k], dim=2)
             v = torch.cat([pv, v], dim=2)
-            
+
         a = self._attn(q, k, v)
         a = self._merge_heads(a)
         a = self.c_proj(a)
@@ -153,25 +162,29 @@ class GPT2Model(nn.Module):
     def forward(self, x, past=None):
         results = {}
         batch_size, sequence_length = x.size()
-        
+
         past_length = 0 if past is None else past.size(3)
         position_ids = self.get_position_ids(x, past_length)
-        
+
         h = self.wte(x) + self.wpe(position_ids)
-        
+
         # Initialize past states if needed
         presents = []
-        pasts = torch.unbind(past, dim=1) if past is not None else [None] * self.hparams.n_layer
-        
+        pasts = (
+            torch.unbind(past, dim=1)
+            if past is not None
+            else [None] * self.hparams.n_layer
+        )
+
         for i, (block, past_state) in enumerate(zip(self.blocks, pasts)):
             h, present = block(h, past=past_state)
             presents.append(present)
-            
-        results['present'] = torch.stack(presents, dim=1)
+
+        results["present"] = torch.stack(presents, dim=1)
         h = self.ln_f(h)
-        
+
         # Language model logits
         logits = torch.matmul(h, self.wte.weight.transpose(0, 1))
-        results['logits'] = logits
-        
+        results["logits"] = logits
+
         return results

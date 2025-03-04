@@ -93,6 +93,7 @@ class BertTrainer:
             self.model_name, torch_dtype=torch.bfloat16
         )
         self.model.to(self.device)
+        
 
     def load_data(
         self,
