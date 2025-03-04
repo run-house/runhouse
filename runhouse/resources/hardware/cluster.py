@@ -439,7 +439,7 @@ class Cluster(Resource):
 
     def config(self, condensed: bool = True):
         config = super().config(condensed)
-        if config.get("resource_subtype") == "Cluster":
+        if config.get("resource_subtype") in ["Cluster", "DockerCluster"]:
             config["ips"] = self._ips
         self.save_attrs_to_config(
             config,

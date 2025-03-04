@@ -39,13 +39,7 @@ class DockerCluster(Cluster):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        The Runhouse cluster, or system. This is where you can run Functions or access/transfer data
-        between. You can BYO (bring-your-own) cluster by providing cluster IP and ssh_creds, or
-        this can be an on-demand cluster that is spun up/down through
-        `SkyPilot <https://github.com/skypilot-org/skypilot>`_, using your cloud credentials.
-
-        .. note::
-            To build a cluster, please use the factory method :func:`cluster`.
+        Docker Cluster.
         """
         super().__init__(
             name=name,
@@ -59,38 +53,6 @@ class DockerCluster(Cluster):
         )
         self.server_connection_type = ServerConnectionType.DOCKER
         self._home_dir = home_dir
-
-    @classmethod
-    def from_name(
-        cls,
-        name: str,
-        load_from_den: bool = True,
-        dryrun: bool = False,
-        _resolve_children: bool = True,
-    ):
-        cluster = super().from_name(
-            name=name,
-            load_from_den=load_from_den,
-            dryrun=dryrun,
-            _resolve_children=_resolve_children,
-        )
-        if cluster and cluster._creds and not dryrun:
-            from runhouse.resources.secrets import Secret
-            from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
-
-            if isinstance(cluster._creds, SSHSecret):
-                cluster._creds.write()
-            elif isinstance(cluster._creds, Secret):
-                # old version of cluster creds or password only
-                private_key_path = cluster._creds.values.get("ssh_private_key")
-                if private_key_path:
-                    ssh_creds = SSHSecret(
-                        path=private_key_path,
-                        values=cluster._creds.values,
-                    )
-                    ssh_creds.write()
-
-        return cluster
 
     @property
     def container_client(self):
@@ -114,24 +76,12 @@ class DockerCluster(Cluster):
 
     def config(self, condensed: bool = True):
         config = super().config(condensed)
-        config["ips"] = self._ips
         self.save_attrs_to_config(
             config,
             [
-                "server_port",
-                "server_host",
-                "server_connection_type",
-                "domain",
-                "den_auth",
-                "ssh_port",
-                "client_port",
-                "ssh_properties",
+                "home_dir",
             ],
         )
-
-        if self.image:
-            config["image"] = self.image.config()
-
         return config
 
     @property
