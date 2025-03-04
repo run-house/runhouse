@@ -6,9 +6,12 @@ from runhouse.logger import get_logger
 logger = get_logger(__name__)
 
 
-def check_for_existing_ray_instance():
+def check_for_existing_ray_instance(venv):
     ray_status_check = subprocess.run(
-        ["ray", "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        ["ray", "status"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={"PATH": f"{venv}/bin"} if venv else None,
     )
     return ray_status_check.returncode == 0
 

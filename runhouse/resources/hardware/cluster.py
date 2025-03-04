@@ -690,6 +690,8 @@ class Cluster(Resource):
             logger.error(
                 "``image_id`` is only supported for OnDemandCluster, not static Clusters."
             )
+        if self.image.venv_path:
+            env_vars["VIRTUAL_ENV"] = self.image.venv_path
 
         logger.info(f"Syncing default image {self.image} to cluster.")
 
@@ -1328,6 +1330,11 @@ class Cluster(Resource):
             + (
                 f" --conda-env {self.image.conda_env_name}"
                 if self.image and self.image.conda_env_name
+                else ""
+            )
+            + (
+                f" --venv {self.image.venv_path}"
+                if self.image and self.image.venv_path
                 else ""
             )
             + " --from-python"
@@ -2152,6 +2159,7 @@ class Cluster(Resource):
         stream_logs: bool = True,
         node: str = None,
         require_outputs: bool = True,
+        venv_path: str = None,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
     ):
         from runhouse.resources.hardware.sky_command_runner import SshMode
@@ -2183,6 +2191,8 @@ class Cluster(Resource):
 
             # set env vars after log statement
             command = f"{env_var_prefix} {command}" if env_var_prefix else command
+            if venv_path:
+                command = venv_cmd(command, venv_path=venv_path)
 
             if not pwd:
                 ssh_mode = (
@@ -2906,7 +2916,6 @@ class Cluster(Resource):
 
         if self.on_this_cluster():
             obj_store.ainstall_package_in_all_nodes_and_processes(
-                package, conda_env_name, override_remote_version
                 package=package,
                 conda_env_name=conda_env_name,
                 venv_path=venv_path,
@@ -2915,7 +2924,6 @@ class Cluster(Resource):
         else:
             package = package.to(self)
             self.client.install_package(
-                package, conda_env_name, override_remote_version
                 package=package,
                 conda_env_name=conda_env_name,
                 venv_path=venv_path,
