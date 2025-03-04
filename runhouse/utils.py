@@ -19,7 +19,6 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from enum import Enum
 from io import SEEK_SET, StringIO
-
 from itertools import cycle
 from pathlib import Path
 from time import sleep
@@ -181,17 +180,19 @@ def find_locally_installed_version(package_name: str) -> Optional[str]:
 
 
 def get_local_install_path(package_name: str) -> Optional[str]:
-    distribution = metadata.distribution(package_name)
-    direct_url_json = distribution.read_text("direct_url.json")
-    if direct_url_json:
-        # File URL starts with file://
-        try:
-            url = json.loads(direct_url_json).get("url", None)
-            if url:
-                if url.startswith("file://"):
-                    return url[len("file://") :]
-        except json.JSONDecodeError:
-            return None
+    from importlib.metadata import distributions
+
+    for dist in distributions():
+        direct_url_json = dist.read_text("direct_url.json")
+        if direct_url_json and dist.metadata["Name"].lower() == package_name.lower():
+            try:
+                url = json.loads(direct_url_json).get("url", None)
+                if url:
+                    if url.startswith("file://"):
+                        return url[len("file://") :]
+            except json.JSONDecodeError:
+                pass
+    return None
 
 
 def is_python_package_string(s: str) -> bool:
