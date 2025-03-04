@@ -240,7 +240,7 @@ class Package(Resource):
         cluster: "Cluster" = None,
         node: Optional[str] = None,
         conda_env_name: Optional[str] = None,
-        force_sync_local: bool = False,
+        override_remote_version: bool = False,
     ):
         """Install package.
 
@@ -251,7 +251,7 @@ class Package(Resource):
                 provided without a ``node``, package will be installed on the head node. (Default: ``None``)
             conda_env_name (Optional[str]): Name of the conda environment to install the package on, if using SSH and
                 installing in a specific conda env that is not activated by default.
-            force_sync_local (bool, optional): If the package exists both locally and remotely, whether to override
+            override_remote_version (bool, optional): If the package exists both locally and remotely, whether to override
                 the remote version with the local version. By default, the local version will be installed only if
                 the package does not already exist on the cluster. (Default: ``False``)
         """
@@ -260,42 +260,45 @@ class Package(Resource):
         if self.install_method == "pip":
 
             # If this is a generic pip package, with no version pinned, we want to check if there is a version
-            # already installed. If there is, and ``force_sync_local`` is not set to ``True``, then we ignore
+            # already installed. If there is, and ``override_remote_version`` is not set to ``True``, then we ignore
             # preferred version and leave the existing version.  The user can also force a version install by
             # doing `numpy==2.0.0`. Else, we install the preferred version, that matches their local.
             if is_python_package_string(self.install_target):
-                if self.preferred_version is not None:
-                    # Check if this is installed
-                    retcode = run_setup_command(
-                        f"python3 -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
+                exists_remotely = (
+                    run_setup_command(
+                        f"[ -d ~/{self.install_target} ]",
                         cluster=cluster,
                         conda_env_name=conda_env_name,
                         node=node,
+                        stream_logs=False,
                     )[0]
-                    if retcode != 0 or force_sync_local:
-                        self.install_target = (
-                            f"{self.install_target}=={self.preferred_version}"
-                        )
-                    else:
-                        logger.info(
-                            f"{self.install_target} already installed. Skipping."
-                        )
-                        return
-                else:
-                    # If the package exists as a folder remotely
-                    if (
-                        run_setup_command(
-                            f"[ -d ~/{self.install_target} ]",
+                    == 0
+                )
+                if exists_remotely:
+                    self.install_target = InstallTarget(
+                        local_path=self.install_target,
+                        _path_to_sync_to_on_cluster=f"~/{self.install_target}",
+                    )
+                elif self.preferred_version is not None:
+                    if not override_remote_version:
+                        # Check if this is installed
+                        retcode = run_setup_command(
+                            f"python3 -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
                             cluster=cluster,
                             conda_env_name=conda_env_name,
                             node=node,
-                            stream_logs=False,
                         )[0]
-                        == 0
-                    ):
-                        self.install_target = InstallTarget(
-                            local_path=self.install_target,
-                            _path_to_sync_to_on_cluster=f"~/{self.install_target}",
+
+                        if retcode == 0:
+                            logger.info(
+                                f"{self.install_target} already installed. Skipping."
+                            )
+                            return
+                        else:
+                            override_remote_version = True
+                    if override_remote_version:
+                        self.install_target = (
+                            f"{self.install_target}=={self.preferred_version}"
                         )
 
             install_cmd = self._pip_install_cmd(
