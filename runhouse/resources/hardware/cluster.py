@@ -74,6 +74,7 @@ from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import (
     _current_cluster,
     _run_ssh_command,
+    cast_node_to_ip,
     check_disk_sufficiency,
     get_source_object_size,
     ServerConnectionType,
@@ -1469,7 +1470,7 @@ class Cluster(Resource):
         source: str,
         dest: str,
         up: bool = True,
-        node: str = None,
+        node: Union[str, int] = None,
         src_node: str = None,
         contents: bool = False,
         filter_options: str = None,
@@ -1486,7 +1487,7 @@ class Cluster(Resource):
             up (bool): The direction of the sync. If ``True``, will rsync from local to cluster. If ``False``
               will rsync from cluster to local.
             node (str, optional): Specific cluster node to rsync to. If not specified will use the
-                address of the cluster's head node.
+                address of the cluster's head node. Accepts node ip, node index (head node is 0), or 'head'.
             src_node (str, optional): Specific cluster node to rsync from, for node-to-node rsyncs.
             contents (bool, optional): Whether the contents of the source directory or the directory
                 itself should be copied to destination. If ``True`` the contents of the source directory are
@@ -1508,6 +1509,10 @@ class Cluster(Resource):
         # If we need to change it to be greedier we can.
         if not src_node and up and not Path(source).expanduser().exists():
             raise ValueError(f"Could not locate path to sync: {source}.")
+
+        node = cast_node_to_ip(
+            node=node, ips=self.ips
+        )  # in case the user provided "head" or node index.
 
         # before syncing the object, making sure there is enough disk space for it. If we don't preform this check in
         # advance, there might be a case where we start rsyncing the object -> during the rsync no disk space will

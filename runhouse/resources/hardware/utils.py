@@ -277,6 +277,22 @@ def _setup_creds_from_dict(ssh_creds: Dict, cluster_name: str):
     return cluster_secret, ssh_properties
 
 
+def cast_node_to_ip(ips: List[str], node: Union[str, int] = None):
+    if not node or node in ips or node == "all":
+        return node
+
+    elif node == "head":
+        return ips[0]
+
+    elif isinstance(node, str) and node.isnumeric():
+        node = int(node)
+
+    if isinstance(node, int) and node < len(ips):
+        return ips[node]
+
+    raise ValueError(f"Node {node} is unsupported, could not get its IP.")
+
+
 ###################################
 # Cluster Information Methods
 ###################################

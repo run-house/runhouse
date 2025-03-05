@@ -20,7 +20,6 @@ from runhouse.cli_utils import (
     check_ray_installation,
     create_output_table,
     get_local_or_remote_cluster,
-    get_node_ip,
     get_wrapped_server_start_cmd,
     is_command_available,
     LogsSince,
@@ -48,7 +47,8 @@ from runhouse.resources.hardware import (
     get_all_sky_clusters,
     kill_actors,
 )
-from runhouse.resources.hardware.utils import ClusterStatus
+
+from runhouse.resources.hardware.utils import cast_node_to_ip, ClusterStatus
 
 from runhouse.servers.obj_store import ObjStoreError
 
@@ -164,7 +164,7 @@ def cluster_ssh(
                     f"[reset]{cluster_name} is being initialized. Please wait for it to finish, or run [reset][bold italic]`runhouse cluster up {cluster_name} -f`[/bold italic] to abort the initialization and relaunch."
                 )
                 raise typer.Exit(0)
-            node = get_node_ip(node=node or "head", cluster_ips=c.ips)
+            node = cast_node_to_ip(node=node or "head", ips=c.ips)
             c.ssh(node=node)
 
         else:
@@ -174,7 +174,10 @@ def cluster_ssh(
                 )
             c.ssh()
 
-    except ValueError:
+    except ValueError as e:
+        if str(e) == f"Node {node} is unsupported, could not get its IP.":
+            console.print(f"[reset]{str(e)}")
+            raise typer.Exit(1)
         try:
             import sky
 
