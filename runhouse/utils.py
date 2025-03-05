@@ -905,17 +905,24 @@ def parse_gpu_usage(collected_gpu_info: dict, servlet_type: ServletType):
         )  # getting the latest free_memory value collected.
 
     for gpu_index in gpus_indices:
-        collected_gpu_info = collected_gpu_info.get(gpu_index)
+        current_collected_gpu_info = collected_gpu_info.get(gpu_index)
+        if not current_collected_gpu_info:
+            continue
         sum_used_memery = sum(
-            [gpu_info.get("used_memory") for gpu_info in collected_gpu_info]
+            [gpu_info.get("used_memory") for gpu_info in current_collected_gpu_info]
         )
         total_used_memory = sum_used_memery / len(collected_gpu_info)  # average
 
         if servlet_type == ServletType.cluster:
             sum_cpu_util = sum(
-                [gpu_info.get("utilization_percent") for gpu_info in collected_gpu_info]
+                [
+                    gpu_info.get("utilization_percent")
+                    for gpu_info in current_collected_gpu_info
+                ]
             )
-            gpu_utilization_percent = sum_cpu_util / len(collected_gpu_info)  # average
+            gpu_utilization_percent = sum_cpu_util / len(
+                current_collected_gpu_info
+            )  # average
 
     total_used_memory = int(total_used_memory / len(gpus_indices))
     used_memory_percent = round(
