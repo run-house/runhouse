@@ -431,12 +431,16 @@ class Cluster(Resource):
             from .on_demand_cluster import OnDemandCluster
 
             return OnDemandCluster(**config, dryrun=dryrun)
+        elif resource_subtype == "DockerCluster":
+            from .docker_cluster import DockerCluster
+
+            return DockerCluster(**config, dryrun=dryrun)
         else:
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 
     def config(self, condensed: bool = True):
         config = super().config(condensed)
-        if config.get("resource_subtype") == "Cluster":
+        if config.get("resource_subtype") in ["Cluster", "DockerCluster"]:
             config["ips"] = self._ips
         self.save_attrs_to_config(
             config,
@@ -490,6 +494,7 @@ class Cluster(Resource):
         if self.server_connection_type in [
             ServerConnectionType.NONE,
             ServerConnectionType.TLS,
+            ServerConnectionType.DOCKER,
         ]:
             url_base = (
                 "https"
@@ -508,7 +513,10 @@ class Cluster(Resource):
         if external:
             return None
 
-        if self.server_connection_type == ServerConnectionType.SSH:
+        if self.server_connection_type in [
+            ServerConnectionType.SSH,
+            ServerConnectionType.DOCKER,
+        ]:
             self.client.check_server()
             return f"http://{LOCALHOST}:{client_port}"
 
@@ -1012,6 +1020,7 @@ class Cluster(Resource):
             if self.server_connection_type not in [
                 ServerConnectionType.NONE,
                 ServerConnectionType.TLS,
+                ServerConnectionType.DOCKER,
             ]:
                 raise ValueError(
                     f"Unknown server connection type {self.server_connection_type}."
