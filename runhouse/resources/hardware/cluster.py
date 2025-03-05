@@ -687,6 +687,7 @@ class Cluster(Resource):
         logger.info(f"Syncing default image {self.image} to cluster.")
 
         secrets_to_sync = []
+        uv_install = False
 
         for step in self.image.setup_steps:
             if step.step_type == ImageSetupStepType.SYNC_SECRETS:
@@ -696,6 +697,16 @@ class Cluster(Resource):
                 image_env_vars = _process_env_vars(step.kwargs.get("env_vars"))
                 env_vars.update(image_env_vars)
                 continue
+            elif step.step_type == ImageSetupStepType.UV_INSTALL and not uv_install:
+                self._run_setup_step(
+                    step=ImageSetupStep(
+                        step_type=ImageSetupStepType.PIP_INSTALL,
+                        reqs=["uv"],
+                        conda_env_name=self.conda_env_name,
+                    ),
+                    parallel=parallel,
+                )
+                uv_install = True
 
             self._run_setup_step(step, env_vars, parallel)
 
@@ -810,6 +821,26 @@ class Cluster(Resource):
             node=node,
             conda_env_name=conda_env_name,
             override_remote_version=override_remote_version,
+        )
+
+    def uv_install(
+        self,
+        reqs: List[Union["Package", str]],
+        node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
+        force_sync_local: bool = False,
+    ):
+        from runhouse.resources.packages.package import Package
+
+        uv_packages = [
+            Package.from_string(f"uv:{req}") if isinstance(req, str) else req
+            for req in reqs
+        ]
+        self.install_packages(
+            reqs=uv_packages,
+            node=node,
+            conda_env_name=conda_env_name,
+            force_sync_local=force_sync_local,
         )
 
     def conda_install(
