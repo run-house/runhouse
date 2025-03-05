@@ -7,13 +7,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def get_mem():
-    # Print current GPU memory usage (allocated & reserved)
-    gpu_memory = torch.cuda.memory_allocated() / 1e6  # Convert bytes to MB
-    gpu_reserved = torch.cuda.memory_reserved() / 1e6  # Reserved memory
-    print(f"Allocated: {gpu_memory:.2f} MB, Reserved: {gpu_reserved:.2f} MB")
-
-
 @dataclass
 class HParams:
     n_vocab: int = 50257

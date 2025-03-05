@@ -1,12 +1,20 @@
-def download_and_preprocess(block_size: int = 1024, sample: int = None):
-    from datasets import load_dataset
-    from transformers import AutoTokenizer
+from datasets import load_dataset
+from transformers import AutoTokenizer
+
+
+def download_and_preprocess(
+    hf_dataset_name: str,
+    hf_data_files: str = None,
+    block_size: int = 1024,
+    sample: int = None,
+):
 
     dataset = load_dataset(
-        "HuggingFaceFW/fineweb-edu",
-        data_files="data/CC-MAIN-2024-51/000_00000.parquet",
+        hf_dataset_name,
+        data_files=hf_data_files,
         ignore_verifications=True,
-    )  # Take just one crawl for simplicity / size
+    )
+
     dataset = dataset["train"]
     if sample:
         dataset = dataset.select(range(sample))
