@@ -191,30 +191,33 @@ def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
         cluster.install_packages(
             setup_step.kwargs.get("reqs"),
             conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            venv_path=setup_step.kwargs.get("venv_path"),
             node=node,
         )
     elif setup_step.step_type == ImageSetupStepType.PIP_INSTALL:
         cluster.pip_install(
             setup_step.kwargs.get("reqs"),
             conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            venv_path=setup_step.kwargs.get("venv_path"),
             node=node,
         )
     elif setup_step.step_type == ImageSetupStepType.UV_INSTALL:
         cluster.uv_install(
             setup_step.kwargs.get("reqs"),
             conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            venv_path=setup_step.kwargs.get("venv_path"),
             node=node,
         )
     elif setup_step.step_type == ImageSetupStepType.CONDA_INSTALL:
         cluster.conda_install(
             setup_step.kwargs.get("reqs"),
             conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            venv_path=setup_step.kwargs.get("venv_path"),
             node=node,
         )
     elif setup_step.step_type == ImageSetupStepType.SYNC_PACKAGE:
         cluster.sync_package(
             setup_step.kwargs.get("package"),
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
             node=node,
         )
     elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
@@ -223,6 +226,7 @@ def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
             cluster=cluster,
             env_vars=env_vars,
             conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            venv_path=setup_step.kwargs.get("venv_path"),
             stream_logs=True,
             node=node,
         )
@@ -234,23 +238,6 @@ def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
             up=True,
             contents=setup_step.kwargs.get("contents"),
             filter_options=setup_step.kwargs.get("filter_options"),
-        )
-    elif setup_step.step_type == ImageSetupStepType.PIP_INSTALL:
-        cluster.pip_install(
-            setup_step.kwargs.get("reqs"),
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            node=node,
-        )
-    elif setup_step.step_type == ImageSetupStepType.CONDA_INSTALL:
-        cluster.conda_install(
-            setup_step.kwargs.get("reqs"),
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            node=node,
-        )
-    elif setup_step.step_type == ImageSetupStepType.SYNC_PACKAGE:
-        cluster.sync_package(
-            setup_step.kwargs.get("package"),
-            node=node,
         )
 
 

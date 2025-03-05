@@ -115,6 +115,23 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         remote_package = cluster.put_resource(pip_package)
         cluster.call(remote_package, "_install")
 
+    @pytest.mark.level("local")
+    def test_uv_install(self, cluster, uv_package):
+        assert (
+            uv_package._pip_install_cmd(cluster=cluster)
+            == f'uv pip install "{uv_package.install_target}"'
+        )
+
+        # install through remote ssh
+        if cluster.image and cluster.image.venv_path:
+            uv_package._install(cluster=cluster)
+
+            # install from on the cluster
+            remote_package = cluster.put_resource(uv_package)
+            cluster.call(remote_package, "_install")
+        else:
+            pytest.skip("uv not installed on cluster. skipping test.")
+
     @pytest.mark.level("release")
     def test_conda_install(self, cluster, conda_package):
         assert (

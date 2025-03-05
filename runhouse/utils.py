@@ -54,11 +54,17 @@ def conda_env_cmd(cmd, conda_env_name):
     return f"conda run -n {conda_env_name} ${{SHELL:-/bin/bash}} -c {shlex.quote(cmd)}"
 
 
+def venv_cmd(cmd, venv_path, subprocess: bool = False):
+    source = "source" if not subprocess else "."
+    return f"{source} {venv_path}/bin/activate && {cmd}"
+
+
 def run_setup_command(
     cmd: str,
     cluster: "Cluster" = None,
     env_vars: Dict = None,
     conda_env_name: Optional[str] = None,
+    venv_path: Optional[str] = None,
     stream_logs: bool = True,
     node: Optional[str] = None,
 ):
@@ -85,7 +91,11 @@ def run_setup_command(
     if conda_env_name:
         cmd = conda_env_cmd(cmd, conda_env_name)
     return cluster._run_commands_with_runner(
-        [cmd], stream_logs=stream_logs, env_vars=env_vars, node=node
+        [cmd],
+        stream_logs=stream_logs,
+        env_vars=env_vars,
+        node=node,
+        venv_path=venv_path,
     )[0]
 
 

@@ -1,5 +1,4 @@
 import logging
-import shlex
 import subprocess
 import time
 import webbrowser
@@ -697,6 +696,7 @@ def _start_server(
     certs_address=None,
     api_server_url=None,
     conda_env=None,
+    venv=None,
     from_python=None,
 ):
     ############################################
@@ -707,7 +707,7 @@ def _start_server(
         cmds.append(SERVER_STOP_CMD)
 
     # We have to `ray start` not within screen/nohup
-    existing_ray_instance = check_for_existing_ray_instance()
+    existing_ray_instance = check_for_existing_ray_instance(venv)
     if not existing_ray_instance or restart_ray:
         cmds.append(RAY_KILL_CMD)
         cmds.append(RAY_START_CMD)
@@ -791,6 +791,10 @@ def _start_server(
 
     # Add flags to the server start command
     cmds.append(get_wrapped_server_start_cmd(flags, screen, nohup))
+    if venv:
+        from runhouse.utils import venv_cmd
+
+        cmds = [venv_cmd(cmd, venv, subprocess=True) for cmd in cmds]
     logger.info(f"Starting API server using the following command: {cmds[-1]}.")
 
     try:
@@ -801,14 +805,9 @@ def _start_server(
             f.readlines()  # Discard these, they're from the previous times the server was started
 
         # We do these one by one so it's more obvious where the error is if there is one
-        for i, cmd in enumerate(cmds):
+        for _, cmd in enumerate(cmds):
             console.print(f"Executing `{cmd}`")
-            if (
-                i == len(cmds) - 1
-            ):  # last cmd is not being parsed correctly when ran with shlex.split
-                result = subprocess.run(cmd, shell=True, check=True)
-            else:
-                result = subprocess.run(shlex.split(cmd), text=True)
+            result = subprocess.run(cmd, shell=True)
 
             if result.returncode != 0:
                 # We don't want to raise an error if the server kill fails, as it may simply not be running
@@ -816,14 +815,14 @@ def _start_server(
                     continue
 
                 # Retry ray start in case pkill process did not complete in time, up to 10s
-                if cmd == RAY_START_CMD:
+                if RAY_START_CMD in cmd:
                     console.print("Retrying:")
                     attempt = 0
                     while result.returncode != 0 and attempt < 10:
                         attempt += 1
                         time.sleep(1)
                         result = subprocess.run(
-                            shlex.split(cmd), text=True, capture_output=True
+                            cmd, capture_output=True, text=True, shell=True
                         )
                         if result.stderr and "ConnectionError" not in result.stderr:
                             break
@@ -852,10 +851,8 @@ def _start_server(
                 time.sleep(1)
             f.close()
 
-    except FileNotFoundError:
-        console.print(
-            "python3 command was not found. Make sure you have python3 installed."
-        )
+    except FileNotFoundError as e:
+        console.print(f"Encountered FileNotFoundError {str(e)}")
         raise typer.Exit(1)
 
 
@@ -924,6 +921,9 @@ def server_start(
     conda_env: str = typer.Option(
         None, help="Name of conda env where Runhouse server is started, if applicable."
     ),
+    venv: str = typer.Option(
+        None, help="Path of venv where Runhouse server is started, if applicable."
+    ),
     from_python: bool = typer.Option(
         False,
         help="Whether HTTP server started from inside a Python call rather than CLI.",
@@ -976,6 +976,7 @@ def server_start(
         certs_address=certs_address,
         api_server_url=api_server_url,
         conda_env=conda_env,
+        venv=venv,
         from_python=from_python,
     )
 
@@ -1040,6 +1041,9 @@ def server_restart(
     conda_env: str = typer.Option(
         None, help="Name of conda env where Runhouse server is started, if applicable."
     ),
+    venv: str = typer.Option(
+        None, help="Path of venv where Runhouse server is started, if applicable."
+    ),
     from_python: bool = typer.Option(
         False,
         help="Whether HTTP server started from inside a Python call rather than CLI.",
@@ -1077,6 +1081,7 @@ def server_restart(
         certs_address=certs_address,
         api_server_url=api_server_url,
         conda_env=conda_env,
+        venv=venv,
         from_python=from_python,
     )
 
