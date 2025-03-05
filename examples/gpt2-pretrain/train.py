@@ -5,11 +5,13 @@ import runhouse as rh
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from datasets import load_from_disk
 
 from model import default_hparams, GPT2Model
+from torch.amp import autocast, GradScaler
 from torch.optim.lr_scheduler import StepLR
-from torch.utils.data.dataloader import DataLoader, DistributedSampler
-from torch.utils.data.dataset import Dataset
+from torch.utils.data.dataloader import DataLoader
+from torch.utils.data.distributed import DistributedSampler
 
 
 class Trainer:
@@ -22,6 +24,7 @@ class Trainer:
         self.train_loader = None
         self.eval_loader = None
         self.scheduler = None
+        self.scaler = None
 
         self.device = None
         self.device_id = None
@@ -31,7 +34,26 @@ class Trainer:
         if not torch.distributed.is_initialized():
             self.init_comms()
 
-        dataset = Dataset.from_parquet(path)
+        def collate_fn(batch):
+            token_lists = [
+                torch.tensor(example["input_ids"])
+                for example in batch
+                if len(example["input_ids"]) > 0
+            ]
+            label_lists = [
+                torch.tensor(example["labels"])
+                for example in batch
+                if len(example["labels"]) > 0
+            ]  # Assuming labels field exists
+            if len(token_lists) == 0 or len(label_lists) == 0:
+                return {"input_ids": torch.zeros(0), "labels": torch.zeros(0)}
+
+            input_ids = torch.stack(token_lists, dim=0)
+            labels = torch.stack(label_lists, dim=0)
+
+            return {"input_ids": input_ids, "labels": labels}
+
+        dataset = load_from_disk(path)
         self.train_dataset = dataset["train"]
         self.eval_dataset = dataset["test"]
 
@@ -47,17 +69,17 @@ class Trainer:
 
         self.train_loader = DataLoader(
             self.train_dataset,
-            batch_size=16,
+            batch_size=8,
+            collate_fn=collate_fn,
             sampler=train_sampler,
             num_workers=4,
-            pin_memory=True,
         )
         self.eval_loader = DataLoader(
             self.eval_dataset,
-            batch_size=16,
+            batch_size=8,
+            collate_fn=collate_fn,
             sampler=eval_sampler,
             num_workers=4,
-            pin_memory=True,
         )
 
     def init_comms(self):
@@ -72,21 +94,38 @@ class Trainer:
         self.device_id = self.rank % torch.cuda.device_count()
         self.device = torch.device(f"cuda:{self.device_id}")
 
-    def load_model(self, hparams=default_hparams, model_path=None):
+    def load_model(self, hparams=default_hparams(), model_path=None):
         if model_path:
             self.model = GPT2Model(hparams)
             self.model.load_state_dict(torch.load(model_path))
         else:
             self.model = GPT2Model(hparams)
 
-    def train_epoch(self, X, y):
-        self.model.train()
-        self.optimizer.zero_grad()
-        y_pred = self.model(X)
-        loss = self.loss_fn(y_pred, y)
-        loss.backward()
-        self.optimizer.step()
-        return loss.item()
+    def train_epoch(self):
+        total_loss = 0
+        for batch in self.train_loader:
+            X, y = batch["input_ids"], batch["labels"]
+            X = X.to(self.device)
+            y = y.to(self.device)
+
+            self.optimizer.zero_grad()
+            with autocast(device_type="cuda", dtype=torch.float16):
+                y_pred = self.model(X)["logits"]
+                loss = self.loss_fn(y_pred.reshape(-1, y_pred.size(-1)), y.reshape(-1))
+
+            self.scaler.scale(loss).backward()
+
+            # Gradient clipping (to prevent FP16 instability)
+            self.scaler.unscale_(self.optimizer)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+
+            # Step optimizer and update scaler
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+
+            total_loss += loss.item()
+
+        return total_loss / len(self.train_loader)
 
     def train(
         self,
@@ -101,37 +140,55 @@ class Trainer:
         if not torch.distributed.is_initialized():
             self.init_comms()
 
-        self.load_dataset(dataset_path)
+        os.environ["TORCH_USE_CUDA_DSA"] = "1"
+        os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
+        if not self.model:
+            self.load_model()
+
+        if not self.train_dataset:
+            self.load_dataset(dataset_path)
+
         self.optimizer = optim.Adam(
             self.model.parameters(), lr=lr, weight_decay=weight_decay
         )
         self.scheduler = StepLR(self.optimizer, step_size=step_size, gamma=gamma)
         self.loss_fn = nn.CrossEntropyLoss()
-
-        if not self.model:
-            self.load_model()
+        self.scaler = GradScaler()
 
         self.model.to(self.device)
+        self.model.train()
 
         for i in range(epochs):
-            loss = self.train_epoch(X, y)
+            loss = self.train_epoch()
             print(f"Epoch {i} Loss: {loss}")
 
             # If global rank is 0, save the model
             if self.rank == 0:
-                self.save(f"model_{i}.pt")
+                self.save_model(f"model_{i}.pt")
 
-    def eval(self, X, y):
+    def eval(self):
         self.model.eval()
+        total_loss = 0
         with torch.no_grad():
-            y_pred = self.model(X)
-            loss = self.loss_fn(y_pred, y)
-        return loss.item()
+            for batch in self.eval_loader:
+                X, y = batch["input_ids"], batch["labels"]
+                X = X.to(self.device)
+                y = y.to(self.device)
 
-    def save(self, path):
+                y_pred = self.model(X)
+                loss = self.loss_fn(y_pred, y)
+                total_loss += loss.item()
+
+        # Calculate average loss across all batches
+        avg_loss = total_loss / len(self.eval_loader)
+
+        return avg_loss
+
+    def save_model(self, path):
         torch.save(self.model.state_dict(), path)
 
-    def load(self, path):
+    def load_saved_model(self, path):
         self.model.load_state_dict(torch.load(path))
 
     def predict(self, X):
@@ -143,7 +200,7 @@ class Trainer:
 
 if __name__ == "__main__":
     num_nodes = 2
-    num_gpus_per_node = 4
+    num_gpus_per_node = 1
 
     img = (
         rh.Image()
@@ -156,6 +213,8 @@ if __name__ == "__main__":
                 "datasets",
                 "s3fs",
                 "torch",
+                "tiktoken",
+                "scikit-learn",
             ]
         )
         .sync_secrets(["huggingface", "aws"])
@@ -166,16 +225,32 @@ if __name__ == "__main__":
         num_nodes=num_nodes,
         instance_type=f"L4:{num_gpus_per_node}",
         provider="aws",
-        image=img,
+        # image=img,
         use_spot=False,
         autostop_mins=1000,
     ).up_if_not()  # Requires access to a cloud account with the necessary permissions to launch compute.
 
+    # cluster.restart_server()
+
+    from data_preprocess import download_and_preprocess
+
+    remote_preprocess = (
+        rh.function(download_and_preprocess)
+        .to(cluster, name="preprocess")
+        .distribute("pool", num_replicas=num_nodes, replicas_per_node=1)
+    )
+    # Run the execution in parallel
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        executor.map(remote_preprocess, range(num_nodes))
+
+    # Send the Trainer to the cluster
     RemoteTrainer = rh.cls(Trainer).to(cluster, name="gpt2")
     trainer = RemoteTrainer(name="gpt2_trainer").distribute(
         "pytorch",
         num_replicas=num_nodes * num_gpus_per_node,
         replicas_per_node=num_gpus_per_node,
     )
-
-    trainer.train("data.parquet", 10)
+    # trainer.load_dataset("processed_fineweb_edu")
+    trainer.train(dataset_path="processed_fineweb_edu", epochs=10)

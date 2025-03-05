@@ -2,10 +2,16 @@
 import math
 from dataclasses import dataclass
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+
+def get_mem():
+    # Print current GPU memory usage (allocated & reserved)
+    gpu_memory = torch.cuda.memory_allocated() / 1e6  # Convert bytes to MB
+    gpu_reserved = torch.cuda.memory_reserved() / 1e6  # Reserved memory
+    print(f"Allocated: {gpu_memory:.2f} MB, Reserved: {gpu_reserved:.2f} MB")
 
 
 @dataclass
@@ -54,10 +60,11 @@ class Conv1D(nn.Module):
         self.bias = nn.Parameter(torch.zeros(nf))
 
     def forward(self, x):
-        size_out = x.size()[:-1] + (self.bias.size(0),)
-        x = torch.matmul(x.view(-1, x.size(-1)), self.weight.squeeze(0).transpose(0, 1))
-        x = x + self.bias
-        return x.view(*size_out)
+        *start, nx = shape_list(x)
+        x_2d = x.view(-1, nx)
+        w = self.weight.squeeze(0)
+        x = torch.matmul(x_2d, w) + self.bias
+        return x.view(*start, self.bias.size(0))
 
 
 class Attention(nn.Module):
@@ -70,18 +77,16 @@ class Attention(nn.Module):
         self.c_attn = Conv1D(n_state, n_state * 3)
         self.c_proj = Conv1D(n_state, n_state)
 
+    # A departure from original code by using
     def _attn(self, q, k, v, mask=True):
-        w = torch.matmul(q, k.transpose(-1, -2))
-        w = w / torch.sqrt(torch.tensor(v.size(-1), dtype=w.dtype))
-
+        attn_mask = None
         if mask:
-            # Create attention mask
-            nd, ns = q.size(-2), k.size(-2)
-            mask = torch.tril(torch.ones(nd, ns, device=q.device)).view(1, 1, nd, ns)
-            w = w * mask - 1e10 * (1 - mask)
+            seq_len = q.size(-2)
+            attn_mask = torch.tril(torch.ones(seq_len, seq_len, device=q.device)).view(
+                1, 1, seq_len, seq_len
+            )
 
-        w = F.softmax(w, dim=-1)
-        return torch.matmul(w, v)
+        return F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask)
 
     def _split_heads(self, x):
         new_shape = shape_list(x)[:-1] + [self.n_head, x.size(-1) // self.n_head]
@@ -161,8 +166,8 @@ class GPT2Model(nn.Module):
 
     def forward(self, x, past=None):
         results = {}
-        batch_size, sequence_length = x.size()
 
+        batch_size, sequence_length = x.size()
         past_length = 0 if past is None else past.size(3)
         position_ids = self.get_position_ids(x, past_length)
 
@@ -184,7 +189,6 @@ class GPT2Model(nn.Module):
         h = self.ln_f(h)
 
         # Language model logits
-        logits = torch.matmul(h, self.wte.weight.transpose(0, 1))
+        logits = F.linear(h, self.wte.weight)  # More efficient for logits computation
         results["logits"] = logits
-
         return results
