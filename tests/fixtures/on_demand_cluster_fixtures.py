@@ -98,7 +98,7 @@ def local_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
         "sky_kwargs": {"launch": {"retry_until_up": True}},
     }
 
-    cluster = setup_test_cluster(args, request, setup_base=True)
+    cluster = setup_test_cluster(args, request)
     yield cluster
     teardown_cluster_fixture(request, cluster)
 
@@ -129,13 +129,19 @@ def den_launched_ondemand_aws_docker_cluster(request, test_rns_folder):
         "launcher": LauncherType.DEN,
     }
 
-    cluster = setup_test_cluster(args, request, setup_base=True)
+    cluster = setup_test_cluster(args, request)
     yield cluster
     teardown_cluster_fixture(request, cluster)
 
 
 @pytest.fixture(scope="session")
 def ondemand_aws_https_cluster_with_auth(request, test_rns_folder):
+    """
+    Note: Also used to test custom Python version and uv venv/install.
+    """
+    image = (
+        Image(python_version="3.10").uv_install(TEST_REQS).set_env_vars(TEST_ENV_VARS)
+    )
     cluster_name = (
         "aws-cpu-https"
         if not request.config.getoption("--ci")
@@ -151,6 +157,7 @@ def ondemand_aws_https_cluster_with_auth(request, test_rns_folder):
         # Use Caddy for SSL & reverse proxying (if port not specified here will launch certs with uvicorn)
         # "server_port": DEFAULT_HTTPS_PORT,
         "open_ports": [DEFAULT_HTTPS_PORT],
+        "image": image,
     }
 
     cluster = setup_test_cluster(args, request)
