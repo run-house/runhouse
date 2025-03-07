@@ -240,7 +240,7 @@ if __name__ == "__main__":
     )
 
     cluster = rh.compute(
-        name=f"rh-L4x{num_gpus_per_node}x{num_nodes}-2",
+        name=f"rh-L4x{num_gpus_per_node}x{num_nodes}",
         num_nodes=num_nodes,
         instance_type=f"L4:{num_gpus_per_node}",
         provider="aws",
