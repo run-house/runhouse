@@ -40,7 +40,7 @@ class SparkDistributed(Supervisor):
             kwargs,
             child_conn,
             self._ray_init_options,
-            kwargs.get("spark_init_options", self._spark_init_options),
+            kwargs.pop("spark_init_options", self._spark_init_options),
         )
 
         # Check if start method is already spawn, because set_start_method will error if called again

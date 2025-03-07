@@ -109,15 +109,18 @@ if __name__ == "__main__":
     ).up_if_not()
 
     remote_spark_test = (
-        rh.function(spark_test).to(cluster).distribute(distribution="spark")
-    )
-    remote_spark_test(
-        spark_init_options={
-            "num_executors": 1,
-            "executor_cores": 2,
-            "executor_memory": "2GB",
-        }
-    )  # We can define the number of executors, cores, and memory for the Spark job when calling the function
+        rh.function(spark_test)
+        .to(cluster)
+        .distribute(
+            distribution="spark",
+            spark_init_options={
+                "num_executors": 1,
+                "executor_cores": 2,
+                "executor_memory": "2GB",
+            },
+        )
+    )  # We define the Spark resources when sending the function to the cluster.
+    remote_spark_test()  # This runs Spark ephemerally as a job.
 
     local_path_on_remote_compute = "~/yellow_tripdata_2024-12.parquet"
     data_url = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2024-12.parquet"
@@ -136,7 +139,7 @@ if __name__ == "__main__":
                 "executor_memory": "2GB",
             },
         )
-    )  # We can also define the Spark resources when sending the function to the cluster. This is overriden if we define the resources when calling the function.
+    )
     remote_spark(data_path=local_path_on_remote_compute)
 
     cluster.teardown()  # To teardown the cluster after the run, comment out to keep cluster alive

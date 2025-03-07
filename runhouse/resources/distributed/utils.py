@@ -90,10 +90,6 @@ def subprocess_raydp_fn_call_helper(
         executor_memory=spark_opts.get("executor_memory", "2GB"),
     )
 
-    kwargs.pop(
-        "spark_init_options", None
-    )  # In case it was passed as part of function call
-
     import inspect
 
     if "spark" not in inspect.signature(orig_fn).parameters:
