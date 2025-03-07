@@ -45,7 +45,7 @@ Let’s set up a basic cluster and some easy logic to send to it.
 
     import runhouse as rh
 
-    cluster = rh.cluster(name="multi-gpu-cluster", accelerators="A10G:1", num_nodes=2, provider="aws").up_if_not()
+    cluster = rh.cluster(name="multi-gpu-cluster", gpus="A10G:1", num_nodes=2, provider="aws").up_if_not()
 
 
 .. parsed-literal::
