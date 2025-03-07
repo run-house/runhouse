@@ -334,7 +334,8 @@ class HTTPServer:
             await obj_store.ainstall_package_in_all_nodes_and_processes(
                 package_obj,
                 conda_env_name=params.conda_env_name,
-                force_sync_local=params.force_sync_local,
+                venv_path=params.venv_path,
+                override_remote_version=params.override_remote_version,
             )
             return Response(output_type=OutputType.SUCCESS)
         except Exception as e:

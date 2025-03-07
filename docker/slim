@@ -1,0 +1,19 @@
+# A simple container to use as a local runhouse cluster
+# docker build -t runhouse -f ./runhouse/docker/slim ./runhouse
+
+# Use the official Python image as a parent image
+FROM python:3.11-slim
+
+# Install screen and Runhouse
+RUN apt-get update && apt-get install -y screen procps rsync ssh netcat-traditional
+RUN python -m pip install --upgrade pip
+RUN python -m pip install runhouse[server]
+
+# Alias python3 as python
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
+# Make port 32300 available to the world outside this container
+EXPOSE 32300
+
+# Start ray and the the runhouse server
+CMD ["runhouse", "server", "start", "--no-restart-ray", "--host", "0.0.0.0", "--port", "32300", "--no-screen", "--no-nohup"]

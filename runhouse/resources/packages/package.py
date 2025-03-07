@@ -27,10 +27,11 @@ from runhouse.utils import (
     locate_working_dir,
     run_setup_command,
     split_pip_extras,
+    venv_cmd,
 )
 
 
-INSTALL_METHODS = {"local", "pip", "conda"}
+INSTALL_METHODS = {"local", "pip", "uv", "conda"}
 
 logger = get_logger(__name__)
 
@@ -130,18 +131,25 @@ class Package(Resource):
     def _prepend_python_executable(
         install_cmd: str,
         conda_env_name: Optional[str] = None,
+        venv_path: Optional[str] = None,
         cluster: "Cluster" = None,
     ):
-        return (
-            f"python3 -m {install_cmd}"
-            if cluster or conda_env_name
-            else f"{sys.executable} -m {install_cmd}"
-        )
+        if venv_path:
+            return install_cmd
+        if cluster or conda_env_name:
+            return f"python3 -m {install_cmd}"
+        return f"{sys.executable} -m {install_cmd}"
 
     @staticmethod
-    def _prepend_env_command(install_cmd: str, conda_env_name: Optional[str] = None):
+    def _prepend_env_command(
+        install_cmd: str,
+        conda_env_name: Optional[str] = None,
+        venv_path: Optional[str] = None,
+    ):
         if conda_env_name:
             install_cmd = conda_env_cmd(cmd=install_cmd, conda_env_name=conda_env_name)
+        if venv_path:
+            install_cmd = venv_cmd(cmd=install_cmd, venv_path=venv_path)
 
         return install_cmd
 
@@ -170,8 +178,12 @@ class Package(Resource):
     def _pip_install_cmd(
         self,
         conda_env_name: Optional[str] = None,
+        venv_path: Optional[str] = None,
         cluster: "Cluster" = None,
+        uv: bool = None,
     ):
+        if uv is None:
+            uv = self.install_method == "uv"
         install_args = f" {self.install_args}" if self.install_args else ""
         install_extras = f"[{self.install_extras}]" if self.install_extras else ""
         if isinstance(self.install_target, InstallTarget):
@@ -198,11 +210,18 @@ class Package(Resource):
             install_cmd = install_target + install_args
 
         install_cmd = f"pip install {self._install_cmd_for_torch(install_cmd, cluster)}"
-        install_cmd = self._prepend_python_executable(
-            install_cmd, cluster=cluster, conda_env_name=conda_env_name
-        )
+        if uv:
+            install_cmd = f"uv {install_cmd}"
+        else:
+            # uv doesn't need python executable
+            install_cmd = self._prepend_python_executable(
+                install_cmd,
+                cluster=cluster,
+                conda_env_name=conda_env_name,
+                venv_path=venv_path,
+            )
         install_cmd = self._prepend_env_command(
-            install_cmd, conda_env_name=conda_env_name
+            install_cmd, conda_env_name=conda_env_name, venv_path=venv_path
         )
         return install_cmd
 
@@ -232,7 +251,7 @@ class Package(Resource):
             if INSUFFICIENT_DISK_MSG in stdout or INSUFFICIENT_DISK_MSG in stderr:
                 raise InsufficientDiskError(command=install_cmd)
             raise RuntimeError(
-                f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
+                f"{self.install_method} install '{install_cmd}' failed, check that the package exists and is available for your platform."
             )
 
     def _install(
@@ -240,7 +259,8 @@ class Package(Resource):
         cluster: "Cluster" = None,
         node: Optional[str] = None,
         conda_env_name: Optional[str] = None,
-        force_sync_local: bool = False,
+        venv_path: Optional[str] = None,
+        override_remote_version: bool = False,
     ):
         """Install package.
 
@@ -251,55 +271,63 @@ class Package(Resource):
                 provided without a ``node``, package will be installed on the head node. (Default: ``None``)
             conda_env_name (Optional[str]): Name of the conda environment to install the package on, if using SSH and
                 installing in a specific conda env that is not activated by default.
-            force_sync_local (bool, optional): If the package exists both locally and remotely, whether to override
+            override_remote_version (bool, optional): If the package exists both locally and remotely, whether to override
                 the remote version with the local version. By default, the local version will be installed only if
                 the package does not already exist on the cluster. (Default: ``False``)
         """
         logger.info(f"Installing {str(self)} with method {self.install_method}.")
 
-        if self.install_method == "pip":
+        if self.install_method in ["pip", "uv"]:
 
             # If this is a generic pip package, with no version pinned, we want to check if there is a version
-            # already installed. If there is, and ``force_sync_local`` is not set to ``True``, then we ignore
+            # already installed. If there is, and ``override_remote_version`` is not set to ``True``, then we ignore
             # preferred version and leave the existing version.  The user can also force a version install by
             # doing `numpy==2.0.0`. Else, we install the preferred version, that matches their local.
             if is_python_package_string(self.install_target):
-                if self.preferred_version is not None:
-                    # Check if this is installed
-                    retcode = run_setup_command(
-                        f"python3 -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
+                exists_remotely = (
+                    run_setup_command(
+                        f"[ -d ~/{self.install_target} ]",
                         cluster=cluster,
                         conda_env_name=conda_env_name,
+                        venv_path=venv_path,
                         node=node,
+                        stream_logs=False,
                     )[0]
-                    if retcode != 0 or force_sync_local:
+                    == 0
+                )
+                if exists_remotely:
+                    self.install_target = InstallTarget(
+                        local_path=self.install_target,
+                        _path_to_sync_to_on_cluster=f"~/{self.install_target}",
+                    )
+                elif self.preferred_version is not None:
+                    if not override_remote_version:
+                        # Check if this is installed
+                        retcode = run_setup_command(
+                            f"python3 -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
+                            cluster=cluster,
+                            conda_env_name=conda_env_name,
+                            venv_path=venv_path,
+                            node=node,
+                        )[0]
+
+                        if retcode == 0:
+                            logger.info(
+                                f"{self.install_target} already installed. Skipping."
+                            )
+                            return
+                        else:
+                            override_remote_version = True
+                    if override_remote_version:
                         self.install_target = (
                             f"{self.install_target}=={self.preferred_version}"
                         )
-                    else:
-                        logger.info(
-                            f"{self.install_target} already installed. Skipping."
-                        )
-                        return
-                else:
-                    # If the package exists as a folder remotely
-                    if (
-                        run_setup_command(
-                            f"[ -d ~/{self.install_target} ]",
-                            cluster=cluster,
-                            conda_env_name=conda_env_name,
-                            node=node,
-                            stream_logs=False,
-                        )[0]
-                        == 0
-                    ):
-                        self.install_target = InstallTarget(
-                            local_path=self.install_target,
-                            _path_to_sync_to_on_cluster=f"~/{self.install_target}",
-                        )
 
             install_cmd = self._pip_install_cmd(
-                conda_env_name=conda_env_name, cluster=cluster
+                conda_env_name=conda_env_name,
+                venv_path=venv_path,
+                cluster=cluster,
+                uv=(self.install_method == "uv"),
             )
             logger.info(f"Running via install_method pip: {install_cmd}")
             self._install_and_validate_output(
@@ -329,6 +357,7 @@ class Package(Resource):
                 ) if not cluster else run_setup_command(
                     f'export PATH="$PATH;{self.install_target.path_to_sync_to_on_cluster}"',
                     cluster=cluster,
+                    venv_path=venv_path,
                     node=node,
                 )
             elif not cluster:
@@ -530,7 +559,7 @@ class Package(Resource):
                 else:
                     # We want to preferrably install this version of the package server-side
                     install_method == install_method or "pip"
-                    if install_method == "pip":
+                    if install_method in ["pip", "uv"]:
                         preferred_version = locally_installed_version
 
         # If install method is still not set, default to pip
@@ -541,7 +570,7 @@ class Package(Resource):
             return Package(
                 install_target=target, install_method=install_method, dryrun=dryrun
             )
-        elif install_method in ["pip", "conda"]:
+        elif install_method in ["pip", "uv", "conda"]:
             return Package(
                 install_target=target,
                 install_args=args,

@@ -27,6 +27,17 @@ def pip_package():
 
 
 @pytest.fixture(scope="session")
+def uv_package():
+    args = {
+        "install_target": "scipy",
+        "install_method": "uv",
+    }
+    package = rh.Package(**args)
+    init_args[id(package)] = args
+    return package
+
+
+@pytest.fixture(scope="session")
 def conda_package():
     args = {
         "install_target": "pandas",

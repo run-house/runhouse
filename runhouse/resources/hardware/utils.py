@@ -46,6 +46,7 @@ class ServerConnectionType(str, Enum):
 
     SSH = "ssh"
     TLS = "tls"
+    DOCKER = "docker"
     NONE = "none"
 
 
@@ -190,6 +191,33 @@ def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
         cluster.install_packages(
             setup_step.kwargs.get("reqs"),
             conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            venv_path=setup_step.kwargs.get("venv_path"),
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.PIP_INSTALL:
+        cluster.pip_install(
+            setup_step.kwargs.get("reqs"),
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            venv_path=setup_step.kwargs.get("venv_path"),
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.UV_INSTALL:
+        cluster.uv_install(
+            setup_step.kwargs.get("reqs"),
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            venv_path=setup_step.kwargs.get("venv_path"),
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.CONDA_INSTALL:
+        cluster.conda_install(
+            setup_step.kwargs.get("reqs"),
+            conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            venv_path=setup_step.kwargs.get("venv_path"),
+            node=node,
+        )
+    elif setup_step.step_type == ImageSetupStepType.SYNC_PACKAGE:
+        cluster.sync_package(
+            setup_step.kwargs.get("package"),
             node=node,
         )
     elif setup_step.step_type == ImageSetupStepType.CMD_RUN:
@@ -198,6 +226,7 @@ def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
             cluster=cluster,
             env_vars=env_vars,
             conda_env_name=setup_step.kwargs.get("conda_env_name"),
+            venv_path=setup_step.kwargs.get("venv_path"),
             stream_logs=True,
             node=node,
         )
@@ -209,23 +238,6 @@ def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
             up=True,
             contents=setup_step.kwargs.get("contents"),
             filter_options=setup_step.kwargs.get("filter_options"),
-        )
-    elif setup_step.step_type == ImageSetupStepType.PIP_INSTALL:
-        cluster.pip_install(
-            setup_step.kwargs.get("reqs"),
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            node=node,
-        )
-    elif setup_step.step_type == ImageSetupStepType.CONDA_INSTALL:
-        cluster.conda_install(
-            setup_step.kwargs.get("reqs"),
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            node=node,
-        )
-    elif setup_step.step_type == ImageSetupStepType.SYNC_PACKAGE:
-        cluster.sync_package(
-            setup_step.kwargs.get("package"),
-            node=node,
         )
 
 
@@ -275,6 +287,22 @@ def _setup_creds_from_dict(ssh_creds: Dict, cluster_name: str):
         ssh_properties = creds
 
     return cluster_secret, ssh_properties
+
+
+def cast_node_to_ip(ips: List[str], node: Union[str, int] = None):
+    if not node or node in ips or node == "all":
+        return node
+
+    elif node == "head":
+        return ips[0]
+
+    elif isinstance(node, str) and node.isnumeric():
+        node = int(node)
+
+    if isinstance(node, int) and node < len(ips):
+        return ips[node]
+
+    raise ValueError(f"Node {node} is unsupported, could not get its IP.")
 
 
 ###################################

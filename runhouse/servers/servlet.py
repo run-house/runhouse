@@ -309,7 +309,7 @@ class Servlet:
 
         collected_gpus_info = copy.deepcopy(self.gpu_metrics)
 
-        if not collected_gpus_info or not collected_gpus_info[0]:
+        if not collected_gpus_info or not collected_gpus_info.get(0):
             return None
 
         return parse_gpu_usage(
