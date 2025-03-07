@@ -93,7 +93,7 @@ def build_and_run_image(
     import docker
 
     rh_parent_path = Path(importlib.util.find_spec("runhouse").origin).parent.parent
-    dockerfile_path = rh_parent_path / f"docker/slim/{dir_name}/Dockerfile"
+    dockerfile_path = rh_parent_path / f"docker/testing/{dir_name}/Dockerfile"
     rh_path = "runhouse" if (rh_parent_path / "setup.py").exists() else None
     rh_version = rh.__version__ if not rh_path else None
 
@@ -500,6 +500,7 @@ def docker_cluster_pwd_ssh_no_auth(request, test_rns_folder):
     - Password authentication
     - No Den Auth
     - No caddy/port forwarding set up
+    - Python version 3.11 specified in image and using uv
     """
     import os
 
@@ -519,6 +520,8 @@ def docker_cluster_pwd_ssh_no_auth(request, test_rns_folder):
     rh_parent_path = get_rh_parent_path()
     pwd = (rh_parent_path.parent / pwd_file).read_text().strip()
 
+    default_image = Image(python_version="3.11").uv_install(TEST_REQS)
+
     local_cluster, cleanup = set_up_local_cluster(
         image_name="pwd",
         container_name="rh-pwd",
@@ -532,6 +535,7 @@ def docker_cluster_pwd_ssh_no_auth(request, test_rns_folder):
             "name": f"{test_rns_folder}_docker_cluster_pwd_ssh_no_auth",
             "server_connection_type": "ssh",
             "ssh_creds": {"ssh_user": SSH_USER, "password": pwd},
+            "image": default_image,
         },
     )
     # Yield the cluster

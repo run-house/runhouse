@@ -25,7 +25,9 @@ ImageSteupStepType
     .. autoattribute:: SET_ENV_VARS
     .. autoattribute:: PIP_INSTALL
     .. autoattribute:: CONDA_INSTALL
+    .. autoattribute:: UV_INSTALL
     .. autoattribute:: SYNC_PACKAGE
+    .. autoattribute:: SET_VENV
 
 ImageSetupStep
 ~~~~~~~~~~~~~~

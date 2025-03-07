@@ -19,7 +19,6 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from enum import Enum
 from io import SEEK_SET, StringIO
-
 from itertools import cycle
 from pathlib import Path
 from time import sleep
@@ -55,11 +54,17 @@ def conda_env_cmd(cmd, conda_env_name):
     return f"conda run -n {conda_env_name} ${{SHELL:-/bin/bash}} -c {shlex.quote(cmd)}"
 
 
+def venv_cmd(cmd, venv_path, subprocess: bool = False):
+    source = "source" if not subprocess else "."
+    return f"{source} {venv_path}/bin/activate && {cmd}"
+
+
 def run_setup_command(
     cmd: str,
     cluster: "Cluster" = None,
     env_vars: Dict = None,
     conda_env_name: Optional[str] = None,
+    venv_path: Optional[str] = None,
     stream_logs: bool = True,
     node: Optional[str] = None,
 ):
@@ -86,7 +91,11 @@ def run_setup_command(
     if conda_env_name:
         cmd = conda_env_cmd(cmd, conda_env_name)
     return cluster._run_commands_with_runner(
-        [cmd], stream_logs=stream_logs, env_vars=env_vars, node=node
+        [cmd],
+        stream_logs=stream_logs,
+        env_vars=env_vars,
+        node=node,
+        venv_path=venv_path,
     )[0]
 
 
@@ -181,17 +190,19 @@ def find_locally_installed_version(package_name: str) -> Optional[str]:
 
 
 def get_local_install_path(package_name: str) -> Optional[str]:
-    distribution = metadata.distribution(package_name)
-    direct_url_json = distribution.read_text("direct_url.json")
-    if direct_url_json:
-        # File URL starts with file://
-        try:
-            url = json.loads(direct_url_json).get("url", None)
-            if url:
-                if url.startswith("file://"):
-                    return url[len("file://") :]
-        except json.JSONDecodeError:
-            return None
+    from importlib.metadata import distributions
+
+    for dist in distributions():
+        direct_url_json = dist.read_text("direct_url.json")
+        if direct_url_json and dist.metadata["Name"].lower() == package_name.lower():
+            try:
+                url = json.loads(direct_url_json).get("url", None)
+                if url:
+                    if url.startswith("file://"):
+                        return url[len("file://") :]
+            except json.JSONDecodeError:
+                pass
+    return None
 
 
 def is_python_package_string(s: str) -> bool:
@@ -904,17 +915,24 @@ def parse_gpu_usage(collected_gpu_info: dict, servlet_type: ServletType):
         )  # getting the latest free_memory value collected.
 
     for gpu_index in gpus_indices:
-        collected_gpu_info = collected_gpu_info.get(gpu_index)
+        current_collected_gpu_info = collected_gpu_info.get(gpu_index)
+        if not current_collected_gpu_info:
+            continue
         sum_used_memery = sum(
-            [gpu_info.get("used_memory") for gpu_info in collected_gpu_info]
+            [gpu_info.get("used_memory") for gpu_info in current_collected_gpu_info]
         )
         total_used_memory = sum_used_memery / len(collected_gpu_info)  # average
 
         if servlet_type == ServletType.cluster:
             sum_cpu_util = sum(
-                [gpu_info.get("utilization_percent") for gpu_info in collected_gpu_info]
+                [
+                    gpu_info.get("utilization_percent")
+                    for gpu_info in current_collected_gpu_info
+                ]
             )
-            gpu_utilization_percent = sum_cpu_util / len(collected_gpu_info)  # average
+            gpu_utilization_percent = sum_cpu_util / len(
+                current_collected_gpu_info
+            )  # average
 
     total_used_memory = int(total_used_memory / len(gpus_indices))
     used_memory_percent = round(

@@ -44,6 +44,7 @@ from runhouse.utils import (
     run_setup_command,
     thread_coroutine,
     ThreadWithException,
+    venv_cmd,
 )
 
 # Filter out DeprecationWarnings
@@ -74,6 +75,7 @@ from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import (
     _current_cluster,
     _run_ssh_command,
+    cast_node_to_ip,
     check_disk_sufficiency,
     get_source_object_size,
     ServerConnectionType,
@@ -221,8 +223,14 @@ class Cluster(Resource):
 
     @property
     def conda_env_name(self) -> Optional[str]:
-        if self.image and self.image.conda_env_name:
+        if self.image:
             return self.image.conda_env_name
+        return None
+
+    @property
+    def venv_path(self) -> Optional[str]:
+        if self.image:
+            return self.image.venv_path
         return None
 
     def _save_config_to_cluster(
@@ -304,6 +312,7 @@ class Cluster(Resource):
     def _setup_creds(self, ssh_creds: Union[Dict, "Secret", str]):
         """Setup cluster credentials from user provided ssh_creds"""
         from runhouse.resources.secrets import Secret
+        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
         if isinstance(ssh_creds, Secret):
             self._creds = ssh_creds
@@ -311,7 +320,7 @@ class Cluster(Resource):
 
         elif isinstance(ssh_creds, str):
             self._creds = (
-                Secret.from_name(ssh_creds)
+                SSHSecret.from_name(ssh_creds)
                 if rns_client.base_folder(ssh_creds) == rns_client.username
                 else None
             )
@@ -326,7 +335,7 @@ class Cluster(Resource):
             self.ssh_properties = ssh_properties
 
     def _setup_default_creds(self):
-        from runhouse.resources.secrets import Secret
+        from runhouse.resources.secrets.provider_secrets.ssh_secret import SSHSecret
 
         default_ssh_key = rns_client.default_ssh_key
         if default_ssh_key is None:
@@ -336,7 +345,7 @@ class Cluster(Resource):
             )
             return None
 
-        return Secret.from_name(default_ssh_key)
+        return SSHSecret.from_name(default_ssh_key)
 
     def _should_save_creds(self, folder: str = None) -> bool:
         """Checks whether to save the creds associated with the cluster.
@@ -429,12 +438,16 @@ class Cluster(Resource):
             from .on_demand_cluster import OnDemandCluster
 
             return OnDemandCluster(**config, dryrun=dryrun)
+        elif resource_subtype == "DockerCluster":
+            from .docker_cluster import DockerCluster
+
+            return DockerCluster(**config, dryrun=dryrun)
         else:
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 
     def config(self, condensed: bool = True):
         config = super().config(condensed)
-        if config.get("resource_subtype") == "Cluster":
+        if config.get("resource_subtype") in ["Cluster", "DockerCluster"]:
             config["ips"] = self._ips
         self.save_attrs_to_config(
             config,
@@ -488,6 +501,7 @@ class Cluster(Resource):
         if self.server_connection_type in [
             ServerConnectionType.NONE,
             ServerConnectionType.TLS,
+            ServerConnectionType.DOCKER,
         ]:
             url_base = (
                 "https"
@@ -506,7 +520,10 @@ class Cluster(Resource):
         if external:
             return None
 
-        if self.server_connection_type == ServerConnectionType.SSH:
+        if self.server_connection_type in [
+            ServerConnectionType.SSH,
+            ServerConnectionType.DOCKER,
+        ]:
             self.client.check_server()
             return f"http://{LOCALHOST}:{client_port}"
 
@@ -649,6 +666,33 @@ class Cluster(Resource):
                 results.append(_do_setup_step_for_node(self, step, ip, env_vars))
         return results
 
+    def _install_uv(
+        self,
+        python_version: Optional[str] = None,
+        parallel: bool = True,
+    ):
+        # uv should be installed outside of the venv
+        self._run_setup_step(
+            step=ImageSetupStep(
+                step_type=ImageSetupStepType.PIP_INSTALL,
+                reqs=["uv"],
+                conda_env_name=self.conda_env_name,
+            ),
+            parallel=parallel,
+        )
+        if python_version:
+            for cmd in [f"uv python install {python_version}", "uv venv --seed"]:
+                results = self._run_setup_step(
+                    step=ImageSetupStep(
+                        step_type=ImageSetupStepType.CMD_RUN,
+                        command=cmd,
+                        conda_env_name=self.conda_env_name,
+                    ),
+                    parallel=parallel,
+                )
+                if results[0][0] != 0:
+                    raise RuntimeError(results[0][2])
+
     def _sync_image_to_cluster(self, parallel: bool = True):
         """
         Image stuff that needs to happen over SSH because the daemon won't be up yet, so we can't
@@ -673,10 +717,19 @@ class Cluster(Resource):
             logger.error(
                 "``image_id`` is only supported for OnDemandCluster, not static Clusters."
             )
+        if self.image.venv_path:
+            env_vars["VIRTUAL_ENV"] = self.image.venv_path
 
         logger.info(f"Syncing default image {self.image} to cluster.")
 
         secrets_to_sync = []
+        uv_install = False
+
+        if self.image.python_version:
+            self._install_uv(
+                python_version=self.image.python_version, parallel=parallel
+            )
+            uv_install = True
 
         for step in self.image.setup_steps:
             if step.step_type == ImageSetupStepType.SYNC_SECRETS:
@@ -686,10 +739,26 @@ class Cluster(Resource):
                 image_env_vars = _process_env_vars(step.kwargs.get("env_vars"))
                 env_vars.update(image_env_vars)
                 continue
+            elif step.step_type == ImageSetupStepType.UV_INSTALL and not uv_install:
+                self._install_uv(parallel=parallel)
+                uv_install = True
 
             self._run_setup_step(step, env_vars, parallel)
 
         return secrets_to_sync, env_vars
+
+    def _get_image_env_vars_only(self):
+        env_vars = {}
+        if not self.image:
+            return env_vars
+
+        for step in self.image.setup_steps:
+            if step.step_type == ImageSetupStepType.SET_ENV_VARS:
+                image_env_vars = _process_env_vars(step.kwargs.get("env_vars"))
+                env_vars.update(image_env_vars)
+                continue
+
+        return env_vars
 
     def _sync_runhouse_to_cluster(
         self,
@@ -702,11 +771,17 @@ class Cluster(Resource):
         if not self.ips:
             raise ValueError(f"No IPs set for cluster <{self.name}>. Is it up?")
 
+        install_type = (
+            ImageSetupStepType.UV_INSTALL
+            if self.image and self.image.python_version
+            else ImageSetupStepType.PIP_INSTALL
+        )
         self._run_setup_step(
             step=ImageSetupStep(
-                step_type=ImageSetupStepType.PIP_INSTALL,
+                step_type=install_type,
                 reqs=["ray", "psutil"],
                 conda_env_name=self.conda_env_name,
+                venv_path=self.venv_path,
             ),
             parallel=parallel,
         )
@@ -723,9 +798,11 @@ class Cluster(Resource):
 
         self._run_setup_step(
             step=ImageSetupStep(
-                step_type=ImageSetupStepType.PIP_INSTALL,
+                step_type=install_type,
                 reqs=["runhouse[server]"],
                 conda_env_name=self.conda_env_name,
+                override_remote_version=True,
+                venv_path=self.venv_path,
             ),
             parallel=parallel,
         )
@@ -735,7 +812,8 @@ class Cluster(Resource):
         reqs: List[Union["Package", str]],
         node: Optional[str] = None,
         conda_env_name: Optional[str] = None,
-        force_sync_local: bool = False,
+        venv_path: Optional[str] = None,
+        override_remote_version: bool = False,
     ):
         """Install the given packages on the cluster.
 
@@ -745,27 +823,30 @@ class Cluster(Resource):
                 package. (Default: ``None``)
             conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
                 defaults to base environment. (Default: ``None``)
-            force_sync_local (bool, optional): If the package exists both locally and remotely, whether to override
+            venv_path (str, optional): Path of venv to install the package in, if relevant. (Defautl: ``None``)
+            override_remote_version (bool, optional): If the package exists both locally and remotely, whether to override
                 the remote version with the local version. By default, the local version will be installed only if
                 the package does not already exist on the cluster. (Default: ``False``)
 
         Example:
             >>> cluster.pip_install(reqs=["accelerate", "diffusers"])
-            >>> cluster.pip_install(reqs=["accelerate", "diffusers"], conda_env_name="my_conda_env", force_sync_local=True)
+            >>> cluster.pip_install(reqs=["accelerate", "diffusers"], conda_env_name="my_conda_env", override_remote_version=True)
         """
         for req in reqs:
             if not node:
                 self.install_package(
                     req,
                     conda_env_name=conda_env_name,
-                    force_sync_local=force_sync_local,
+                    venv_path=venv_path,
+                    override_remote_version=override_remote_version,
                 )
             else:
                 self.install_package_over_ssh(
                     req,
                     node=node,
                     conda_env_name=conda_env_name,
-                    force_sync_local=force_sync_local,
+                    venv_path=venv_path,
+                    override_remote_version=override_remote_version,
                 )
 
     def pip_install(
@@ -773,7 +854,8 @@ class Cluster(Resource):
         reqs: List[Union["Package", str]],
         node: Optional[str] = None,
         conda_env_name: Optional[str] = None,
-        force_sync_local: bool = False,
+        venv_path: Optional[str] = None,
+        override_remote_version: bool = False,
     ):
         from runhouse.resources.packages.package import Package
 
@@ -785,7 +867,30 @@ class Cluster(Resource):
             reqs=pip_packages,
             node=node,
             conda_env_name=conda_env_name,
-            force_sync_local=force_sync_local,
+            venv_path=venv_path,
+            override_remote_version=override_remote_version,
+        )
+
+    def uv_install(
+        self,
+        reqs: List[Union["Package", str]],
+        node: Optional[str] = None,
+        conda_env_name: Optional[str] = None,
+        venv_path: Optional[str] = None,
+        override_remote_version: bool = False,
+    ):
+        from runhouse.resources.packages.package import Package
+
+        uv_packages = [
+            Package.from_string(f"uv:{req}") if isinstance(req, str) else req
+            for req in reqs
+        ]
+        self.install_packages(
+            reqs=uv_packages,
+            node=node,
+            conda_env_name=conda_env_name,
+            venv_path=venv_path,
+            override_remote_version=override_remote_version,
         )
 
     def conda_install(
@@ -793,7 +898,7 @@ class Cluster(Resource):
         reqs: List[Union["Package", str]],
         node: Optional[str] = None,
         conda_env_name: Optional[str] = None,
-        force_sync_local: bool = False,
+        override_remote_version: bool = False,
     ):
         from runhouse.resources.packages.package import Package
 
@@ -805,14 +910,13 @@ class Cluster(Resource):
             reqs=conda_packages,
             node=node,
             conda_env_name=conda_env_name,
-            force_sync_local=force_sync_local,
+            override_remote_version=override_remote_version,
         )
 
     def sync_package(
         self,
         package: Union["Package", str],
         node: Optional[str] = None,
-        conda_env_name: Optional[str] = None,
     ):
         from runhouse.resources.packages.package import Package
 
@@ -824,7 +928,6 @@ class Cluster(Resource):
         self.install_packages(
             reqs=[package],
             node=node,
-            conda_env_name=conda_env_name,
         )
 
     def get(self, key: str, default: Any = None, remote=False):
@@ -1009,6 +1112,7 @@ class Cluster(Resource):
             if self.server_connection_type not in [
                 ServerConnectionType.NONE,
                 ServerConnectionType.TLS,
+                ServerConnectionType.DOCKER,
             ]:
                 raise ValueError(
                     f"Unknown server connection type {self.server_connection_type}."
@@ -1127,6 +1231,7 @@ class Cluster(Resource):
                 cluster=self,
                 env_vars=env_vars,
                 conda_env_name=self.conda_env_name,
+                venv_path=self.venv_path,
                 node=host,
                 stream_logs=True,
             )
@@ -1135,11 +1240,17 @@ class Cluster(Resource):
         self,
         base_cli_cmd: str,
         resync_rh: Optional[bool] = None,
+        resync_image: bool = True,
         restart_ray: bool = True,
         restart_proxy: bool = False,
         parallel: bool = True,
     ):
-        image_secrets, image_env_vars = self._sync_image_to_cluster(parallel=parallel)
+        if resync_image:
+            image_secrets, image_env_vars = self._sync_image_to_cluster(
+                parallel=parallel
+            )
+        else:
+            image_secrets, image_env_vars = [], self._get_image_env_vars_only()
 
         # If resync_rh is not explicitly False, check if Runhouse is installed editable
         local_rh_package_path = None
@@ -1251,6 +1362,11 @@ class Cluster(Resource):
                 if self.image and self.image.conda_env_name
                 else ""
             )
+            + (
+                f" --venv {self.image.venv_path}"
+                if self.image and self.image.venv_path
+                else ""
+            )
             + " --from-python"
         )
 
@@ -1259,6 +1375,7 @@ class Cluster(Resource):
             cluster=self,
             env_vars=image_env_vars,
             conda_env_name=self.conda_env_name,
+            venv_path=self.venv_path,
             stream_logs=True,
             node=self.head_ip,
         )
@@ -1289,6 +1406,7 @@ class Cluster(Resource):
     def restart_server(
         self,
         resync_rh: Optional[bool] = None,
+        resync_image: bool = True,
         restart_ray: bool = True,
         restart_proxy: bool = False,
         parallel: bool = True,
@@ -1315,6 +1433,7 @@ class Cluster(Resource):
         return self._start_or_restart_helper(
             base_cli_cmd=CLI_RESTART_CMD,
             resync_rh=resync_rh,
+            resync_image=resync_image,
             restart_ray=restart_ray,
             restart_proxy=restart_proxy,
             parallel=parallel,
@@ -1323,6 +1442,7 @@ class Cluster(Resource):
     def start_server(
         self,
         resync_rh: Optional[bool] = None,
+        resync_image: bool = True,
         restart_ray: bool = True,
         restart_proxy: bool = False,
         parallel: bool = True,
@@ -1344,6 +1464,7 @@ class Cluster(Resource):
         return self._start_or_restart_helper(
             base_cli_cmd=CLI_START_CMD,
             resync_rh=resync_rh,
+            resync_image=resync_image,
             restart_ray=restart_ray,
             restart_proxy=restart_proxy,
             parallel=parallel,
@@ -1354,6 +1475,7 @@ class Cluster(Resource):
         stop_ray: bool = False,
         cleanup_actors: bool = True,
         conda_env_name: Optional[str] = None,
+        venv_path: Optional[str] = None,
     ):
         """Stop the RPC server.
 
@@ -1374,6 +1496,7 @@ class Cluster(Resource):
             node=self.head_ip,
             require_outputs=False,
             conda_env_name=conda_env_name,
+            venv_path=venv_path,
         )
         assert status_codes[0] == 0
 
@@ -1467,7 +1590,7 @@ class Cluster(Resource):
         source: str,
         dest: str,
         up: bool = True,
-        node: str = None,
+        node: Union[str, int] = None,
         src_node: str = None,
         contents: bool = False,
         filter_options: str = None,
@@ -1484,7 +1607,7 @@ class Cluster(Resource):
             up (bool): The direction of the sync. If ``True``, will rsync from local to cluster. If ``False``
               will rsync from cluster to local.
             node (str, optional): Specific cluster node to rsync to. If not specified will use the
-                address of the cluster's head node.
+                address of the cluster's head node. Accepts node ip, node index (head node is 0), or 'head'.
             src_node (str, optional): Specific cluster node to rsync from, for node-to-node rsyncs.
             contents (bool, optional): Whether the contents of the source directory or the directory
                 itself should be copied to destination. If ``True`` the contents of the source directory are
@@ -1506,6 +1629,10 @@ class Cluster(Resource):
         # If we need to change it to be greedier we can.
         if not src_node and up and not Path(source).expanduser().exists():
             raise ValueError(f"Could not locate path to sync: {source}.")
+
+        node = cast_node_to_ip(
+            node=node, ips=self.ips
+        )  # in case the user provided "head" or node index.
 
         # before syncing the object, making sure there is enough disk space for it. If we don't preform this check in
         # advance, there might be a case where we start rsyncing the object -> during the rsync no disk space will
@@ -1950,6 +2077,7 @@ class Cluster(Resource):
         require_outputs: bool = True,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
         conda_env_name: Optional[str] = None,
+        venv_path: Optional[str] = None,
     ):
         """Run bash commands on the cluster over SSH. Will not work directly on the cluster, works strictly over
         ssh.
@@ -1962,6 +2090,7 @@ class Cluster(Resource):
             stream_logs (bool): Whether to stream logs. (Default: ``True``)
             require_outputs (bool): Whether to return stdout/stderr in addition to status code. (Default: ``True``)
             conda_env_name (str or None): Name of conda env to run the command in, if applicable. (Defaut: ``None``)
+            venv_path: (str or None): Path of venv to run the command in, if applicable. (Defaut: ``None``)
         """
         if self.on_this_cluster():
             raise ValueError("Run bash over SSH is not supported on the local cluster.")
@@ -1987,6 +2116,13 @@ class Cluster(Resource):
                 )
                 res_list.append(res)
             return res_list
+
+        venv_path = venv_path or self.image.venv_path if self.image else None
+
+        if conda_env_name:
+            commands = [conda_env_cmd(cmd, conda_env_name) for cmd in commands]
+        if venv_path:
+            commands = [venv_cmd(cmd, venv_path) for cmd in commands]
 
         return_codes = self._run_commands_with_runner(
             commands,
@@ -2053,6 +2189,7 @@ class Cluster(Resource):
         stream_logs: bool = True,
         node: str = None,
         require_outputs: bool = True,
+        venv_path: str = None,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
     ):
         from runhouse.resources.hardware.sky_command_runner import SshMode
@@ -2084,6 +2221,8 @@ class Cluster(Resource):
 
             # set env vars after log statement
             command = f"{env_var_prefix} {command}" if env_var_prefix else command
+            if venv_path:
+                command = venv_cmd(command, venv_path=venv_path)
 
             if not pwd:
                 ssh_mode = (
@@ -2139,6 +2278,7 @@ class Cluster(Resource):
         self,
         commands: List[str],
         conda_env_name: Optional[str] = None,
+        venv_path: Optional[str] = None,
         stream_logs: bool = True,
         node: str = None,
     ):
@@ -2146,7 +2286,8 @@ class Cluster(Resource):
 
         Args:
             commands (List[str]): List of commands to run.
-            process (str, optional): Process to run the commands in. (Default: ``None``)
+            conda_env_name (str or None): Name of conda env to run the command in, if applicable. (Defaut: ``None``)
+            venv_path: (str or None): Path of venv to run the command in, if applicable. (Defaut: ``None``)
             stream_logs (bool, optional): Whether to stream logs. (Default: ``True``)
             node (str, optional): Node to run commands on. If not specified, runs on head node. (Default: ``None``)
 
@@ -2170,6 +2311,7 @@ class Cluster(Resource):
             stream_logs=stream_logs,
             node=node,
             conda_env_name=conda_env_name,
+            venv_path=venv_path,
         )
 
         return return_codes
@@ -2794,7 +2936,8 @@ class Cluster(Resource):
         self,
         package: Union["Package", str],
         conda_env_name: Optional[str] = None,
-        force_sync_local: bool = False,
+        venv_path: Optional[str] = None,
+        override_remote_version: bool = False,
     ):
         from runhouse.resources.packages.package import Package
 
@@ -2803,18 +2946,27 @@ class Cluster(Resource):
 
         if self.on_this_cluster():
             obj_store.ainstall_package_in_all_nodes_and_processes(
-                package, conda_env_name, force_sync_local
+                package=package,
+                conda_env_name=conda_env_name,
+                venv_path=venv_path,
+                override_remote_version=override_remote_version,
             )
         else:
             package = package.to(self)
-            self.client.install_package(package, conda_env_name, force_sync_local)
+            self.client.install_package(
+                package=package,
+                conda_env_name=conda_env_name,
+                venv_path=venv_path,
+                override_remote_version=override_remote_version,
+            )
 
     def install_package_over_ssh(
         self,
         package: Union["Package", str],
         node: str,
         conda_env_name: str,
-        force_sync_local: bool = False,
+        venv_path: str,
+        override_remote_version: bool = False,
     ):
         from runhouse.resources.packages import InstallTarget, Package
 
@@ -2830,5 +2982,6 @@ class Cluster(Resource):
             cluster=self,
             node=node,
             conda_env_name=conda_env_name,
-            force_sync_local=force_sync_local,
+            venv_path=venv_path,
+            override_remote_version=override_remote_version,
         )

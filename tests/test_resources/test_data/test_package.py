@@ -23,6 +23,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
 
     packages = [
         "pip_package",
+        "uv_package",
         "conda_package",
         "local_package",
     ]
@@ -62,6 +63,7 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         [
             "numpy",
             "pip:numpy",
+            "uv:numpy",
             "conda:numpy",
             "local:./",
         ],
@@ -73,6 +75,8 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
 
         if package.install_method == "local":
             assert isinstance(package.install_target, InstallTarget)
+        else:
+            assert package.install_target == "numpy"
 
     # --------- test install command ---------
     @pytest.mark.level("unit")
@@ -80,6 +84,13 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         assert (
             pip_package._pip_install_cmd()
             == f'{sys.executable} -m pip install "{pip_package.install_target}"'
+        )
+
+    @pytest.mark.level("unit")
+    def test_uv_install_cmd(self, uv_package):
+        assert (
+            uv_package._pip_install_cmd()
+            == f'uv pip install "{uv_package.install_target}"'
         )
 
     @pytest.mark.level("unit")
@@ -103,6 +114,23 @@ class TestPackage(tests.test_resources.test_resource.TestResource):
         # install from on the cluster
         remote_package = cluster.put_resource(pip_package)
         cluster.call(remote_package, "_install")
+
+    @pytest.mark.level("local")
+    def test_uv_install(self, cluster, uv_package):
+        assert (
+            uv_package._pip_install_cmd(cluster=cluster)
+            == f'uv pip install "{uv_package.install_target}"'
+        )
+
+        # install through remote ssh
+        if cluster.image and cluster.image.venv_path:
+            uv_package._install(cluster=cluster)
+
+            # install from on the cluster
+            remote_package = cluster.put_resource(uv_package)
+            cluster.call(remote_package, "_install")
+        else:
+            pytest.skip("uv not installed on cluster. skipping test.")
 
     @pytest.mark.level("release")
     def test_conda_install(self, cluster, conda_package):

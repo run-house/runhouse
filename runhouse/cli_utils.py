@@ -665,22 +665,6 @@ def get_local_or_remote_cluster(cluster_name: str = None, exit_on_error: bool = 
 
 
 ####################################################################################################
-# Cluster ssh utils
-####################################################################################################
-
-
-def get_node_ip(node: str, cluster_ips: list):
-    if node in cluster_ips:
-        return node
-    elif node == "head":
-        return cluster_ips[0]
-    elif node.isnumeric():
-        return cluster_ips[int(node)]
-    else:
-        raise ValueError(f"Node {node} is unsupported, could not get its IP.")
-
-
-####################################################################################################
 # General utils
 ####################################################################################################
 class LogsSince(str, Enum):

@@ -849,7 +849,8 @@ class HTTPClient:
         self,
         package: "Package",
         conda_env_name: Optional[str] = None,
-        force_sync_local: bool = False,
+        venv_path: Optional[str] = None,
+        override_remote_version: bool = False,
     ):
         return self.request_json(
             "/install_package",
@@ -857,7 +858,8 @@ class HTTPClient:
             json_dict=InstallPackageParams(
                 package_config=package.config(),
                 conda_env_name=conda_env_name,
-                force_sync_local=force_sync_local,
+                venv_path=venv_path,
+                override_remote_version=override_remote_version,
             ).model_dump(),
         )
 

@@ -1989,7 +1989,8 @@ class ObjStore:
         self,
         package: "Package",
         conda_env_name: Optional[str] = None,
-        force_sync_local: bool = False,
+        venv_path: Optional[str] = None,
+        override_remote_version: bool = False,
     ):
         from runhouse.resources.packages import InstallTarget, Package
         from runhouse.resources.packages.package import INSTALL_METHODS
@@ -2007,7 +2008,7 @@ class ObjStore:
 
         logger.info(f"Installing {str(package)} with method {package.install_method}.")
 
-        if package.install_method == "pip":
+        if package.install_method in ["pip", "uv"]:
 
             # If this is a generic pip package, with no version pinned, we want to check if there is a version
             # already installed. If there is, then we ignore preferred version and leave the existing version.
@@ -2019,7 +2020,7 @@ class ObjStore:
                     retcode = run_with_logs(
                         f"python3 -c \"import importlib.util; exit(0) if importlib.util.find_spec('{package.install_target}') else exit(1)\"",
                     )
-                    if retcode != 0 or force_sync_local:
+                    if retcode != 0 or override_remote_version:
                         package.install_target = (
                             f"{package.install_target}=={package.preferred_version}"
                         )
@@ -2031,9 +2032,19 @@ class ObjStore:
                             _path_to_sync_to_on_cluster=package.install_target,
                         )
 
-            install_cmd = package._pip_install_cmd(conda_env_name=conda_env_name)
-            logger.info(f"Running via install_method pip: {install_cmd}")
-            await self._install_packages_in_nodes_helper(install_cmd)
+            install_cmd = package._pip_install_cmd(
+                conda_env_name=conda_env_name,
+                venv_path=venv_path,
+                uv=(package.install_method == "uv"),
+            )
+            logger.info(
+                f"Running via install_method {package.install_method}: {install_cmd}"
+            )
+            run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
+            if any(run_cmd_result != 0 for run_cmd_result in run_cmd_results):
+                raise RuntimeError(
+                    f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
+                )
 
         elif package.install_method == "conda":
             install_cmd = package._conda_install_cmd(conda_env_name=conda_env_name)
