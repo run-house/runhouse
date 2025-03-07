@@ -64,7 +64,7 @@ server.
     cluster.up_if_not()
 
 There are a number of options to specify the resources more finely, such
-as GPUs (``accelerators="A10G:4"``), cloud provider names
+as GPUs (``gpus="A10G:4"``), cloud provider names
 (``instance_type="m5.xlarge"``), ``num_nodes=n`` for multiple instances,
 ``memory``, ``disk_size``, ``region``, ``use_spot``, and more. See the
 `on_demand_cluster docs
