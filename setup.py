@@ -102,7 +102,9 @@ extras_require = {
     "kubernetes": ["skypilot[kubernetes]==0.7.0", "kubernetes"],
 }
 
-extras_require["all"] = sum(extras_require.values(), [])
+all_extras = sum(extras_require.values(), [])
+all_extras.remove("skypilot==0.7.0")
+extras_require["all"] = all_extras
 
 long_description = ""
 readme_filepath = "README.md"
