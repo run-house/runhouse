@@ -442,6 +442,10 @@ class Cluster(Resource):
             from .docker_cluster import DockerCluster
 
             return DockerCluster(**config, dryrun=dryrun)
+        elif resource_subtype == "PodsCluster":
+            from .pods_cluster import PodsCluster
+
+            return PodsCluster(**config, dryrun=dryrun)
         else:
             raise ValueError(f"Unknown cluster type {resource_subtype}")
 
@@ -1181,7 +1185,11 @@ class Cluster(Resource):
     ) -> "SshTunnel":
         from runhouse.resources.hardware.ssh_tunnel import ssh_tunnel
 
-        cloud = self.compute_properties.get("cloud")
+        compute = (
+            "pods"
+            if self.__class__.__name__ == "PodsCluster"
+            else self.compute_properties.get("cloud")
+        )
         return ssh_tunnel(
             address=self.head_ip,
             ssh_properties=self.ssh_properties,
@@ -1190,7 +1198,7 @@ class Cluster(Resource):
             ssh_port=self.ssh_port,
             remote_port=remote_port,
             num_ports_to_try=num_ports_to_try,
-            cloud=cloud,
+            compute=compute,
         )
 
     @property
@@ -2101,9 +2109,6 @@ class Cluster(Resource):
         if node is None:
             node = self.head_ip
 
-        if conda_env_name:
-            commands = [conda_env_cmd(cmd, conda_env_name) for cmd in commands]
-
         if node == "all":
             res_list = []
             for node in self.ips:
@@ -2113,10 +2118,14 @@ class Cluster(Resource):
                     require_outputs=require_outputs,
                     node=node,
                     _ssh_mode=_ssh_mode,
+                    conda_env_name=conda_env_name,
+                    venv_path=venv_path,
                 )
                 res_list.append(res)
             return res_list
 
+        # TODO - there's a possibility of running bash command prior to image venv being created,
+        # need to support that case (same with in pods cluster)
         venv_path = venv_path or self.image.venv_path if self.image else None
 
         if conda_env_name:
