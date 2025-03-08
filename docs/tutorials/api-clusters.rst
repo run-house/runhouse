@@ -100,6 +100,8 @@ If you would like to launch on-demand clusters using existing VPCs,
 you can easily set it up by specifying the :code:`vpc_name` argument when initializing a cluster.
 Without setting VPC, we launch in the default VPC in the region of the cluster.
 
+If you would like to also launch clusters with an existing security group, you can specify it with the :code:`security_group` argument when initializing a cluster.
+
 If you need support for more advanced enterprise configurations, please email support@run.house for more information.
 
 On-Demand Clusters with TLS exposed

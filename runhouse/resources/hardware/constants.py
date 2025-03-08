@@ -13,6 +13,7 @@ ONDEMAND_COMPUTE_ARGS = {
     "memory",
     "disk_size",
     "vpc_name",
+    "security_group",
     "num_cpus",
     "accelerators",
     "gpus",
