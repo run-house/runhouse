@@ -35,9 +35,9 @@ if __name__ == "__main__":
 
     img = rh.Image("dask_img").pip_install(
         [
-            "dask-ml",
-            "dask[distributed]",
-            "dask[dataframe]",
+            "dask[distributed]<2024.11.0",
+            "dask[dataframe]<2024.11.0",
+            "dask-ml<2025.1.0",
             "boto3",
             "s3fs",
             "xgboost",
