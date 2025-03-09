@@ -4,10 +4,21 @@
 # Use the official Python image as a parent image
 FROM python:3.11-slim
 
-# Install screen and Runhouse
-RUN apt-get update && apt-get install -y screen procps rsync ssh netcat-traditional
-RUN python -m pip install --upgrade pip
-RUN python -m pip install runhouse[server]
+ARG RUNHOUSE_EXTRAS=server
+ARG BRANCH_NAME=None
+RUN echo "RUNHOUSE_EXTRAS is: $RUNHOUSE_EXTRAS"
+RUN echo "BRANCH_NAME is: BRANCH_NAME"
+
+# get the correct runhouse version based on BRANCH_NAME, install screen and Runhouse
+RUN if [ "$BRANCH_NAME" = "None" ]; then \
+        export rh_version="runhouse[${RUNHOUSE_EXTRAS}]"; \
+    else \
+        export rh_version="runhouse[${RUNHOUSE_EXTRAS}] @ git+https://github.com/run-house/runhouse.git@$BRANCH_NAME"; \
+    fi && \
+    echo "install_pkg is: $rh_version" && \
+    apt-get update && apt-get install -y screen procps rsync ssh netcat-traditional git && \
+    python -m pip install --upgrade pip && \
+    python -m pip install "$rh_version"
 
 # Alias python3 as python
 RUN ln -s /usr/bin/python3 /usr/bin/python

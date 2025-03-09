@@ -82,7 +82,7 @@ install_requires = [
 
 # NOTE: Change the templates/spot-controller.yaml.j2 file if any of the following
 # packages dependencies are changed.
-extras_require = {
+extras_require: dict = {
     "sky": ["skypilot==0.7.0"],
     "data": ["pandas"],
     "server": ["ray[default] >= 2.9.0", "uvicorn", "fastapi", "pynvml", "psutil"],
