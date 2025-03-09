@@ -90,6 +90,7 @@ CALLABLE_RESOURCE_TYPES = [
     "PyTorchDistributed",
     "DistributedPool",
     "DaskDistributed",
+    "SparkDistributed",
 ]
 
 # We collect gpu every GPU_COLLECTION_INTERVAL.
