@@ -163,7 +163,9 @@ class HTTPServer:
                 DEFAULT_PROCESS_NAME,
                 setup_ray=RaySetupOption.TEST_PROCESS,
                 create_process_params=CreateProcessParams(
-                    name=DEFAULT_PROCESS_NAME, runtime_env=runtime_env
+                    name=DEFAULT_PROCESS_NAME,
+                    runtime_env=runtime_env,
+                    compute={"node_idx": 0},
                 ),
             )
 
@@ -173,6 +175,7 @@ class HTTPServer:
             create_process_params=CreateProcessParams(
                 name=DEFAULT_PROCESS_NAME,
                 runtime_env=runtime_env,
+                compute={"node_idx": 0},
             ),
             create=True,
         )
