@@ -1807,7 +1807,6 @@ class Cluster(Resource):
         """Rsync from head node onto another cluster node."""
         # Note: this is a minimal local rsync function, to rsync from one node to another node on the cluster.
         # It does not support more advanced args in rsync such as contents=True or rsyncing within the same node
-
         src_node = src_node or self.head_ip
         if src_node == node:
             raise ValueError(
@@ -1852,7 +1851,6 @@ class Cluster(Resource):
             f"Rsyncing {source} on node {src_node_idx} ({src_node}) to "
             f"{dest} on node {dest_node_idx} ({node})."
         )
-        self.run_bash(f"mkdir -p {dest}", node=node, stream_logs=stream_logs)
         self.run_bash(" ".join(rsync_cmd), node=src_node, stream_logs=stream_logs)
 
     def ssh(self):

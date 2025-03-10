@@ -348,13 +348,18 @@ def parse_str_to_dict(dict_as_str: str):
 
 
 def get_source_object_size(path: str):
+    # TODO - currently only supported for local source path. Add support for checking a path on a cluster for
+    # node to node rsyncs
     object_path = Path(path)
-    if object_path.is_dir():
-        # checks the size of all objects in the folder, including subdirectories. rglob is a recursive method, so it
-        # checks all files in all sub-folders, if such exist.
-        return sum(f.stat().st_size for f in object_path.rglob("*") if f.is_file())
-    else:
-        return object_path.stat().st_size
+    try:
+        if object_path.is_dir():
+            # checks the size of all objects in the folder, including subdirectories. rglob is a recursive method, so it
+            # checks all files in all sub-folders, if such exist.
+            return sum(f.stat().st_size for f in object_path.rglob("*") if f.is_file())
+        else:
+            return object_path.stat().st_size
+    except FileNotFoundError:
+        return 0
 
 
 def check_disk_sufficiency(

@@ -124,10 +124,10 @@ class TestMultiNodeCluster:
         proc1_node = status["processes"][proc1]["node_ip"]
         proc2_node = status["processes"][proc2]["node_ip"]
         proc3_node = status["processes"][proc3]["node_ip"]
-        assert proc0_node in cluster.internal_ips
-        assert proc1_node in cluster.internal_ips
-        assert proc2_node in cluster.internal_ips
-        assert proc3_node in cluster.internal_ips
+        assert proc0_node in cluster.ips
+        assert proc1_node in cluster.ips
+        assert proc2_node in cluster.ips
+        assert proc3_node in cluster.ips
 
         assert proc0_node != proc1_node  # Too much CPU
         assert proc2_node != proc3_node  # Too much memory

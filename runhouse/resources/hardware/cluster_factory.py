@@ -319,8 +319,10 @@ def ondemand_cluster(
             raise e
 
     if not cluster_args.get("launcher"):
-        cluster_args["launcher"] = new_cluster.launcher or configs.launcher
-    cluster_args["launcher"] = cluster_args["launcher"].lower()
+        if new_cluster and new_cluster.launcher:
+            cluster_args["launcher"] = new_cluster.launcher.lower()
+        else:
+            cluster_args["launcher"] = configs.launcher.lower()
     if cluster_args.get("launcher") not in LauncherType.strings():
         launcher = cluster_args.get("launcher")
         raise ValueError(
