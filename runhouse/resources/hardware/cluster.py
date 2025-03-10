@@ -1742,6 +1742,7 @@ class Cluster(Resource):
             ssh_port=self.ssh_port,
             ssh_private_key=ssh_properties["ssh_private_key"],
             docker_user=self.docker_user,
+            ssh_proxy_command=ssh_properties.get("ssh_proxy_command"),
         )
 
     def _ping(self, timeout=5, retry=False):
