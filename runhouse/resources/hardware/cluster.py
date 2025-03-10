@@ -1851,6 +1851,7 @@ class Cluster(Resource):
             f"Rsyncing {source} on node {src_node_idx} ({src_node}) to "
             f"{dest} on node {dest_node_idx} ({node})."
         )
+        self.run_bash(f"mkdir -p {dest}", node=node, stream_logs=stream_logs)
         self.run_bash(" ".join(rsync_cmd), node=src_node, stream_logs=stream_logs)
 
     def ssh(self):
