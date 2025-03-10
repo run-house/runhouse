@@ -14,7 +14,6 @@ ONDEMAND_COMPUTE_ARGS = {
     "disk_size",
     "vpc_name",
     "num_cpus",
-    "accelerators",
     "gpus",
     "sky_kwargs",
     "launcher",

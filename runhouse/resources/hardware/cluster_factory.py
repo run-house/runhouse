@@ -147,19 +147,13 @@ def cluster(
                 )
         else:
             cluster_type = "static"
-    except ValueError:
+    except ValueError as e:
         new_cluster = None
         cluster_type = "unsaved"
 
-    if cluster_type == "unsaved" and cluster_args.keys() == {
-        "name",
-        "load_from_den",
-        "dryrun",
-    }:
-        raise ValueError(
-            f"Cluster {name} not found in Den. Must provide cluster arguments to construct "
-            "a new cluster object."
-        )
+        if cluster_args.keys() == {"name", "load_from_den", "dryrun"}:
+            # loading from name, error is either that cluster doesn't exist or an issue in setup
+            raise e
 
     cluster_args["creds"] = cluster_args.get("creds", rns_client.default_ssh_key)
     if cluster_type == "unsaved":
@@ -197,7 +191,6 @@ def ondemand_cluster(
     memory: Union[int, str, None] = None,
     disk_size: Optional[int] = None,
     num_cpus: Union[int, str, None] = None,
-    accelerators: Union[int, str, None] = None,
     gpus: Union[int, str, None] = None,
     open_ports: Union[int, str, List[int], None] = None,
     vpc_name: Optional[str] = None,
@@ -310,45 +303,41 @@ def ondemand_cluster(
         >>> # Load cluster from above
         >>> reloaded_cluster = rh.ondemand_cluster(name="rh-4-a100s")
     """
-    launcher = launcher.lower() if launcher else configs.launcher
-    if launcher not in LauncherType.strings():
-        raise ValueError(
-            f"Invalid launcher type '{launcher}'. Must be one of {LauncherType.strings()}."
-        )
-
-    if vpc_name and launcher == "local":
-        raise ValueError(
-            "Custom VPCs are not supported with local launching. To use a custom VPC, please use the "
-            "Den launcher. For more information see "
-            "https://www.run.house/docs/installation-setup#den-launcher"
-        )
-
     cluster_args = locals().copy()
     cluster_args = {k: v for k, v in cluster_args.items() if v is not None}
-    if "accelerators" in cluster_args:
-        logger.warning(
-            "``accelerators`` argument has been deprecated. Please use ``gpus`` argument instead."
-        )
-        cluster_args["gpus"] = cluster_args.pop("accelerators")
 
     try:
         new_cluster = Cluster.from_name(
             name, load_from_den=load_from_den, dryrun=dryrun
         )
         cluster_type = "ondemand"
-    except ValueError:
+    except ValueError as e:
         new_cluster = None
         cluster_type = "unsaved"
+
+        if cluster_args.keys() == {"name", "use_spot", "load_from_den", "dryrun"}:
+            raise e
+
+    if not cluster_args.get("launcher"):
+        cluster_args["launcher"] = new_cluster.launcher or configs.launcher
+    cluster_args["launcher"] = cluster_args["launcher"].lower()
+    if cluster_args.get("launcher") not in LauncherType.strings():
+        launcher = cluster_args.get("launcher")
+        raise ValueError(
+            f"Invalid launcher type '{launcher}'. Must be one of {LauncherType.strings()}."
+        )
+
+    if vpc_name and cluster_args.get("launcher") == "local":
+        raise ValueError(
+            "Custom VPCs are not supported with local launching. To use a custom VPC, please use the "
+            "Den launcher. For more information see "
+            "https://www.run.house/docs/installation-setup#den-launcher"
+        )
 
     if cluster_args.keys() & KUBERNETES_CLUSTER_ARGS:
         setup_kubernetes(**cluster_args)
 
     if cluster_type == "unsaved":
-        if cluster_args.keys() == {"name", "use_spot", "load_from_den", "dryrun"}:
-            raise ValueError(
-                f"OndemandCluster {name} not found in Den. Must provide cluster arguments to construct "
-                "a new cluster object."
-            )
         new_cluster = OnDemandCluster(**cluster_args)
     elif cluster_type == "ondemand":
         mismatches = _config_and_args_mismatches(new_cluster.config(), cluster_args)
