@@ -161,9 +161,9 @@ class ProviderSecret(Secret):
         if system.on_this_cluster():
             if not process and not path == self.path:
                 if name and not self.name == name:
-                    self.rename(name)
+                    system.rename(self.name, name)
                 return self
-            self.write(path=path, env=process)
+            self.write(path=path)
             if path and len(system.ips) > 1:
                 for node in system.ips[1:]:
                     system._local_rsync(src=path, dest=Path(path).parent, node=node)
