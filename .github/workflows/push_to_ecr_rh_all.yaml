@@ -18,8 +18,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.DEV_AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.DEV_AWS_SECRET_KEY }}
           aws-region: us-east-1
 
       - name: Login to Amazon ECR Public
@@ -32,14 +32,26 @@ jobs:
         id: set-image-tag
         run: |
 
-          BRANCH_NAME=${GITHUB_REF##*/}  # Extracts the branch name from $GITHUB_REF
-          if [[ $BRANCH_NAME != 'main' ]]; then
-            # Build a dev image for pull requests
-            IMAGE_TAG=rh-all-${BRANCH_NAME}-${GITHUB_SHA::8}
-          else
-            # Build a image for main branch pushes
-            IMAGE_TAG=rh-all-main-${GITHUB_SHA::8}
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"  # Extract branch name from refs/heads/<branch>
+          PR_BRANCH_NAME="${GITHUB_HEAD_REF:-}"     # For pull requests, GITHUB_HEAD_REF contains the branch name
+
+          if [[ -n "$PR_BRANCH_NAME" ]]; then
+              # If it's a pull request, use the PR branch name instead
+              BRANCH_NAME="$PR_BRANCH_NAME"
           fi
+
+          if [[ "$BRANCH_NAME" != "main" ]]; then
+              # Build a dev image for pull requests or feature branches
+              IMAGE_TAG="rh-all-${BRANCH_NAME}-${GITHUB_SHA::8}"
+          else
+              # Build an image for main branch pushes
+              IMAGE_TAG="rh-all-main-${GITHUB_SHA::8}"
+          fi
+
+          # Replace "/" with "-" in the image tag
+          IMAGE_TAG="${IMAGE_TAG//\//-}"
+
+          # Save environment variables
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
           echo "GITHUB_REF=$GITHUB_REF" >> $GITHUB_ENV
