@@ -196,6 +196,7 @@ class DenLauncher(Launcher):
     """Launcher APIs for operations handled remotely via Den."""
 
     LAUNCH_URL = f"{rns_client.api_server_url}/cluster/up"
+    POOL_LAUNCH_URL = f"{rns_client.api_server_url}/compute/up"
     TEARDOWN_URL = f"{rns_client.api_server_url}/cluster/teardown"
     AUTOSTOP_URL = f"{rns_client.api_server_url}/cluster/autostop"
 
@@ -267,10 +268,12 @@ class DenLauncher(Launcher):
             "default_ssh_key": configs.get("default_ssh_key"),
         }
 
+        base_url = cls.POOL_LAUNCH_URL if cluster_config.get("pool") else cls.LAUNCH_URL
+
         if verbose:
             try:
                 data = cls.run_verbose(
-                    base_url=cls.LAUNCH_URL,
+                    base_url=base_url,
                     payload=payload,
                     cluster_name=cluster_config.get("name"),
                 )
@@ -283,7 +286,7 @@ class DenLauncher(Launcher):
 
         # Blocking call with no streaming
         resp = requests.post(
-            cls.LAUNCH_URL,
+            base_url,
             json=payload,
             headers=rns_client.request_headers(),
         )
