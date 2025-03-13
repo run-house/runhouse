@@ -1,15 +1,15 @@
 # # A Basic Torch Image Classification Example with the MNIST Dataset
 
 
-# Deploy a basic Torch model and training class to a remote GPU for training
-# using Runhouse.
+# Deploy a basic Torch model and training class to a remote GPU for training.
 #
 # We use the very popular MNIST dataset, which includes a large number
 # of handwritten digits, and create a neural network that accurately identifies
 # what digit is in an image.
 #
 # ## Setting up a model class
-import runhouse as rh
+import kubetorch as kt
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -180,50 +180,27 @@ class SimpleTrainer:
         return status
 
 
-# ## Setting up Runhouse to run the defined class and functions remotely.
-#
-# Now, we define the main function that will run locally when we run this script, and set up
-# our Runhouse module on a remote gpu. First, we dfine compute of the desired instance type and provider.
+# Now, we define the main function that will run locally when we run this script, and send our
+# our class to a remote gpu. First, we define compute of the desired instance type and provider.
 # Our `instance_type` here is defined as `A10G:1`, which is the accelerator type and count that we need. We could
 # alternatively specify a specific AWS instance type, such as `p3.2xlarge` or `g4dn.xlarge`.
-#
-# Learn more in the [Runhouse docs on compute](/docs/tutorials/api-clusters).
-#
 if __name__ == "__main__":
     # Define the compute - here we launch an on-demand cluster with 1 NVIDIA A10G GPU.
     # You can further specify the cloud, other compute constraints, or use existing compute
-    gpu = rh.compute(
-        name="a10g",
-        instance_type="A10G:1",
-        image=rh.images.pytorch(),
-    ).up_if_not()
+    gpu = kt.Compute(gpus="A10G:1", image=kt.images.pytorch())
 
-    # We define our module and run it on the remote compute. We take our normal Python class SimpleTrainer, and wrap it in rh.cls()
+    # We define our module and run it on the remote compute. We take our normal Python class SimpleTrainer, and wrap it in kt.cls()
     # We also take our function DownloadData and send it to the remote compute as well
     # Then, we use `.to()` to send it to the remote gpu we just defined.
-    #
-    remote_torch_example = rh.cls(SimpleTrainer).to(gpu, name="torch-basic-training")
-    remote_download = rh.function(download_data).to(gpu)
-    remote_preprocess = rh.function(preprocess_data).to(gpu)
+    model = kt.cls(SimpleTrainer).to(gpu).init()
 
-    # ## Calling our remote Trainer
-    # We instantiate the remote class
-    model = remote_torch_example(
-        name="torch_model"
-    )  # Instantiating it based on the remote RH module, and naming it "torch_model".
-
-    # Though we could just as easily run identical code on local
-    # model = SimpleTrainer()       # If instantiating a local example
+    model.compute.run_python(download_data)
+    model.compute.run_python(preprocess_data, path="./data")
 
     # We set some settings for the model training
     batch_size = 64
     epochs = 5
     learning_rate = 0.01
-
-    # We create the datasets remotely, and then send them to the remote model / remote .load_train() method. The "preprocessing" happens remotely.
-    # They become instance variables of the remote Trainer.
-    remote_download()
-    remote_preprocess("./data")
 
     model.load_train("./data", batch_size)
     model.load_test("./data", batch_size)

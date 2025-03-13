@@ -1,16 +1,16 @@
 # # Distributed ResNet Training with PyTorch Lightning
 #
 # In this example, we begin with regular Lightning code, defining the Lightning and data modules, and a Trainer class that encapsulates the training routine.
-# Runhouse does not need changes or alterations to standard Lightning training code in order to distribute and run it, but rather is designed
+# Kubetorch does not need changes or alterations to standard Lightning training code in order to distribute and run it, but rather is designed
 # to work with your existing codebase and standard training routines.
 #
-# Then we have the script's main, which will launch the Runhouse cluster, dispatch the Lightning class to the remote compute,
+# Then we have the script's main, which will dispatch the Lightning class to the remote compute,
 # wire up distribution, and run the training.
 import subprocess
 
+import kubetorch as kt
 import boto3
 import lightning as L
-import runhouse as rh
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -207,64 +207,46 @@ class ResNetTrainer:
 
 
 # ## Launch Compute and Run the Training
-# We will now launch Runhouse compute with multiple nodes and use it to train the ResNet with Lightning.
+# We will now dispatch and run the ResNet training on multiple nodes.
 # The data we use here is a sampled, preprocessed set of images from the ImageNet dataset. You can
-# see the preprocessing script at https://github.com/run-house/runhouse/blob/main/examples/pytorch-resnet/imagenet_preproc.py
+# see the preprocessing script at examples/pytorch-resnet/imagenet_preproc.py
 if __name__ == "__main__":
+    working_s3_bucket = "s3://kt-demo-external"
+    working_s3_path = "resnet-training-example/"
     train_data_path = (
-        "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/train/"
+        f"{working_s3_bucket}/resnet-training-example/preprocessed_imagenet/train/"
     )
     val_data_path = (
-        "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/test/"
+        f"{working_s3_bucket}/resnet-training-example/preprocessed_imagenet/test/"
     )
 
-    working_s3_bucket = "rh-demo-external"
-    working_s3_path = "resnet-training-example/"
 
-    # We will launch a 3 node cluster with 1 GPU per node, and define the image to use for the cluster
-    # which here is a set of packages to install, but optionally could depend on a custom AMI, Docker image,
-    # include env vars, further bash commands, etc.
-    gpus_per_node = 1
-    num_nodes = 3
-
-    img = rh.images.pytorch().pip_install(
+    # We define the image to use for the cluster which here is a set of packages to install,
+    # but optionally could depend on a custom AMI, Docker image, include env vars, further bash commands, etc.
+    img = kt.images.pytorch().pip_install(
         [
             "datasets",
             "boto3",
             "awscli",
             "lightning",
         ]
-    )
-
-    gpus = (
-        rh.compute(
-            name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-            gpus=f"A10G:{gpus_per_node}",
-            num_nodes=num_nodes,
-            provider="aws",
-            image=img,
-        )
-        .up_if_not()
-        .save()
-    )
-
-    # gpus.restart_server() # to restart the Runhouse server, does not tear down the actual underlying compute
-    gpus.sync_secrets(["aws"])  # sends our AWS secret to the remote compute
+    ).sync_secrets(["aws"])
+    gpus = kt.compute(gpus=f"A10G:1", image=img)
 
     # Now that the cluster is up, we will send our trainer to the remote compute, instantiate a remote instance of it, and run the training.
     # Note that we call .distribute("pytorch") to set up the PyTorch distributed backend. We run the training for 15 epochs with a batch size of 32,
     # calling methods on the remote instance as if it were local.
-    trainer = rh.cls(ResNetTrainer).to(gpus)
-    epochs = 15
-    batch_size = 32
-
-    remote_trainer = trainer(
+    init_args = dict(
         name="resnet_trainer",
-        num_nodes=num_nodes,
-        gpus_per_node=gpus_per_node,
+        num_nodes=4,
+        gpus_per_node=1,
         working_s3_bucket=working_s3_bucket,
         working_s3_path=working_s3_path,
-    ).distribute("pytorch")
+    )
+    remote_trainer = kt.cls(ResNetTrainer).to(gpus, kwargs=init_args).distribute("pytorch", num_nodes=4)
+
+    epochs = 15
+    batch_size = 32
 
     remote_trainer.load_data(
         train_data_path=train_data_path,
