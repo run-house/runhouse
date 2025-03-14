@@ -4,7 +4,7 @@
 # Key components include:
 # - A custom ResNet-152 model class with optional pretrained weights from S3.
 # - A trainer class for managing the training loop, data loading, and distributed communication.
-# - Integration with Runhouse for cluster management and remote execution.
+# - Integration with Kubetorch for cluster management and remote execution.
 
 import subprocess
 
@@ -243,12 +243,11 @@ class ResNet152Trainer:
             return predicted.item()
 
 
-# ### Run distributed training with Runhouse
-# The following code snippet demonstrates how to create a Runhouse cluster and run the distributed training pipeline on the cluster.
-# - We define a 3 node cluster with GPUs where we will do the training.
-# - Then we dispatch the trainer class to the remote cluster
+# ### Run distributed training
+# The following code snippet demonstrates how to launch compute and run the distributed training pipeline on the remote compute.
+# - We define a 3 node compute with GPUs where we will do the training.
+# - Then we dispatch the trainer class to the remote compute
 # - We create an instance of the trainer class on remote, and call .distribute('pytorch') to properly setup the distributed training. It's that easy.
-# - This remote trainer instance is accessible by name - if we construct the cluster by name, and run cluster.get('trainer') we will get the remote trainer instance. This means you can make multithreaded calls against the trainer class.
 # - The main training loop trains the model for 15 epochs and the model checkpoints are saved to S3
 if __name__ == "__main__":
     working_s3_bucket = "rh-demo-external"
