@@ -8,7 +8,7 @@
 
 import subprocess
 
-import runhouse as rh
+import kubetorch as kt
 
 import torch
 from datasets import load_from_disk
@@ -251,50 +251,50 @@ class ResNet152Trainer:
 # - This remote trainer instance is accessible by name - if we construct the cluster by name, and run cluster.get('trainer') we will get the remote trainer instance. This means you can make multithreaded calls against the trainer class.
 # - The main training loop trains the model for 15 epochs and the model checkpoints are saved to S3
 if __name__ == "__main__":
-    train_data_path = (
-        "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/train/"
-    )
-    val_data_path = (
-        "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/test/"
-    )
-
     working_s3_bucket = "rh-demo-external"
     working_s3_path = "resnet-training-example/"
+
+    train_data_path = (
+        f"s3://{working_s3_bucket}/{working_s3_path}/preprocessed_imagenet/train/"
+    )
+    val_data_path = (
+        f"s3://{working_s3_bucket}/{working_s3_path}/preprocessed_imagenet/test/"
+    )
 
     # Create a cluster of 3 x 1 GPUs
     gpus_per_node = 1
     num_nodes = 3
 
-    img = rh.Image(name="pytorch").pip_install(
-        [
-            "torch==2.5.1 torchvision==0.20.1",
-            "Pillow==11.0.0",
-            "datasets",
-            "boto3",
-            "awscli",
-        ],
+    img = (
+        kt.images.pytorch()
+        .pip_install(
+            [
+                "torchvision==0.20.1",
+                "Pillow==11.0.0",
+                "datasets",
+                "boto3",
+                "awscli",
+            ],
+        )
+        .sync_secrets(["aws"])
     )
-    gpu_cluster = rh.compute(
-        name=f"rh-{num_nodes}x{gpus_per_node}-gpu",
-        instance_type=f"A10G:{gpus_per_node}",
-        num_nodes=num_nodes,
-        provider="aws",
-        image=img,
-    ).up_if_not()
+    gpu_compute = kt.Compute(gpus=f"A10G:{gpus_per_node}", image=img)
 
-    gpu_cluster.sync_secrets(["aws"])
+    init_args = dict(
+        name="resnet_trainer",
+        num_nodes=num_nodes,
+        gpus_per_node=gpus_per_node,
+        working_s3_bucket=working_s3_bucket,
+        working_s3_path=working_s3_path,
+    )
+
+    remote_trainer = (
+        kt.cls(ResNetTrainer)
+        .to(gpu_compute, kwargs=init_args)
+        .distribute("pytorch", num_nodes=num_nodes)
+    )
 
     epochs = 15
-    remote_trainer_class = rh.cls(ResNet152Trainer).to(gpu_cluster)
-
-    remote_trainer = remote_trainer_class(
-        name="trainer", s3_bucket=working_s3_bucket, s3_path=working_s3_path
-    ).distribute(
-        distribution="pytorch",
-        replicas_per_node=gpus_per_node,
-        num_replicas=gpus_per_node * num_nodes,
-    )
-
     remote_trainer.train(
         num_epochs=epochs,
         num_classes=1000,
