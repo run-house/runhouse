@@ -6,12 +6,7 @@ if __name__ == "__main__":
     cluster_name = f"rh-new-{num_nodes}"
 
     img = rh.Image("dask-img").pip_install(
-        [
-            "dask[distributed,dataframe]",
-            "dask-ml",
-            "gcsfs",
-            "lightgbm",
-        ],
+        ["dask[distributed,dataframe]", "dask-ml", "gcsfs", "lightgbm", "s3fs"],
     )
 
     cluster = rh.compute(
