@@ -1,4 +1,4 @@
-import runhouse as rh
+import kubetorch as kt
 import torch
 from dlrm_training import DLRM, read_preprocessed_dlrm
 
@@ -31,7 +31,7 @@ class DLRMInferenceModel:
         }
 
 
-# Function that is sent to the Runhouse launched cluster to be called and do the inference
+# Function that is sent to the Runhouse launched compute to be called and do the inference
 def inference_dlrm(
     num_gpus, num_nodes, model_s3_bucket, model_s3_key, dataset_s3_path, write_s3_path
 ):
@@ -58,33 +58,27 @@ def inference_dlrm(
     predictions.write_parquet(write_s3_path)
 
 
-# Launch cluster and run inference
+# Launch compute and run inference
 if __name__ == "__main__":
     gpus_per_node = 1
     num_nodes = 2
 
     # Define the image again
     img = (
-        rh.Image("ray-data")
-        .pip_install(["torch==2.5.1", "datasets", "boto3", "awscli", "ray[data,train]"])
+        kt.images.pytorch()
+        .pip_install(["datasets", "boto3", "awscli", "ray[data,train]"])
         .sync_secrets(["aws"])
     )
 
-    # Launch the cluster, we can reuse the same cluster as in the training step, or launch a new one
+    # Launch the compute, we can reuse the same compute as in the training step, or launch a new one
     # with fewer nodes.
-    gpu_cluster = rh.compute(
-        name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-        gpus=f"A10G:{gpus_per_node}",
-        num_nodes=num_nodes,
-        provider="aws",
-        image=img,
-    ).up_if_not()
+    gpu_compute = kt.compute(gpus=f"A10G:{gpus_per_node}", image=img)
 
-    # Send the function, and setup Ray on the cluster
+    # Send the function, and setup Ray on the compute
     remote_inference = (
-        rh.function(inference_dlrm)
-        .to(gpu_cluster, name="inference_dlrm")
-        .distribute("ray")
+        kt.function(inference_dlrm)
+        .to(gpu_compute)
+        .distribute("ray", num_nodes=num_nodes)
     )
 
     # Call the inference which writes the results out to a S3 bucket
@@ -97,4 +91,4 @@ if __name__ == "__main__":
         write_s3_path="s3://rh-demo-external/dlrm-training-example/predictions/",
     )
 
-    gpu_cluster.teardown()
+    gpu_compute.teardown()

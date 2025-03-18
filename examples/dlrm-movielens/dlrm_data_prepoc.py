@@ -1,6 +1,6 @@
+import kubetorch as kt
 import ray
 import ray.data
-import runhouse as rh
 from ray.data.preprocessors import StandardScaler
 
 # ## Preprocessing data for DLRM
@@ -36,7 +36,7 @@ def preprocess_data(s3_read_path, s3_write_path, filename):
 
 
 # ## Launch compute and execute
-# Here, we launch a multi-node cluster, dispatch the preprocessing function to the cluster, and call that function.
+# Here, we launch compute, dispatch the preprocessing function to the compute, and call that function.
 # Whether launching elastic compute or from Kubernetes, Runhouse wires up the Ray cluster for you and downs the cluster when complete.
 # Runhouse syncs the code the code across and makes it a callable "service" on the remote.
 # This code can be identically placed within an orchestrator (e.g. my_pipeline.yaml) and identical execution will occur.
@@ -45,39 +45,34 @@ if __name__ == "__main__":
     # Define an image which will be installed on each node of the cluster.
     # An image can include a base Docker image, package installations, setup commands, env vars, and secrets.
     img = (
-        rh.Image("ray-data")
+        kt.images.pytorch()
         .pip_install(
             [
                 "ray[data]",
                 "pandas",
                 "scikit-learn",
-                "torch",
                 "awscli",
             ]
         )
         .sync_secrets(["aws"])
     )
 
-    # Create a Runhouse cluster with 2 nodes with 4 CPUs and 15+GB memory each
+    # Create Kubetorch compute with 8 CPUs and 32GB of memory
     # Launch from AWS (EC2) on US East 1 region
-    cluster = rh.compute(
-        name="rh-ray-preprocessing",
-        num_cpus="4",
-        memory="15+",  # Also `gpus` `disk_size`
-        provider="aws",  # kubernetes, etc.
-        region="us-east-1",  # eu-west-1, etc.
-        num_nodes=2,  # Launch two nodes, each with the requirements above
-        autostop_mins=120,  # There's also default autostop
+    cluster = kt.Compute(
+        num_cpus="8",
+        memory="32",  # Also `gpus` `disk_size`
         image=img,
-    ).up_if_not()
+    )
 
-    # Send the preprocess_data function to the remote cluster
+    # Send the preprocess_data function to the remote cluster and distribute it with Ray over 4 nodes
     remote_preprocess = (
-        rh.function(preprocess_data)
+        kt.function(preprocess_data)
         .to(cluster, name="preprocess_data")
         .distribute(
-            "ray"
-        )  # Runhouse is not only for Ray; you can use 'dask', 'pytorch', etc. here
+            "ray",
+            num_nodes=4,
+        )
     )
 
     # Call the remote function (which uses Ray Data on the Ray cluster we formed)
@@ -88,5 +83,3 @@ if __name__ == "__main__":
     remote_preprocess(
         s3_read_path=s3_raw, s3_write_path=s3_preprocessed, filename=filename
     )
-
-    # cluster.teardown() # to teardown the cluster after the job is done, or you can wait for autostop

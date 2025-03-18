@@ -70,6 +70,8 @@ def find_minimum(num_concurrent_trials=None, num_samples=1, metric_name="score")
 # We will now dispatch the program, set up Ray, and run the hyperparameter optimization
 # on the remote compute.
 if __name__ == "__main__":
-    head = kt.compute(num_cpus=4, image=kt.images.ray())
-    remote_find_minimum = kt.function(find_minimum).to(head).distribute("ray", num_nodes=2)
+    head = kt.Compute(num_cpus=4, image=kt.images.ray())
+    remote_find_minimum = (
+        kt.function(find_minimum).to(head).distribute("ray", num_nodes=2)
+    )
     best_result = remote_find_minimum(num_samples=8)

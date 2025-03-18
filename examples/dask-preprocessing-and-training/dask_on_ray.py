@@ -1,7 +1,7 @@
-import runhouse as rh
+import kubetorch as kt
 
 # ## Using Dask on Ray for data processing
-# Dask on Ray works out of the box with Runhouse clusters. Simply use enable_dask_on_ray()
+# Dask on Ray works out of the box when KT sets up the Ray cluster; simply use enable_dask_on_ray()
 def read_taxi_df_dask(dataset_path, X_vars, y_vars):
     import dask.dataframe as dd
     from ray.util.dask import disable_dask_on_ray, enable_dask_on_ray
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # ## Create a Runhouse cluster with 3 nodes
     num_nodes = 3
 
-    img = rh.Image("dask_img").pip_install(
+    img = kt.images.ray().pip_install(
         [
             "dask-ml",
             "dask[distributed]",
@@ -44,14 +44,7 @@ if __name__ == "__main__":
         ]
     )
 
-    cluster_name = f"py-{num_nodes}"
-    cluster = rh.compute(
-        name=cluster_name,
-        instance_type="r5d.xlarge",
-        num_nodes=num_nodes,
-        provider="aws",
-        image=img,
-    ).up_if_not()
+    cluster = kt.compute(cpus="4+", image=img)
 
     cluster.sync_secrets(["aws"])
 
@@ -61,5 +54,9 @@ if __name__ == "__main__":
     X_vars = ["passenger_count", "trip_distance", "fare_amount"]
     y_var = ["tip_amount"]
 
-    remote_read_taxi_df_dask = rh.function(read_taxi_df_dask).to(cluster)
+    remote_read_taxi_df_dask = (
+        kt.function(read_taxi_df_dask)
+        .to(cluster)
+        .distribute("ray", num_nodes=num_nodes)
+    )
     remote_read_taxi_df_dask(dataset_path, X_vars, y_var)

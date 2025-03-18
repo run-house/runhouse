@@ -8,8 +8,9 @@
 # wire up distribution, and run the training.
 import subprocess
 
-import kubetorch as kt
 import boto3
+
+import kubetorch as kt
 import lightning as L
 import torch
 import torch.nn as nn
@@ -220,18 +221,21 @@ if __name__ == "__main__":
         f"{working_s3_bucket}/resnet-training-example/preprocessed_imagenet/test/"
     )
 
-
     # We define the image to use for the cluster which here is a set of packages to install,
     # but optionally could depend on a custom AMI, Docker image, include env vars, further bash commands, etc.
-    img = kt.images.pytorch().pip_install(
-        [
-            "datasets",
-            "boto3",
-            "awscli",
-            "lightning",
-        ]
-    ).sync_secrets(["aws"])
-    gpus = kt.compute(gpus=f"A10G:1", image=img)
+    img = (
+        kt.images.pytorch()
+        .pip_install(
+            [
+                "datasets",
+                "boto3",
+                "awscli",
+                "lightning",
+            ]
+        )
+        .sync_secrets(["aws"])
+    )
+    gpus = kt.Compute(gpus="A10G:1", image=img)
 
     # Now that the cluster is up, we will send our trainer to the remote compute, instantiate a remote instance of it, and run the training.
     # Note that we call .distribute("pytorch") to set up the PyTorch distributed backend. We run the training for 15 epochs with a batch size of 32,
@@ -243,7 +247,11 @@ if __name__ == "__main__":
         working_s3_bucket=working_s3_bucket,
         working_s3_path=working_s3_path,
     )
-    remote_trainer = kt.cls(ResNetTrainer).to(gpus, kwargs=init_args).distribute("pytorch", num_nodes=4)
+    remote_trainer = (
+        kt.cls(ResNetTrainer)
+        .to(gpus, kwargs=init_args)
+        .distribute("pytorch", num_nodes=4)
+    )
 
     epochs = 15
     batch_size = 32
