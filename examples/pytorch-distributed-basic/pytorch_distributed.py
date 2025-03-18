@@ -51,7 +51,7 @@ def train_loop(epochs):
 
 
 if __name__ == "__main__":
-    gpus = kt.Compute(gpus=f"A10G:1", image=kt.images.pytorch())
+    gpus = kt.Compute(gpus="A10G:1", image=kt.images.pytorch())
     train_ddp = kt.function(train_loop).to(gpus).distribute("pytorch", num_nodes=2)
 
     train_ddp(epochs=10)
