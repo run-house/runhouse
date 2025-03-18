@@ -30,7 +30,6 @@ def read_taxi_df_dask(dataset_path, X_vars, y_vars):
 
 
 if __name__ == "__main__":
-    # ## Create a Runhouse cluster with 3 nodes
     num_nodes = 3
 
     img = kt.images.ray().pip_install(

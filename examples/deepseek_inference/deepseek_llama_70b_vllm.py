@@ -12,7 +12,7 @@
 # which means it takes 1-5 minutes per question asked. It will take some time to download the model
 # to the remote machine on the first run.
 #
-# We can easily add additional nodes with Runhouse, which will automatically form the compute. We will
+# We can easily add additional nodes, which will automatically form the compute. We will
 # rely fully on vllm to make use of them and increasing tensor and pipeline parallelism.
 #
 
@@ -21,7 +21,7 @@
 # This is regular, undecorated Python code, that implements methods to
 # load the model (automatically downloading from HuggingFace), and to generate text from a prompt.
 
-import runhouse as rh
+import kubetorch as kt
 from vllm import LLM, SamplingParams
 
 
@@ -60,49 +60,28 @@ class DeepSeek_Distill_Llama70B_vLLM:
 
 
 # ## Launch Compute and Run Inference
-# Now we will define compute using Runhouse and send our inference class to the remote machine.
-# First, we define an image with torch and vllm and a cluster with 4 x L4 with 1 node.
-# Then, we send our inference class to the remote cluster and instantiate a the remote inference class
+# Now we will define compute using Kubetorch and send our inference class to the remote compute.
+# First, we define an image with torch and vllm and 8 x L4 with 1 node.
+# Then, we send our inference class to the remote compute and instantiate a the remote inference class
 # with the name `deepseek` which we can access by name later. Finally, we call the remote inference class
 # as if it were local to generate text from a list of prompts and print the results. If you launch with multiple nodes
 # you can take advantage of vllm's parallelism.
 
 if __name__ == "__main__":
-    img = rh.images.pytorch().pip_install(["vllm"]).sync_secrets(["huggingface"])
-
-    # Requires access to a cloud account with the necessary permissions to launch compute.
     num_gpus = 8
-    num_nodes = 1
     gpu_type = "L4"
-    use_spot = True
-    region = "us-east-2"
-    launcher = "local"  # or "den" if logged in to Runhouse
-    provider = "aws"  # or gcp, azure, lambda, etc.
-    autostop_mins = 120
 
-    gpus = rh.compute(
-        name=f"rh-{gpu_type}-{num_gpus}x{num_nodes}",
-        num_nodes=num_nodes,
-        instance_type=f"{gpu_type}:{num_gpus}",
-        provider=provider,
-        image=img,
-        use_spot=use_spot,
-        region=region,
-        launcher=launcher,
-        autostop_mins=autostop_mins,
-    ).up_if_not()  # use gpus.restart_server() if you need to reset the remote cluster without tearing it down
+    # Define the image and compute
+    img = kt.images.pytorch().pip_install(["vllm"]).sync_secrets(["huggingface"])
+    gpus = kt.compute(gpus=f"{gpu_type}:{num_gpus}")
 
-    inference_remote = rh.cls(DeepSeek_Distill_Llama70B_vLLM).to(
-        gpus, name="deepseek_vllm"
-    )  # Send the class to remote compute
-    llama = inference_remote(
-        name="deepseek", num_gpus=num_gpus
-    )  # Instantiate class. Can later use gpus.get("deepseek", remote = True) to grab remote inference if already running
+    # Send the inference class to the remote compute
+    init_args = dict(
+        num_gpus=num_gpus,
+    )
+    inference_remote = kt.cls(DeepSeek_Distill_Llama70B_vLLM).to(gpus, kwargs=init_args)
 
-    gpus.ssh_tunnel(
-        8265, 8265
-    )  # View cluster resource utilization dashboard on localhost:8265
-
+    # Run inference remotely and print the results
     queries = [
         "What is the relationship between bees and a beehive compared to programmers and...?",
         "How many R's are in Strawberry?",
@@ -111,7 +90,8 @@ if __name__ == "__main__":
         If the value starts with 4 or 9 use the subtractive form representing one symbol subtracted from the following symbol, for example, 4 is 1 (I) less than 5 (V): IV and 9 is 1 (I) less than 10 (X): IX. Only the following subtractive forms are used: 4 (IV), 9 (IX), 40 (XL), 90 (XC), 400 (CD) and 900 (CM). Only powers of 10 (I, X, C, M) can be appended consecutively at most 3 times to represent multiples of 10. You cannot append 5 (V), 50 (L), or 500 (D) multiple times. If you need to append a symbol 4 times use the subtractive form.
         Given an integer, write and return Python code to convert it to a Roman numeral.""",
     ]
-    outputs = llama.generate(queries, temperature=0.7)
+
+    outputs = inference_remote.generate(queries, temperature=0.7)
     for output in outputs:
         prompt = output.prompt
         generated_text = output.outputs[0].text

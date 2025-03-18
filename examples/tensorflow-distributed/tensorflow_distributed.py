@@ -1,6 +1,6 @@
 # # TensorFlow Multi-node Distributed Training
-# A basic example showing how to use Runhouse to Pythonically run a TensorFlow distributed training script on a
-# cluster of GPUs. We use the TF_CONFIG environment variable to set up the distributed training environment, and
+# A basic example showing how to use Kubetorch to Pythonically run a TensorFlow distributed training script on
+# multiple GPUs. We use the TF_CONFIG environment variable to set up the distributed training environment, and
 # create a separate worker (env) for each rank. We then call the replicas concurrently to trigger coordinated
 # multi-node training. We're using two single-GPU instances (and therefore two ranks) with the
 # MultiWorkerMirroredStrategy, but this same strategy could be used for other TensorFlow distributed strategies.
@@ -10,11 +10,10 @@
 # running distributed training alongside other tasks on the same cluster. It's also significantly easier to debug
 # and monitor, as you can see the output of each rank in real-time and get stack traces if a worker fails.
 
-import asyncio
 import json
 import os
 
-import runhouse as rh
+import kubetorch as kt
 import tensorflow as tf
 
 
@@ -45,41 +44,15 @@ def train_process():
     print(f"Worker {tf_config['task']['index']} finished")
 
 
-async def train():
-    # Create a cluster of 2 GPUs
-    gpus_per_node = 1
-    num_nodes = 2
-    gpus = rh.compute(
-        name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-        instance_type=f"A10G:{gpus_per_node}",
-        num_nodes=num_nodes,
-    ).up_if_not()
-
-    train_workers = []
-    tf_config = {
-        "cluster": {
-            "worker": [f"{ip}:12345" for ip in gpus.internal_ips],
-        },
-    }
-    for i in range(num_nodes):
-        for j in range(gpus_per_node):
-            # Per https://www.tensorflow.org/api_docs/python/tf/distribute/Strategy#attributes
-            tf_config["task"] = {"type": "worker", "index": i * gpus_per_node + j}
-            proc = gpus.ensure_process_created(
-                f"train{i}",
-                env_vars={"TF_CONFIG": json.dumps(tf_config)},
-                compute={"node_idx": i},
-            )
-
-            # While iterating, you can kill the worker processes to stop any pending or hanging calls
-            train_worker = rh.function(train_process).to(gpus, process=proc)
-            train_workers.append(train_worker)
-
-    # Call the workers async to run them concurrently (each will connect and wait for the others)
-    await asyncio.gather(
-        *[train_worker(run_async=True) for train_worker in train_workers]
-    )
-
-
 if __name__ == "__main__":
-    asyncio.run(train())
+    # Create compute with 4 GPUs across multiple nodes
+    gpus_per_node = 1
+    num_nodes = 4
+    gpus = kt.compute(gpus=f"A10G:{gpus_per_node}")
+
+    remote_train = (
+        kt.function(train_process)
+        .to(gpus)
+        .distribute("tensorflow", num_nodes=num_nodes)
+    )
+    remote_train()

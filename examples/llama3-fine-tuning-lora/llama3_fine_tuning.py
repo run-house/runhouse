@@ -1,17 +1,15 @@
-# # Fine-Tune Llama 3 with LoRA on AWS EC2
+# ## Fine-Tune Llama 3 with LoRA
 
 # This example demonstrates how to fine-tune a Meta Llama 3 model with
-# [LoRA](https://huggingface.co/docs/peft/main/en/conceptual_guides/lora) on AWS EC2 using Runhouse. See also our
-# related post for [Llama 2 fine-tuning](https://www.run.house/examples/llama2-fine-tuning-with-lora).
+# [LoRA](https://huggingface.co/docs/peft/main/en/conceptual_guides/lora)
 #
 # Make sure to sign the waiver on the [Hugging Face model](https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct)
 # page so that you can access it.
 #
-# ## Create a model class
 import gc
 from pathlib import Path
 
-import runhouse as rh
+import kubetorch as kt
 
 import torch
 from datasets import load_dataset
@@ -24,12 +22,10 @@ from transformers import (
 )
 from trl import SFTConfig, SFTTrainer
 
+# ## Create a Training Class
 # Next, we define a class that will hold the various methods needed to fine-tune the model.
-# We'll later wrap this with `rh.cls`. This is a Runhouse class that allows you to
+# We'll later wrap this with `kt.cls`. This is a regular class that allows you to
 # run code in your class on a remote machine.
-#
-# Learn more in the [Runhouse docs on functions and modules](/docs/tutorials/api-modules).
-
 DEFAULT_MAX_LENGTH = 200
 
 
@@ -193,15 +189,12 @@ class FineTuner:
         return output[0]["generated_text"]
 
 
-# ## Define Runhouse primitives
+# ## Define Compute and Execution
 #
 # Now, we define code that will run locally when we run this script and set up
-# our Runhouse module on a remote cluster. First, we define compute with the desired instance type and provider.
-# Our `instance_type` here is defined as `A10G:1`, which is the accelerator type and count that we need. We could
-# alternatively specify a specific AWS instance type, such as `p3.2xlarge` or `g4dn.xlarge`.
-#
-# Learn more in the [Runhouse docs on compute](/docs/tutorials/api-clusters).
-#
+# our module on a remote compute. First, we define compute with the desired instance type.
+# Our `gpus` requirement here is defined as `L4:1`, which is the accelerator type and count that we need.
+
 if __name__ == "__main__":
 
     # First, we define the image for our module. This includes the required dependencies that need
@@ -209,14 +202,14 @@ if __name__ == "__main__":
     # Then, we launch a cluster with a GPU.
     # Finally, passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
     img = (
-        rh.images.pytorch()
+        kt.images.pytorch()
         .pip_install(
             [
                 "tensorboard",
                 "transformers",
                 "bitsandbytes",
                 "peft",
-                "trl>0.12.0",
+                "trl",
                 "accelerate",
                 "scipy",
             ]
@@ -224,25 +217,21 @@ if __name__ == "__main__":
         .sync_secrets(["huggingface"])
     )
 
-    gpu = rh.compute(
-        name="rh-a10x",
-        gpus="A10G:1",
+    gpu = kt.Compute(
+        gpus="L4:1",
         memory="32+",
         image=img,
-    ).up_if_not()
-    gpu.restart_server()
+    )
+
     # Finally, we define our module and run it on the remote gpu. We construct it normally and then call
-    # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
-    # by calling `gpu.get(name="llama3-medical-model", remote=True)`. This would return the remote model after an initial run.
-    # If we want to update the module each time we run this script, we prefer to use `to`.
-    RemoteFineTuner = rh.cls(FineTuner).to(gpu, name="FineTuner")
-    fine_tuner_remote = RemoteFineTuner(name="llama3-medical-model")
+    # `to` to run it on the remote cluster.
+    fine_tuner_remote = kt.cls(FineTuner).to(gpu)
 
     # ## Fine-tune the model on the cluster
     #
     # We can call the `tune` method on the model class instance as if it were running locally.
-    # This will run the function on the remote cluster and return the response to our local machine automatically.
-    # Further calls will also run on the remote machine, and maintain state that was updated between calls, like
+    # This will run the function on the remote compute and return the response to our local machine automatically.
+    # Further calls will also run on the remote compute, and maintain state that was updated between calls, like
     # `self.fine_tuned_model`.
     # Once the base model is fine-tuned, we save this new model on the cluster and use it to generate our text predictions.
     #
