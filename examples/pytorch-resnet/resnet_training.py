@@ -260,7 +260,7 @@ if __name__ == "__main__":
         f"s3://{working_s3_bucket}/{working_s3_path}/preprocessed_imagenet/test/"
     )
 
-    # Create a cluster of 3 x 1 GPUs
+    # Create compute with 3 x 1 GPUs
     gpus_per_node = 1
     num_nodes = 3
 

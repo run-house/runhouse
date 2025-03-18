@@ -48,7 +48,7 @@ if __name__ == "__main__":
     # Create compute with 4 GPUs across multiple nodes
     gpus_per_node = 1
     num_nodes = 4
-    gpus = kt.compute(gpus=f"A10G:{gpus_per_node}")
+    gpus = kt.Compute(gpus=f"A10G:{gpus_per_node}")
 
     remote_train = (
         kt.function(train_process)

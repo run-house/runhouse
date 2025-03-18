@@ -82,7 +82,7 @@ class FineTuner:
     def load_fine_tuned_model(self):
         if not self.new_model_exists():
             raise FileNotFoundError(
-                "No fine tuned model found on the cluster. "
+                "No fine tuned model found. "
                 "Call the `tune` method to run the fine tuning."
             )
 
@@ -199,7 +199,7 @@ if __name__ == "__main__":
 
     # First, we define the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
-    # Then, we launch a cluster with a GPU.
+    # Then, we launch compute with attached GPUs.
     # Finally, passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
     img = (
         kt.images.pytorch()
@@ -224,16 +224,16 @@ if __name__ == "__main__":
     )
 
     # Finally, we define our module and run it on the remote gpu. We construct it normally and then call
-    # `to` to run it on the remote cluster.
+    # `to` to run it on the remote compute.
     fine_tuner_remote = kt.cls(FineTuner).to(gpu)
 
-    # ## Fine-tune the model on the cluster
+    # ## Fine-tune the model on the remote compute
     #
     # We can call the `tune` method on the model class instance as if it were running locally.
     # This will run the function on the remote compute and return the response to our local machine automatically.
     # Further calls will also run on the remote compute, and maintain state that was updated between calls, like
     # `self.fine_tuned_model`.
-    # Once the base model is fine-tuned, we save this new model on the cluster and use it to generate our text predictions.
+    # Once the base model is fine-tuned, we save this new model on the compute and use it to generate our text predictions.
     #
     # :::note{.info title="Note"}
     # For this example we are using a [small subset](https://huggingface.co/datasets/Shekswess/medical_llama3_instruct_dataset_short)

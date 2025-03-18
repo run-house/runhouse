@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     # Define the image and compute
     img = kt.images.pytorch().pip_install(["vllm"]).sync_secrets(["huggingface"])
-    gpus = kt.compute(gpus=f"{gpu_type}:{num_gpus}")
+    gpus = kt.Compute(gpus=f"{gpu_type}:{num_gpus}")
 
     # Send the inference class to the remote compute
     init_args = dict(

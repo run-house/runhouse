@@ -297,12 +297,10 @@ if __name__ == "__main__":
         .pip_install(["torch", "datasets", "boto3", "awscli"])
         .sync_secrets(["aws"])
     )
-    gpus = kt.compute(gpus=f"A10G:{gpus_per_node}", image=img)
+    gpus = kt.Compute(gpus=f"A10G:{gpus_per_node}", image=img)
 
     remote_trainer = (
-        kt.function(ray_trainer)
-        .to(gpus, name="ray_trainer")
-        .distribute("ray", num_nodes=num_nodes)
+        kt.function(ray_trainer).to(gpus).distribute("ray", num_nodes=num_nodes)
     )
 
     # Call the training function on the cluster

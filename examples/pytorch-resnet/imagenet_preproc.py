@@ -73,9 +73,8 @@ def download_preproc_and_upload(
 
 if __name__ == "__main__":
     # ## Launch the compute
-    # Define the image and the cluster that the work will be run on.
+    # Define the image and the compute that the work will be run on.
     # The image is package installations and secrets here, but can also take a Docker image as a base.
-    # The cluster here is launched from elastic compute, but can also be launched from a Kubernetes cluster.
     img = (
         kt.images.pytorch()
         .pip_install(
@@ -108,7 +107,7 @@ if __name__ == "__main__":
             f"mkdir -p {cache_dir}/huggingface_cache",
         ]
     )
-    # Send our download / preprocessing function to the cluster we just created
+    # Send our download / preprocessing function to the compute we just created
     remote_preproc = kt.fn(download_preproc_and_upload).to(compute)
     # Download the data, sampling down to 15% for our example
     remote_preproc(

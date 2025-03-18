@@ -43,9 +43,9 @@ if __name__ == "__main__":
         ]
     )
 
-    cluster = kt.compute(cpus="4+", image=img)
+    compute = kt.Compute(cpus="4+", image=img)
 
-    cluster.sync_secrets(["aws"])
+    compute.sync_secrets(["aws"])
 
     # ## Example of using Dask on Ray to read data and minimally preprocess the data
     # Use one slice of the NYC taxi data as an example
@@ -55,7 +55,7 @@ if __name__ == "__main__":
 
     remote_read_taxi_df_dask = (
         kt.function(read_taxi_df_dask)
-        .to(cluster)
+        .to(compute)
         .distribute("ray", num_nodes=num_nodes)
     )
     remote_read_taxi_df_dask(dataset_path, X_vars, y_var)

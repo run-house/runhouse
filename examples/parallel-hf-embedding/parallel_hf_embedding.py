@@ -92,7 +92,7 @@ class URLEmbedder:
 
 # ## Launch compute and dispatch for execution
 # Now, we define the main function that will run locally when we run this script, and set up
-# our module on a remote cluster.
+# our module on a remote compute.
 if __name__ == "__main__":
     # Start by recursively extracting all children URLs from the given URL.
     url_to_recursively_embed = "https://en.wikipedia.org/wiki/Poker"
@@ -106,7 +106,7 @@ if __name__ == "__main__":
     # like this one.
     num_replicas = 4  # Number of models to load side by side
 
-    img = kt.images.pip_install(
+    img = kt.images.ubuntu().pip_install(
         [
             "langchain",
             "langchain-community",
@@ -116,7 +116,7 @@ if __name__ == "__main__":
             "fake_useragent",
         ]
     )
-    compute = kt.compute(gpus="A10G:1", image=img)
+    compute = kt.Compute(gpus="A10G:1", image=img)
 
     init_args = dict(
         model_name_or_path="BAAI/bge-large-en-v1.5",

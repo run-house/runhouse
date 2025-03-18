@@ -5,7 +5,7 @@ from ray.data.preprocessors import StandardScaler
 
 # ## Preprocessing data for DLRM
 # The following function until line 35 is regular, undecorated Python that uses Ray Data for processing.
-# It is sent to the remote cluster for execution.
+# It is sent to the remote compute for execution.
 def preprocess_data(s3_read_path, s3_write_path, filename):
     # Load datasets using Ray Data
     ratings = ray.data.read_csv(f"{s3_read_path}/{filename}")
@@ -42,7 +42,7 @@ def preprocess_data(s3_read_path, s3_write_path, filename):
 # This code can be identically placed within an orchestrator (e.g. my_pipeline.yaml) and identical execution will occur.
 if __name__ == "__main__":
 
-    # Define an image which will be installed on each node of the cluster.
+    # Define an image which will be installed on each node of compute.
     # An image can include a base Docker image, package installations, setup commands, env vars, and secrets.
     img = (
         kt.images.pytorch()
@@ -59,16 +59,16 @@ if __name__ == "__main__":
 
     # Create Kubetorch compute with 8 CPUs and 32GB of memory
     # Launch from AWS (EC2) on US East 1 region
-    cluster = kt.Compute(
+    compute = kt.Compute(
         num_cpus="8",
         memory="32",  # Also `gpus` `disk_size`
         image=img,
     )
 
-    # Send the preprocess_data function to the remote cluster and distribute it with Ray over 4 nodes
+    # Send the preprocess_data function to the remote compute and distribute it with Ray over 4 nodes
     remote_preprocess = (
         kt.function(preprocess_data)
-        .to(cluster, name="preprocess_data")
+        .to(compute)
         .distribute(
             "ray",
             num_nodes=4,

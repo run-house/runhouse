@@ -31,7 +31,7 @@ class DLRMInferenceModel:
         }
 
 
-# Function that is sent to the Runhouse launched compute to be called and do the inference
+# Function that is sent to compute to be called and do the inference
 def inference_dlrm(
     num_gpus, num_nodes, model_s3_bucket, model_s3_key, dataset_s3_path, write_s3_path
 ):
@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
     # Launch the compute, we can reuse the same compute as in the training step, or launch a new one
     # with fewer nodes.
-    gpu_compute = kt.compute(gpus=f"A10G:{gpus_per_node}", image=img)
+    gpu_compute = kt.Compute(gpus=f"A10G:{gpus_per_node}", image=img)
 
     # Send the function, and setup Ray on the compute
     remote_inference = (

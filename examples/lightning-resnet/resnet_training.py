@@ -221,7 +221,7 @@ if __name__ == "__main__":
         f"{working_s3_bucket}/resnet-training-example/preprocessed_imagenet/test/"
     )
 
-    # We define the image to use for the cluster which here is a set of packages to install,
+    # We define the image to use for the compute which here is a set of packages to install,
     # but optionally could depend on a custom AMI, Docker image, include env vars, further bash commands, etc.
     img = (
         kt.images.pytorch()
@@ -237,7 +237,7 @@ if __name__ == "__main__":
     )
     gpus = kt.Compute(gpus="A10G:1", image=img)
 
-    # Now that the cluster is up, we will send our trainer to the remote compute, instantiate a remote instance of it, and run the training.
+    # Now that the compute is up, we will send our trainer to the remote compute, instantiate a remote instance of it, and run the training.
     # Note that we call .distribute("pytorch") to set up the PyTorch distributed backend. We run the training for 15 epochs with a batch size of 32,
     # calling methods on the remote instance as if it were local.
     init_args = dict(

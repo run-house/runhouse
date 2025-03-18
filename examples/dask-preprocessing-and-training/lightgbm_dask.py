@@ -137,7 +137,7 @@ if __name__ == "__main__":
         ]
     )
 
-    cpus = kt.compute(cpus="8", memory="32", image=img).up_if_not()
+    cpus = kt.Compute(cpus="8", memory="32", image=img)
 
     # ## Setup the remote training
     # Now we can dispatch the model trainer class to remote, which is fully locally interactible.

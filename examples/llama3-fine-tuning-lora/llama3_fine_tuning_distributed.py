@@ -142,12 +142,12 @@ class FineTuner:
         self.fine_tuned_model = trainer.model
         trainer.model.save_pretrained(self.fine_tuned_model_name)
         trainer.tokenizer.save_pretrained(self.fine_tuned_model_name)
-        print("Saved model weights and tokenizer on the cluster.")
+        print("Saved model weights and tokenizer on the remote compute.")
 
     def load_fine_tuned_model(self):
         if not self.new_model_exists():
             raise FileNotFoundError(
-                "No fine tuned model found on the cluster. "
+                "No fine tuned model found on the remote compute. "
                 "Call the `tune` method to run the fine tuning."
             )
 
@@ -164,7 +164,7 @@ class FineTuner:
     def generate(self, query: str, max_length: int = DEFAULT_MAX_LENGTH):
         if self.rank == 0:
             if self.fine_tuned_model is None:
-                # Load the fine-tuned model saved on the cluster
+                # Load the fine-tuned model saved on the remote compute
                 self.load_fine_tuned_model()
 
             if self.tokenizer is None:
