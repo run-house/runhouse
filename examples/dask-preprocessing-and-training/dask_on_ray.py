@@ -30,32 +30,30 @@ def read_taxi_df_dask(dataset_path, X_vars, y_vars):
 
 
 if __name__ == "__main__":
-    num_nodes = 3
-
-    img = kt.images.ray().pip_install(
-        [
-            "dask-ml",
-            "dask[distributed]",
-            "dask[dataframe]",
-            "boto3",
-            "s3fs",
-            "xgboost",
-        ]
+    img = (
+        kt.images.ray()
+        .pip_install(
+            [
+                "dask-ml",
+                "dask[distributed]",
+                "dask[dataframe]",
+                "boto3",
+                "s3fs",
+                "xgboost",
+            ]
+        )
+        .sync_secrets(["aws"])
     )
-
     compute = kt.Compute(cpus="4+", image=img)
 
-    compute.sync_secrets(["aws"])
+    remote_read_taxi_df_dask = (
+        kt.fn(read_taxi_df_dask).to(compute).distribute("ray", num_nodes=4)
+    )
 
     # ## Example of using Dask on Ray to read data and minimally preprocess the data
     # Use one slice of the NYC taxi data as an example
-    dataset_path = "s3://rh-demo-external/taxi/yellow_tripdata_2024-01.parquet"
-    X_vars = ["passenger_count", "trip_distance", "fare_amount"]
-    y_var = ["tip_amount"]
-
-    remote_read_taxi_df_dask = (
-        kt.function(read_taxi_df_dask)
-        .to(compute)
-        .distribute("ray", num_nodes=num_nodes)
+    remote_read_taxi_df_dask(
+        dataset_path="s3://rh-demo-external/taxi/yellow_tripdata_2024-01.parquet",
+        X_vars=["passenger_count", "trip_distance", "fare_amount"],
+        y_var=["tip_amount"],
     )
-    remote_read_taxi_df_dask(dataset_path, X_vars, y_var)

@@ -121,14 +121,15 @@ if __name__ == "__main__":
     init_args = dict(
         model_name_or_path="BAAI/bge-large-en-v1.5",
         device="cuda",
-        name="doc_embedder",
     )
 
-    embedder_pool = (
+    # By distributing the service as a pool, we're creating a number of replicas which will be routed to by the
+    # one service object we hold here.
+    embedder = (
         kt.cls(URLEmbedder)
         .to(compute, init_args=init_args)
         .distribute(
-            "pool", num_replicas=num_replicas, replicas_per_node=1, max_concurrency=32
+            "pool", num_nodes=num_replicas, replicas_per_node=1, max_concurrency=32
         )
     )
 
@@ -137,6 +138,6 @@ if __name__ == "__main__":
     # we can call this function exactly as if it were a local module.
     with ThreadPool(num_replicas) as pool:
         embed = partial(
-            embedder_pool.embed_docs, normalize_embeddings=True, stream_logs=False
+            embedder.embed_docs, normalize_embeddings=True, stream_logs=False
         )
         pool.map(embed, urls)

@@ -45,14 +45,8 @@ def train_process():
 
 
 if __name__ == "__main__":
-    # Create compute with 4 GPUs across multiple nodes
-    gpus_per_node = 1
-    num_nodes = 4
-    gpus = kt.Compute(gpus=f"A10G:{gpus_per_node}")
+    # Dispatch the training function to a multi-node cluster with 4 nodes, each with 1 GPU
+    gpus = kt.Compute(gpus="A10G:1", image=kt.images.tensorflow())
+    remote_train = kt.fn(train_process).to(gpus).distribute("tensorflow", num_nodes=4)
 
-    remote_train = (
-        kt.function(train_process)
-        .to(gpus)
-        .distribute("tensorflow", num_nodes=num_nodes)
-    )
     remote_train()
