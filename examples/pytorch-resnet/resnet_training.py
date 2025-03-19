@@ -280,9 +280,6 @@ if __name__ == "__main__":
     gpu_compute = kt.Compute(gpus=f"A10G:{gpus_per_node}", image=img)
 
     init_args = dict(
-        name="resnet_trainer",
-        num_nodes=num_nodes,
-        gpus_per_node=gpus_per_node,
         working_s3_bucket=working_s3_bucket,
         working_s3_path=working_s3_path,
     )

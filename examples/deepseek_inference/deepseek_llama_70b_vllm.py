@@ -28,7 +28,7 @@ from vllm import LLM, SamplingParams
 # Define the image and compute
 img = kt.images.pytorch().pip_install(["vllm"]).sync_secrets(["huggingface"])
 
-
+# Deploys with CLI command `kubetorch deploy `
 @kt.compute(gpus="L4:8", image=img, name="deepseek_llama")
 class DeepSeekDistillLlama70BvLLM:
     def __init__(self, model_id="deepseek-ai/DeepSeek-R1-Distill-Llama-70B"):
