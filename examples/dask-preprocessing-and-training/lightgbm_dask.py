@@ -143,13 +143,12 @@ if __name__ == "__main__":
     # Now we can dispatch the model trainer class to remote, which is fully locally interactible.
     # We can call methods on it as if it were local.
     # Importantly, we use .distribute("dask") to start the Dask cluster and indicate this will be used with Dask
-    remote_dask_trainer = kt.cls(LightGBMModelTrainer).to(cpus)
-    dask_trainer = remote_dask_trainer(name="my_trainer").distribute(
-        "dask",
-        num_nodes=num_nodes,
+    dask_trainer = (
+        kt.cls(LightGBMModelTrainer).to(cpus).distribute("dask", num_nodes=num_nodes)
     )
-
-    cpus.ssh_tunnel("8787", "8787")  # Forward the Dask dashboard to local
+    dask_trainer.compute.ssh_tunnel(
+        "8787", "8787"
+    )  # Forward the Dask dashboard to local
 
     # Now we call the remote model trainer to do the training.
     data_path = "gs://rh-demo-external/taxi_parquet"  # NYC Taxi Data

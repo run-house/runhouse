@@ -48,9 +48,9 @@ def preprocess_data(path):
 
 
 # Next, we define a model class. We define a very basic feedforward neural network with three fully connected layers.
-class TorchExampleBasic(nn.Module):
+class SimpleNN(nn.Module):
     def __init__(self):
-        super(TorchExampleBasic, self).__init__()
+        super(SimpleNN, self).__init__()
         self.fc1 = nn.Linear(28 * 28, 128)
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, 10)
@@ -68,9 +68,10 @@ class TorchExampleBasic(nn.Module):
 # train the model for one epoch, test the model on the test data, and then finally to save
 # the model to S3.
 class SimpleTrainer:
-    def __init__(self):
-        super(SimpleTrainer, self).__init__()
-        self.model = TorchExampleBasic()
+    def __init__(self, from_checkpoint=None):
+        self.model = SimpleNN()
+        if from_checkpoint:
+            self.model.load_state_dict(torch.load(from_checkpoint))
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)

@@ -299,9 +299,7 @@ if __name__ == "__main__":
     )
     gpus = kt.Compute(gpus=f"A10G:{gpus_per_node}", image=img)
 
-    remote_trainer = (
-        kt.function(ray_trainer).to(gpus).distribute("ray", num_nodes=num_nodes)
-    )
+    remote_trainer = kt.fn(ray_trainer).to(gpus).distribute("ray", num_nodes=num_nodes)
 
     # Call the training function on the cluster
     remote_trainer(

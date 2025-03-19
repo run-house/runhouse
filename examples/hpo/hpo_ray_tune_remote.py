@@ -71,7 +71,5 @@ def find_minimum(num_concurrent_trials=None, num_samples=1, metric_name="score")
 # on the remote compute.
 if __name__ == "__main__":
     head = kt.Compute(num_cpus=4, image=kt.images.ray())
-    remote_find_minimum = (
-        kt.function(find_minimum).to(head).distribute("ray", num_nodes=2)
-    )
+    remote_find_minimum = kt.fn(find_minimum).to(head).distribute("ray", num_nodes=2)
     best_result = remote_find_minimum(num_samples=8)

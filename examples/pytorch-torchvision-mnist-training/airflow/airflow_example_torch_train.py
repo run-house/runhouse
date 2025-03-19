@@ -21,35 +21,28 @@ from datetime import datetime, timedelta
 
 import kubetorch as kt
 from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python import PythonOperator
 
 # ## Import the model class from the parent folder
 # This class is the same as the example in https://www.run.house/examples/torch-vision-mnist-basic-model-train-test
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from TorchBasicExample import download_data, preprocess_data, SimpleTrainer
+from torch_basic_example import download_data, preprocess_data, SimpleTrainer
 
 logger = logging.getLogger(__name__)
 
 # ## Define the callable functions.
 # These will be called in sequence by the Airflow PythonOperator. Each task in the Airflow DAG becomes minimal.
 # These callables define both *what tasks are run* and also *where the tasks are run* - essentially, programatically controlling the dispatch.
-
-# We can bring up an on-demand compute. You can access powerful usage patterns by defining compute in code. All subsequent steps connect to this compute by name, but you can bring up other compute for other steps if desired instead.
-def bring_up_compute_callable(**kwargs):
-    logger.info("Connecting to remote compute")
-    compute = kt.Compute(
-        name="a10g-compute",
-        gpus="A10G:1",
-        image=kt.images.pytorch(),
-    )
-    print(compute)
-
+# In this case, we want all the download and train steps to share a filesystem, so we define the compute once and reuse it.
+compute = kt.Compute(
+    name="a10g-compute",
+    gpus="A10G:1",
+    image=kt.images.pytorch(),
+)
 
 # We will send the function to download data to the remote compute and then invoke it to download the data to the remote machine. You can imagine that this is a data access or pre-processing step after which data is prepared.
 def access_data_callable(**kwargs):
     logger.info("Step 2: Access data")
-    compute = kt.Compute(name="a10g-compute")
     remote_download = kt.function(download_data).to(compute)
     remote_preprocess = kt.function(preprocess_data).to(compute)
     logger.info("Download function sent to remote")
@@ -61,11 +54,7 @@ def access_data_callable(**kwargs):
 # Then we instantiate the trainer, and then invoke the training on the remote compute. On the remote, we have a GPU. This is also a natural point to split the workflow if we want to do some tasks on GPU and some on CPU.
 def train_model_callable(**kwargs):
     logger.info("Step 3: Train Model")
-    compute = kt.Compute(name="a10g-compute")
-
-    remote_torch_example = kt.cls(SimpleTrainer).to(
-        compute, name="torch-basic-training"
-    )
+    remote_torch_example = kt.cls(SimpleTrainer).to(compute)
 
     model = remote_torch_example()
 
@@ -84,11 +73,32 @@ def train_model_callable(**kwargs):
             s3_file_path=f"checkpoints/model_epoch_{epoch + 1}.pth",
         )
 
+    model.save_model(
+        bucket_name="my-simple-torch-model-example",
+        s3_file_path="checkpoints/model_final.pth",
+    )
 
-# We programatically down the compute, but we can also reuse this compute by name.
-def down_compute(**kwargs):
-    compute = kt.Compute(name="a10g-compute")
-    compute.teardown()
+
+# We deploy a new service for inference with the trained model checkpoint. Note that we are defining a new compute
+# object rather than reusing the training compute above. Note that we load down the model weights in the image
+# to achieve faster cold start times for our inference service.
+def deploy_inference(**kwargs):
+    logger.info("Step 4: Deploy Inference")
+    checkpoint_path = "s3://my-simple-torch-model-example/checkpoints/model_final.pth"
+    local_checkpoint_path = "/model.pth"
+    img = kt.images.pytorch().run_bash(
+        "aws s3 cp " + checkpoint_path + " " + local_checkpoint_path
+    )
+    inference_compute = kt.Compute(
+        name="a10g-inference",
+        gpus="A10G:1",
+        image=img,
+    )
+
+    init_args = dict(from_checkpoint=local_checkpoint_path)
+    inference = kt.cls(SimpleTrainer).to(inference_compute, init_args=init_args)
+    # We distribute the inference service as an autoscaling pool of between 0 and 6 replicas, with a maximum concurrency of 16.
+    inference.distribute(num_nodes=(0, 6), max_concurrency=16)
 
 
 # ## Define the Airflow DAG
@@ -110,18 +120,6 @@ dag = DAG(
     schedule=timedelta(days=1),
 )
 
-run_sky_status = BashOperator(
-    task_id="run_sky_status",
-    bash_command="sky status",
-    dag=dag,
-)
-
-bring_up_compute_task = PythonOperator(
-    task_id="bring_up_compute_task",
-    python_callable=bring_up_compute_callable,
-    dag=dag,
-)
-
 access_data_task = PythonOperator(
     task_id="access_data_task",
     python_callable=access_data_callable,
@@ -136,18 +134,12 @@ train_model_task = PythonOperator(
 )
 
 
-down_compute_task = PythonOperator(
-    task_id="down_compute_task",
-    python_callable=down_compute,
+deploy_inference_task = PythonOperator(
+    task_id="deploy_inference_task",
+    python_callable=deploy_inference,
     dag=dag,
 )
 
 
 # You can see that this is an incredibly minimal amount of code in Airflow. The callables are callable from the DAG. But you can also run them from a Python script, from a notebook, or anywhere else - so you can instantly iterate on the underlying classes, the functions, and by the time they run locally, they are ready for prime time in your DAG.
-(
-    run_sky_status
-    >> bring_up_compute_task
-    >> access_data_task
-    >> train_model_task
-    >> down_compute_task
-)
+(bring_up_compute_task >> access_data_task >> train_model_task >> deploy_inference)

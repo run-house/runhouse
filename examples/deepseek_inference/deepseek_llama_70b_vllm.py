@@ -15,6 +15,7 @@
 # We can easily add additional nodes, which will automatically form the compute. We will
 # rely fully on vllm to make use of them and increasing tensor and pipeline parallelism.
 #
+import os
 
 # ## Defining the vLLM Inference Class
 # We define a class that will hold the model and allow us to send prompts to it.
@@ -24,18 +25,21 @@
 import kubetorch as kt
 from vllm import LLM, SamplingParams
 
+# Define the image and compute
+img = kt.images.pytorch().pip_install(["vllm"]).sync_secrets(["huggingface"])
 
-class DeepSeek_Distill_Llama70B_vLLM:
-    def __init__(self, num_gpus, model_id="deepseek-ai/DeepSeek-R1-Distill-Llama-70B"):
+
+@kt.compute(gpus="L4:8", image=img, name="deepseek_llama")
+class DeepSeekDistillLlama70BvLLM:
+    def __init__(self, model_id="deepseek-ai/DeepSeek-R1-Distill-Llama-70B"):
         self.model_id = model_id
         self.model = None
-        self.num_gpus = num_gpus
 
     def load_model(self):
         print("loading model")
         self.model = LLM(
             self.model_id,
-            tensor_parallel_size=self.num_gpus,
+            tensor_parallel_size=len(os.environ["CUDA_VISIBLE_DEVICES"].split(",")),
             dtype="bfloat16",
             trust_remote_code=True,
             max_model_len=8192,  # Reduces size of KV store
@@ -68,18 +72,8 @@ class DeepSeek_Distill_Llama70B_vLLM:
 # you can take advantage of vllm's parallelism.
 
 if __name__ == "__main__":
-    num_gpus = 8
-    gpu_type = "L4"
-
-    # Define the image and compute
-    img = kt.images.pytorch().pip_install(["vllm"]).sync_secrets(["huggingface"])
-    gpus = kt.Compute(gpus=f"{gpu_type}:{num_gpus}")
-
-    # Send the inference class to the remote compute
-    init_args = dict(
-        num_gpus=num_gpus,
-    )
-    inference_remote = kt.cls(DeepSeek_Distill_Llama70B_vLLM).to(gpus, kwargs=init_args)
+    # Load the deployed model service
+    deepseek = DeepSeekDistillLlama70BvLLM.from_name("deepseek_llama")
 
     # Run inference remotely and print the results
     queries = [
@@ -91,7 +85,7 @@ if __name__ == "__main__":
         Given an integer, write and return Python code to convert it to a Roman numeral.""",
     ]
 
-    outputs = inference_remote.generate(queries, temperature=0.7)
+    outputs = deepseek.generate(queries, temperature=0.7)
     for output in outputs:
         prompt = output.prompt
         generated_text = output.outputs[0].text
