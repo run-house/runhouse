@@ -181,8 +181,8 @@ class FineTuner:
 #
 # Now, we define code that will run locally when we run this script and set up
 # our fine tuner module on a remote compute. First, we define compute with the desired requirements for a node.
-# Our `gpus` requirement here is defined as `L4:4`, which is the accelerator type and count that we need.
-# We will set the number of nodes to 3 and our training will be distributed across these nodes.
+# Our `gpus` requirement here is defined as `L4:1`, which is the accelerator type and count that we need.
+# We will set the number of nodes to 4 and our training will be distributed across these nodes.
 if __name__ == "__main__":
     img = (
         kt.images.pytorch()
@@ -201,9 +201,9 @@ if __name__ == "__main__":
         .sync_secrets(["huggingface"])
     )
 
-    num_nodes = 3
+    num_nodes = 4
     replicas_per_node = 1
-    gpus_per_node = 4
+    gpus_per_node = 1
 
     compute = kt.Compute(
         gpus=f"L4:{gpus_per_node}",

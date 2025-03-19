@@ -2,4 +2,4 @@ xgboost
 numpy
 pandas
 scikit-learn
-runhouse[aws]
+kubetorch

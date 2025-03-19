@@ -1,5 +1,6 @@
+import kubetorch as kt
+
 import numpy as np
-import runhouse as rh
 import xgboost as xgb
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
@@ -157,28 +158,20 @@ class Trainer:
         self.model.load_model(path)
 
 
-# ## Set up Runhouse primitives
+# ## Set up compute and run training
 #
 # Now, we define the main function that will run locally when we run this script and set up
-# our Runhouse module on a remote cluster. First, we create a cluster with the desired instance type and provider.
+# our module on remote compute. First, we create compute with the desired instance type and provider.
 if __name__ == "__main__":
-    img = rh.Image().pip_install(
+    img = kt.images.ubuntu().pip_install(
         ["xgboost", "pandas", "scikit-learn", "tensorflow", "numpy", "optuna"]
     )
-    cluster = rh.compute(
-        name="xgboost-gpu-cluster",
-        instance_type="L4:1",
-        provider="aws",
-        image=img,
-    ).up_if_not()
+    compute = kt.Compute(gpus="L4:1", image=img)
 
-    # Now we send the training class to the remote cluster and invoke the training
-    remote_trainer = rh.cls(Trainer).to(cluster, name="xgboost-gpu-training")
+    # Now we send the training class to the remote compute and invoke the training
+    remote_trainer = kt.cls(Trainer).to(compute, name="xgboost-gpu-training")
     remote_trainer.load_data()
     remote_trainer.run_optimization(n_trials=50)
     remote_trainer.train_with_best_params()
     remote_trainer.test_model()
     remote_trainer.save_model("fashion_mnist.model")
-
-    # Optionally, tear down the cluster
-    # cluster.teardown()
