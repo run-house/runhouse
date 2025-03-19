@@ -335,43 +335,6 @@ def cluster_list(
         console.print(SKY_LIVE_CLUSTERS_MSG)
 
 
-@cluster_app.command("keep-warm")
-def cluster_keep_warm(
-    cluster_name: str = typer.Argument(
-        None,
-        help="Name of cluster to keep warm. If not specified will check the local cluster.",
-    ),
-    mins: Optional[int] = typer.Option(
-        -1,
-        help="Amount of time (in min) to keep the cluster warm after inactivity. "
-        "If set to -1, keeps cluster warm indefinitely.",
-    ),
-):
-    """Keep the cluster warm for given number of minutes after inactivity.
-
-    Example:
-        ``$ runhouse cluster keep-warm rh-basic-cpu``
-
-    """
-
-    try:
-        current_cluster = get_local_or_remote_cluster(cluster_name, exit_on_error=False)
-        current_cluster.keep_warm(mins=mins)
-
-    except ValueError:
-        sky_live_clusters = get_all_sky_clusters()
-        cluster_name = (
-            cluster_name.split("/")[-1] if "/" in cluster_name else cluster_name
-        )
-        if cluster_name in sky_live_clusters:
-            console.print(
-                f"You can keep the cluster warm by running [italic bold]`sky autostop {cluster_name} -i {mins}`"
-            )
-
-    except Exception as e:
-        console.print(f"Failed to keep the cluster warm: {e}")
-
-
 @cluster_app.command("up")
 def cluster_up(
     cluster_name: str = typer.Argument(
@@ -686,17 +649,6 @@ def _start_server(
     create_logfile=True,
     host=None,
     port=None,
-    use_https=False,
-    den_auth=False,
-    ssl_keyfile=None,
-    ssl_certfile=None,
-    restart_proxy=False,
-    use_caddy=False,
-    domain=None,
-    certs_address=None,
-    api_server_url=None,
-    conda_env=None,
-    venv=None,
     from_python=None,
 ):
     ############################################
@@ -707,49 +659,13 @@ def _start_server(
         cmds.append(SERVER_STOP_CMD)
 
     # We have to `ray start` not within screen/nohup
-    existing_ray_instance = check_for_existing_ray_instance(venv)
+    existing_ray_instance = check_for_existing_ray_instance()
     if not existing_ray_instance or restart_ray:
         cmds.append(RAY_KILL_CMD)
         cmds.append(RAY_START_CMD)
 
     # Collect flags
     flags = []
-
-    den_auth_flag = " --use-den-auth" if den_auth else ""
-    if den_auth_flag:
-        logger.info("Starting server with Den auth.")
-        flags.append(den_auth_flag)
-
-    restart_proxy_flag = " --restart-proxy" if restart_proxy else ""
-    if restart_proxy_flag:
-        logger.info("Reinstalling server configs.")
-        flags.append(restart_proxy_flag)
-
-    use_caddy_flag = " --use-caddy" if use_caddy else ""
-    if use_caddy_flag:
-        logger.info("Configuring Caddy on the cluster.")
-        flags.append(use_caddy_flag)
-
-    ssl_keyfile_flag = f" --ssl-keyfile {ssl_keyfile}" if ssl_keyfile else ""
-    if ssl_keyfile_flag:
-        logger.info(f"Using SSL keyfile in path: {ssl_keyfile}")
-        flags.append(ssl_keyfile_flag)
-
-    ssl_certfile_flag = f" --ssl-certfile {ssl_certfile}" if ssl_certfile else ""
-    if ssl_certfile_flag:
-        logger.info(f"Using SSL certfile in path: {ssl_certfile}")
-        flags.append(ssl_certfile_flag)
-
-    domain = f" --domain {domain}" if domain else ""
-    if domain:
-        logger.info(f"Using domain: {domain}")
-        flags.append(domain)
-
-    # Use HTTPS if explicitly specified or if SSL cert or keyfile path are provided
-    https_flag = " --use-https" if use_https or (ssl_keyfile or ssl_certfile) else ""
-    if https_flag:
-        logger.info("Starting server with HTTPS.")
-        flags.append(https_flag)
 
     host_flag = f" --host {host}" if host else ""
     if host_flag:
@@ -760,23 +676,6 @@ def _start_server(
     if port_flag:
         logger.info(f"Using port: {port}.")
         flags.append(port_flag)
-
-    address_flag = f" --certs-address {certs_address}" if certs_address else ""
-    if address_flag:
-        logger.info(f"Server public IP address: {certs_address}.")
-        flags.append(address_flag)
-
-    api_server_url_flag = (
-        f" --api-server-url {api_server_url}" if api_server_url else ""
-    )
-    if api_server_url_flag:
-        logger.info(f"Setting api_server url to {api_server_url}")
-        flags.append(api_server_url_flag)
-
-    conda_env_flag = f" --conda-env {conda_env}" if conda_env else ""
-    if conda_env_flag:
-        logger.info(f"Creating runtime env for conda env: {conda_env}")
-        flags.append(conda_env_flag)
 
     flags.append(" --from-python" if from_python else "")
 
@@ -791,10 +690,6 @@ def _start_server(
 
     # Add flags to the server start command
     cmds.append(get_wrapped_server_start_cmd(flags, screen, nohup))
-    if venv:
-        from runhouse.utils import venv_cmd
-
-        cmds = [venv_cmd(cmd, venv, subprocess=True) for cmd in cmds]
     logger.info(f"Starting API server using the following command: {cmds[-1]}.")
 
     try:
@@ -887,43 +782,6 @@ def server_start(
     port: Optional[str] = typer.Option(
         None, help="Port for server. If not specified will start on 32300."
     ),
-    use_https: bool = typer.Option(
-        False, help="Start an HTTPS server with TLS verification."
-    ),
-    use_den_auth: bool = typer.Option(
-        False, help="Whether to authenticate requests with a Runhouse token."
-    ),
-    ssl_keyfile: Optional[str] = typer.Option(
-        None, help="Path to custom SSL key file to use for enabling HTTPS."
-    ),
-    ssl_certfile: Optional[str] = typer.Option(
-        None, help="Path to custom SSL cert file to use for enabling HTTPS."
-    ),
-    restart_proxy: bool = typer.Option(
-        False, help="Whether to reinstall server configs on the cluster."
-    ),
-    use_caddy: bool = typer.Option(
-        False,
-        help="Whether to configure Caddy on the cluster as a reverse proxy.",
-    ),
-    domain: str = typer.Option(
-        None,
-        help="Server domain. Relevant if using Caddy to automate generating CA verified certs.",
-    ),
-    certs_address: Optional[str] = typer.Option(
-        None,
-        help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS.",
-    ),
-    api_server_url: str = typer.Option(
-        default="https://api.run.house",
-        help="URL of Runhouse Den",
-    ),
-    conda_env: str = typer.Option(
-        None, help="Name of conda env where Runhouse server is started, if applicable."
-    ),
-    venv: str = typer.Option(
-        None, help="Path of venv where Runhouse server is started, if applicable."
-    ),
     from_python: bool = typer.Option(
         False,
         help="Whether HTTP server started from inside a Python call rather than CLI.",
@@ -966,17 +824,6 @@ def server_start(
         create_logfile=True,
         host=host,
         port=port,
-        use_https=use_https,
-        den_auth=use_den_auth,
-        ssl_keyfile=ssl_keyfile,
-        ssl_certfile=ssl_certfile,
-        restart_proxy=restart_proxy,
-        use_caddy=use_caddy,
-        domain=domain,
-        certs_address=certs_address,
-        api_server_url=api_server_url,
-        conda_env=conda_env,
-        venv=venv,
         from_python=from_python,
     )
 
@@ -1007,43 +854,6 @@ def server_restart(
     port: Optional[str] = typer.Option(
         None, help="Port for server. If not specified will start on 32300."
     ),
-    use_https: bool = typer.Option(
-        False, help="Start an HTTPS server with TLS verification."
-    ),
-    use_den_auth: bool = typer.Option(
-        False, help="Whether to authenticate requests with a Runhouse token."
-    ),
-    ssl_keyfile: Optional[str] = typer.Option(
-        None, help="Path to custom SSL key file to use for enabling HTTPS."
-    ),
-    ssl_certfile: Optional[str] = typer.Option(
-        None, help="Path to custom SSL cert file to use for enabling HTTPS."
-    ),
-    restart_proxy: bool = typer.Option(
-        False, help="Whether to reinstall server configs on the cluster."
-    ),
-    use_caddy: bool = typer.Option(
-        False,
-        help="Whether to configure Caddy on the cluster as a reverse proxy.",
-    ),
-    domain: str = typer.Option(
-        None,
-        help="Server domain. Relevant if using Caddy to automate generating CA verified certs.",
-    ),
-    certs_address: Optional[str] = typer.Option(
-        None,
-        help="Public IP address of the server. Required for generating self-signed certs and enabling HTTPS.",
-    ),
-    api_server_url: str = typer.Option(
-        default="https://api.run.house",
-        help="URL of Runhouse Den",
-    ),
-    conda_env: str = typer.Option(
-        None, help="Name of conda env where Runhouse server is started, if applicable."
-    ),
-    venv: str = typer.Option(
-        None, help="Path of venv where Runhouse server is started, if applicable."
-    ),
     from_python: bool = typer.Option(
         False,
         help="Whether HTTP server started from inside a Python call rather than CLI.",
@@ -1071,17 +881,6 @@ def server_restart(
         create_logfile=True,
         host=host,
         port=port,
-        use_https=use_https,
-        den_auth=use_den_auth,
-        ssl_keyfile=ssl_keyfile,
-        ssl_certfile=ssl_certfile,
-        restart_proxy=restart_proxy,
-        use_caddy=use_caddy,
-        domain=domain,
-        certs_address=certs_address,
-        api_server_url=api_server_url,
-        conda_env=conda_env,
-        venv=venv,
         from_python=from_python,
     )
 

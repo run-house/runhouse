@@ -174,12 +174,10 @@ class Secret(Resource):
 
         names = names or _str_to_provider_class.keys()
         for provider in names:
-            if provider in ["ssh", "sky"]:
+            if provider == "ssh":
                 continue
             try:
                 secret = provider_secret(provider=provider)
-                if provider == "sky":
-                    provider = f"ssh-{secret.key}"
                 secrets[provider] = secret
             except ValueError:
                 continue

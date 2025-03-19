@@ -25,7 +25,6 @@ from runhouse.exceptions import InsufficientDiskError
 from runhouse.logger import get_logger
 
 from runhouse.rns.defaults import req_ctx
-from runhouse.rns.utils.api import ResourceVisibility
 
 from runhouse.utils import (
     arun_in_thread,
@@ -642,27 +641,6 @@ class ObjStore:
     @staticmethod
     def unset_ctx(ctx_token):
         req_ctx.reset(ctx_token)
-
-    ##############################################
-    # Propagate den auth
-    ##############################################
-    # TODO: Maybe this function needs to be synchronous to propagate Den Auth changes immediately?
-    # Guess we'll find out
-    def is_den_auth_enabled(self):
-        return (
-            self.cluster_config.get("den_auth", False)
-            if self.cluster_config is not None
-            else False
-        )
-
-    async def aset_den_auth(self, den_auth: bool):
-        await self.aset_cluster_config_value("den_auth", den_auth)
-
-    async def aenable_den_auth(self):
-        await self.aset_den_auth(True)
-
-    async def adisable_den_auth(self):
-        await self.aset_den_auth(False)
 
     def set_process_env_vars_local(self, env_vars: Dict[str, str]):
         set_env_vars_in_current_process(env_vars)
@@ -1411,29 +1389,6 @@ class ObjStore:
         from runhouse.resources.module import Module
         from runhouse.resources.resource import Resource
 
-        if self.is_den_auth_enabled():
-            if not isinstance(obj, Resource) or obj.visibility not in [
-                ResourceVisibility.UNLISTED,
-            ]:
-                ctx = req_ctx.get()
-                if not ctx or not ctx.token:
-                    raise PermissionError(
-                        "No Runhouse token provided. Try running `$ runhouse login` or visiting "
-                        "https://run.house/login to retrieve a token. If calling via HTTP, please "
-                        "provide a valid token in the Authorization header.",
-                    )
-
-                # Setting to None in the case of non-resource or no rns_address will force auth to only
-                # succeed if the user has WRITE or READ access to the cluster
-                resource_uri = obj.rns_address if hasattr(obj, "rns_address") else None
-                if key != self.servlet_name and not await self.ahas_resource_access(
-                    ctx.token, resource_uri
-                ):
-                    # Do not validate access to the default process
-                    raise PermissionError(
-                        f"Unauthorized access to resource {key}.",
-                    )
-
         # Process any inputs which need to be resolved
         args = [
             arg.fetch() if (isinstance(arg, Module) and arg._resolve) else arg
@@ -1531,8 +1486,6 @@ class ObjStore:
             fut = self._construct_call_retrievable(res, run_name, laziness_type)
             await self.aput_local(run_name, fut)
             return fut
-
-        from runhouse.resources.resource import Resource
 
         if isinstance(res, Resource):
             if run_name and "--" not in run_name:
@@ -1988,8 +1941,6 @@ class ObjStore:
     async def ainstall_package_in_all_nodes_and_processes(
         self,
         package: "Package",
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
         override_remote_version: bool = False,
     ):
         from runhouse.resources.packages import InstallTarget, Package
@@ -2033,8 +1984,6 @@ class ObjStore:
                         )
 
             install_cmd = package._pip_install_cmd(
-                conda_env_name=conda_env_name,
-                venv_path=venv_path,
                 uv=(package.install_method == "uv"),
             )
             logger.info(

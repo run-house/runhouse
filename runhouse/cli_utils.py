@@ -53,19 +53,6 @@ class ClusterStatusColors(str, Enum):
             return cls.UNKNOWN.value
 
 
-class AutoStopColors:
-    @classmethod
-    def format_autostop(cls, autostop_value: int = None):
-        if autostop_value is None:
-            # Leave blank if autostop is not set or not relevant for the cluster type
-            return None
-
-        if autostop_value == -1:
-            return "[red]Suspended[/red]"
-        else:
-            return f"[yellow]{autostop_value}[/yellow]"
-
-
 def create_output_table(
     total_clusters: int,
     running_clusters: int,
@@ -140,10 +127,6 @@ def add_clusters_to_output_table(table: Table, clusters: List[Dict]):
         rh_cluster["Status"] = ClusterStatusColors.get_status_color(
             rh_cluster.get("Status")
         )
-        autostop_value = rh_cluster.get("Autostop")
-        rh_cluster["Autostop (Mins)"] = AutoStopColors.format_autostop(
-            int(autostop_value) if autostop_value else None
-        )
         table = add_cluster_as_table_row(table, rh_cluster)
 
 
@@ -182,16 +165,12 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
 
     top_level_config = [
         "server_port",
-        "den_auth",
         "server_connection_type",
     ]
 
-    backend_config = ["domain", "server_host"]
+    backend_config = ["server_host"]
     if status_type == StatusType.cluster:
         backend_config = backend_config + ["resource_subtype", "ips"]
-
-        if cluster_config.get("resource_subtype") != "Cluster":
-            backend_config.append("autostop_mins")
 
     for key in top_level_config:
         console.print(
@@ -202,28 +181,20 @@ def print_cluster_config(cluster_config: Dict, status_type: str = StatusType.clu
         console.print(f"{BULLET_UNICODE} backend config:")
 
     for key in backend_config:
-        if key == "autostop_mins" and cluster_config[key] == -1:
-            console.print(
-                f"[reset]{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: autostop disabled"
-            )
+        if key == "ips" and cluster_config.get("resource_subtype") == "OnDemandCluster":
+            val = cluster_config.get("compute_properties", {}).get("ips", [])
         else:
-            if (
-                key == "ips"
-                and cluster_config.get("resource_subtype") == "OnDemandCluster"
-            ):
-                val = cluster_config.get("compute_properties", {}).get("ips", [])
-            else:
-                val = cluster_config.get(key, None)
+            val = cluster_config.get(key, None)
 
-            # don't print keys whose values are None
-            if val is None:
-                continue
+        # don't print keys whose values are None
+        if val is None:
+            continue
 
-            console.print(
-                f"[reset]{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
-            ) if status_type == StatusType.cluster else console.print(
-                f"[reset]{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
-            )
+        console.print(
+            f"[reset]{DOUBLE_SPACE_UNICODE}{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
+        ) if status_type == StatusType.cluster else console.print(
+            f"[reset]{BULLET_UNICODE} {key.replace('_', ' ')}: {val}"
+        )
 
 
 def print_processes_info(servlet_processes: Dict[str, Dict[str, Any]], node_index: int):

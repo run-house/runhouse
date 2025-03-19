@@ -13,7 +13,6 @@ import requests
 import runhouse
 
 from runhouse.constants import (
-    DEFAULT_AUTOSTOP_CHECK_INTERVAL,
     DEFAULT_LOG_LEVEL,
     DEFAULT_STATUS_CHECK_INTERVAL,
     GPU_COLLECTION_INTERVAL,
@@ -32,7 +31,6 @@ from runhouse.resources.hardware.ray_utils import kill_actors
 from runhouse.resources.hardware.utils import is_gpu_cluster
 from runhouse.rns.rns_client import ResourceStatusData
 from runhouse.rns.utils.api import ResourceAccess
-from runhouse.servers.autostop_helper import AutostopHelper
 from runhouse.servers.http.auth import AuthCache
 from runhouse.servers.http.http_utils import CreateProcessParams
 from runhouse.utils import (
@@ -86,10 +84,6 @@ class ClusterServlet:
         # will need this to make sure that we are deleting the correct cluster servlet when we call kill_actors
         self.name = kwargs.get("name", "cluster_servlet")
 
-        self.autostop_helper = None
-        if self._cluster_config.get("resource_subtype", None) == "OnDemandCluster":
-            self.autostop_helper = AutostopHelper()
-
         self.pid = get_pid()
         self.process = psutil.Process(pid=self.pid)
         self.gpu_metrics = None  # will be updated only if this is a gpu cluster.
@@ -111,12 +105,6 @@ class ClusterServlet:
             target=self.periodic_cluster_checks, daemon=True
         )
         self.cluster_checks_thread.start()
-
-        logger.debug("Creating autostop check thread.")
-        self.autostop_check_thread = threading.Thread(
-            target=self.periodic_autostop_check, daemon=True
-        )
-        self.autostop_check_thread.start()
 
     ##############################################
     # List of node servlet names
@@ -190,8 +178,6 @@ class ClusterServlet:
         return self._cluster_config
 
     async def aset_cluster_config_value(self, key: str, value: Any):
-        if self.autostop_helper and key == "autostop_mins":
-            await self.autostop_helper.set_autostop(value)
         self._cluster_config[key] = value
 
         # Propagate the changes to all other process's obj_stores
@@ -283,8 +269,6 @@ class ClusterServlet:
         return self._key_to_servlet_name
 
     async def aget_servlet_name_for_key(self, key: Any) -> str:
-        if self.autostop_helper:
-            await self.autostop_helper.set_last_active_time_to_now()
         return self._key_to_servlet_name.get(key, None)
 
     async def aput_servlet_name_for_key(self, key: Any, servlet_name: str):
@@ -413,38 +397,6 @@ class ClusterServlet:
 
         return logs_den_resp, new_start_log_line, new_end_log_line
 
-    async def aperiodic_autostop_check(self):
-        """Periodically check the autostop of the cluster"""
-        autostop_interval = int(
-            os.getenv("RH_AUTOSTOP_INTERVAL", DEFAULT_AUTOSTOP_CHECK_INTERVAL)
-        )
-        while True:
-            try:
-                should_update_autostop: bool = self.autostop_helper is not None
-                if should_update_autostop:
-                    status, _ = await self.acheck_cluster_status(send_to_den=False)
-                    await self._update_autostop(status)
-                    logger.debug("Successfully updated autostop")
-
-            except Exception as e:
-                if (
-                    "Failed to look up actor with name" in str(e)
-                    and not self._are_multinode_servlets_ready
-                ):
-                    # try to update autostop from a multinode cluster before the NodeServlets on all nodes is ready
-                    continue
-                logger.error(f"Autostop check has failed: {e}")
-
-                # killing the cluster servlet only if log level is debug
-                log_level = os.getenv("RH_LOG_LEVEL") or DEFAULT_LOG_LEVEL
-                if log_level.lower() == "debug":
-                    kill_actors(gracefully=False, actor_name=self.name)
-                    break
-
-            finally:
-                logger.debug(f"Autostop interval set to {autostop_interval} seconds")
-                await asyncio.sleep(autostop_interval)
-
     async def aperiodic_cluster_checks(self):
         """Periodically check the status of the cluster, gather metrics about the cluster's utilization & memory,
         and save it to Den."""
@@ -546,31 +498,6 @@ class ClusterServlet:
         # This is only ever called once in its own thread, so we can do asyncio.run here instead of
         # sync_function.
         asyncio.run(self.aperiodic_cluster_checks())
-
-    def periodic_autostop_check(self):
-        asyncio.run(self.aperiodic_autostop_check())
-
-    async def _update_autostop(self, status: dict):
-        function_running = any(
-            any(
-                len(
-                    resource["process_resource_mapping"][resource_name].get(
-                        "active_function_calls", []
-                    )
-                )
-                > 0
-                for resource_name in resource["process_resource_mapping"].keys()
-            )
-            for resource in status.get("processes", {}).values()
-        )
-        if function_running:
-            await self.autostop_helper.set_last_active_time_to_now()
-
-        # We do this separately from the set_last_active_time_to_now call above because
-        # function_running will only reflect activity from functions which happen to be running during
-        # the status check. We still need to attempt to register activity for functions which have
-        # been called and completed.
-        await self.autostop_helper.register_activity_if_needed()
 
     async def _status_for_servlet(self, servlet_name):
         try:

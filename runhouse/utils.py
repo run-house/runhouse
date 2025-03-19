@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import re
-import shlex
 import subprocess
 import sys
 import tempfile
@@ -50,21 +49,10 @@ def set_env_vars_in_current_process(env_vars: dict):
             os.environ[k] = v
 
 
-def conda_env_cmd(cmd, conda_env_name):
-    return f"conda run -n {conda_env_name} ${{SHELL:-/bin/bash}} -c {shlex.quote(cmd)}"
-
-
-def venv_cmd(cmd, venv_path, subprocess: bool = False):
-    source = "source" if not subprocess else "."
-    return f"{source} {venv_path}/bin/activate && {cmd}"
-
-
 def run_setup_command(
     cmd: str,
     cluster: "Cluster" = None,
     env_vars: Dict = None,
-    conda_env_name: Optional[str] = None,
-    venv_path: Optional[str] = None,
     stream_logs: bool = True,
     node: Optional[str] = None,
 ):
@@ -77,7 +65,6 @@ def run_setup_command(
         cmd (str): Command to run on the
         cluster (Optional[Cluster]): (default: None)
         env_vars (Dict): Env vars to apply, applied only if running through SSH
-        conda_env_name (str, optional): Conda env to run the command in, applied only if running through SSH.
         stream_logs (bool): (default: True)
 
     Returns:
@@ -88,14 +75,11 @@ def run_setup_command(
     elif cluster.on_this_cluster():
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
 
-    if conda_env_name:
-        cmd = conda_env_cmd(cmd, conda_env_name)
     return cluster._run_commands_with_runner(
         [cmd],
         stream_logs=stream_logs,
         env_vars=env_vars,
         node=node,
-        venv_path=venv_path,
     )[0]
 
 

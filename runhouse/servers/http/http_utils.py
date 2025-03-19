@@ -27,8 +27,6 @@ class RequestContext(BaseModel):
 
 class InstallPackageParams(BaseModel):
     package_config: Dict[str, Any]
-    conda_env_name: Optional[str] = None
-    venv_path: Optional[str] = None
     override_remote_version: bool = False
 
 
@@ -42,9 +40,7 @@ class RunBashParams(BaseModel):
 
 class ServerSettings(BaseModel):
     cluster_name: Optional[str] = None
-    den_auth: Optional[bool] = None
     flush_auth_cache: Optional[bool] = None
-    autostop_mins: Optional[int] = None
     status_check_interval: Optional[int] = None
 
 

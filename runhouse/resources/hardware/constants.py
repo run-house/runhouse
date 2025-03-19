@@ -17,7 +17,6 @@ ONDEMAND_COMPUTE_ARGS = {
     "gpus",
     "sky_kwargs",
     "launcher",
-    "autostop_mins",
 }
 
 KUBERNETES_CLUSTER_ARGS = {
@@ -31,9 +30,5 @@ RH_SERVER_ARGS = {
     "server_host",
     "ssh_port",
     "open_ports",  # ondemand only
-    "server_connection_type",
-    "ssl_keyfile",
-    "ssl_certfile",
-    "domain",
     "image",
 }

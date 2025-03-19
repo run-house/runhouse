@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 # Internal class to represent the image construction process
 class ImageSetupStepType(Enum):
@@ -7,15 +7,12 @@ class ImageSetupStepType(Enum):
 
     PACKAGES = "packages"
     CMD_RUN = "cmd_run"
-    SETUP_CONDA_ENV = "setup_conda_env"
     RSYNC = "rsync"
     SYNC_SECRETS = "sync_secrets"
     SET_ENV_VARS = "set_env_vars"
     PIP_INSTALL = "pip_install"
     UV_INSTALL = "uv_install"
-    CONDA_INSTALL = "conda_install"
     SYNC_PACKAGE = "sync_package"
-    SET_VENV = "set_venv"
 
 
 class ImageSetupStep:
@@ -38,9 +35,7 @@ class ImageSetupStep:
 
 
 class Image:
-    def __init__(
-        self, name: str = None, image_id: str = None, python_version: str = None
-    ):
+    def __init__(self, name: str = None, image_id: str = None):
         """
         Runhouse Image object, specifying cluster setup properties and steps.
 
@@ -51,10 +46,6 @@ class Image:
         Example:
             >>> my_image = (
             >>>     rh.Image(name="base_image")
-            >>>     .setup_conda_env(
-            >>>         conda_env_name="base_env",
-            >>>         conda_config={"dependencies": ["python=3.11"], "name": "base_env"},
-            >>>     )
             >>>     .pip_install(["numpy", "pandas"])
             >>>     .set_env_vars({"OMP_NUM_THREADS": 1})
             >>> )
@@ -62,11 +53,8 @@ class Image:
 
         self.name = name
         self.image_id = image_id
-        self.python_version = str(python_version) if python_version else None
 
         self.setup_steps = []
-        self.conda_env_name = None
-        self.venv_path = ".venv" if python_version else None
         self.docker_secret = None
 
     @staticmethod
@@ -143,8 +131,6 @@ class Image:
         config = {}
         if self.name:
             config["name"] = self.name
-        if self.python_version:
-            config["python_version"] = self.python_version
         if self.image_id:
             config["image_id"] = self.image_id
         if self.docker_secret:
@@ -153,10 +139,6 @@ class Image:
                 if isinstance(self.docker_secret, str)
                 else self.docker_secret.config()
             )
-        if self.conda_env_name:
-            config["conda_env_name"] = self.conda_env_name
-        if self.venv_path:
-            config["venv_path"] = self.venv_path
         if self.setup_steps:
             config["setup_steps"] = [
                 Image._setup_step_config(step) for step in self.setup_steps
@@ -168,7 +150,6 @@ class Image:
     def from_config(cls, config: Dict[str, Any]):
         img = Image(
             name=config.get("name"),
-            python_version=config.get("python_version"),
             image_id=config.get("image_id"),
         )
         if config.get("setup_steps"):
@@ -183,8 +164,6 @@ class Image:
 
                 docker_secret = Secret.from_config(docker_secret)
             img.docker_secret = docker_secret
-        img.conda_env_name = config.get("conda_env_name")
-        img.venv_path = config.get("venv_path")
 
         return img
 
@@ -195,24 +174,17 @@ class Image:
     def install_packages(
         self,
         reqs: List[Union["Package", str]],
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
     ):
         """Install the given packages.
 
         Args:
             reqs (List[Package or str]): List of packages to install on cluster and env.
-            conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
-                defaults to base environment. (Default: ``None``)
-            venv_path (str, optional): Path to venv to install package in. (Default: ``None``)
         """
 
         self.setup_steps.append(
             ImageSetupStep(
                 step_type=ImageSetupStepType.PACKAGES,
                 reqs=reqs,
-                conda_env_name=conda_env_name or self.conda_env_name,
-                venv_path=venv_path or self.venv_path,
             )
         )
         return self
@@ -220,24 +192,17 @@ class Image:
     def pip_install(
         self,
         reqs: List[Union["Package", str]],
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
     ):
         """Pip install the given packages.
 
         Args:
             reqs (List[Package or str]): List of packages to pip install on cluster and env.
-            conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
-                defaults to base environment. (Default: ``None``)
-            venv_path (str, optional): Path to venv to install package in. (Default: ``None``)
         """
 
         self.setup_steps.append(
             ImageSetupStep(
                 step_type=ImageSetupStepType.PIP_INSTALL,
                 reqs=reqs,
-                conda_env_name=conda_env_name or self.conda_env_name,
-                venv_path=venv_path or self.venv_path,
             )
         )
         return self
@@ -245,44 +210,17 @@ class Image:
     def uv_install(
         self,
         reqs: List[Union["Package", str]],
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
     ):
         """Uv pip install the given packages.
 
         Args:
             reqs (List[Package or str]): List of packages to uv pip install on cluster and env.
-            conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
-                defaults to base environment. (Default: ``None``)
-            venv_path (str, optional): Path to venv to install package in. (Default: ``None``)
         """
 
         self.setup_steps.append(
             ImageSetupStep(
                 step_type=ImageSetupStepType.UV_INSTALL,
                 reqs=reqs,
-                conda_env_name=conda_env_name or self.conda_env_name,
-                venv_path=venv_path or self.venv_path,
-            )
-        )
-        return self
-
-    def conda_install(
-        self, reqs: List[Union["Package", str]], conda_env_name: Optional[str] = None
-    ):
-        """Conda install the given packages.
-
-        Args:
-            reqs (List[Package or str]): List of packages to conda install on cluster and env.
-            conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
-                defaults to base environment. (Default: ``None``)
-        """
-
-        self.setup_steps.append(
-            ImageSetupStep(
-                step_type=ImageSetupStepType.CONDA_INSTALL,
-                reqs=reqs,
-                conda_env_name=conda_env_name or self.conda_env_name,
             )
         )
         return self
@@ -308,63 +246,18 @@ class Image:
     def run_bash(
         self,
         command: str,
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
     ):
         """Run bash commands.
 
         Args:
             command (str): Commands to run on the cluster.
-            conda_env_name (str, optional): Name of conda env to run the command in, if applicable. (Defaut: ``None``)
         """
         self.setup_steps.append(
             ImageSetupStep(
                 step_type=ImageSetupStepType.CMD_RUN,
                 command=command,
-                conda_env_name=conda_env_name or self.conda_env_name,
-                venv_path=venv_path or self.venv_path,
             )
         )
-        return self
-
-    def setup_conda_env(self, conda_env_name: str, conda_config: Union[str, Dict]):
-        """Setup Conda env
-
-        Args:
-            conda_env_name (str): Name of conda env to create.
-            conda_config (str or Dict): Path or Dict referring to the conda yaml config to use to create the conda env.
-        """
-        if self.venv_path:
-            raise ValueError(
-                "Venv is already set. Can not activate both venv and conda environment."
-            )
-        self.setup_steps.append(
-            ImageSetupStep(
-                step_type=ImageSetupStepType.SETUP_CONDA_ENV,
-                conda_env_name=conda_env_name,
-                conda_config=conda_config,
-            )
-        )
-        self.conda_env_name = conda_env_name
-        return self
-
-    def set_venv(self, venv_path: str):
-        """Set the venv to use.
-
-        Args:
-            venv_path (str): Path of venv on the cluster to use for Runhouse.
-        """
-        if self.conda_env_name:
-            raise ValueError(
-                "Conda env is already set. Can not activate both venv path and conda environment."
-            )
-        self.setup_steps.append(
-            ImageSetupStep(
-                step_type=ImageSetupStepType.SET_VENV,
-                venv_path=venv_path,
-            )
-        )
-        self.venv_path = venv_path
         return self
 
     def rsync(

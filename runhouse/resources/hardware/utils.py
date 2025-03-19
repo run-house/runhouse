@@ -5,7 +5,6 @@ import json
 import logging
 import os
 import re
-import shlex
 import subprocess
 from asyncio import Event
 
@@ -17,7 +16,6 @@ from runhouse.constants import (
     CLUSTER_CONFIG_PATH,
     LAST_ACTIVE_AT_TIMEFRAME,
     RESERVED_SYSTEM_NAMES,
-    SKY_VENV,
     TIME_UNITS,
 )
 
@@ -182,37 +180,19 @@ def _get_cluster_from(system, dryrun=False):
 
 
 def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
-    if setup_step.step_type == ImageSetupStepType.SETUP_CONDA_ENV:
-        cluster.create_conda_env(
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            conda_config=setup_step.kwargs.get("conda_config"),
-        )
-    elif setup_step.step_type == ImageSetupStepType.PACKAGES:
+    if setup_step.step_type == ImageSetupStepType.PACKAGES:
         cluster.install_packages(
             setup_step.kwargs.get("reqs"),
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            venv_path=setup_step.kwargs.get("venv_path"),
             node=node,
         )
     elif setup_step.step_type == ImageSetupStepType.PIP_INSTALL:
         cluster.pip_install(
             setup_step.kwargs.get("reqs"),
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            venv_path=setup_step.kwargs.get("venv_path"),
             node=node,
         )
     elif setup_step.step_type == ImageSetupStepType.UV_INSTALL:
         cluster.uv_install(
             setup_step.kwargs.get("reqs"),
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            venv_path=setup_step.kwargs.get("venv_path"),
-            node=node,
-        )
-    elif setup_step.step_type == ImageSetupStepType.CONDA_INSTALL:
-        cluster.conda_install(
-            setup_step.kwargs.get("reqs"),
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            venv_path=setup_step.kwargs.get("venv_path"),
             node=node,
         )
     elif setup_step.step_type == ImageSetupStepType.SYNC_PACKAGE:
@@ -225,8 +205,6 @@ def _do_setup_step_for_node(cluster, setup_step, node, env_vars):
             cmd=setup_step.kwargs.get("command"),
             cluster=cluster,
             env_vars=env_vars,
-            conda_env_name=setup_step.kwargs.get("conda_env_name"),
-            venv_path=setup_step.kwargs.get("venv_path"),
             stream_logs=True,
             node=node,
         )
@@ -370,7 +348,6 @@ def check_disk_sufficiency(
         commands=["import psutil", "print(psutil.disk_usage('/')._asdict())"],
         node=node,
         stream_logs=False,
-        conda_env_name=cluster.conda_env_name,
     )[0]
     if node == "all":
         # If we sync the object to all cluster nodes, we get a list of disk_usage dictionaries, one per node.
@@ -475,14 +452,6 @@ def _ssh_base_command(
 
 def _generate_ssh_control_hash(ssh_control_name):
     return hashlib.md5(ssh_control_name.encode()).hexdigest()[:_HASH_MAX_LENGTH]
-
-
-def _cluster_set_autostop_command(autostop_mins: int):
-    sky_set_autostop_cmd = shlex.quote(
-        f"from sky.skylet.autostop_lib import set_autostop; "
-        f'set_autostop({autostop_mins}, "cloudvmray", True)'
-    )
-    return f"{SKY_VENV}/bin/python -c {sky_set_autostop_cmd}"
 
 
 def up_cluster_helper(cluster, capture_output: Union[bool, str] = True):
@@ -666,7 +635,6 @@ def get_running_and_not_running_clusters(clusters: list):
             "Name": cluster_name,
             "Cluster Type": cluster_type,
             "Status": cluster_status,
-            "Autostop": den_cluster.get("data", {}).get("autostop_mins"),
             "Last Active (UTC)": last_active_at,
         }
 
@@ -696,7 +664,6 @@ def pprint_launched_cluster_summary(cluster):
     properties: dict = copy.deepcopy(cluster.compute_properties)
     cluster_name = cluster.name
     rns_address = cluster.rns_address
-    properties["autostop_mins"] = cluster.autostop_mins
 
     blue = ColoredFormatter.get_color("blue")
     white = ColoredFormatter.get_color("white")

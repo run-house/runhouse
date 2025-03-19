@@ -28,7 +28,6 @@ class Defaults:
         "default_folder": "~",
         "default_provider": None,
         "default_pool": None,
-        "default_autostop": 60,
         "use_spot": False,
         "disable_observability": False,
         "api_server_url": "https://api.run.house",

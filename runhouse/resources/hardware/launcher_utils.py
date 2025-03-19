@@ -9,11 +9,7 @@ import requests
 import runhouse as rh
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
-from runhouse.resources.hardware.utils import (
-    _cluster_set_autostop_command,
-    ClusterStatus,
-    SSEClient,
-)
+from runhouse.resources.hardware.utils import ClusterStatus, SSEClient
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
 from runhouse.utils import ClusterLogsFormatter, ColoredFormatter, Spinner
 
@@ -198,7 +194,6 @@ class DenLauncher(Launcher):
     LAUNCH_URL = f"{rns_client.api_server_url}/cluster/up"
     POOL_LAUNCH_URL = f"{rns_client.api_server_url}/compute/up"
     TEARDOWN_URL = f"{rns_client.api_server_url}/cluster/teardown"
-    AUTOSTOP_URL = f"{rns_client.api_server_url}/cluster/autostop"
 
     @classmethod
     def _validate_provider_pool(cls, cluster):
@@ -230,27 +225,6 @@ class DenLauncher(Launcher):
             value = config.get(attribute)
             if value:
                 setattr(cluster, attribute, value)
-
-    @classmethod
-    def keep_warm(cls, cluster, mins: int):
-        """Keeping a Den launched cluster warm."""
-        payload = {
-            "cluster_name": cluster.rns_address or cluster.name,
-            "autostop_mins": mins,
-        }
-
-        # Blocking call with no streaming
-        resp = requests.post(
-            cls.AUTOSTOP_URL,
-            json=payload,
-            headers=rns_client.request_headers(),
-        )
-        if resp.status_code != 200:
-            raise Exception(
-                f"Received [{resp.status_code}] from Den POST '{cls.AUTOSTOP_URL}': Failed to "
-                f"update cluster autostop: {load_resp_content(resp)}"
-            )
-        logger.info("Successfully updated cluster autostop")
 
     @classmethod
     def up(cls, cluster, verbose: bool = True, force: bool = False):
@@ -411,18 +385,11 @@ class LocalLauncher(Launcher):
             sky.launch(
                 task,
                 cluster_name=cluster.name,
-                idle_minutes_to_autostop=cluster._autostop_mins,
                 down=True,
                 **cluster.sky_kwargs.get("launch", {}),
             )
 
             cluster._update_from_sky_status()
-            if cluster.domain:
-                logger.info(
-                    f"Cluster has been launched with the custom domain '{cluster.domain}'. "
-                    "Please add an A record to your DNS provider to point this domain to the cluster's "
-                    f"public IP address ({cluster.head_ip}) to ensure successful requests."
-                )
 
             if rns_client.autosave_resources():
                 logger.debug("Saving cluster to Den")

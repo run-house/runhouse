@@ -14,7 +14,6 @@ from runhouse.resources.hardware.on_demand_cluster import OnDemandCluster
 from runhouse.resources.hardware.utils import (
     _config_and_args_mismatches,
     LauncherType,
-    ServerConnectionType,
     setup_kubernetes,
 )
 from runhouse.resources.images.image import Image
@@ -30,12 +29,7 @@ def cluster(
     client_port: Optional[int] = None,
     server_port: Optional[int] = None,
     server_host: Optional[str] = None,
-    server_connection_type: Union[ServerConnectionType, str] = None,
-    ssl_keyfile: Optional[str] = None,
-    ssl_certfile: Optional[str] = None,
-    domain: Optional[str] = None,
     image: Optional[Image] = None,
-    den_auth: bool = None,
     load_from_den: bool = True,
     dryrun: bool = False,
     **kwargs,
@@ -61,20 +55,8 @@ def cluster(
         server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
             `runhouse server start` run on the cluster). Defaults to ``"0.0.0.0"`` unless connecting to the server
             with an SSH connection, in which case ``localhost`` is used. (Default: ``None``).
-        server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
-            API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
-            with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
-            without an SSH tunnel. (Default: ``None``).
-        ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS.
-            (Default: ``None``).
-        ssl_certfile(str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
-            (Default: ``None``).
-        domain(str, optional): Domain name for the cluster. Relevant if enabling HTTPs on the cluster. (Default: ``None``).
         image (Image, optional): Default image containing setup steps to run during cluster setup. See :class:`Image`.
             (Default: ``None``)
-        den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
-            requests with a Runhouse token provided in the auth headers of the request with the format:
-            ``{"Authorization": "Bearer <token>"}``. (Default: ``None``).
         load_from_den (bool): Whether to try loading the Cluster resource from Den. (Default: ``True``)
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
@@ -173,8 +155,6 @@ def cluster(
 
     new_cluster._set_connection_defaults()
 
-    if den_auth:
-        new_cluster.save()
     return new_cluster
 
 
@@ -185,7 +165,6 @@ def ondemand_cluster(
     num_nodes: Optional[int] = None,
     provider: Optional[str] = None,
     pool: Optional[str] = None,
-    autostop_mins: Optional[int] = None,
     use_spot: bool = False,
     region: Optional[str] = None,
     memory: Union[int, str, None] = None,
@@ -202,14 +181,9 @@ def ondemand_cluster(
     # runhouse server arguments
     server_port: int = None,
     server_host: str = None,
-    server_connection_type: Union[ServerConnectionType, str] = None,
-    ssl_keyfile: str = None,
-    ssl_certfile: str = None,
-    domain: str = None,
     image: Image = None,
     # misc arguments
     launcher: Union[LauncherType, str] = None,
-    den_auth: bool = None,
     load_from_den: bool = True,
     dryrun: bool = False,
 ):
@@ -233,8 +207,6 @@ def ondemand_cluster(
         num_nodes (int, optional): Number of nodes to use for the cluster.
         provider (str, optional): Cloud provider to use for the cluster.
         pool (str, optional): Compute pool to use for the cluster.
-        autostop_mins (int, optional): Number of minutes to keep the cluster up after inactivity,
-            or ``-1`` to keep cluster up indefinitely. (Default: ``60``).
         use_spot (bool, optional): Whether or not to use spot instance. (Default: ``False``)
         region (str, optional): The region to use for the cluster. (Default: ``None``)
         memory (int or str, optional): Amount of memory to use for the cluster, e.g. `16` or "16+".
@@ -265,24 +237,8 @@ def ondemand_cluster(
         server_host (bool, optional): Host from which the server listens for traffic (i.e. the --host argument
             `runhouse server start` run on the cluster). Defaults to "0.0.0.0" unless connecting to the server with an SSH
             connection, in which case ``localhost`` is used. (Default: ``None``)
-        server_connection_type (ServerConnectionType or str, optional): Type of connection to use for the Runhouse
-            API server. ``ssh`` will use start with server via an SSH tunnel. ``tls`` will start the server
-            with HTTPS on port 443 using TLS certs without an SSH tunnel. ``none`` will start the server with HTTP
-            without an SSH tunnel. (Default: ``None``)
-        launcher (LauncherType or str, optional): Method for launching the cluster. If set to `local`, will launch
-            locally via Sky. If set to `den`, launching will be handled by Runhouse. If not provided, will be set
-            to your configured default launcher, which defaults to ``local``. (Default: ``None``)
-        ssl_keyfile(str, optional): Path to SSL key file to use for launching the API server with HTTPS. (Default:
-            ``None``)
-        ssl_certfile (str, optional): Path to SSL certificate file to use for launching the API server with HTTPS.
-            (Default: ``None``)
-        domain (str, optional): Domain name for the cluster. Relevant if enabling HTTPs on the cluster.
-            (Default: ``None``)
         image (Image, optional): Default image containing setup steps to run during cluster setup. See :class:`Image`.
             (Default: ``None``)
-        den_auth (bool, optional): Whether to use Den authorization on the server. If ``True``, will validate incoming
-            requests with a Runhouse token provided in the auth headers of the request with the format:
-            ``{"Authorization": "Bearer <token>"}``. (Default: ``None``).
         load_from_den (bool): Whether to try loading the Cluster resource from Den. (Default: ``True``)
         dryrun (bool): Whether to create the Cluster if it doesn't exist, or load a Cluster object as a dryrun.
             (Default: ``False``)
@@ -295,7 +251,6 @@ def ondemand_cluster(
         >>> gpu = rh.ondemand_cluster(name='rh-4-a100s',
         >>>                  instance_type='A100:4',
         >>>                  provider='gcp',
-        >>>                  autostop_mins=-1,
         >>>                  use_spot=True,
         >>>                  region='us-east-1',
         >>>                  ).save()
@@ -349,18 +304,14 @@ def ondemand_cluster(
             if k in {*ONDEMAND_COMPUTE_ARGS, *KUBERNETES_CLUSTER_ARGS}
         }
         server_mismatches = {k: v for k, v in mismatches.items() if k in RH_SERVER_ARGS}
-        new_autostop_mins = compute_mismatches.pop("autostop_mins", None)
 
         if mismatches and new_cluster.is_up():
-            # cluster is up - throw error if launch compute mismatches, but allow server / autostop min updates
+            # cluster is up - throw error if launch compute mismatches, but allow server updates
             if compute_mismatches:
                 raise ValueError(
                     f"Cluster {name} is up, but received argument mismatches for compute: {compute_mismatches.keys()}. "
                     "Please construct a new cluster object or ensure that the arguments match."
                 )
-            if new_autostop_mins:
-                logger.info(f"Updating autostop mins for cluster {name}")
-                new_cluster.autostop_mins = new_autostop_mins
             if server_mismatches:
                 new_cluster._update_values(server_mismatches)
                 logger.warning(
@@ -370,15 +321,11 @@ def ondemand_cluster(
         else:
             # cluster is down
             # - construct new cluster if launch compute mismatches
-            # - if compute matches/empty but server or autostop mismatches, override just those values
+            # - if compute matches/empty but server mismatches, override just those values
             if compute_mismatches:
                 new_cluster = OnDemandCluster(**cluster_args)
             elif server_mismatches:
                 new_cluster._update_values(server_mismatches)
-            if new_autostop_mins:
-                new_cluster._autostop_mins = new_autostop_mins
 
     new_cluster._set_connection_defaults()
-    if den_auth:
-        new_cluster.save()
     return new_cluster

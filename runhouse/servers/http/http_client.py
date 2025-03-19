@@ -1,13 +1,11 @@
 import asyncio
 import json
 import time
-import warnings
 
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
-from pathlib import Path
 from random import randrange
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import httpx
 
@@ -21,12 +19,6 @@ from runhouse.servers.http.http_utils import (
     CallParams,
     CreateProcessParams,
     DeleteObjectParams,
-    FolderGetParams,
-    FolderLsParams,
-    FolderMvParams,
-    FolderParams,
-    FolderPutParams,
-    FolderRmParams,
     GetObjectParams,
     handle_response,
     InstallPackageParams,
@@ -81,25 +73,18 @@ class HTTPClient:
         host: str,
         port: Optional[int],
         resource_address: str,
-        auth=None,
-        cert_path=None,
-        use_https=False,
         system=None,
     ):
         self.host = host
         self.port = port
-        self.auth = auth
-        self.cert_path = cert_path
-        self.use_https = use_https
-        self.resource_address = resource_address
-        self.system = system
+
+        # TODO - can remove
+        self.auth = None
+        self.use_https = False
         self.verify = False
 
-        if self.use_https:
-            # https://requests.readthedocs.io/en/latest/user/advanced/#ssl-cert-verification
-            # Only verify with the specific cert path if the cert itself is self-signed, otherwise we use the default
-            # setting of "True", which will verify the cluster's SSL certs
-            self.verify = self.cert_path if self._certs_are_self_signed() else True
+        self.resource_address = resource_address
+        self.system = system
 
         self.async_session = httpx.AsyncClient(
             auth=self.auth, verify=self.verify, timeout=None
@@ -108,34 +93,8 @@ class HTTPClient:
         self.log_formatter = ClusterLogsFormatter(self.system)
         self._request_headers = rns_client.request_headers(self.resource_address)
 
-    def _certs_are_self_signed(self) -> bool:
-        """Checks whether the cert provided is self-signed. If it is, all client requests will include the path
-        to the cert to be used for verification."""
-        from cryptography import x509
-        from cryptography.hazmat.backends import default_backend
-
-        if not self.cert_path:
-            # No cert path is specified, assume certs will be configured on the server (ex: via Caddy)
-            return False
-
-        cert_path = Path(self.cert_path)
-        if not cert_path.exists():
-            return False
-
-        # Check whether the cert is self-signed
-        with open(cert_path, "rb") as cert_file:
-            cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
-
-        if cert.issuer == cert.subject:
-            warnings.warn(
-                f"Cert in use ({cert_path}) is self-signed, cannot independently verify it."
-            )
-            return True
-
-        return False
-
     @staticmethod
-    def from_endpoint(endpoint: str, resource_address: str, auth=None, cert_path=None):
+    def from_endpoint(endpoint: str, resource_address: str, auth=None):
         protocol, uri = endpoint.split("://")
         if protocol not in ["http", "https"]:
             raise ValueError(f"Invalid protocol: {protocol}")
@@ -156,7 +115,6 @@ class HTTPClient:
             host,
             port=port,
             auth=auth,
-            cert_path=cert_path,
             resource_address=resource_address,
             use_https=False,
         )
@@ -286,89 +244,12 @@ class HTTPClient:
             req_type="get",
         )
 
-    def folder_ls(self, path: Union[str, Path], full_paths: bool, sort: bool):
-        folder_params = FolderLsParams(
-            path=path, full_paths=full_paths, sort=sort
-        ).model_dump()
-        return self.request_json(
-            "/folder/method/ls", req_type="post", json_dict=folder_params
-        )
-
-    def folder_mkdir(self, path: Union[str, Path]):
-        folder_params = FolderParams(path=path).model_dump()
-        return self.request_json(
-            "/folder/method/mkdir", req_type="post", json_dict=folder_params
-        )
-
-    def folder_mv(
-        self, path: Union[str, Path], dest_path: Union[str, Path], overwrite: bool
-    ):
-        folder_params = FolderMvParams(
-            path=path, dest_path=dest_path, overwrite=overwrite
-        ).model_dump()
-        return self.request_json(
-            "/folder/method/mv", req_type="post", json_dict=folder_params
-        )
-
-    def folder_get(self, path: Union[str, Path], encoding: str, mode: str):
-        folder_params = FolderGetParams(
-            path=path, encoding=encoding, mode=mode
-        ).model_dump()
-        return self.request_json(
-            "/folder/method/get", req_type="post", json_dict=folder_params
-        )
-
-    def folder_put(
-        self,
-        path: Union[str, Path],
-        contents: Union[Dict[str, Any], Resource, List[Resource]],
-        overwrite: bool,
-        mode: str,
-        serialization: str,
-    ):
-        folder_params = FolderPutParams(
-            path=path,
-            contents=serialize_data(contents, serialization),
-            mode=mode,
-            overwrite=overwrite,
-            serialization=serialization,
-        ).model_dump()
-        return self.request_json(
-            "/folder/method/put", req_type="post", json_dict=folder_params
-        )
-
-    def folder_rm(self, path: Union[str, Path], contents: List, recursive: bool):
-        folder_params = FolderRmParams(
-            path=path, recursive=recursive, contents=contents
-        ).model_dump()
-        return self.request_json(
-            "/folder/method/rm", req_type="post", json_dict=folder_params
-        )
-
-    def folder_exists(self, path: str):
-        folder_params = FolderParams(path=path).model_dump()
-        return self.request_json(
-            "/folder/method/exists", req_type="post", json_dict=folder_params
-        )
-
-    def get_certificate(self):
-        cert: bytes = self.request(
-            "cert",
-            req_type="get",
-            headers={},
-        )
-        # Create parent directory to store the cert
-        Path(self.cert_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(self.cert_path, "wb") as file:
-            file.write(cert)
-
     def _process_call_result(
         self,
         result,
         system,
         output_type,
     ):
-
         from runhouse.resources.module import Module
 
         if isinstance(result, Module):
@@ -776,25 +657,6 @@ class HTTPClient:
             err_str=f"Error renaming object {old_key}",
         )
 
-    def set_settings(self, new_settings: Dict[str, Any]):
-        res = retry_with_exponential_backoff(session.post)(
-            self._formatted_url("settings"),
-            json=new_settings,
-            headers=self._request_headers,
-            auth=self.auth,
-            verify=self.verify,
-        )
-        if res.status_code != 200:
-            raise ValueError(
-                f"Error switching to new settings: {new_settings} on server: {res.content.decode()}"
-            )
-        return res
-
-    def set_cluster_name(self, name: str):
-        resp = self.set_settings({"cluster_name": name})
-        self.resource_address = name
-        return resp
-
     def delete(self, keys=None, process=None):
         return self.request_json(
             "delete_object",
@@ -848,8 +710,6 @@ class HTTPClient:
     def install_package(
         self,
         package: "Package",
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
         override_remote_version: bool = False,
     ):
         return self.request_json(
@@ -857,8 +717,6 @@ class HTTPClient:
             req_type="post",
             json_dict=InstallPackageParams(
                 package_config=package.config(),
-                conda_env_name=conda_env_name,
-                venv_path=venv_path,
                 override_remote_version=override_remote_version,
             ).model_dump(),
         )

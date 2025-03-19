@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import subprocess
 import time
 import warnings
@@ -25,10 +24,9 @@ from runhouse.constants import (
     LOCAL_HOSTS,
 )
 
-from runhouse.globals import configs, obj_store, rns_client
+from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.utils import (
-    _cluster_set_autostop_command,
     ClusterStatus,
     LauncherType,
     pprint_launched_cluster_summary,
@@ -55,7 +53,6 @@ class OnDemandCluster(Cluster):
         provider: str = None,
         pool: str = None,
         dryrun: bool = False,
-        autostop_mins: int = None,
         use_spot: bool = False,
         memory: Union[int, str] = None,
         disk_size: int = None,
@@ -66,10 +63,6 @@ class OnDemandCluster(Cluster):
         server_port: int = None,
         server_connection_type: str = None,
         launcher: str = None,
-        ssl_keyfile: str = None,
-        ssl_certfile: str = None,
-        domain: str = None,
-        den_auth: bool = False,
         region: str = None,
         vpc_name: str = None,
         sky_kwargs: Dict = None,
@@ -88,21 +81,12 @@ class OnDemandCluster(Cluster):
             server_host=server_host,
             server_port=server_port,
             server_connection_type=server_connection_type,
-            ssl_keyfile=ssl_keyfile,
-            ssl_certfile=ssl_certfile,
-            domain=domain,
-            den_auth=den_auth,
             dryrun=dryrun,
             **kwargs,
         )
 
         self.instance_type = instance_type
         self.num_nodes = num_nodes
-        self._autostop_mins = (
-            autostop_mins
-            if autostop_mins is not None
-            else configs.get("default_autostop")
-        )
 
         self.pool = pool
         self.provider = provider
@@ -172,27 +156,6 @@ class OnDemandCluster(Cluster):
             raise e
 
     @property
-    def autostop_mins(self):
-        return self._autostop_mins
-
-    @autostop_mins.setter
-    def autostop_mins(self, mins):
-        self._autostop_mins = mins
-        if not self.is_up():
-            return
-
-        if self.on_this_cluster():
-            obj_store.set_cluster_config_value("autostop_mins", mins)
-        else:
-            self.call_client_method("set_settings", {"autostop_mins": mins})
-
-            if self.launcher == "local":
-                LocalLauncher.keep_warm(self, mins)
-
-            elif self.launcher == "den":
-                DenLauncher.keep_warm(self, mins)
-
-    @property
     def image_id(self) -> str:
         if self.image and self.image.image_id:
             return self.image.image_id
@@ -249,7 +212,6 @@ class OnDemandCluster(Cluster):
                 "compute_properties",
             ],
         )
-        config["autostop_mins"] = self._autostop_mins
         config["num_cpus"] = self._num_cpus
         config["gpus"] = self._gpus
         if self._kube_namespace is not None:
@@ -281,16 +243,12 @@ class OnDemandCluster(Cluster):
         return yaml_path
 
     def _set_connection_defaults(self):
-        if not self.server_connection_type:
-            if self.ssl_keyfile or self.ssl_certfile:
-                self.server_connection_type = ServerConnectionType.TLS
-            else:
-                self.server_connection_type = ServerConnectionType.SSH
+        self.server_connection_type = (
+            self.server_connection_type or ServerConnectionType.SSH
+        )
 
         if self.server_port is None:
-            if self.server_connection_type == ServerConnectionType.TLS:
-                self.server_port = DEFAULT_HTTPS_PORT
-            elif self.server_connection_type == ServerConnectionType.NONE:
+            if self.server_connection_type == ServerConnectionType.NONE:
                 self.server_port = DEFAULT_HTTP_PORT
             else:
                 self.server_port = DEFAULT_SERVER_PORT
@@ -317,13 +275,12 @@ class OnDemandCluster(Cluster):
         if self.open_ports:
             self.open_ports = [str(p) for p in self.open_ports]
             if str(self.server_port) in self.open_ports:
-                if (
-                    self.server_connection_type
-                    in [ServerConnectionType.TLS, ServerConnectionType.NONE]
-                    and not self.den_auth
-                ):
+                if self.server_connection_type in [
+                    ServerConnectionType.TLS,
+                    ServerConnectionType.NONE,
+                ]:
                     warnings.warn(
-                        "Server is insecure and must be inside a VPC or have `den_auth` enabled to secure it."
+                        "Server is insecure and must be inside a VPC to secure it."
                     )
             else:
                 warnings.warn(
@@ -666,16 +623,6 @@ class OnDemandCluster(Cluster):
 
         return self
 
-    def keep_warm(self, mins: int = -1):
-        """Keep the cluster warm for given number of minutes after inactivity.
-
-        Args:
-            mins (int): Amount of time (in min) to keep the cluster warm after inactivity.
-                If set to -1, keep cluster warm indefinitely. (Default: `-1`)
-        """
-        self.autostop_mins = mins
-        return self
-
     def teardown(self, verbose: bool = True):
         """Teardown cluster.
 
@@ -730,20 +677,6 @@ class OnDemandCluster(Cluster):
         """
         self.teardown(verbose)
         rns_client.delete_configs(resource=self)
-
-    @contextlib.contextmanager
-    def pause_autostop(self):
-        """Context manager to temporarily pause autostop.
-
-        Example:
-            >>> with rh.ondemand_cluster.pause_autostop():
-            >>>     rh.ondemand_cluster.run_bash(["python train.py"])
-        """
-        self.run_bash_over_ssh(_cluster_set_autostop_command(-1), node=self.head_ip)
-        yield
-        self.run_bash_over_ssh_(
-            _cluster_set_autostop_command(self._autostop_mins), node=self.head_ip
-        )
 
     # ----------------- SSH Methods ----------------- #
 

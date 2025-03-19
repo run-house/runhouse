@@ -140,15 +140,6 @@ def login(
         # via configs.token = token
         configs.set("token", token)
 
-    autostop_mins = configs.defaults_cache.get("default_autostop")
-    if autostop_mins is None:
-        new_autostop_mins = typer.prompt(
-            "Set the default number of minutes of inactivity after which to auto-terminate on-demand clusters. "
-            "Press `Enter` to set to 60 minutes, or `-1` to disable autostop entirely.",
-            default=60,
-        )
-        configs.set("default_autostop", int(new_autostop_mins))
-
     local_config: dict = configs.load_defaults_from_file()
     try:
         den_config: dict = configs.load_defaults_from_den()

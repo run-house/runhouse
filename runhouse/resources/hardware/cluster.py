@@ -1,4 +1,3 @@
-import contextlib
 import copy
 import json
 import multiprocessing
@@ -31,20 +30,15 @@ from runhouse.resources.images import Image, ImageSetupStepType
 
 from runhouse.resources.images.image import ImageSetupStep
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
-from runhouse.servers.http.certs import TLSCertConfig
 from runhouse.utils import (
     _process_env_vars,
-    conda_env_cmd,
-    create_conda_env_on_cluster,
     generate_default_name,
     get_local_install_path,
-    install_conda,
     locate_working_dir,
     run_command_with_password_login,
     run_setup_command,
     thread_coroutine,
     ThreadWithException,
-    venv_cmd,
 )
 
 # Filter out DeprecationWarnings
@@ -64,7 +58,6 @@ from runhouse.constants import (
     DEFAULT_PROCESS_NAME,
     DEFAULT_RAY_PORT,
     DEFAULT_SERVER_PORT,
-    DEFAULT_STATUS_CHECK_INTERVAL,
     LOCALHOST,
     NUM_PORTS_TO_TRY,
     RESERVED_SYSTEM_NAMES,
@@ -106,11 +99,7 @@ class Cluster(Resource):
         ssh_port: int = None,
         client_port: int = None,
         server_connection_type: str = None,
-        ssl_keyfile: str = None,
-        ssl_certfile: str = None,
-        domain: str = None,
         ssh_properties: Dict = None,
-        den_auth: bool = False,
         dryrun: bool = False,
         image: Optional["Image"] = None,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
@@ -130,18 +119,13 @@ class Cluster(Resource):
 
         self._ips = ips
         self._http_client = None
-        self.den_auth = den_auth or False
-        self.cert_config = TLSCertConfig(cert_path=ssl_certfile, key_path=ssl_keyfile)
 
-        self.ssl_certfile = ssl_certfile
-        self.ssl_keyfile = ssl_keyfile
         self.server_connection_type = server_connection_type
         self.server_port = server_port
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
         self.ssh_properties = ssh_properties or {}
         self.server_host = server_host
-        self.domain = domain
         self.compute_properties = {}
 
         self.reqs = []
@@ -221,18 +205,6 @@ class Cluster(Resource):
     def docker_user(self) -> Optional[str]:
         return None
 
-    @property
-    def conda_env_name(self) -> Optional[str]:
-        if self.image:
-            return self.image.conda_env_name
-        return None
-
-    @property
-    def venv_path(self) -> Optional[str]:
-        if self.image:
-            return self.image.venv_path
-        return None
-
     def _save_config_to_cluster(
         self,
         node: str = None,
@@ -242,12 +214,9 @@ class Cluster(Resource):
         useful_config_keys = [
             "name",
             "resource_subtype",
-            "den_auth",
             "server_port",
             "server_connection_type",
             "server_host",
-            "autostop_mins",
-            "domain",
         ]
         if config.get("resource_subtype", None) == "OnDemandCluster":
             useful_config_keys.append("compute_properties")
@@ -455,8 +424,6 @@ class Cluster(Resource):
                 "server_port",
                 "server_host",
                 "server_connection_type",
-                "domain",
-                "den_auth",
                 "ssh_port",
                 "client_port",
                 "ssh_properties",
@@ -469,10 +436,6 @@ class Cluster(Resource):
         )
         if creds:
             config["creds"] = creds
-
-        if self._use_custom_certs:
-            config["ssl_certfile"] = self.cert_config.cert_path
-            config["ssl_keyfile"] = self.cert_config.key_path
 
         if self.image:
             config["image"] = self.image.config()
@@ -503,11 +466,7 @@ class Cluster(Resource):
             ServerConnectionType.TLS,
             ServerConnectionType.DOCKER,
         ]:
-            url_base = (
-                "https"
-                if self.server_connection_type == ServerConnectionType.TLS
-                else "http"
-            )
+            url_base = "http"
 
             # Client port gets set to the server port if it was not set.
             # In the case of local, testing clusters, the client port will be set to something else
@@ -538,11 +497,7 @@ class Cluster(Resource):
     @property
     def server_address(self):
         """Address to use in the requests made to the cluster. If creating an SSH tunnel with the cluster,
-        ths will be set to localhost, otherwise will use the cluster's domain (if provided), or its
-        public IP address."""
-        if self.domain:
-            return self.domain
-
+        ths will be set to localhost, otherwise will use its public IP address."""
         if self.server_host in [LOCALHOST, "localhost"]:
             return LOCALHOST
 
@@ -668,7 +623,6 @@ class Cluster(Resource):
 
     def _install_uv(
         self,
-        python_version: Optional[str] = None,
         parallel: bool = True,
     ):
         # uv should be installed outside of the venv
@@ -676,22 +630,9 @@ class Cluster(Resource):
             step=ImageSetupStep(
                 step_type=ImageSetupStepType.PIP_INSTALL,
                 reqs=["uv"],
-                conda_env_name=self.conda_env_name,
             ),
             parallel=parallel,
         )
-        if python_version:
-            for cmd in [f"uv python install {python_version}", "uv venv --seed"]:
-                results = self._run_setup_step(
-                    step=ImageSetupStep(
-                        step_type=ImageSetupStepType.CMD_RUN,
-                        command=cmd,
-                        conda_env_name=self.conda_env_name,
-                    ),
-                    parallel=parallel,
-                )
-                if results[0][0] != 0:
-                    raise RuntimeError(results[0][2])
 
     def _sync_image_to_cluster(self, parallel: bool = True):
         """
@@ -717,19 +658,11 @@ class Cluster(Resource):
             logger.error(
                 "``image_id`` is only supported for OnDemandCluster, not static Clusters."
             )
-        if self.image.venv_path:
-            env_vars["VIRTUAL_ENV"] = self.image.venv_path
 
         logger.info(f"Syncing default image {self.image} to cluster.")
 
         secrets_to_sync = []
         uv_install = False
-
-        if self.image.python_version:
-            self._install_uv(
-                python_version=self.image.python_version, parallel=parallel
-            )
-            uv_install = True
 
         for step in self.image.setup_steps:
             if step.step_type == ImageSetupStepType.SYNC_SECRETS:
@@ -771,17 +704,11 @@ class Cluster(Resource):
         if not self.ips:
             raise ValueError(f"No IPs set for cluster <{self.name}>. Is it up?")
 
-        install_type = (
-            ImageSetupStepType.UV_INSTALL
-            if self.image and self.image.python_version
-            else ImageSetupStepType.PIP_INSTALL
-        )
+        install_type = ImageSetupStepType.PIP_INSTALL
         self._run_setup_step(
             step=ImageSetupStep(
                 step_type=install_type,
                 reqs=["ray", "psutil"],
-                conda_env_name=self.conda_env_name,
-                venv_path=self.venv_path,
             ),
             parallel=parallel,
         )
@@ -800,9 +727,7 @@ class Cluster(Resource):
             step=ImageSetupStep(
                 step_type=install_type,
                 reqs=["runhouse[server]"],
-                conda_env_name=self.conda_env_name,
                 override_remote_version=True,
-                venv_path=self.venv_path,
             ),
             parallel=parallel,
         )
@@ -811,8 +736,6 @@ class Cluster(Resource):
         self,
         reqs: List[Union["Package", str]],
         node: Optional[str] = None,
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
         override_remote_version: bool = False,
     ):
         """Install the given packages on the cluster.
@@ -821,31 +744,23 @@ class Cluster(Resource):
             reqs (List[Package or str]): List of packages to install on cluster.
             node (str, optional): Cluster node to install the package on. If specified, will use ssh to install the
                 package. (Default: ``None``)
-            conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
-                defaults to base environment. (Default: ``None``)
-            venv_path (str, optional): Path of venv to install the package in, if relevant. (Defautl: ``None``)
             override_remote_version (bool, optional): If the package exists both locally and remotely, whether to override
                 the remote version with the local version. By default, the local version will be installed only if
                 the package does not already exist on the cluster. (Default: ``False``)
 
         Example:
             >>> cluster.pip_install(reqs=["accelerate", "diffusers"])
-            >>> cluster.pip_install(reqs=["accelerate", "diffusers"], conda_env_name="my_conda_env", override_remote_version=True)
         """
         for req in reqs:
             if not node:
                 self.install_package(
                     req,
-                    conda_env_name=conda_env_name,
-                    venv_path=venv_path,
                     override_remote_version=override_remote_version,
                 )
             else:
                 self.install_package_over_ssh(
                     req,
                     node=node,
-                    conda_env_name=conda_env_name,
-                    venv_path=venv_path,
                     override_remote_version=override_remote_version,
                 )
 
@@ -853,8 +768,6 @@ class Cluster(Resource):
         self,
         reqs: List[Union["Package", str]],
         node: Optional[str] = None,
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
         override_remote_version: bool = False,
     ):
         from runhouse.resources.packages.package import Package
@@ -866,8 +779,6 @@ class Cluster(Resource):
         self.install_packages(
             reqs=pip_packages,
             node=node,
-            conda_env_name=conda_env_name,
-            venv_path=venv_path,
             override_remote_version=override_remote_version,
         )
 
@@ -875,8 +786,6 @@ class Cluster(Resource):
         self,
         reqs: List[Union["Package", str]],
         node: Optional[str] = None,
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
         override_remote_version: bool = False,
     ):
         from runhouse.resources.packages.package import Package
@@ -888,28 +797,6 @@ class Cluster(Resource):
         self.install_packages(
             reqs=uv_packages,
             node=node,
-            conda_env_name=conda_env_name,
-            venv_path=venv_path,
-            override_remote_version=override_remote_version,
-        )
-
-    def conda_install(
-        self,
-        reqs: List[Union["Package", str]],
-        node: Optional[str] = None,
-        conda_env_name: Optional[str] = None,
-        override_remote_version: bool = False,
-    ):
-        from runhouse.resources.packages.package import Package
-
-        conda_packages = [
-            Package.from_string(f"conda:{req}") if isinstance(req, str) else req
-            for req in reqs
-        ]
-        self.install_packages(
-            reqs=conda_packages,
-            node=node,
-            conda_env_name=conda_env_name,
             override_remote_version=override_remote_version,
         )
 
@@ -1118,18 +1005,11 @@ class Cluster(Resource):
                     f"Unknown server connection type {self.server_connection_type}."
                 )
 
-            cert_path = None
-            if self._use_https and not (self.domain and self._use_caddy):
-                # Only use the cert path if HTTPS is enabled and not providing a domain with Caddy
-                cert_path = self.cert_config.cert_path
-
             self.client_port = self.client_port or self.server_port
 
             self._http_client = HTTPClient(
                 host=self.server_address,
                 port=self.client_port,
-                cert_path=cert_path,
-                use_https=self._use_https,
                 resource_address=self.rns_address,
                 system=self,
             )
@@ -1193,29 +1073,6 @@ class Cluster(Resource):
             cloud=cloud,
         )
 
-    @property
-    def _use_https(self) -> bool:
-        """Use HTTPS if server connection type is set to ``tls``"""
-
-        return (
-            self.server_connection_type == ServerConnectionType.TLS
-            if self.server_connection_type is not None
-            else False
-        )
-
-    @property
-    def _use_caddy(self) -> bool:
-        """Use Caddy if the server port is set to the default HTTP (80) or HTTPS (443) port.
-        Note: Caddy will serve as a reverse proxy, forwarding traffic from the server port to the Runhouse API
-        server running on port 32300."""
-        return self.server_port in [DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT]
-
-    @property
-    def _use_custom_certs(self):
-        """Use custom certs when HTTPS is not enabled, or when HTTPS is enabled, Caddy is enabled,
-        and a domain is provided."""
-        return self._use_https and not (self._use_caddy and self.domain is not None)
-
     def _start_ray_workers(self, ray_port, env_vars):
         internal_head_ip = self.internal_ips[0]
         worker_ips = self.ips[
@@ -1230,8 +1087,6 @@ class Cluster(Resource):
                 cmd=f"ray start --address={internal_head_ip}:{ray_port} --disable-usage-stats",
                 cluster=self,
                 env_vars=env_vars,
-                conda_env_name=self.conda_env_name,
-                venv_path=self.venv_path,
                 node=host,
                 stream_logs=True,
             )
@@ -1242,7 +1097,6 @@ class Cluster(Resource):
         resync_rh: Optional[bool] = None,
         resync_image: bool = True,
         restart_ray: bool = True,
-        restart_proxy: bool = False,
         parallel: bool = True,
     ):
         if resync_image:
@@ -1282,42 +1136,6 @@ class Cluster(Resource):
             )
             logger.debug("Finished syncing Runhouse to cluster.")
 
-        https_flag = self._use_https
-        caddy_flag = self._use_caddy
-        domain = self.domain
-
-        cluster_key_path = None
-        cluster_cert_path = None
-
-        if https_flag:
-            # Make sure certs are copied to the cluster (where relevant)
-            base_cluster_dir = self.cert_config.DEFAULT_CLUSTER_DIR
-            cluster_key_path = f"{base_cluster_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
-            cluster_cert_path = f"{base_cluster_dir}/{self.cert_config.CERT_NAME}"
-
-            if domain and caddy_flag:
-                # Certs generated by Caddy are stored in the data directory path on the cluster
-                # https://caddyserver.com/docs/conventions#data-directory
-
-                # Reset to None - Caddy will automatically generate certs on the cluster
-                cluster_key_path = None
-                cluster_cert_path = None
-            else:
-                # Rebuild on restart to ensure the correct subject name is included in the cert SAN
-                # Cert subject name needs to match the target (IP address or domain)
-                self.cert_config.generate_certs(
-                    address=self.head_ip, domain=self.domain
-                )
-                self._copy_certs_to_cluster()
-
-            if caddy_flag and not self.domain:
-                # Update pointers to the cert and key files as stored on the cluster for Caddy to use
-                base_caddy_dir = self.cert_config.CADDY_CLUSTER_DIR
-                cluster_key_path = (
-                    f"{base_caddy_dir}/{self.cert_config.PRIVATE_KEY_NAME}"
-                )
-                cluster_cert_path = f"{base_caddy_dir}/{self.cert_config.CERT_NAME}"
-
         # Update the cluster config on the cluster
         self._save_config_to_cluster()
 
@@ -1349,24 +1167,7 @@ class Cluster(Resource):
         restart_cmd = (
             base_cli_cmd
             + (" --restart-ray" if restart_ray else "")
-            + (" --use-https" if https_flag else "")
-            + (" --use-caddy" if caddy_flag else "")
-            + (" --restart-proxy" if restart_proxy and caddy_flag else "")
-            + (f" --ssl-certfile {cluster_cert_path}" if self._use_custom_certs else "")
-            + (f" --ssl-keyfile {cluster_key_path}" if self._use_custom_certs else "")
-            + (f" --domain {domain}" if domain else "")
             + f" --port {self.server_port}"
-            + f" --api-server-url {rns_client.api_server_url}"
-            + (
-                f" --conda-env {self.image.conda_env_name}"
-                if self.image and self.image.conda_env_name
-                else ""
-            )
-            + (
-                f" --venv {self.image.venv_path}"
-                if self.image and self.image.venv_path
-                else ""
-            )
             + " --from-python"
         )
 
@@ -1374,26 +1175,12 @@ class Cluster(Resource):
             cmd=restart_cmd,
             cluster=self,
             env_vars=image_env_vars,
-            conda_env_name=self.conda_env_name,
-            venv_path=self.venv_path,
             stream_logs=True,
             node=self.head_ip,
         )
 
         if not status_codes[0] == 0:
             raise ValueError(f"Failed to restart server {self.name}")
-
-        if https_flag:
-            rns_address = self.rns_address or self.name
-            if not rns_address:
-                raise ValueError("Cluster must have a name in order to enable HTTPS.")
-
-            if not self._http_client:
-                logger.debug("Reconnecting server client. Server restarted with HTTPS.")
-                self.connect_server_client()
-
-            # Refresh the client params to use HTTPS
-            self.client.use_https = https_flag
 
         if restart_ray and len(self.ips) > 1:
             self._start_ray_workers(DEFAULT_RAY_PORT, env_vars=image_env_vars)
@@ -1408,7 +1195,6 @@ class Cluster(Resource):
         resync_rh: Optional[bool] = None,
         resync_image: bool = True,
         restart_ray: bool = True,
-        restart_proxy: bool = False,
         parallel: bool = True,
     ):
         """Restart the RPC server.
@@ -1418,7 +1204,6 @@ class Cluster(Resource):
                 If not specified, will sync if Runhouse is not installed on the cluster or if locally it is installed
                 as editable. (Default: ``None``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
-            restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
 
         Example:
             >>> rh.cluster("rh-cpu").restart_server()
@@ -1435,7 +1220,6 @@ class Cluster(Resource):
             resync_rh=resync_rh,
             resync_image=resync_image,
             restart_ray=restart_ray,
-            restart_proxy=restart_proxy,
             parallel=parallel,
         )
 
@@ -1444,7 +1228,6 @@ class Cluster(Resource):
         resync_rh: Optional[bool] = None,
         resync_image: bool = True,
         restart_ray: bool = True,
-        restart_proxy: bool = False,
         parallel: bool = True,
     ):
         """Restart the RPC server.
@@ -1454,7 +1237,6 @@ class Cluster(Resource):
                 If not specified, will sync if Runhouse is not installed on the cluster or if locally it is installed
                 as editable. (Default: ``None``)
             restart_ray (bool): Whether to restart Ray. (Default: ``True``)
-            restart_proxy (bool): Whether to restart Caddy on the cluster, if configured. (Default: ``False``)
 
         Example:
             >>> rh.cluster("rh-cpu").start_server()
@@ -1466,7 +1248,6 @@ class Cluster(Resource):
             resync_rh=resync_rh,
             resync_image=resync_image,
             restart_ray=restart_ray,
-            restart_proxy=restart_proxy,
             parallel=parallel,
         )
 
@@ -1474,8 +1255,6 @@ class Cluster(Resource):
         self,
         stop_ray: bool = False,
         cleanup_actors: bool = True,
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
     ):
         """Stop the RPC server.
 
@@ -1495,16 +1274,8 @@ class Cluster(Resource):
             [cmd],
             node=self.head_ip,
             require_outputs=False,
-            conda_env_name=conda_env_name,
-            venv_path=venv_path,
         )
         assert status_codes[0] == 0
-
-    @contextlib.contextmanager
-    def pause_autostop(self):
-        """Context manager to temporarily pause autostop. Only for OnDemand clusters. There is no autostop
-        for static clusters."""
-        pass
 
     def call(
         self,
@@ -1892,31 +1663,6 @@ class Cluster(Resource):
             return self._ping(retry=False)
         return False
 
-    def _copy_certs_to_cluster(self):
-        """Copy local certs to the cluster. Destination on the cluster depends on whether Caddy is enabled. This is
-        to ensure that the Caddy service has the necessary access to load the certs when the service is started."""
-        # Copy to the home directory by default
-        source = str(Path(self.cert_config.key_path).parent)
-        dest = self.cert_config.DEFAULT_CLUSTER_DIR
-        self.rsync(source, dest, up=True, parallel=True)
-
-        if self._use_caddy:
-            # Move to the Caddy directory to ensure the daemon has access to the certs
-            src = self.cert_config.DEFAULT_CLUSTER_DIR
-            dest = self.cert_config.CADDY_CLUSTER_DIR
-            self._run_commands_with_runner(
-                [
-                    f"sudo mkdir -p {dest}",
-                    f"sudo mv {src}/* {dest}/",
-                    f"sudo rm -r {src}",
-                ]
-            )
-
-        logger.debug(f"Copied local certs onto the cluster in path: {dest}")
-
-        # private key should only live on the cluster
-        Path(self.cert_config.key_path).unlink()
-
     def run_bash(
         self,
         commands: Union[str, List[str]],
@@ -2076,8 +1822,6 @@ class Cluster(Resource):
         stream_logs: bool = True,
         require_outputs: bool = True,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
     ):
         """Run bash commands on the cluster over SSH. Will not work directly on the cluster, works strictly over
         ssh.
@@ -2089,8 +1833,6 @@ class Cluster(Resource):
                 on the head node. (Default: ``None``)
             stream_logs (bool): Whether to stream logs. (Default: ``True``)
             require_outputs (bool): Whether to return stdout/stderr in addition to status code. (Default: ``True``)
-            conda_env_name (str or None): Name of conda env to run the command in, if applicable. (Defaut: ``None``)
-            venv_path: (str or None): Path of venv to run the command in, if applicable. (Defaut: ``None``)
         """
         if self.on_this_cluster():
             raise ValueError("Run bash over SSH is not supported on the local cluster.")
@@ -2100,9 +1842,6 @@ class Cluster(Resource):
 
         if node is None:
             node = self.head_ip
-
-        if conda_env_name:
-            commands = [conda_env_cmd(cmd, conda_env_name) for cmd in commands]
 
         if node == "all":
             res_list = []
@@ -2116,13 +1855,6 @@ class Cluster(Resource):
                 )
                 res_list.append(res)
             return res_list
-
-        venv_path = venv_path or self.image.venv_path if self.image else None
-
-        if conda_env_name:
-            commands = [conda_env_cmd(cmd, conda_env_name) for cmd in commands]
-        if venv_path:
-            commands = [venv_cmd(cmd, venv_path) for cmd in commands]
 
         return_codes = self._run_commands_with_runner(
             commands,
@@ -2189,7 +1921,6 @@ class Cluster(Resource):
         stream_logs: bool = True,
         node: str = None,
         require_outputs: bool = True,
-        venv_path: str = None,
         _ssh_mode: str = "interactive",  # Note, this only applies for non-password SSH
     ):
         from runhouse.resources.hardware.sky_command_runner import SshMode
@@ -2221,8 +1952,6 @@ class Cluster(Resource):
 
             # set env vars after log statement
             command = f"{env_var_prefix} {command}" if env_var_prefix else command
-            if venv_path:
-                command = venv_cmd(command, venv_path=venv_path)
 
             if not pwd:
                 ssh_mode = (
@@ -2277,8 +2006,6 @@ class Cluster(Resource):
     def run_python(
         self,
         commands: List[str],
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
         stream_logs: bool = True,
         node: str = None,
     ):
@@ -2286,8 +2013,6 @@ class Cluster(Resource):
 
         Args:
             commands (List[str]): List of commands to run.
-            conda_env_name (str or None): Name of conda env to run the command in, if applicable. (Defaut: ``None``)
-            venv_path: (str or None): Path of venv to run the command in, if applicable. (Defaut: ``None``)
             stream_logs (bool, optional): Whether to stream logs. (Default: ``True``)
             node (str, optional): Node to run commands on. If not specified, runs on head node. (Default: ``None``)
 
@@ -2310,26 +2035,9 @@ class Cluster(Resource):
             [formatted_command],
             stream_logs=stream_logs,
             node=node,
-            conda_env_name=conda_env_name,
-            venv_path=venv_path,
         )
 
         return return_codes
-
-    def create_conda_env(self, conda_env_name: str, conda_config: Dict):
-        """Create a new Conda Env on the cluster.
-
-        Args:
-            conda_env_name (str): Name of the conda env to create.
-            conda_config (Dict): Dict representing conda config yaml, used to construct the conda environment.
-                Name in conda config must match ``conda_env_name``.
-        """
-        install_conda(cluster=self)
-        create_conda_env_on_cluster(
-            conda_env_name=conda_env_name,
-            conda_config=conda_config,
-            cluster=self,
-        )
 
     def sync_secrets(
         self,
@@ -2395,14 +2103,13 @@ class Cluster(Resource):
 
         try:
             jupyter_cmd = f"jupyter lab --port {port_fwd} --no-browser"
-            with self.pause_autostop():
-                self.pip_install(["jupyterlab"])
-                # TODO figure out why logs are not streaming here if we don't use ssh.
-                # When we do, it may be better to switch it back because then jupyter is killed
-                # automatically when the cluster is restarted (and the process is killed).
-                self.run_bash_over_ssh(
-                    commands=[jupyter_cmd], stream_logs=True, node=self.head_ip
-                )
+            self.pip_install(["jupyterlab"])
+            # TODO figure out why logs are not streaming here if we don't use ssh.
+            # When we do, it may be better to switch it back because then jupyter is killed
+            # automatically when the cluster is restarted (and the process is killed).
+            self.run_bash_over_ssh(
+                commands=[jupyter_cmd], stream_logs=True, node=self.head_ip
+            )
 
         finally:
             if sync_package_on_close:
@@ -2498,51 +2205,6 @@ class Cluster(Resource):
         for node in self.ips:
             self.run_bash("pkill -f 'dask worker'", node=node)
 
-    def remove_conda_env(
-        self,
-        conda_env_name: str,
-    ):
-        """Remove conda env from the cluster.
-
-        Args:
-            conda_env_name (str): Name of conda env to remove from the cluster.
-
-        Example:
-            >>> rh.ondemand_cluster("rh-cpu").remove_conda_env("my_conda_env")
-        """
-        self.run_bash_over_ssh([f"conda env remove -n {conda_env_name}"])
-
-    def download_cert(self):
-        """Download certificate from the cluster (Note: user must have access to the cluster)"""
-        self.call_client_method("get_certificate")
-        logger.info(
-            f"Latest TLS certificate for {self.name} saved to local path: {self.cert_config.cert_path}"
-        )
-
-    def enable_den_auth(self, flush: bool = True):
-        """Enable Den auth on the cluster.
-
-        Args:
-            flush (bool, optional): Whether to flush the auth cache. (Default: ``True``)
-        """
-        if self.on_this_cluster():
-            raise ValueError("Cannot toggle Den Auth live on the cluster.")
-        else:
-            self.den_auth = True
-            self.call_client_method(
-                "set_settings", {"den_auth": True, "flush_auth_cache": flush}
-            )
-        return self
-
-    def disable_den_auth(self):
-        """Disable Den auth on the cluster."""
-        if self.on_this_cluster():
-            raise ValueError("Cannot toggle Den Auth live on the cluster.")
-        else:
-            self.den_auth = False
-            self.call_client_method("set_settings", {"den_auth": False})
-        return self
-
     def _set_connection_defaults(self):
         if self.server_host and (
             "localhost" in self.server_host or ":" in self.server_host
@@ -2556,10 +2218,8 @@ class Cluster(Resource):
                 # e.g. "localhost:23324" or <real_ip>:<custom port> (e.g. a port is already open to the server)
                 self.server_host, self.client_port = self.server_host.split(":")
 
-        self.server_connection_type = self.server_connection_type or (
-            ServerConnectionType.TLS
-            if self.ssl_certfile or self.ssl_keyfile
-            else ServerConnectionType.SSH
+        self.server_connection_type = (
+            self.server_connection_type or ServerConnectionType.SSH
         )
 
         if self.server_port is None:
@@ -2655,44 +2315,6 @@ class Cluster(Resource):
         config["creds"] = creds
 
         return config
-
-    ##############################################
-    # Send Cluster status to Den methods
-    ##############################################
-    def _disable_status_check(self):
-        """Stop sending periodic status checks to Den."""
-        if not self.den_auth:
-            logger.error(
-                "Cluster must have Den auth enabled to allow periodic status checks. "
-                "Make sure you have a Den account and the cluster has `den_auth=True`."
-            )
-            return
-        if self.on_this_cluster():
-            obj_store.set_cluster_config_value("status_check_interval", -1)
-        else:
-            self.call_client_method("set_settings", {"status_check_interval": -1})
-
-    def _enable_or_update_status_check(
-        self, new_interval: int = DEFAULT_STATUS_CHECK_INTERVAL
-    ):
-        """
-        Enables a periodic status check or updates the interval between cluster status checks.
-
-        Args:
-            new_interval (int): Updated number of minutes between status checks.
-        """
-        if not self.den_auth:
-            logger.error(
-                "Cluster must have Den auth enabled to update the interval for periodic status checks. "
-                "Make sure you have a Den account and the cluster has `den_auth=True`."
-            )
-            return
-        if self.on_this_cluster():
-            obj_store.set_cluster_config_value("status_check_interval", new_interval)
-        else:
-            self.call_client_method(
-                "set_settings", {"status_check_interval": new_interval}
-            )
 
     ##############################################
     # Folder Operations
@@ -2810,7 +2432,6 @@ class Cluster(Resource):
                     "Name": sky_cluster.get("name"),
                     "Cluster Type": "OnDemandCluster (Sky)",
                     "Status": sky_cluster.get("status").value,
-                    "Autostop": sky_cluster.get("autostop"),
                 }
                 for sky_cluster in sky_live_clusters
             ]
@@ -2935,8 +2556,6 @@ class Cluster(Resource):
     def install_package(
         self,
         package: Union["Package", str],
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
         override_remote_version: bool = False,
     ):
         from runhouse.resources.packages.package import Package
@@ -2947,16 +2566,12 @@ class Cluster(Resource):
         if self.on_this_cluster():
             obj_store.ainstall_package_in_all_nodes_and_processes(
                 package=package,
-                conda_env_name=conda_env_name,
-                venv_path=venv_path,
                 override_remote_version=override_remote_version,
             )
         else:
             package = package.to(self)
             self.client.install_package(
                 package=package,
-                conda_env_name=conda_env_name,
-                venv_path=venv_path,
                 override_remote_version=override_remote_version,
             )
 
@@ -2964,8 +2579,6 @@ class Cluster(Resource):
         self,
         package: Union["Package", str],
         node: str,
-        conda_env_name: str,
-        venv_path: str,
         override_remote_version: bool = False,
     ):
         from runhouse.resources.packages import InstallTarget, Package
@@ -2981,7 +2594,5 @@ class Cluster(Resource):
         package._install(
             cluster=self,
             node=node,
-            conda_env_name=conda_env_name,
-            venv_path=venv_path,
             override_remote_version=override_remote_version,
         )

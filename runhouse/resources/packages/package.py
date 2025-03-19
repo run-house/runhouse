@@ -19,19 +19,16 @@ from runhouse.resources.hardware.utils import (
 from runhouse.resources.resource import Resource
 
 from runhouse.utils import (
-    conda_env_cmd,
     find_locally_installed_version,
     get_local_install_path,
-    install_conda,
     is_python_package_string,
     locate_working_dir,
     run_setup_command,
     split_pip_extras,
-    venv_cmd,
 )
 
 
-INSTALL_METHODS = {"local", "pip", "uv", "conda"}
+INSTALL_METHODS = {"local", "pip", "uv"}
 
 logger = get_logger(__name__)
 
@@ -103,10 +100,6 @@ class Package(Resource):
         self.preferred_version = preferred_version
 
     def config(self, condensed: bool = True):
-        # If the package is just a simple Package.from_string string, no
-        # need to store it in rns, just give back the string.
-        # if self.install_method in ['pip', 'conda', 'git']:
-        #     return f'{self.install_method}:{self.name}'
         config = super().config(condensed)
         config["install_method"] = self.install_method
         config["install_target"] = (
@@ -130,27 +123,16 @@ class Package(Resource):
     @staticmethod
     def _prepend_python_executable(
         install_cmd: str,
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
         cluster: "Cluster" = None,
     ):
-        if venv_path:
-            return install_cmd
-        if cluster or conda_env_name:
+        if cluster:
             return f"python3 -m {install_cmd}"
         return f"{sys.executable} -m {install_cmd}"
 
     @staticmethod
     def _prepend_env_command(
         install_cmd: str,
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
     ):
-        if conda_env_name:
-            install_cmd = conda_env_cmd(cmd=install_cmd, conda_env_name=conda_env_name)
-        if venv_path:
-            install_cmd = venv_cmd(cmd=install_cmd, venv_path=venv_path)
-
         return install_cmd
 
     def _validate_folder_path(self):
@@ -177,8 +159,6 @@ class Package(Resource):
 
     def _pip_install_cmd(
         self,
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
         cluster: "Cluster" = None,
         uv: bool = None,
     ):
@@ -217,28 +197,7 @@ class Package(Resource):
             install_cmd = self._prepend_python_executable(
                 install_cmd,
                 cluster=cluster,
-                conda_env_name=conda_env_name,
-                venv_path=venv_path,
             )
-        install_cmd = self._prepend_env_command(
-            install_cmd, conda_env_name=conda_env_name, venv_path=venv_path
-        )
-        return install_cmd
-
-    def _conda_install_cmd(
-        self, conda_env_name: Optional[str] = None, cluster: "Cluster" = None
-    ):
-        install_args = f" {self.install_args}" if self.install_args else ""
-        if isinstance(self.install_target, InstallTarget):
-            install_cmd = f"{self.install_target.local_path}" + install_args
-        else:
-            install_cmd = self.install_target + install_args
-
-        install_cmd = f"conda install -y {install_cmd}"
-        install_cmd = self._prepend_env_command(
-            install_cmd, conda_env_name=conda_env_name
-        )
-        install_conda(cluster=cluster)
         return install_cmd
 
     def _install_and_validate_output(
@@ -258,8 +217,6 @@ class Package(Resource):
         self,
         cluster: "Cluster" = None,
         node: Optional[str] = None,
-        conda_env_name: Optional[str] = None,
-        venv_path: Optional[str] = None,
         override_remote_version: bool = False,
     ):
         """Install package.
@@ -269,8 +226,6 @@ class Package(Resource):
                 assumption is that we are installing locally. (Default: ``None``)
             node (Optional[str]): Node on the cluster to install the package on, if using SSH. If ``cluster`` is
                 provided without a ``node``, package will be installed on the head node. (Default: ``None``)
-            conda_env_name (Optional[str]): Name of the conda environment to install the package on, if using SSH and
-                installing in a specific conda env that is not activated by default.
             override_remote_version (bool, optional): If the package exists both locally and remotely, whether to override
                 the remote version with the local version. By default, the local version will be installed only if
                 the package does not already exist on the cluster. (Default: ``False``)
@@ -288,8 +243,6 @@ class Package(Resource):
                     run_setup_command(
                         f"[ -d ~/{self.install_target} ]",
                         cluster=cluster,
-                        conda_env_name=conda_env_name,
-                        venv_path=venv_path,
                         node=node,
                         stream_logs=False,
                     )[0]
@@ -306,8 +259,6 @@ class Package(Resource):
                         retcode = run_setup_command(
                             f"python3 -c \"import importlib.util; exit(0) if importlib.util.find_spec('{self.install_target}') else exit(1)\"",
                             cluster=cluster,
-                            conda_env_name=conda_env_name,
-                            venv_path=venv_path,
                             node=node,
                         )[0]
 
@@ -324,21 +275,10 @@ class Package(Resource):
                         )
 
             install_cmd = self._pip_install_cmd(
-                conda_env_name=conda_env_name,
-                venv_path=venv_path,
                 cluster=cluster,
                 uv=(self.install_method == "uv"),
             )
             logger.info(f"Running via install_method pip: {install_cmd}")
-            self._install_and_validate_output(
-                install_cmd=install_cmd, cluster=cluster, node=node
-            )
-
-        elif self.install_method == "conda":
-            install_cmd = self._conda_install_cmd(
-                conda_env_name=conda_env_name, cluster=cluster
-            )
-            logger.info(f"Running via install_method conda: {install_cmd}")
             self._install_and_validate_output(
                 install_cmd=install_cmd, cluster=cluster, node=node
             )
@@ -357,7 +297,6 @@ class Package(Resource):
                 ) if not cluster else run_setup_command(
                     f'export PATH="$PATH;{self.install_target.path_to_sync_to_on_cluster}"',
                     cluster=cluster,
-                    venv_path=venv_path,
                     node=node,
                 )
             elif not cluster:
@@ -570,7 +509,7 @@ class Package(Resource):
             return Package(
                 install_target=target, install_method=install_method, dryrun=dryrun
             )
-        elif install_method in ["pip", "uv", "conda"]:
+        elif install_method in ["pip", "uv"]:
             return Package(
                 install_target=target,
                 install_args=args,
@@ -600,7 +539,7 @@ def package(
     Args:
         name (str, optional): Name to assign the package resource.
         install_method (str, optional): Method for installing the package.
-            Options: [``pip``, ``conda``, ``local``]
+            Options: [``pip``, ``uv``, ``local``]
         install_str (str, optional): Additional arguments to install.
         path (str, optional): URL of the package to install.
         system (str, optional): File system or cluster on which the package lives.

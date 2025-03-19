@@ -32,7 +32,6 @@ class DockerCluster(Cluster):
         server_host: str = None,
         server_port: int = None,
         client_port: int = None,
-        den_auth: bool = False,
         dryrun: bool = False,
         image: Optional["Image"] = None,
         home_dir: Optional[str] = None,
@@ -47,7 +46,6 @@ class DockerCluster(Cluster):
             server_host=server_host or "0.0.0.0",
             server_port=server_port or DEFAULT_SERVER_PORT,
             client_port=client_port,
-            den_auth=den_auth,
             image=image,
             dryrun=dryrun,
         )
@@ -86,9 +84,7 @@ class DockerCluster(Cluster):
 
     @property
     def server_address(self):
-        """Address to use in the requests made to the cluster. If creating an SSH tunnel with the cluster,
-        ths will be set to localhost, otherwise will use the cluster's domain (if provided), or its
-        public IP address."""
+        """Address to use in the requests made to the cluster."""
         return LOCALHOST
 
     def ssh_tunnel(
