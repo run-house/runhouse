@@ -1,16 +1,16 @@
-# # Ray Hyperparameter Tuning with Runhouse
+# # Ray Hyperparameter Tuning
 # In this example, we show you how to start a basic hyperparameter tuning using Ray Tune on remote compute.
-# You simply need to write your Ray Tune program as you would normally, and then send it to the remote cluster using Runhouse.
-# Runhouse handles all the complexities of launching and setting up the remote Ray cluster for you.
+# You simply need to write your Ray Tune program as you would normally, and then send it to the remote cluster.
+# Kubetorch handles all the complexities of launching and setting up the remote Ray cluster for you.
 import time
 from typing import Any, Dict
 
-import runhouse as rh
+import kubetorch as kt
 from ray import tune
 
 # ## Define a Ray Tune program
 # We define a Trainable class and a find_minumum function to demonstrate a basic example of using Ray Tune for hyperparameter optimization.
-# You should simply think of this as "any regular Ray Tune program" that you would write entirely agnostic of Runhouse.
+# You should simply think of this as "any regular Ray Tune program" that you would write entirely agnostic of Kubetorch.
 # * Train_fn is a dummy training function that takes in a step number, width, and height as arguments and returns a score.
 # * The Trainable class is a subclass of tune.Trainable that implements the training logic.
 # * The find_minimum function sets up the hyperparameter search space and launches the hyperparameter optimization using Ray Tune.
@@ -66,25 +66,12 @@ def find_minimum(num_concurrent_trials=None, num_samples=1, metric_name="score")
     return tuner.get_results().get_best_result()
 
 
-# ## Launch Hyperparameter Tuning using Runhouse
-# We will now launch the compute using Runhouse, set up the Ray Cluster, and run the hyperparameter optimization
+# ## Launch Hyperparameter Tuning
+# We will now dispatch the program, set up Ray, and run the hyperparameter optimization
 # on the remote compute.
-# * First, we launch 2 nodes of 4 CPUs out of elastic compute on AWS, install the necessary packages via
-# the Runhouse image.
-# * Then, we send our find_minumum function to the remote cluster with `.to()` and instruct Runhouse to setup Ray with `.distribute("ray")`.
-# * Finally, we run the remote function normally as we would locally to start the hyperparameter optimization.
-
 if __name__ == "__main__":
-
-    num_nodes = 2
-    num_cpus_per_node = 4
-
-    cpus = rh.compute(
-        name="rh-cpu",
-        num_nodes=num_nodes,
-        num_cpus=num_cpus_per_node,
-        image=rh.images.ray(),
-    ).up_if_not()
-
-    remote_find_minimum = rh.function(find_minimum).to(cpus).distribute("ray")
+    head = kt.Compute(num_cpus=4, image=kt.images.ray())
+    remote_find_minimum = (
+        kt.function(find_minimum).to(head).distribute("ray", num_nodes=2)
+    )
     best_result = remote_find_minimum(num_samples=8)

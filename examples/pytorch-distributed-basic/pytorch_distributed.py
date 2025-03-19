@@ -1,5 +1,5 @@
 # # PyTorch Multi-node Distributed Training
-# A basic example showing how to use Runhouse to Pythonically run a PyTorch distributed training script on a
+# A basic example showing how to Pythonically run a PyTorch distributed training script on a
 # cluster of GPUs. Often distributed training is launched from multiple parallel CLI commands
 # (`python -m torch.distributed.launch ...`), each spawning separate training processes (ranks).
 # Here, we're creating each process as a separate worker on our compute, sending our training function
@@ -14,7 +14,7 @@
 # running distributed training alongside other tasks on the same cluster. It's also significantly easier to debug
 # and monitor, as you can see the output of each rank in real-time and get stack traces if a worker fails.
 
-import runhouse as rh
+import kubetorch as kt
 import torch
 
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -51,17 +51,7 @@ def train_loop(epochs):
 
 
 if __name__ == "__main__":
-    gpus_per_node = 1
-    num_nodes = 2
+    gpus = kt.Compute(gpus="A10G:1", image=kt.images.pytorch())
+    train_ddp = kt.function(train_loop).to(gpus).distribute("pytorch", num_nodes=2)
 
-    gpus = rh.compute(
-        name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-        gpus=f"A10G:{gpus_per_node}",
-        num_nodes=num_nodes,
-        image=rh.images.pytorch(),
-    ).up_if_not()
-
-    remote_train_loop = rh.function(train_loop).to(gpus)
-
-    train_ddp = remote_train_loop.distribute("pytorch")
     train_ddp(epochs=10)

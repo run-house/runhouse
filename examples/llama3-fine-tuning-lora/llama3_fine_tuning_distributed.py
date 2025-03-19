@@ -1,8 +1,10 @@
+# ## Fine-Tune Llama 3 with LoRA on AWS EC2
+
 import gc
 import os
 from pathlib import Path
 
-import runhouse as rh
+import kubetorch as kt
 import torch
 import torch.distributed as dist
 
@@ -20,8 +22,12 @@ from trl import SFTConfig, SFTTrainer
 
 DEFAULT_MAX_LENGTH = 200
 
-
-class Llama3:
+# ## Define the FineTuner class
+# The `FineTuner` class will hold the methods needed to fine-tune the model and run inference text.
+# This is regular Python using standard HF Transformers and TRL methods to fine-tune the model.
+# We will write code and iterate locally, but dispatch this to distributed remote compute using Kubetorch, and
+# run the actual training over arbitrary scale.
+class FineTuner:
     def __init__(
         self,
         dataset_name="mlabonne/guanaco-llama2-1k",
@@ -136,12 +142,12 @@ class Llama3:
         self.fine_tuned_model = trainer.model
         trainer.model.save_pretrained(self.fine_tuned_model_name)
         trainer.tokenizer.save_pretrained(self.fine_tuned_model_name)
-        print("Saved model weights and tokenizer on the cluster.")
+        print("Saved model weights and tokenizer on the remote compute.")
 
     def load_fine_tuned_model(self):
         if not self.new_model_exists():
             raise FileNotFoundError(
-                "No fine tuned model found on the cluster. "
+                "No fine tuned model found on the remote compute. "
                 "Call the `tune` method to run the fine tuning."
             )
 
@@ -158,7 +164,7 @@ class Llama3:
     def generate(self, query: str, max_length: int = DEFAULT_MAX_LENGTH):
         if self.rank == 0:
             if self.fine_tuned_model is None:
-                # Load the fine-tuned model saved on the cluster
+                # Load the fine-tuned model saved on the remote compute
                 self.load_fine_tuned_model()
 
             if self.tokenizer is None:
@@ -171,12 +177,17 @@ class Llama3:
             return output[0]["generated_text"]
 
 
+# ## Define Compute and Execution
+#
+# Now, we define code that will run locally when we run this script and set up
+# our fine tuner module on a remote compute. First, we define compute with the desired requirements for a node.
+# Our `gpus` requirement here is defined as `L4:1`, which is the accelerator type and count that we need.
+# We will set the number of nodes to 4 and our training will be distributed across these nodes.
 if __name__ == "__main__":
     img = (
-        rh.Image(name="llamafinetuning")
-        .install_packages(
+        kt.images.pytorch()
+        .pip_install(
             [
-                "torch",
                 "tensorboard",
                 "transformers",
                 "bitsandbytes",
@@ -184,24 +195,28 @@ if __name__ == "__main__":
                 "trl",
                 "accelerate",
                 "scipy",
+                "datasets",
             ]
         )
         .sync_secrets(["huggingface"])
     )
 
     num_nodes = 4
+    replicas_per_node = 1
+    gpus_per_node = 1
 
-    # Requires access to a cloud account with the necessary permissions to launch compute.
-    gpus = rh.compute(
-        gpus="L4:1",
-        num_nodes=num_nodes,
-        provider="aws",
-        name=f"rh-L4x{num_nodes}",
+    compute = kt.Compute(
+        gpus=f"L4:{gpus_per_node}",
         image=img,
     ).up_if_not()
-    # gpus.restart_server(resync_image=False, resync_rh=False)
-    fine_tuner_remote = rh.cls(Llama3).to(gpus, name="ft_model")
-    fine_tuner = fine_tuner_remote(name="ft_model_instance").distribute("pytorch")
+
+    fine_tuner = (
+        kt.cls(FineTuner)
+        .to(compute)
+        .distribute(
+            "pytorch", num_replicas=num_nodes, replicas_per_node=replicas_per_node
+        )
+    )
 
     fine_tuner.tune()
 

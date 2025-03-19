@@ -7,20 +7,15 @@
 # 4 x L4 GPUs. These are very available on AWS and GCP (A10 is a good sub on Azure), as well as
 # most vertical GPU cloud providers, and the spot price is just $1/hour.
 #
-# We can easily add additional nodes and additional GPUs with Runhouse, and calling LLM to increase
+# We can easily add additional nodes and additional GPUs, and using vLLM to increase
 # tensor and pipeline parallelism.
 #
-# To get started, you simply need to install Runhouse with additional install for the cloud you want to use
+# Note, there must be a remote machine with Kubetorch running, and you need a Kubeconfig locally.
+# Assuming that's the case, you simply need to install Kubetorch and the vllm package:
 # ```shell
-# $ pip install "runhouse[aws]" torch vllm
+# $ pip install "kubetorch" torch vllm
 # ```
 #
-# If you do not have a Runhouse account, you will launch from your local machine. Set up your
-# cloud provider CLI:
-# ```shell
-# $ aws configure
-# $ gcloud init
-# ```
 # We'll be downloading the model from Hugging Face, so we may need to set up our Hugging Face token:
 # ```shell
 # $ export HF_TOKEN=<your huggingface token>
@@ -31,7 +26,7 @@
 # We define a class that will hold the model and allow us to send prompts to it.
 # This is regular, undecorated Python code, that implements methods to
 # load the model (automatically downloading from HuggingFace), and to generate text from a prompt.
-import runhouse as rh
+import kubetorch as kt
 from vllm import LLM, SamplingParams
 
 
@@ -71,63 +66,35 @@ class DeepSeek_Distill_Qwen_vLLM:
 
 
 # ## Launch Compute and Run Inference
-# Now we will define compute using Runhouse and send our inference class to the remote machine.
-# First, we define an image with torch and vllm and a cluster with 4 x L4 with 1 node.
-# Then, we send our inference class to the remote cluster and instantiate a the remote inference class
+# Now we will define compute using Kubetorch and send our inference class to the remote compute.
+# First, we define an image with torch and vllm and 8 x L4 with 1 node.
+# Then, we send our inference class to the remote compute and instantiate a the remote inference class
 # with the name `deepseek` which we can access by name later. Finally, we call the remote inference class
 # as if it were local to generate text from a list of prompts and print the results. If you launch with multiple nodes
 # you can take advantage of vllm's parallelism.
 
 if __name__ == "__main__":
-    img = (
-        rh.Image(name="vllm_inference")
-        .pip_install(
-            [
-                "torch",
-                "vllm",
-            ]
-        )
-        .sync_secrets(["huggingface"])
-    )
-
-    num_gpus = 4
-    num_nodes = 1
+    num_gpus = 8
     gpu_type = "L4"
-    use_spot = True
-    launcher = "local"
-    autostop_mins = 120
-    provider = "aws"  # gcp, azure, lambda, etc.
 
-    cluster = rh.compute(
-        name=f"rh-{num_gpus}x{num_nodes}",
-        num_nodes=num_nodes,
-        instance_type=f"{gpu_type}:{num_gpus}",
-        provider=provider,
-        image=img,
-        use_spot=use_spot,
-        launcher=launcher,
-        autostop_mins=autostop_mins,
-    ).up_if_not()  # use cluster.restart_server() if you need to reset the remote cluster without tearing it down
+    # Define the image and compute
+    img = kt.images.pytorch().pip_install(["vllm"]).sync_secrets(["huggingface"])
+    gpus = kt.Compute(gpus=f"{gpu_type}:{num_gpus}")
 
-    inference_remote = rh.cls(DeepSeek_Distill_Qwen_vLLM).to(
-        cluster, name="deepseek_vllm"
+    # Send the inference class to the remote compute
+    init_args = dict(
+        num_gpus=num_gpus,
     )
-    llama = inference_remote(
-        name="deepseek", num_gpus=num_gpus
-    )  # Instantiate class. Can later use cluster.get("deepseek", remote = True) to grab remote inference if already running
+    inference_remote = kt.cls(DeepSeek_Distill_Qwen_vLLM).to(gpus, kwargs=init_args)
 
-    cluster.ssh_tunnel(
-        8265, 8265
-    )  # View cluster resource utilization dashboard on localhost:8265
-
+    # Run inference remotely and print the results
     queries = [
         "What is the relationship between bees and a beehive compared to programmers and...?",
         "How many R's are in Strawberry?",
         "Roman numerals are formed by appending the conversions of decimal place values from highest to lowest. Converting a decimal place value into a Roman numeral has the following rules: If the value does not start with 4 or 9, select the symbol of the maximal value that can be subtracted from the input, append that symbol to the result, subtract its value, and convert the remainder to a Roman numeral. If the value starts with 4 or 9 use the subtractive form representing one symbol subtracted from the following symbol, for example, 4 is 1 (I) less than 5 (V): IV and 9 is 1 (I) less than 10 (X): IX. Only the following subtractive forms are used: 4 (IV), 9 (IX), 40 (XL), 90 (XC), 400 (CD) and 900 (CM). Only powers of 10 (I, X, C, M) can be appended consecutively at most 3 times to represent multiples of 10. You cannot append 5 (V), 50 (L), or 500 (D) multiple times. If you need to append a symbol 4 times use the subtractive form. Given an integer, write Python code to convert it to a Roman numeral.",
     ]
 
-    outputs = llama.generate(queries)
-
+    outputs = inference_remote.generate(queries)
     for output in outputs:
         prompt = output.prompt
         generated_text = output.outputs[0].text

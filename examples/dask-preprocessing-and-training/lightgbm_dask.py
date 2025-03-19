@@ -1,5 +1,23 @@
-# ## Dask + LightGBM Training
-# This script contains the implementation of a class that trains a LightGBM model using Dask.
+# # Distributed Dask Data Processing & LightGBM Training
+# In this example, we show how you can use Kubetorch to launch a multi-node Dask cluster and use it to preprocess data and then train a LightGBM model.
+# The dataset we use is a 1 year sample of the NYC Taxi Dataset, which we do some illustrative pre-processing over to show the power of Dask
+# to perform distributed operations. Then, LightGBM is used to do a distributed training over the data, using the Dask cluster.
+import cloudpickle
+import dask.array as da
+
+import dask.dataframe as dd
+import kubetorch as kt
+import lightgbm as lgb
+import numpy as np
+
+from dask.distributed import Client
+from dask_ml.metrics import mean_absolute_error, mean_squared_error
+from dask_ml.model_selection import train_test_split
+
+# ## Define the LightGBM Model Trainer Class
+# We use this class to encapsulate the training and define the methods for data pre-processing, training, and evaluation.
+# We will send this trainer to the Dask cluster we bring up from available compute below, and create a remote instance of this class.
+# This is regular undecorated Python, with regular Dask and LightGBM operations to train the model.
 class LightGBMModelTrainer:
     def __init__(self):
         self.model = None
@@ -16,19 +34,13 @@ class LightGBMModelTrainer:
         self.features = None
 
     def load_client(self, ip="localhost", port="8786"):
-        from dask.distributed import Client
-
         self.client = Client(f"tcp://{ip}:{port}")
 
     def load_data(self, data_path):
-        import dask.dataframe as dd
-
         self.dataset = dd.read_parquet(data_path)
         print(self.dataset.columns)
 
     def train_test_split(self, target_var, features=None):
-        from dask_ml.model_selection import train_test_split
-
         if features is None:
             features = self.dataset.columns.difference([target_var])
 
@@ -51,8 +63,6 @@ class LightGBMModelTrainer:
         return ["day", "month", "dayofweek", "hour"]
 
     def train_model(self):
-        import lightgbm as lgb
-
         self.load_client()
         self.model = lgb.DaskLGBMRegressor(client=self.client)
         self.model.fit(
@@ -64,8 +74,6 @@ class LightGBMModelTrainer:
 
     def test_model(self):
         self.load_client()
-        from dask_ml.metrics import mean_absolute_error, mean_squared_error
-
         if self.model is None:
             raise Exception("Model not trained yet. Please train the model first.")
         if self.X_test is None or self.y_test is None:
@@ -86,8 +94,6 @@ class LightGBMModelTrainer:
         return {"features": self.features, "mse": self.mse, "mae": self.mae}
 
     def save_model(self, path, upload_to_s3=False):
-        import cloudpickle
-
         if path.startswith("s3://"):
             import s3fs
 
@@ -105,47 +111,62 @@ class LightGBMModelTrainer:
             with open(path, "wb") as f:
                 cloudpickle.dump(self.model, f)
 
-    def load_model(self, path):
-        import cloudpickle
-
-        if path.startswith("s3://"):
-            import boto3
-
-            # Remove the "s3://" prefix and extract bucket and key
-            s3 = boto3.client("s3")
-            bucket, key = path[5:].split("/", 1)
-
-            # Download the object to a bytes buffer
-            response = s3.get_object(Bucket=bucket, Key=key)
-
-            # Load model using cloudpickle
-            self.model = cloudpickle.load(response["Body"].read())
-        elif path.startswith("gs://"):
-            import gcsfs
-
-            fs = gcsfs.GCSFileSystem()
-            with fs.open(path, "rb") as f:
-                self.model = cloudpickle.load(f)
-        else:
-            # Assume it's a local path
-            with open(path, "rb") as f:
-                self.model = cloudpickle.load(f)
-
     def predict(self, X):
-        import dask.array as da
-        import dask.dataframe as dd
-        import numpy as np
-
         if isinstance(X, dd.DataFrame):  # Check for Dask DataFrame
             result = self.model.predict(X.to_dask_array())
-        elif isinstance(X, da.Array):  # Check for Dask Array
-            result = self.model.predict(X)
         elif isinstance(X, (list, tuple)):  # Check for list or tuple
             X = da.from_array(np.array(X).reshape(1, -1), chunks=(1, 7))
             result = self.model.predict(X)
         else:
             raise ValueError("Unsupported data type for prediction.")
 
-        print(result)
-        print(result.compute())
         return float(result.compute()[0])
+
+
+# ## Launch Compute and Run the Training
+# We will now launch compute with multiple nodes and use it to train a LightGBM model.
+if __name__ == "__main__":
+    # ## Define compute with multiple nodes
+    num_nodes = 3
+
+    # The environment for the remote compute
+    img = kt.images.dask().pip_install(
+        [
+            "gcsfs",  # For Google Cloud Storage, change for your cloud provider
+            "lightgbm",
+        ]
+    )
+
+    cpus = kt.Compute(cpus="8", memory="32", image=img)
+
+    # ## Setup the remote training
+    # Now we can dispatch the model trainer class to remote, which is fully locally interactible.
+    # We can call methods on it as if it were local.
+    # Importantly, we use .distribute("dask") to start the Dask cluster and indicate this will be used with Dask
+    remote_dask_trainer = kt.cls(LightGBMModelTrainer).to(cpus)
+    dask_trainer = remote_dask_trainer(name="my_trainer").distribute(
+        "dask",
+        num_nodes=num_nodes,
+    )
+
+    cpus.ssh_tunnel("8787", "8787")  # Forward the Dask dashboard to local
+
+    # Now we call the remote model trainer to do the training.
+    data_path = "gs://rh-demo-external/taxi_parquet"  # NYC Taxi Data
+    X_vars = ["passenger_count", "trip_distance", "fare_amount"]
+    y_var = "tip_amount"
+
+    dask_trainer.load_client()
+    dask_trainer.load_data(data_path)
+    new_date_columns = dask_trainer.preprocess(date_column="tpep_pickup_datetime")
+    X_vars = X_vars + new_date_columns
+    dask_trainer.train_test_split(target_var=y_var, features=X_vars)
+
+    dask_trainer.train_model()
+    print("Model trained")
+    dask_trainer.test_model()
+    print("Model tested")
+    dask_trainer.save_model("gs://rh-model-checkpoints/lightgbm_dask/model.pkl")
+    print("Model saved")
+
+    cpus.notebook()  # Optionally, open a Jupyter notebook on the compute to interact with the Dask cluster

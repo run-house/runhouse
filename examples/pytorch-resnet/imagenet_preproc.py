@@ -1,7 +1,7 @@
 # Description: This script downloads the imagenet dataset from HuggingFace, preprocesses it, and uploads it to S3.
 # You don't need to reproduce this if you want to just use your own dataset directly.
 
-import runhouse as rh
+import kubetorch as kt
 
 
 def download_preproc_and_upload(
@@ -73,14 +73,12 @@ def download_preproc_and_upload(
 
 if __name__ == "__main__":
     # ## Launch the compute
-    # Define the image and the cluster that the work will be run on.
+    # Define the image and the compute that the work will be run on.
     # The image is package installations and secrets here, but can also take a Docker image as a base.
-    # The cluster here is launched from elastic compute, but can also be launched from a Kubernetes cluster.
     img = (
-        rh.Image("rh-preprocessing")
+        kt.images.pytorch()
         .pip_install(
             [
-                "torch",
                 "torchvision",
                 "Pillow",
                 "datasets",
@@ -91,18 +89,16 @@ if __name__ == "__main__":
         .sync_secrets(["aws", "huggingface"])
     )
 
-    cluster = rh.compute(
-        name="rh-preprocessing",
-        instance_type="i4i.2xlarge",
-        provider="aws",
-        region="us-east-1",
+    compute = kt.Compute(
+        cpus="32+",
+        disk_size="1000+",
         image=img,
     ).up_if_not()
 
     # Mount the disk to download the data to
     s3_bucket = "rh-demo-external"
     cache_dir = "/mnt/nvme"
-    cluster.run_bash(
+    compute.run_bash(
         [
             f"sudo mkdir {cache_dir}",
             "sudo mkfs.ext4 /dev/nvme1n1",
@@ -111,8 +107,8 @@ if __name__ == "__main__":
             f"mkdir -p {cache_dir}/huggingface_cache",
         ]
     )
-    # Send our download / preprocessing function to the cluster we just created
-    remote_preproc = rh.fn(download_preproc_and_upload).to(cluster)
+    # Send our download / preprocessing function to the compute we just created
+    remote_preproc = kt.fn(download_preproc_and_upload).to(compute)
     # Download the data, sampling down to 15% for our example
     remote_preproc(
         dataset_name="imagenet-1k",
@@ -123,5 +119,3 @@ if __name__ == "__main__":
         test_sample="15%",
         save_s3_folder_prefix="resnet-training-example/preprocessed_imagenet",
     )
-
-    cluster.teardown()  # Down the cluster once this task is complete

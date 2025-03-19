@@ -5,11 +5,11 @@
 import logging
 
 import boto3
+
+import kubetorch as kt
 import ray
 import ray.train
 import ray.train.torch
-
-import runhouse as rh
 import torch
 import torch.nn as nn
 from ray.train import ScalingConfig
@@ -269,41 +269,38 @@ def ray_trainer(
     ray_train.fit()
 
 
-# ### Run distributed training with Runhouse
-# The following code snippet demonstrates how to define Runhouse compute and run the distributed training pipeline on it.
+# ### Run distributed training
+# The following code snippet demonstrates how to define compute and run the distributed training pipeline on it.
 # - We define a 4 node cluster with GPUs where we will do the training.
 # - Then we dispatch the Ray trainer function to the remote cluster and call .distribute('ray') to properly setup Ray. It's that easy.
 if __name__ == "__main__":
-    # Define compute with multiple nodes with GPUs
+
+    # We already preprocessed data into this folder using the preprocessing function in dlrm_data_prepoc.py
+    epochs = 15
+    working_s3_bucket = "rh-demo-external"
+    working_s3_path = "dlrm-training-example/"
+
+    train_data_path = (
+        f"s3://{working_s3_bucket}/{working_s3_path}/preprocessed_data/train/"
+    )
+
+    val_data_path = (
+        f"s3://{working_s3_bucket}/{working_s3_path}/preprocessed_data/eval/"
+    )
+
+    # Define compute with GPUs and create a Ray cluster with multiple nodes which will run our function
     gpus_per_node = 1
     num_nodes = 4
 
     img = (
-        rh.images.ray()
-        .pip_install(["torch==2.5.1", "datasets", "boto3", "awscli"])
+        kt.images.ray()
+        .pip_install(["torch", "datasets", "boto3", "awscli"])
         .sync_secrets(["aws"])
     )
-
-    gpus = rh.compute(
-        name=f"rh-{num_nodes}x{gpus_per_node}GPU",
-        gpus=f"A10G:{gpus_per_node}",
-        num_nodes=num_nodes,
-        provider="aws",
-        image=img,
-    ).up_if_not()
-
-    epochs = 15
-    train_data_path = (
-        "s3://rh-demo-external/dlrm-training-example/preprocessed_data/train/"
-    )
-    val_data_path = (
-        "s3://rh-demo-external/dlrm-training-example/preprocessed_data/eval/"
-    )
-    working_s3_bucket = "rh-demo-external"
-    working_s3_path = "dlrm-training-example/"
+    gpus = kt.Compute(gpus=f"A10G:{gpus_per_node}", image=img)
 
     remote_trainer = (
-        rh.function(ray_trainer).to(gpus, name="ray_trainer").distribute("ray")
+        kt.function(ray_trainer).to(gpus).distribute("ray", num_nodes=num_nodes)
     )
 
     # Call the training function on the cluster
