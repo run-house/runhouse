@@ -42,7 +42,7 @@ compute = kt.Compute(
 
 # We will send the function to download data to the remote compute and then invoke it to download the data to the remote machine. You can imagine that this is a data access or pre-processing step after which data is prepared.
 def access_data_callable(**kwargs):
-    logger.info("Step 2: Access data")
+    logger.info("Step 1: Access data")
     remote_download = kt.function(download_data).to(compute)
     remote_preprocess = kt.function(preprocess_data).to(compute)
     logger.info("Download function sent to remote")
@@ -53,7 +53,7 @@ def access_data_callable(**kwargs):
 
 # Then we instantiate the trainer, and then invoke the training on the remote compute. On the remote, we have a GPU. This is also a natural point to split the workflow if we want to do some tasks on GPU and some on CPU.
 def train_model_callable(**kwargs):
-    logger.info("Step 3: Train Model")
+    logger.info("Step 2: Train Model")
     remote_torch_example = kt.cls(SimpleTrainer).to(compute)
 
     model = remote_torch_example()
@@ -83,7 +83,7 @@ def train_model_callable(**kwargs):
 # object rather than reusing the training compute above. Note that we load down the model weights in the image
 # to achieve faster cold start times for our inference service.
 def deploy_inference(**kwargs):
-    logger.info("Step 4: Deploy Inference")
+    logger.info("Step 3: Deploy Inference")
     checkpoint_path = "s3://my-simple-torch-model-example/checkpoints/model_final.pth"
     local_checkpoint_path = "/model.pth"
     img = kt.images.pytorch().run_bash(
