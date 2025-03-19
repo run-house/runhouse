@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, Union
 from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import configs, rns_client
 from runhouse.resources.hardware.cluster import Cluster
-from runhouse.resources.hardware.utils import _get_cluster_from
+from runhouse.resources.hardware.utils import _get_compute_from
 from runhouse.resources.secrets.secret import Secret
 from runhouse.resources.secrets.utils import _check_file_for_mismatches
 from runhouse.utils import create_local_dir
@@ -128,16 +128,16 @@ class ProviderSecret(Secret):
 
     def to(
         self,
-        system: Union[str, Cluster],
+        compute: Union[str, Cluster],
         path: str = None,
         process: Optional[str] = None,
         values: bool = None,
         name: Optional[str] = None,
     ):
-        """Return a copy of the secret on a system.
+        """Return a copy of the secret on a compute.
 
         Args:
-            system (str or Cluster): Cluster to send the secret to
+            compute (str or Cluster): Cluster to send the secret to
             path (str or Path, optional): Path on cluster to write down the secret values to.
                 If not provided and secret is not already associated with a path, the secret values
                 will not be written down on the cluster.
@@ -152,18 +152,18 @@ class ProviderSecret(Secret):
             >>> secret.to(my_cluster, path=secret.path)
         """
 
-        system = _get_cluster_from(system)
+        compute = _get_compute_from(compute)
         path = path or self.path
 
-        if system.on_this_cluster():
+        if compute.on_this_compute():
             if not process and not path == self.path:
                 if name and not self.name == name:
-                    system.rename(self.name, name)
+                    compute.rename(self.name, name)
                 return self
             self.write(path=path)
-            if path and len(system.ips) > 1:
-                for node in system.ips[1:]:
-                    system._local_rsync(src=path, dest=Path(path).parent, node=node)
+            if path and len(compute.ips) > 1:
+                for node in compute.ips[1:]:
+                    compute._local_rsync(src=path, dest=Path(path).parent, node=node)
             new_secret = copy.deepcopy(self)
             new_secret._values = None
             new_secret.path = path
@@ -181,19 +181,19 @@ class ProviderSecret(Secret):
             new_secret._values = None
 
         process = process or DEFAULT_PROCESS_NAME
-        key = system.put_resource(new_secret, process=process)
+        key = compute.put_resource(new_secret, process=process)
         if path:
             new_secret.path = self._file_to(
-                key=key, system=system, path=path, values=self.values
+                key=key, compute=compute, path=path, values=self.values
             )
-            if len(system.ips) > 1:
-                for node in system.ips[1:]:
-                    system._local_rsync(source=path, dest=Path(path).parent, node=node)
+            if len(compute.ips) > 1:
+                for node in compute.ips[1:]:
+                    compute._local_rsync(source=path, dest=Path(path).parent, node=node)
         if process or self.env_vars:
             env_vars = self.env_vars or self._DEFAULT_ENV_VARS
             if env_vars:
                 env_vars = self._map_env_vars(env_vars)
-                system.set_env_vars_globally(env_vars=env_vars)
+                compute.set_env_vars_globally(env_vars=env_vars)
         return new_secret
 
     def _map_env_vars(self, env_vars: Dict = None):
@@ -206,11 +206,11 @@ class ProviderSecret(Secret):
     def _file_to(
         self,
         key: str,
-        system: Union[str, Cluster],
+        compute: Union[str, Cluster],
         path: str = None,
         values: Any = None,
     ):
-        system.call(key, "_write_to_file", path=path, values=values)
+        compute.call(key, "_write_to_file", path=path, values=values)
         return path
 
     def _write_to_file(

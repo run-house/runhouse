@@ -15,7 +15,7 @@ from pydantic import create_model
 from runhouse.constants import DEFAULT_PROCESS_NAME
 from runhouse.globals import obj_store, rns_client
 from runhouse.logger import get_logger
-from runhouse.resources.hardware import _current_cluster, _get_cluster_from, Cluster
+from runhouse.resources.hardware import _current_compute, _get_compute_from, Cluster
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
 from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
@@ -38,7 +38,7 @@ MODULE_ATTRS = [
     "_visibility",
     "_name",
     "_rns_folder",
-    "_system",
+    "_compute",
     "process",
     "dryrun",
     "_resolve",
@@ -60,7 +60,7 @@ class Module(Resource):
         signature: Optional[dict] = None,
         endpoint: Optional[str] = None,
         name: Optional[str] = None,
-        system: Union[Cluster, str] = None,
+        compute: Union[Cluster, str] = None,
         dryrun: bool = False,
         **kwargs,
     ):
@@ -71,8 +71,8 @@ class Module(Resource):
                 To create a Module, please use the factory method :func:`module`.
         """
         super().__init__(name=name, dryrun=dryrun, **kwargs)
-        self._system = _get_cluster_from(
-            system or _current_cluster(key="config"), dryrun=dryrun
+        self._compute = _get_compute_from(
+            compute or _current_compute(key="config"), dryrun=dryrun
         )
         self.process = obj_store.get_process_name() or DEFAULT_PROCESS_NAME
         is_builtin = hasattr(sys.modules["runhouse"], self.__class__.__qualname__)
@@ -94,12 +94,12 @@ class Module(Resource):
 
     def config(self, condensed: bool = True):
         config = super().config(condensed)
-        if self.system:
-            system = self._resource_string_for_subconfig(self.system, condensed)
+        if self.compute:
+            compute = self._resource_string_for_subconfig(self.compute, condensed)
         else:
-            system = None
+            compute = None
 
-        config["system"] = system
+        config["compute"] = compute
         config["process"] = self.process
         if self._pointers:
             # For some reason sometimes this is coming back as a string, so we force it into a tuple
@@ -146,19 +146,19 @@ class Module(Resource):
                     (isinstance(e, ImportError) and class_name in str(e))
                     or (isinstance(e, AttributeError) and class_name in str(e))
                 ):
-                    system = config.get("system", None)
+                    compute = config.get("compute", None)
                     process = config.get("process", None)
 
                     # If we are on the same cluster where the module lives, we should be able to load the module from
                     # the pointers. So, we should just raise the exception if this is the case.
-                    if system.on_this_cluster() and (
+                    if compute.on_this_compute() and (
                         process == obj_store.servlet_name
                         and obj_store.has_local_storage
                     ):
-                        # Could not load Module locally from within the system where it lives
+                        # Could not load Module locally from within the compute where it lives
                         raise e
 
-                    # If we fail to construct the module class from the pointers, but system is elsewhere,
+                    # If we fail to construct the module class from the pointers, but compute is elsewhere,
                     # we can still use this module from its signature alone.
                     module_cls = Module
                 else:
@@ -166,14 +166,14 @@ class Module(Resource):
                     raise e
 
             # Module created as subclass of rh.Module may not have rh.Module's
-            # constructor signature (e.g. system, process, etc.), so assign them manually
+            # constructor signature (e.g. compute, process, etc.), so assign them manually
             # We don't call __init__ here because we don't know the signature of the subclass's __init__
             # If this resource was put on a cluster with put_resource, the servlet will be populating the rest
             # of the class-specific attributes.
             new_module = module_cls.__new__(module_cls)
             if _resolve_children:
                 config = module_cls._check_for_child_configs(config)
-            new_module.system = config.pop("system", None)
+            new_module.compute = config.pop("compute", None)
             new_module.process = config.pop("process", None)
             new_module.name = config.pop("name", None)
             new_module.access_level = config.pop("access_level", ResourceAccess.WRITE)
@@ -208,19 +208,19 @@ class Module(Resource):
     @classmethod
     def _check_for_child_configs(cls, config: dict):
         """Overload by child resources to load any resources they hold internally."""
-        system = config.get("system")
-        if isinstance(system, str) or isinstance(system, dict):
-            config["system"] = _get_cluster_from(system)
+        compute = config.get("compute")
+        if isinstance(compute, str) or isinstance(compute, dict):
+            config["compute"] = _get_compute_from(compute)
         return config
 
     @property
-    def system(self):
+    def compute(self):
         """Cluster that the Module lives on."""
-        return self._system
+        return self._compute
 
-    @system.setter
-    def system(self, new_system: Union[str, Cluster]):
-        self._system = _get_cluster_from(new_system)
+    @compute.setter
+    def compute(self, new_compute: Union[str, Cluster]):
+        self._compute = _get_compute_from(new_compute)
 
     def _compute_signature(self, rich=False):
         return {
@@ -270,10 +270,10 @@ class Module(Resource):
 
     def endpoint(self, external: bool = False):
         """The endpoint of the module on the cluster. Returns an endpoint if one was manually set (e.g. if loaded
-        down from a config). If not, request the endpoint from the Module's system.
+        down from a config). If not, request the endpoint from the Module's compute.
 
         Args:
-            external (bool, optional): If True and getting the endpoint from the system, only return an endpoint if
+            external (bool, optional): If True and getting the endpoint from the compute, only return an endpoint if
                 it's externally accessible (i.e. not on localhost, not connected through as ssh tunnel). If False,
                 return the endpoint even if it's not externally accessible. (Default: ``False``)
         """
@@ -281,11 +281,11 @@ class Module(Resource):
             return self._endpoint
 
         if (
-            self._system
-            and hasattr(self._system, "endpoint")
-            and self._system.endpoint(external=external)
+            self._compute
+            and hasattr(self._compute, "endpoint")
+            and self._compute.endpoint(external=external)
         ):
-            return f"{self._system.endpoint(external=external)}/{self.name}"
+            return f"{self._compute.endpoint(external=external)}/{self.name}"
 
         return None
 
@@ -296,11 +296,11 @@ class Module(Resource):
         """Return the client through which to interact with the source-of-truth Module. If this module is local,
         i.e. this module is its own source of truth, return None."""
         if (
-            hasattr(self, "_system")
-            and self._system
-            and hasattr(self._system, "_client")
+            hasattr(self, "_compute")
+            and self._compute
+            and hasattr(self._compute, "_client")
         ):
-            return self._system._client()
+            return self._compute._client()
         if (
             hasattr(self, "_endpoint")
             and self._endpoint
@@ -385,7 +385,7 @@ class Module(Resource):
 
     def to(
         self,
-        system: Union[str, Cluster],
+        compute: Union[str, Cluster],
         process: Optional[Union[str, Dict]] = None,
         name: Optional[str] = None,
         sync_local: bool = True,
@@ -395,7 +395,7 @@ class Module(Resource):
         living on the cluster.
 
         Args:
-            system (str or Cluster): The cluster to setup the module and process on.
+            compute (str or Cluster): The cluster to setup the module and process on.
             process (str or Dict, optional): The process to run the module on. If it's a Dict, it will be explicitly
                 created with those args. or the set of requirements necessary to run the module. If no process is
                 specified, the module will be sent to the default_process created when the cluster is created
@@ -409,28 +409,28 @@ class Module(Resource):
             >>> local_module = rh.module(my_class)
             >>> cluster_module = local_module.to("my_cluster")
         """
-        if system == self.system:
+        if compute == self.compute:
             if name and not self.name == name:
                 # TODO return duplicate object under new name, don't rename
                 self.rename(name)
             return self
 
-        if system == "here":
+        if compute == "here":
             from runhouse import here
 
-            system = here
+            compute = here
 
-        if system == "file":
+        if compute == "file":
             raise ValueError(
                 "Need an initialized local server in order to put a module onto `rh.here`. Please run `runhouse server restart` first on your local machine."
             )
 
-        system = (
-            _get_cluster_from(system, dryrun=self.dryrun) if system else self.system
+        compute = (
+            _get_compute_from(compute, dryrun=self.dryrun) if compute else self.compute
         )
 
-        if not system:
-            raise ValueError("No system specified to send module to.")
+        if not compute:
+            raise ValueError("No compute specified to send module to.")
 
         new_name = name or self.name or self.default_name()
         if self.rns_address:
@@ -445,16 +445,16 @@ class Module(Resource):
         if isinstance(process, Dict):
             if "name" not in process:
                 ephemeral_process_name = f"{new_name}_process"
-                if ephemeral_process_name in system.list_processes():
-                    system.kill_process(ephemeral_process_name)
+                if ephemeral_process_name in compute.list_processes():
+                    compute.kill_process(ephemeral_process_name)
 
                 # Now we make sure that the process created with the args provided by the user
                 process["name"] = ephemeral_process_name
 
-            process = system.ensure_process_created(**process)
+            process = compute.ensure_process_created(**process)
         else:
             # If name was specified, we don't delete and overwrite, we just let it be
-            system.ensure_process_created(name=process)
+            compute.ensure_process_created(name=process)
 
         if not isinstance(process, str):
             raise ValueError(
@@ -467,30 +467,30 @@ class Module(Resource):
         if sync_local and (self._pointers or getattr(self, "fn_pointers", None)):
             pointers = self._pointers if self._pointers else self.fn_pointers
 
-            # Update the system reqs with the local path to the module if it's not already there
+            # Update the compute reqs with the local path to the module if it's not already there
             (
                 local_path_containing_module,
                 should_add,
-            ) = Module._get_local_path_containing_module(pointers[0], system.reqs)
+            ) = Module._get_local_path_containing_module(pointers[0], compute.reqs)
             if should_add:
-                system.reqs = [str(local_path_containing_module)] + system.reqs
+                compute.reqs = [str(local_path_containing_module)] + compute.reqs
 
-            system.install_package(str(local_path_containing_module))
+            compute.install_package(str(local_path_containing_module))
 
-            # Figure out what the import path would be on the remote system
+            # Figure out what the import path would be on the remote compute
             remote_import_path = str(
                 local_path_containing_module.name
                 / Path(pointers[0]).relative_to(local_path_containing_module)
             )
 
-        # We need to backup the system here so the __getstate__ method of the cluster
+        # We need to backup the compute here so the __getstate__ method of the cluster
         # doesn't wipe the client of this function's cluster when deepcopy copies it.
-        hw_backup = self.system
-        self.system = None
+        hw_backup = self.compute
+        self.compute = None
         new_module = copy.copy(self)
-        self.system = hw_backup
+        self.compute = hw_backup
 
-        new_module.system = system
+        new_module.compute = compute
         new_module.process = process
         new_module.dryrun = True
 
@@ -509,7 +509,7 @@ class Module(Resource):
                     new_module.fn_pointers[2],
                 )
 
-        if isinstance(system, Cluster):
+        if isinstance(compute, Cluster):
             new_module.name = new_name
             # TODO dedup with _extract_state
             # Exclude anything already being sent in the config and private module attributes
@@ -523,9 +523,9 @@ class Module(Resource):
                     if attr not in excluded_state_keys
                 }
             logger.info(
-                f"Sending module {new_module.name} of type {type(new_module)} to {system.name or 'local Runhouse daemon'}"
+                f"Sending module {new_module.name} of type {type(new_module)} to {compute.name or 'local Runhouse daemon'}"
             )
-            system.put_resource(new_module, state, dryrun=True)
+            compute.put_resource(new_module, state, dryrun=True)
 
         if rns_client.autosave_resources():
             new_module.save()
@@ -534,7 +534,7 @@ class Module(Resource):
 
     def get_or_to(
         self,
-        system: Union[str, Cluster],
+        compute: Union[str, Cluster],
         process: Optional[Union[str, Dict]] = None,
         name: Optional[str] = None,
     ):
@@ -542,7 +542,7 @@ class Module(Resource):
         If not, put the module on the cluster and return the remote module.
 
         Args:
-            system (str or Cluster): The system to setup the module.
+            compute (str or Cluster): The compute to setup the module.
             process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly
                 created with those args. or the set of requirements necessary to run the module. (Default: ``None``)
             name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
@@ -556,18 +556,18 @@ class Module(Resource):
             raise ValueError(
                 "You must specify a name for the module if you want to get_or_to it."
             )
-        system = _get_cluster_from(system)
+        compute = _get_compute_from(compute)
         try:
-            remote = system.get(name, remote=True)
+            remote = compute.get(name, remote=True)
         except KeyError:
             remote = None
         if remote:
             return remote
         self.name = name
-        return self.to(system, process=process)
+        return self.to(compute, process=process)
 
     def __getattribute__(self, item):
-        """Override to allow for remote execution if system is a remote cluster. If not, the subclass's own
+        """Override to allow for remote execution if compute is a remote cluster. If not, the subclass's own
         __getattr__ will be called."""
         if (
             item in MODULE_METHODS
@@ -590,7 +590,7 @@ class Module(Resource):
         if not client:
             return super().__getattribute__(item)
 
-        system = super().__getattribute__("_system")
+        compute = super().__getattribute__("_compute")
 
         is_coroutine_function = (
             self.signature(rich=True)[item]["async"]
@@ -614,7 +614,7 @@ class Module(Resource):
                 if run_async:
                     return client_call_wrapper(
                         client,
-                        system,
+                        compute,
                         "acall",
                         name,
                         item,
@@ -626,7 +626,7 @@ class Module(Resource):
                 else:
                     return client_call_wrapper(
                         client,
-                        system,
+                        compute,
                         "call",
                         name,
                         item,
@@ -665,12 +665,12 @@ class Module(Resource):
 
     def refresh(self):
         """Update the resource in the object store."""
-        if not self.system or not self.name:
+        if not self.compute or not self.name:
             return self
-        if self._system.on_this_cluster():
+        if self._compute.on_this_compute():
             return obj_store.get(self._name)
-        elif isinstance(self._system, Cluster):
-            return self._system.get(self._name, remote=True)
+        elif isinstance(self._compute, Cluster):
+            return self._compute.get(self._name, remote=True)
         else:
             return self
 
@@ -691,11 +691,11 @@ class Module(Resource):
             processes (List[Process], optional): List of the processes for the replicas, if specified. (Default: ``None``)
             parallel (bool, optional): Whether to create the replicas in parallel. (Default: ``False``)
         """
-        if not self.system or not self.name:
+        if not self.compute or not self.name:
             raise ValueError(
                 "Cannot replicate a module that is not on a cluster. Please send the module to a cluster first."
             )
-        if not isinstance(self.system, Cluster):
+        if not isinstance(self.compute, Cluster):
             raise ValueError(
                 "Cannot replicate a module that is not on a cluster. Please send the module to a cluster first."
             )
@@ -709,7 +709,7 @@ class Module(Resource):
             )
         if not processes and not self.process:
             raise ValueError(
-                "Cannot replicate without a process. Please send the module or function to a process on the system first."
+                "Cannot replicate without a process. Please send the module or function to a process on the compute first."
             )
 
         def create_replica(i):
@@ -721,7 +721,7 @@ class Module(Resource):
                 replica_process_name = f"{self.process}_replica_{i}"
 
                 # The replica process should have the same requirements as the original process
-                new_create_process_params = self.system.list_processes()[self.process]
+                new_create_process_params = self.compute.list_processes()[self.process]
 
                 # Change the arguments for the new process to reflect the replica
                 new_create_process_params["name"] = replica_process_name
@@ -733,14 +733,14 @@ class Module(Resource):
                     new_create_process_params["compute"] = {
                         "node_idx": i // replicas_per_node
                     }
-                self.system.ensure_process_created(**new_create_process_params)
+                self.compute.ensure_process_created(**new_create_process_params)
 
             new_module = copy.copy(self)
             new_module.local.name = name
             new_module.local.process = None
-            new_module.local.system = None
+            new_module.local.compute = None
 
-            new_module = new_module.to(self.system, process=replica_process_name)
+            new_module = new_module.to(self.compute, process=replica_process_name)
             return new_module
 
         if parallel:
@@ -772,14 +772,14 @@ class Module(Resource):
             distribution_kwargs: The keyword arguments to pass to the distribution method.
         """
 
-        if not self.system or not self.name:
+        if not self.compute or not self.name:
             raise ValueError(
                 "Cannot distribute a module that is not on a cluster. Please send the module to a cluster first."
             )
 
-        if not self.system.on_this_cluster():
+        if not self.compute.on_this_compute():
             # Distribute the module on the cluster and return the distributed module as a stub.
-            return self.system.call(
+            return self.compute.call(
                 self.name,
                 "distribute",
                 distribution,
@@ -807,7 +807,7 @@ class Module(Resource):
             name = name or f"distributed_{self.name}"
             pooled_module = DistributedPool(
                 **distribution_kwargs, name=name, replicas=replicas
-            ).to(self.system, process=self.process)
+            ).to(self.compute, process=self.process)
             return pooled_module
         elif distribution == "ray":
             from runhouse.resources.distributed.ray_distributed import RayDistributed
@@ -815,7 +815,7 @@ class Module(Resource):
             name = name or f"ray_{self.name}"
             ray_module = RayDistributed(
                 **distribution_kwargs, name=name, module=self
-            ).to(system=self.system, process=self.process)
+            ).to(compute=self.compute, process=self.process)
             return ray_module
         elif distribution == "dask":
             from runhouse.resources.distributed.dask_distributed import DaskDistributed
@@ -825,7 +825,7 @@ class Module(Resource):
                 name=name,
                 module=self,
                 **distribution_kwargs,
-            ).to(system=self.system, process=self.process)
+            ).to(compute=self.compute, process=self.process)
             return dask_module
         elif distribution == "pytorch":
             from runhouse.resources.distributed.pytorch_distributed import (
@@ -833,9 +833,9 @@ class Module(Resource):
             )
 
             if not num_replicas:
-                num_nodes = len(self.system.ips)
+                num_nodes = len(self.compute.ips)
                 if not replicas_per_node:
-                    replicas_per_node = self.system._gpus_per_node() or 1
+                    replicas_per_node = self.compute._gpus_per_node() or 1
                 num_replicas = replicas_per_node * num_nodes
 
             replicas = self.replicate(
@@ -846,7 +846,7 @@ class Module(Resource):
             name = name or f"pytorch_{self.local.name}"
             ptd_module = PyTorchDistributed(
                 **distribution_kwargs, name=name, replicas=replicas
-            ).to(system=self.system, process=self.process)
+            ).to(compute=self.compute, process=self.process)
             return ptd_module
 
         elif distribution == "spark":
@@ -859,7 +859,7 @@ class Module(Resource):
 
             spark_module = SparkDistributed(
                 **distribution_kwargs, name=name, module=self
-            ).to(system=self.system, process=self.process)
+            ).to(compute=self.compute, process=self.process)
 
             return spark_module
 
@@ -874,7 +874,7 @@ class Module(Resource):
             >>> my_module.remote.size = 14
         """
         client = super().__getattribute__("_client")()
-        system = super().__getattribute__("_system")
+        compute = super().__getattribute__("_compute")
         name = super().__getattribute__("_name")
 
         outer_super_gettattr = super().__getattribute__
@@ -888,7 +888,7 @@ class Module(Resource):
                     return outer_super_gettattr(item)
 
                 return client_call_wrapper(
-                    client, system, "call", name, item, stream_logs=False
+                    client, compute, "call", name, item, stream_logs=False
                 )
 
             @classmethod
@@ -898,7 +898,7 @@ class Module(Resource):
 
                 return client_call_wrapper(
                     client,
-                    system,
+                    compute,
                     "call",
                     key=name,
                     method_name=key,
@@ -907,7 +907,7 @@ class Module(Resource):
 
             @classmethod
             def __call__(cls, *args, **kwargs):
-                return system.get(name, *args, **kwargs)
+                return compute.get(name, *args, **kwargs)
 
         return RemotePropertyWrapper()
 
@@ -937,13 +937,13 @@ class Module(Resource):
 
     def fetch(self, item: str = None, **kwargs):
         """Helper method to allow for access to remote state, both public and private. Fetching functions
-        is not advised. `system.get(module.name).resolved_state()` is roughly equivalent to `module.fetch()`.
+        is not advised. `compute.get(module.name).resolved_state()` is roughly equivalent to `module.fetch()`.
 
         Example:
             >>> my_module.fetch("my_property")
             >>> my_module.fetch("my_private_property")
 
-            >>> MyRemoteClass = rh.module(my_class).to(system)
+            >>> MyRemoteClass = rh.module(my_class).to(compute)
             >>> MyRemoteClass(*args).fetch() # Returns a my_class instance, populated with the remote state
 
             >>> my_module.fetch() # Returns the data of the blob, due to overloaded ``resolved_state`` method
@@ -951,23 +951,23 @@ class Module(Resource):
             >>> class MyModule(rh.Module):
             >>>     # ...
             >>>
-            >>> MyModule(*args).to(system).fetch() # Returns the full remote module, including private and public state
+            >>> MyModule(*args).to(compute).fetch() # Returns the full remote module, including private and public state
         """
         name = super().__getattribute__("_name")
 
         client = super().__getattribute__("_client")()
-        system = super().__getattribute__("_system")
+        compute = super().__getattribute__("_compute")
 
         if item is not None:
             if not client or not name:
                 return super().__getattribute__(item)
-            return client_call_wrapper(client, system, "call", name, item)
+            return client_call_wrapper(client, compute, "call", name, item)
         else:
             if not client or not name:
                 return self.resolved_state(**kwargs)
             return client_call_wrapper(
                 client,
-                system,
+                compute,
                 "call",
                 name,
                 "resolved_state",
@@ -984,20 +984,22 @@ class Module(Resource):
             >>> await my_module.fetch_async("_my_private_property")
         """
         client = super().__getattribute__("_client")()
-        system = super().__getattribute__("_system")
+        compute = super().__getattribute__("_compute")
         name = super().__getattribute__("_name")
 
         def call_wrapper():
             if not key:
-                return client_call_wrapper(client, system, "get", name, remote=remote)
+                return client_call_wrapper(client, compute, "get", name, remote=remote)
 
-            if isinstance(system, Cluster) and name and system.on_this_cluster():
+            if isinstance(compute, Cluster) and name and compute.on_this_compute():
                 obj_store_obj = obj_store.get(name, default=None)
                 if obj_store_obj:
                     return obj_store_obj.__getattribute__(key)
                 else:
                     return self.__getattribute__(key)
-            return client_call_wrapper(client, system, "call", name, key, remote=remote)
+            return client_call_wrapper(
+                client, compute, "call", name, key, remote=remote
+            )
 
         try:
             is_gen = (key and hasattr(self, key)) and inspect.isasyncgenfunction(
@@ -1099,8 +1101,8 @@ class Module(Resource):
         return new_module
 
     def _save_sub_resources(self, folder: str = None):
-        if isinstance(self.system, Resource) and self.system.name:
-            self.system.save(folder=folder)
+        if isinstance(self.compute, Resource) and self.compute.name:
+            self.compute.save(folder=folder)
 
     def rename(self, name: str):
         """Rename the module.
@@ -1113,9 +1115,9 @@ class Module(Resource):
         old_name = self.name
         self.name = name  # Goes through Resource setter to parse name properly (e.g. if rns path)
         if (
-            self.system
-            and isinstance(self.system, Cluster)
-            and self.system.on_this_cluster()
+            self.compute
+            and isinstance(self.compute, Cluster)
+            and self.compute.on_this_compute()
         ):
             # We rename the object with the full rns_address here because if it's a resource, we want the
             # object stored in the obj store to have the updated rns_address, not just the updated key.
@@ -1142,8 +1144,8 @@ class Module(Resource):
                     self.rename(name)
                 else:
                     self.name = name
-                    if isinstance(self.system, Cluster):
-                        self.system.put_resource(self)
+                    if isinstance(self.compute, Cluster):
+                        self.compute.put_resource(self)
 
         res = super().save(overwrite=overwrite, folder=folder)
 
@@ -1228,7 +1230,7 @@ class Module(Resource):
                     local_path_containing_module = None
                     pass
 
-        # Only add this to the system's reqs if the module is not in one of the directories in reqs
+        # Only add this to the compute's reqs if the module is not in one of the directories in reqs
         add = local_path_containing_module is None
 
         if not local_path_containing_module:
@@ -1359,7 +1361,7 @@ def _module_subclass_factory(cls, cls_pointers):
     def __init__(
         self,
         *args,
-        system=None,
+        compute=None,
         dryrun=False,
         pointers=cls_pointers,
         signature=None,
@@ -1373,12 +1375,12 @@ def _module_subclass_factory(cls, cls_pointers):
             pointers=pointers,
             signature=signature,
             name=name,
-            system=system,
+            compute=compute,
             dryrun=dryrun,
         )
         # This allows a class which is already on the cluster to construct an instance of itself with a factory
         # method, e.g. my_module = MyModuleCls.factory_constructor(*args, **kwargs)
-        if self.system and self.system.on_this_cluster():
+        if self.compute and self.compute.on_this_compute():
             self._remote_init(*args, **kwargs)
 
     @classmethod
@@ -1394,26 +1396,26 @@ def _module_subclass_factory(cls, cls_pointers):
         name=None,
         **kwargs,
     ):
-        system_backup = self.system
+        compute_backup = self.compute
         new_module = copy.copy(self)
-        new_module.system = system_backup
+        new_module.compute = compute_backup
         # Create a copy of the item on the cluster under the new name
         new_module.name = name or self.name
         new_module.dryrun = dryrun
         process = kwargs.get("process") or self.process
-        if not new_module.dryrun and new_module.system:
-            # We use system.put_resource here because the signatures for HTTPClient.put_resource and
+        if not new_module.dryrun and new_module.compute:
+            # We use compute.put_resource here because the signatures for HTTPClient.put_resource and
             # obj_store.put_resource are different, but we should fix that.
 
-            # If the system is still a string, we know that the user has _no_ access to the Cluster
-            # If they were able to discover the cluster, their system string would be replaced by a Cluster object
-            # when _check_for_child_configs --> _get_cluster_from was called
-            if isinstance(new_module.system, str):
+            # If the compute is still a string, we know that the user has _no_ access to the Cluster
+            # If they were able to discover the cluster, their compute string would be replaced by a Cluster object
+            # when _check_for_child_configs --> _get_compute_from was called
+            if isinstance(new_module.compute, str):
                 raise ValueError(
                     "You must have access to the underlying cluster for this unconstructed Module in order to put a resource on it."
                 )
-            new_module.system.put_resource(new_module, process=process)
-            new_module.system.call(new_module.name, "_remote_init", *args, **kwargs)
+            new_module.compute.put_resource(new_module, process=process)
+            new_module.compute.call(new_module.name, "_remote_init", *args, **kwargs)
         else:
             new_module._remote_init(*args, **kwargs)
 
@@ -1447,7 +1449,7 @@ def module(
           a remote object to avoid passing heavy results back over the network.
         - Setting attributes, both public and private, will be executed remotely, with the new values only being
           set in the remote module and not the local one. This excludes any methods or attribtes of the Module class
-          proper (e.g. ``system`` or ``name``), which will be set locally.
+          proper (e.g. ``compute`` or ``name``), which will be set locally.
         - Attributes, private properties can be fetched with the ``remote`` property, and the full resource can be
           fetched using ``.fetch()``, e.g. ``model.remote.weights``, ``model.remote.__dict__``, ``model.fetch()``.
         - When a module is sent to a cluster, it's public attribtes are serialized, sent over, and repopulated in the
@@ -1497,8 +1499,8 @@ def module(
 
         >>> # Creating rh.Module instance
         >>> model = Model(model_id="bert-base-uncased", device="cuda")
-        >>> model = model.to(system="my_gpu")
-        >>> model.predict("Hello world!")   # Runs on system in process
+        >>> model = model.to(compute="my_gpu")
+        >>> model.predict("Hello world!")   # Runs on compute in process
         >>> tok = model.remote.tokenizer    # Returns remote tokenizer
         >>> id = model.local.model_id       # Returns local model_id, if any
         >>> model_id = model.model_id       # Returns local model_id (not remote)
@@ -1510,8 +1512,8 @@ def module(
         >>>
         >>> # Another method: Create a module instance from an existing non-Module class using rh.module()
         >>> RemoteModel = rh.module(cls=BERTModel).to("my_gpu", "my_process")
-        >>> remote_model = RemoteModel(model_id="bert-base-uncased", device="cuda").to(system="my_gpu")
-        >>> remote_model.predict("Hello world!")  # Runs on system in process
+        >>> remote_model = RemoteModel(model_id="bert-base-uncased", device="cuda").to(compute="my_gpu")
+        >>> remote_model.predict("Hello world!")  # Runs on compute in process
         >>>
         >>> # You can also call remote class methods
         >>> other_model = RemoteModel.get_model_size("bert-base-uncased")

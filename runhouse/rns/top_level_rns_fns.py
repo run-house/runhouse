@@ -69,9 +69,9 @@ async def get_local_cluster_object():
     # within the global state.
     config = await obj_store.aget_cluster_config()
     if config.get("resource_subtype") is not None:
-        from runhouse.resources.hardware.utils import _get_cluster_from
+        from runhouse.resources.hardware.utils import _get_compute_from
 
-        system = _get_cluster_from(config, dryrun=True)
+        system = _get_compute_from(config, dryrun=True)
         return system
 
     return "file"

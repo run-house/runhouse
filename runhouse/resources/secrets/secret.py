@@ -10,7 +10,7 @@ import yaml
 from runhouse.globals import configs, rns_client
 from runhouse.logger import get_logger
 
-from runhouse.resources.hardware import _get_cluster_from, Cluster
+from runhouse.resources.hardware import _get_compute_from, Cluster
 from runhouse.resources.resource import Resource
 from runhouse.resources.secrets.utils import _delete_vault_secrets, load_config
 from runhouse.rns.utils.api import load_resp_content, read_resp_data
@@ -319,14 +319,14 @@ class Secret(Resource):
 
     def to(
         self,
-        system: Union[str, Cluster],
+        compute: Union[str, Cluster],
         name: Optional[str] = None,
         process: Optional[str] = None,
     ):
-        """Return a copy of the secret on a system.
+        """Return a copy of the secret on a compute.
 
         Args:
-            system (str or Cluster): Cluster to send the secret to
+            compute (str or Cluster): Cluster to send the secret to
             name (str, optional): Name to assign the resource on the cluster.
             process (str, optional): Process on the cluster to send the secret to.
 
@@ -337,11 +337,11 @@ class Secret(Resource):
         new_secret = copy.deepcopy(self)
         new_secret.name = name or self.name or generate_default_name(prefix="secret")
 
-        system = _get_cluster_from(system)
-        if system.on_this_cluster():
+        compute = _get_compute_from(compute)
+        if compute.on_this_compute():
             new_secret.pin()
         else:
-            system.put_resource(new_secret, process=process)
+            compute.put_resource(new_secret, process=process)
 
         return new_secret
 

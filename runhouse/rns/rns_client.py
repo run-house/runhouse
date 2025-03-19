@@ -389,15 +389,15 @@ class RNSClient:
         if not name:
             return {}
 
-        from runhouse.resources.hardware.utils import _current_cluster
+        from runhouse.resources.hardware.utils import _current_compute
 
         if "/" not in name:
             name = f"{self.current_folder}/{name}"
 
         rns_address = self.resolve_rns_path(name)
 
-        if rns_address == _current_cluster("name"):
-            return _current_cluster("config")
+        if rns_address == _current_compute("name"):
+            return _current_compute("config")
 
         if rns_address[0] in ["~", "^"]:
             config = self._load_config_from_local(rns_address)

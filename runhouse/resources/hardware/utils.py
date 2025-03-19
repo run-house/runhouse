@@ -134,7 +134,7 @@ def _config_and_args_mismatches(config, alt_options):
     return mismatches
 
 
-def _current_cluster(key="config"):
+def _current_compute(key="config"):
     """Retrieve key value from the current cluster config.
     If key is "config", returns entire config."""
     from runhouse.globals import obj_store
@@ -155,28 +155,28 @@ def _current_cluster(key="config"):
         return None
 
 
-def _get_cluster_from(system, dryrun=False):
+def _get_compute_from(compute, dryrun=False):
     from .cluster import Cluster
 
-    if isinstance(system, Cluster):
-        return system
-    if system in RESERVED_SYSTEM_NAMES:
-        return system
+    if isinstance(compute, Cluster):
+        return compute
+    if compute in RESERVED_SYSTEM_NAMES:
+        return compute
 
-    if isinstance(system, Dict):
-        return Cluster.from_config(system, dryrun)
+    if isinstance(compute, Dict):
+        return Cluster.from_config(compute, dryrun)
 
-    if isinstance(system, str):
-        config = _current_cluster(key="config")
-        if config and system == config.get("name"):
+    if isinstance(compute, str):
+        config = _current_compute(key="config")
+        if config and compute == config.get("name"):
             return Cluster.from_config(config, dryrun)
         try:
-            system = Cluster.from_name(name=system, dryrun=dryrun)
+            compute = Cluster.from_name(name=compute, dryrun=dryrun)
         except ValueError:
             # Name not found in Den. Doing the lookup this way saves us a hop to Den
             pass
 
-    return system
+    return compute
 
 
 def _do_setup_step_for_node(cluster, setup_step, node, env_vars):

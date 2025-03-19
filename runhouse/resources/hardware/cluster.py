@@ -66,7 +66,7 @@ from runhouse.globals import configs, obj_store, rns_client
 from runhouse.logger import get_logger
 
 from runhouse.resources.hardware.utils import (
-    _current_cluster,
+    _current_compute,
     _run_ssh_command,
     cast_node_to_ip,
     check_disk_sufficiency,
@@ -105,7 +105,7 @@ class Cluster(Resource):
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        The Runhouse cluster, or system. This is where you can run Functions or access/transfer data
+        The Runhouse cluster, or compute. This is where you can run Functions or access/transfer data
         between. You can BYO (bring-your-own) cluster by providing cluster IP and ssh_creds, or
         this can be an on-demand cluster that is spun up/down through
         `SkyPilot <https://github.com/skypilot-org/skypilot>`_, using your cloud credentials.
@@ -246,7 +246,7 @@ class Cluster(Resource):
             folder (str, optional): Folder to save the config in, if saving locally. If None and saving locally,
                 will be saved in the ``~/.rh`` directory. (Default: ``None``)
         """
-        on_this_cluster = self.on_this_cluster()
+        on_this_compute = self.on_this_compute()
 
         # Save the cluster sub-resources (ex: ssh creds) using the top level folder of the cluster if the the rns
         # address has been set, otherwise use the user's current folder (set in local .rh config)
@@ -260,8 +260,8 @@ class Cluster(Resource):
         # Running save will have updated the cluster's
         # Den address. We need to update the name
         # used in the config on the cluster so that
-        # self.on_this_cluster() will still work as expected.
-        if on_this_cluster:
+        # self.on_this_compute() will still work as expected.
+        if on_this_compute:
             obj_store.set_cluster_config_value("name", self.rns_address)
         elif self._http_client:
             self.call_client_method("set_cluster_name", self.rns_address)
@@ -456,7 +456,7 @@ class Cluster(Resource):
                 (including the local connected port rather than the sever port). If cluster is not up, returns
                 `None``. (Default: ``False``)
         """
-        if not self.head_ip or self.on_this_cluster():
+        if not self.head_ip or self.on_this_compute():
             return None
 
         client_port = self.client_port or self.server_port
@@ -487,7 +487,7 @@ class Cluster(Resource):
             return f"http://{LOCALHOST}:{client_port}"
 
     def _client(self):
-        if self.on_this_cluster():
+        if self.on_this_compute():
             # Previously (before calling within the same cluster worked) returned None
             return obj_store
         if not self._http_client:
@@ -557,7 +557,7 @@ class Cluster(Resource):
         Example:
             >>> rh.cluster("rh-cpu").is_up()
         """
-        return self.on_this_cluster() or self._ping()
+        return self.on_this_compute() or self._ping()
 
     def up_if_not(self, verbose: bool = True):
         """Bring up the cluster if it is not up. No-op if cluster is already up.
@@ -698,7 +698,7 @@ class Cluster(Resource):
         local_rh_package_path: Optional[Path] = None,
         parallel: bool = True,
     ):
-        if self.on_this_cluster():
+        if self.on_this_compute():
             return
 
         if not self.ips:
@@ -827,7 +827,7 @@ class Cluster(Resource):
             remote (bool, optional): Whether to get the remote object, rather than the object in full.
                 (Default: ``False``)
         """
-        if self.on_this_cluster():
+        if self.on_this_compute():
             return obj_store.get(key, default=default, remote=remote)
         try:
             res = self.call_client_method(
@@ -835,7 +835,7 @@ class Cluster(Resource):
                 key,
                 default=default,
                 remote=remote,
-                system=self,
+                compute=self,
             )
         except KeyError as e:
             if default == KeyError:
@@ -851,7 +851,7 @@ class Cluster(Resource):
             obj (Any): Object to put in the object store
             process (str, optional): Process of the object store to put the object in. (Default: ``None``)
         """
-        if self.on_this_cluster():
+        if self.on_this_compute():
             return obj_store.put(key, obj, process=process)
         return self.call_client_method(
             "put_object", key, obj, process=process or DEFAULT_PROCESS_NAME
@@ -878,7 +878,7 @@ class Cluster(Resource):
         )
 
         state = state or {}
-        if self.on_this_cluster():
+        if self.on_this_compute():
             data = (resource.config(condensed=False), state, dryrun)
             return obj_store.put_resource(serialized_data=data, process=process)
         return self.call_client_method(
@@ -896,7 +896,7 @@ class Cluster(Resource):
             old_key (str): Original key to rename.
             new_key (str): Name to reassign the object.
         """
-        if self.on_this_cluster():
+        if self.on_this_compute():
             return obj_store.rename(old_key, new_key)
         return self.call_client_method("rename_object", old_key, new_key)
 
@@ -906,7 +906,7 @@ class Cluster(Resource):
         Args:
             process (str, optional): Process in which to list out the keys for.
         """
-        if self.on_this_cluster():
+        if self.on_this_compute():
             return obj_store.keys()
         res = self.call_client_method("keys", process=process)
         return res
@@ -919,19 +919,19 @@ class Cluster(Resource):
         """
         if isinstance(keys, str):
             keys = [keys]
-        if self.on_this_cluster():
+        if self.on_this_compute():
             return obj_store.delete(keys)
         return self.call_client_method("delete", keys)
 
     def clear(self):
         """Clear the cluster's object store."""
-        if self.on_this_cluster():
+        if self.on_this_compute():
             return obj_store.clear()
         return self.call_client_method("delete")
 
-    def on_this_cluster(self):
+    def on_this_compute(self):
         """Whether this function is being called on the same cluster."""
-        config = _current_cluster("config")
+        config = _current_compute("config")
         return config is not None and config.get("name") == (
             self.rns_address or self.name
         )
@@ -991,7 +991,7 @@ class Cluster(Resource):
                 host=LOCALHOST,
                 port=self.client_port,
                 resource_address=self.rns_address,
-                system=self,
+                compute=self,
             )
 
         else:
@@ -1011,7 +1011,7 @@ class Cluster(Resource):
                 host=self.server_address,
                 port=self.client_port,
                 resource_address=self.rns_address,
-                system=self,
+                compute=self,
             )
 
     def status(self, send_to_den: bool = False):
@@ -1024,7 +1024,7 @@ class Cluster(Resource):
 
         # Note: If running outside a local cluster need to include a resource address to construct the cluster subtoken
         # Allow for specifying a resource address explicitly in case the resource has no rns address yet
-        if self.on_this_cluster():
+        if self.on_this_compute():
             status, den_resp_status_code = obj_store.status(send_to_den=send_to_den)
         else:
             status, den_resp_status_code = self.call_client_method(
@@ -1292,7 +1292,7 @@ class Cluster(Resource):
         """Call a method on a module that is in the cluster's object store.
 
         Args:
-            module_name (str): Name of the module saved on system.
+            module_name (str): Name of the module saved on compute.
             method_name (str): Name of the method.
             stream_logs (bool, optional): Whether to stream logs from the method call. (Default: ``True``)
             run_name (str, optional): Name for the run. (Default: ``None``)
@@ -1307,7 +1307,7 @@ class Cluster(Resource):
             >>> cluster.call("my_module", "my_method", arg1, arg2, kwarg1=kwarg1)
         """
         # Note: might be single value, might be a generator!
-        if self.on_this_cluster():
+        if self.on_this_compute():
             method_to_call = obj_store.acall if run_async else obj_store.call
             return method_to_call(
                 module_name,
@@ -1328,7 +1328,7 @@ class Cluster(Resource):
             run_name=run_name,
             remote=remote,
             save=save,
-            system=self,
+            compute=self,
         )
 
     def is_connected(self):
@@ -1460,7 +1460,7 @@ class Cluster(Resource):
             source = source + "/" if not source.endswith("/") else source
             dest = dest + "/" if not dest.endswith("/") else dest
 
-        if self.on_this_cluster():
+        if self.on_this_compute():
             src_node = src_node or self.head_ip
 
         # If we're already on this node, this is just a local rsync
@@ -1753,7 +1753,7 @@ class Cluster(Resource):
                     else None
                 )
 
-                if self.on_this_cluster():
+                if self.on_this_compute():
 
                     # TODO: Case for calling when on the BYO cluster may not work
                     node_ip = (
@@ -1834,7 +1834,7 @@ class Cluster(Resource):
             stream_logs (bool): Whether to stream logs. (Default: ``True``)
             require_outputs (bool): Whether to return stdout/stderr in addition to status code. (Default: ``True``)
         """
-        if self.on_this_cluster():
+        if self.on_this_compute():
             raise ValueError("Run bash over SSH is not supported on the local cluster.")
 
         if isinstance(commands, str):
@@ -1879,7 +1879,7 @@ class Cluster(Resource):
             >>> cluster.create_process("my_process")
             >>> cluster.kill("my_process")
         """
-        if self.on_this_cluster():
+        if self.on_this_compute():
             obj_store.delete_servlet_contents(process)
         else:
             self.client.kill_process(process)
@@ -2146,7 +2146,7 @@ class Cluster(Resource):
         from dask.distributed import Client
 
         # TODO: Handle case where we're on a worker node
-        if not self.on_this_cluster():
+        if not self.on_this_compute():
             self.ssh_tunnel(
                 local_port=port, remote_port=port, num_ports_to_try=NUM_PORTS_TO_TRY
             )
@@ -2458,7 +2458,7 @@ class Cluster(Resource):
 
     def list_processes(self):
         """List all workers on the cluster."""
-        if self.on_this_cluster():
+        if self.on_this_compute():
             return obj_store.list_processes()
         else:
             return self.client.list_processes()
@@ -2498,7 +2498,7 @@ class Cluster(Resource):
                 f"Process {name} already exists and was started with different arguments."
             )
 
-        if self.on_this_cluster():
+        if self.on_this_compute():
             obj_store.get_servlet(
                 name=name, create_process_params=create_process_params, create=True
             )
@@ -2536,7 +2536,7 @@ class Cluster(Resource):
         return name
 
     def set_env_vars_globally(self, env_vars: Dict):
-        if self.on_this_cluster():
+        if self.on_this_compute():
             return obj_store.set_env_vars_globally(env_vars)
         else:
             return self.client.set_env_vars(env_vars)
@@ -2548,7 +2548,7 @@ class Cluster(Resource):
             name (str): Name of the process
             env_vars (Dict): Env vars and values to set on the process.
         """
-        if self.on_this_cluster():
+        if self.on_this_compute():
             return obj_store.set_process_env_vars(name, env_vars)
         else:
             return self.client.set_env_vars(env_vars=env_vars, process_name=name)
@@ -2563,7 +2563,7 @@ class Cluster(Resource):
         if isinstance(package, str):
             package = Package.from_string(package)
 
-        if self.on_this_cluster():
+        if self.on_this_compute():
             obj_store.ainstall_package_in_all_nodes_and_processes(
                 package=package,
                 override_remote_version=override_remote_version,

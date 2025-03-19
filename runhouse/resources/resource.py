@@ -151,9 +151,9 @@ class Resource:
 
     def pin(self):
         """Write the resource to the object store."""
-        from runhouse.resources.hardware.utils import _current_cluster
+        from runhouse.resources.hardware.utils import _current_compute
 
-        if _current_cluster():
+        if _current_compute():
             if obj_store.has_local_storage:
                 obj_store.put_local(self._name, self)
             else:
@@ -163,9 +163,9 @@ class Resource:
 
     def refresh(self):
         """Update the resource in the object store."""
-        from runhouse.resources.hardware.utils import _current_cluster
+        from runhouse.resources.hardware.utils import _current_compute
 
-        if _current_cluster():
+        if _current_compute():
             return obj_store.get(self._name)
         else:
             return self
@@ -210,9 +210,9 @@ class Resource:
             dryrun (bool, optional): Whether to construct the object or load as dryrun. (Default: ``False``)
         """
         # TODO is this the right priority order?
-        from runhouse.resources.hardware.utils import _current_cluster
+        from runhouse.resources.hardware.utils import _current_compute
 
-        if _current_cluster() and obj_store.contains(name):
+        if _current_compute() and obj_store.contains(name):
             return obj_store.get(name)
 
         config = rns_client.load_config(name=name, load_from_den=load_from_den)
@@ -318,8 +318,8 @@ class Resource:
             hasattr(self, "install_target")
             and isinstance(self.install_target, str)
             and self.install_target.startswith("~")
-            or hasattr(self, "system")
-            and self.system == "file"
+            or hasattr(self, "compute")
+            and self.compute == "file"
         )
 
     # TODO [DG] Implement proper sharing of subresources (with an overload of some kind)
@@ -377,12 +377,12 @@ class Resource:
                 "Must specify `visibility` for the resource if no users are provided."
             )
 
-        if hasattr(self, "system") and self.system in ["ssh", "sftp"]:
+        if hasattr(self, "compute") and self.compute in ["ssh", "sftp"]:
             logger.warning(
                 "Sharing a resource located on a cluster is not recommended. For persistence, we suggest"
-                "saving to a cloud storage system (ex: `s3` or `gs`). You can copy your cluster based "
+                "saving to a cloud storage compute (ex: `s3` or `gs`). You can copy your cluster based "
                 f"{self.RESOURCE_TYPE} to your desired storage provider using the `.to()` method. "
-                f"For example: `{self.RESOURCE_TYPE}.to(system='rh-cpu')`"
+                f"For example: `{self.RESOURCE_TYPE}.to(compute='rh-cpu')`"
             )
 
         if self.is_local():
@@ -390,13 +390,13 @@ class Resource:
                 raise TypeError(
                     f"Unable to share a local {self.RESOURCE_TYPE}. Please make sure the {self.RESOURCE_TYPE} is "
                     f"located on a cluster. You can use the `.to()` method to do so. "
-                    f"For example: `{self.name}.to(system='rh-cpu')`"
+                    f"For example: `{self.name}.to(compute='rh-cpu')`"
                 )
             else:
                 raise TypeError(
                     f"Unable to share a local {self.RESOURCE_TYPE}. Please make sure the {self.RESOURCE_TYPE} is "
-                    f"located on a cluster or a remote system. You can use the `.to()` method to do so. "
-                    f"For example: `{self.name}.to(system='s3')`"
+                    f"located on a cluster or a remote compute. You can use the `.to()` method to do so. "
+                    f"For example: `{self.name}.to(compute='s3')`"
                 )
 
         if isinstance(access_level, str):

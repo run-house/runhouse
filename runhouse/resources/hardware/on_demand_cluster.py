@@ -224,7 +224,7 @@ class OnDemandCluster(Cluster):
     def endpoint(self, external: bool = False):
         if (
             not self.ips
-            or self.on_this_cluster()
+            or self.on_this_compute()
             or self.cluster_status == ClusterStatus.TERMINATED
         ):
             return None
@@ -315,7 +315,7 @@ class OnDemandCluster(Cluster):
         """
         from runhouse.resources.hardware.utils import ClusterStatus
 
-        if self.on_this_cluster():
+        if self.on_this_compute():
             return True
 
         # Check sky status without refresh if locally launched
@@ -598,7 +598,7 @@ class OnDemandCluster(Cluster):
         Example:
             >>> rh.ondemand_cluster("rh-cpu").up()
         """
-        if self.on_this_cluster():
+        if self.on_this_compute():
             return self
 
         if self._is_shared:

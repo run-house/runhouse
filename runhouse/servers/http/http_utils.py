@@ -293,10 +293,10 @@ def auth_headers_from_request(request):
     return request.headers.get("Authorization", "")
 
 
-def load_current_cluster_rns_address():
-    from runhouse.resources.hardware import _current_cluster, _get_cluster_from
+def load_current_compute_rns_address():
+    from runhouse.resources.hardware import _current_compute, _get_compute_from
 
-    current_cluster = _get_cluster_from(_current_cluster("config"))
+    current_cluster = _get_compute_from(_current_compute("config"))
     return current_cluster.rns_address if current_cluster else None
 
 

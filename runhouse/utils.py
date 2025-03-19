@@ -72,7 +72,7 @@ def run_setup_command(
     """
     if not cluster:
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
-    elif cluster.on_this_cluster():
+    elif cluster.on_this_compute():
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
 
     return cluster._run_commands_with_runner(
@@ -477,11 +477,11 @@ class ThreadWithException(threading.Thread):
             raise self._exc
 
 
-def client_call_wrapper(client, system, client_method_name, *args, **kwargs):
+def client_call_wrapper(client, compute, client_method_name, *args, **kwargs):
     from runhouse.resources.hardware import Cluster
 
-    if system and isinstance(system, Cluster) and not system.on_this_cluster():
-        return system.call_client_method(client_method_name, *args, **kwargs)
+    if compute and isinstance(compute, Cluster) and not compute.on_this_compute():
+        return compute.call_client_method(client_method_name, *args, **kwargs)
     method = getattr(client, client_method_name)
     return method(*args, **kwargs)
 
@@ -620,7 +620,7 @@ class LogToFolder:
 
     @staticmethod
     def _base_local_folder_path(name: str):
-        """Path to the base folder for this Run on a local system."""
+        """Path to the base folder for this Run on a local compute."""
         return f"{RH_LOGFILE_PATH}/{name}"
 
     @staticmethod
@@ -645,7 +645,7 @@ class LogToFolder:
         return f"{self.directory}/{files_with_ext[0]}"
 
     def _path_to_file_by_ext(self, ext: str) -> str:
-        """Path the file for the Run saved on the system for a provided extension (ex: ``.out`` or ``.err``)."""
+        """Path the file for the Run saved on the compute for a provided extension (ex: ``.out`` or ``.err``)."""
         existing_file = self._find_file_path_by_ext(ext=ext)
         if existing_file:
             # If file already exists in file (ex: with function on a Ray cluster this will already be
@@ -756,15 +756,15 @@ class ColoredFormatter:
 
 
 class ClusterLogsFormatter:
-    def __init__(self, system):
-        self.system = system
+    def __init__(self, compute):
+        self.compute = compute
         self._display_title = False
 
     def format_server_log(self, output_type):
         from runhouse import Resource
         from runhouse.servers.http.http_utils import OutputType
 
-        system_color = ColoredFormatter.get_color("cyan")
+        compute_color = ColoredFormatter.get_color("cyan")
         reset_color = ColoredFormatter.get_color("reset")
 
         prettify_logs = output_type in [
@@ -774,37 +774,37 @@ class ClusterLogsFormatter:
         ]
 
         if (
-            isinstance(self.system, Resource)
+            isinstance(self.compute, Resource)
             and prettify_logs
             and not self._display_title
         ):
-            # Display the system name before subsequent logs only once
-            system_name = self.system.name
-            dotted_line = "-" * len(system_name)
+            # Display the compute name before subsequent logs only once
+            compute_name = self.compute.name
+            dotted_line = "-" * len(compute_name)
             print(dotted_line)
-            print(f"{system_color}{system_name}{reset_color}")
+            print(f"{compute_color}{compute_name}{reset_color}")
             print(dotted_line)
 
-            # Only display the system name once
+            # Only display the compute name once
             self._display_title = True
 
-        return system_color, reset_color
+        return compute_color, reset_color
 
     def format_launcher_log(self):
-        system_color = ColoredFormatter.get_color("cyan")
+        compute_color = ColoredFormatter.get_color("cyan")
         reset_color = ColoredFormatter.get_color("reset")
 
         if not self._display_title:
-            # Display the system name before subsequent logs only once
-            dotted_line = "-" * len(self.system)
+            # Display the compute name before subsequent logs only once
+            dotted_line = "-" * len(self.compute)
             print(dotted_line)
-            print(f"{system_color}{self.system}{reset_color}")
+            print(f"{compute_color}{self.compute}{reset_color}")
             print(dotted_line)
 
-            # Only display the system name once
+            # Only display the compute name once
             self._display_title = True
 
-        return system_color, reset_color
+        return compute_color, reset_color
 
 
 def create_local_dir(path: Union[str, Path]):

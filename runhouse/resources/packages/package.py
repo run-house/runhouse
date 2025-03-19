@@ -13,7 +13,7 @@ from runhouse.globals import obj_store
 from runhouse.logger import get_logger
 from runhouse.resources.hardware.cluster import Cluster
 from runhouse.resources.hardware.utils import (
-    _get_cluster_from,
+    _get_compute_from,
     detect_cuda_version_or_cpu,
 )
 from runhouse.resources.resource import Resource
@@ -398,23 +398,23 @@ class Package(Resource):
 
     def to(
         self,
-        system: Union[str, Dict, "Cluster"],
+        compute: Union[str, Dict, "Cluster"],
     ):
         """Copy the package onto filesystem or cluster, and return the new Package object.
 
         Args:
-            system (str, Dict, or Cluster): Cluster to send the package to.
+            compute (str, Dict, or Cluster): Cluster to send the package to.
         """
         if not isinstance(self.install_target, InstallTarget):
             return self
 
-        system = _get_cluster_from(system)
-        if isinstance(system, Cluster) and system.on_this_cluster():
+        compute = _get_compute_from(compute)
+        if isinstance(compute, Cluster) and compute.on_this_compute():
             return self
 
         self._validate_folder_path()
-        if isinstance(system, Cluster):
-            system.rsync(
+        if isinstance(compute, Cluster):
+            compute.rsync(
                 source=str(self.install_target.full_local_path_str()),
                 dest=str(self.install_target.path_to_sync_to_on_cluster),
                 up=True,
@@ -529,7 +529,7 @@ def package(
     install_method: str = None,
     install_str: str = None,
     path: str = None,
-    system: str = None,
+    compute: str = None,
     load_from_den: bool = True,
     dryrun: bool = False,
 ) -> Package:
@@ -542,7 +542,7 @@ def package(
             Options: [``pip``, ``uv``, ``local``]
         install_str (str, optional): Additional arguments to install.
         path (str, optional): URL of the package to install.
-        system (str, optional): File system or cluster on which the package lives.
+        compute (str, optional): File compute or cluster on which the package lives.
             Currently this must a cluster or one of: [``file``, ``s3``, ``gs``].
         load_from_den (bool, optional): Whether to try loading the Package from Den. (Default: ``True``)
         dryrun (bool, optional): Whether to create the Package if it doesn't exist, or load the Package
@@ -555,7 +555,7 @@ def package(
         >>> reloaded_package = rh.package(name="my-package")
         >>> local_package = rh.package(path="local/folder/path", install_method="local")
     """
-    if name and not any([install_method, install_str, path, system]):
+    if name and not any([install_method, install_str, path, compute]):
         # If only the name is provided and dryrun is set to True
         return Package.from_name(name, load_from_den=load_from_den, dryrun=dryrun)
 

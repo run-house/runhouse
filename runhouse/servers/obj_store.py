@@ -714,7 +714,7 @@ class ObjStore:
         """Checks whether user has read or write access to a given module saved on the cluster."""
         from runhouse.globals import configs, rns_client
         from runhouse.rns.utils.api import ResourceAccess
-        from runhouse.servers.http.http_utils import load_current_cluster_rns_address
+        from runhouse.servers.http.http_utils import load_current_compute_rns_address
 
         if token is None:
             # If no token is provided assume no access
@@ -734,7 +734,7 @@ class ObjStore:
             ):
                 return True
 
-        cluster_uri = load_current_cluster_rns_address()
+        cluster_uri = load_current_compute_rns_address()
         cluster_access = await self.aresource_access_level(token, cluster_uri)
         if cluster_access == ResourceAccess.WRITE:
             # if user has write access to cluster will have access to all resources
@@ -1040,10 +1040,10 @@ class ObjStore:
             and "resource_type" in res
         ):
             config = res
-            if config.get("system") == await self.aget_cluster_config():
+            if config.get("compute") == await self.aget_cluster_config():
                 from runhouse import here
 
-                config["system"] = here
+                config["compute"] = here
             from runhouse.resources.resource import Resource
 
             res_copy = Resource.from_config(config=config, dryrun=True)
@@ -1405,7 +1405,7 @@ class ObjStore:
         try:
             if isinstance(obj, Module):
                 # Force this to be fully local for Modules so we don't have any circular stuff calling into other
-                # processes or systems.
+                # processes or computes.
                 method = getattr(obj.local, method_name)
                 module_signature = obj.signature(rich=True)
                 method_is_coroutine = (
@@ -1602,15 +1602,15 @@ class ObjStore:
 
         if remote and isinstance(res, dict) and "resource_type" in res:
             config = res
-            # Config is condensed by default, so system may just be a string
-            if isinstance(config.get("system"), dict):
-                system_name = config.get("system").get("name")
+            # Config is condensed by default, so compute may just be a string
+            if isinstance(config.get("compute"), dict):
+                compute_name = config.get("compute").get("name")
             else:
-                system_name = config.get("system")
-            if system_name == (await self.aget_cluster_config()).get("name"):
+                compute_name = config.get("compute")
+            if compute_name == (await self.aget_cluster_config()).get("name"):
                 from runhouse import here
 
-                config["system"] = here
+                config["compute"] = here
             from runhouse.resources.resource import Resource
 
             res_copy = Resource.from_config(config=config, dryrun=True)
@@ -1995,15 +1995,6 @@ class ObjStore:
                     f"Pip install {install_cmd} failed, check that the package exists and is available for your platform."
                 )
 
-        elif package.install_method == "conda":
-            install_cmd = package._conda_install_cmd(conda_env_name=conda_env_name)
-            logger.info(f"Running via install_method conda: {install_cmd}")
-            run_cmd_results = await self.arun_bash_command_on_all_nodes(install_cmd)
-            if any(run_cmd_result != 0 for run_cmd_result in run_cmd_results):
-                raise RuntimeError(
-                    f"Conda install {install_cmd} failed, check that the package exists and is "
-                    "available for your platform."
-                )
         else:
             if package.install_method != "local":
                 raise ValueError(
