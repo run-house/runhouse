@@ -7,6 +7,7 @@ from runhouse.resources.functions.function_factory import function
 from runhouse.resources.hardware import (
     cluster,
     Cluster,
+    Compute,
     DockerCluster,
     ondemand_cluster,
     OnDemandCluster,

@@ -3,18 +3,15 @@ import json
 import multiprocessing
 import os
 import re
-import shutil
 import subprocess
-import tempfile
 import threading
 import warnings
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 import requests
-import yaml
 
 from runhouse.resources.hardware.utils import (
     _do_setup_step_for_node,
@@ -29,7 +26,6 @@ from runhouse.resources.hardware.utils import (
 from runhouse.resources.images import Image, ImageSetupStepType
 
 from runhouse.resources.images.image import ImageSetupStep
-from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
 from runhouse.utils import (
     _process_env_vars,
     generate_default_name,
@@ -216,7 +212,6 @@ class Cluster(Resource):
             "resource_subtype",
             "server_port",
             "server_connection_type",
-            "server_host",
         ]
         if config.get("resource_subtype", None) == "OnDemandCluster":
             useful_config_keys.append("compute_properties")
@@ -422,11 +417,8 @@ class Cluster(Resource):
             config,
             [
                 "server_port",
-                "server_host",
-                "server_connection_type",
                 "ssh_port",
                 "client_port",
-                "ssh_properties",
             ],
         )
         creds = (
@@ -1138,31 +1130,6 @@ class Cluster(Resource):
 
         # Update the cluster config on the cluster
         self._save_config_to_cluster()
-
-        # Save a limited version of the local ~/.rh config to the cluster with the user's
-        # if such does not exist on the cluster
-        if rns_client.token:
-            user_config = {
-                "token": rns_client.cluster_token(resource_address=rns_client.username),
-                "username": rns_client.username,
-                "default_folder": rns_client.default_folder,
-            }
-
-            yaml_path = Path(f"{tempfile.mkdtemp()}/config.yaml")
-            with open(yaml_path, "w") as config_file:
-                yaml.safe_dump(user_config, config_file)
-
-            try:
-                self.rsync(
-                    source=yaml_path,
-                    dest="~/.rh/",
-                    up=True,
-                    ignore_existing=True,
-                    parallel=parallel,
-                )
-                logger.debug("saved config.yaml on the cluster")
-            finally:
-                shutil.rmtree(yaml_path.parent)
 
         restart_cmd = (
             base_cli_cmd
@@ -2236,62 +2203,6 @@ class Cluster(Resource):
                 f"{RESERVED_SYSTEM_NAMES}."
             )
 
-    def share(
-        self,
-        users: Union[str, List[str]] = None,
-        access_level: Union[ResourceAccess, str] = ResourceAccess.READ,
-        visibility: Optional[Union[ResourceVisibility, str]] = None,
-        notify_users: bool = True,
-        headers: Optional[Dict] = None,
-    ) -> Tuple[Dict[str, ResourceAccess], Dict[str, ResourceAccess]]:
-        """Grant access to the cluster for a single user or list of users. By default, the user(s) will
-        receive an email notification of access (if they have a Runhouse account) or instructions on creating
-        an account to access the cluster. If ``visibility`` is set to ``public``, users will not be notified.
-
-        Args:
-            users (Union[str, list], optional): Single user or list of user emails and / or Runhouse account usernames.
-                If none are provided and ``visibility`` is set to ``public``, cluster will be made publicly
-                available to all users. (Default: ``None``)
-            access_level (:obj:`ResourceAccess`, optional): Access level to provide for the cluster.
-                Note that for clusters only read access is currently supported.
-            visibility (:obj:`ResourceVisibility`, optional): Type of visibility to provide for the shared
-                resource. By default, the visibility is private. (Default: ``None``)
-            notify_users (bool, optional): Whether to send an email notification to users who have been given access.
-                (Default: ``True``)
-            headers (Dict, optional): Request headers to provide for the request to Den. Contains the user's auth token.
-                Example: ``{"Authorization": f"Bearer {token}"}``
-
-        Returns:
-            Tuple(Dict, Dict, Set):
-
-            `added_users`:
-                Users who already have a Runhouse account and have been granted access to the cluster.
-            `new_users`:
-                Users who do not have Runhouse accounts and received notifications via their emails.
-            `valid_users`:
-                Set of valid usernames and emails from ``users`` parameter.
-
-        Example:
-            >>> # Visibility will be set to private (users can search for and view resource in Den dashboard)
-            >>> cluster.share(users=["username1", "user2@gmail.com"])
-        """
-        if access_level != ResourceAccess.READ:
-            raise ValueError(
-                f"Clusters can only be shared with read access, not {access_level}."
-            )
-
-        # save cluster in case it's not already saved
-        self.save()
-
-        # share cluster
-        return super().share(
-            users=users,
-            access_level=access_level,
-            visibility=visibility,
-            notify_users=notify_users,
-            headers=headers,
-        )
-
     @classmethod
     def _check_for_child_configs(cls, config: dict):
         """Overload by child resources to load any resources they hold internally."""
@@ -2315,66 +2226,6 @@ class Cluster(Resource):
         config["creds"] = creds
 
         return config
-
-    ##############################################
-    # Folder Operations
-    ##############################################
-    def _folder_ls(
-        self, path: Union[str, Path], full_paths: bool = True, sort: bool = False
-    ):
-        return self.client.folder_ls(path=path, full_paths=full_paths, sort=sort)
-
-    def _folder_get(
-        self,
-        path: Union[str, Path],
-        mode: str = "rb",
-        encoding: str = None,
-    ):
-        return self.client.folder_get(
-            path=path,
-            mode=mode,
-            encoding=encoding,
-        )
-
-    def _folder_put(
-        self,
-        path: Union[str, Path],
-        contents: Union[Dict[str, Any], Resource, List[Resource]],
-        mode: str = "wb",
-        overwrite: bool = False,
-        serialization: str = None,
-    ):
-        return self.client.folder_put(
-            path=path,
-            contents=contents,
-            mode=mode,
-            overwrite=overwrite,
-            serialization=serialization,
-        )
-
-    def _folder_rm(
-        self,
-        path: Union[str, Path],
-        contents: List[str] = None,
-        recursive: bool = False,
-    ):
-        return self.client.folder_rm(path=path, contents=contents, recursive=recursive)
-
-    def _folder_mkdir(self, path: Union[str, Path]):
-        return self.client.folder_mkdir(path=path)
-
-    def _folder_mv(
-        self,
-        path: Union[str, Path],
-        dest_path: Union[str, Path],
-        overwrite: bool = True,
-    ):
-        return self.client.folder_mv(
-            path=path, dest_path=dest_path, overwrite=overwrite
-        )
-
-    def _folder_exists(self, path: Union[str, Path]):
-        return self.client.folder_exists(path=path)
 
     ###############################
     # Cluster list

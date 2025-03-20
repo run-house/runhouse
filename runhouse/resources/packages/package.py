@@ -417,7 +417,6 @@ class Package(Resource):
             compute.rsync(
                 source=str(self.install_target.full_local_path_str()),
                 dest=str(self.install_target.path_to_sync_to_on_cluster),
-                up=True,
                 contents=True,
                 node="all",
                 parallel=True,

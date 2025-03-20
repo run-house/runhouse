@@ -18,7 +18,7 @@ from runhouse.logger import get_logger
 from runhouse.resources.hardware import _current_compute, _get_compute_from, Cluster
 from runhouse.resources.packages import Package
 from runhouse.resources.resource import Resource
-from runhouse.rns.utils.api import ResourceAccess, ResourceVisibility
+from runhouse.rns.utils.api import ResourceAccess
 from runhouse.servers.http import HTTPClient
 from runhouse.servers.http.http_utils import CallParams
 from runhouse.utils import (
@@ -35,7 +35,6 @@ MODULE_ATTRS = [
     "_pointers",
     "_endpoint",
     "_client",
-    "_visibility",
     "_name",
     "_rns_folder",
     "_compute",
@@ -177,7 +176,6 @@ class Module(Resource):
             new_module.process = config.pop("process", None)
             new_module.name = config.pop("name", None)
             new_module.access_level = config.pop("access_level", ResourceAccess.WRITE)
-            new_module.visibility = config.pop("visibility", ResourceVisibility.PRIVATE)
             new_module._endpoint = config.pop("endpoint", None)
             new_module._pointers = config.pop("pointers", None)
             new_module._signature = config.pop("signature", None)
@@ -436,30 +434,7 @@ class Module(Resource):
         if self.rns_address:
             new_name = f"{self._rns_folder}/{new_name}"
 
-        if process is None:
-            # Make this an empty dict so it'll be picked up for the process creation
-            process = {}
-
-        # If process wasn't specified and name wasn't specified, we're going to use a default name tied to this
-        # module's class name and kill the old process if it exists.
-        if isinstance(process, Dict):
-            if "name" not in process:
-                ephemeral_process_name = f"{new_name}_process"
-                if ephemeral_process_name in compute.list_processes():
-                    compute.kill_process(ephemeral_process_name)
-
-                # Now we make sure that the process created with the args provided by the user
-                process["name"] = ephemeral_process_name
-
-            process = compute.ensure_process_created(**process)
-        else:
-            # If name was specified, we don't delete and overwrite, we just let it be
-            compute.ensure_process_created(name=process)
-
-        if not isinstance(process, str):
-            raise ValueError(
-                "Process arg must be a string name of the process or a dict of create_process kwargs."
-            )
+        compute.ensure_process_created(name=DEFAULT_PROCESS_NAME)
 
         # We need to change the pointers to the remote import path if we're sending this module to a remote cluster,
         # and we need to add the local path to the module to the requirements if it's not already there.
@@ -535,7 +510,6 @@ class Module(Resource):
     def get_or_to(
         self,
         compute: Union[str, Cluster],
-        process: Optional[Union[str, Dict]] = None,
         name: Optional[str] = None,
     ):
         """Check if the module already exists on the cluster, and if so return the module object.
@@ -543,8 +517,6 @@ class Module(Resource):
 
         Args:
             compute (str or Cluster): The compute to setup the module.
-            process (str or Dict, optional): The process to run the module on, if it's a Dict, it will be explicitly
-                created with those args. or the set of requirements necessary to run the module. (Default: ``None``)
             name (Optional[str], optional): Name to give to the module resource, if you wish to rename it.
                 (Default: ``None``)
 
@@ -564,7 +536,7 @@ class Module(Resource):
         if remote:
             return remote
         self.name = name
-        return self.to(compute, process=process)
+        return self.to(compute)
 
     def __getattribute__(self, item):
         """Override to allow for remote execution if compute is a remote cluster. If not, the subclass's own
@@ -1153,14 +1125,6 @@ class Module(Resource):
             self.remote.name = self.rns_address
 
         return res
-
-    def share(self, *args, visibility=None, **kwargs):
-        if visibility and not visibility == self.visibility:
-            self.visibility = visibility
-            self.remote.visibility = (
-                visibility  # Sets the visibility on the remote resource
-            )
-        return super().share(*args, **kwargs, visibility=visibility)
 
     @staticmethod
     def _is_running_in_notebook(module_path: Union[str, None]) -> bool:

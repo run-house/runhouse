@@ -75,6 +75,10 @@ def run_setup_command(
     elif cluster.on_this_compute():
         return run_with_logs(cmd, stream_logs=stream_logs, require_outputs=True)[:2]
 
+    if hasattr(cluster, "pod_names"):
+        resp = cluster.run_bash_over_ssh([cmd], node=node)
+        return resp[0]
+
     return cluster._run_commands_with_runner(
         [cmd],
         stream_logs=stream_logs,

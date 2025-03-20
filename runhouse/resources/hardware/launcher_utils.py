@@ -25,7 +25,7 @@ class LogProcessor:
 
     def _init_cluster_logger(self):
         cluster_logger = logging.getLogger("cluster_logs")
-        log_formatter = ClusterLogsFormatter(system=self.cluster_name)
+        log_formatter = ClusterLogsFormatter(compute=self.cluster_name)
 
         cluster_logger.setLevel(logging.DEBUG)
 

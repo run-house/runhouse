@@ -73,7 +73,7 @@ class HTTPClient:
         host: str,
         port: Optional[int],
         resource_address: str,
-        system=None,
+        compute=None,
     ):
         self.host = host
         self.port = port
@@ -84,13 +84,13 @@ class HTTPClient:
         self.verify = False
 
         self.resource_address = resource_address
-        self.system = system
+        self.compute = compute
 
         self.async_session = httpx.AsyncClient(
             auth=self.auth, verify=self.verify, timeout=None
         )
 
-        self.log_formatter = ClusterLogsFormatter(self.system)
+        self.log_formatter = ClusterLogsFormatter(self.compute)
         self._request_headers = rns_client.request_headers(self.resource_address)
 
     @staticmethod
@@ -247,21 +247,25 @@ class HTTPClient:
     def _process_call_result(
         self,
         result,
-        system,
+        compute,
         output_type,
     ):
         from runhouse.resources.module import Module
 
         if isinstance(result, Module):
             if (
-                system
-                and result.system
-                and system.rns_address == result.system.rns_address
+                compute
+                and result.compute
+                and compute.rns_address == result.compute.rns_address
             ):
-                result.system = system
+                result.compute = compute
         elif output_type == OutputType.CONFIG:
-            if system and "system" in result and system.rns_address == result["system"]:
-                result["system"] = system
+            if (
+                compute
+                and "compute" in result
+                and compute.rns_address == result["compute"]
+            ):
+                result["compute"] = compute
             result = Resource.from_config(result, dryrun=True)
 
         return result
@@ -288,7 +292,7 @@ class HTTPClient:
             stream_logs=stream_logs,
             remote=remote,
             save=save,
-            system=self.system,
+            compute=self.compute,
             headers=headers,
         )
 
@@ -302,7 +306,7 @@ class HTTPClient:
         stream_logs: bool = True,
         remote: bool = False,
         save=False,
-        system=None,
+        compute=None,
         headers=None,
     ):
         """
@@ -372,7 +376,7 @@ class HTTPClient:
         end = time.time()
 
         function_result = self._process_call_result(
-            function_result, system, output_type
+            function_result, compute, output_type
         )
 
         if method_name:
@@ -408,7 +412,7 @@ class HTTPClient:
             remote=remote,
             run_async=run_async,
             save=save,
-            system=self.system,
+            compute=self.compute,
         )
 
     async def _acall_request(
@@ -513,7 +517,7 @@ class HTTPClient:
         remote: bool = False,
         run_async=False,
         save=False,
-        system=None,
+        compute=None,
     ):
         """
         Client function to call the rpc for call_module_method
@@ -573,7 +577,7 @@ class HTTPClient:
         end = time.time()
 
         function_result = self._process_call_result(
-            function_result, system, output_type
+            function_result, compute, output_type
         )
 
         if method_name:
@@ -619,7 +623,7 @@ class HTTPClient:
         key: str,
         default: Any = None,
         remote=False,
-        system=None,
+        compute=None,
     ):
         """Provides compatibility with cluster's get."""
         try:
@@ -635,8 +639,8 @@ class HTTPClient:
             )
             if remote and isinstance(res, dict) and "resource_type" in res:
                 # Reconstruct the resource from the config
-                if "system" in res:
-                    res["system"] = system
+                if "compute" in res:
+                    res["compute"] = compute
                 res = Resource.from_config(res, dryrun=True)
 
         except KeyError as e:

@@ -20,12 +20,12 @@ class Function(Module):
         self,
         fn_pointers: Optional[Tuple] = None,
         name: Optional[str] = None,
-        system: Optional[Cluster] = None,
+        compute: Optional[Cluster] = None,
         dryrun: bool = False,
         **kwargs,  # We have this here to ignore extra arguments when calling from from_config
     ):
         """
-        Runhouse Function object. It is comprised of the entrypoint, system/cluster,
+        Runhouse Function object. It is comprised of the entrypoint, compute/cluster,
         and dependencies necessary to run the service.
 
         .. note::
@@ -33,7 +33,7 @@ class Function(Module):
         """
         self.fn_pointers = fn_pointers
         self._loaded_fn = None
-        super().__init__(name=name, dryrun=dryrun, system=system, **kwargs)
+        super().__init__(name=name, dryrun=dryrun, compute=compute, **kwargs)
 
     # ----------------- Constructor helper methods -----------------
 
@@ -41,21 +41,13 @@ class Function(Module):
     def from_config(
         cls, config: dict, dryrun: bool = False, _resolve_children: bool = True
     ):
-        if isinstance(config["system"], dict):
-            config["system"] = Cluster.from_config(
-                config["system"], dryrun=dryrun, _resolve_children=_resolve_children
+        if isinstance(config["compute"], dict):
+            config["compute"] = Cluster.from_config(
+                config["compute"], dryrun=dryrun, _resolve_children=_resolve_children
             )
 
         config.pop("resource_subtype", None)
         return Function(**config, dryrun=dryrun)
-
-    def share(self, *args, visibility=None, **kwargs):
-        if visibility and not visibility == self.visibility:
-            self.visibility = visibility
-            super().remote.visibility = (
-                visibility  # do this to avoid hitting Function's .remote
-            )
-        return super().share(*args, **kwargs, visibility=visibility)
 
     def default_name(self):
         return (
@@ -64,7 +56,7 @@ class Function(Module):
 
     def to(
         self,
-        system: Union[str, Cluster],
+        compute: Union[str, Cluster],
         process: Optional[Union[str, "Process"]] = None,
         name: Optional[str] = None,
         sync_local: bool = True,
@@ -75,7 +67,7 @@ class Function(Module):
         living on the cluster.
 
         Args:
-            system (str or Cluster): The cluster to setup the function and process on.
+            compute (str or Cluster): The cluster to setup the function and process on.
             process (str or Dict, optional): The process to run the function on. If it's a Dict, it will be explicitly
                 created with those args. or the set of requirements necessary to run the function. If no process is
                 specified, the function will be sent to the default_process created when the cluster is created
@@ -87,16 +79,16 @@ class Function(Module):
 
         Example:
             >>> rh.function(fn=local_fn).to(gpu_cluster)
-            >>> rh.function(fn=local_fn).to(system=gpu_cluster, process=my_conda_env)
+            >>> rh.function(fn=local_fn).to(compute=gpu_cluster, process=my_conda_env)
         """  # noqa: E501
         return super().to(
-            system=system, process=process, name=name, sync_local=sync_local
+            compute=compute, process=process, name=name, sync_local=sync_local
         )
 
     # ----------------- Function call methods -----------------
 
     def __call__(self, *args, **kwargs) -> Any:
-        """Call the function on its system
+        """Call the function on its compute
 
         Args:
             *args: Optional args for the Function
@@ -174,7 +166,7 @@ class Function(Module):
             >>> remote_fn_run = remote_fn.run()
             >>> remote_fn.get(remote_fn_run.name)
         """
-        return self.system.get(run_key)
+        return self.compute.get(run_key)
 
     def config(self, condensed=True):
         """The config of the function.
@@ -222,7 +214,7 @@ class Function(Module):
                 name=run_name, load_from_den=load_from_den, dryrun=self.dryrun
             )
         try:
-            return self.system.get(run_name, default=KeyError)
+            return self.compute.get(run_name, default=KeyError)
         except KeyError:
             logger.info(f"Item {run_name} not found on cluster. Running function.")
 

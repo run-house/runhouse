@@ -40,7 +40,6 @@ class RNSClient:
     CORE_RNS_FIELDS = [
         "name",
         "resource_type",
-        "visibility",
         "folder",
         "users",
     ]
