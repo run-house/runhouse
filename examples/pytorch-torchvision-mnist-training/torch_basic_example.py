@@ -193,7 +193,7 @@ if __name__ == "__main__":
     # We define our module and run it on the remote compute. We take our normal Python class SimpleTrainer, and wrap it in kt.cls()
     # We also take our function DownloadData and send it to the remote compute as well
     # Then, we use `.to()` to send it to the remote gpu we just defined.
-    model = kt.cls(SimpleTrainer).to(gpu).init()
+    model = kt.cls(SimpleTrainer).to(gpu)
 
     model.compute.run_python(download_data)
     model.compute.run_python(preprocess_data, path="./data")
