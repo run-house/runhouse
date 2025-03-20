@@ -1,7 +1,9 @@
 import json
+
 import os
 import re
 import subprocess
+
 import time
 
 from datetime import datetime, timezone
@@ -28,13 +30,17 @@ from runhouse.resources.hardware.utils import ClusterStatus, RunhouseDaemonStatu
 
 from runhouse.resources.images.image import ImageSetupStepType
 
-from runhouse.utils import _process_env_vars, get_random_str
+from runhouse.utils import _process_env_vars, capture_stdout, get_random_str
 
 import tests.test_resources.test_resource
+
 from tests.conftest import init_args
 from tests.fixtures.resource_fixtures import create_folder_path
+
+from tests.test_tutorials import sd_generate
 from tests.utils import (
     _get_env_var_value,
+    compare_python_versions,
     friend_account,
     friend_account_in_org,
     keep_config_keys,
@@ -98,6 +104,45 @@ def run_in_no_env(cmd):
 def run_node_all(cmd):
     # This forces `cluster.run` to use ssh instead of calling an env run
     return rh.here.run_bash(cmd, node="all")
+
+
+def raise_mock_exception():
+    print("Mocking a running function")
+    for i in range(3):
+        print(f"Round {i}, sleep for {i * 2}")
+        sleep_fn(i * 2)
+    raise RuntimeError("This is a mock exception")
+
+
+def raise_scikit_learn_exception():
+    import numpy as np
+    from sklearn.linear_model import LogisticRegression
+
+    X = np.array([[1, 2], [3, 4]])
+
+    model = LogisticRegression()
+
+    # Trying to predict without fitting the model first
+    model.predict(X)
+
+
+def run_function_passed_as_arg(fn, *args, **kwargs):
+    res = fn(*args, **kwargs)
+    print(f"Executed {fn.__name__} on the cluster. Result is {res}")
+    return res
+
+
+def get_add_func():
+    def add(a: int, b: int):
+        return a + b
+
+    return add
+
+
+def get_slow_np_module():
+    from tests.test_resources.test_modules.test_module import SlowNumpyArray
+
+    return SlowNumpyArray
 
 
 def sort_processes(processes: dict):
@@ -1233,3 +1278,195 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         cluster.kill_process(process)
         assert cluster.get("new_key") is None
         assert process not in cluster.list_processes()
+
+    ####################################################################################################
+    # Test exceptions raised on the cluster
+    ####################################################################################################
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_cluster_python_version_mismatch_local_version(self, cluster):
+
+        # Making sure that cluster's python version mismatch local python version.
+        python_version_cluster = cluster.run_bash(commands=["python --version"])[0][
+            1
+        ].strip()
+
+        local_python_version = (
+            subprocess.check_output(["python", "--version"]).decode("utf-8").strip()
+        )
+
+        # compare_python_versions returns 'None' if the versions are the same
+        # using split() to remove 'Python 3' from 'Python 3' from 'Python 3 3.X.Y'
+        if not compare_python_versions(
+            cluster_version=python_version_cluster.split()[-1],
+            local_version=local_python_version.split()[-1],
+        ):
+            pytest.skip(
+                "This tests should run on clusters with different python version than the local one."
+            )
+
+        remote_func_with_exception = rh.function(fn=raise_mock_exception).to(
+            system=cluster
+        )
+        with pytest.raises(RuntimeError) as error:
+            remote_func_with_exception()
+            assert str(error) == "This is a mock exception"
+
+        remote_sd_generate = rh.function(fn=sd_generate).to(system=cluster)
+
+        with pytest.raises(ModuleNotFoundError) as error:
+            remote_sd_generate(prompt="a matcha hotdog")
+            assert str(error) == "No module named 'torch'"
+
+        sd_generate_reqs = ["torch", "diffusers", "transformers"]
+        cluster.install_packages(reqs=sd_generate_reqs)
+
+        with pytest.raises(AssertionError) as error:
+            remote_sd_generate(prompt="a matcha hotdog")
+            assert str(error) == "Torch not compiled with CUDA enabled"
+
+        # need to uninstall the reqs, because some docker fixtures use the same container.
+        for req in sd_generate_reqs:
+            cluster.run_bash(f"pip uninstall {req} -y")
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_function_as_arg_on_remote_function(self, cluster):
+        remote_func = rh.function(run_function_passed_as_arg).to(system=cluster)
+        sum_as_arg_result = remote_func(summer, 1, 2)
+        assert sum_as_arg_result == 3
+        mult_as_arg_result = remote_func(sub, 125, 11)
+        assert mult_as_arg_result == 114
+        with pytest.raises(RuntimeError) as error:
+            remote_func(raise_mock_exception)
+            assert str(error) == "This is a mock exception"
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_remote_function_returns_function(self, cluster):
+        local_python_version = subprocess.run(
+            ["python", "--version"], text=True, capture_output=True
+        )
+        local_python_version = (
+            local_python_version.stdout.strip()
+            if local_python_version.stdout
+            else local_python_version.stderr.strip()
+        ).split()[-1]
+        cluster_python_version = (
+            cluster.run_bash(["python --version"])[0][1].strip().split()[-1]
+        )
+        remote_func = rh.function(get_add_func).to(system=cluster)
+
+        # checking if the latest python version is installed on the cluster or locally (if the versions are equal, compare_python_versions returns None)
+        latest_python_version = compare_python_versions(
+            cluster_version=cluster_python_version,
+            local_version=local_python_version,
+        )
+
+        if latest_python_version == cluster_python_version:
+            with pytest.raises(rh.SerializationError):
+                remote_func()
+        else:
+            add_func = remote_func()
+            assert add_func(4, 7) == 11
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_remote_function_returns_module(self, cluster):
+
+        import numpy as np
+
+        remote_func = rh.function(get_slow_np_module).to(system=cluster)
+        slow_np_class = remote_func()
+        size = 3
+        slow_np_instance = slow_np_class(size=size)
+        # Test that naming works properly, and "class" module was unaffacted
+        assert slow_np_class.__name__ == "SlowNumpyArray"
+
+        # Test that module was initialized correctly on the cluster
+        assert slow_np_instance.size == size
+        assert all(slow_np_instance.arr == np.zeros(size))
+        assert slow_np_instance._hidden_1 == "hidden"
+
+        results = []
+        out = ""
+        with capture_stdout() as stdout:
+            for val in slow_np_instance.slow_iter():
+                assert val
+                print(val)
+                results += [val]
+                out = out + str(stdout)
+        assert len(results) == 3
+
+        # Check that stdout was captured. Skip the last result because sometimes we
+        # don't catch it and it makes the test flaky.
+        for i in range(size - 1):
+            assert f"Hello from the cluster stdout! {i}" in out
+
+        local_home = os.path.expanduser("~")
+
+        # Test classmethod on remote class
+        assert slow_np_class.local_home() == local_home
+
+        # Test classmethod on remote instance
+        assert slow_np_instance.local_home() == local_home
+
+        # Test instance method
+        assert slow_np_instance.size_minus_cpus() == size - slow_np_instance.cpu_count()
+
+        # Test remote getter
+        arr = slow_np_instance.arr
+        assert isinstance(arr, np.ndarray)
+        assert arr.shape == (size,)
+        assert arr[0] == 0
+        assert arr[2] == 2
+
+        # Test size setter
+        slow_np_instance.size = 20
+        assert slow_np_instance.size == 20
+
+        # Test creating a second instance of the same class
+        local_instance2 = slow_np_class(size=30)
+        assert local_instance2.size == 30
+
+        # Test creating a third instance with the factory method
+        local_instance3 = slow_np_class.factory_constructor(size=40)
+
+        assert local_instance3.size == 40
+        assert local_instance3.home() == local_home
+
+        # Make sure first array and class are unaffected by this change
+        assert slow_np_instance.size == 20
+        assert local_instance3.home() == local_home
+
+    @pytest.mark.level("local")
+    @pytest.mark.clustertest
+    def test_exception_on_remote_package(self, cluster):
+
+        # install numpy remotely on the cluster
+        cluster.run_bash(["pip install scikit-learn"])
+
+        # make sure that numpy is not installed locally
+        is_np_installed_locally = subprocess.run(
+            "pip freeze | grep scikit-learn", shell=True, text=True, capture_output=True
+        ).stdout
+
+        if is_np_installed_locally:
+            subprocess.run(
+                ["pip", "uninstall", "-y", "scikit-learn"],
+                text=True,
+                capture_output=True,
+            )
+
+        remote_scikit_learn_exception = rh.function(fn=raise_scikit_learn_exception).to(
+            system=cluster
+        )
+
+        with pytest.raises(rh.RemoteException) as error:
+            remote_scikit_learn_exception()
+
+        # assert the details of the exception
+        assert (
+            "This LogisticRegression instance is not fitted yet. Call 'fit' with appropriate arguments before using this estimator"
+            in str(error)
+        )
