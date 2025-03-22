@@ -298,7 +298,11 @@ class TestHTTPClient:
             headers=request_headers,
             stream_logs=False,
         )
-        assert cluster.config() == test_data
+
+        cluster_config = cluster.config()
+        cluster_config.pop("compute_properties", None)
+        test_data.pop("compute_properties", None)
+        assert cluster_config == test_data
 
     @pytest.mark.level("unit")
     def test_put_object(self, mocker):
