@@ -229,3 +229,23 @@ def init_remote_cluster_servlet_actor(
         .remote(cluster_config=cluster_config, name=servlet_name)
     )
     return remote_actor
+
+
+####################################################################################################
+# general utils
+####################################################################################################
+def compare_python_versions(cluster_version, local_version):
+    """used for comparing cluster py version vs. local py version."""
+    # Split the version strings into a list of integers
+    cluster_version_parts = list(map(int, cluster_version.split(".")))
+    local_version_parts = list(map(int, local_version.split(".")))
+
+    # Compare the major, minor, and patch versions
+    for cv, lv in zip(cluster_version_parts, local_version_parts):
+        if cv > lv:
+            return cluster_version
+        elif cv < lv:
+            return local_version
+
+    # If all parts are equal, return nothing
+    return None

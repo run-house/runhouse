@@ -1,5 +1,7 @@
+import builtins
 import os
 import sys
+import traceback
 from pathlib import Path
 
 
@@ -37,6 +39,39 @@ def _cleanup_subprocess(conn):
     conn.close()
 
 
+def extract_error_from_ray_result(result_obj):
+    error = result_obj.error
+    error_msg = error.__str__()
+    exception = error_msg.split("\n")[-1].strip().split(": ")
+    exception_type = exception[0]
+    exception_msg = exception[1] if len(exception) > 1 else ""
+
+    exception_class = Exception
+
+    # Try to find more the exact exception that is should be raised
+    if hasattr(builtins, exception_type):
+        exception_class = getattr(builtins, exception_type)
+    else:
+        # Try to find the exception class in common modules
+        for module_name in ["exceptions", "os", "io", "socket", "ray.exceptions"]:
+            try:
+                module = sys.modules.get(module_name) or __import__(module_name)
+                if hasattr(module, exception_type):
+                    exception_class = getattr(module, exception_type)
+                    break
+            # ImportError, AttributeError are part of the builtin methods.
+            except (ImportError, AttributeError):
+                continue
+
+    # Create the exception instance with the original message
+    exception_instance = exception_class(exception_msg)
+
+    # Optionally add the original traceback as a note (Python 3.11+)
+    if hasattr(exception_instance, "__notes__"):
+        exception_instance.__notes__ = traceback.format_exception(error)
+    raise exception_instance
+
+
 def subprocess_ray_fn_call_helper(pointers, args, kwargs, conn, ray_opts={}):
     ray_opts = _setup_subprocess_env(pointers, conn, ray_opts)
 
@@ -52,6 +87,7 @@ def subprocess_ray_fn_call_helper(pointers, args, kwargs, conn, ray_opts={}):
     )
     try:
         res = orig_fn(*args, **kwargs)
+        res = extract_error_from_ray_result(res) if hasattr(res, "error") else res
         return res
     finally:
         ray.shutdown()
