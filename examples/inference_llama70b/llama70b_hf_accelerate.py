@@ -10,9 +10,18 @@ import torch
 from transformers import pipeline
 
 # ## Define Inference Class
-# This is a regular undecorated class that uses HuggingFace Pipelines to
-# run inference on the Llama-70B model. We will send this class to the remote compute
-# formed from your Kubernetes cluster in main below.
+# We define a regular class that uses HuggingFace Pipelines to run inference on the Llama-70B model.
+# We will send this class to the remote compute by decorating the class to specify the compute
+# and autoscaling.
+img = (
+    kt.images.pytorch()
+    .pip_install(["transformers", "accelerate"])
+    .sync_secrets(["huggingface"])
+)
+
+
+@kt.compute(gpus="L4:8", image=img, name="llama70b")
+@kt.distribute("auto", num_replicas=(0, 4))
 class Llama70B:
     def __init__(self, model_id="meta-llama/Llama-3.3-70B-Instruct"):
         self.model_id = model_id
@@ -58,24 +67,12 @@ class Llama70B:
         return outputs[0]["generated_text"][len(prompt) :]
 
 
-# ## Define Compute, Image, and Execute
-# We define an image with torch and transformers and 8 x L4 with 1 node. This code can be
-# run anywhere, whether local machine, CI, orchestrator, etc.
+# ## Call Remote Service
+# Once we have deployed the service with `kubetorch deploy`, we can call the service
+# in Python directly by name as welll.
 if __name__ == "__main__":
-    img = (
-        kt.images.pytorch()
-        .pip_install(
-            [
-                "transformers",
-                "accelerate",
-            ]
-        )
-        .sync_secrets(["huggingface"])
-    )
 
-    compute = kt.Compute(gpus="L4:8", image=img)
-
-    llama = kt.cls(Llama70B).to(compute, name="llama_model")
+    llama = Llama70B.from_name("llama70b")
 
     query = "What is the best type of bread in the world?"
     generated_text = llama.generate(query)  # Running on your remote GPUs

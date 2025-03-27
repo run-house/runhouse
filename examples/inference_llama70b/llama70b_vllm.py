@@ -1,7 +1,16 @@
-import runhouse as rh
+import kubetorch as kt
 from vllm import LLM, SamplingParams
 
 
+img = (
+    kt.images.pytorch()
+    .pip_install(["transformers", "vllm"])
+    .sync_secrets(["huggingface"])
+)
+
+
+@kt.compute(gpus="L4:8", image=img, name="llama70b")
+@kt.distribute("auto", num_replicas=(0, 4))
 class Llama70B_vLLM:
     def __init__(self, num_gpus, model_id="meta-llama/Llama-3.3-70B-Instruct"):
         self.model_id = model_id
@@ -35,27 +44,8 @@ class Llama70B_vLLM:
 
 
 if __name__ == "__main__":
-    img = (
-        rh.Image(name="vllm_llama_inference")
-        .pip_install(
-            [
-                "torch",
-                "vllm",
-            ]
-        )
-        .sync_secrets(["huggingface"])
-    )
+    llama = Llama70B_vLLM.from_name("llama70b")
 
-    # Reuse the bring up cluster function to reuse the cluster if already up.
-    from llama70b_hf_accelerate import bring_up_cluster
-
-    # Requires access to a cloud account with the necessary permissions to launch compute.
-    cluster = bring_up_cluster(img, restart_server=True)
-    # cluster = bring_up_cluster(img, num_gpus= 8, num_nodes = 1, gpu_type = 'L4', use_spot = True, launcher = 'local', autostop_mins = 120, restart_server = True)
-
-    inference_remote = rh.cls(Llama70B_vLLM).to(cluster, name="llama_model_vllm")
-    llama = inference_remote(name="vllm_llama70b", num_gpus=8)
-    # llama = cluster.get("vllm_llama70b", remote = True)
     queries = [
         "What is the best type of bread in the world?",
         "What are some cheeses that go with bread?",
