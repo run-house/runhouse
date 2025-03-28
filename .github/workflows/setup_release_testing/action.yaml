@@ -35,6 +35,10 @@ inputs:
   API_SERVER_URL:
     description: 'API Server URL'
     required: true
+  EKS_ARN:
+    description: 'EKS ARN'
+    required: true
+
 
 runs:
   using: composite
@@ -47,22 +51,59 @@ runs:
     - name: Check out repository code
       uses: actions/checkout@v3
 
+    - name: Install AWS CLI v2
+      run: |
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip awscliv2.zip
+        sudo ./aws/install --update
+        aws --version
+      shell: bash
+
+
+    - name: Configure & Authenticate to AWS
+      run: |
+        if [[ -z "${{ inputs.DEV_AWS_ACCESS_KEY }}" || -z "${{ inputs.DEV_AWS_SECRET_KEY }}" ]]; then
+          echo "Error: AWS credentials not provided!"
+          exit 1
+        fi
+
+        mkdir -p ~/.aws
+
+        # Store credentials in ~/.aws/credentials (preferred method)
+        cat <<EOF > ~/.aws/credentials
+        [default]
+        aws_access_key_id=${{ inputs.DEV_AWS_ACCESS_KEY }}
+        aws_secret_access_key=${{ inputs.DEV_AWS_SECRET_KEY }}
+        region=us-east-1
+        EOF
+
+        # Set up AWS CLI to use the correct profile
+        aws configure set default.region us-east-1
+
+        # Verify credentials
+        aws sts get-caller-identity
+      shell: bash
+
+
     - name: Setup Kubeconfig
       run: |
         mkdir -p $HOME/.kube
         echo "${{ inputs.KUBECONFIG }}" > $HOME/.kube/config
         export KUBECONFIG=$HOME/.kube/config
+
+        aws sts get-caller-identity
+
+        # Ensure kubeconfig is updated with correct IAM role
+        aws eks update-kubeconfig --name runhouse-k8s --region us-east-1
+        aws eks list-clusters
+
         kubectl config view
+        kubectl config get-contexts
+
         sudo apt-get update
         sudo apt-get install -y socat netcat-openbsd
       shell: bash
 
-    - name: Configure & Authenticate to AWS
-      run: |
-        aws configure set aws_access_key_id ${{ inputs.DEV_AWS_ACCESS_KEY }}
-        aws configure set aws_secret_access_key ${{ inputs.DEV_AWS_SECRET_KEY }}
-        aws configure set default.region us-east-1
-      shell: bash
 
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v1
