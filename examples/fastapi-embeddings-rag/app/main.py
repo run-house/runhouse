@@ -84,7 +84,7 @@ async def lifespan(app):
 # is a base Docker image and any additional commands to run such as pip installs.
 def load_embedder():
     """Launch an A10G and send the embedding service to it."""
-    img = kt.image.pytorch().pip_install(
+    img = kt.images.pytorch().pip_install(
         [
             "langchain",
             "langchain-community",
@@ -120,7 +120,7 @@ def load_table():
 # We will use vLLM to serve the model due to it's high performance.
 #
 def load_llm():
-    img = kt.image.pytorch().pip_install(["vllm==0.5.4"]).sync_secrets(["huggingface"])
+    img = kt.images.pytorch().pip_install(["vllm==0.5.4"]).sync_secrets(["huggingface"])
 
     compute = kt.compute(gpus="L4:1", image=img)
     remote_llm = kt.cls(LlamaModel).to(system=compute).distribute(num_replicas=(0, 4))
@@ -247,9 +247,6 @@ async def generate_response(text: str, limit: int = 4):
 # { "status": "healthy" }
 # ```
 #
-# To debug the application, you may prefer running `fastapi dev`. This will trigger
-# automatic re-deployments from any changes to your code. Be sure to set `DEBUG` to `True` to
-# override instances of the embedding and LLM services with updated versions.
 #
 # ### Example cURL Command to Add Embeddings
 # To populate the LanceDB database with vector embeddings for use in the RAG app, you can send a HTTP request

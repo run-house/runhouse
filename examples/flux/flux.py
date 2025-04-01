@@ -1,10 +1,26 @@
-import runhouse as rh
+import kubetorch as kt
 
+# ## Create Flux Pipeline with Kubetorch
 # First, we define a class that will hold the model and allow us to send prompts to it.
-# We'll later wrap this with `rh.cls`. This is a Runhouse class that allows you to
-# run code in your class on a remote machine.
-#
-# Learn more in the [Runhouse docs on functions and modules](/docs/tutorials/api-modules).
+# To deploy it as a service, we simply decorate the class to send it to our cluster
+# when we call `kubetorch deploy` in the CLI.
+img = (
+    kt.images.pytorch()
+    .pip_install(
+        [
+            "diffusers",
+            "transformers[sentencepiece]",
+            "accelerate",
+        ]
+    )
+    .sync_secrets(["huggingface"])
+)
+
+
+@kt.compute(
+    gpus="A10G:1", memory="64", image=img
+)  # Send to compute with an A10 GPU and 64GB of memory
+@kt.distribute(num_replicas=(1, 4))  # Autoscale between 1 and 4 replicas
 class FluxPipeline:
     def __init__(
         self,
@@ -43,55 +59,14 @@ class FluxPipeline:
         return image
 
 
-# ## Setting up Runhouse primitives
-#
-# Now, we define the main function that will run locally when we run this script, and set up
-# our Runhouse module on a remote cluster. First, we create a cluster with the desired instance type and provider.
-# Our `instance_type` here is defined as `g5.8xlarge`, which is an AWS instance type. We can alternatively specify
-# an accelerator type and count, such as `A10G:1`, and any instance type with those specifications will be used.
-#
-# Learn more in the [Runhouse docs on clusters](/docs/tutorials/api-clusters).
-#
-# :::note{.info title="Note"}
-# Make sure that your code runs within a `if __name__ == "__main__":` block, as shown below. Otherwise,
-# the script code will run when Runhouse attempts to run code remotely.
-# :::
 if __name__ == "__main__":
-    img = (
-        rh.Image("flux")
-        .pip_install(
-            [
-                "diffusers",
-                "torch",
-                "transformers[sentencepiece]",
-                "accelerate",
-            ]
-        )
-        .sync_secrets(["huggingface"])
-    )
-    cluster = rh.compute(
-        name="rh-a10-8xlarge",
-        gpus="A10G",
-        num_cpus="32",
-        provider="aws",
-        image=img,
-    ).up_if_not()
+    # We can load the remote model from anywhere that has access to the cluster
+    flux_pipeline = FluxPipeline.from_name("flux")
 
-    # Finally, we define our module and run it on the remote cluster. We construct it normally and then call
-    # `to` to run it on the remote cluster. Alternatively, we could first check for an existing instance on the cluster
-    # by calling `cluster.get(name="flux")`. This would return the remote model after an initial run.
-    # If we want to update the module each time we run this script, we prefer to use `to`.
-    RemoteFlux = rh.cls(FluxPipeline).to(cluster)
-    remote_flux = RemoteFlux(
-        name="flux"
-    )  # This has now been set up as a service on the remote cluster and can be used for inference.
-
-    # ## Calling our remote function
-    #
     # We can call the `generate` method on the model class instance if it were running locally.
     # This will run the function on the remote cluster and return the response to our local machine automatically.
-    # Further calls will also run on the remote machine, and maintain state that was updated between calls
+    # We can also call this from a different machine or script and create composite ML systems.
     prompt = "A woman runs through a large, grassy field towards a house."
-    response = remote_flux.generate(prompt)
+    response = flux_pipeline.generate(prompt)
     response.save("flux-schnell.png")
     response.show()
