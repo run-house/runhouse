@@ -280,8 +280,8 @@ if __name__ == "__main__":
     gpu_compute = kt.Compute(gpus=f"A10G:{gpus_per_node}", image=img)
 
     init_args = dict(
-        working_s3_bucket=working_s3_bucket,
-        working_s3_path=working_s3_path,
+        s3_bucket=working_s3_bucket,
+        s3_path=working_s3_path,
     )
 
     remote_trainer = (

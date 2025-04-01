@@ -20,13 +20,6 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 
-# Let's define a function that downloads the data. You can imagine this as a generic function to access data.
-def download_data(path="./data"):
-    datasets.MNIST(path, train=True, download=True)
-    datasets.MNIST(path, train=False, download=True)
-    print("Done with data download")
-
-
 def preprocess_data(path):
     transform = transforms.Compose(
         [
@@ -40,8 +33,8 @@ def preprocess_data(path):
         ]
     )
 
-    train = datasets.MNIST(path, train=False, download=False, transform=transform)
-    test = datasets.MNIST(path, train=False, download=False, transform=transform)
+    train = datasets.MNIST(path, train=True, download=True, transform=transform)
+    test = datasets.MNIST(path, train=False, download=True, transform=transform)
     print("Done with data preprocessing")
     print(f"Number of training samples: {len(train)}")
     print(f"Number of test samples: {len(test)}")
@@ -86,15 +79,15 @@ class SimpleTrainer:
         self.accuracy = None
         self.test_loss = None
 
-    def load_train(self, path, batch_size):
+    def load_train(self, path, batch_size, download=False):
         data = datasets.MNIST(
-            path, train=True, download=False, transform=self.transform
+            path, train=True, download=download, transform=self.transform
         )
         self.train_loader = DataLoader(data, batch_size=batch_size, shuffle=True)
 
-    def load_test(self, path, batch_size):
+    def load_test(self, path, batch_size, download=False):
         data = datasets.MNIST(
-            path, train=False, download=False, transform=self.transform
+            path, train=False, download=download, transform=self.transform
         )
         self.test_loader = DataLoader(data, batch_size=batch_size, shuffle=True)
 
@@ -193,9 +186,8 @@ if __name__ == "__main__":
     # We define our module and run it on the remote compute. We take our normal Python class SimpleTrainer, and wrap it in kt.cls()
     # We also take our function DownloadData and send it to the remote compute as well
     # Then, we use `.to()` to send it to the remote gpu we just defined.
-    model = kt.cls(SimpleTrainer).to(gpu).init()
+    model = kt.cls(SimpleTrainer).to(gpu)
 
-    model.compute.run_python(download_data)
     model.compute.run_python(preprocess_data, path="./data")
 
     # We set some settings for the model training
