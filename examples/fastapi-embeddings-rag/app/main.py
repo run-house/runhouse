@@ -4,10 +4,6 @@
 # to enrich the response from an LLM. Depending on the URLs you use to populate the vector database,
 # you'll be able to answer questions more intelligently with relevant context.
 #
-# You could, for example, pass in the URL of a new startup and then ask the app to answer questions
-# about that startup using information on their site. Or pass in several specialized gardening websites and
-# ask nuanced questions about horticulture.
-#
 # ## Example Overview
 # Deploy a FastAPI app that is able to create and store embeddings from text on public website URLs,
 # and generate answers to questions using related context from stored websites and an open source LLM.
@@ -32,43 +28,21 @@
 # tools such as LangChain, but we break out the components explicitly to fully illustrate each step and make the
 # example easily adaptible to other use cases. Swap out components as you see fit!
 #
-# ### What does Runhouse enable?
-# Runhouse allows you to turn complex operations such as preprocessing and inference into independent services.
-# Servicifying with Runhouse enables:
-# - **Decoupling**: AI/ML or compute-heavy heavy tasks can be separated from your main application.
-#   This keeps the FastAPI app light and allows each service to scale independently.
-# - **Multi-cloud**: Host Runhouse modules on remote machines from any cloud provider (even on the same GPU).
-#   Take advantage of unused cloud credits and avoid platform dependence.
-# - **Sharing**: Running on GPUs can be expensive, especially if they aren't fully utilized. By sharing services within
-#   your organization, you can substantially cut costs.
+# ### What does Kubetorch enable?
+# Kubetorch allows you to turn complex operations such as preprocessing and inference into independent services.
+# By decoupling accelerated compute tasks from your main application, you can keep the FastAPI app
+# light and allows each service to scale independently.
 #
-# ### Why FastAPI?
-# We chose FastAPI as our platform because of its popularity and simplicity. However, we could
-# easily use any other *Python-based* platform with Runhouse. Streamlit, Flask, `<your_favorite>`, we got you!
-#
-# ## Setup credentials and dependencies
-#
-# To ensure that Runhouse is able to manage deploying services to your cloud provider (AWS in this case)
-# you may need to follow initial setup steps. Please visit the AWS section of
-# our [Installation Guide](https://www.run.house/docs/installation)
-#
-# Additionally, we'll be downloading the Llama 3 model from Hugging Face, so we need to set up our Hugging Face token:
-# ```shell
-# $ export HF_TOKEN=<your huggingface token>
-# ```
-#
-# Make sure to sign the waiver on the [Hugging Face model page](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)
-# so that you can access it.
-#
+
 # ## FastAPI RAG App Setup
 # First, we'll import necessary packages and initialize variables used in the application. The `URLEmbedder` and
-# `LlamaModel` classes that will be sent to Runhouse are available in the `app/modules` folder in this source code.
+# `LlamaModel` classes that will be sent to remote compute are available in the `app/modules` folder in this source code.
 from contextlib import asynccontextmanager
 from typing import Dict, List
 
-import lancedb
+import kubetorch as kt
 
-import runhouse as rh
+import lancedb
 
 from fastapi import Body, FastAPI, HTTPException
 
@@ -76,15 +50,6 @@ from app.modules.embedding import Item, URLEmbedder
 from app.modules.llm import LlamaModel
 
 EMBEDDER, TABLE, LLM = None, None, None
-
-DEBUG = True  # In DEBUG mode we will always override Runhouse modules
-
-# Define configuration options for our remote cluster. If you prefer to use a different
-# cloud provider, be sure to install the appropriate version of Runhouse: e.g.
-# `runhouse[aws]` or `runhouse[gcp]`.
-CLUSTER_NAME = "rh-xa10g"  # Allows the cluster to be reused
-GPUS = "A10G:1"  # A10G GPU to handle LLM iinference
-CLOUD_PROVIDER = "aws"  # Alternatively "gcp", "azure", or "cheapest"
 
 # Template to be used in the LLM generation phase of the RAG app
 PROMPT_TEMPLATE = """Use the following pieces of context to answer the question at the end.
@@ -97,7 +62,6 @@ Always say "thanks for asking!" at the end of the answer.
 Question: {question}
 
 Helpful Answer: """
-
 
 # ### Initialize Embedder, LanceDB Database, and LLM Service
 # We'll use the `lifespan` argument of the FastAPI app to initialize our embedding service,
@@ -113,17 +77,14 @@ async def lifespan(app):
     yield
 
 
-# ### Create Vector Embedding Service as a Runhouse Module
-# This method, run during initialization, will provision a remote machine (A10G on AWS in this case)
-# and deploy our `URLEmbedder` to that machine.
+# ### Create Vector Embedding Service
+# This method, run during initialization, will provision remote compute and deploy an embedding service.
 #
-# The Python packages required by the embedding service (`langchain` etc.) are defined on the
-# Runhouse image so that they can be properly installed
-# on the cluster. Also note that they are imported inside class methods. Those packages do not need
-# to be installed locally.
+# The Python packages required by the embedding service (`langchain` etc.) are defined on the image, which
+# is a base Docker image and any additional commands to run such as pip installs.
 def load_embedder():
     """Launch an A10G and send the embedding service to it."""
-    img = rh.Image("embedder_img").pip_install(
+    img = kt.image.pytorch().pip_install(
         [
             "langchain",
             "langchain-community",
@@ -131,21 +92,16 @@ def load_embedder():
             "langchainhub",
             "bs4",
             "sentence_transformers",
-            "torch",
         ],
     )
+    compute = kt.compute(gpus="L4:1", image=img)
 
-    cluster = rh.compute(
-        name=CLUSTER_NAME, gpus=GPUS, provider=CLOUD_PROVIDER, image=img
-    ).up_if_not()
+    init_args = dict(model_name_or_path="BAAI/bge-large-en-v1.5", device="cuda")
 
-    module_name = "url_embedder"
-    remote_url_embedder = cluster.get(module_name, default=None, remote=True)
-    if DEBUG or remote_url_embedder is None:
-        RemoteEmbedder = rh.cls(URLEmbedder).to(system=cluster, name="URLEmbedder")
-        remote_url_embedder = RemoteEmbedder(
-            model_name_or_path="BAAI/bge-large-en-v1.5", device="cuda", name=module_name
-        )
+    remote_url_embedder = (
+        kt.cls(URLEmbedder).to(compute, init_args).distribute(num_replicas=(0, 4))
+    )
+
     return remote_url_embedder
 
 
@@ -159,34 +115,15 @@ def load_table():
     return db.create_table("rag-table", schema=Item.to_arrow_schema(), exist_ok=True)
 
 
-# ### Load RAG LLM Inference Service with Runhouse
-# Deploy an open LLM, Llama 3 in this case, to a GPU on the cloud provider of your choice.
-# We will use vLLM to serve the model due to it's high performance and throughput but there
-# are many other options such as HuggingFace Transforms and TGI.
+# ### Load RAG LLM Inference Service
+# Deploy an open LLM, Llama 3 in this case, to 1 or more GPUs in the cloud.
+# We will use vLLM to serve the model due to it's high performance.
 #
-# Here we leverage the same A10G cluster we used for the embedding service, but you could also spin
-# up a new remote machine specifically for the LLM service. Alternatively, use a proprietary model
-# like ChatGPT or Claude.
 def load_llm():
-    """Use the existing A10G cluster to run an LLM inference service"""
-    # Specifying the same name will reuse our embedding service cluster
-    img = (
-        rh.Image("llama3_inference")
-        .pip_install(["torch", "vllm==0.5.4"])
-        .sync_secrets(["huggingface"])
-    )
+    img = kt.image.pytorch().pip_install(["vllm==0.5.4"]).sync_secrets(["huggingface"])
 
-    cluster = rh.compute(
-        CLUSTER_NAME, gpus=GPUS, provider=CLOUD_PROVIDER, image=img
-    ).up_if_not()
-
-    module_name = "llama_model"
-    # First check for an instance of the LlamaModel stored on the cluster
-    remote_llm = cluster.get(module_name, default=None, remote=True)
-    if DEBUG or remote_llm is None:
-        # If not found (or debugging) sync up the model and create a fresh instance
-        RemoteLlama = rh.cls(LlamaModel).to(system=cluster, name="LlamaModel")
-        remote_llm = RemoteLlama(name=module_name)
+    compute = kt.compute(gpus="L4:1", image=img)
+    remote_llm = kt.cls(LlamaModel).to(system=compute).distribute(num_replicas=(0, 4))
     return remote_llm
 
 
@@ -194,7 +131,6 @@ def load_llm():
 # Before defining endpoints, we'll initialize the application and set the lifespan events defined
 # above. This will load in the various services we've defined on start-up.
 app = FastAPI(lifespan=lifespan)
-
 
 # Add an endpoint to check on our app health. This is a minimal example intended to only
 # show if the application is up and running or down.
@@ -354,21 +290,3 @@ async def generate_response(text: str, limit: int = 4):
 #   ]
 # }
 # ```
-#
-# ## Deploying to Production
-# There are any methods to deploy a FastAPI application to a production environment. With some modifications
-# to the logic of the app, setting `DEBUG` to `False`, and deploying to a public IP, this example
-# could easily serve as the backend to a RAG app.
-#
-# We won't go into depth on a specific method, but here are a few things to consider:
-# - **Cloud credentials**: Runhouse uses [SkyPilot](https://github.com/skypilot-org/skypilot) to provision remote
-#   machines on various cloud providers. You'll need to ensure that you have the appropriate permissions available
-#   on your production environment.
-# - **ENV Variables**: This example passes your Hugging Face token via `sync_secrets` to grant permissions to use
-#   Llama 3. Make sure you handle this on your server as well.
-# - **Cluster lifecycle**: Running GPUs can be costly. `sky` commands make it easy to manage remote clusters locally
-#   but you may also want to monitor your cloud provider to avoid unused GPUs running up a bill.
-#
-# If you're running into any problems using Runhouse in production, please reach out to our team at
-# [team@run.house](mailto:team@run.house). We'd be happy to set up a time to help you debug live.
-# Additionally, you can chat with us directly on [Discord](https://discord.com/invite/RnhB6589Hs).
