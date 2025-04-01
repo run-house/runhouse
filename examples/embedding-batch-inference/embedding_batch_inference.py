@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
     # Define an image and compute, send the embedder to the compute and embed a dataset
     img = kt.images.ubuntu().pip_install(["vllm", "datasets", "transformers"])
-    compute = kt.compute(gpus="T4:1", image=img)
+    compute = kt.Compute(gpus="T4:1", image=img)
     embedder = kt.cls(BGEEmbedder).to(compute)
     embedder.embed_dataset(
         "wikimedia/wikipedia",
@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
     # If we want to do this in parallel, we can distribute the embedding and call against it in parallel
     replicas = 4
-    compute = kt.compute(gpus="T4:1", image=img).distribute(replicas=replicas)
+    compute = kt.compute(gpus="T4:1", image=img).distribute("pool", num_nodes=replicas)
     embedder = kt.cls(BGEEmbedder).to(compute)
     data_files_list = [
         "20231101.en/train-00000-of-00041.parquet",

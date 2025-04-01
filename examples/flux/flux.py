@@ -20,7 +20,7 @@ img = (
 @kt.compute(
     gpus="A10G:1", memory="64", image=img
 )  # Send to compute with an A10 GPU and 64GB of memory
-@kt.distribute(num_replicas=(1, 4))  # Autoscale between 1 and 4 replicas
+@kt.distribute("auto", num_replicas=(1, 4))  # Autoscale between 1 and 4 replicas
 class FluxPipeline:
     def __init__(
         self,

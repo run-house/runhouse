@@ -99,7 +99,9 @@ def load_embedder():
     init_args = dict(model_name_or_path="BAAI/bge-large-en-v1.5", device="cuda")
 
     remote_url_embedder = (
-        kt.cls(URLEmbedder).to(compute, init_args).distribute(num_replicas=(0, 4))
+        kt.cls(URLEmbedder)
+        .to(compute, init_args)
+        .distribute("auto", num_replicas=(0, 4))
     )
 
     return remote_url_embedder
@@ -122,8 +124,10 @@ def load_table():
 def load_llm():
     img = kt.images.pytorch().pip_install(["vllm==0.5.4"]).sync_secrets(["huggingface"])
 
-    compute = kt.compute(gpus="L4:1", image=img)
-    remote_llm = kt.cls(LlamaModel).to(system=compute).distribute(num_replicas=(0, 4))
+    compute = kt.Compute(gpus="L4:1", image=img)
+    remote_llm = (
+        kt.cls(LlamaModel).to(system=compute).distribute("auto", num_replicas=(0, 4))
+    )
     return remote_llm
 
 
