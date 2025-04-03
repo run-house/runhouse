@@ -1,4 +1,3 @@
-import codecs
 import json
 import re
 import shutil
@@ -10,7 +9,11 @@ import requests
 
 from pydantic import BaseModel, field_validator
 
-from runhouse.exceptions import InsufficientDiskError
+from runhouse.exceptions import (
+    InsufficientDiskError,
+    RemoteException,
+    SerializationError,
+)
 
 from runhouse.logger import get_logger
 
@@ -171,15 +174,25 @@ class FolderMvParams(FolderParams):
 
 
 def pickle_b64(picklable):
+    import codecs
+
     import cloudpickle
 
-    return codecs.encode(cloudpickle.dumps(picklable), "base64").decode()
+    try:
+        return codecs.encode(cloudpickle.dumps(picklable), "base64").decode()
+    except Exception as e:
+        raise SerializationError(error_msg=e.__str__())
 
 
 def b64_unpickle(b64_pickled):
+    import codecs
+
     import cloudpickle
 
-    return cloudpickle.loads(codecs.decode(b64_pickled.encode(), "base64"))
+    try:
+        return cloudpickle.loads(codecs.decode(b64_pickled.encode(), "base64"))
+    except Exception as e:
+        raise SerializationError(error_msg=e.__str__())
 
 
 def deserialize_data(data: Any, serialization: Optional[str]):
@@ -260,6 +273,8 @@ def handle_exception_response(
         "error": serialize_data(exception, serialization),
         "traceback": traceback,
         "exception_as_str": str(exception),
+        "type": f"{exception.__class__.__module__}.{exception.__class__.__name__}",
+        "args": exception.args,
     }
     return Response(
         output_type=OutputType.EXCEPTION,
@@ -340,14 +355,25 @@ def handle_response(
             except Exception as e:
                 logger.error(
                     f"{system_color}{err_str}: Failed to unpickle exception. Please check the logs for more "
-                    f"information.{reset_color}"
+                    f"information.\n Make sure that the remote and local versions of python and all installed packages are as expected.{reset_color}"
                 )
                 if fn_exception_as_str:
                     logger.error(
                         f"{system_color}{err_str} Exception as string: {fn_exception_as_str}{reset_color}"
                     )
                 logger.error(f"{system_color}Traceback: {fn_traceback}{reset_color}")
-                raise e
+                if isinstance(e, SerializationError):
+                    remote_exception_type = response_data.get("data").get("type", None)
+                    remote_exception_args = response_data.get("data").get("args", None)
+                    raise RemoteException(
+                        error_msg=fn_exception_as_str,
+                        exception_type=remote_exception_type,
+                        traceback=fn_traceback,
+                        args=remote_exception_args,
+                    )
+
+                raise SerializationError(error_msg=err_str)
+
         if not (
             isinstance(fn_exception, StopIteration)
             or isinstance(fn_exception, GeneratorExit)
