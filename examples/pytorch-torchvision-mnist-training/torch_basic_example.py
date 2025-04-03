@@ -211,16 +211,5 @@ if __name__ == "__main__":
             s3_file_path=f"checkpoints/model_epoch_{epoch + 1}.pth",
         )
 
-    # Finally, let's just see one prediction, as an example of using the remote model for inference.
-    # We have in essence done the research, and in one breath, debugged the production pipeline and deployed a microservice.
-
-    transform = transforms.Compose(
-        [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-    )
-
-    local_dataset = datasets.MNIST(
-        "./data", train=False, download=True, transform=transform
-    )
-    example_data, example_target = local_dataset[0][0].unsqueeze(0), local_dataset[0][1]
-    prediction = model.predict(example_data)
-    print(f"Predicted: {prediction}, Actual: {example_target}")
+    # We can now call inference against the model without redeploying it as a service
+    # prediction = model.predict(example_data) # Assume you are defining example_data

@@ -1,14 +1,32 @@
-import runhouse as rh
+# # Launch Llama70B Inference on Your Own Kubernetes Cluster
+# The Llama-70B is one of the more powerful open source models, but still easily fits on a single node of GPUs - even 8 x L4s.
+# Of course, inference speed will improve if you change to A100s or H100s on your cloud provider,
+# but the L4s are cost-effective for experimentation or low throughput, latency-agnostic workloads, and also
+# fairly available on spot meaning you can serve this model for as low as ~$4/hour. This is the full model,
+# not a quantization of it. In this example, we use HuggingFace Accelerate.
+
+import kubetorch as kt
 import torch
 from transformers import pipeline
 
+# ## Define Inference Class
+# We define a regular class that uses HuggingFace Pipelines to run inference on the Llama-70B model.
+# We will send this class to the remote compute by decorating the class to specify the compute
+# and autoscaling.
+img = (
+    kt.images.pytorch()
+    .pip_install(["transformers", "accelerate"])
+    .sync_secrets(["huggingface"])
+)
 
+
+@kt.compute(gpus="L4:8", image=img, name="llama70b")
+@kt.distribute("auto", num_replicas=(0, 4))
 class Llama70B:
     def __init__(self, model_id="meta-llama/Llama-3.3-70B-Instruct"):
         self.model_id = model_id
         self.pipeline = None
 
-    # HF can take a long time (3 hours+) to download the model. May be worth saving it elsewhere for repeated runs.
     def load_pipeline(self):
         self.pipeline = pipeline(
             "text-generation",
@@ -49,59 +67,13 @@ class Llama70B:
         return outputs[0]["generated_text"][len(prompt) :]
 
 
-def bring_up_cluster(
-    img,
-    num_gpus=8,
-    num_nodes=1,
-    gpu_type="L4",
-    use_spot=True,
-    launcher="local",
-    autostop_mins=120,
-    restart_server=False,
-):
-    # Requires access to a cloud account with the necessary permissions to launch compute.
-    cluster = rh.compute(
-        name=f"rh-{num_gpus}x{num_nodes}",
-        num_nodes=num_nodes,
-        instance_type=f"{gpu_type}:{num_gpus}",
-        provider="aws",
-        image=img,
-        use_spot=use_spot,
-        launcher=launcher,
-        autostop_mins=autostop_mins,
-    ).up_if_not()
-
-    if restart_server:
-        cluster.restart_server()
-
-    return cluster
-
-
+# ## Call Remote Service
+# Once we have deployed the service with `kubetorch deploy`, we can call the service
+# in Python directly by name as welll.
 if __name__ == "__main__":
-    img = (
-        rh.Image(name="llama_inference")
-        .pip_install(
-            [
-                "torch",
-                "transformers",
-                "accelerate",
-            ]
-        )
-        .sync_secrets(["huggingface"])
-    )
 
-    # Requires access to a cloud account with the necessary permissions to launch compute.
-    cluster = bring_up_cluster(img, restart_server=True)
-    # cluster = bring_up_cluster(img, num_gpus= 8, num_nodes = 1, gpu_type = 'L4', use_spot = True, launcher = 'local', autostop_mins = 120, restart = True)
+    llama = Llama70B.from_name("llama70b")
 
-    # Tunnel to Ray dashboard on port 8265
-    cluster.ssh_tunnel(8265, 8265)
-
-    # Send our inference class to remote and instantiate it remotely
-    inference_remote = rh.cls(Llama70B).to(cluster, name="llama_model")
-    llama = inference_remote(name="inference_llama70b")
-
-    # Make a query
     query = "What is the best type of bread in the world?"
-    generated_text = llama.generate(query)
+    generated_text = llama.generate(query)  # Running on your remote GPUs
     print(generated_text)
