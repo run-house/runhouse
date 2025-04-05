@@ -416,7 +416,7 @@ class LocalLauncher(Launcher):
                 **cluster.sky_kwargs.get("launch", {}),
             )
 
-            cluster._update_from_sky_status()
+            cluster._update_from_status()
             if cluster.domain:
                 logger.info(
                     f"Cluster has been launched with the custom domain '{cluster.domain}'. "
