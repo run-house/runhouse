@@ -259,9 +259,15 @@ class DenLauncher(Launcher):
 
         cluster.save()
         cluster_config = cluster.config()
+        ssh_creds = (
+            cluster._creds.rns_address
+            if isinstance(cluster._creds, rh.Secret)
+            else cluster._creds
+        )
 
         payload = {
             "cluster_config": cluster_config,
+            "ssh_creds": ssh_creds,
             "force": force,
             "verbose": verbose,
             "observability": configs.observability_enabled,
