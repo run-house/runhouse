@@ -12,6 +12,7 @@ from runhouse.resources.hardware import (
     DockerCluster,
     ondemand_cluster,
     OnDemandCluster,
+    PodsCluster,
 )
 from runhouse.resources.images import Image
 

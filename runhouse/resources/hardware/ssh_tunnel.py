@@ -30,7 +30,7 @@ class SshTunnel:
         ssh_port: int = 22,
         disable_control_master: Optional[bool] = False,
         docker_user: Optional[str] = None,
-        cloud: Optional[str] = None,
+        compute: Optional[str] = None,
     ):
         """Initialize an ssh tunnel from a remote server to localhost
 
@@ -45,7 +45,7 @@ class SshTunnel:
             ssh_port (int, optional): The port on the remote machine where the SSH server is running. Defaults to 22.
             disable_control_master (bool, optional): Whether to disable SSH ControlMaster. Defaults to False.
             docker_user (str, optional): The Docker username to use if connecting through Docker. Defaults to None.
-            cloud (str, optional): The cloud provider, if applicable. Defaults to None.
+            compute (str, optional): The compute type (provider or "pods"), if applicable. Defaults to None.
         """
         self.ip = ip
         self.ssh_port = ssh_port
@@ -57,6 +57,7 @@ class SshTunnel:
         )
         self.ssh_proxy_command = ssh_proxy_command
         self.disable_control_master = disable_control_master
+        self.compute = compute
 
         if docker_user:
             self.ssh_user = docker_user
@@ -64,7 +65,7 @@ class SshTunnel:
                 ip, ssh_user, ssh_private_key
             )(["ssh"])
 
-            if cloud != "kubernetes":
+            if compute != "kubernetes":
                 self.ip = "localhost"
                 self.ssh_port = DEFAULT_DOCKER_PORT
         else:
@@ -74,20 +75,23 @@ class SshTunnel:
         self.tunnel_proc = None
 
     def tunnel(self, local_port, remote_port):
-        base_cmd = _ssh_base_command(
-            address=self.ip,
-            ssh_user=self.ssh_user,
-            ssh_private_key=self.ssh_private_key,
-            ssh_control_name=self.ssh_control_name,
-            ssh_proxy_command=self.ssh_proxy_command,
-            ssh_port=self.ssh_port,
-            docker_ssh_proxy_command=self.docker_ssh_proxy_command,
-            disable_control_master=self.disable_control_master,
-            ssh_mode=SshMode.NON_INTERACTIVE,
-            port_forward=[(local_port, remote_port)],
-        )
+        if self.compute == "pods":
+            command = f"kubectl port-forward {self.ip} {local_port}:{remote_port}"
+        else:
+            base_cmd = _ssh_base_command(
+                address=self.ip,
+                ssh_user=self.ssh_user,
+                ssh_private_key=self.ssh_private_key,
+                ssh_control_name=self.ssh_control_name,
+                ssh_proxy_command=self.ssh_proxy_command,
+                ssh_port=self.ssh_port,
+                docker_ssh_proxy_command=self.docker_ssh_proxy_command,
+                disable_control_master=self.disable_control_master,
+                ssh_mode=SshMode.NON_INTERACTIVE,
+                port_forward=[(local_port, remote_port)],
+            )
+            command = " ".join(base_cmd)
 
-        command = " ".join(base_cmd)
         logger.info(f"Running forwarding command: {command}")
         proc = subprocess.Popen(
             shlex.split(command),
@@ -95,8 +99,8 @@ class SshTunnel:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        # Wait until tunnel is formed by trying to create a socket in a loop
 
+        # Wait until tunnel is formed by trying to create a socket in a loop
         start_time = time.time()
         while not is_port_in_use(local_port):
             time.sleep(0.1)
@@ -176,7 +180,7 @@ def cache_existing_ssh_tunnel(address: str, ssh_port: int, tunnel: SshTunnel) ->
     ssh_tunnel_cache[(address, ssh_port)] = tunnel
 
 
-def get_existing_sky_ssh_runner(address: str, ssh_port: int) -> Optional[SshTunnel]:
+def get_existing_tunnel(address: str, ssh_port: int) -> Optional[SshTunnel]:
     if (address, ssh_port) in ssh_tunnel_cache:
         existing_tunnel = ssh_tunnel_cache.get((address, ssh_port))
         if existing_tunnel.tunnel_is_up():
@@ -195,7 +199,7 @@ def ssh_tunnel(
     remote_port: Optional[int] = None,
     num_ports_to_try: int = 0,
     docker_user: Optional[str] = None,
-    cloud: Optional[str] = None,
+    compute: Optional[str] = None,
 ) -> SshTunnel:
     """Initialize an ssh tunnel from a remote server to localhost
 
@@ -212,7 +216,7 @@ def ssh_tunnel(
         num_ports_to_try (int, optional): The number of local ports to attempt to bind to,
             starting at local_port and incrementing by 1 till we hit the max. Defaults to 0.
         docker_user (str, optional): The Docker username to use if connecting through Docker. Defaults to None.
-        cloud (str, Optional): Cluster cloud, if an on-demand cluster.
+        compute (str, Optional): Compute type, such as the cloud provider or pods.
 
     Returns:
         SshTunnel: The initialized tunnel.
@@ -228,7 +232,7 @@ def ssh_tunnel(
     # the same as the remote port on the server.
     remote_port = remote_port or local_port
 
-    tunnel = get_existing_sky_ssh_runner(address, ssh_port)
+    tunnel = get_existing_tunnel(address, ssh_port)
     tunnel_address = address if not docker_user else "localhost"
     if (
         tunnel
@@ -264,7 +268,7 @@ def ssh_tunnel(
         ssh_control_name=ssh_control_name,
         docker_user=docker_user,
         ssh_port=ssh_port,
-        cloud=cloud,
+        compute=compute,
     )
     tunnel.tunnel(local_port, remote_port)
 
