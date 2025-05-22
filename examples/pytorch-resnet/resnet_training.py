@@ -245,9 +245,9 @@ class ResNet152Trainer:
 
 # ### Run distributed training
 # The following code snippet demonstrates how to launch compute and run the distributed training pipeline on the remote compute.
-# - We define a 3 node compute with GPUs where we will do the training.
+# - We define a 3 node compute with GPUs where we will do the training, and call .distribute('pytorch') to properly setup the distributed training
 # - Then we dispatch the trainer class to the remote compute
-# - We create an instance of the trainer class on remote, and call .distribute('pytorch') to properly setup the distributed training. It's that easy.
+# - We create an instance of the trainer class on remote, which is now running distributed. It's that easy.
 # - The main training loop trains the model for 15 epochs and the model checkpoints are saved to S3
 if __name__ == "__main__":
     working_s3_bucket = "rh-demo-external"
