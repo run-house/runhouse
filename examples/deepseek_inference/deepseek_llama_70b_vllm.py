@@ -11,25 +11,30 @@
 # quality of output depends on your use case. This will run the model at ~20 tokens a second,
 # which means it takes 1-5 minutes per question asked. It will take some time to download the model
 # to the remote machine on the first run.
-#
-# We can easily add additional nodes, which will automatically form the compute. We will
-# rely fully on vllm to make use of them and increasing tensor and pipeline parallelism.
-#
 import os
+
+import kubetorch as kt
+from vllm import LLM, SamplingParams
 
 # ## Defining the vLLM Inference Class
 # We define a class that will hold the model and allow us to send prompts to it.
 # This is regular, undecorated Python code, that implements methods to
 # load the model (automatically downloading from HuggingFace), and to generate text from a prompt.
+# We can easily add additional nodes, which will automatically form the compute. We will
+# rely fully on vllm to make use of them and increasing tensor and pipeline parallelism.
+# ### Deployment
+# Deploying this class just requires calling `kubetorch deploy` and it will be setup as a proper
+# service on Kubernetes, with the ability to autoscale and be called from anywhere.
+# Below, we show each replica taking
+img = (
+    kt.Image(image_id="vllm/vllm-openai")
+    .pip_install(["vllm"])
+    .sync_secrets(["huggingface"])
+)
 
-import kubetorch as kt
-from vllm import LLM, SamplingParams
 
-# Define the image and compute
-img = kt.images.pytorch().pip_install(["vllm"]).sync_secrets(["huggingface"])
-
-# Deploys with CLI command `kubetorch deploy `
-@kt.compute(gpus="L4:8", image=img, name="deepseek_llama")
+@kt.compute(gpus="8", image=img)
+@kt.autoscale(min_replicas=0, max_replicas=8)
 class DeepSeekDistillLlama70BvLLM:
     def __init__(self, model_id="deepseek-ai/DeepSeek-R1-Distill-Llama-70B"):
         self.model_id = model_id
@@ -72,9 +77,6 @@ class DeepSeekDistillLlama70BvLLM:
 # you can take advantage of vllm's parallelism.
 
 if __name__ == "__main__":
-    # Load the deployed model service
-    deepseek = DeepSeekDistillLlama70BvLLM.from_name("deepseek_llama")
-
     # Run inference remotely and print the results
     queries = [
         "What is the relationship between bees and a beehive compared to programmers and...?",
@@ -85,7 +87,7 @@ if __name__ == "__main__":
         Given an integer, write and return Python code to convert it to a Roman numeral.""",
     ]
 
-    outputs = deepseek.generate(queries, temperature=0.7)
+    outputs = DeepSeekDistillLlama70BvLLM.generate(queries, temperature=0.7)
     for output in outputs:
         prompt = output.prompt
         generated_text = output.outputs[0].text

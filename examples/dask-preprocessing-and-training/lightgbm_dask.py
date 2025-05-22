@@ -129,23 +129,23 @@ if __name__ == "__main__":
     # ## Define compute with multiple nodes
     num_nodes = 3
 
-    # The environment for the remote compute
-    img = kt.images.dask().pip_install(
+    # The environment for the remote compute, and the compute.
+    # Importantly, we use .distribute("dask") to start the Dask cluster and indicate this will be used with Dask
+
+    img = kt.Image(image_id="ghcr.io/dask/dask").pip_install(
         [
             "gcsfs",  # For Google Cloud Storage, change for your cloud provider
             "lightgbm",
         ]
     )
-
-    cpus = kt.Compute(cpus="8", memory="32", image=img)
+    cpus = kt.Compute(cpus="8", memory="32", image=img).distribute(
+        "dask", num_nodes=num_nodes
+    )
 
     # ## Setup the remote training
     # Now we can dispatch the model trainer class to remote, which is fully locally interactible.
     # We can call methods on it as if it were local.
-    # Importantly, we use .distribute("dask") to start the Dask cluster and indicate this will be used with Dask
-    dask_trainer = (
-        kt.cls(LightGBMModelTrainer).to(cpus).distribute("dask", num_nodes=num_nodes)
-    )
+    dask_trainer = kt.cls(LightGBMModelTrainer).to(cpus)
     dask_trainer.compute.ssh_tunnel(
         "8787", "8787"
     )  # Forward the Dask dashboard to local
@@ -167,5 +167,3 @@ if __name__ == "__main__":
     print("Model tested")
     dask_trainer.save_model("gs://rh-model-checkpoints/lightgbm_dask/model.pkl")
     print("Model saved")
-
-    cpus.notebook()  # Optionally, open a Jupyter notebook on the compute to interact with the Dask cluster

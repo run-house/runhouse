@@ -82,10 +82,10 @@ class Trainer:
 # Now, we define the main function that will run locally when we run this script and set up
 # our desired remote compute.
 if __name__ == "__main__":
-    img = kt.images.ubuntu().pip_install(
+    img = kt.Image().pip_install(
         ["xgboost", "pandas", "scikit-learn", "tensorflow", "numpy"]
     )
-    compute = kt.Compute(gpus="L4:1", image=img)
+    compute = kt.Compute(gpus="1", image=img)
 
     train_params = {
         "objective": "multi:softmax",
