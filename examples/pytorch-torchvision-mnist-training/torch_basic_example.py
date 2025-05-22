@@ -8,7 +8,6 @@
 # what digit is in an image.
 import io
 
-import boto3
 import kubetorch as kt
 
 import torch
@@ -97,6 +96,8 @@ class SimpleTrainer:
         return output.argmax(1).item()
 
     def save_model(self, bucket, s3_path):
+        import boto3
+
         try:
             buf = io.BytesIO()
             torch.save(self.model.state_dict(), buf)
@@ -138,8 +139,8 @@ if __name__ == "__main__":
         model.test_model()
 
         model.save_model(
-            bucket_name="my-simple-torch-model-example",
-            s3_file_path=f"checkpoints/model_epoch_{epoch + 1}.pth",
+            bucket="my-simple-torch-model-example",
+            s3_path=f"checkpoints/model_epoch_{epoch + 1}.pth",
         )
 
     # We can now call inference against the model without redeploying it as a service; for instance
