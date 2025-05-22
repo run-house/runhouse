@@ -96,9 +96,9 @@ class SimpleTrainer:
         return output.argmax(1).item()
 
     def save_model(self, bucket, s3_path):
-        import boto3
-
         try:
+            import boto3
+
             buf = io.BytesIO()
             torch.save(self.model.state_dict(), buf)
             boto3.client("s3").upload_fileobj(buf.seek(0) or buf, bucket, s3_path)
@@ -114,8 +114,8 @@ class SimpleTrainer:
 if __name__ == "__main__":
     gpu = kt.Compute(
         gpus="1",  # We request 1 GPU here; optionally also memory, cpu, etc
-        image=kt.Image(
-            image_id="nvcr.io/nvidia/pytorch:23.10-py3"
+        image=kt.Image(image_id="nvcr.io/nvidia/pytorch:23.10-py3").pip_install(
+            ["boto3"]
         ),  # You can also specify your own image
         inactivity_ttl="1h",  # Autostops the compute after 1 hour of inactivity
     )
