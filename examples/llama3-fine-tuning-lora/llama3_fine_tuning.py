@@ -6,7 +6,8 @@
 # Make sure to sign the waiver on the [Hugging Face model](https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct)
 # page so that you can access it.
 #
-import gc
+import os
+
 from pathlib import Path
 
 import kubetorch as kt
@@ -32,7 +33,7 @@ DEFAULT_MAX_LENGTH = 200
 class FineTuner:
     def __init__(
         self,
-        dataset_name="Shekswess/medical_llama3_instruct_dataset_short",
+        dataset_name="mlabonne/guanaco-llama2-1k",
         base_model_name="meta-llama/Llama-3.2-3B-Instruct",
         fine_tuned_model_name="llama-3-3b-medical",
     ):
@@ -101,7 +102,7 @@ class FineTuner:
         return SFTConfig(
             output_dir="./results_modified",
             num_train_epochs=1,
-            per_device_train_batch_size=2,
+            per_device_train_batch_size=1,
             gradient_accumulation_steps=1,
             optim="paged_adamw_32bit",
             save_steps=25,
@@ -114,8 +115,9 @@ class FineTuner:
             max_steps=-1,
             warmup_ratio=0.03,
             group_by_length=True,
+            label_names=["labels"],
             lr_scheduler_type="constant",
-            dataset_text_field="prompt",  # Dependent on your dataset
+            dataset_text_field="text",  # Dependent on your dataset
             report_to="tensorboard",
         )
 
@@ -125,7 +127,6 @@ class FineTuner:
             model=self.base_model,
             train_dataset=training_data,
             peft_config=peft_parameters,
-            tokenizer=self.tokenizer,
             args=train_params,
         )
 
@@ -133,7 +134,6 @@ class FineTuner:
         if self.new_model_exists():
             return
 
-        # Load the training data, tokenizer and model to be used by the trainer
         training_data = self.load_dataset()
         print("dataset loaded")
         if self.tokenizer is None:
@@ -142,38 +142,23 @@ class FineTuner:
         if self.base_model is None:
             self.load_base_model()
         print("base model loaded")
-        # Use LoRA to update a small subset of the model's parameters
+
         peft_parameters = LoraConfig(
             lora_alpha=16, lora_dropout=0.1, r=8, bias="none", task_type="CAUSAL_LM"
         )
 
         train_params = self.training_params()
-        print("training to start")
         trainer = self.sft_trainer(training_data, peft_parameters, train_params)
         print("training")
-        # Force clean the pytorch cache
-        gc.collect()
-        torch.cuda.empty_cache()
-
         trainer.train()
 
-        # Save the fine-tuned model's weights and tokenizer files on the cluster
         trainer.model.save_pretrained(self.fine_tuned_model_name)
         trainer.tokenizer.save_pretrained(self.fine_tuned_model_name)
-
-        # Clear VRAM from training
-        del trainer
-        del train_params
-        del training_data
-        self.base_model = None
-        gc.collect()
-        torch.cuda.empty_cache()
 
         print("Saved model weights and tokenizer on the cluster.")
 
     def generate(self, query: str, max_length: int = DEFAULT_MAX_LENGTH):
         if self.fine_tuned_model is None:
-            # Load the fine-tuned model saved on the cluster
             self.load_fine_tuned_model()
 
         if self.tokenizer is None:
@@ -182,7 +167,6 @@ class FineTuner:
         if self.pipeline is None or max_length != DEFAULT_MAX_LENGTH:
             self.load_pipeline(max_length)
 
-        # Format should reflect the format in the dataset_text_field in SFTTrainer
         output = self.pipeline(
             f"<|start_header_id|>system<|end_header_id|> Answer the question truthfully, you are a medical professional.<|eot_id|><|start_header_id|>user<|end_header_id|> This is the question: {query}<|eot_id|><|start_header_id|>assistant<|end_header_id|>"
         )
@@ -196,15 +180,15 @@ class FineTuner:
 # Our `gpus` requirement here is defined as `L4:1`, which is the accelerator type and count that we need.
 
 if __name__ == "__main__":
-
     # First, we define the image for our module. This includes the required dependencies that need
     # to be installed on the remote machine, as well as any secrets that need to be synced up from local to remote.
     # Then, we launch compute with attached GPUs.
-    # Finally, passing `huggingface` to the `sync_secrets` method will load the Hugging Face token we set up earlier.
+    # Finally, passing `huggingface` to the `env vars` method will load the Hugging Face token.
     img = (
-        kt.images.pytorch()
+        kt.Image(image_id="nvcr.io/nvidia/ai-workbench/python-cuda120:1.0.6")
         .pip_install(
             [
+                "torch",
                 "tensorboard",
                 "transformers",
                 "bitsandbytes",
@@ -214,14 +198,15 @@ if __name__ == "__main__":
                 "scipy",
             ]
         )
-        .sync_secrets(["huggingface"])
+        .set_env_vars({"HF_TOKEN": os.environ["HF_TOKEN"]})
     )
 
     gpu = kt.Compute(
-        gpus="L4:1",
-        memory="32+",
+        gpus="1",
+        memory="50",
         image=img,
-    )
+        launch_timeout="1200",
+    ).autoscale(min_replicas=1, scale_to_zero_grace_period=40)
 
     # Finally, we define our module and run it on the remote gpu. We construct it normally and then call
     # `to` to run it on the remote compute.
@@ -234,15 +219,10 @@ if __name__ == "__main__":
     # Further calls will also run on the remote compute, and maintain state that was updated between calls, like
     # `self.fine_tuned_model`.
     # Once the base model is fine-tuned, we save this new model on the compute and use it to generate our text predictions.
-    #
-    # :::note{.info title="Note"}
-    # For this example we are using a [small subset](https://huggingface.co/datasets/Shekswess/medical_llama3_instruct_dataset_short)
-    # of 1000 samples that are already compatible with the model's prompt format.
-    # :::
     fine_tuner_remote.tune()
 
-    # ## Generate Text
-    # Now that we have fine-tuned our model, we can generate text by calling the `generate` method with our query:
+    # Now that we have fine-tuned our model, we can generate text by calling the `generate` method with our query;
+    # there is no need to separately deploy an inference service to test.
     query = "What's the best treatment for sunburn?"
     generated_text = fine_tuner_remote.generate(query)
     print(generated_text)
