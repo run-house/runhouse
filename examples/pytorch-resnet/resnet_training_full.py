@@ -4,11 +4,11 @@
 # Key components include:
 # - A custom ResNet-152 model class with optional pretrained weights from S3.
 # - A trainer class for managing the training loop, data loading, and distributed communication.
-# - Integration with Kubetorch for cluster management and remote execution.
+# - Integration with Runhouse for cluster management and remote execution.
 
 import subprocess
 
-import kubetorch as kt
+import runhouse as rh
 
 import torch
 from datasets import load_from_disk
@@ -243,52 +243,58 @@ class ResNet152Trainer:
             return predicted.item()
 
 
-# ### Run distributed training
-# The following code snippet demonstrates how to launch compute and run the distributed training pipeline on the remote compute.
-# - We define a 3 node compute with GPUs where we will do the training, and call .distribute('pytorch') to properly setup the distributed training
-# - Then we dispatch the trainer class to the remote compute
-# - We create an instance of the trainer class on remote, which is now running distributed. It's that easy.
+# ### Run distributed training with Runhouse
+# The following code snippet demonstrates how to create a Runhouse cluster and run the distributed training pipeline on the cluster.
+# - We define a 3 node cluster with GPUs where we will do the training.
+# - Then we dispatch the trainer class to the remote cluster
+# - We create an instance of the trainer class on remote, and call .distribute('pytorch') to properly setup the distributed training. It's that easy.
+# - This remote trainer instance is accessible by name - if we construct the cluster by name, and run cluster.get('trainer') we will get the remote trainer instance. This means you can make multithreaded calls against the trainer class.
 # - The main training loop trains the model for 15 epochs and the model checkpoints are saved to S3
 if __name__ == "__main__":
+    train_data_path = (
+        "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/train/"
+    )
+    val_data_path = (
+        "s3://rh-demo-external/resnet-training-example/preprocessed_imagenet/test/"
+    )
+
     working_s3_bucket = "rh-demo-external"
     working_s3_path = "resnet-training-example/"
 
-    train_data_path = (
-        f"s3://{working_s3_bucket}/{working_s3_path}/preprocessed_imagenet/train/"
-    )
-    val_data_path = (
-        f"s3://{working_s3_bucket}/{working_s3_path}/preprocessed_imagenet/test/"
-    )
-
-    # Create compute with 3 x 1 GPUs
+    # Create a cluster of 3 GPUs
     gpus_per_node = 1
-    num_nodes = 3
+    num_nodes = 2
 
-    img = (
-        kt.Image(image_id="nvcr.io/nvidia/pytorch:23.10-py3")
-        .pip_install(
-            [
-                "torchvision==0.20.1",
-                "Pillow==11.0.0",
-                "datasets",
-                "boto3",
-                "awscli",
-            ],
-        )
-        .sync_secrets(["aws"])
+    img = rh.Image(name="pytorch").install_packages(
+        [
+            "torch==2.5.1 torchvision==0.20.1",
+            "Pillow==11.0.0",
+            "datasets",
+            "boto3",
+            "awscli",
+        ],
     )
-    gpu_compute = kt.Compute(gpus=gpus_per_node, image=img).distribute(
-        "pytorch", num_nodes=num_nodes
-    )
+    gpu_cluster = rh.cluster(
+        name=f"rh-{num_nodes}x{gpus_per_node}-gpu",
+        instance_type=f"A10G:{gpus_per_node}",
+        num_nodes=num_nodes,
+        provider="aws",
+        image=img,
+    ).up_if_not()
 
-    init_args = dict(
-        s3_bucket=working_s3_bucket,
-        s3_path=working_s3_path,
-    )
-
-    remote_trainer = kt.cls(ResNet152Trainer).to(gpu_compute, kwargs=init_args)
+    gpu_cluster.sync_secrets(["aws"])
 
     epochs = 15
+    remote_trainer_class = rh.module(ResNet152Trainer).to(gpu_cluster)
+
+    remote_trainer = remote_trainer_class(
+        name="trainer", s3_bucket=working_s3_bucket, s3_path=working_s3_path
+    ).distribute(
+        distribution="pytorch",
+        replicas_per_node=gpus_per_node,
+        num_replicas=gpus_per_node * num_nodes,
+    )
+
     remote_trainer.train(
         num_epochs=epochs,
         num_classes=1000,

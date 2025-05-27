@@ -224,7 +224,7 @@ if __name__ == "__main__":
     # We define the image to use for the compute which here is a set of packages to install,
     # but optionally could depend on a custom AMI, Docker image, include env vars, further bash commands, etc.
     img = (
-        kt.images.pytorch()
+        kt.Image(image_id="nvcr.io/nvidia/pytorch:23.10-py3")
         .pip_install(
             [
                 "datasets",
@@ -235,10 +235,9 @@ if __name__ == "__main__":
         )
         .sync_secrets(["aws"])
     )
-    gpus = kt.Compute(gpus="A10G:1", image=img)
+    gpus = kt.Compute(gpus="1", image=img).distribute("pytorch", num_nodes=4)
 
     # Now that the compute is up, we will send our trainer to the remote compute, instantiate a remote instance of it, and run the training.
-    # Note that we call .distribute("pytorch") to set up the PyTorch distributed backend. We run the training for 15 epochs with a batch size of 32,
     # calling methods on the remote instance as if it were local.
     init_args = dict(
         name="resnet_trainer",
@@ -247,11 +246,7 @@ if __name__ == "__main__":
         working_s3_bucket=working_s3_bucket,
         working_s3_path=working_s3_path,
     )
-    remote_trainer = (
-        kt.cls(ResNetTrainer)
-        .to(gpus, kwargs=init_args)
-        .distribute("pytorch", num_nodes=4)
-    )
+    remote_trainer = kt.cls(ResNetTrainer).to(gpus, kwargs=init_args)
 
     epochs = 15
     batch_size = 32

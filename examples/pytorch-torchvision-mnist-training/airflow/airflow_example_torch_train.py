@@ -26,72 +26,54 @@ from airflow.operators.python import PythonOperator
 # ## Import the model class from the parent folder
 # This class is the same as the example in https://www.run.house/examples/torch-vision-mnist-basic-model-train-test
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from torch_basic_example import download_data, preprocess_data, SimpleTrainer
+from torch_basic_example import SimpleTrainer
 
 logger = logging.getLogger(__name__)
 
 # ## Define the callable functions.
 # These will be called in sequence by the Airflow PythonOperator. Each task in the Airflow DAG becomes minimal.
 # These callables define both *what tasks are run* and also *where the tasks are run* - essentially, programatically controlling the dispatch.
-# In this case, we want all the download and train steps to share a filesystem, so we define the compute once and reuse it.
-compute = kt.Compute(
-    name="a10g-compute",
-    gpus="A10G:1",
-    image=kt.images.pytorch(),
-)
 
-# We will send the function to download data to the remote compute and then invoke it to download the data to the remote machine. You can imagine that this is a data access or pre-processing step after which data is prepared.
-def access_data_callable(**kwargs):
-    logger.info("Step 1: Access data")
-    remote_download = kt.function(download_data).to(compute)
-    remote_preprocess = kt.function(preprocess_data).to(compute)
-    logger.info("Download function sent to remote")
-    remote_download()
-    remote_preprocess()
-    logger.info("Downloaded")
+# We can simply put the dispatch and execution of the model in the callable identical to
+# how we have run it locally, ensuring identical research-to-production execution.
+def run_training(**kwargs):
+    compute = kt.Compute(
+        gpus="1",
+        image=kt.Image(image_id="nvcr.io/nvidia/pytorch:23.10-py3"),
+        inactivity_ttl="0s",  # Because this is production, destroy immediately on completion
+    )
 
-
-# Then we instantiate the trainer, and then invoke the training on the remote compute. On the remote, we have a GPU. This is also a natural point to split the workflow if we want to do some tasks on GPU and some on CPU.
-def train_model_callable(**kwargs):
-    logger.info("Step 2: Train Model")
-    remote_torch_example = kt.cls(SimpleTrainer).to(compute)
-
-    model = remote_torch_example()
+    model = kt.cls(SimpleTrainer).to(compute)
 
     batch_size = 64
     epochs = 5
     learning_rate = 0.01
 
-    model.load_train("./data", batch_size)
-    model.load_test("./data", batch_size)
+    model.load_data("./data", batch_size)
 
     for epoch in range(epochs):
         model.train_model(learning_rate=learning_rate)
+
         model.test_model()
+
         model.save_model(
             bucket_name="my-simple-torch-model-example",
             s3_file_path=f"checkpoints/model_epoch_{epoch + 1}.pth",
         )
-
-    model.save_model(
-        bucket_name="my-simple-torch-model-example",
-        s3_file_path="checkpoints/model_final.pth",
-    )
 
 
 # We deploy a new service for inference with the trained model checkpoint. Note that we are defining a new compute
 # object rather than reusing the training compute above. Note that we load down the model weights in the image
 # to achieve faster cold start times for our inference service.
 def deploy_inference(**kwargs):
-    logger.info("Step 3: Deploy Inference")
+    logger.info("Step 2: Deploy Inference")
     checkpoint_path = "s3://my-simple-torch-model-example/checkpoints/model_final.pth"
     local_checkpoint_path = "/model.pth"
-    img = kt.images.pytorch().run_bash(
+    img = kt.Image(image_id="nvcr.io/nvidia/pytorch:23.10-py3").run_bash(
         "aws s3 cp " + checkpoint_path + " " + local_checkpoint_path
     )
     inference_compute = kt.Compute(
-        name="a10g-inference",
-        gpus="A10G:1",
+        gpus="1",
         image=img,
     )
 

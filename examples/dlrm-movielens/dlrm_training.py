@@ -293,13 +293,15 @@ if __name__ == "__main__":
     num_nodes = 4
 
     img = (
-        kt.images.ray()
+        kt.Image(image_id="rayproject/ray")
         .pip_install(["torch", "datasets", "boto3", "awscli"])
         .sync_secrets(["aws"])
     )
-    gpus = kt.Compute(gpus=f"A10G:{gpus_per_node}", image=img)
+    gpus = kt.Compute(gpus=gpus_per_node, image=img).distribute(
+        "ray", num_nodes=num_nodes
+    )
 
-    remote_trainer = kt.fn(ray_trainer).to(gpus).distribute("ray", num_nodes=num_nodes)
+    remote_trainer = kt.fn(ray_trainer).to(gpus)
 
     # Call the training function on the cluster
     remote_trainer(
