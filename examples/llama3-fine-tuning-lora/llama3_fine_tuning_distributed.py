@@ -1,4 +1,4 @@
-# ## Fine-Tune Llama 3 with LoRA on AWS EC2
+# # Fine-Tune Llama 3 with LoRA on AWS EC2
 
 import gc
 import os

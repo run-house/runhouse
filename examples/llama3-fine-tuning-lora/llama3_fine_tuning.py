@@ -1,4 +1,4 @@
-# ## Fine-Tune Llama 3 with LoRA
+# # Fine-Tune Llama 3 with LoRA
 
 # This example demonstrates how to fine-tune a Meta Llama 3 model with
 # [LoRA](https://huggingface.co/docs/peft/main/en/conceptual_guides/lora)
