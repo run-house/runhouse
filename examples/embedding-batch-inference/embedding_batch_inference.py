@@ -1,4 +1,4 @@
-# ## Offline Batch Inference
+# # Offline Batch Inference
 # We will use BGE to embed a large amount of text. We start by defining a class
 # that defines each replica of our inference service, using `vllm` to load the model.
 import kubetorch as kt
