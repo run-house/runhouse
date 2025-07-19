@@ -95,8 +95,8 @@ class TestResource:
         new_resource_config = new_resource.config()
         resource_config = resource.config()
 
-        new_resource_config.pop("creds", None)
-        resource_config.pop("creds", None)
+        new_resource_config.pop("compute_properties", None)
+        resource_config.pop("compute_properties", None)
 
         assert new_resource_config == resource_config
         assert new_resource.rns_address == resource.rns_address

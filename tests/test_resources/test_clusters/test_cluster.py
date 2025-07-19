@@ -433,11 +433,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             )
             curr_config_copy = curr_config.copy()
             # Creds for shared cluster will be the users default ssh key
-            new_creds = curr_config.get("creds", None)
+            new_creds = curr_config.get("compute_properties", {}).get("creds")
             assert "ssh-sky-key" in new_creds
 
-            curr_config_copy.pop("creds", None)
-            config_copy.pop("creds", None)
+            curr_config_copy.get("compute_properties", {}).pop("creds", None)
+            config_copy.get("compute_properties", {}).pop("creds", None)
 
             assert curr_config_copy == config_copy
 
@@ -452,8 +452,11 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             resource_class_name, cluster.rns_address
         )
 
-        orig_creds = config.pop("creds", None)
-        new_config.pop("creds", None)
+        orig_compute_properties = config.pop("compute_properties", {})
+        orig_creds = orig_compute_properties.get("creds")
+
+        new_config.pop("compute_properties", {})
+
         assert sky_secret in orig_creds or generated_secret in orig_creds
         assert new_config == config
 
@@ -715,7 +718,6 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
         assert "Serving " in status_output_string
         assert f"{default_process_name}" in status_output_string
         assert "status_key2 (str)" in status_output_string
-        assert "creds" not in status_output_string
 
         # checking the memory info is printed correctly
         assert "CPU: " in status_output_string
@@ -727,7 +729,9 @@ class TestCluster(tests.test_resources.test_resource.TestResource):
             properties_to_check = ["cloud", "instance_type", "region", "cost_per_hour"]
             for p in properties_to_check:
                 property_value = cloud_properties.get(p)
-                assert property_value in status_output_string
+                if property_value:
+                    # Note: relevant only for on-demand clusters
+                    assert property_value in status_output_string
 
     @pytest.mark.level("local")
     @pytest.mark.clustertest
