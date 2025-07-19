@@ -30,6 +30,7 @@ jobs:
           DEN_TESTER_SSH_PRIVATE_KEY: ${{ secrets.DEN_TESTER_SSH_PRIVATE_KEY }}
           DEN_TESTER_SSH_PUBLIC_KEY: ${{ secrets.DEN_TESTER_SSH_PUBLIC_KEY }}
           API_SERVER_URL: ${{ env.API_SERVER_URL }}
+          EKS_ARN: ${{ secrets.EKS_ARN }}
 
       - name: Run not cluster tests
         env:
