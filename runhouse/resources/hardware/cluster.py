@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import requests
 import yaml
 
+import runhouse
 from runhouse.resources.hardware.utils import (
     _do_setup_step_for_node,
     _setup_creds_from_dict,
@@ -809,7 +810,7 @@ class Cluster(Resource):
 
     def install_packages(
         self,
-        reqs: List[Union["Package", str]],
+        reqs: Union[str, "Package", List[Union["Package", str]]],
         node: Optional[str] = None,
         conda_env_name: Optional[str] = None,
         venv_path: Optional[str] = None,
@@ -818,7 +819,7 @@ class Cluster(Resource):
         """Install the given packages on the cluster.
 
         Args:
-            reqs (List[Package or str]): List of packages to install on cluster.
+            reqs (str or List[Package or str]): a package name, a runhouse.Package instance or list of packages to install on cluster.
             node (str, optional): Cluster node to install the package on. If specified, will use ssh to install the
                 package. (Default: ``None``)
             conda_env_name (str, optional): Name of conda env to install the package in, if relevant. If left empty,
@@ -829,9 +830,16 @@ class Cluster(Resource):
                 the package does not already exist on the cluster. (Default: ``False``)
 
         Example:
+            >>> cluster.pip_install(reqs="torch")
             >>> cluster.pip_install(reqs=["accelerate", "diffusers"])
             >>> cluster.pip_install(reqs=["accelerate", "diffusers"], conda_env_name="my_conda_env", override_remote_version=True)
         """
+        reqs = (
+            [reqs]
+            if (isinstance(reqs, str) or isinstance(reqs, runhouse.Package))
+            else reqs
+        )
+
         for req in reqs:
             if not node:
                 self.install_package(
