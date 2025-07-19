@@ -130,6 +130,7 @@ class Cluster(Resource):
 
         self._ips = ips
         self._http_client = None
+        self._ssh_properties = ssh_properties
         self.den_auth = den_auth or False
         self.cert_config = TLSCertConfig(cert_path=ssl_certfile, key_path=ssl_keyfile)
 
@@ -139,7 +140,6 @@ class Cluster(Resource):
         self.server_port = server_port
         self.client_port = client_port
         self.ssh_port = ssh_port or self.DEFAULT_SSH_PORT
-        self.ssh_properties = ssh_properties or {}
         self.server_host = server_host
         self.domain = domain
         self.compute_properties = {}
@@ -169,6 +169,16 @@ class Cluster(Resource):
     def head_ip(self):
         """Head IP"""
         return self.ips[0] if self.ips else None
+
+    @property
+    def ssh_properties(self):
+        return self._ssh_properties or {}
+
+    @ssh_properties.setter
+    def ssh_properties(self, value):
+        if not isinstance(value, dict):
+            raise ValueError(f"SSH properties must be a dict, not {type(value)}.")
+        self._ssh_properties = value
 
     @property
     def client(self):

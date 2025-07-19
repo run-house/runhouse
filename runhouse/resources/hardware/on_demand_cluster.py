@@ -156,6 +156,19 @@ class OnDemandCluster(Cluster):
         return self.compute_properties.get("internal_ips", [])
 
     @property
+    def ssh_properties(self):
+        if self.launcher == LauncherType.LOCAL:
+            return LocalLauncher.ssh_properties(self)
+        if self.launcher == LauncherType.DEN:
+            return DenLauncher.ssh_properties(self)
+
+    @ssh_properties.setter
+    def ssh_properties(self, value):
+        if not isinstance(value, dict):
+            raise ValueError(f"SSH properties must be a dict, not {type(value)}.")
+        self._ssh_properties = value
+
+    @property
     def client(self):
         try:
             return super().client
@@ -186,10 +199,10 @@ class OnDemandCluster(Cluster):
         else:
             self.call_client_method("set_settings", {"autostop_mins": mins})
 
-            if self.launcher == "local":
+            if self.launcher == LauncherType.LOCAL:
                 LocalLauncher.keep_warm(self, mins)
 
-            elif self.launcher == "den":
+            elif self.launcher == LauncherType.DEN:
                 DenLauncher.keep_warm(self, mins)
 
     @property
