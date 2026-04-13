@@ -144,6 +144,29 @@ dataStore:
     topologyKey: kubernetes.io/hostname
     zoneSpread: false
 
+  # Horizontal Pod Autoscaler for data-store
+  # Requires resource requests to be set (cpu.request / memory.request above)
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: 80
+    # Optional: customize scale-up/scale-down behavior
+    # behavior:
+    #   scaleUp:
+    #     stabilizationWindowSeconds: 60
+    #     policies:
+    #       - type: Pods
+    #         value: 1
+    #         periodSeconds: 60
+    #   scaleDown:
+    #     stabilizationWindowSeconds: 300
+    #     policies:
+    #       - type: Pods
+    #         value: 1
+    #         periodSeconds: 120
+
 logStreaming:
   enabled: true # set to `false` to disable live log streaming
   retentionPeriod: 24h
@@ -164,6 +187,21 @@ metrics:
     type: preferred
     topologyKey: kubernetes.io/hostname
     zoneSpread: false
+  # Horizontal Pod Autoscaler for the metrics (Prometheus) deployment
+  # Requires resource requests to be set (prometheus.resources below)
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+    # Optional: customize scale-up/scale-down behavior
+    # behavior:
+    #   scaleUp:
+    #     stabilizationWindowSeconds: 60
+    #   scaleDown:
+    #     stabilizationWindowSeconds: 300
+
   prometheus:
     image: prom/prometheus:v3.7.2
     port: 9090

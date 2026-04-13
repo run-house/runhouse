@@ -1,0 +1,35 @@
+{{- if and .Values.metrics.enabled .Values.metrics.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: kubetorch-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: kubetorch-metrics
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kubetorch-metrics
+  minReplicas: {{ .Values.metrics.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.metrics.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.metrics.autoscaling.targetCPUUtilizationPercentage }}
+    {{- if .Values.metrics.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.metrics.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+  {{- with .Values.metrics.autoscaling.behavior }}
+  behavior:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

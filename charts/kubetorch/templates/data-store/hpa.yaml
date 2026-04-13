@@ -1,0 +1,38 @@
+{{- range (.Values.kubetorchConfig.deployment_namespaces | default list | concat (list $.Release.Namespace) | uniq) }}
+{{- if $.Values.dataStore.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: kubetorch-data-store
+  namespace: {{ . }}
+  labels:
+    app: kubetorch-data-store
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kubetorch-data-store
+  minReplicas: {{ $.Values.dataStore.autoscaling.minReplicas }}
+  maxReplicas: {{ $.Values.dataStore.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $.Values.dataStore.autoscaling.targetCPUUtilizationPercentage }}
+    {{- if $.Values.dataStore.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $.Values.dataStore.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+  {{- with $.Values.dataStore.autoscaling.behavior }}
+  behavior:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}
