@@ -37,7 +37,7 @@ spec:
       priorityClassName: {{ . }}
       {{- end }}
 
-      {{- if or $.Values.kubetorchConfig.affinity $.Values.dataStore.affinity }}
+      {{- if or $.Values.kubetorchConfig.affinity $.Values.dataStore.affinity $.Values.dataStore.podAntiAffinity.enabled }}
       affinity:
         {{- with $.Values.kubetorchConfig.affinity }}
         {{- toYaml . | nindent 8 }}
@@ -45,6 +45,7 @@ spec:
         {{- with $.Values.dataStore.affinity }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- include "kubetorch.podAntiAffinity" (dict "component" "kubetorch-data-store" "config" $.Values.dataStore.podAntiAffinity) | nindent 8 }}
       {{- end }}
 
       {{- if or $.Values.kubetorchConfig.nodeSelector $.Values.dataStore.nodeSelector }}

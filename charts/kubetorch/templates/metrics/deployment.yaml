@@ -32,19 +32,35 @@ spec:
       priorityClassName: {{ . }}
       {{- end }}
 
-      {{- with .Values.kubetorchConfig.affinity }}
+      {{- if or .Values.kubetorchConfig.affinity .Values.metrics.affinity .Values.metrics.podAntiAffinity.enabled }}
       affinity:
+        {{- with .Values.kubetorchConfig.affinity }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.metrics.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- include "kubetorch.podAntiAffinity" (dict "component" "kubetorch-metrics" "config" .Values.metrics.podAntiAffinity) | nindent 8 }}
       {{- end }}
 
-      {{- with .Values.kubetorchConfig.nodeSelector }}
+      {{- if or .Values.kubetorchConfig.nodeSelector .Values.metrics.nodeSelector }}
       nodeSelector:
+        {{- with .Values.kubetorchConfig.nodeSelector }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.metrics.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
 
-      {{- with .Values.kubetorchConfig.tolerations }}
+      {{- if or .Values.kubetorchConfig.tolerations .Values.metrics.tolerations }}
       tolerations:
+        {{- with .Values.kubetorchConfig.tolerations }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.metrics.tolerations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
 
       containers:

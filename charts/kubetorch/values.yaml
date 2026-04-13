@@ -49,6 +49,16 @@ kubetorchController:
   nodeSelector: {}
   affinity: {}
 
+  # Pod anti-affinity distributes replicas across nodes for resilience.
+  # Use type "preferred" for development (best-effort spread) or "required" for production
+  # (strict enforcement — pods won't schedule if no valid node exists).
+  # Enable zoneSpread to also distribute across availability zones.
+  podAntiAffinity:
+    enabled: false
+    type: preferred   # "preferred" or "required"
+    topologyKey: kubernetes.io/hostname
+    zoneSpread: false # also spread across availability zones
+
   # PodDisruptionBudget - prevents cluster autoscaler from evicting the controller
   pdb:
     enabled: true
@@ -128,6 +138,11 @@ dataStore:
   tolerations: []
   nodeSelector: {}
   affinity: {}
+  podAntiAffinity:
+    enabled: false
+    type: preferred
+    topologyKey: kubernetes.io/hostname
+    zoneSpread: false
 
 logStreaming:
   enabled: true # set to `false` to disable live log streaming
@@ -141,6 +156,14 @@ logStreaming:
 metrics:
   enabled: true # set to `false` to disable live metrics streaming
   scrapeKubelet: true
+  tolerations: []
+  nodeSelector: {}
+  affinity: {}
+  podAntiAffinity:
+    enabled: false
+    type: preferred
+    topologyKey: kubernetes.io/hostname
+    zoneSpread: false
   prometheus:
     image: prom/prometheus:v3.7.2
     port: 9090
