@@ -173,3 +173,34 @@ def test_service_name_prefix_username_invalidates_cache():
         assert f.service_name == "summer"  # cache invalidated, re-resolved to bare name
     finally:
         config.set("username", org)
+
+
+@pytest.mark.level("unit")
+def test_fn_prefix_username_param_false():
+    """fn(prefix_username=False) yields a bare service name."""
+    import kubetorch as kt
+
+    org = config.username
+    try:
+        config.set("username", "test-user")
+        f = kt.fn(summer, name="summer", prefix_username=False)
+        assert f.service_name == "summer"
+    finally:
+        config.set("username", org)
+
+
+@pytest.mark.level("unit")
+def test_fn_prefix_username_param_overrides_config():
+    """Per-call prefix_username=True overrides global config False."""
+    import kubetorch as kt
+
+    org_user = config.username
+    org_prefix = config._prefix_username
+    try:
+        config.set("username", "test-user")
+        config.set("prefix_username", False)
+        f = kt.fn(summer, name="summer", prefix_username=True)
+        assert f.service_name == "test-user-summer"
+    finally:
+        config.set("username", org_user)
+        config._prefix_username = org_prefix

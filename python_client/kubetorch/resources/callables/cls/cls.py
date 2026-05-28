@@ -149,6 +149,7 @@ def cls(
     name: str = None,
     get_if_exists=True,
     reload_prefixes=None,
+    prefix_username: bool = None,
     sync_dir: Union[str, Path, bool] = None,
     remote_dir: Union[str, Path] = None,
     remote_import_path: str = None,
@@ -173,6 +174,9 @@ def cls(
         reload_prefixes (Union[str, List[str]], optional):
             A list of prefixes to use when reloading the class (e.g., ["qa", "prod", "git-branch-name"]).
             If not provided, will use the current username, git branch, and prod.
+        prefix_username (bool, optional): Whether to prepend the configured username to the
+            service name. If None (default), uses the global ``kt.config.prefix_username``
+            (default True). Set to False to deploy under the bare ``name`` with no prefix.
         sync_dir (str, Path, or bool, optional): Controls which directory to sync to compute.
             If None (default), auto-detect and sync package directory.
             If False, skip syncing files (assumes files are already on compute).
@@ -203,6 +207,7 @@ def cls(
         )
         new_cls.get_if_exists = get_if_exists
         new_cls.reload_prefixes = reload_prefixes or []
+        new_cls.prefix_username = prefix_username
         return new_cls
 
     if name is None:

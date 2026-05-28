@@ -28,7 +28,12 @@ class PartialModule:
 # @kubetorch.compute decorator that the user can use to wrap a function they want to deploy to a cluster,
 # and then deploy it with `kt deploy my_app.py` (we collect all the decorated functions imported in the file
 # to deploy them).
-def compute(get_if_exists: bool = False, reload_prefixes: Union[str, List[str]] = [], **kwargs):
+def compute(
+    get_if_exists: bool = False,
+    reload_prefixes: Union[str, List[str]] = [],
+    prefix_username: bool = None,
+    **kwargs,
+):
     def decorator(func_or_cls):
         from kubetorch.globals import disable_decorators
 
@@ -61,6 +66,7 @@ def compute(get_if_exists: bool = False, reload_prefixes: Union[str, List[str]] 
                 name=module_name,
                 get_if_exists=get_if_exists,
                 reload_prefixes=reload_prefixes,
+                prefix_username=prefix_username,
             )
         else:
             new_module = fn(
@@ -68,6 +74,7 @@ def compute(get_if_exists: bool = False, reload_prefixes: Union[str, List[str]] 
                 name=module_name,
                 get_if_exists=get_if_exists,
                 reload_prefixes=reload_prefixes,
+                prefix_username=prefix_username,
             )
 
         if async_:

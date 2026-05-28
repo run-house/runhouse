@@ -515,6 +515,7 @@ class Module:
         stream_logs: Union[bool, None] = None,
         get_if_exists: bool = False,
         reload_prefixes: Union[str, List[str]] = [],
+        prefix_username: bool = None,
         dryrun: bool = False,
     ) -> ModuleT:
         """
@@ -534,6 +535,8 @@ class Module:
             reload_prefixes (Union[str, List[str]], optional): A list of prefixes to use when reloading the function
                 (e.g., ["qa", "prod", "git-branch-name"]). If not provided, will use the current username,
                 git branch, and prod.
+            prefix_username (bool, optional): Whether to prepend the configured username to the
+                service name. If None (default), uses the per-module / global config setting.
             dryrun (bool, optional): Whether to setup and return the object as a dryrun (``True``),
                 or to actually launch the compute and service (``False``).
         Returns:
@@ -551,6 +554,8 @@ class Module:
                 stream_logs=True
             )
         """
+        if prefix_username is not None:
+            self.prefix_username = prefix_username
         if not has_k8s_credentials():
             raise KubernetesCredentialsError(
                 "Kubernetes credentials not found. Please ensure you are running in a Kubernetes cluster or have a valid kubeconfig file."
@@ -603,6 +608,7 @@ class Module:
         stream_logs: Union[bool, None] = None,
         get_if_exists: bool = False,
         reload_prefixes: Union[str, List[str]] = [],
+        prefix_username: bool = None,
         dryrun: bool = False,
     ) -> ModuleT:
         """
@@ -622,6 +628,8 @@ class Module:
             reload_prefixes (Union[str, List[str]], optional): A list of prefixes to use when reloading the function
                 (e.g., ["qa", "prod", "git-branch-name"]). If not provided, will use the current username,
                 git branch, and prod.
+            prefix_username (bool, optional): Whether to prepend the configured username to the
+                service name. If None (default), uses the per-module / global config setting.
             dryrun (bool, optional): Whether to setup and return the object as a dryrun (``True``),
                 or to actually launch the compute and service (``False``).
         Returns:
@@ -639,6 +647,8 @@ class Module:
                 stream_logs=True
             )
         """
+        if prefix_username is not None:
+            self.prefix_username = prefix_username
         if compute.service_name and compute.service_name != self.service_name:
             logger.info(f"Renaming service to match compute service name {compute.service_name}")
             self.service_name = compute.service_name
