@@ -183,7 +183,7 @@ def find_locally_installed_version(package_name: str) -> Optional[str]:
         return None
 
 
-def get_names_for_reload_fallbacks(name: str, prefixes: list[str] = []):
+def get_names_for_reload_fallbacks(name: str, prefixes: list[str] = [], prefix_username: bool = True):
     from kubetorch.globals import config
     from kubetorch.serving.utils import clean_and_validate_k8s_name
     from kubetorch.utils import current_git_branch, validate_username
@@ -192,6 +192,10 @@ def get_names_for_reload_fallbacks(name: str, prefixes: list[str] = []):
 
     if prefixes:
         fallback_prefixes = prefixes
+    elif not prefix_username:
+        # Username prefixing disabled: only look for the exact (bare) name.
+        # Callers pass an already-cleaned service name, so no re-validation is needed here.
+        return [name]
     else:
         # try reloading based on current username or current git branch (in that order)
         branch = current_git_branch()

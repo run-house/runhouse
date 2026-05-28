@@ -216,7 +216,7 @@ def cls(
     if get_if_exists is False:
         raise ValueError("Either provide a class object or a name with get_if_exists=True to reload an existing class")
 
-    reloaded_cls = Cls.from_name(name, reload_prefixes=reload_prefixes)
+    reloaded_cls = Cls.from_name(name, reload_prefixes=reload_prefixes, prefix_username=prefix_username)
     return reloaded_cls
 
 

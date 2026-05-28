@@ -365,6 +365,7 @@ class Module:
         name: str,
         namespace: str = None,
         reload_prefixes: Union[str, List[str]] = [],
+        prefix_username: bool = None,
     ):
         """Reload an existing callable by its service name."""
         import kubetorch as kt
@@ -374,7 +375,11 @@ class Module:
         namespace = namespace or config.namespace
         if isinstance(reload_prefixes, str):
             reload_prefixes = [reload_prefixes]
-        potential_names = get_names_for_reload_fallbacks(name=name, prefixes=reload_prefixes)
+        if prefix_username is None:
+            prefix_username = config.prefix_username
+        potential_names = get_names_for_reload_fallbacks(
+            name=name, prefixes=reload_prefixes, prefix_username=prefix_username
+        )
 
         all_services = ServiceManager.discover_services(namespace=namespace)
 
@@ -465,6 +470,7 @@ class Module:
                 name=self.service_name,
                 namespace=namespace,
                 reload_prefixes=reload_prefixes,
+                prefix_username=self._prefix_username,
             )
 
             # Update settable attributes with reloaded module values
@@ -692,6 +698,7 @@ class Module:
                 self.service_name,
                 namespace=self.namespace,
                 reload_prefixes=reload_prefixes,
+                prefix_username=self._prefix_username,
             )
             if existing_service:
                 if self.compute:
@@ -714,6 +721,7 @@ class Module:
                 self.service_name,
                 namespace=self.namespace,
                 reload_prefixes=reload_prefixes,
+                prefix_username=self._prefix_username,
             )
             if existing_service:
                 if self.compute:

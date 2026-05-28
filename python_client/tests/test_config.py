@@ -204,3 +204,46 @@ def test_fn_prefix_username_param_overrides_config():
     finally:
         config.set("username", org_user)
         config._prefix_username = org_prefix
+
+
+@pytest.mark.level("unit")
+def test_reload_fallbacks_prefix_username_false_exact_only():
+    """With prefix_username=False and no explicit prefixes, only the bare name is a candidate."""
+    from kubetorch.resources.callables.utils import get_names_for_reload_fallbacks
+
+    org = config.username
+    try:
+        config.set("username", "test-user")
+        assert get_names_for_reload_fallbacks("summer", prefix_username=False) == ["summer"]
+    finally:
+        config.set("username", org)
+
+
+@pytest.mark.level("unit")
+def test_reload_fallbacks_prefix_username_true_includes_prefixed():
+    """With prefix_username=True (default), the username-prefixed and bare names are candidates."""
+    from kubetorch.resources.callables.utils import get_names_for_reload_fallbacks
+
+    org = config.username
+    try:
+        config.set("username", "test-user")
+        names = get_names_for_reload_fallbacks("summer", prefix_username=True)
+        assert "test-user-summer" in names
+        assert "summer" in names
+    finally:
+        config.set("username", org)
+
+
+@pytest.mark.level("unit")
+def test_reload_fallbacks_explicit_prefixes_win_over_prefix_username_false():
+    """Explicit reload prefixes take precedence even when prefix_username=False."""
+    from kubetorch.resources.callables.utils import get_names_for_reload_fallbacks
+
+    org = config.username
+    try:
+        config.set("username", "test-user")
+        names = get_names_for_reload_fallbacks("summer", prefixes=["prod"], prefix_username=False)
+        assert "prod-summer" in names
+        assert "summer" not in names
+    finally:
+        config.set("username", org)

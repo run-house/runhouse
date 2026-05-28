@@ -196,7 +196,7 @@ def fn(
             "Either provide a function object or a name with get_if_exists=True to reload an existing function"
         )
 
-    reloaded_fn = Fn.from_name(name, reload_prefixes=reload_prefixes)
+    reloaded_fn = Fn.from_name(name, reload_prefixes=reload_prefixes, prefix_username=prefix_username)
     return reloaded_fn
 
 
