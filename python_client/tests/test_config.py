@@ -70,3 +70,58 @@ def test_config_username_set_on_module():
         config.set("username", org_username)
 
     assert config.username == org_username
+
+
+@pytest.mark.level("unit")
+def test_config_prefix_username_default_true():
+    """prefix_username defaults to True when unset."""
+    org = config._prefix_username
+    try:
+        os.environ.pop("KT_PREFIX_USERNAME", None)
+        config._prefix_username = None
+        assert config.prefix_username is True
+    finally:
+        config._prefix_username = org
+
+
+@pytest.mark.level("unit")
+def test_config_prefix_username_from_env_var():
+    """prefix_username reads the KT_PREFIX_USERNAME env var."""
+    org = config._prefix_username
+    try:
+        os.environ["KT_PREFIX_USERNAME"] = "false"
+        config._prefix_username = None
+        assert config.prefix_username is False
+    finally:
+        os.environ.pop("KT_PREFIX_USERNAME", None)
+        config._prefix_username = org
+
+
+@pytest.mark.level("unit")
+def test_config_set_prefix_username():
+    """prefix_username can be set and validated via config.set."""
+    org = config._prefix_username
+    try:
+        config.set("prefix_username", False)
+        assert config.prefix_username is False
+        config.set("prefix_username", "true")
+        assert config.prefix_username is True
+        with pytest.raises(ValueError):
+            config.set("prefix_username", "maybe")
+    finally:
+        config._prefix_username = org
+
+
+@pytest.mark.level("unit")
+def test_config_set_prefix_username_none_unsets():
+    """Setting prefix_username to None unsets it; the property re-resolves to the default."""
+    org = config._prefix_username
+    try:
+        os.environ.pop("KT_PREFIX_USERNAME", None)
+        config.set("prefix_username", False)
+        assert config.prefix_username is False
+        config.set("prefix_username", None)
+        assert config._prefix_username is None
+        assert config.prefix_username is True
+    finally:
+        config._prefix_username = org

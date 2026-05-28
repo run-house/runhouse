@@ -17,6 +17,7 @@ ENV_MAPPINGS = {
     "install_url": "KT_INSTALL_URL",
     "stream_logs": "KT_STREAM_LOGS",
     "stream_metrics": "KT_STREAM_METRICS",
+    "prefix_username": "KT_PREFIX_USERNAME",
     "volumes": "KT_VOLUMES",
     "api_url": "KT_API_URL",
     "cluster_config": "KT_CLUSTER_CONFIG",
@@ -34,6 +35,7 @@ class KubetorchConfig:
         self._install_namespace = None
         self._install_url = None
         self._namespace = None
+        self._prefix_username = None
         self._stream_logs = None
         self._stream_metrics = None
         self._username = None
@@ -93,6 +95,35 @@ class KubetorchConfig:
         if validated != value:
             logger.info(f"Username was validated and changed to {validated} to be Kubernetes-compatible.")
         self._username = validated
+
+    @property
+    def prefix_username(self):
+        """Whether to prepend the username to deployed service names.
+
+        When enabled (default), a service named ``train-cnn-r4`` launched by user ``shaped``
+        is deployed as ``shaped-train-cnn-r4``. When disabled, the service keeps its bare name.
+        Can be overridden per-call via the ``prefix_username`` argument on ``fn``/``cls``/``to``.
+        Default is ``True``.
+        """
+        if self._prefix_username is None:
+            if self._get_env_var("prefix_username"):
+                self._prefix_username = self._get_env_var("prefix_username").lower() == "true"
+            else:
+                self._prefix_username = self.file_cache.get("prefix_username", True)  # Default to True
+        return self._prefix_username
+
+    @prefix_username.setter
+    def prefix_username(self, value):
+        """Set username prefixing for current process."""
+        bool_value = value
+        if not isinstance(value, bool):
+            if value is None:
+                pass  # unsetting prefix_username, None is a valid value
+            elif isinstance(value, str) and value.lower() in ["true", "false"]:
+                bool_value = value.lower() == "true"
+            else:
+                raise ValueError("prefix_username must be a boolean value")
+        self._prefix_username = bool_value
 
     @property
     def volumes(self):
@@ -366,9 +397,10 @@ class KubetorchConfig:
         Note: Some config values are excluded from pod templates because they are
         client-side only and would cause pod recreation if they change:
         - cluster_config: Changes based on port-forward state, not needed by server
+        - prefix_username: Client-side naming control only, excluded to avoid pod recreation
         """
         # Config keys that should NOT be in pod templates (client-side only)
-        excluded_keys = {"cluster_config"}
+        excluded_keys = {"cluster_config", "prefix_username"}
 
         env_vars = {}
         for key, value in dict(self).items():
