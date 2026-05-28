@@ -75,6 +75,7 @@ class Module:
         self._http_client = None
         self._get_if_exists = True
         self._reload_prefixes = None
+        self._prefix_username = None
         self._serialization = "json"  # Default serialization format
         self._async = False
         self._remote_root_path = None
@@ -130,6 +131,22 @@ class Module:
             raise ValueError("`reload_prefixes` must be a string or a list.")
 
     @property
+    def prefix_username(self):
+        """Whether to prepend the configured username to this module's service name.
+
+        If ``None`` (default), defers to the global ``config.prefix_username`` (which defaults
+        to ``True``). Set to ``False`` to deploy under the bare name with no username prefix.
+        """
+        return self._prefix_username
+
+    @prefix_username.setter
+    def prefix_username(self, value: Union[bool, None]):
+        if value is not None and not isinstance(value, bool):
+            raise ValueError("`prefix_username` must be a boolean or None.")
+        self._prefix_username = value
+        self._service_name = None  # invalidate cache so the next access re-resolves
+
+    @property
     def namespace(self):
         """Namespace where the service is deployed."""
         if self.compute is not None:
@@ -144,7 +161,15 @@ class Module:
 
         service_name = self.name
 
-        if config.username and not self.reload_prefixes and not service_name.startswith(config.username + "-"):
+        prefix_username = (
+            self._prefix_username if self._prefix_username is not None else config.prefix_username
+        )
+        if (
+            config.username
+            and prefix_username
+            and not self.reload_prefixes
+            and not service_name.startswith(config.username + "-")
+        ):
             service_name = f"{config.username}-{service_name}"
 
         self._service_name = clean_and_validate_k8s_name(service_name, allow_full_length=True)
