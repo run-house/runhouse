@@ -161,9 +161,7 @@ class Module:
 
         service_name = self.name
 
-        prefix_username = (
-            self._prefix_username if self._prefix_username is not None else config.prefix_username
-        )
+        prefix_username = self._prefix_username if self._prefix_username is not None else config.prefix_username
         if (
             config.username
             and prefix_username
