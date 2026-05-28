@@ -247,3 +247,80 @@ def test_reload_fallbacks_explicit_prefixes_win_over_prefix_username_false():
         assert "summer" not in names
     finally:
         config.set("username", org)
+
+
+@pytest.mark.level("unit")
+def test_get_deployment_mode_exact_match_not_reprefixed(monkeypatch):
+    """A service found by its exact (bare) name is returned as-is, not re-prefixed."""
+    from kubetorch import cli_utils
+
+    org = config.username
+    try:
+        config.set("username", "test-user")
+        monkeypatch.setattr(
+            cli_utils,
+            "detect_deployment_mode",
+            lambda name, namespace: "Deployment" if name == "train-cnn-r4" else None,
+        )
+        name, mode = cli_utils.get_deployment_mode("train-cnn-r4", "ns")
+        assert name == "train-cnn-r4"
+        assert mode == "Deployment"
+    finally:
+        config.set("username", org)
+
+
+@pytest.mark.level("unit")
+def test_get_deployment_mode_prefixed_fallback(monkeypatch):
+    """When the bare name is not found, the username-prefixed name is used."""
+    from kubetorch import cli_utils
+
+    org = config.username
+    try:
+        config.set("username", "test-user")
+        monkeypatch.setattr(
+            cli_utils,
+            "detect_deployment_mode",
+            lambda name, namespace: "Deployment" if name == "test-user-summer" else None,
+        )
+        name, mode = cli_utils.get_deployment_mode("summer", "ns")
+        assert name == "test-user-summer"
+        assert mode == "Deployment"
+    finally:
+        config.set("username", org)
+
+
+@pytest.mark.level("unit")
+def test_get_deployment_mode_not_found_raises_exit(monkeypatch):
+    """Neither the bare name nor the prefixed name found -> typer.Exit."""
+    import typer
+
+    from kubetorch import cli_utils
+
+    org = config.username
+    try:
+        config.set("username", "test-user")
+        monkeypatch.setattr(cli_utils, "detect_deployment_mode", lambda name, namespace: None)
+        with pytest.raises(typer.Exit):
+            cli_utils.get_deployment_mode("nonexistent", "ns")
+    finally:
+        config.set("username", org)
+
+
+@pytest.mark.level("unit")
+def test_get_deployment_mode_already_prefixed_name(monkeypatch):
+    """A name already starting with the username prefix is returned as-is, not double-prefixed."""
+    from kubetorch import cli_utils
+
+    org = config.username
+    try:
+        config.set("username", "test-user")
+        monkeypatch.setattr(
+            cli_utils,
+            "detect_deployment_mode",
+            lambda name, namespace: "Deployment" if name == "test-user-summer" else None,
+        )
+        name, mode = cli_utils.get_deployment_mode("test-user-summer", "ns")
+        assert name == "test-user-summer"
+        assert mode == "Deployment"
+    finally:
+        config.set("username", org)
