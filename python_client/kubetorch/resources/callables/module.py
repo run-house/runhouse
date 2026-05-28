@@ -442,6 +442,7 @@ class Module:
                 raise ValueError(f"Unknown module type: {callable_type}")
 
             reloaded_module.service_name = candidate
+            reloaded_module._prefix_username = prefix_username
             reloaded_module.compute = compute
             return reloaded_module
 

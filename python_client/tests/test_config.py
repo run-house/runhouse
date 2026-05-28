@@ -324,3 +324,14 @@ def test_get_deployment_mode_already_prefixed_name(monkeypatch):
         assert mode == "Deployment"
     finally:
         config.set("username", org)
+
+
+@pytest.mark.level("unit")
+def test_prefix_username_excluded_from_pod_env_vars():
+    """prefix_username is client-side only and must not be injected into pod templates."""
+    org = config._prefix_username
+    try:
+        config.set("prefix_username", False)
+        assert "KT_PREFIX_USERNAME" not in config._get_config_env_vars()
+    finally:
+        config._prefix_username = org
